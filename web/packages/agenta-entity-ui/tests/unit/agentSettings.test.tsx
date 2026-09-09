@@ -253,7 +253,8 @@ describe("shared agent settings", () => {
         await mount({...committed, sandbox: {kind: "local"}})
         await act(async () => store.set(openAgentConfigSectionAtom, "advanced"))
         const drawer = document.querySelector('[role="dialog"][aria-label="Advanced"]')!
-        await click(drawer.querySelector('[role="button"]'))
+        // Name the field: the panel header carries a group-revert popover trigger too.
+        await click(button("Sandbox", drawer))
         await click(button("Remove change"))
         await act(async () =>
             update({...committed, sandbox: {kind: "local", permissions: {network: "off"}}}),
@@ -295,7 +296,7 @@ describe("shared agent settings", () => {
             if (section === "model-harness")
                 await click(button("Pick model", document.querySelector('[role="dialog"]')!))
             else {
-                await click(button("Execution environment"))
+                await click(button("Execution"))
                 await choose(document.querySelector('[role="dialog"] [role="combobox"]'), "Daytona")
             }
             const staleSave = fixture.saveSection!
@@ -317,7 +318,7 @@ describe("shared agent settings", () => {
             const permissions = host.querySelector('section[aria-label="Permissions"]')!
             expect(permissions.querySelector('[aria-label="Policy"]')).not.toBeNull()
             await click(button("Advanced"))
-            await click(button("Execution environment"))
+            await click(button("Execution"))
             const drawer = document.querySelector('[role="dialog"]')!
             expect(drawer.querySelector('[aria-label="Policy"]')).toBeNull()
             expect(drawer.textContent).not.toMatch(
@@ -351,12 +352,12 @@ describe("shared agent settings", () => {
         const overlay = structuredClone(fixture.overlay)
         await mount()
         await click(button("Advanced"))
-        await click(button("Playground build kit"))
+        await click(button("Build kit"))
         expect(
             document.querySelector('[aria-label="Enable the playground build kit"]'),
         ).not.toBeNull()
         expect(document.querySelector('[aria-label="Save changes"]')).not.toBeNull()
-        expect(button("Execution environment")).toBeUndefined()
+        expect(button("Execution")).toBeUndefined()
         expect(document.body.textContent).not.toMatch(/Sandbox permissions|Build kit overrides/)
         expect(fixture.overlay).toEqual(overlay)
         expect(writes).not.toHaveBeenCalled()
@@ -367,8 +368,9 @@ describe("shared agent settings", () => {
         fixture.revision = "saved-revision"
         await mount()
         await click(button("Advanced"))
-        expect(button("Execution environment")).toBeUndefined()
-        await click(button("Custom secrets"))
+        expect(button("Execution")).toBeUndefined()
+        // One panel needs no nav, so Custom secrets is simply what the drawer opens on.
+        expect(button("Custom secrets")).toBeUndefined()
         expect(document.querySelector('[data-testid="custom-secrets"]')).not.toBeNull()
         expect(document.querySelector('[role="dialog"] [aria-label="Policy"]')).toBeNull()
         expect(writes).not.toHaveBeenCalled()
@@ -381,8 +383,10 @@ describe("shared agent settings", () => {
         await click(button("Custom secrets"))
         const secrets = () => document.querySelector('[data-testid="custom-secrets"]')!
         expect(secrets().getAttribute("data-draft-dirty")).toBe("false")
-        await click(button("Execution environment"))
+        await click(button("Execution"))
         await choose(document.querySelector('[role="dialog"] [role="combobox"]'), "Daytona")
+        // The rail mounts one panel at a time, so go back to the panel being asserted on.
+        await click(button("Custom secrets"))
         expect(secrets().getAttribute("data-draft-dirty")).toBe("true")
         expect(writes).not.toHaveBeenCalled()
     })
@@ -403,7 +407,7 @@ describe("shared agent settings", () => {
         expect(
             (permissions.querySelector('[aria-label="Policy"]') as HTMLButtonElement).disabled,
         ).toBe(true)
-        await click(permissions.querySelector('[role="button"]'))
+        await click(permissions.querySelector('[aria-haspopup="dialog"]'))
         expect(button("Restore")).toBeUndefined()
         expect(writes).not.toHaveBeenCalled()
     })
@@ -451,13 +455,13 @@ describe("shared agent settings", () => {
     it("saves and cancels Advanced environment edits without changing stored restrictions", async () => {
         await mount()
         await click(button("Advanced"))
-        await click(button("Execution environment"))
+        await click(button("Execution"))
         await choose(document.querySelector('[role="dialog"] [role="combobox"]'), "Daytona")
         expect(live.sandbox).toEqual(saved().sandbox)
         await click(button("Cancel"))
         expect(live).toEqual(saved())
         await click(button("Advanced"))
-        await click(button("Execution environment"))
+        await click(button("Execution"))
         await choose(document.querySelector('[role="dialog"] [role="combobox"]'), "Daytona")
         const newer = {
             ...saved(),
@@ -482,7 +486,7 @@ describe("shared agent settings", () => {
         }
         await mount(dirty)
         const permissions = host.querySelector('section[aria-label="Permissions"]')!
-        await click(permissions.querySelector('[role="button"]'))
+        await click(permissions.querySelector('[aria-haspopup="dialog"]'))
         await click(button("Restore"))
         expect((live.runner as typeof dirty.runner).permissions.default).toBe("ask")
         expectRules(dirty)
@@ -503,7 +507,7 @@ describe("shared agent settings", () => {
         const advanced = host.querySelector('section[aria-label="Advanced"]')!
         expect(advanced.querySelector('[role="combobox"]')).not.toBeNull()
         expect(advanced.textContent).not.toMatch(/Network|Filesystem|Enforcement|Policy/)
-        await click(advanced.querySelector('[role="button"]'))
+        await click(advanced.querySelector('[aria-haspopup="dialog"]'))
         await click(button("Restore"))
         expect((live.sandbox as {kind: string}).kind).toBe("local")
         expectRules(dirty)

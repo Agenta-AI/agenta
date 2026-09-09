@@ -35,9 +35,12 @@ const {
     updateInput: vi.fn(),
 }))
 
-vi.mock("@agenta/entities/session", async () => {
+// Spread the original: the composer reaches for real exports of this module too (the file
+// palette reads the session's mounts), and a wholesale replacement hides them.
+vi.mock("@agenta/entities/session", async (importOriginal) => {
     const {atom} = await import("jotai")
     return {
+        ...(await importOriginal<object>()),
         fetchSessionCapabilitiesAtom: atom(null, (_get, _set, sessionId: string) =>
             fetchCapabilities(sessionId),
         ),

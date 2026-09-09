@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-/** /m has its own component map: a path opens the file, a web link still opens a tab (#6659). */
+/** The anchor /m renders with: a path opens the file, a web link still opens a tab (#6659).
+ * The map moved into the shared `ChatMarkdown`, which /m and /w both render through, so this
+ * drives it with the resolver `AssistantMarkdown` supplies. */
 import {createElement, type ReactNode} from "react"
 
 import {renderToStaticMarkup} from "react-dom/server"
@@ -18,12 +20,21 @@ vi.mock("@agenta/entity-ui/drive", async (original) => ({
     },
 }))
 
-const {markdownComponents} = await import("@/features/chat/AssistantMarkdown")
+const {ChatMarkdownLinkResolverContext, MD_COMPONENTS} = await import("@agenta/chat/markdown")
+const {chatFileResolver} = await import("@agenta/entity-ui/drive")
 
+// The href reaches the anchor raw here, before harden can rewrite it — which is the layer the
+// host check runs at. What the whole pipeline does with each shape is the oss link-gate test.
 const renderLink = (href: string): string => {
-    const Anchor = markdownComponents.a
+    const Anchor = MD_COMPONENTS.a
     if (!Anchor) throw new Error("no anchor renderer")
-    return renderToStaticMarkup(createElement(Anchor, {href, children: "report.md"} as never))
+    return renderToStaticMarkup(
+        createElement(
+            ChatMarkdownLinkResolverContext.Provider,
+            {value: () => chatFileResolver},
+            createElement(Anchor, {href, children: "report.md"} as never),
+        ),
+    )
 }
 
 describe("mobile assistant markdown links", () => {

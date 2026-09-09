@@ -20,6 +20,14 @@ export default defineConfig({
                 find: /^@\/agenta-oss-common\/(.*)$/,
                 replacement: path.resolve(__dirname, "./src/$1"),
             },
+            // The app and the `@agenta/*` packages resolve different Next versions, so each
+            // gets its own router context and a tree that spans both cannot satisfy the
+            // packages' `useRouter` — the app's `RouterContext.Provider` is invisible to it.
+            // One copy for the whole run, the same one the tests import the context from.
+            {
+                find: /^next\/router$/,
+                replacement: path.resolve(__dirname, "./node_modules/next/router.js"),
+            },
         ],
     },
     test: {
