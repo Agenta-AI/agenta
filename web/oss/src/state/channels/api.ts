@@ -3,7 +3,6 @@ import {getChannelsClient} from "@agenta/sdk/resources"
 import type {AgentaApi} from "@agentaai/api-client"
 import {getDefaultStore} from "jotai"
 
-import {fetchJson, getBaseUrl} from "@/oss/lib/api/assets/fetchClient"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {channelConnectionsResponseSchema, type ChannelConnectionsResponse} from "./schemas"
@@ -45,32 +44,19 @@ export const createChannelConnection = (connection: AgentaApi.ChannelConnectionC
 export const archiveChannelConnection = (connectionId: string) =>
     getChannelsClient().archiveChannelConnection({connection_id: connectionId}, scope())
 
-export const unarchiveChannelConnection = (connectionId: string) =>
-    getChannelsClient().unarchiveChannelConnection({connection_id: connectionId}, scope())
-
-// --- hosted Telegram bind link ----------------------------------------- //
-
-export interface TelegramHostedBindLink {
-    url: string
-    expires_in_seconds: number
-}
+// --- hosted Telegram: bind link + bindings ------------------------------ //
 
 /**
  * Mint the one-time deep link (and its QR source URL) that connects a chat to
- * the chosen agent through the shared Agenta Telegram bot. This endpoint is not
- * in the generated api-client yet, so it is called directly with the app's
- * authed fetch helper; fold it into the generated client on the next codegen.
+ * the chosen agent through the shared Agenta Telegram bot. Also ensures the
+ * project's hosted connection and points it at the referenced agent.
  */
-export const createTelegramHostedBindLink = async (
-    references: Record<string, unknown>,
-): Promise<TelegramHostedBindLink> => {
-    const projectId = getDefaultStore().get(projectIdAtom)
-    const url = new URL(
-        `${getBaseUrl()}/channels/catalog/channels/telegram_hosted/bind-link/`,
-    )
-    if (projectId) url.searchParams.set("project_id", projectId)
-    return fetchJson(url, {method: "POST", body: JSON.stringify({references})})
-}
+export const createTelegramHostedBindLink = (references: Record<string, unknown>) =>
+    getChannelsClient().createTelegramHostedBindLink({references}, scope())
+
+/** The chats a /start has bound to a hosted connection; empty until the first bind. */
+export const listTelegramHostedBindings = (connectionId: string) =>
+    getChannelsClient().listTelegramHostedBindings({connection_id: connectionId}, scope())
 
 // --- agents -------------------------------------------------------------- //
 

@@ -3,12 +3,24 @@ export {ChannelConnectFlow, type ChannelConnectFlowProps} from "./ChannelConnect
 export {ChannelManagePanel, type ChannelManagePanelProps} from "./ChannelManagePanel"
 export {
     EMPTY_CONNECTIONS,
-    hasAnyIssue,
-    summarizeConnection,
-    platformLabel,
+    NOOP_ACTIONS,
+    answeringAgentName,
     botHandle,
+    connectionScope,
+    errorMessage,
+    hasAnyIssue,
+    platformLabel,
+    summarizeConnection,
     type ChannelRowSummary,
 } from "./helpers"
+export {
+    buildAgentChannelsActions,
+    channelKey,
+    mapConnectionRow,
+    type AgentChannelsActionsOptions,
+    type ChannelsClientLike,
+} from "./actions"
+export {QrCode, encodeQr} from "./qr"
 export type {
     ChannelPlatform,
     ChannelInstallMode,
@@ -18,4 +30,10 @@ export type {
     ChannelChat,
     ChannelConnection,
     ChannelConnections,
+    ChannelAnsweringAgent,
+    ChannelScope,
+    ChannelSetupField,
+    ChannelSetupInfo,
+    ChannelsActions,
+    HostedTelegramLink,
 } from "./types"

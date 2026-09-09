@@ -71,7 +71,7 @@ const AgentOverview = ({appId, agentName}: Props) => {
     return (
         <AgentOverviewBody
             agentId={appId}
-            channels={<AgentChannelsCard appId={appId} />}
+            channels={<AgentChannelsCard appId={appId} agentName={agentName ?? undefined} />}
             sessionsHref={sessionsHref ?? ""}
             automationSessionsHref={automationSessionsHref}
             onEditConfig={openConfig}

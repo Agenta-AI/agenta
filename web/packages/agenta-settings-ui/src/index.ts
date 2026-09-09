@@ -92,15 +92,39 @@ export {default as IntegrationDetail} from "./tools/IntegrationDetail"
 // public API is unchanged for existing importers.
 export {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/gatewayTool"
 
-// Channels connect screen (agent page). First-pass design; wired to the real
-// backend by the host (web/oss) via the action props and renderPanel.
+// Channels connect screen (agent page). The shared UI plus the actions builder the
+// hosts (web/oss, /m) wire to the generated channels client.
 export {
     ChannelsPage,
+    ChannelConnectFlow,
+    ChannelManagePanel,
+    EMPTY_CONNECTIONS,
+    NOOP_ACTIONS,
+    buildAgentChannelsActions,
+    channelKey,
+    connectionScope,
+    mapConnectionRow,
+    summarizeConnection,
+    QrCode,
+    encodeQr,
+    type AgentChannelsActionsOptions,
+    type ChannelsClientLike,
     type ChannelsPageProps,
     type ChannelsPanelRenderProps,
+    type ChannelConnectFlowProps,
+    type ChannelManagePanelProps,
+    type ChannelRowSummary,
 } from "./channels"
 export type {
-    ChannelConnection as DesignChannelConnection,
-    ChannelConnections as DesignChannelConnections,
-    ChannelPlatform as DesignChannelPlatform,
+    ChannelConnection,
+    ChannelConnections,
+    ChannelPlatform,
+    ChannelInstallMode,
+    ChannelStatus,
+    ChannelAnsweringAgent,
+    ChannelScope,
+    ChannelSetupField,
+    ChannelSetupInfo,
+    ChannelsActions,
+    HostedTelegramLink,
 } from "./channels"

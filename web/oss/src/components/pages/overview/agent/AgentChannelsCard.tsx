@@ -1,69 +1,68 @@
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {getChannelsClient} from "@agenta/sdk/resources"
 import {
     ChannelsPage,
+    EMPTY_CONNECTIONS,
+    buildAgentChannelsActions,
+    type ChannelConnections,
     type ChannelsPanelRenderProps,
-    type DesignChannelConnections,
 } from "@agenta/settings-ui"
 import {Drawer} from "antd"
+import {getDefaultStore, useAtomValue} from "jotai"
 
-import {
-    archiveChannelConnection,
-    createTelegramHostedBindLink,
-    queryChannelConnections,
-} from "@/oss/state/channels/api"
+import {buildSlackInstallUrl} from "@/oss/components/pages/settings/Channels/components/SlackHostedAppSection"
+import {appsAtom} from "@/oss/state/app"
+import {projectIdAtom} from "@/oss/state/project"
 
 /**
- * The agent page's Channels section: the designed connect screen, wired to the real
- * backend connection list. The connect and disconnect ACTIONS are wired next; this
- * first pass shows the real connected state for Slack and Telegram on the agent page.
+ * The agent page's Channels section on desktop: the shared designed screen, wired to the
+ * real channels API through `buildAgentChannelsActions`, in an antd Drawer.
  */
-const EMPTY: DesignChannelConnections = {slack: null, telegram: null}
+const AgentChannelsCard = ({appId, agentName}: {appId: string; agentName?: string}) => {
+    const apps = useAtomValue(appsAtom)
+    const [connections, setConnections] = useState<ChannelConnections>(EMPTY_CONNECTIONS)
+    const [loading, setLoading] = useState(true)
 
-/** Map the backend connection rows to the design's one-per-platform shape. */
-function mapConnections(rows: any[]): DesignChannelConnections {
-    const out: DesignChannelConnections = {slack: null, telegram: null}
-    for (const row of rows ?? []) {
-        if (row?.deleted_at) continue // archived rows are not connections
-        const channel: string = row?.channel ?? ""
-        const flags = row?.flags ?? {}
-        const platform = channel.startsWith("telegram")
-            ? "telegram"
-            : channel.startsWith("slack")
-              ? "slack"
-              : null
-        if (!platform) continue
-        // one connection per platform in the design; first active wins
-        if (out[platform] && out[platform]?.status === "connected") continue
-        out[platform] = {
-            connectionId: row?.id,
-            platform,
-            kind: flags?.is_hosted ? "hosted" : "custom",
-            status: flags?.is_active === false ? "revoked" : "connected",
-            dm: "allow",
-            group: "allow",
-            chats: [],
+    const resolveAgentName = useCallback(
+        (id: string) => apps.find((app) => app.id === id)?.name ?? null,
+        [apps],
+    )
+
+    const actions = useMemo(() => {
+        const built = buildAgentChannelsActions({
+            client: getChannelsClient(),
+            projectId: () => getDefaultStore().get(projectIdAtom),
+            appId,
+            resolveAgentName,
+            hostedSlackInstallUrl: buildSlackInstallUrl,
+        })
+        // Every reload lands in this card's state, so the rows and the open panel agree.
+        return {
+            ...built,
+            reload: async () => {
+                const next = await built.reload()
+                setConnections(next)
+                return next
+            },
         }
-    }
-    return out
-}
-
-const AgentChannelsCard = ({appId}: {appId: string}) => {
-    const [connections, setConnections] = useState<DesignChannelConnections>(EMPTY)
-
-    // Load the real connections and map them to the design shape. Reused after a
-    // connect or disconnect so the card reflects the actual backend state (and the
-    // real connection id) instead of a fabricated one.
-    const load = useCallback(async () => {
-        const res = await queryChannelConnections()
-        setConnections(mapConnections((res as any)?.connections ?? []))
-    }, [])
+    }, [appId, resolveAgentName])
 
     useEffect(() => {
-        void load().catch(() => {
-            /* leave the last known state on a failed refresh */
-        })
-    }, [appId, load])
+        let alive = true
+        setLoading(true)
+        actions
+            .reload()
+            .catch(() => {
+                /* the rows show the last known state; a failed first load reads as empty */
+            })
+            .finally(() => {
+                if (alive) setLoading(false)
+            })
+        return () => {
+            alive = false
+        }
+    }, [actions])
 
     const renderPanel = useCallback(
         ({open, title, subtitle, onClose, children}: ChannelsPanelRenderProps) => (
@@ -89,28 +88,14 @@ const AgentChannelsCard = ({appId}: {appId: string}) => {
         [],
     )
 
-    const onConnectHostedTelegram = useCallback(async () => {
-        const link = await createTelegramHostedBindLink({application: {id: appId}})
-        // The mint ensured the project's hosted connection and pointed it at this
-        // agent; reload so the card shows the real connection (with its id).
-        await load().catch(() => {})
-        return link
-    }, [appId, load])
-
-    const onDisconnect = useCallback(
-        async (_platform: string, connectionId?: string) => {
-            if (connectionId) await archiveChannelConnection(connectionId)
-            await load().catch(() => {})
-        },
-        [load],
-    )
-
     return (
         <ChannelsPage
-            initialConnections={connections}
+            agentId={appId}
+            agentName={agentName}
+            connections={connections}
+            loading={loading}
+            actions={actions}
             renderPanel={renderPanel}
-            onConnectHostedTelegram={onConnectHostedTelegram}
-            onDisconnect={onDisconnect}
         />
     )
 }
