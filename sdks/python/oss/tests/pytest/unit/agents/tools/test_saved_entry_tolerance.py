@@ -134,10 +134,39 @@ def test_a_provider_action_without_the_prefix_is_kept_whole():
     assert config.action == "GET_AN_ISSUE"
 
 
-def test_a_translated_entry_resolves_to_the_catalog_key_on_the_wire():
+def test_an_integration_whose_case_differs_still_strips_the_prefix():
+    # The catalog builds the prefix from the UPPER-CASED integration, so the integration's
+    # own case never decides the key.
+    config = coerce_tool_config({**_PROVIDER_ACTION_ENTRY, "integration": "GitHub"})
+    assert config.action == "GET_AN_ISSUE"
+
+
+def test_a_lower_case_prefix_on_the_provider_id_is_not_stripped():
+    # The catalog matches the RAW provider id against that upper-cased prefix, so a
+    # lower-case prefix is not a prefix and stays part of the key. Stripping it here would
+    # turn a key the catalog holds into one it does not.
+    config = coerce_tool_config(
+        {**_PROVIDER_ACTION_ENTRY, "provider_action": "github_GET_AN_ISSUE"}
+    )
+    assert config.action == "github_GET_AN_ISSUE"
+
+
+def test_an_integration_with_an_underscore_strips_its_whole_prefix():
+    config = coerce_tool_config(
+        {
+            **_PROVIDER_ACTION_ENTRY,
+            "integration": "google_drive",
+            "provider_action": "GOOGLE_DRIVE_LIST_FILES",
+        }
+    )
+    assert config.action == "LIST_FILES"
+
+
+def test_a_translated_entry_carries_the_catalog_key_in_its_gateway_reference():
     # The reference the resolver sends to the backend is where the key has to be right: the
     # backend matches it against the catalog key, so a provider id here resolves to nothing
-    # and the tool is dropped as stale at run time instead of running.
+    # and the tool is dropped as stale at run time instead of running. This pins the
+    # serialized reference, not the HTTP resolution behind it.
     reference = _to_gateway_reference(coerce_tool_config(_PROVIDER_ACTION_ENTRY))
     assert reference == {
         "type": "gateway",
@@ -236,6 +265,31 @@ def test_a_malformed_connection_entry_still_fails_the_run():
                 }
             ]
         )
+
+
+def test_a_null_entry_still_fails_the_run():
+    with pytest.raises(ToolConfigurationError):
+        AgentTemplate(tools=[None])
+
+
+def test_a_non_dict_entry_that_is_not_a_name_still_fails_the_run():
+    with pytest.raises(ToolConfigurationError):
+        AgentTemplate(tools=[["gateway"]])
+
+
+def test_the_composio_alias_is_tolerated_like_the_gateway_tag(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # `composio` is the same legacy shape under its older tag, renamed before it parses.
+    recorder = _RecordingLog()
+    monkeypatch.setattr("agenta.sdk.agents.dtos.log", recorder)
+
+    template = AgentTemplate(
+        tools=[{"type": "composio", "integration": "github"}, _CLIENT_ENTRY]
+    )
+
+    assert [type(tool).__name__ for tool in template.tools] == ["ClientToolConfig"]
+    assert len(recorder.warnings) == 1
 
 
 def test_a_template_with_only_valid_tools_logs_nothing(

@@ -70,12 +70,18 @@ def _action_key_from_provider_action(
     not (``GET_AN_ISSUE``), and the backend resolves a legacy reference by that key alone.
     Copying the id across verbatim would name a tool no catalog carries, so strip the prefix
     exactly as the catalog does when it derives the key.
+
+    "Exactly" includes the case rule. The catalog upper-cases the INTEGRATION to build the
+    prefix and then matches the raw provider id against it, so a lower-case prefix on the id
+    is not a prefix at all and stays part of the key. Matching case-insensitively here would
+    strip a prefix the catalog keeps, and turn a key that was already correct into one no
+    catalog holds.
     """
     if not isinstance(provider_action, str) or not provider_action:
         return None
     if isinstance(integration, str) and integration:
         prefix = f"{integration.upper()}_"
-        if provider_action.upper().startswith(prefix):
+        if provider_action.startswith(prefix):
             return provider_action[len(prefix) :]
     return provider_action
 
