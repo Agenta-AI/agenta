@@ -207,8 +207,7 @@ const switchToTypescriptTab = async (drawer: any) => {
 
 const useApiTests = () => {
     // WEB-ACC-USEAPI-001
-    // Quarantined on the drawer freeze: https://github.com/Agenta-AI/agenta/issues/6708
-    test.fixme(
+    test(
         "should show variant TypeScript snippet for Fetch Prompt/Config and Invoke LLM",
         {tag: lightFastTags},
         async ({page, apiHelpers, uiHelpers}) => {
