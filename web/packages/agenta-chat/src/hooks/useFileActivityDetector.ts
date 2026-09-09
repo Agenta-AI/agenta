@@ -1,9 +1,10 @@
 import {useEffect, useRef} from "react"
 
-import {isToolPart, partToolName} from "@agenta/chat/model"
 import {detectFileActivity, recordFileActivityAtom} from "@agenta/entities/session"
 import type {ToolUIPart, UIMessage} from "ai"
 import {useSetAtom} from "jotai"
+
+import {isToolPart, partToolName} from "../model"
 
 /**
  * Mid-stream file-activity detector: scans the streaming assistant turn's tool parts and, when a
