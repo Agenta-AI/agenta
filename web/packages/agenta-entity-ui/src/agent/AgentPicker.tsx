@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {Popover, PopoverContent, PopoverTrigger, Skeleton} from "@agenta/ui/ui"
+import {Popover, PopoverContent, PopoverTrigger, SkeletonBlock} from "@agenta/ui/ui"
 import {Check, MagnifyingGlass, Plus, Robot} from "@phosphor-icons/react"
 import {CaretDown} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -372,9 +372,9 @@ export const AgentPicker = ({
                     {agentsQuery.isPending ? (
                         // Row geometry, not a spinner — the list replaces this without shifting.
                         <>
-                            <Skeleton className="h-8 w-full" />
-                            <Skeleton className="h-8 w-4/5" />
-                            <Skeleton className="h-8 w-3/5" />
+                            <SkeletonBlock active className="h-8 w-full" />
+                            <SkeletonBlock active className="h-8 w-4/5" />
+                            <SkeletonBlock active className="h-8 w-3/5" />
                         </>
                     ) : matched.length === 0 ? (
                         // Two different facts: a project with no agents yet, and a search that

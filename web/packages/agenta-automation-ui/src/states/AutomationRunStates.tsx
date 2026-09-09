@@ -1,4 +1,4 @@
-import {Button, Skeleton} from "@agenta/ui/ui"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {ChatCircleDots, ClockCounterClockwise} from "@phosphor-icons/react"
 import {RefreshCw, TriangleAlert} from "lucide-react"
 
@@ -22,13 +22,13 @@ export const AutomationRunListSkeleton = ({
         {Array.from({length: groups}, (_, group) => (
             <div key={group} className="mb-1">
                 <div className="px-2.5 pb-1 pt-3">
-                    <Skeleton className="h-2.5 w-20" />
+                    <SkeletonBlock active className="h-2.5 w-20" />
                 </div>
                 {Array.from({length: rows}, (_, row) => (
                     <div key={row} className="flex items-center gap-[9px] px-2.5 py-[9px]">
-                        <Skeleton className="size-2 shrink-0 rounded-full" />
-                        <Skeleton className="h-3.5 flex-1" />
-                        <Skeleton className="h-3 w-10 shrink-0" />
+                        <SkeletonBlock active className="size-2 shrink-0 rounded-full" />
+                        <SkeletonBlock active className="h-3.5 flex-1" />
+                        <SkeletonBlock active className="h-3 w-10 shrink-0" />
                     </div>
                 ))}
             </div>

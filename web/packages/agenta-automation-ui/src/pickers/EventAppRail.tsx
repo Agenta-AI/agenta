@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {useTriggerCatalogIntegrations} from "@agenta/entities/gatewayTrigger"
-import {Skeleton} from "@agenta/ui/ui"
+import {SkeletonBlock} from "@agenta/ui/ui"
 import {Plug} from "lucide-react"
 
 import {cn} from "../lib/utils"
@@ -49,9 +49,9 @@ export const EventAppRail = ({
             <div className="sticky top-0 flex flex-col gap-px">
                 {isLoading ? (
                     <>
-                        <Skeleton className="h-7 w-full" />
-                        <Skeleton className="h-7 w-4/5" />
-                        <Skeleton className="h-7 w-3/5" />
+                        <SkeletonBlock active className="h-7 w-full" />
+                        <SkeletonBlock active className="h-7 w-4/5" />
+                        <SkeletonBlock active className="h-7 w-3/5" />
                     </>
                 ) : apps.length === 0 ? (
                     <p className="m-0 px-2 py-3 text-[12px] leading-snug text-muted-foreground">

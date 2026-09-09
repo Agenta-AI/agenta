@@ -1,4 +1,4 @@
-import {Skeleton} from "@agenta/ui/ui"
+import {SkeletonBlock} from "@agenta/ui/ui"
 
 /**
  * An app's mark at row size.
@@ -26,7 +26,7 @@ export const AppIcon = ({
             />
         )
     }
-    if (loading) return <Skeleton className="size-4 shrink-0 rounded-[3px]" />
+    if (loading) return <SkeletonBlock active className="size-4 shrink-0 rounded-[3px]" />
     return (
         <span
             aria-hidden

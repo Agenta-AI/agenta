@@ -4,7 +4,7 @@ import {
     useTriggerCatalogEvents,
     useTriggerCatalogIntegrations,
 } from "@agenta/entities/gatewayTrigger"
-import {Button, Skeleton} from "@agenta/ui/ui"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
 
 import {EventListEmpty, EventSearchEmpty} from "../states/EventPickerStates"
 
@@ -57,9 +57,9 @@ export const EventList = ({
         <div className="flex min-w-0 flex-1 flex-col gap-px">
             {isLoading ? (
                 <>
-                    <Skeleton className="h-7 w-full" />
-                    <Skeleton className="h-7 w-4/5" />
-                    <Skeleton className="h-7 w-3/5" />
+                    <SkeletonBlock active className="h-7 w-full" />
+                    <SkeletonBlock active className="h-7 w-4/5" />
+                    <SkeletonBlock active className="h-7 w-3/5" />
                 </>
             ) : events.length === 0 ? (
                 // An app with nothing to watch and a search that matched nothing are different
