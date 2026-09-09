@@ -12,10 +12,24 @@ const greetingFor = (hour: number): string => {
     return "Good evening"
 }
 
-/** The name as a person would say it — the first word of the account's name, never the email. */
-const firstName = (username: string | undefined): string | null => {
-    const first = username?.trim().split(/\s+/)[0]
-    return first && !first.includes("@") ? first : null
+/**
+ * The account name as a person would say it: `ashraf_chowdury99` reads as "ashraf chowdury".
+ *
+ * Separators become spaces and digits go, because a username is a handle and this is a greeting.
+ * An email is dropped rather than cleaned — the local part of one is not a name, and greeting
+ * somebody by their address reads as a mail merge.
+ */
+const displayName = (username: string | undefined): string | null => {
+    const raw = username?.trim()
+    if (!raw || raw.includes("@")) return null
+    const cleaned = raw
+        .replace(/[._\-+]+/g, " ")
+        .replace(/\d+/g, "")
+        // Anything else a handle may carry that a name would not.
+        .replace(/[^\p{L}\p{M} ]+/gu, "")
+        .replace(/\s+/g, " ")
+        .trim()
+    return cleaned || null
 }
 
 /**
@@ -26,7 +40,7 @@ const firstName = (username: string | undefined): string | null => {
  */
 export const HomeGreeting = ({title}: {title: string}) => {
     const {user} = useProfile()
-    const name = firstName(user?.username)
+    const name = displayName(user?.username)
 
     return (
         <div className="flex flex-col gap-1.5 px-1.5">
