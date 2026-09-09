@@ -125,7 +125,7 @@ export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionPr
                 const agent = describeAgent(subscription.data?.references)
                 return {
                     id: subscription.id ?? `subscription-${index}`,
-                    name: subscription.name || eventKey || "Event trigger",
+                    name: subscription.name || eventKey || "Event automation",
                     subtitle: agentId
                         ? subscription.name
                             ? eventKey
@@ -159,19 +159,19 @@ export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionPr
     }, [schedulesError, subscriptionsError, refetchSchedules, refetchSubscriptions])
 
     return (
-        <PanelSection title="Next triggers">
+        <PanelSection title="Automations">
             {isLoading ? (
                 <div className="flex flex-col gap-2 px-2 py-2">
                     <SkeletonBlock active className="h-4 w-3/4" />
                     <SkeletonBlock active className="h-4 w-1/2" />
                 </div>
             ) : hasError ? (
-                <SectionLoadError message="Couldn't load triggers." onRetry={retry} />
+                <SectionLoadError message="Couldn't load automations." onRetry={retry} />
             ) : rows.length === 0 ? (
                 <p className="m-0 px-2 py-3 text-xs text-colorTextTertiary">
                     {agentId
-                        ? "No triggers bound to this agent yet."
-                        : "Nothing scheduled. Give an agent a trigger and its next run shows up here."}
+                        ? "No automations bound to this agent yet."
+                        : "Nothing scheduled. Give an agent an automation and its next run shows up here."}
                 </p>
             ) : (
                 rows.map((row) => (
