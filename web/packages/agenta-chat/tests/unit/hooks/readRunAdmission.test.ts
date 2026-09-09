@@ -46,7 +46,7 @@ describe("readRunAdmission", () => {
     it("reads CRLF and CR-only framing", async () => {
         for (const eol of ["\r\n", "\r"]) {
             const w = watcher()
-            const frame = accepted("turn-3").replace("\n", eol)
+            const frame = accepted("turn-3").replaceAll("\n", eol)
             await readRunAdmission(streamOf([frame, `data: {}${eol}`]), w)
             expect(w.onAccepted).toHaveBeenCalledWith("turn-3")
         }
