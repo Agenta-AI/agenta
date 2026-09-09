@@ -820,6 +820,8 @@ class ChannelsSlackConfig(BaseModel):
 class ChannelsTelegramConfig(BaseModel):
     # One shared bot token for the whole deployment, never a project's.
     bot_token: str | None = os.getenv("TELEGRAM_HOSTED_BOT_TOKEN")
+    # The @username of the hosted bot, for the deep link t.me/<username>.
+    bot_username: str | None = os.getenv("TELEGRAM_HOSTED_BOT_USERNAME")
     # The secret token Telegram echoes on every hosted webhook call, set once
     # per deployment at setWebhook time; the ingress verifies it before it
     # consumes a bind token or writes anything.
