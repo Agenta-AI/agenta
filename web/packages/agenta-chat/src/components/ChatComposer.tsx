@@ -13,7 +13,7 @@ import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {PaperclipHorizontal} from "@phosphor-icons/react"
+import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
@@ -240,9 +240,7 @@ export const ChatComposer = ({
                                     onClick={() => fileInputRef.current?.click()}
                                     aria-label="Attach files"
                                 >
-                                    {/* The horizontal clip turned upright: a right angle off a true horizontal stands
-                                    exactly vertical, where the default diagonal one only approximates it. */}
-                                    <PaperclipHorizontal size={16} className="-rotate-90" />
+                                    <Paperclip size={16} />
                                 </Button>
                             </SimpleTooltip>
                         )}
