@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {Popover, PopoverContent, PopoverTrigger, SkeletonBlock} from "@agenta/ui/ui"
+import {cn, Popover, PopoverContent, PopoverTrigger, SkeletonBlock} from "@agenta/ui/ui"
 import {Check, MagnifyingGlass, Plus, Robot} from "@phosphor-icons/react"
 import {CaretDown} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -274,15 +274,16 @@ export const AgentPicker = ({
                 aria-haspopup="listbox"
                 aria-expanded={open}
                 disabled={disabled}
-                className={[
+                // `cn`, not a join: a host's `triggerClassName` has to be able to REPLACE a
+                // utility (a composer wants no fill), and plain concatenation leaves that to
+                // stylesheet order.
+                className={cn(
                     "box-border cursor-pointer appearance-none border-0 font-[inherit]",
                     "inline-flex min-w-0 items-center gap-2 rounded-control bg-muted px-2 py-1",
                     "text-[13px] font-medium text-foreground outline-none transition-colors",
                     "hover:bg-accent focus-visible:bg-accent disabled:cursor-default",
                     triggerClassName,
-                ]
-                    .filter(Boolean)
-                    .join(" ")}
+                )}
             >
                 <AgentChip workflowId={value} box="size-5" glyph={13} />
                 <span className="min-w-0 truncate">{selectedLabel ?? placeholder}</span>
@@ -297,7 +298,7 @@ export const AgentPicker = ({
                 aria-haspopup="listbox"
                 aria-expanded={open}
                 disabled={disabled}
-                className={[
+                className={cn(
                     "box-border border-solid font-[inherit]",
                     "flex w-full cursor-pointer items-center justify-between gap-1 border text-left",
                     "px-input py-input-y text-field-md rounded-control text-foreground",
@@ -308,9 +309,7 @@ export const AgentPicker = ({
                     "data-[state=open]:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
                     "disabled:cursor-default disabled:border-border disabled:bg-background",
                     triggerClassName,
-                ]
-                    .filter(Boolean)
-                    .join(" ")}
+                )}
             >
                 <span className="flex min-w-0 flex-1 items-center gap-2">
                     <AgentChip workflowId={value} box="size-5" glyph={13} />
