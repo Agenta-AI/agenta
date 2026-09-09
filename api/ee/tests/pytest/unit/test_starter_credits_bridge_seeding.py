@@ -92,6 +92,7 @@ class FakeVaultService:
         self.management = management
         self.row = SimpleNamespace(
             id=uuid4(),
+            slug=create_secret_dto.slug,
             header=create_secret_dto.header,
             data=create_secret_dto.secret.data,
             management=management,
@@ -1335,3 +1336,111 @@ class TestReconcilingAStaleFundedModel:
             connection={"mode": "agenta", "slug": service.STARTER_CREDITS_SLUG},
         )
         assert candidate.selected_model_id(fresh) == "vertex_ai/new-model"
+
+
+class TestReconcilingOnRead:
+    """Seeding runs once, at signup, so nothing revisits a row written before a cutover.
+    The read path is what reaches those rows: the picker and the runtime resolver both list
+    a project's secrets."""
+
+    async def _seed_then_cut_the_model_over(self, seeding_env, *, funded: str):
+        await _seed()
+        seeding_env.monkeypatch.setattr(
+            env,
+            "starter_credits_bridge",
+            _armed_config(model_id=funded),
+        )
+        return seeding_env.vault.row
+
+    async def test_a_stale_row_read_comes_back_on_the_funded_model(self, seeding_env):
+        row = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        minted = FakeProxyClient.records[ORGANIZATION_ID]["key"]
+
+        repaired = await service.reconcile_starter_credits_on_read(
+            project_id=seeding_env.project.id,
+            secrets=[row],
+        )
+
+        assert repaired is not None
+        assert [model.slug for model in repaired.data.models] == ["vertex_ai/new-model"]
+        (update,) = _all_key_update_calls()
+        assert update == {"key": minted, "models": ["vertex_ai/new-model"]}
+        assert repaired.data.provider.key == minted
+        # A repair is not a grant.
+        assert len(_all_generate_calls()) == 1
+
+    async def test_a_current_row_read_costs_no_call(self, seeding_env):
+        await _seed()
+        row = seeding_env.vault.row
+        seeding_env.vault.update_calls.clear()
+
+        repaired = await service.reconcile_starter_credits_on_read(
+            project_id=seeding_env.project.id,
+            secrets=[row],
+        )
+
+        assert repaired is None
+        assert _all_key_update_calls() == []
+        assert seeding_env.vault.update_calls == []
+
+    async def test_the_read_stands_when_the_repair_fails(self, seeding_env):
+        # A caller must never lose its whole secrets list over a connection that is at
+        # worst as broken as it already was.
+        row = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+
+        async def explode(**kwargs):
+            raise RuntimeError("vault is down")
+
+        seeding_env.monkeypatch.setattr(
+            seeding_env.vault, "update_managed_secret", explode
+        )
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[row],
+            )
+            is None
+        )
+        # The in-flight guard is released, so the next read tries again.
+        assert service._reconciling_projects == set()
+
+    async def test_a_row_the_bridge_does_not_own_is_left_alone(self, seeding_env):
+        # A user may delete the seeded connection and save their own under the same slug.
+        # That one is theirs to point anywhere.
+        row = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        row.management = None
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[row],
+            )
+            is None
+        )
+        assert _all_key_update_calls() == []
+
+    async def test_a_disarmed_bridge_reads_nothing(self, seeding_env):
+        row = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        seeding_env.monkeypatch.setattr(
+            env,
+            "starter_credits_bridge",
+            _armed_config(model_id="vertex_ai/new-model", enabled=False),
+        )
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[row],
+            )
+            is None
+        )
+        assert _all_key_update_calls() == []

@@ -197,13 +197,94 @@ async def seed_starter_credits_bridge(
             await _release_velocity_slots(organization_email, policy)
 
 
+# One reconcile at a time per project. Reads are concurrent (the picker and the runtime
+# resolver both list secrets), and without this a burst would send the same repair several
+# times. It is an in-flight set, not a memo: a repair that failed must be retried by the
+# next read, and a row already on the funded model costs a list scan either way.
+_reconciling_projects: set[str] = set()
+
+
+async def reconcile_starter_credits_on_read(
+    *,
+    project_id: UUID,
+    secrets: list,
+) -> Optional[SecretResponseDTO]:
+    """Repair a stale starter-credits row as it is read, and return the repaired row.
+
+    Seeding runs once, at signup, so nothing else ever revisits a row that was written
+    before the funded model was cut over. This is the path that reaches those rows: the
+    picker and the runtime resolver both list a project's secrets, so the first read after
+    a cutover repairs the row and every read after it is a list scan that finds nothing to
+    do. Returns None when there was nothing to repair.
+
+    Never raises. A read must not fail because a repair could not run — the caller would
+    lose its whole secrets list over a connection that is at worst as broken as it already
+    was.
+    """
+    config = env.starter_credits_bridge
+    if not config.armed:
+        return None
+
+    row = _find_starter_credits_row(secrets)
+    if row is None or _stored_model_slugs(row) == [config.model_id]:
+        return None
+
+    key = str(project_id)
+    if key in _reconciling_projects:
+        return None
+    _reconciling_projects.add(key)
+
+    try:
+        await reconcile_starter_credits_model(
+            client=_proxy_client(config),
+            config=config,
+            vault_service=_vault_service(),
+            project_id=project_id,
+            # The read knows the project, not the organization. The project id already
+            # identifies the row, and resolving the organization would cost a query on a
+            # path that runs on every secrets list.
+            organization_id=None,
+            row=row,
+        )
+    except Exception:
+        log.warning(
+            "[starter_credits_bridge] could not reconcile on read; the read stands",
+            project_id=key,
+            exc_info=True,
+        )
+        return None
+    finally:
+        _reconciling_projects.discard(key)
+
+    return await _vault_service().get_secret_by_slug(
+        STARTER_CREDITS_SLUG,
+        project_id=project_id,
+    )
+
+
+def _find_starter_credits_row(secrets: list) -> Optional[SecretResponseDTO]:
+    """The seeded row inside an already-fetched list, or None. No query of its own."""
+    for secret in secrets or []:
+        if getattr(secret, "slug", None) != STARTER_CREDITS_SLUG:
+            continue
+        management = getattr(secret, "management", None)
+        # Only a row the bridge owns. A user is free to delete the seeded connection and
+        # save their own under the same slug, and that one is theirs to point anywhere.
+        if (
+            management is not None
+            and management.manager == SecretManager.STARTER_CREDITS_BRIDGE
+        ):
+            return secret
+    return None
+
+
 async def reconcile_starter_credits_model(
     *,
     client: StarterCreditsProxyClient,
     config: StarterCreditsBridgeConfig,
     vault_service: VaultService,
     project_id: UUID,
-    organization_id: str,
+    organization_id: Optional[str],
     row: SecretResponseDTO,
 ) -> bool:
     """Re-point an already-seeded row at the model the proxy funds today.
