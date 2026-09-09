@@ -19,6 +19,7 @@ import {SessionAgentName} from "./SessionAgentName"
 import {SessionAutomationKind} from "./SessionAutomationKind"
 import {SessionPinButton} from "./SessionPinButton"
 import {SessionStatusIcon} from "./SessionStatusIcon"
+import {useDeferredMenuSelect, type MenuSelect} from "./useDeferredMenuSelect"
 import type {InlineRename} from "./useInlineRename"
 
 export interface SessionRowProps {
@@ -34,7 +35,8 @@ export interface SessionRowProps {
     renderAgent?: (agentId: string | null) => ReactNode
     /** The app's verbs for this row, in the neutral shape. No items → no kebab. */
     menuItems?: SessionMenuEntry[]
-    onMenuSelect?: (key: string) => void
+    /** Runs the verb; a returned function is deferred until the menu closes. */
+    onMenuSelect?: MenuSelect
     /**
      * The row's rename-in-place state, owned by the caller so the kebab and the right-click menu
      * that wraps the row drive the same edit. Absent, the title is never editable.
@@ -60,6 +62,9 @@ const SessionRowImpl = ({
     const handleOpen = () => {
         if (openable) onOpen?.()
     }
+    // The kebab honours the same close handoff the right-click menu does, so "Rename" opens the
+    // editor from either one.
+    const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect(onMenuSelect)
 
     return (
         // A plain container, not an ARIA button: descendants of a button role are
@@ -184,6 +189,7 @@ const SessionRowImpl = ({
                         <DropdownMenuContent
                             align="end"
                             onClick={(event) => event.stopPropagation()}
+                            onCloseAutoFocus={handleCloseAutoFocus}
                         >
                             {menuItems.map((entry, index) =>
                                 isMenuDivider(entry) ? (
@@ -195,7 +201,7 @@ const SessionRowImpl = ({
                                         variant={entry.danger ? "destructive" : "default"}
                                         onSelect={(event) => {
                                             event.stopPropagation()
-                                            onMenuSelect?.(entry.key)
+                                            handleSelect(entry.key)
                                         }}
                                     >
                                         {entry.icon ? (

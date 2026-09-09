@@ -7,14 +7,27 @@ export interface PermissionPolicyOption {
     help: string
 }
 
+/**
+ * The four policies, in the order the selector shows them. `help` is the sub-line under each label
+ * on both hosts, so this list is the only place the wording lives.
+ *
+ * No option claims to be the default, because "the default" is two different policies here (#6662).
+ * The standard template creates an agent on `allow`, while an agent whose config names no policy
+ * runs on {@link DEFAULT_PERMISSION_POLICY}, and both surfaces show that fallback as the applied
+ * value. A sub-line has no room to say which one it means, so it says neither.
+ */
 export const PERMISSION_POLICY_OPTIONS: PermissionPolicyOption[] = [
-    {value: "allow_reads", label: "Allow reads", help: "Reads run, writes ask; default"},
+    {value: "allow_reads", label: "Allow reads", help: "Reads run, writes ask"},
     {value: "allow", label: "Allow all", help: "Every tool runs without asking"},
     {value: "ask", label: "Ask", help: "A human approves every tool call"},
     {value: "deny", label: "Deny all", help: "Every tool call is refused"},
 ]
 
-/** What the runner applies when the template names no policy. */
+/**
+ * What the runner applies, and what both selectors display, when the config names no policy. NOT
+ * what a new agent is created with: the standard template writes `allow` (`AgentTemplateSchema` in
+ * the SDK), and #6641 deliberately left this fallback alone.
+ */
 export const DEFAULT_PERMISSION_POLICY: PermissionPolicy = "allow_reads"
 
 const PERMISSION_POLICY_VALUES = new Set<string>(

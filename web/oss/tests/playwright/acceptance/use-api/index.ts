@@ -107,6 +107,32 @@ const deployFirstVariantToDevelopment = async (
     })
 }
 
+// Reports whether the element keeps the same bounding box across two frames.
+const hasStableBoxAcrossFrames = (element: Element): Promise<boolean> =>
+    new Promise((resolve) => {
+        const first = element.getBoundingClientRect()
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const second = element.getBoundingClientRect()
+                resolve(
+                    first.x === second.x &&
+                        first.y === second.y &&
+                        first.width === second.width &&
+                        first.height === second.height,
+                )
+            })
+        })
+    })
+
+// Waits out the drawer slide-in; a click during it fails "element is not stable".
+const waitForDrawerAnimationToSettle = async (drawer: any) => {
+    await expect
+        .poll(() => pollLocatorState(() => drawer.evaluate(hasStableBoxAcrossFrames)), {
+            timeout: 10000,
+        })
+        .toBe(true)
+}
+
 /**
  * Opens the "How to use API" drawer from the Variants tab.
  * Uses the data-tour attribute so we target exactly this button even if other
@@ -142,6 +168,7 @@ const openVariantUseApiDrawer = async (page: any) => {
         hasText: "How to use API",
     })
     await expect(drawer).toBeVisible({timeout: 20000})
+    await waitForDrawerAnimationToSettle(drawer)
     return drawer
 }
 
@@ -163,6 +190,7 @@ const openDeploymentUseApiDrawer = async (page: any) => {
         hasText: "How to use API",
     })
     await expect(drawer).toBeVisible({timeout: 20000})
+    await waitForDrawerAnimationToSettle(drawer)
     return drawer
 }
 

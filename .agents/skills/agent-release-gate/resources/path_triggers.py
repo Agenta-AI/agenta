@@ -41,6 +41,39 @@ GATEWAY_TOOLS = ("matrix_gw1_gateway_tools.py",)
 # change to this chain must run; H2 adds the remote delivery and is worth running beside it.
 # Both hosted cells: H1 proves the local delivery path, H2 the Daytona one (in-VM file, read-back).
 HOSTED_SUBSCRIPTION = ("H1", "H2")
+AGENT_TOOLS = ("matrix_t9_agent_tools.py",)
+CUSTOM_SECRETS = ("matrix_s1_custom_secrets.py",)
+
+# The standing session-control regression cells: Stop, durable commands, and the runner's
+# recovery paths (owner release, park/resume, watchdog quarantine). A separate standalone driver
+# because it needs its own account bootstrap and, for most cells, a docker-compose project name —
+# see resources/session_control.py and SKILL.md "Session control cells".
+SESSION_CONTROL = ("session_control.py",)
+
+# The cells that run a REMOTE sandbox and need no extra flag. A release that touches the sandbox
+# engine or the Daytona provider changes how a cold sandbox gets built and how its credentials are
+# delivered, and the `burst` and `crosstalk` journeys are the only ones that see that path under
+# load (AGE-4249). Both run in every cell selected here, because a run without `--only` runs every
+# journey.
+#
+# P3 is deliberately NOT in this list even though it is a Daytona cell. It needs --custom-slug and
+# --custom-name, and the driver exits when a selected custom cell has no slug, so naming it here
+# would stop every release run that did not pass those flags.
+DAYTONA_CELLS = ("C2", "C4", "X2")
+
+# The per-turn session facts: the agent's display name, the session's name, and the first-turn
+# flag. They reach the harness only as prompt text (`turnContext`), so no SSE frame and no stored
+# row reflects them, and every cell that reads frames alone is blind to them going missing. That
+# is how #6661 shipped through a green gate: the API stamped the facts in its invoke prelude, the
+# SDK and the runner consumed them correctly, and the playground posts to the agent service
+# directly, where the prelude never runs.
+SESSION_CONTEXT = ("matrix_n1_session_context.py",)
+
+# The journeys a rule can demand alongside its cells. A cell without its journey proves nothing:
+# `--release-base ... --only chat` would run `chat` on the mandatory Daytona cells and report a
+# green release while the coverage the rule exists for never ran. Journeys named here are FORCED
+# into the selection, even against an explicit --only.
+CONCURRENCY_JOURNEYS = ("burst", "crosstalk")
 
 # Glob -> cells. Matching is fnmatch over the whole repo-relative path, so `*` crosses directory
 # separators: `a/b/*` and `a/b/**` behave the same, and both mean "anything under a/b". Write
@@ -75,18 +108,89 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     # shapes the browser reads them through. A change confined to these files matches no other
     # rule, so without this the sign-in path can break with every cell still green.
     "api/oss/src/apis/fastapi/vault/**": HOSTED_SUBSCRIPTION,
-    # The client half of the same chain: the entities package owns the secret shapes and the
-    # connection state the AI providers page renders. `login_state` and `login_version` are the
-    # two fields the hosted journeys assert on, and they are read here as well as written by the
-    # API, so a shape change on this side breaks the sign-in path with no server-side diff.
-    "web/packages/agenta-entities/src/secret/**": HOSTED_SUBSCRIPTION,
     # The rest of the delivery chain: the SDK resolves the connection and puts the login on the
     # wire, the secrets storage layer holds the row, and the Daytona module puts the file in the VM.
     "sdks/python/agenta/sdk/agents/connections/**": HOSTED_SUBSCRIPTION,
     "sdks/python/agenta/sdk/agents/platform/connections.py": HOSTED_SUBSCRIPTION,
-    "sdks/python/agenta/sdk/agents/wire_models.py": HOSTED_SUBSCRIPTION,
     "api/oss/src/dbs/postgres/secrets/**": HOSTED_SUBSCRIPTION,
     "services/runner/src/engines/sandbox_agent/daytona.ts": HOSTED_SUBSCRIPTION,
+    # The agent's own tools: the runner restores `agent-files/.tools/` (binaries copied to local
+    # disk, `setup.sh` run) before every session, and the sandbox images ship the tool set the
+    # prompt promises. A change to the restore step or to the image recipes needs the cell that
+    # plants a setup script through the mounts API and proves it ran before the first tool call.
+    "services/runner/src/engines/sandbox_agent/agent-tools-setup.ts": AGENT_TOOLS,
+    "services/runner/src/engines/sandbox_agent/run-plan.ts": AGENT_TOOLS
+    + CUSTOM_SECRETS,
+    "services/runner/src/environment/timing.ts": AGENT_TOOLS,
+    "services/runner/src/engines/sandbox_agent/agent-mount.ts": AGENT_TOOLS,
+    "services/runner/src/engines/sandbox_agent/environment.ts": AGENT_TOOLS,
+    "services/runner/src/environment/mount-lifecycle.ts": AGENT_TOOLS,
+    "services/runner/images/**": AGENT_TOOLS,
+    "services/runner/docker/**": AGENT_TOOLS,
+    # Custom-secret authoring, resolution, transport, sandbox injection, and lifecycle identity.
+    # The entities package also owns the hosted-subscription shapes (`login_state`,
+    # `login_version`) the H1/H2 journeys assert on, so both rules fire on it. One key, one tuple:
+    # a repeated key would silently drop the first rule.
+    "web/packages/agenta-entities/src/secret/**": CUSTOM_SECRETS + HOSTED_SUBSCRIPTION,
+    "web/packages/agenta-entities/src/workflow/state/agentCredentials.ts": CUSTOM_SECRETS,
+    "web/packages/agenta-entity-ui/src/secret/**": CUSTOM_SECRETS,
+    "web/packages/agenta-entity-ui/src/clientTools/SecretRequest*": CUSTOM_SECRETS,
+    "web/packages/agenta-chat/src/clientTools/secretInteractions.ts": CUSTOM_SECRETS,
+    "api/oss/src/core/secrets/**": CUSTOM_SECRETS,
+    "api/oss/src/apis/fastapi/vault/router.py": CUSTOM_SECRETS,
+    "api/oss/src/apis/fastapi/workflows/router.py": CUSTOM_SECRETS,
+    "api/oss/src/core/workflows/static_catalog.py": CUSTOM_SECRETS,
+    "sdks/python/agenta/sdk/agents/sandbox_credentials.py": CUSTOM_SECRETS,
+    # The handler is the seam BOTH rules hang off: it composes the sandbox credentials and it
+    # resolves the per-turn session facts. A dict literal keeps only the last value for a
+    # repeated key, so the two tuples are joined here rather than written as a second entry that
+    # would silently drop the custom-secrets rule.
+    "sdks/python/agenta/sdk/agents/handler.py": CUSTOM_SECRETS + SESSION_CONTEXT,
+    "sdks/python/agenta/sdk/agents/wire_models.py": CUSTOM_SECRETS
+    + HOSTED_SUBSCRIPTION,
+    "sdks/python/agenta/sdk/agents/utils/wire.py": CUSTOM_SECRETS,
+    "services/runner/src/engines/sandbox_agent/sandbox-credentials.ts": CUSTOM_SECRETS,
+    "services/runner/src/engines/sandbox_agent/session-identity.ts": CUSTOM_SECRETS,
+    "services/runner/src/environment/runtime-lifecycle.ts": CUSTOM_SECRETS,
+    "services/runner/src/lifecycle/desired-state.ts": CUSTOM_SECRETS,
+    "services/runner/src/redaction.ts": CUSTOM_SECRETS,
+    # The sandbox engine and the Daytona provider: sandbox creation, the secret plan, the
+    # credential preflight, and the one retry the runner does when a first model call is refused.
+    # A fault here shows up only when many sandboxes start at once, which is what `burst` and
+    # `crosstalk` do on these cells. Production hit it as one first message in five failing with
+    # a credential error (AGE-4249 / #6485) while the sequential gate stayed green.
+    # A dict literal keeps only the last value for a repeated key, so a glob that already names
+    # DAYTONA_CELLS lists SESSION_CONTROL alongside it in the SAME tuple rather than as a second
+    # entry that would silently drop the Daytona rule.
+    "services/runner/src/engines/sandbox_agent/**": DAYTONA_CELLS + SESSION_CONTROL,
+    "services/runner/src/providers/daytona*": DAYTONA_CELLS,
+    # Session control: Stop, durable commands, park/resume, and the owner-release and watchdog
+    # sweeps. A change here can silently break a warm resume or leave a command stuck, and
+    # nothing in the fixed matrix drives Stop at all. See qa-audit-2026-09-03.md section 4.
+    "services/runner/src/sessions/**": SESSION_CONTROL,
+    "api/oss/src/core/sessions/**": SESSION_CONTROL,
+    "api/oss/src/tasks/asyncio/sessions/**": SESSION_CONTROL,
+    "api/oss/src/apis/fastapi/sessions/**": SESSION_CONTROL,
+    # The per-turn session facts, end to end: the service-side resolver that reads them, the
+    # renderer that turns them into the prompt text the agent sees, and the API-side resolver
+    # plus its stamp. A change to any of the three can leave the agent answering from its own
+    # transcript with no fact to read, which is invisible to every frame-level cell.
+    # `api/oss/src/core/sessions/**` already names SESSION_CONTROL above; naming the resolver
+    # file exactly is a separate key, and matches are unioned, so both rules fire on it.
+    "sdks/python/agenta/sdk/agents/platform/session_context.py": SESSION_CONTEXT,
+    "sdks/python/agenta/sdk/agents/platform_instructions.py": SESSION_CONTEXT,
+    "api/oss/src/core/sessions/context.py": SESSION_CONTEXT,
+}
+
+# Glob -> journeys that MUST run when the rule fires. Same matching as PATH_TRIGGERS, kept as a
+# separate table so a rule can demand a cell, a journey, or both, without changing the shape of
+# either one.
+PATH_TRIGGER_JOURNEYS: dict[str, tuple[str, ...]] = {
+    # The concurrency journeys (`burst`, `crosstalk`) are journeys, not cells: listed under
+    # PATH_TRIGGERS they would be registered as cell names and never run. A change to the
+    # sandbox engine or the Daytona provider makes them mandatory on every applicable cell.
+    "services/runner/src/engines/sandbox_agent/**": CONCURRENCY_JOURNEYS,
+    "services/runner/src/providers/daytona*": CONCURRENCY_JOURNEYS,
 }
 
 

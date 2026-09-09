@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request, status, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
 
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
 
@@ -48,6 +49,16 @@ from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT, request_has_grant
 
 
 log = get_module_logger(__name__)
+
+
+if is_ee():
+    from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
+        reconcile_starter_credits_on_read,
+    )
+else:  # OSS seeds no managed connection, so there is nothing to reconcile.
+
+    async def reconcile_starter_credits_on_read(*, project_id, secrets):  # type: ignore[misc]
+        return None
 
 
 def handle_subscription_exceptions():
@@ -300,9 +311,33 @@ class VaultRouter:
                 status_code=403,
             )
 
-        secrets_dtos = await self.service.list_secrets(
-            project_id=UUID(request.state.project_id),
-        )
+        project_id = UUID(request.state.project_id)
+        secrets_dtos = await self.service.list_secrets(project_id=project_id)
+
+        # The one path that revisits an Agenta-managed connection after it was seeded. A
+        # seeded value can go stale (the funded model of a starter-credits connection gets
+        # cut over), and nothing else ever reads that row again: seeding runs at signup
+        # only. The call scans the list already in hand and does nothing when it is
+        # current, and it never raises, so the read stands either way.
+        try:
+            repaired = await reconcile_starter_credits_on_read(
+                project_id=project_id,
+                secrets=secrets_dtos,
+            )
+        except Exception:
+            # The repair guarantees this itself; the guard is here so the guarantee is
+            # structural. Losing a whole secrets list over a repair would be far worse
+            # than the stale connection the repair was for.
+            log.warning(
+                "[vault] managed-secret reconcile failed; the read stands",
+                exc_info=True,
+            )
+            repaired = None
+        if repaired is not None:
+            secrets_dtos = [
+                repaired if secret_dto.slug == repaired.slug else secret_dto
+                for secret_dto in secrets_dtos
+            ]
 
         return [self._for_caller(request, secret_dto) for secret_dto in secrets_dtos]
 

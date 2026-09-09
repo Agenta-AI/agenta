@@ -97,6 +97,7 @@ KNOWN_REQUEST_KEYS = {
     "permissions",
     "gatewayPolicy",
     "platformInstructions",
+    "turnContext",
     "systemPrompt",
     "appendSystemPrompt",
     "skills",
@@ -196,6 +197,7 @@ def _pi_payload():
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
+        turn_context='## This session\n\nThis session is named "Q3 notes".',
         trace=TraceContext(
             traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
             endpoint="https://otlp.example/v1/traces",
@@ -1691,3 +1693,30 @@ def test_result_from_wire_redacts_seeded_credential_from_output_events_and_error
         with pytest.raises(RuntimeError) as exc:
             result_from_wire({"ok": False, "error": f"provider rejected {marker}"})
         assert marker not in str(exc.value)
+
+
+def test_request_to_wire_omits_turn_context_when_unset():
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "turnContext" not in payload
+    assert "sessionContext" not in payload
+
+
+def test_request_to_wire_carries_only_rendered_turn_context():
+    context = '## This session\n\nThis session is named "Q3 notes".'
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id="sess_abc",
+        turn_context=context,
+    )
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["turnContext"] == context
+    assert "sessionContext" not in payload
+    assert payload["messages"] == [{"role": "user", "content": "hi"}]

@@ -781,6 +781,10 @@ export interface AgentRunRequest {
    * guidance.
    */
   platformInstructions?: string;
+  /** SDK-rendered context for this turn, added to the harness prompt after history selection.
+   * Refreshed on warm continuations and excluded from environment identity and desired state.
+   */
+  turnContext?: string;
   /**
    * Compatibility input for SDKs deployed before `platformInstructions`. The new scalar field
    * wins when both are present so generated guidance is never delivered twice.

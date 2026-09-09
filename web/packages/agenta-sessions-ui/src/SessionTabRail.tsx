@@ -191,18 +191,18 @@ const RailTab = ({
         consumedNonceRef.current = request.nonce
         startRename()
     }, [onRename, request, startRename, vm.id])
+    const handleMenuSelect = useCallback(
+        (key: string) => {
+            // Deferred, not run here: an input that mounts inside the menu's focus trap is
+            // blurred straight back out, and a blur commits. See `useDeferredMenuSelect`.
+            if (key === "rename" && onRename) return () => startRename()
+            onMenuSelect?.(vm, key)
+        },
+        [onMenuSelect, onRename, startRename, vm],
+    )
 
     const chip = (
-        <SessionRowContextMenu
-            entries={menuFor?.(vm)}
-            onSelect={(key) => {
-                if (key === "rename" && onRename) {
-                    startRename()
-                    return
-                }
-                onMenuSelect?.(vm, key)
-            }}
-        >
+        <SessionRowContextMenu entries={menuFor?.(vm)} onSelect={handleMenuSelect}>
             <SessionTab
                 active={active}
                 label={
