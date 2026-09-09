@@ -347,3 +347,41 @@ services, runner and web-mobile mounting the deleted inode (workers crash-looped
 named entrypoints.worker_queues"; services could not reach the runner). Rebuilt the env file
 from the api container's env and a local override (image tags + runner login mounts), then
 recreated those five containers. Both files are gitignored; the recipe stands.
+
+
+## Codex round two on the finished frontend (2026-09-09, late evening)
+Verdict: "do not merge as finished; the shared desktop/mobile presentation is sound, the
+connection lifecycle is not yet reliable." Full answer in the session log; this is the map.
+
+Fixed on the branch (commit 62ddd63e6e5b):
+- P1 #1 six type errors: a parallel session's commit d0ee2a4125 had added a second agent-scope
+  model (`answeredHere`/`answeringAgentName` on the connection). Removed; `connection.agent` +
+  `connectionScope()` is the one model. That session has stopped working on this branch.
+- P1 #2 (hidden assignment failure): a connection with NO answering agent now reads
+  "unassigned" (row: "Not answering as any agent yet · connect here"; panel: Connect here),
+  so a failed retarget after a Slack install is visible and repairable instead of showing
+  "Answers as <this agent>".
+- P2 #4: when the backend holds two rows per platform, the live one wins over a pending one.
+- P2 #5: the bindings poll runs on the QR step too (a phone scan never clicks the button);
+  one fixed expiry per link.
+- P2 #6: the custom-setup guard resets on cancel.
+- P2 #7: archive is idempotent (a second archive keeps the first timestamp).
+- P2 #8 (partly): hosts drop a reload that finishes after a newer one.
+- QR: fixed dark-on-light surface in both themes.
+
+Deferred (need backend work or a broader refactor; not in this release unless asked):
+- P1 #2 proper: one backend operation "create/restore the connection and ensure its default
+  agent for app X", and the target app carried in the signed Slack install state so the
+  callback assigns it server-side. Today the client does it in three places (`pointHere`).
+- P1 #3 reconnect paths: a custom bot/app reconnect conflicts with its archived row
+  (identity unique key); hosted Slack reinstall edits an archived row without unarchiving it
+  (`service.py` install_connection). Both are in the foundation PRs' code.
+- Bindings readiness: `count > baseline` is a heuristic; a `has_bindings`/attempt-id status on
+  the connection would be exact. Endpoint placement under `/catalog/...` is odd.
+- DB-level tests for the unarchive cascade (repeated archive, independently archived agents,
+  grants/spaces untouched); today's tests mock the DAO.
+- Layering: move the API calls to an `@agenta/entities/channels` domain with generated
+  types and shared query state (`useAgentChannels`), keep settings-ui presentational; rename
+  `ChannelsPage` to `AgentChannelsSection`; split the 900-line connect flow into three
+  components; cut the unused dm/group/chats fields and their stories; move NOOP_ACTIONS to
+  story fixtures; stop exporting QR internals from the package root.

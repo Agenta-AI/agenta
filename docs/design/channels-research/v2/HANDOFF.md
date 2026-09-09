@@ -70,9 +70,11 @@ light and dark (2026-09-09 evening; details and screenshots in STATUS.md, sectio
   Telegram is private chats only for v1. PRs ready but not merged.
 
 ## Next steps (in order)
-1. Second Codex (gpt-astra) review of the final channels/telegram-ui diff; address findings.
-2. PR #6737 is open (base channels/telegram-hosted); let CodeRabbit run and address its
-   findings. Do NOT merge.
+1. Codex round two is done (STATUS.md, last section): the quick fixes are on the branch; the
+   deferred P1s need backend work (one "connect as app X" operation; reconnect paths for
+   custom and hosted Slack). Decide with Mahmoud whether they block this release.
+2. PR #6737 is open (base channels/telegram-hosted). CodeRabbit skips this base branch, so
+   the review is Codex + a human. Do NOT merge.
 3. Slack live QA on this stack through the NEW card: complete the hosted install (needs a
    Slack workspace login) and submit a custom app (needs the signing secret; the QA Slack env
    has it commented out). Both flows are wired and reach Slack; only the last step is unproven.
