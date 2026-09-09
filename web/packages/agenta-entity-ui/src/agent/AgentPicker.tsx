@@ -48,6 +48,31 @@ const agentLabel = (agent: Workflow): string =>
 
 const agentDescription = (agent: Workflow): string => agent.description?.trim() ?? ""
 
+/**
+ * The panel with nothing to list — the same frame the other pickers in this codebase use: a
+ * glyph in a rounded tile, a line that names the fact, a line that says what to do next.
+ */
+const AgentPickerEmpty = ({
+    icon,
+    title,
+    body,
+    action,
+}: {
+    icon: React.ReactNode
+    title: string
+    body: string
+    action?: React.ReactNode
+}) => (
+    <div className="flex flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+        <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-muted text-muted-foreground">
+            {icon}
+        </span>
+        <p className="m-0 text-[13px] font-medium text-foreground">{title}</p>
+        <p className="m-0 max-w-[34ch] text-[12px] leading-snug text-placeholder">{body}</p>
+        {action}
+    </div>
+)
+
 /** The chip every row wears: the agent's own colour when it has one, a neutral tile when not. */
 const AgentPickerChip = ({
     workflowId,
@@ -341,11 +366,49 @@ export const AgentPicker = ({
                             <Skeleton className="h-8 w-3/5" />
                         </>
                     ) : matched.length === 0 ? (
-                        <p className="m-0 px-3 py-6 text-center text-[12px] text-muted-foreground">
-                            {agents.length === 0
-                                ? "No agents in this project yet."
-                                : `No agents match “${query.trim()}”.`}
-                        </p>
+                        // Two different facts: a project with no agents yet, and a search that
+                        // matched none of the ones it has. Telling a reader "no agents" while
+                        // five sit behind a typo sends them looking for a fault that is not there.
+                        agents.length === 0 ? (
+                            <AgentPickerEmpty
+                                icon={<Robot aria-hidden size={19} />}
+                                title="No agents yet"
+                                body="An agent is what does the work. Make one and it shows up here."
+                                action={
+                                    onCreateAgent ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setOpen(false)
+                                                onCreateAgent()
+                                            }}
+                                            className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center gap-1.5 rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-[12px] font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+                                        >
+                                            <Plus aria-hidden size={13} />
+                                            {createLabel}
+                                        </button>
+                                    ) : null
+                                }
+                            />
+                        ) : (
+                            <AgentPickerEmpty
+                                icon={<MagnifyingGlass aria-hidden size={19} />}
+                                title={`No agents match “${query.trim()}”`}
+                                body="The search covers each agent's name and what it does."
+                                action={
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setQuery("")
+                                            searchRef.current?.focus()
+                                        }}
+                                        className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-[12px] font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+                                    >
+                                        Clear search
+                                    </button>
+                                }
+                            />
+                        )
                     ) : (
                         matched.map((agent, index) =>
                             agent.id ? (
