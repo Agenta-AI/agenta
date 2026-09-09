@@ -59,6 +59,10 @@ const CREATE_PLACEHOLDER = "Describe the agent you want — what it does, when i
  * thing that also hid the fact that the rows do it. The send button stays where it always is —
  * that affordance is the one the rest of the app teaches.
  *
+ * NOTE: the create-mode ring animates through `animate-composer-ring`/`animate-composer-ring-in`,
+ * whose keyframes are the HOST's (this package ships no CSS and has no motion dependency). A host
+ * without them renders a still ring, silently.
+ *
  * Two modes, one input. `task` runs work with an agent that exists; `create` describes one to
  * make. Create used to live inside the picker as a hidden option, which meant send did two
  * different things depending on a selection you could not see — here the mode is a visible pill
@@ -123,29 +127,53 @@ export const HomeTaskComposer = ({
 
     return (
         <div className="relative flex flex-col">
-            {/* Lifted, so the dock behind it stays behind it. */}
-            <div className="relative z-10">
-                <ChatComposer
-                    inputRef={inputRef}
-                    onSubmit={async (text) => {
-                        try {
-                            if (creating) {
-                                await onCreate?.({text})
-                                return
+            {/* Lifted, so the dock behind it stays behind it. The ring lives HERE and not around
+                the whole thing: it marks the box you are typing in, and sweeping the dock too made
+                it read as a border on the pair. */}
+            <div className="relative z-10 box-border rounded-[9px] p-px">
+                {creating ? (
+                    // A conic sweep behind the composer's own border, clipped to its radius.
+                    <div className="animate-composer-ring-in pointer-events-none absolute inset-0 overflow-hidden rounded-[9px]">
+                        <div
+                            className="animate-composer-ring absolute left-1/2 top-1/2 w-[170%] pb-[170%]"
+                            style={{
+                                background:
+                                    "conic-gradient(from 0deg, transparent 0 58%, color-mix(in oklab, var(--ag-colorText) 50%, transparent) 80%, transparent 100%)",
+                            }}
+                        />
+                    </div>
+                ) : null}
+                {/* Opaque, so the sweep behind it shows only as the 1px rim the padding leaves —
+                    a composer you can read the animation through is a distraction, not a border. */}
+                <div
+                    className={
+                        creating
+                            ? "relative flex flex-col overflow-hidden rounded-lg bg-[var(--ag-colorBgContainer)]"
+                            : "relative flex flex-col"
+                    }
+                >
+                    <ChatComposer
+                        inputRef={inputRef}
+                        onSubmit={async (text) => {
+                            try {
+                                if (creating) {
+                                    await onCreate?.({text})
+                                    return
+                                }
+                                if (!effectiveAgentId) return
+                                await onStart({agentId: effectiveAgentId, text})
+                            } catch (error) {
+                                // `ChatComposer.onSubmit` is fire-and-forget, so a rejecting host would
+                                // surface as an unhandled rejection and nothing else.
+                                onStartError?.(error)
                             }
-                            if (!effectiveAgentId) return
-                            await onStart({agentId: effectiveAgentId, text})
-                        } catch (error) {
-                            // `ChatComposer.onSubmit` is fire-and-forget, so a rejecting host would
-                            // surface as an unhandled rejection and nothing else.
-                            onStartError?.(error)
-                        }
-                    }}
-                    attachments={attachments}
-                    placeholder={creating ? CREATE_PLACEHOLDER : placeholder}
-                    disabled={!creating && !effectiveAgentId}
-                    extraPrefix={extraPrefix}
-                />
+                        }}
+                        attachments={attachments}
+                        placeholder={creating ? CREATE_PLACEHOLDER : placeholder}
+                        disabled={!creating && !effectiveAgentId}
+                        extraPrefix={extraPrefix}
+                    />
+                </div>
             </div>
             {/* Docked UNDER the composer, not inside its footer: what the message is aimed at is a
                 standing fact about the composer, and in the footer it competed for the same row as

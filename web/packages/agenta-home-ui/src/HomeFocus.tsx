@@ -40,10 +40,6 @@ export interface HomeFocusProps {
  *
  * "+ New" does not navigate. It flips THIS composer into create mode, so describing an agent and
  * describing a task happen in the same box, one above the same list.
- *
- * NOTE: the create-mode ring animates through `animate-composer-ring`/`animate-composer-ring-in`,
- * whose keyframes are the HOST's (this package ships no CSS and has no motion dependency). A host
- * without them renders a still ring, silently.
  */
 export const HomeFocus = ({
     className,
@@ -89,7 +85,7 @@ export const HomeFocus = ({
                     light, brand yellow on dark. `colorBgContainer` is the readable counterpart to
                     both, so the pair never needs a second definition here. */}
                 <div
-                    className="relative box-border rounded-[9px] p-px"
+                    className="relative box-border"
                     style={
                         {
                             "--ag-composer-send-bg": "var(--ag-colorPrimary)",
@@ -98,28 +94,7 @@ export const HomeFocus = ({
                         } as CSSProperties
                     }
                 >
-                    {creating ? (
-                        // A conic sweep behind the composer's own border, clipped to its radius.
-                        <div className="animate-composer-ring-in pointer-events-none absolute inset-0 overflow-hidden rounded-[9px]">
-                            <div
-                                className="animate-composer-ring absolute left-1/2 top-1/2 w-[170%] pb-[170%]"
-                                style={{
-                                    background:
-                                        "conic-gradient(from 0deg, transparent 0 58%, color-mix(in oklab, var(--ag-colorText) 50%, transparent) 80%, transparent 100%)",
-                                }}
-                            />
-                        </div>
-                    ) : null}
-                    {/* Opaque, so the sweep behind it shows only as the 1px rim the padding
-                        leaves — a composer you can read the animation through is a distraction,
-                        not a border. */}
-                    <div
-                        className={`relative flex flex-col ${
-                            creating
-                                ? "overflow-hidden rounded-lg bg-[var(--ag-colorBgContainer)]"
-                                : ""
-                        }`}
-                    >
+                    <div>
                         <HomeTaskComposer
                             agents={agents.map((agent) => ({id: agent.id, name: agent.name}))}
                             attachments={attachments}
