@@ -16,6 +16,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.redis.shared.engine import get_cache_engine
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
+    UpdateSecretDTO,
     CustomModelSettingsDTO,
     CustomProviderDTO,
     CustomProviderSettingsDTO,
@@ -167,6 +168,14 @@ async def seed_starter_credits_bridge(
         project_id=project.id,
     )
     if row is not None:
+        await reconcile_starter_credits_model(
+            client=client,
+            config=config,
+            vault_service=vault_service,
+            project_id=project.id,
+            organization_id=organization_id,
+            row=row,
+        )
         return
 
     if not await _mint_policy_allows(organization_email, policy):
@@ -186,6 +195,112 @@ async def seed_starter_credits_bridge(
         if not seeded:
             # The consumed velocity slot funded no mint; hand it back best-effort.
             await _release_velocity_slots(organization_email, policy)
+
+
+async def reconcile_starter_credits_model(
+    *,
+    client: StarterCreditsProxyClient,
+    config: StarterCreditsBridgeConfig,
+    vault_service: VaultService,
+    project_id: UUID,
+    organization_id: str,
+    row: SecretResponseDTO,
+) -> bool:
+    """Re-point an already-seeded row at the model the proxy funds today.
+
+    The row freezes the funded model at creation time, but the proxy serves exactly one
+    model and that model gets cut over. A row left on the old id resolves every run to a
+    model the proxy refuses, so a project seeded before a cutover fails on every turn with
+    HTTP 400 "Invalid model name passed in model=<old id>".
+
+    Rewrites the stored list and re-points the minted key's allow-list. It never mints: the
+    grant invariant is one key per organization. Returns whether the row was changed.
+    """
+    stored_models = _stored_model_slugs(row)
+    if stored_models == [config.model_id]:
+        return False
+
+    # The proxy first: a key still restricted to the old id would refuse the new one, so
+    # widening it before the row changes keeps the two consistent for as long as possible.
+    # A failure here is logged, not raised — the row must still move, and a key pointing at
+    # a model the proxy no longer serves is already unusable.
+    virtual_key = _stored_virtual_key(row)
+    if virtual_key:
+        try:
+            await client.update_key_models(
+                key=virtual_key,
+                models=[config.model_id],
+            )
+        except Exception:
+            log.warning(
+                "[starter_credits_bridge] could not re-point the key's models; "
+                "rewriting the row anyway",
+                organization_id=organization_id,
+                project_id=str(project_id),
+                exc_info=True,
+            )
+    else:
+        log.warning(
+            "[starter_credits_bridge] the seeded row carries no key; "
+            "rewriting its models only",
+            organization_id=organization_id,
+            project_id=str(project_id),
+        )
+
+    await vault_service.update_managed_secret(
+        secret_id=row.id,
+        project_id=project_id,
+        update_secret_dto=_model_update(row=row, config=config),
+        manager=SecretManager.STARTER_CREDITS_BRIDGE,
+    )
+
+    log.info(
+        "[starter_credits_bridge] reconciled a stale funded model",
+        organization_id=organization_id,
+        project_id=str(project_id),
+        secret_id=str(row.id),
+        stored_models=stored_models,
+        funded_model=config.model_id,
+    )
+    return True
+
+
+def _stored_model_slugs(row: SecretResponseDTO) -> list[str]:
+    """The model ids the row offers, in stored order."""
+    models = getattr(getattr(row, "data", None), "models", None) or []
+    slugs = [getattr(model, "slug", None) for model in models]
+    return [str(slug) for slug in slugs if slug]
+
+
+def _stored_virtual_key(row: SecretResponseDTO) -> Optional[str]:
+    """The minted key the row carries, or None when the read gave a value-less shape."""
+    key = getattr(getattr(getattr(row, "data", None), "provider", None), "key", None)
+    return key if isinstance(key, str) and key else None
+
+
+def _model_update(
+    *,
+    row: SecretResponseDTO,
+    config: StarterCreditsBridgeConfig,
+) -> UpdateSecretDTO:
+    """The narrowest update that re-points the row: its models, and nothing else.
+
+    Built from the STORED payload so the routing URL and every other saved field survive
+    verbatim. ``model_keys`` is dropped rather than carried, because it is derived from the
+    model list and a carried copy would keep publishing the old namespaced key.
+    """
+    data = row.data.model_dump(mode="json", exclude_none=True)
+    data["models"] = [{"slug": config.model_id}]
+    data.pop("model_keys", None)
+
+    return UpdateSecretDTO.model_validate(
+        {
+            "secret": {
+                "kind": SecretKind.CUSTOM_PROVIDER.value,
+                "data": data,
+            }
+        }
+    )
 
 
 async def _provision(

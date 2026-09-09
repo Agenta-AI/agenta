@@ -76,6 +76,7 @@ class FakeVaultService:
         self.create_dto = None
         self.management = None
         self.create_error = None
+        self.update_calls = []
 
     async def get_secret_by_slug(self, secret_slug, project_id=None, **kwargs):
         assert secret_slug == service.STARTER_CREDITS_SLUG
@@ -99,6 +100,25 @@ class FakeVaultService:
         self.created_count += 1
         return self.row
 
+    async def update_managed_secret(
+        self,
+        *,
+        secret_id,
+        update_secret_dto,
+        manager,
+        project_id=None,
+        organization_id=None,
+    ):
+        await asyncio.sleep(0)
+        assert self.row is not None
+        assert secret_id == self.row.id
+        assert manager is SecretManager.STARTER_CREDITS_BRIDGE
+        self.update_calls.append(update_secret_dto)
+        # The real service revalidates the merged payload and writes it back, so the row
+        # the next read returns is the update's own data.
+        self.row.data = update_secret_dto.secret.data
+        return self.row
+
 
 class FakeProxyClient:
     """Stands in for StarterCreditsProxyClient with a per-alias key registry, so
@@ -107,6 +127,7 @@ class FakeProxyClient:
 
     records: dict = {}
     generate_failures: list = []
+    update_failures: list = []
     instances: list = []
 
     def __init__(self, *, base_url, master_key):
@@ -114,6 +135,7 @@ class FakeProxyClient:
         self.master_key = master_key
         self.generate_calls = []
         self.block_calls = []
+        self.update_calls = []
         FakeProxyClient.instances.append(self)
 
     @classmethod
@@ -166,6 +188,17 @@ class FakeProxyClient:
     async def block_key(self, *, key):
         self.block_calls.append(key)
 
+    async def update_key_models(self, *, key, models):
+        await asyncio.sleep(0)
+        self.update_calls.append(dict(key=key, models=models))
+        if FakeProxyClient.update_failures:
+            raise FakeProxyClient.update_failures.pop(0)
+        for record in FakeProxyClient.records.values():
+            if record["key"] == key:
+                record["models"] = list(models)
+                return
+        raise ProxyRequestError(status_code=404, detail="no such key")
+
 
 def _all_generate_calls():
     return [
@@ -186,6 +219,7 @@ def seeding_env(monkeypatch):
     """Arm the config and stub every dependency; returns the mutable stubs."""
     FakeProxyClient.records = {}
     FakeProxyClient.generate_failures = []
+    FakeProxyClient.update_failures = []
     FakeProxyClient.instances = []
     service._verified_teams.clear()
 
@@ -1176,3 +1210,128 @@ def test_a_bridge_deployment_without_a_runtime_key_fails_at_startup(monkeypatch)
 
     with pytest.raises(RuntimeError, match="AGENTA_SERVICES_INTERNAL_KEY"):
         helpers.validate_platform_runtime_key()
+
+
+def _all_key_update_calls():
+    return [
+        call for instance in FakeProxyClient.instances for call in instance.update_calls
+    ]
+
+
+class TestReconcilingAStaleFundedModel:
+    """The row freezes the funded model at creation, but the proxy serves exactly one model
+    and that model gets cut over. A row left on the old id resolves every run to a model the
+    proxy refuses with HTTP 400 "Invalid model name passed in model=<old id>"."""
+
+    async def _seed_then_cut_the_model_over(self, seeding_env, *, funded: str):
+        await _seed()
+        assert seeding_env.vault.row is not None
+        seeding_env.monkeypatch.setattr(
+            env,
+            "starter_credits_bridge",
+            _armed_config(model_id=funded),
+        )
+
+    async def test_a_stale_row_is_repointed_at_the_funded_model(self, seeding_env):
+        await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+
+        await _seed()
+
+        row = seeding_env.vault.row
+        assert [model.slug for model in row.data.models] == ["vertex_ai/new-model"]
+        # The credential and the routing URL survive the rewrite untouched.
+        assert row.data.provider.key == FakeProxyClient.records[ORGANIZATION_ID]["key"]
+        assert row.data.provider.url == "https://credits-proxy.example.test"
+        assert row.data.provider_slug == service.STARTER_CREDITS_NAME
+        # A carried model_keys list would keep publishing the old model id.
+        assert row.data.model_keys is None
+
+    async def test_the_minted_key_is_repointed_and_never_re_minted(self, seeding_env):
+        await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+
+        await _seed()
+
+        (update,) = _all_key_update_calls()
+        assert update["models"] == ["vertex_ai/new-model"]
+        assert update["key"] == FakeProxyClient.records[ORGANIZATION_ID]["key"]
+        assert FakeProxyClient.records[ORGANIZATION_ID]["models"] == [
+            "vertex_ai/new-model"
+        ]
+        # One mint, from the original seed. The grant invariant is one key per organization.
+        assert len(_all_generate_calls()) == 1
+        assert _all_block_calls() == []
+
+    async def test_a_current_row_is_left_alone(self, seeding_env):
+        await _seed()
+        seeding_env.vault.update_calls.clear()
+
+        await _seed()
+
+        assert seeding_env.vault.update_calls == []
+        assert _all_key_update_calls() == []
+        assert len(_all_generate_calls()) == 1
+
+    async def test_a_failed_key_update_still_repoints_the_row(self, seeding_env):
+        # A key restricted to a model the proxy no longer serves is already unusable, so a
+        # transient proxy failure must not hold the row back. Nothing is raised here: the
+        # signup path this runs inside deletes the new user when setup raises.
+        await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        FakeProxyClient.update_failures = [
+            ProxyRequestError(status_code=503, detail="proxy down")
+        ]
+
+        await _seed()
+
+        row = seeding_env.vault.row
+        assert [model.slug for model in row.data.models] == ["vertex_ai/new-model"]
+        assert len(_all_key_update_calls()) == 1
+
+    async def test_reconciling_consumes_no_velocity_slot(self, seeding_env):
+        # The velocity caps meter GRANTS. A repair mints nothing, so it must not spend one.
+        await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+
+        await _seed()
+
+        assert seeding_env.released == []
+        assert len(_all_generate_calls()) == 1
+
+    async def test_the_repaired_row_resolves_to_the_funded_model(self, seeding_env):
+        # The end the repair exists for: what the runtime resolver runs after it.
+        from agenta.sdk.agents.connections import ModelRef
+        from agenta.sdk.agents.platform import connections
+
+        await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        await _seed()
+
+        row = seeding_env.vault.row
+        stored = SecretResponseDTO(
+            id=uuid4(),
+            slug=service.STARTER_CREDITS_SLUG,
+            kind="custom_provider",
+            data=row.data.model_dump(mode="json"),
+            header=row.header,
+        )
+        (candidate,) = connections._catalog([stored.model_dump(mode="json")])
+
+        # A revision saved before the cutover still names the old id.
+        stale = ModelRef(
+            model=f"{service.STARTER_CREDITS_NAME}/custom/vertex_ai/some-model",
+            connection={"mode": "agenta", "slug": service.STARTER_CREDITS_SLUG},
+        )
+        assert candidate.selected_model_id(stale) == "vertex_ai/new-model"
+
+        fresh = ModelRef(
+            model=f"{service.STARTER_CREDITS_NAME}/custom/vertex_ai/new-model",
+            connection={"mode": "agenta", "slug": service.STARTER_CREDITS_SLUG},
+        )
+        assert candidate.selected_model_id(fresh) == "vertex_ai/new-model"

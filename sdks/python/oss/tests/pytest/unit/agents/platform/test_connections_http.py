@@ -840,6 +840,100 @@ async def test_bare_backend_model_id_is_left_untouched(fake_http, connection):
     assert resolved.model == _BACKEND_MODEL
 
 
+# ------------------------------------------ a starter-credits model that is no longer funded
+
+# What the proxy funds after a cutover; `_BACKEND_MODEL` above is what it funded before one.
+_FUNDED_MODEL = "vertex_ai/gemini-3.7-flash"
+
+
+def _funded_starter_credits(
+    *, name: str = "Agenta", slug: str = "starter-credits"
+) -> dict:
+    """The seeded connection after Agenta re-pointed it at the model funded today."""
+    return _custom_provider(
+        name,
+        "custom",
+        key="sk-gateway",
+        url=_GATEWAY_URL,
+        models=[_FUNDED_MODEL],
+        slug=slug,
+    )
+
+
+async def test_a_stale_starter_credits_model_runs_the_funded_one(fake_http, connection):
+    # The starter-credits proxy serves exactly one model and that model gets cut over. A
+    # revision saved before a cutover still names the old id, and sending it upstream fails
+    # every turn with "Invalid model name passed in model=vertex_ai/gemini-3.6-flash". The
+    # connection states what is funded now, so run that instead of a certain failure.
+    fake_http(connections, payload=[_funded_starter_credits()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            model=f"Agenta/custom/{_BACKEND_MODEL}",
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _FUNDED_MODEL
+
+
+async def test_a_stale_bare_starter_credits_model_runs_the_funded_one(
+    fake_http, connection
+):
+    # The same substitution for the un-namespaced spelling of the saved id.
+    fake_http(connections, payload=[_funded_starter_credits()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model=_BACKEND_MODEL,
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _FUNDED_MODEL
+
+
+async def test_a_current_starter_credits_model_is_left_untouched(fake_http, connection):
+    # The substitution must be reachable only after every match misses.
+    fake_http(connections, payload=[_funded_starter_credits()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            model=f"Agenta/custom/{_FUNDED_MODEL}",
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _FUNDED_MODEL
+
+
+async def test_another_connections_unknown_model_is_left_untouched(
+    fake_http, connection
+):
+    # Only the Agenta-funded connection substitutes. On a connection the user configured,
+    # running a model they did not pick would misreport what ran, so the id goes upstream
+    # unchanged and fails there.
+    fake_http(
+        connections,
+        payload=[_funded_starter_credits(name="My gateway", slug="my-gateway")],
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model=_BACKEND_MODEL,
+            connection={"mode": "agenta", "slug": "my-gateway"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _BACKEND_MODEL
+
+
 async def test_provider_key_model_id_is_unaffected(fake_http, connection):
     # A plain provider key stores no namespaced model keys; its model id must survive verbatim.
     fake_http(

@@ -50,6 +50,11 @@ log = get_module_logger(__name__)
 # Canonical map lives in capabilities.py; this alias keeps the local name callers already use.
 _PROVIDER_ENV_VARS: Dict[str, str] = PROVIDER_ENV_VARS
 
+# The slug of the Agenta-funded starter-credits connection. It is the one connection whose
+# model list the user does not choose: Agenta seeds it, and Agenta re-points it when the
+# funded model is cut over. The same literal is `STARTER_CREDITS_SLUG` on the API side.
+STARTER_CREDITS_SLUG = "starter-credits"
+
 # The Claude harness selects a model by a bare alias (``haiku``/``sonnet``/``opus`` + ``[1m]``)
 # or by a dated id (``claude-opus-4-8``), never with a ``provider/`` prefix. Those bare ids are
 # unambiguously Anthropic, so the F-017 "needs a provider prefix" rule must not reject them: a
@@ -372,7 +377,38 @@ class _ConnectionCandidate:
             return model.model
         if model.model.startswith(prefix):
             return model.model[len(prefix) :]
+        funded = self._funded_starter_credits_model(model)
+        if funded is not None:
+            return funded
         return model.model
+
+    def _funded_starter_credits_model(self, model: ModelRef) -> Optional[str]:
+        """The funded model, when a saved id names one this connection no longer offers.
+
+        The Agenta-funded starter-credits connection routes to a proxy that serves exactly one
+        model, and that model gets cut over. A revision saved before a cutover still names the
+        old id, so every turn fails upstream with an invalid-model error even though the
+        connection is healthy. The connection itself states what is funded now, so run that and
+        say so in the log.
+
+        Deliberately narrow. It applies to this one connection, only when the connection offers
+        exactly one model, and only after every match above missed. Every other connection keeps
+        failing upstream, which is correct: silently running a model the user did not pick would
+        misreport what ran.
+        """
+        if self.slug != STARTER_CREDITS_SLUG:
+            return None
+        if len(self.model_slugs) != 1:
+            return None
+
+        funded = next(iter(self.model_slugs))
+        log.warning(
+            "starter credits: the saved model is not funded any more; using the funded one",
+            saved_model=model.model,
+            funded_model=funded,
+            slug=self.slug,
+        )
+        return funded
 
     def resolved_provider(self, model: ModelRef) -> str:
         if model.provider:
