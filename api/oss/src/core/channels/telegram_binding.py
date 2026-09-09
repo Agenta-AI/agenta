@@ -17,7 +17,7 @@ duplicate `/start` keeps the completed binding and a failure writes nothing.
 import secrets as token_secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Protocol
+from typing import Optional, Protocol, List
 from uuid import UUID
 
 from oss.src.core.channels.dtos import ChannelCapabilities
@@ -115,6 +115,10 @@ class TelegramBindingStore(Protocol):
     ) -> ChatBinding: ...
 
     async def delete_bindings_for_connection(self, *, connection_id: UUID) -> int: ...
+
+    async def list_bindings_for_connection(
+        self, *, project_id: UUID, connection_id: UUID
+    ) -> List[ChatBinding]: ...
 
 
 class TelegramBindingService:
@@ -224,6 +228,18 @@ class TelegramBindingService:
         shared bot. `None` means the chat is not bound yet."""
 
         return await self._store.get_binding(bot_id=bot_id, chat_id=chat_id)
+
+    async def list_connection_bindings(
+        self, *, project_id: UUID, connection_id: UUID
+    ) -> List[ChatBinding]:
+        """The chats bound to this connection, so the connect UI can tell a
+        minted link apart from a confirmed bind: the list is empty until a
+        /start consumes a token. Scoped to the project, so a connection id from
+        another project reads as no bindings."""
+
+        return await self._store.list_bindings_for_connection(
+            project_id=project_id, connection_id=connection_id
+        )
 
     async def release_connection_bindings(self, *, connection_id: UUID) -> int:
         """Free every chat bound to this connection, so they can reconnect.

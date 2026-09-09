@@ -10,7 +10,7 @@ the stored binding is read back and returned.
 """
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import delete, select, update
@@ -106,6 +106,21 @@ class TelegramBindingDAO:
             )
             await session.commit()
             return result.rowcount or 0
+
+    async def list_bindings_for_connection(
+        self, *, project_id: UUID, connection_id: UUID
+    ) -> List[ChatBinding]:
+        """Every chat bound to this connection, in this project. Empty until a
+        /start consumes a bind token."""
+
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(TelegramChatBindingDBE).where(
+                    TelegramChatBindingDBE.project_id == project_id,
+                    TelegramChatBindingDBE.connection_id == connection_id,
+                )
+            )
+            return [_to_chat_binding(dbe) for dbe in result.scalars().all()]
 
     async def consume_token_and_bind(
         self,

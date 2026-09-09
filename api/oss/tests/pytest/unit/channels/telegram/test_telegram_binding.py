@@ -67,6 +67,13 @@ class _FakeStore:
         self.links.append((bot_id, chat_id, external_user_key))
         return binding
 
+    async def list_bindings_for_connection(self, *, project_id, connection_id):
+        return [
+            b
+            for b in self.bindings.values()
+            if b.project_id == project_id and b.connection_id == connection_id
+        ]
+
     async def delete_bindings_for_connection(self, *, connection_id) -> int:
         removed = [
             key for key, b in self.bindings.items() if b.connection_id == connection_id
@@ -278,3 +285,29 @@ async def test_release_connection_bindings_frees_the_chat_to_rebind():
         token=token2, bot_id="100", chat_id="555", sender_id="888"
     )
     assert binding2.project_id != project_a
+
+
+async def test_list_connection_bindings_is_empty_until_start_and_scoped_to_project():
+    # the connect UI polls this to tell "link minted" apart from "chat bound"
+    store = _FakeStore()
+    svc = _service(store)
+    project = uuid4()
+    conn = uuid4()
+    url = await svc.issue_bind_link(
+        project_id=project, user_id=uuid4(), connection_id=conn
+    )
+    assert (
+        await svc.list_connection_bindings(project_id=project, connection_id=conn) == []
+    )
+
+    token = url.rsplit("=", 1)[1]
+    await svc.consume_bind_token(
+        token=token, bot_id="100", chat_id="555", sender_id="777"
+    )
+    bound = await svc.list_connection_bindings(project_id=project, connection_id=conn)
+    assert [b.chat_id for b in bound] == ["555"]
+
+    # another project cannot read this connection's bindings
+    assert (
+        await svc.list_connection_bindings(project_id=uuid4(), connection_id=conn) == []
+    )

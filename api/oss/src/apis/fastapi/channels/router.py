@@ -50,6 +50,8 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelsCatalogResponse,
     TelegramHostedBindLinkRequest,
     TelegramHostedBindLinkResponse,
+    TelegramHostedBinding,
+    TelegramHostedBindingsResponse,
 )
 from oss.src.core.channels.adapters.bridge.adapter import build_bridge_create_document
 from oss.src.core.channels.adapters.slack import oauth as slack_oauth
@@ -222,6 +224,15 @@ class ChannelsRouter:
             methods=["POST"],
             operation_id="create_telegram_hosted_bind_link",
             response_model=TelegramHostedBindLinkResponse,
+        )
+        # The UI polls this after it showed the link, to learn when a /start
+        # bound a chat to the connection (the confirmed connect).
+        self.router.add_api_route(
+            "/catalog/channels/telegram_hosted/bindings/",
+            self.list_telegram_hosted_bindings,
+            methods=["GET"],
+            operation_id="list_telegram_hosted_bindings",
+            response_model=TelegramHostedBindingsResponse,
         )
 
         # --- Connections ------------------------------------------------------ #
@@ -537,6 +548,40 @@ class ChannelsRouter:
         return TelegramHostedBindLinkResponse(
             url=url,
             expires_in_seconds=self.telegram_binding_service.ttl_seconds,
+            connection_id=connection.id,
+        )
+
+    @intercept_exceptions()
+    async def list_telegram_hosted_bindings(
+        self,
+        request: Request,
+        *,
+        connection_id: UUID = Query(),
+    ) -> TelegramHostedBindingsResponse:
+        """The chats bound to a hosted Telegram connection in this project.
+        Empty until a /start consumed a bind token. 404 when the deployment has
+        no hosted bot configured."""
+
+        await self._check(request, Permission.VIEW_CHANNELS)
+
+        if self.telegram_binding_service is None:
+            raise HTTPException(
+                status_code=404,
+                detail="The hosted Telegram bot is not configured on this deployment.",
+            )
+
+        bindings = await self.telegram_binding_service.list_connection_bindings(
+            project_id=UUID(request.state.project_id),
+            connection_id=connection_id,
+        )
+        return TelegramHostedBindingsResponse(
+            count=len(bindings),
+            bindings=[
+                TelegramHostedBinding(
+                    chat_id=binding.chat_id, connection_id=binding.connection_id
+                )
+                for binding in bindings
+            ],
         )
 
     # -----------------------------------------------------------------------

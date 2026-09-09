@@ -6,6 +6,7 @@ standing in for the real implementation; that fake is the one collaborator
 this module asserts an interface against.
 """
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -333,6 +334,10 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
             ),
             False,
         ),
+        (
+            lambda r, req: r.list_telegram_hosted_bindings(req, connection_id=uuid4()),
+            True,
+        ),
     ],
 )
 async def test_route_rejects_without_permission(call, is_view_route):
@@ -397,6 +402,7 @@ async def test_permission_matrix_covers_every_registered_route():
         "query_channel_outbox_events",
         "read_agenta_conversation",
         "create_telegram_hosted_bind_link",
+        "list_telegram_hosted_bindings",
     }
 
     assert registered_handlers == exercised
@@ -579,6 +585,7 @@ def test_trailing_slash_audit():
         "/catalog/channels/slack/install/",
         "/catalog/channels/slack/callback/",
         "/catalog/channels/telegram_hosted/bind-link/",
+        "/catalog/channels/telegram_hosted/bindings/",
     }
     item_or_action_paths = {
         "/connections/query",
@@ -666,3 +673,36 @@ def test_router_module_does_not_import_ingress_module():
 
     assert "channels.ingress" not in source
     assert "import ChannelsIngressRouter" not in source
+
+
+async def test_list_telegram_hosted_bindings_404s_without_a_hosted_bot():
+    router = _router()
+    request = _make_request(uuid4(), uuid4(), method="GET")
+    with _patched_access(True):
+        with pytest.raises(HTTPException) as exc:
+            await router.list_telegram_hosted_bindings(request, connection_id=uuid4())
+    assert exc.value.status_code == 404
+
+
+async def test_list_telegram_hosted_bindings_reads_the_project_scoped_list():
+    binding_service = AsyncMock()
+    connection_id = uuid4()
+    binding_service.list_connection_bindings.return_value = [
+        SimpleNamespace(chat_id="555", connection_id=connection_id)
+    ]
+    router = ChannelsRouter(
+        channels_service=AsyncMock(),
+        adapter_registry=AsyncMock(keys=lambda: ["slack"]),
+        telegram_binding_service=binding_service,
+    )
+    project_id = uuid4()
+    request = _make_request(project_id, uuid4(), method="GET")
+    with _patched_access(True):
+        response = await router.list_telegram_hosted_bindings(
+            request, connection_id=connection_id
+        )
+    assert response.count == 1
+    assert response.bindings[0].chat_id == "555"
+    binding_service.list_connection_bindings.assert_awaited_once_with(
+        project_id=project_id, connection_id=connection_id
+    )

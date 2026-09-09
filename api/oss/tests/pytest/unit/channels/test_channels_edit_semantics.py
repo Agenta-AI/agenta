@@ -6,6 +6,7 @@ reset the default flag and muted the connection (F91). Both edit paths now
 layer the caller's fields over the stored row before the write.
 """
 
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -387,3 +388,42 @@ async def test_connect_here_is_a_no_op_when_this_agent_already_answers():
 
     dao.edit_agent.assert_not_awaited()
     dao.create_agent.assert_not_awaited()
+
+
+async def test_reconnect_after_disconnect_reuses_the_restored_agent():
+    # disconnect archives the connection AND its agents; the unarchive on
+    # reconnect brings both back, so ensure retargets the restored agent
+    # instead of creating a second "default" one (which would trip the
+    # (connection, slug) unique key on the archived row).
+    conn = _hosted_conn()
+    conn.deleted_at = datetime.now(timezone.utc)
+    app_a, app_b = uuid4(), uuid4()
+    archived_agent = _agent_with_ref(conn.id, str(app_a))
+    archived_agent.deleted_at = conn.deleted_at
+    restored_conn = conn.model_copy(update={"deleted_at": None})
+    restored_agent = archived_agent.model_copy(update={"deleted_at": None})
+
+    dao = MagicMock()
+    dao.query_connections = AsyncMock(return_value=[conn])
+    dao.unarchive_connection = AsyncMock(return_value=restored_conn)
+    # before the unarchive the agent is archived; after it, active
+    dao.query_agents = AsyncMock(return_value=[restored_agent])
+    dao.fetch_agent = AsyncMock(return_value=restored_agent)
+    dao.edit_agent = AsyncMock(side_effect=lambda **kw: kw["agent"])
+    dao.create_agent = AsyncMock()
+    service = ChannelsService(
+        channels_dao=dao, adapter_registry=ChannelAdapterRegistry(adapters={})
+    )
+
+    result = await service.ensure_hosted_telegram_connection(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        references={"application": {"id": str(app_b)}},
+    )
+
+    assert result.deleted_at is None
+    dao.unarchive_connection.assert_awaited_once()
+    dao.create_agent.assert_not_awaited()
+    written = dao.edit_agent.await_args.kwargs["agent"]
+    assert written.id == archived_agent.id
+    assert str(written.data.references["application"].id) == str(app_b)
