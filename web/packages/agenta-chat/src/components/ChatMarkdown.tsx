@@ -133,7 +133,7 @@ export const chatMarkdownComponents: Components = {
 }
 
 /** Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults. */
-const MD_REHYPE_PLUGINS = withExplicitRelativeLinks(defaultRehypePlugins)
+export const MD_REHYPE_PLUGINS = withExplicitRelativeLinks(defaultRehypePlugins)
 
 /** KaTeX math ($…$ / $$…$$) + Shiki-highlighted fences; both tree-shaken plugin packages. */
 const MD_PLUGINS = {math, code}
