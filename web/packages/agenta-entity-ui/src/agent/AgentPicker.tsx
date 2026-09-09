@@ -95,7 +95,12 @@ const AgentPickerChip = ({
                 box,
                 // An agent with no icon of its own still gets a tile: a column where some rows
                 // have one and some do not reads as a rendering fault, not as a distinction.
-                chrome.customised ? chrome.className : "bg-muted text-muted-foreground",
+                // `colorFillSecondary`, not `muted`: muted sits within a hair of the popover's own
+                // surface in dark mode, so the neutral tiles vanished while the coloured ones
+                // stayed. This is the fill the agent chrome itself uses for an unpicked icon.
+                chrome.customised
+                    ? chrome.className
+                    : "bg-colorFillSecondary text-muted-foreground",
             ].join(" ")}
             style={chrome.style}
         >
