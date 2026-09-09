@@ -1,4 +1,4 @@
-import {Fragment, useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     agentLabel,
@@ -20,15 +20,14 @@ import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {InputGroup, InputGroupAddon, InputGroupInput} from "@agenta/ui/ui"
-import {CaretDown, ClockClockwise, Lightning, MagnifyingGlass, Plus} from "@phosphor-icons/react"
+import {ListTable, ListTableToolbar, type ListTableColumn} from "@agenta/ui/list-table"
+import {ClockClockwise, Lightning, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {Button} from "@/components/ui/button"
-import {FOCUS_RING} from "@/lib/interactive"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -63,8 +62,13 @@ const STATUS_COLOR: Record<AutomationStatus, {dot: string; text: string}> = {
  */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
-const GRID =
-    "grid gap-3 [grid-template-columns:minmax(140px,2fr)_minmax(110px,1fr)_minmax(130px,1fr)_minmax(120px,1fr)_24px]"
+const COLUMNS: ListTableColumn[] = [
+    {key: "name", label: "Automation", width: "minmax(140px,2fr)"},
+    {key: "status", label: "Status", width: "minmax(110px,1fr)"},
+    {key: "runsWhen", label: "Runs when", width: "minmax(130px,1fr)"},
+    {key: "agent", label: "Agent", width: "minmax(120px,1fr)"},
+    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+]
 
 /**
  * The automations list — where the nav's Automations entry lands.
@@ -143,7 +147,6 @@ export const AutomationListScreen = ({
         () => deriveAutomationList(automations, view, agentNames),
         [agentNames, automations, view],
     )
-    const matchCount = groups.reduce((total, group) => total + group.automations.length, 0)
 
     const body = (() => {
         if (isLoading) return <AutomationListSkeleton />
@@ -158,168 +161,120 @@ export const AutomationListScreen = ({
             )
 
         return (
-            <div className="overflow-x-auto">
-                <div className="min-w-[572px]">
-                    <div
-                        className={`${GRID} mb-1 border-0 border-b border-solid border-border px-2 py-2 text-[12px] font-medium text-muted-foreground`}
-                    >
-                        <span>Automation</span>
-                        <span>Status</span>
-                        <span>Runs when</span>
-                        <span>Agent</span>
-                        <span className="sr-only">Actions</span>
-                    </div>
+            <ListTable
+                columns={COLUMNS}
+                groups={groups.map((group) => ({
+                    key: group.key,
+                    label: group.label,
+                    rows: group.automations,
+                }))}
+                rowKey={(automation) => automation.id}
+                onOpenRow={(automation) => void router.push(`${base}/automations/${automation.id}`)}
+                collapsedKeys={collapsed}
+                onToggleGroup={toggleGroup}
+                empty={
+                    <AutomationListNoMatch
+                        term={term || undefined}
+                        onClear={
+                            term
+                                ? () => setSearch("")
+                                : isDefaultAutomationListView(view)
+                                  ? undefined
+                                  : () => setView(DEFAULT_AUTOMATION_LIST_VIEW)
+                        }
+                    />
+                }
+                renderRow={(automation) => {
+                    // Run outcomes land in W6; until then nothing here has failed.
+                    const status = automationStatus(automation, false)
+                    const color = STATUS_COLOR[status]
+                    const runsWhen = runsWhenLabel(automation)
+                    const agentName = agentLabel(
+                        automation.agentId,
+                        agentNames.get(automation.agentId ?? "")?.trim() || null,
+                        !agentsQuery.isPending,
+                    )
 
-                    {matchCount === 0 ? (
-                        <AutomationListNoMatch
-                            term={term || undefined}
-                            onClear={
-                                term
-                                    ? () => setSearch("")
-                                    : isDefaultAutomationListView(view)
-                                      ? undefined
-                                      : () => setView(DEFAULT_AUTOMATION_LIST_VIEW)
-                            }
-                        />
-                    ) : (
-                        groups.map((group) => (
-                            <Fragment key={group.key}>
-                                {/* `Group by: None` returns one unlabelled group, so the
-                                        table is byte-for-byte what it was before grouping. */}
-                                {group.label === null ? null : (
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleGroup(group.key)}
-                                        aria-expanded={!collapsed.has(group.key)}
-                                        className={`box-border flex w-full cursor-pointer appearance-none items-center gap-1.5 border-0 bg-transparent px-2 pb-1.5 pt-3.5 text-left font-[inherit] text-[13px] text-muted-foreground hover:text-foreground ${FOCUS_RING}`}
+                    return (
+                        <>
+                            <span className="flex min-w-0 items-center gap-2">
+                                {automation.kind === "event" ? (
+                                    <Lightning
+                                        size={15}
+                                        className="shrink-0 text-muted-foreground"
+                                        aria-hidden
+                                    />
+                                ) : (
+                                    <ClockClockwise
+                                        size={15}
+                                        className="shrink-0 text-muted-foreground"
+                                        aria-hidden
+                                    />
+                                )}
+                                <span
+                                    className="truncate text-[14px] text-foreground"
+                                    title={automation.name}
+                                >
+                                    {automation.name}
+                                </span>
+                            </span>
+
+                            <span className="flex min-w-0 items-center gap-[7px]">
+                                <span
+                                    aria-hidden
+                                    className={`size-1.5 shrink-0 rounded-full ${color.dot}`}
+                                />
+                                <span className={`text-[13px] ${color.text}`}>
+                                    {AUTOMATION_STATUS_LABEL[status]}
+                                </span>
+                            </span>
+
+                            <span
+                                className="block truncate text-[13px] text-muted-foreground"
+                                title={runsWhen}
+                            >
+                                {runsWhen}
+                            </span>
+
+                            {agentName ? (
+                                <span className="flex min-w-0 items-center gap-1.5">
+                                    {/* The agent's own mark, not a generic robot — a column of
+                                        identical icons identifies nothing. Same tile the agent
+                                        picker draws, so the row and the control that set it
+                                        match. */}
+                                    <AgentChip
+                                        workflowId={automation.agentId}
+                                        box="size-5"
+                                        glyph={13}
+                                    />
+                                    <span
+                                        className="truncate text-[13px] text-foreground"
+                                        title={agentName}
                                     >
-                                        <span>{group.label}</span>
-                                        <CaretDown
-                                            size={12}
-                                            aria-hidden
-                                            className={`shrink-0 transition-transform ${collapsed.has(group.key) ? "-rotate-90" : ""}`}
-                                        />
-                                    </button>
-                                )}
-                                {(collapsed.has(group.key) ? [] : group.automations).map(
-                                    (automation) => {
-                                        // Run outcomes land in W6; until then nothing here has failed.
-                                        const status = automationStatus(automation, false)
-                                        const color = STATUS_COLOR[status]
-                                        const runsWhen = runsWhenLabel(automation)
-                                        const agentName = agentLabel(
-                                            automation.agentId,
-                                            agentNames.get(automation.agentId ?? "")?.trim() ||
-                                                null,
-                                            !agentsQuery.isPending,
-                                        )
+                                        {agentName}
+                                    </span>
+                                </span>
+                            ) : (
+                                <span className="text-[13px] text-muted-foreground">—</span>
+                            )}
 
-                                        const open = () =>
-                                            void router.push(`${base}/automations/${automation.id}`)
-
-                                        return (
-                                            // Not a <button>: the row carries a kebab of its own, and a
-                                            // button inside a button is invalid HTML that browsers repair
-                                            // by dropping one of them.
-                                            <div
-                                                key={automation.id}
-                                                role="button"
-                                                tabIndex={0}
-                                                onClick={open}
-                                                onKeyDown={(event) => {
-                                                    if (event.key !== "Enter" && event.key !== " ")
-                                                        return
-                                                    event.preventDefault()
-                                                    open()
-                                                }}
-                                                className={`${GRID} w-full cursor-pointer items-center rounded-md border-0 bg-transparent px-2 py-[13px] text-left hover:bg-accent/60 ${FOCUS_RING}`}
-                                            >
-                                                <span className="flex min-w-0 items-center gap-2">
-                                                    {automation.kind === "event" ? (
-                                                        <Lightning
-                                                            size={15}
-                                                            className="shrink-0 text-muted-foreground"
-                                                            aria-hidden
-                                                        />
-                                                    ) : (
-                                                        <ClockClockwise
-                                                            size={15}
-                                                            className="shrink-0 text-muted-foreground"
-                                                            aria-hidden
-                                                        />
-                                                    )}
-                                                    <span
-                                                        className="truncate text-[14px] text-foreground"
-                                                        title={automation.name}
-                                                    >
-                                                        {automation.name}
-                                                    </span>
-                                                </span>
-
-                                                <span className="flex min-w-0 items-center gap-[7px]">
-                                                    <span
-                                                        aria-hidden
-                                                        className={`size-1.5 shrink-0 rounded-full ${color.dot}`}
-                                                    />
-                                                    <span className={`text-[13px] ${color.text}`}>
-                                                        {AUTOMATION_STATUS_LABEL[status]}
-                                                    </span>
-                                                </span>
-
-                                                <span
-                                                    className="block truncate text-[13px] text-muted-foreground"
-                                                    title={runsWhen}
-                                                >
-                                                    {runsWhen}
-                                                </span>
-
-                                                {agentName ? (
-                                                    <span className="flex min-w-0 items-center gap-1.5">
-                                                        {/* The agent's own mark, not a generic
-                                                    robot — a column of identical icons
-                                                    identifies nothing. Same tile the agent
-                                                    picker draws, so the row and the control
-                                                    that set it match. */}
-                                                        <AgentChip
-                                                            workflowId={automation.agentId}
-                                                            box="size-5"
-                                                            glyph={13}
-                                                        />
-                                                        <span
-                                                            className="truncate text-[13px] text-foreground"
-                                                            title={agentName}
-                                                        >
-                                                            {agentName}
-                                                        </span>
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[13px] text-muted-foreground">
-                                                        —
-                                                    </span>
-                                                )}
-
-                                                {/* The menu's own clicks are not the row's: without this
-                                            every menu press would also open the detail screen. */}
-                                                <span
-                                                    className="flex justify-end"
-                                                    onClick={(event) => event.stopPropagation()}
-                                                    onKeyDown={(event) => event.stopPropagation()}
-                                                >
-                                                    <AutomationActionsMenu
-                                                        automation={automation}
-                                                        base={base}
-                                                        surface="list"
-                                                    />
-                                                </span>
-                                            </div>
-                                        )
-                                    },
-                                )}
-                            </Fragment>
-                        ))
-                    )}
-                </div>
-            </div>
+                            {/* The menu's own clicks are not the row's: without this every menu
+                                press would also open the detail screen. */}
+                            <span
+                                className="flex justify-end"
+                                onClick={(event) => event.stopPropagation()}
+                                onKeyDown={(event) => event.stopPropagation()}
+                            >
+                                <AutomationActionsMenu
+                                    automation={automation}
+                                    base={base}
+                                    surface="list"
+                                />
+                            </span>
+                        </>
+                    )
+                }}
+            />
         )
     })()
 
@@ -361,25 +316,18 @@ export const AutomationListScreen = ({
                             it. */}
                         {/* One control beside the field, not three: sort and group are rows
                             inside it, so the bar stays a search bar. */}
-                        <div className="mb-3 flex items-center gap-2">
-                            {/* h-8 matches the filter button beside it; the group's own 36 is a
-                                form field's height, not a toolbar's. */}
-                            {/* The group's own tinted fill sits a shade off the page; this field is part of the
-                                page, not a raised control on it. */}
-                            <InputGroup className="h-8 min-w-0 max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
-                                <InputGroupAddon>
-                                    <MagnifyingGlass size={14} aria-hidden />
-                                </InputGroupAddon>
-                                <InputGroupInput
-                                    value={search}
-                                    onChange={(event) => setSearch(event.target.value)}
-                                    placeholder="Search automations"
-                                    aria-label="Search automations"
-                                    className="text-[13px] md:text-[13px]"
+                        <ListTableToolbar
+                            search={search}
+                            onSearchChange={setSearch}
+                            searchPlaceholder="Search automations"
+                            actions={
+                                <AutomationFilterMenu
+                                    view={view}
+                                    onChange={setView}
+                                    agents={agents}
                                 />
-                            </InputGroup>
-                            <AutomationFilterMenu view={view} onChange={setView} agents={agents} />
-                        </div>
+                            }
+                        />
                         {body}
                     </div>
                 </ScreenScaffold>

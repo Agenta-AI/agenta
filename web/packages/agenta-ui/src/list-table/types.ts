@@ -1,0 +1,50 @@
+import type {ReactNode} from "react"
+
+/**
+ * One column of the frame. The label is the consumer's — this package never learns what an
+ * automation or a session is, only that a list has columns of some width in some order.
+ */
+export interface ListTableColumn {
+    key: string
+    /** Header text. Set `srOnly` when the column carries controls rather than a heading. */
+    label: string
+    srOnly?: boolean
+    /**
+     * A CSS grid track: `"minmax(140px,2fr)"`, `"24px"`, `"1fr"`. `minmax`/`fr` rather than
+     * fixed widths, because a fixed column among flexible siblings hands all the surplus to
+     * its neighbours and the table looks unevenly spaced at every width but one.
+     */
+    width: string
+}
+
+/**
+ * A run of rows under one heading. `label: null` is the ungrouped case — the frame draws no
+ * heading at all, so a list with grouping switched off is byte-for-byte the list without it.
+ */
+export interface ListTableGroup<Row> {
+    key: string
+    label: string | null
+    rows: Row[]
+}
+
+export interface ListTableProps<Row> {
+    columns: ListTableColumn[]
+    groups: ListTableGroup<Row>[]
+    /** Stable per row — the frame keys on it and reports it back for collapse and clicks. */
+    rowKey: (row: Row) => string
+    /** The cells, in column order. The frame owns the grid; the consumer owns what is in it. */
+    renderRow: (row: Row) => ReactNode
+    /** Opening a row. Absent ⇒ rows are not clickable and take no focus. */
+    onOpenRow?: (row: Row) => void
+    /**
+     * Below this the table scrolls sideways rather than crushing its columns. In px; the frame
+     * owns the horizontal scroller so a consumer cannot forget one.
+     */
+    minWidth?: number
+    /** Collapsed group keys. Absent ⇒ headings are labels, not buttons. */
+    collapsedKeys?: ReadonlySet<string>
+    onToggleGroup?: (key: string) => void
+    /** Drawn in place of the rows when every group is empty. */
+    empty?: ReactNode
+    className?: string
+}

@@ -41,6 +41,7 @@
         "./filter-menu": "./src/filter-menu/index.ts",
         "./height-collapse": "./src/components/HeightCollapse.tsx",
         "./hooks": "./src/hooks/index.ts",
+        "./list-table": "./src/list-table/index.ts",
         "./llm-icons": "./src/LLMIcons/index.ts",
         "./rich-chat-input": "./src/RichChatInput/index.ts",
         "./select-llm-provider": "./src/SelectLLMProvider/index.ts",
