@@ -2,6 +2,7 @@ import {useMemo} from "react"
 
 import {useTriggerCatalogIntegrations} from "@agenta/entities/gatewayTrigger"
 import {Skeleton} from "@agenta/ui/ui"
+import {Plug} from "lucide-react"
 
 import {cn} from "../lib/utils"
 
@@ -21,11 +22,14 @@ export const EventAppRail = ({
     selectedKey,
     isLoading,
     onSelect,
+    onConnectAnother,
 }: {
     apps: ConnectedApp[]
     selectedKey?: string
     isLoading: boolean
     onSelect: (app: ConnectedApp) => void
+    /** Last row of the rail — connecting an app is how this list grows. */
+    onConnectAnother?: () => void
 }) => {
     const {integrations, isLoading: catalogLoading} = useTriggerCatalogIntegrations()
     // Name as well as logo: a connection is named for the account it authorises ("gmail-main"),
@@ -73,6 +77,18 @@ export const EventAppRail = ({
                     </button>
                 ))
             )}
+            {/* Last row of the list it grows, not a footer under the whole panel: connecting an
+                app is the same kind of act as picking one. */}
+            {onConnectAnother ? (
+                <button
+                    type="button"
+                    onClick={onConnectAnother}
+                    className="mt-px flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-muted-foreground hover:bg-muted"
+                >
+                    <Plug aria-hidden className="size-3.5 shrink-0" />
+                    <span className="min-w-0 truncate">Connect another app…</span>
+                </button>
+            ) : null}
         </div>
     )
 }

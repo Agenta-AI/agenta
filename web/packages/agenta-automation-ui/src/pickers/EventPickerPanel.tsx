@@ -13,14 +13,14 @@ import {useSchemaFormInstance} from "@agenta/entity-ui/gatewayTrigger"
 import {Button, Input} from "@agenta/ui/ui"
 import {ArrowLeft, Warning} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
-import {Plug, Search} from "lucide-react"
+import {Search} from "lucide-react"
 
 import type {Automation} from "../automationModel"
+import {EventPickerNoApps} from "../states/EventPickerStates"
 
 import {appLabel, connectedApps, eventLabel, type ConnectedApp} from "./connectedApps"
 import {EventAppRail} from "./EventAppRail"
 import {EventList} from "./EventList"
-import {EventSearchResults} from "./EventSearchResults"
 
 /** What Done hands back in a draft's "not yet saved" mode. */
 export interface EventSelection {
@@ -109,7 +109,8 @@ export const EventPickerPanel = ({
 
     const query = search.trim()
 
-    // Debounced, because the atom is a query key: every keystroke would be a request per app.
+    // The server gets the query too, debounced, because the atom is a query key. It only ADDS
+    // rows: the list applies the same words itself, so what is on screen never waits on this.
     useEffect(() => {
         const timer = window.setTimeout(() => setEventsSearch(query), 200)
         return () => window.clearTimeout(timer)
@@ -140,9 +141,7 @@ export const EventPickerPanel = ({
         setValues(initial)
     }, [open, eventKey, automation.eventKey, storedConfig, configForm])
 
-    // A query is a request to browse, whatever was picked before: the results own the right pane
-    // until the field is cleared, and the picked event is still there underneath.
-    const showFilters = !browsing && !query
+    const showFilters = !browsing
 
     const missing = useMemo(() => requiredGaps(schema, values), [schema, values])
     // The schema is what says which filters are required, so Done stays shut until it lands:
@@ -158,10 +157,18 @@ export const EventPickerPanel = ({
 
     // The rail never leaves, so it is also the way out of an event's filters: picking an app is
     // asking for its events.
-    const onSelectApp = useCallback((app: ConnectedApp) => {
-        setRailKey(app.integrationKey)
-        setBrowsing(true)
-    }, [])
+    const onSelectApp = useCallback(
+        (app: ConnectedApp) => {
+            setRailKey(app.integrationKey)
+            setBrowsing(true)
+            // The search belongs to the app it was typed for; carrying it across would answer a
+            // question about GitHub with an empty Slack list. Cleared everywhere at once, or the
+            // new app's first query would still carry the old app's words.
+            setSearch("")
+            setEventsSearch("")
+        },
+        [setEventsSearch],
+    )
 
     // The drawer lives on the screen, so the picker gets out of its way first — on a phone this
     // panel is a modal sheet, and a sheet over the drawer is a drawer nobody can reach.
@@ -200,30 +207,16 @@ export const EventPickerPanel = ({
     return (
         <div className="flex min-h-0 flex-col">
             <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-2.5">
-                <div className="relative">
-                    <Search
-                        aria-hidden
-                        className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                    />
-                    <Input
-                        value={search}
-                        onChange={(changed) => setSearch(changed.target.value)}
-                        aria-label="Search events"
-                        placeholder="Search events — try “issue”"
-                        className="h-8 pl-8 text-[13px]"
-                    />
-                </div>
-
                 <div className="flex min-h-0 flex-1 gap-[10px]">
-                    {/* A query searches every app at once, so the rail has nothing to filter. */}
-                    {query ? null : (
-                        <EventAppRail
-                            apps={apps}
-                            selectedKey={activeApp?.integrationKey}
-                            isLoading={connectionsLoading}
-                            onSelect={onSelectApp}
-                        />
-                    )}
+                    {/* The rail never goes away: the search belongs to the app selected in it,
+                        so hiding it would take away the one control that changes the scope. */}
+                    <EventAppRail
+                        apps={apps}
+                        selectedKey={activeApp?.integrationKey}
+                        isLoading={connectionsLoading}
+                        onSelect={onSelectApp}
+                        onConnectAnother={onConnectAnother}
+                    />
                     {/* Only the right pane changes once an event is chosen — the rail stays put. */}
                     {showFilters ? (
                         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto">
@@ -256,29 +249,36 @@ export const EventPickerPanel = ({
                                 </p>
                             )}
                         </div>
-                    ) : query ? (
-                        <EventSearchResults
-                            apps={apps}
-                            selectedEventKey={eventKey}
-                            onPick={onPick}
-                        />
                     ) : activeApp ? (
-                        <EventList app={activeApp} selectedEventKey={eventKey} onPick={onPick} />
+                        // The search sits over the list it narrows rather than over the whole
+                        // panel: it asks the selected app what it publishes, and a field above
+                        // the rail read as a search of everything.
+                        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+                            <div className="relative shrink-0">
+                                <Search
+                                    aria-hidden
+                                    className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                                />
+                                <Input
+                                    value={search}
+                                    onChange={(changed) => setSearch(changed.target.value)}
+                                    aria-label={`Search ${activeApp.label} events`}
+                                    placeholder={`Search ${activeApp.label} events`}
+                                    className="h-8 pl-8 text-[13px]"
+                                />
+                            </div>
+                            <EventList
+                                app={activeApp}
+                                selectedEventKey={eventKey}
+                                query={query}
+                                onClearSearch={() => setSearch("")}
+                                onPick={onPick}
+                            />
+                        </div>
                     ) : (
-                        <p className="m-0 min-w-0 flex-1 px-2 py-3 text-[12px] leading-snug text-muted-foreground">
-                            Connect an app to watch its events.
-                        </p>
+                        <EventPickerNoApps onConnect={onConnectAnother} />
                     )}
                 </div>
-
-                <button
-                    type="button"
-                    onClick={onConnectAnother}
-                    className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-muted-foreground hover:bg-muted"
-                >
-                    <Plug aria-hidden className="size-3.5 shrink-0" />
-                    <span className="min-w-0 truncate">Connect another app…</span>
-                </button>
             </div>
 
             {/* Done commits the filters, so it belongs to the event, not to browsing. */}
