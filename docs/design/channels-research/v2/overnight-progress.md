@@ -120,3 +120,14 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
   (ui-m1-card, ui-m2-telegram-sheet). Both desktop and mobile now visually verified.
 - Remaining UI (with Mahmoud): dark mode, the manage/behavior/advanced panel, the Telegram
   link-waiting state, real data wiring, reconcile with existing channels components, Storybook.
+
+## Manage panel + Advanced visually verified (2026-09-09)
+- Seeded a connected state and screenshotted the manage panel: the connection summary (Bot,
+  Workspace, Connected date), Connected chats with Add channel, the two behavior switches
+  (Direct messages, Channels and group chats; Allow/Deny), the Advanced section, and Disconnect.
+- Advanced shows the four policy settings in PLAIN language with our chosen defaults: message
+  triggers = @mention only, session memory = per thread, read earlier messages = off, read while
+  thinking = on. No slugs/ids/revisions/tokens shown. Matches the design and the decisions.
+- Screenshots: ui-5-connected-card, ui-6-manage-panel, ui-7-advanced in the evidence dir.
+- Only dark mode remains unverified (no simple toggle); a check for Mahmoud. The UI first pass is
+  now visually verified across empty/connect/connected/manage/advanced on desktop and mobile.
