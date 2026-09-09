@@ -1,7 +1,13 @@
 import {useCallback, useMemo, useState} from "react"
 
 import type {SessionRowVm} from "@agenta/sessions/row"
-import {sessionSearchAtom, useSessionPins, useSessionsList} from "@agenta/sessions/state"
+import {
+    rowsFromPages,
+    sessionSearchAtom,
+    useSessionList,
+    useSessionPins,
+    useSessionsList,
+} from "@agenta/sessions/state"
 import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
 import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
 import {useAtomValue} from "jotai"
@@ -122,11 +128,27 @@ export const SessionListTable = ({
     // The APPLIED term, not the field's draft: the empty state quotes what the rows were actually
     // queried for, so it can never name a search that has not run yet.
     const term = useAtomValue(sessionSearchAtom).trim()
-    // `filtersActive` only knows the shared ATOMS, and the activity window is a hook argument, so
-    // it has to be counted here. Without it a list emptied by Last activity fell through to "No
-    // sessions yet" — a claim about the account, made over a project full of them, and reachable
-    // on the default path because that window defaults to seven days.
-    const narrowed = Boolean(term) || list.filtersActive || Boolean(activityFloor)
+
+    /**
+     * Does this project have ANY session, ignoring every filter on this page?
+     *
+     * The empty state picks between two claims — "you have none yet" and "your filters hid them"
+     * — and nothing already on screen separates them. `filtersActive` reads only the shared
+     * atoms, and the activity window is a hook argument that is ON by default, so guessing from
+     * the filters gets one of the two wrong: count the window and a brand-new project is told its
+     * filters are hiding sessions it does not have; ignore it and a project whose work is all
+     * older than a week is told it has none.
+     *
+     * One row answers it outright, and the query only runs while the list is actually empty.
+     */
+    const probe = useSessionList({
+        originPolicy: "all",
+        expansions: [],
+        includeArchived: true,
+        limit: 1,
+        enabled: list.isEmpty && !list.isPlaceholder && !list.isPending,
+    })
+    const projectHasSessions = rowsFromPages(probe.data?.pages).length > 0
 
     // Group headings carry a chevron, so it has to do something: collapsed keys, not a flag per
     // group, because the groups themselves come and go as the grouping changes.
@@ -192,7 +214,13 @@ export const SessionListTable = ({
                         //
                         // And never when a filter is what emptied the list: the two states make
                         // different claims, and only one of them has a way out.
-                        list.isPlaceholder ? null : narrowed ? (
+                        // Nothing at all while the answer is still unsettled: the rows may be a
+                        // previous query's, or the probe may not have said yet whether this
+                        // project has sessions. Either way both states would be a guess, and one
+                        // of them tells a reader with 43 sessions that they have none.
+                        list.isPlaceholder || probe.isPending ? null : projectHasSessions ? (
+                            // The project has sessions and this list has none, so something on
+                            // this page narrowed them away — no need to work out which control.
                             <SessionsNoMatch
                                 term={term || undefined}
                                 onClear={term ? onClearSearch : onResetView}
