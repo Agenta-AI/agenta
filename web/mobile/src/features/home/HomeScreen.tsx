@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import {
+    AGENT_TEMPLATES,
     agentWorkflowsListQueryStateAtom,
     invalidateWorkflowsListCache,
     type Workflow,
@@ -99,6 +100,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
         <HomeFocus
             className={frame}
             agents={listAgents}
+            templates={AGENT_TEMPLATES}
             attachments={handoff.attachments}
             onStartTask={handoff.onStartTask}
             onCreateFromPrompt={handoff.onCreateFromPrompt}

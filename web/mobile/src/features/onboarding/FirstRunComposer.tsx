@@ -21,7 +21,7 @@ import {FIRST_RUN_COPY, FIRST_RUN_STARTERS} from "./copy"
  * gate takes over — on a keyless project the message parks and the strip asks for a key.
  *
  * The session id is minted once per mount, before the agent exists, so a file attached while
- * typing has a stable scope to upload against. Same reason [[HomeComposer]] mints its own.
+ * typing has a stable scope to upload against. Same reason [[useHomeHandoff]] mints its own.
  *
  * The starters are here rather than in the hero because tapping one FILLS the input instead of
  * sending it: a phone keyboard makes "describe an agent" expensive, and a half-written idea the

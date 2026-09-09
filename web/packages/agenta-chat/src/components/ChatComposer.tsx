@@ -218,7 +218,8 @@ export const ChatComposer = ({
                 onStop={onStop}
                 busyActions={busyActions}
                 prefix={
-                    <div className="flex items-center gap-2">
+                    // Tight: these are one cluster of composer tools, not separate controls.
+                    <div className="flex items-center gap-0.5">
                         {extraPrefix}
                         {/* Gone while dictating: the row belongs to the wave, and attaching a file
                             mid-utterance is not a thing anyone is doing. */}

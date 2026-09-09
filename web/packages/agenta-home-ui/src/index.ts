@@ -31,6 +31,7 @@ export {AnalyticsRangePicker, type AnalyticsRangePickerProps} from "./AnalyticsR
 export {
     HomeTaskComposer,
     type HomeComposerMode,
+    type HomeComposerTemplate,
     type HomeTaskComposerAgent,
     type HomeTaskComposerProps,
 } from "./HomeTaskComposer"
