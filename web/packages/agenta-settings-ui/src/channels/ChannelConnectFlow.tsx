@@ -90,6 +90,7 @@ export const ChannelConnectFlow = ({
     const [tgStep, setTgStep] = useState<TelegramHostedStep>("qr")
     const [tgToken, setTgToken] = useState("")
     const [tgUrl, setTgUrl] = useState("")
+    const [tgError, setTgError] = useState(false)
     const [allowed, setAllowed] = useState("")
 
     const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -98,20 +99,24 @@ export const ChannelConnectFlow = ({
     // Real hosted-Telegram connect: when the panel opens for Telegram hosted, mint
     // the one-time bind link (which also ensures the project's hosted connection).
     // The deep link below opens it. Falls back to the placeholder when no action.
-    useEffect(() => {
-        if (isSlack || mode !== "hosted" || tgUrl || !onConnectHostedTelegram) return
-        let alive = true
+    const mintTelegramLink = () => {
+        if (!onConnectHostedTelegram) return
+        setTgError(false)
         onConnectHostedTelegram()
             .then((r) => {
-                if (alive && r?.url) setTgUrl(r.url)
+                if (r?.url) setTgUrl(r.url)
+                else setTgError(true)
             })
-            .catch(() => {
-                /* leave tgUrl empty; the button shows a preparing state */
-            })
-        return () => {
-            alive = false
-        }
-    }, [isSlack, mode, tgUrl, onConnectHostedTelegram])
+            .catch(() => setTgError(true))
+    }
+
+    useEffect(() => {
+        // Mint the hosted-Telegram link once when the panel opens for it.
+        if (isSlack || mode !== "hosted" || tgUrl || tgError || !onConnectHostedTelegram)
+            return
+        mintTelegramLink()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isSlack, mode, tgUrl, tgError, onConnectHostedTelegram])
     const later = (fn: () => void, ms: number) => {
         clearTimeout(timer.current)
         timer.current = setTimeout(fn, ms)
@@ -535,6 +540,21 @@ export const ChannelConnectFlow = ({
                                             Continue in Telegram
                                         </a>
                                     </Button>
+                                ) : tgError ? (
+                                    <div className="flex flex-col gap-1.5">
+                                        <p className="m-0 text-xs text-colorError">
+                                            Could not create the connection link. This
+                                            deployment may not have the hosted bot
+                                            configured.
+                                        </p>
+                                        <Button
+                                            variant="default"
+                                            className="w-full"
+                                            onClick={mintTelegramLink}
+                                        >
+                                            Try again
+                                        </Button>
+                                    </div>
                                 ) : (
                                     <Button variant="default" className="w-full" disabled>
                                         <Spinner size="small" />
