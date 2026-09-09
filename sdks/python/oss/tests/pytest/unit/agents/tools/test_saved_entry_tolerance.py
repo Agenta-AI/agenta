@@ -267,6 +267,31 @@ def test_a_malformed_connection_entry_still_fails_the_run():
         )
 
 
+def test_a_malformed_current_format_gateway_entry_still_fails_the_run():
+    # A `gateway` entry carrying no legacy mark is authored today, not inherited. This one
+    # names an action and no connection, so it is a mistake its author must see rather than
+    # a shape from before the rework.
+    with pytest.raises(ToolConfigurationError):
+        AgentTemplate(
+            tools=[
+                {
+                    "type": "gateway",
+                    "provider": "composio",
+                    "integration": "github",
+                    "action": "GET_AN_ISSUE",
+                }
+            ]
+        )
+
+
+def test_an_empty_action_beside_a_legacy_one_is_repaired():
+    # An empty `action` is not an authored value, so the legacy field fills it. A NON-empty
+    # one is authored and is never overwritten, which
+    # `test_an_explicit_action_wins_over_provider_action` pins.
+    config = coerce_tool_config({**_PROVIDER_ACTION_ENTRY, "action": ""})
+    assert config.action == "GET_AN_ISSUE"
+
+
 def test_a_null_entry_still_fails_the_run():
     with pytest.raises(ToolConfigurationError):
         AgentTemplate(tools=[None])

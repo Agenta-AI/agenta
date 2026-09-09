@@ -50,10 +50,21 @@ log = get_module_logger(__name__)
 def _is_legacy_gateway_entry(entry: Any) -> bool:
     """Whether an entry is the pre-rework one-action gateway shape.
 
+    The tag alone does not say so. A current-format ``gateway`` entry is still authored
+    today, and a malformed one is a mistake its author must see, so the entry has to carry a
+    positive mark of its age before it may be dropped:
+
+    * ``provider_action``, the field name the pre-2026-08-27 writer used, or
+    * neither ``action`` nor ``connection``, which no current-format entry can be missing.
+
     ``composio`` is the same shape under its older name: ``coerce_tool_config`` renames it
     before it parses, so a refusal for either spelling names the same legacy entry.
     """
-    return isinstance(entry, dict) and entry.get("type") in {"gateway", "composio"}
+    if not isinstance(entry, dict) or entry.get("type") not in {"gateway", "composio"}:
+        return False
+    if entry.get("provider_action"):
+        return True
+    return not entry.get("action") and not entry.get("connection")
 
 
 # ---------------------------------------------------------------------------
