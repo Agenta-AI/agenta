@@ -1160,3 +1160,28 @@ def test_channel_secret_rotation_keeps_omitted_secondary_secrets():
     assert update.channel.bot_token == "new-token"
     assert update.channel.webhook_secret == "whk-keep"
     assert update.channel.signing_secret == "old-sign"
+
+
+def test_channel_secret_rotation_rejects_a_blank_secondary_secret():
+    # An explicit "" for a secondary field (webhook_secret) must be rejected,
+    # the same rule as the primary. A blank webhook_secret would break inbound
+    # verification, so it must never persist.
+    from oss.src.core.secrets.dtos import ChannelSecretDTO
+    from oss.src.core.secrets.services import _carry_over_saved_value
+
+    stored = ChannelSecretDTO.model_validate(
+        {
+            "kind": "telegram",
+            "channel": {"bot_token": "old-token", "webhook_secret": "whk-keep"},
+        }
+    )
+    update = ChannelSecretDTO.model_validate(
+        {
+            "kind": "telegram",
+            "channel": {"bot_token": "new-token", "webhook_secret": ""},
+        }
+    )
+    with pytest.raises(SecretValueRequiredError):
+        _carry_over_saved_value(
+            kind="channel_secret", stored_data=stored, update_data=update
+        )

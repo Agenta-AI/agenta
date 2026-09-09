@@ -503,3 +503,76 @@ async def test_long_answer_splits_without_corrupting_html():
     # the original text — no entity was cut.
     joined = "".join(_html.unescape(s["text"]) for s in sends)
     assert joined == raw
+
+
+# --- review fixes (CodeRabbit) ------------------------------------------------ #
+
+
+def test_verify_secret_raises_not_crashes_on_non_ascii_header():
+    # A non-ASCII header value made hmac.compare_digest raise TypeError, which
+    # skipped the 401 mapping and surfaced as a 500. It must raise the domain
+    # error instead.
+    with pytest.raises(ChannelSignatureInvalid):
+        verify_telegram_secret(
+            headers={"x-telegram-bot-api-secret-token": "s3cr3t-töken"},
+            webhook_secret=WEBHOOK_SECRET,
+        )
+
+
+def test_group_mention_requires_a_username_boundary():
+    # "@agenta_bot" must not be matched inside "@agenta_bot2", which is a
+    # different bot's username. A boundary keeps the adapter from answering an
+    # unrequested turn.
+    other = {
+        "chat": {"type": "group"},
+        "text": "@agenta_bot2 please help",
+        "entities": [{"type": "mention", "offset": 0, "length": len(BOT_USERNAME) + 2}],
+    }
+    assert (
+        is_addressed(
+            other,
+            space_kind=ChannelSpaceKind.GROUP,
+            bot_id=BOT_ID,
+            bot_username=BOT_USERNAME,
+        )
+        is False
+    )
+    exact = {"chat": {"type": "group"}, "text": f"hey @{BOT_USERNAME} hello"}
+    assert (
+        is_addressed(
+            exact,
+            space_kind=ChannelSpaceKind.GROUP,
+            bot_id=BOT_ID,
+            bot_username=BOT_USERNAME,
+        )
+        is True
+    )
+
+
+def _adapter_with_raising_transport():
+    """A TelegramAdapter whose client always raises a transport error, to prove
+    the best-effort calls swallow httpx failures, not only Bot API errors."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("boom")
+
+    client = httpx.AsyncClient(
+        base_url="https://api.telegram.org", transport=httpx.MockTransport(handler)
+    )
+    return TelegramAdapter(http_client=client)
+
+
+@pytest.mark.asyncio
+async def test_send_typing_swallows_a_transport_error():
+    adapter = _adapter_with_raising_transport()
+    # Must not raise: a timeout on the typing action cannot block the answer.
+    await adapter._send_typing(_connection(), {"chat_id": 999})
+
+
+@pytest.mark.asyncio
+async def test_answer_callback_query_swallows_a_transport_error():
+    adapter = _adapter_with_raising_transport()
+    # Must not raise: a failure here cannot abort routing the button press.
+    await adapter.answer_callback_query(
+        connection=_connection(), callback_query_id="cbq-1"
+    )

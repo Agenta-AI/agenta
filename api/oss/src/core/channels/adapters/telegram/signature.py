@@ -30,5 +30,9 @@ def verify_telegram_secret(
     if not presented or not webhook_secret:
         raise ChannelSignatureInvalid(channel=channel)
 
-    if not hmac.compare_digest(presented, webhook_secret):
+    # compare_digest raises TypeError on a non-ASCII str, which would surface as
+    # a 500 instead of the 401 ChannelSignatureInvalid maps to. Compare bytes.
+    if not hmac.compare_digest(
+        presented.encode("utf-8"), webhook_secret.encode("utf-8")
+    ):
         raise ChannelSignatureInvalid(channel=channel)

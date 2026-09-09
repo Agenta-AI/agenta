@@ -372,7 +372,7 @@ class TelegramAdapter(ChannelAdapterInterface):
             params["message_thread_id"] = locator["message_thread_id"]
         try:
             await self._call(connection, "sendChatAction", params)
-        except _TelegramApiError:
+        except (_TelegramApiError, httpx.HTTPError):
             pass
 
     async def answer_callback_query(
@@ -388,7 +388,7 @@ class TelegramAdapter(ChannelAdapterInterface):
                 "answerCallbackQuery",
                 {"callback_query_id": callback_query_id},
             )
-        except _TelegramApiError:
+        except (_TelegramApiError, httpx.HTTPError):
             pass
 
     # --- discovery --- #

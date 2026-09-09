@@ -85,9 +85,12 @@ def is_addressed(
     entities = message.get("entities") or message.get("caption_entities") or []
 
     # A plain-string check avoids Telegram's UTF-16 entity offsets (which do not
-    # line up with Python code-point indexing once the text has an emoji). The
-    # bot username is unique in the workspace, so a substring match is safe.
-    if bot_username and f"@{bot_username.lower()}" in lowered:
+    # line up with Python code-point indexing once the text has an emoji). Match
+    # on a username boundary so "@myagent" does not also match "@myagentbot2":
+    # a following username character means a different mention.
+    if bot_username and re.search(
+        rf"@{re.escape(bot_username.lower())}(?![a-z0-9_])", lowered
+    ):
         return True
 
     for entity in entities:

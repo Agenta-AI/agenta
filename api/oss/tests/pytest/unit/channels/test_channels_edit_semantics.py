@@ -210,3 +210,106 @@ async def test_explicit_null_references_is_refused_on_an_edit():
 
     # omitting references is fine (keep-unchanged), and policy: null still clears
     assert ChannelAgentDataEdit(policy=None).references is None
+
+
+# --- credential rotation re-registers with the platform (CodeRabbit) --------- #
+
+
+def _stored_telegram_connection() -> ChannelConnection:
+    return ChannelConnection(
+        id=uuid4(),
+        channel="telegram",
+        external_key=uuid4(),
+        slug="telegram-1a2b3c",
+        name="Agenta bot",
+        data={
+            "connection_locator": {"bot_id": "4242"},
+            "bot_username": "agenta_bot",
+            "credential_secret_id": "22222222-2222-4222-8222-222222222222",
+        },
+        flags=ChannelConnectionFlags(is_active=True, is_verified=True),
+    )
+
+
+def _telegram_service(existing: ChannelConnection):
+    adapter = MagicMock()
+    adapter.verify_connection = AsyncMock(return_value={})
+    adapter.activate_connection = AsyncMock(return_value=None)
+
+    dao = MagicMock()
+    dao.fetch_connection = AsyncMock(return_value=existing)
+    dao.edit_connection = AsyncMock(side_effect=lambda **kw: kw["connection"])
+
+    service = ChannelsService(
+        channels_dao=dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={"telegram": adapter}),
+    )
+
+    # Isolate the reactivation logic: the secret rotation and hydration are
+    # covered elsewhere. The rotated secret is a stub; the hydrated connection
+    # carries the new token and the carried-over webhook secret as flat fields.
+    rotated = MagicMock()
+    rotated.id = uuid4()
+    service._rotate_credential_secret = AsyncMock(return_value=rotated)
+
+    hydrated = existing.model_copy(
+        update={
+            "data": {
+                **existing.data,
+                "bot_token": "new-token",
+                "webhook_secret": "whk-keep",
+            }
+        }
+    )
+    service._hydrate_connection = AsyncMock(return_value=hydrated)
+    return service, adapter
+
+
+async def test_a_telegram_token_rotation_reactivates_the_webhook():
+    existing = _stored_telegram_connection()
+    service, adapter = _telegram_service(existing)
+
+    await service.edit_connection(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        connection=ChannelConnectionEdit(
+            id=existing.id, credentials={"bot_token": "new-token"}
+        ),
+    )
+
+    adapter.activate_connection.assert_awaited_once()
+    creds = adapter.activate_connection.await_args.kwargs["credentials"]
+    assert creds["bot_token"] == "new-token"
+    # the omitted webhook secret is carried over, so setWebhook keeps the same
+    # secret token
+    assert creds["webhook_secret"] == "whk-keep"
+
+
+async def test_a_rename_without_credentials_does_not_reactivate():
+    existing = _stored_telegram_connection()
+    service, adapter = _telegram_service(existing)
+
+    await service.edit_connection(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        connection=ChannelConnectionEdit(id=existing.id, name="Agenta bot (prod)"),
+    )
+
+    adapter.activate_connection.assert_not_awaited()
+
+
+async def test_a_failed_reactivation_raises_and_does_not_hide_the_break():
+    from oss.src.core.channels.types import ChannelConnectionVerificationFailed
+
+    existing = _stored_telegram_connection()
+    service, adapter = _telegram_service(existing)
+    adapter.activate_connection = AsyncMock(side_effect=RuntimeError("setWebhook 500"))
+
+    with pytest.raises(ChannelConnectionVerificationFailed):
+        await service.edit_connection(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            connection=ChannelConnectionEdit(
+                id=existing.id, credentials={"bot_token": "new-token"}
+            ),
+        )

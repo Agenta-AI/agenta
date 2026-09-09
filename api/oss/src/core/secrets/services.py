@@ -126,10 +126,16 @@ def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) ->
         stored_container = getattr(stored_data, secondary_container_name, None)
         if update_container is not None and stored_container is not None:
             for secondary in secondary_fields:
-                if (
-                    hasattr(update_container, secondary)
-                    and getattr(update_container, secondary) is None
-                ):
+                if not hasattr(update_container, secondary):
+                    continue
+                current_value = getattr(update_container, secondary)
+                # A blank secondary is invalid, the same rule as the primary:
+                # an empty webhook_secret would break inbound verification.
+                if current_value == "":
+                    raise SecretValueRequiredError(
+                        message=_BLANK_CREDENTIAL_VALUE_MESSAGE
+                    )
+                if current_value is None:
                     stored_value = getattr(stored_container, secondary, None)
                     if stored_value is not None:
                         setattr(update_container, secondary, stored_value)

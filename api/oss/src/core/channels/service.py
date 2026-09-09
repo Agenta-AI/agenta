@@ -499,6 +499,7 @@ class ChannelsService:
 
         connection = _layer_connection_edit(existing=existing, edit=connection)
 
+        rotated_credentials = bool(connection.credentials)
         if connection.credentials:
             adapter = self.adapter_registry.get(existing.channel)
             verify_target = ChannelConnectionCreate(
@@ -536,7 +537,7 @@ class ChannelsService:
         connection.credentials = None
 
         try:
-            return await self.channels_dao.edit_connection(
+            edited = await self.channels_dao.edit_connection(
                 project_id=project_id,
                 user_id=user_id,
                 #
@@ -546,6 +547,58 @@ class ChannelsService:
             raise _connection_conflict(
                 channel=existing.channel, slug=connection.slug, error=e
             ) from e
+
+        # A credential rotation re-verifies and stores the new token, but the
+        # platform still points at the old one until we re-register. Telegram's
+        # setWebhook is the only WRITE-time platform call, so a rotated bot token
+        # has no webhook and cannot deliver updates until this runs. It is gated
+        # on the telegram channel for the same reason the mint above is: no other
+        # channel has a write-time setup call, and hydrating a secret to feed a
+        # no-op would be wasted work.
+        #
+        # setWebhook is idempotent and the per-bot ingress URL never moves, so a
+        # failed call leaves the prior working webhook in place; there is no
+        # corrupt state to roll back. Surface the failure so the rotation is not
+        # silently deaf.
+        if (
+            edited is not None
+            and rotated_credentials
+            and existing.channel == "telegram"
+        ):
+            adapter = self.adapter_registry.get(existing.channel)
+            hydrated = await self._hydrate_connection(
+                project_id=project_id, connection=edited
+            )
+            hydrated_data = (
+                hydrated.data if hydrated and isinstance(hydrated.data, dict) else {}
+            )
+            activation_credentials = {
+                field: hydrated_data[field]
+                for field in ("bot_token", "webhook_secret", "signing_secret")
+                if field in hydrated_data
+            }
+            try:
+                await adapter.activate_connection(
+                    connection=hydrated,
+                    credentials=activation_credentials,
+                )
+            except Exception as e:
+                log.warning(
+                    "channels: re-activation after credential rotation failed for "
+                    "channel=%s slug=%s: %s",
+                    existing.channel,
+                    connection.slug,
+                    e,
+                )
+                raise ChannelConnectionVerificationFailed(
+                    channel=existing.channel,
+                    message=(
+                        "the credential was stored but could not be re-registered "
+                        f"with the platform: {e}"
+                    ),
+                ) from e
+
+        return edited
 
     async def archive_connection(
         self,
