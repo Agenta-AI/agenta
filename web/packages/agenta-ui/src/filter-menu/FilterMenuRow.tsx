@@ -98,7 +98,10 @@ export const FilterMenuRow = ({
                 "box-border cursor-pointer appearance-none border-0 bg-transparent font-[inherit]",
                 "flex w-full items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
                 "text-[13px] text-foreground outline-none transition-colors",
-                "hover:bg-accent focus-visible:bg-accent data-[state=open]:bg-accent",
+                "hover:bg-accent focus-visible:bg-accent",
+                // Driven by the controlled `open`, not `data-[state=open]`: the row is a
+                // PopoverAnchor, and an anchor never carries the state attribute a trigger does.
+                open && !inline && "bg-accent",
             )}
         >
             {section.icon ? (

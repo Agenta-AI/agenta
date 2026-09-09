@@ -35,6 +35,15 @@ const runListViewChanges = (view: RunListView): number =>
 
 export const isDefaultRunListView = (view: RunListView): boolean => runListViewChanges(view) === 0
 
+/**
+ * Whether the view NARROWS the list, which is not the same as whether it differs from the
+ * default: grouping cuts the runs it is given, it never removes one. An empty list under a
+ * grouping is an automation that has not run, and saying "no runs match these filters" there
+ * sends the reader looking for a filter that is not set.
+ */
+export const isRunListFiltered = (view: RunListView): boolean =>
+    view.status !== DEFAULT_RUN_LIST_VIEW.status || view.type !== DEFAULT_RUN_LIST_VIEW.type
+
 /** Which of the three types a delivery is — the same reading `runLabel` names it by. */
 export function runType(delivery: TriggerDelivery): Exclude<RunTypeFilter, "all"> {
     if (delivery.data?.is_test) return "test"

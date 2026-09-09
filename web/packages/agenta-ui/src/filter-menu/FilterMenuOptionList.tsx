@@ -34,16 +34,20 @@ export const FilterMenuOptionList = ({
     const refs = useRef<(HTMLButtonElement | null)[]>([])
     const firstEnabled = options.findIndex((option) => !option.disabled)
     const [active, setActive] = useState(() => (firstEnabled === -1 ? 0 : firstEnabled))
+    // The panel's search narrows `options` while this list stays mounted, so a stored index can
+    // outlive the option it pointed at. Rendering off the clamped one keeps a tabbable member in
+    // the list; without it a shrunk list has no `tabIndex={0}` until an arrow key is pressed.
+    const activeIndex = active < options.length ? active : firstEnabled === -1 ? 0 : firstEnabled
 
     useEffect(() => {
         if (!autoFocus) return
         // Focus follows the active index, so navigation is never yanked back to the top.
-        refs.current[active]?.focus()
-    }, [active, autoFocus])
+        refs.current[activeIndex]?.focus()
+    }, [activeIndex, autoFocus])
 
     const move = (delta: number) => {
         if (!options.length) return
-        let next = active
+        let next = activeIndex
         let steps = options.length
         while (steps > 0) {
             next = (next + delta + options.length) % options.length
@@ -96,7 +100,7 @@ export const FilterMenuOptionList = ({
                         role="option"
                         aria-selected={checked}
                         disabled={option.disabled}
-                        tabIndex={index === active ? 0 : -1}
+                        tabIndex={index === activeIndex ? 0 : -1}
                         onFocus={() => setActive(index)}
                         onClick={() => onSelect(option.value)}
                         className={cn(

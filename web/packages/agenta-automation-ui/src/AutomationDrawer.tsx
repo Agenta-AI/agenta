@@ -46,12 +46,16 @@ export const AutomationDrawer = () => {
         setSubscription(null)
     }, [setSchedule, setSubscription])
 
-    // The atom clears on close, but the shell has to outlive it to play the slide-out.
+    // The atom clears on close, but the shell has to outlive it to play the slide-out. The kind
+    // is held with it: `kind` reads the live atoms, so clearing them on close flips a schedule
+    // draft to "event", which changes the key and remounts a blank form mid-animation.
     const [rendered, setRendered] = useState(state)
     const [renderedId, setRenderedId] = useState(automationId)
+    const [renderedKind, setRenderedKind] = useState(kind)
     if (state && state !== rendered) {
         setRendered(state)
         setRenderedId(automationId)
+        setRenderedKind(kind)
     }
     const handleAfterOpenChange = useCallback((isOpen: boolean) => {
         if (!isOpen) setRendered(null)
@@ -70,8 +74,8 @@ export const AutomationDrawer = () => {
         />
     ) : (
         <AutomationCreateDrawer
-            key={`new-${kind}`}
-            kind={kind}
+            key={`new-${renderedKind}`}
+            kind={renderedKind}
             open={!!state}
             onClose={handleClose}
             onAfterOpenChange={handleAfterOpenChange}
