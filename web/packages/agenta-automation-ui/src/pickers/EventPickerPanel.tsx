@@ -261,18 +261,21 @@ export const EventPickerPanel = ({
                         // panel: it asks the selected app what it publishes, and a field above
                         // the rail read as a search of everything.
                         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-                            <div className="relative shrink-0">
-                                <Search
-                                    aria-hidden
-                                    className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                                />
-                                <Input
-                                    value={search}
-                                    onChange={(changed) => setSearch(changed.target.value)}
-                                    aria-label={`Search ${activeApp.label} events`}
-                                    placeholder={`Search ${activeApp.label} events`}
-                                    className="h-8 pl-8 text-[13px]"
-                                />
+                            {/* Sticks so the field stays put while its results scroll under it. */}
+                            <div className="sticky top-0 z-10 shrink-0 bg-popover pb-1">
+                                <div className="relative">
+                                    <Search
+                                        aria-hidden
+                                        className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                                    />
+                                    <Input
+                                        value={search}
+                                        onChange={(changed) => setSearch(changed.target.value)}
+                                        aria-label={`Search ${activeApp.label} events`}
+                                        placeholder={`Search ${activeApp.label} events`}
+                                        className="h-8 pl-8 text-[13px]"
+                                    />
+                                </div>
                             </div>
                             <EventList
                                 app={activeApp}
