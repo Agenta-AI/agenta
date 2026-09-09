@@ -154,6 +154,7 @@ export const AgentOverviewScreen = ({
                             onOpenRow={sessionMenu.open}
                             menuFor={sessionMenu.menuFor}
                             onMenuSelect={sessionMenu.onMenuSelect}
+                            onRenameRow={sessionMenu.onRenameRow}
                         />
                     </div>
                 </ScreenScaffold>

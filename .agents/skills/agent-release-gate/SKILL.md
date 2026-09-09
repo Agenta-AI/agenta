@@ -315,6 +315,14 @@ proves nothing about the durable working directory (LESSONS #16).
   output actually carries the real marker content (not hallucinated), and the commit lands with
   it. Verified PASS 3/3 runs after the tunnel-seat fix (2026-08-06); this line was absent on
   every attempt before that fix landed.
+- `resources/matrix_t9_agent_tools.py` — **[coached]** T9: the runner restores the agent's own
+  tools from `agent-files/.tools/` before a session (`agent-tools-setup.ts`). Plants a
+  `setup.sh` and a `bin/qa-tool` through the mounts API, opens a fresh session, and asserts the
+  first tool call is the exact probe and its output payload carries both planted tokens, plus a
+  line `setup.sh` appended to `agent-files/.tools/runs.log`, read back through the mounts API
+  with no model in the loop, plus the `agent_tools_setup` stage for THIS session in the runner
+  log when `--runner-container` is given. `--sandbox local|daytona`, `--harness pi_core|claude`.
+  Mandatory (via `path_triggers.py`) when the restore step or the sandbox image recipes change.
 - `resources/matrix_w7_per_harness.py` — **[coached]** matrix_w7.py's exact scenario run
   identically on all three harnesses (claude, codex, pi_core), each classified PASS/FAIL/SKIP
   independently. Exists because W7 originally ran on Claude only, and that scenario-coverage gap
@@ -474,6 +482,23 @@ ever reaches the stream. An empty ledger FAILS a cell; missing evidence is not e
   the sandbox count, which is two today: a client-tool pause is deliberately not parkable
   (`"warm-hold": RESERVED, not built`, #5384), so every client-tool round trip currently costs a
   rebuild. If that number ever reads one, the warm hold landed and the docstring needs updating.
+- `resources/matrix_n1_session_context.py` — **MANDATORY. [journey, with two controls]** the
+  per-turn session facts on the path the PRODUCT uses. Renames a session between two turns and
+  asks the agent for the name, asks the agent for its own display name, and posts a forged
+  `meta.session_context` that the service must ignore. Every expected value carries a random
+  token minted for the run and spoken nowhere in the conversation, so a transcript-derived
+  answer cannot match; the second ask is the exact shape of #6661, because by then the FIRST
+  name is in the transcript and the current one is only in the stored header. This is the one
+  cell that asserts on model prose, and it does so because nothing else can: `turnContext` is a
+  prompt string on the service-to-runner payload, the runner logs nothing, and it is
+  deliberately kept out of `request.messages` and out of persisted input. Two controls keep a
+  FAIL honest — an echo probe (a model that cannot repeat a literal token makes the cell report
+  INCONCLUSIVE) and a read-back of the stored header after every rename. Mandatory (via
+  `path_triggers.py`) when the SDK session-context module, the platform-prompt renderer, the
+  agent handler, or the API's session-context resolver changes. **The gate could not see this
+  class at all before v0.115.3**: #6661 shipped green because the API stamped the facts in its
+  invoke prelude, which never runs for a playground turn, and no cell renamed a session
+  mid-conversation or asserted on the facts.
 
 **Finding the lifecycle cells surfaced (2026-08-06, claude on local, reproduced 3×) — FIXED:** the
 `workspaceFiles` live route rewrote the instruction file and advanced applied state, but the

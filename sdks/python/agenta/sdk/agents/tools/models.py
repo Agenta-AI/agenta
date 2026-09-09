@@ -702,7 +702,9 @@ class GatewayToolResolution(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    tool_specs: List[CallbackToolSpec] = Field(default_factory=list)
+    tool_specs: List[Union[CallbackToolSpec, ClientToolSpec]] = Field(
+        default_factory=list
+    )
     tool_callback: ToolCallback
 
 

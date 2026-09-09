@@ -7,7 +7,8 @@ import {
     messageText,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
-import {getMessageTraceId} from "@agenta/chat/assets"
+import {getMessageTraceId, mergePendingSendEchoRows} from "@agenta/chat/assets"
+import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {AttachmentDropOverlay, ConnectionFocusProvider} from "@agenta/chat/components"
 import {
     stagedFilesToParts,
@@ -40,6 +41,7 @@ import {
     modalitiesForModel,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {ContextRail} from "@agenta/entity-ui/drive"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
@@ -55,12 +57,16 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
 import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 
 import {answerThenSteer} from "./assets/answerThenSteer"
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
-import {restoreHeldRefusedSend} from "./assets/refusedMessageRecovery"
+import {
+    restoreHeldRefusedSend,
+    restoreRefusedSend as restoreRefusedSendInto,
+} from "./assets/refusedMessageRecovery"
 import AgentComposerDock from "./components/AgentComposerDock"
 import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
@@ -115,6 +121,7 @@ const AgentConversation = ({
     /** Shared across the panel's session panes: the composer entrance plays only once. */
     revealPlayedRef: MutableRefObject<boolean>
 }) => {
+    const {hasPermission} = useProjectPermissions()
     const store = useStore()
     // Workflow artifact id for this conversation — the key for the agent's durable `agent-files`
     // mount, folded into the session drive by the Drive surfaces below (via the drive context).
@@ -157,6 +164,7 @@ const AgentConversation = ({
         setStopped,
         handleStop,
         handleClientToolOutput: answerClientTool,
+        adoptRevision,
         markLiveGate,
         answerApproval,
         answerApprovals,
@@ -199,11 +207,6 @@ const AgentConversation = ({
         readerReady,
         ownedContinuation: acceptedRunPending,
     })
-    const transcriptMessages = useMemo(() => {
-        const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
-        if (turnDeliverySource === "legacy" || previewMessages.length === 0) return durableMessages
-        return [...durableMessages, ...previewMessages]
-    }, [messages, previewMessages, turnDeliverySource])
     const transcriptBusy =
         busy ||
         remoteTurn.showActivity ||
@@ -428,6 +431,35 @@ const AgentConversation = ({
         [sessionId, setSessionStatus],
     )
 
+    // A refusal that arrived after the send promise resolved. Hand the text back through the same
+    // channel a rejected send uses, so both refusal shapes recover identically.
+    // A refusal that arrived after the send promise resolved. Reuses the rejected-send path
+    // wholesale: it refuses to overwrite a draft the user has typed since, and puts the staged
+    // files back with the text. Returning false leaves the echo row as the recovery surface,
+    // which is exactly the case where it is needed.
+    const lateRefusalRef = useRef({
+        restore: restoreAttachments,
+        reject: attachments.setRejections,
+    })
+    lateRefusalRef.current = {restore: restoreAttachments, reject: attachments.setRejections}
+    const restoreLateRefusedSend = useCallback(async (message: QueuedMessage) => {
+        const taken = await restoreRefusedSendInto(
+            richInputRef.current,
+            {
+                text: message.text,
+                stagedFiles: message.stagedFiles ?? [],
+                // Told apart from the staged entries on purpose: a send can carry file parts the
+                // tray has nothing to put back, and the row must keep those cards.
+                fileParts: message.fileParts ?? [],
+            },
+            lateRefusalRef.current.restore,
+        )
+        if (taken) {
+            lateRefusalRef.current.reject([{name: "Message", reason: "wasn't sent — try again."}])
+        }
+        return taken
+    }, [])
+
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
     // one-by-one once the turn truly settles (never mid-approval). A user stop is the exception —
     // it voids the pending gate, so `stopped` lets a fresh send go immediately (not queue). An
@@ -448,6 +480,7 @@ const AgentConversation = ({
         cancelEdit,
         commitEdit,
         takeLastSent,
+        pendingSendRows,
     } = useAgentChatQueue({
         status,
         messages,
@@ -458,10 +491,19 @@ const AgentConversation = ({
         retryContinuation: retryRecoverableContinuation,
         continuationExecutionId,
         markRunOwned,
+        restoreRefusedSend: restoreLateRefusedSend,
         sendQueued,
         sessionId,
         server: serverInputs,
     })
+
+    // Declared after the queue because it renders the queue's echoes.
+    const transcriptMessages = useMemo(() => {
+        const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
+        const live =
+            turnDeliverySource === "legacy" || previewMessages.length === 0 ? [] : previewMessages
+        return mergePendingSendEchoRows(durableMessages, pendingSendRows, live)
+    }, [messages, pendingSendRows, previewMessages, turnDeliverySource])
 
     // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision made
     // in THIS mount marks the resume as live — a restored approval-requested tail the user answers
@@ -525,6 +567,7 @@ const AgentConversation = ({
     )
 
     const interactionAvailability = getInteractionAvailability({stopped, stopping, streaming: busy})
+    const pendingSecret = useMemo(() => getPendingSecretInteractions(messages)[0], [messages])
     const pendingApprovals = useMemo(
         () => getLivePendingApprovals(messages, {stopped: !interactionAvailability.approvals}),
         [messages, interactionAvailability.approvals],
@@ -561,7 +604,7 @@ const AgentConversation = ({
     // arriving below to jump to.
     const gateOpen = jumpGateOpen({
         approvals: pendingApprovals.length,
-        elicitationOpen: false,
+        elicitationOpen: Boolean(pendingSecret),
         connectionOpen: connects.open,
     })
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
@@ -1053,6 +1096,22 @@ const AgentConversation = ({
                                         onApprovalResponses={handleApprovalResponses}
                                         connects={connects}
                                         elicits={elicits}
+                                        secretDock={
+                                            interactionAvailability.parkedDocks &&
+                                            !busy &&
+                                            !stopping &&
+                                            !stopped &&
+                                            pendingSecret ? (
+                                                <SecretRequestDock
+                                                    key={pendingSecret.toolCallId}
+                                                    meta={pendingSecret}
+                                                    revisionId={entityId}
+                                                    canEditSecrets={hasPermission("edit_secret")}
+                                                    onAdoptRevision={adoptRevision}
+                                                    onOutput={handleClientToolOutput}
+                                                />
+                                            ) : null
+                                        }
                                         onClientToolOutput={handleClientToolOutput}
                                         onSubmit={handleSubmit}
                                         onSteer={(text) => handleSubmit(text, [], "steer")}

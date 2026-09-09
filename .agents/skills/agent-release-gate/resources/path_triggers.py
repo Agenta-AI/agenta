@@ -32,6 +32,8 @@ import subprocess
 # matrix cell (`matrix_gw1_gateway_tools.py`). The driver runs the first kind itself and records
 # the second kind as required, because a standalone cell is a separate process it cannot observe.
 GATEWAY_TOOLS = ("matrix_gw1_gateway_tools.py",)
+AGENT_TOOLS = ("matrix_t9_agent_tools.py",)
+CUSTOM_SECRETS = ("matrix_s1_custom_secrets.py",)
 
 # The standing session-control regression cells: Stop, durable commands, and the runner's
 # recovery paths (owner release, park/resume, watchdog quarantine). A separate standalone driver
@@ -49,6 +51,14 @@ SESSION_CONTROL = ("session_control.py",)
 # --custom-name, and the driver exits when a selected custom cell has no slug, so naming it here
 # would stop every release run that did not pass those flags.
 DAYTONA_CELLS = ("C2", "C4", "X2")
+
+# The per-turn session facts: the agent's display name, the session's name, and the first-turn
+# flag. They reach the harness only as prompt text (`turnContext`), so no SSE frame and no stored
+# row reflects them, and every cell that reads frames alone is blind to them going missing. That
+# is how #6661 shipped through a green gate: the API stamped the facts in its invoke prelude, the
+# SDK and the runner consumed them correctly, and the playground posts to the agent service
+# directly, where the prelude never runs.
+SESSION_CONTEXT = ("matrix_n1_session_context.py",)
 
 # The journeys a rule can demand alongside its cells. A cell without its journey proves nothing:
 # `--release-base ... --only chat` would run `chat` on the mandatory Daytona cells and report a
@@ -72,6 +82,42 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "sdks/python/agenta/sdk/agents/tools/gateway_policy.py": GATEWAY_TOOLS,
     "services/runner/src/tools/**": GATEWAY_TOOLS,
     "services/runner/src/engines/sandbox_agent/gateway-gate.ts": GATEWAY_TOOLS,
+    # The agent's own tools: the runner restores `agent-files/.tools/` (binaries copied to local
+    # disk, `setup.sh` run) before every session, and the sandbox images ship the tool set the
+    # prompt promises. A change to the restore step or to the image recipes needs the cell that
+    # plants a setup script through the mounts API and proves it ran before the first tool call.
+    "services/runner/src/engines/sandbox_agent/agent-tools-setup.ts": AGENT_TOOLS,
+    "services/runner/src/engines/sandbox_agent/run-plan.ts": AGENT_TOOLS
+    + CUSTOM_SECRETS,
+    "services/runner/src/environment/timing.ts": AGENT_TOOLS,
+    "services/runner/src/engines/sandbox_agent/agent-mount.ts": AGENT_TOOLS,
+    "services/runner/src/engines/sandbox_agent/environment.ts": AGENT_TOOLS,
+    "services/runner/src/environment/mount-lifecycle.ts": AGENT_TOOLS,
+    "services/runner/images/**": AGENT_TOOLS,
+    "services/runner/docker/**": AGENT_TOOLS,
+    # Custom-secret authoring, resolution, transport, sandbox injection, and lifecycle identity.
+    "web/packages/agenta-entities/src/secret/**": CUSTOM_SECRETS,
+    "web/packages/agenta-entities/src/workflow/state/agentCredentials.ts": CUSTOM_SECRETS,
+    "web/packages/agenta-entity-ui/src/secret/**": CUSTOM_SECRETS,
+    "web/packages/agenta-entity-ui/src/clientTools/SecretRequest*": CUSTOM_SECRETS,
+    "web/packages/agenta-chat/src/clientTools/secretInteractions.ts": CUSTOM_SECRETS,
+    "api/oss/src/core/secrets/**": CUSTOM_SECRETS,
+    "api/oss/src/apis/fastapi/vault/router.py": CUSTOM_SECRETS,
+    "api/oss/src/apis/fastapi/workflows/router.py": CUSTOM_SECRETS,
+    "api/oss/src/core/workflows/static_catalog.py": CUSTOM_SECRETS,
+    "sdks/python/agenta/sdk/agents/sandbox_credentials.py": CUSTOM_SECRETS,
+    # The handler is the seam BOTH rules hang off: it composes the sandbox credentials and it
+    # resolves the per-turn session facts. A dict literal keeps only the last value for a
+    # repeated key, so the two tuples are joined here rather than written as a second entry that
+    # would silently drop the custom-secrets rule.
+    "sdks/python/agenta/sdk/agents/handler.py": CUSTOM_SECRETS + SESSION_CONTEXT,
+    "sdks/python/agenta/sdk/agents/wire_models.py": CUSTOM_SECRETS,
+    "sdks/python/agenta/sdk/agents/utils/wire.py": CUSTOM_SECRETS,
+    "services/runner/src/engines/sandbox_agent/sandbox-credentials.ts": CUSTOM_SECRETS,
+    "services/runner/src/engines/sandbox_agent/session-identity.ts": CUSTOM_SECRETS,
+    "services/runner/src/environment/runtime-lifecycle.ts": CUSTOM_SECRETS,
+    "services/runner/src/lifecycle/desired-state.ts": CUSTOM_SECRETS,
+    "services/runner/src/redaction.ts": CUSTOM_SECRETS,
     # The sandbox engine and the Daytona provider: sandbox creation, the secret plan, the
     # credential preflight, and the one retry the runner does when a first model call is refused.
     # A fault here shows up only when many sandboxes start at once, which is what `burst` and
@@ -89,12 +135,24 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "api/oss/src/core/sessions/**": SESSION_CONTROL,
     "api/oss/src/tasks/asyncio/sessions/**": SESSION_CONTROL,
     "api/oss/src/apis/fastapi/sessions/**": SESSION_CONTROL,
+    # The per-turn session facts, end to end: the service-side resolver that reads them, the
+    # renderer that turns them into the prompt text the agent sees, and the API-side resolver
+    # plus its stamp. A change to any of the three can leave the agent answering from its own
+    # transcript with no fact to read, which is invisible to every frame-level cell.
+    # `api/oss/src/core/sessions/**` already names SESSION_CONTROL above; naming the resolver
+    # file exactly is a separate key, and matches are unioned, so both rules fire on it.
+    "sdks/python/agenta/sdk/agents/platform/session_context.py": SESSION_CONTEXT,
+    "sdks/python/agenta/sdk/agents/platform_instructions.py": SESSION_CONTEXT,
+    "api/oss/src/core/sessions/context.py": SESSION_CONTEXT,
 }
 
 # Glob -> journeys that MUST run when the rule fires. Same matching as PATH_TRIGGERS, kept as a
 # separate table so a rule can demand a cell, a journey, or both, without changing the shape of
 # either one.
 PATH_TRIGGER_JOURNEYS: dict[str, tuple[str, ...]] = {
+    # The concurrency journeys (`burst`, `crosstalk`) are journeys, not cells: listed under
+    # PATH_TRIGGERS they would be registered as cell names and never run. A change to the
+    # sandbox engine or the Daytona provider makes them mandatory on every applicable cell.
     "services/runner/src/engines/sandbox_agent/**": CONCURRENCY_JOURNEYS,
     "services/runner/src/providers/daytona*": CONCURRENCY_JOURNEYS,
 }

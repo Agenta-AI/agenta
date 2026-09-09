@@ -67,6 +67,7 @@ class SandboxAgentSession(Session):
         harness: HarnessKind,
         trace: Optional[TraceContext],
         run_context: Optional[RunContext],
+        turn_context: Optional[str],
         session_id: Optional[str],
         detached: bool = False,
         turn_id: Optional[str],
@@ -81,6 +82,7 @@ class SandboxAgentSession(Session):
         self._harness = harness
         self._trace = trace
         self._run_context = run_context
+        self._turn_context = turn_context
         self._session_id = session_id
         self._detached = detached
         self._turn_id = turn_id
@@ -102,6 +104,7 @@ class SandboxAgentSession(Session):
             messages=messages,
             trace=self._trace,
             run_context=self._run_context,
+            turn_context=self._turn_context,
             session_id=self._session_id,
             detached=self._detached,
             turn_id=self._turn_id,
@@ -179,6 +182,7 @@ class SandboxAgentBackend(Backend):
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
+        turn_context: Optional[str] = None,
         session_id: Optional[str] = None,
         detached: bool = False,
         turn_id: Optional[str] = None,
@@ -198,6 +202,7 @@ class SandboxAgentBackend(Backend):
             harness=harness,
             trace=trace,
             run_context=run_context,
+            turn_context=turn_context,
             session_id=session_id,
             detached=detached,
             turn_id=turn_id,

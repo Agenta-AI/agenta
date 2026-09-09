@@ -1,10 +1,17 @@
 import {memo, type ReactNode} from "react"
 
-import {useDriveSessionId} from "@agenta/entity-ui/drive"
+import {
+    BlockedChatLink,
+    decodeDriveHref,
+    isExternalHref,
+    isProtocolRelativeHref,
+    useDriveSessionId,
+    withExplicitRelativeLinks,
+} from "@agenta/entity-ui/drive"
 import {code} from "@streamdown/code"
 import {math} from "@streamdown/math"
 import {useAtomValue} from "jotai"
-import {Streamdown, type Components, type ThemeInput} from "streamdown"
+import {defaultRehypePlugins, Streamdown, type Components, type ThemeInput} from "streamdown"
 
 import {chatFileLinkAtomFamily} from "../state/fileLinks"
 
@@ -137,12 +144,6 @@ const InlineCode = ({className, children}: {className?: string; children?: React
     return fallback
 }
 
-/** A link target that must stay a plain external link: any `scheme:` URL (http, https, mailto, tel,
- * data, …), a protocol-relative `//host`, or an in-page `#fragment`. Everything else is a RELATIVE
- * path, which might name a file in this conversation's drive. */
-const isExternalHref = (href?: string): boolean =>
-    !href || /^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)
-
 /** Only real anchor attributes — Streamdown also passes renderer internals (`node`, …) that would
  * leak onto the DOM element, so we never spread the incoming props. */
 interface AnchorProps {
@@ -173,13 +174,24 @@ const DriveLink = ({href, ...rest}: AnchorProps) => {
     ) : (
         <ExternalLink href={href} {...rest} />
     )
-    if (link && href) return <>{link.renderCode(href, fallback)}</>
+    // Harden percent-encodes the href through `new URL()`; drive paths are raw.
+    if (link && href) return <>{link.renderCode(decodeDriveHref(href), fallback)}</>
     return fallback
 }
 
-/** Split so an ordinary URL costs nothing: only a relative href subscribes to the drive resolver. */
-const Anchor = ({href, title, className, children}: AnchorProps) =>
-    isExternalHref(href) ? (
+/** Split so an ordinary URL costs nothing: only a relative href subscribes to the drive resolver.
+ *
+ * The host check runs FIRST, on the raw href, before anything here can normalise or decode it. A
+ * target that names a host is refused outright and rendered the way harden renders the targets it
+ * refuses (#6666); nothing downstream ever sees it. */
+const Anchor = ({href, title, className, children}: AnchorProps) => {
+    if (isProtocolRelativeHref(href))
+        return (
+            <BlockedChatLink href={href} className={className}>
+                {children}
+            </BlockedChatLink>
+        )
+    return isExternalHref(href) ? (
         <ExternalLink href={href} title={title} className={className}>
             {children}
         </ExternalLink>
@@ -188,6 +200,7 @@ const Anchor = ({href, title, className, children}: AnchorProps) =>
             {children}
         </DriveLink>
     )
+}
 
 /** Stable maps/configs: fresh object literals per render churn Streamdown's prop identity, and
  * this renderer re-renders on every throttled streaming token — so hoist them to module scope.
@@ -206,6 +219,9 @@ const MD_COMPONENTS: Components = {
     ),
 }
 
+/** Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults. */
+export const MD_REHYPE_PLUGINS = withExplicitRelativeLinks(defaultRehypePlugins)
+
 /** KaTeX math ($…$ / $$…$$) + Shiki-highlighted fences; both tree-shaken plugin packages. */
 const MD_PLUGINS = {math, code}
 
@@ -215,13 +231,15 @@ const MD_CONTROLS = {code: {copy: true, download: false}, mermaid: false, table:
 /** Light/dark pair — Shiki dual themes track the app theme instead of the old always-dark Prism. */
 const SHIKI_THEMES: [ThemeInput, ThemeInput] = ["one-light", "one-dark-pro"]
 
-/** Shared markdown renderer for the slice — used by message bubbles and the composer live
- * preview, so both render identically. `className` appends to `MD_CLASS` so callers can tweak
- * size/color (e.g. the muted reasoning block) without forking the renderer.
+/** Shared markdown renderer for the slice — used by the streaming message bubble and the
+ * inspector's context lens, so both render identically. The composer has its own Lexical
+ * renderer and does NOT come through here. `className` appends to `MD_CLASS` so callers can
+ * tweak size/color (e.g. the muted reasoning block) without forking the renderer.
  *
  * Sanitization: Streamdown's default rehype pipeline (`rehype-raw → rehype-sanitize (GitHub
  * schema) → rehype-harden`) replaces the old DOMPurify FORBID_TAGS config — document-affecting
- * tags, handlers, and javascript: URLs are stripped by default.
+ * tags, handlers, and javascript: URLs are stripped by default. `Anchor` adds the one gate
+ * harden does not apply, on a target that resolves to a host (#6666).
  *
  * Memoized on `content`/`className`: within the one message that re-renders per streamed token
  * (the streaming one), its already-settled parts — a reasoning block, text before a tool call —
@@ -242,6 +260,7 @@ const Markdown = ({
     <Streamdown
         className={className ? `${MD_CLASS} ${className}` : MD_CLASS}
         components={MD_COMPONENTS}
+        rehypePlugins={MD_REHYPE_PLUGINS}
         plugins={MD_PLUGINS}
         controls={MD_CONTROLS}
         shikiTheme={SHIKI_THEMES}

@@ -1,23 +1,40 @@
 import {useTypewriter} from "@agenta/chat/hooks"
-import {Streamdown, type Components} from "streamdown"
+import {
+    BlockedChatLink,
+    isExternalHref,
+    isProtocolRelativeHref,
+    withExplicitRelativeLinks,
+} from "@agenta/entity-ui/drive"
+import {defaultRehypePlugins, Streamdown, type Components} from "streamdown"
 
-/**
- * Streamdown ships `rehype-raw → rehype-sanitize (GitHub's default schema) → rehype-harden`
- * as its default rehype pipeline, so raw HTML in model output is parsed but stripped down to
- * the safe subset (no `<script>`/`<style>`/`<iframe>`, no `on*` handlers, no `javascript:`
- * URLs). We deliberately pass no `rehypePlugins` and no `allowedTags` so that default stands.
- */
-const markdownComponents: Components = {
+import {DriveLink} from "./DriveLink"
+
+// Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults.
+const rehypePlugins = withExplicitRelativeLinks(defaultRehypePlugins)
+
+export const markdownComponents: Components = {
     // Streamdown's own anchor already sets target=_blank + rel=noreferrer; make the
     // opener-severing explicit so the guarantee survives an upstream refresh.
-    a: ({node: _node, className, ...props}) => (
-        <a
-            {...props}
-            className={`text-primary font-medium underline ${className ?? ""}`}
-            rel="noopener noreferrer"
-            target="_blank"
-        />
-    ),
+    //
+    // The host check runs FIRST, on the raw href: a target that names a host is refused and
+    // rendered the way harden renders the targets it refuses (#6666), never as an anchor.
+    a: ({node: _node, className, children, ...props}) =>
+        isProtocolRelativeHref(props.href) ? (
+            <BlockedChatLink href={props.href} className={className}>
+                {children}
+            </BlockedChatLink>
+        ) : isExternalHref(props.href) ? (
+            <a
+                {...props}
+                className={`text-primary font-medium underline ${className ?? ""}`}
+                rel="noopener noreferrer"
+                target="_blank"
+            >
+                {children}
+            </a>
+        ) : (
+            <DriveLink href={props.href ?? ""}>{children}</DriveLink>
+        ),
 }
 
 /**
@@ -70,6 +87,7 @@ export const AssistantMarkdown = ({
             lineNumbers={false}
             mode={healing ? "streaming" : "static"}
             parseIncompleteMarkdown={healing}
+            rehypePlugins={rehypePlugins}
         >
             {revealed}
         </Streamdown>

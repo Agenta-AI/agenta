@@ -6,7 +6,7 @@ import {useSessionCardVerbs} from "./useSessionCardVerbs"
 
 type Props = Omit<
     React.ComponentProps<typeof SharedSessionListCard>,
-    "viewAllHref" | "onOpenRow" | "menuFor" | "onMenuSelect"
+    "viewAllHref" | "onOpenRow" | "menuFor" | "onMenuSelect" | "onRenameRow"
 > & {
     /** Defaults to the project sessions page; an agent-scoped page carries its own route. */
     viewAllHref?: string

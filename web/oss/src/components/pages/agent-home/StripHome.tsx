@@ -115,6 +115,11 @@ const StripHome: React.FC = () => {
             })({key}),
         [sessionActions, handleOpenSession],
     )
+    // Rename happens IN the row, so this only supplies the commit — the card owns the edit.
+    const onSessionRename = useCallback(
+        (vm: SessionRowVm, name: string) => sessionActions.commitRename(actionTargetFor(vm), name),
+        [sessionActions],
+    )
 
     // A card here IS the create action — no composer step, no second confirmation.
     const {createFromTemplate, pendingKey} = useCreateAgentFromTemplate("create")
@@ -184,6 +189,7 @@ const StripHome: React.FC = () => {
                     onOpenSession={handleOpenSession}
                     sessionMenuFor={sessionMenuFor}
                     onSessionMenuSelect={onSessionMenuSelect}
+                    onSessionRename={onSessionRename}
                     agentsPanel={<YourAgentsTable variant="list" />}
                     triggersPanel={<NextTriggersSection />}
                     usagePanel={

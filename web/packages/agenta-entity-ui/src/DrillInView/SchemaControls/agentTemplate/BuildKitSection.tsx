@@ -1,31 +1,18 @@
 /**
- * BuildKitSection / PermissionOverrideHint — the presentational half of `useBuildKit`.
+ * BuildKitSection - the presentational half of `useBuildKit`.
  *
  * The hook owns the atom reads (overlay + enabled flag) and the derivation; everything that
  * renders lives here so it can be storied with plain props (container reads atoms,
  * presentational takes props).
  */
-import type {ReactNode} from "react"
-
-import {ConfigAccordionSection, Tag} from "@agenta/ui/components/presentational"
-import {Switch, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-import {Warning, Wrench} from "@phosphor-icons/react"
+import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
+import {Switch} from "@agenta/ui/ui"
+import {Wrench} from "@phosphor-icons/react"
 
 import {RailField} from "../../../drawers/shared/RailField"
 
 import type {ItemDescriptor} from "./itemDescriptors"
 import {ItemRow} from "./ItemRow"
-
-export function formatPermissionValue(value: unknown): string {
-    if (typeof value === "string") return value
-    if (typeof value === "number" || typeof value === "boolean") return String(value)
-    if (value == null) return "null"
-    try {
-        return JSON.stringify(value)
-    } catch {
-        return String(value)
-    }
-}
 
 /** One build-kit row. `toggle` marks a tool the user may switch off; without it the row is locked. */
 export interface BuildKitTool {
@@ -45,13 +32,11 @@ export interface BuildKitSectionProps {
     onToggleTool: (op: string, next: boolean) => void
     /** Switch every switchable tool on or off at once. */
     onSetAllTools: (next: boolean) => void
-    /** Sandbox permission overlay, rendered read-only as `key → value` rows. */
-    permissions?: Record<string, unknown> | null
     /** Collapsed in the app (it is background information); stories open it. @default false */
     defaultOpen?: boolean
 }
 
-/** The build-kit block. Switchable tools get a switch each; the rest, and permissions, are read-only. */
+/** The build-kit block. Switchable tools get a switch each; the rest are read-only. */
 export function BuildKitSection({
     enabled,
     onEnabledChange,
@@ -59,7 +44,6 @@ export function BuildKitSection({
     tools,
     onToggleTool,
     onSetAllTools,
-    permissions,
     defaultOpen = false,
 }: BuildKitSectionProps) {
     // Per-tool switches only mean anything while the kit as a whole is on.
@@ -143,48 +127,6 @@ export function BuildKitSection({
                     ))}
                 </RailField>
             ) : null}
-            {permissions && Object.keys(permissions).length > 0 ? (
-                <RailField wide label="Sandbox permissions">
-                    <div className="flex flex-col gap-1.5 opacity-70">
-                        {Object.entries(permissions).map(([key, value]) => (
-                            <div
-                                key={key}
-                                className="flex items-center justify-between gap-3 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2 text-xs"
-                            >
-                                <span className="font-mono">{key}</span>
-                                {/* leading-[22.4px]: antd's `.ant-tag` keeps its own 22.4px
-                                    line-height under a font-size override, but `text-xs`
-                                    replaces the Badge ramp's bundled line-height — restate it
-                                    or the chip renders 6px shorter. */}
-                                <Tag className="font-mono text-xs leading-[22.4px]">
-                                    {formatPermissionValue(value)}
-                                </Tag>
-                            </div>
-                        ))}
-                    </div>
-                </RailField>
-            ) : null}
         </ConfigAccordionSection>
-    )
-}
-
-/** Inline warning above SandboxPermissionControl when the build kit overrides a permission. */
-export function PermissionOverrideHint({keys}: {keys: string[]}): ReactNode {
-    if (keys.length === 0) return null
-    return (
-        <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <div className="inline-flex w-fit items-center gap-1.5 rounded bg-[var(--ant-color-warning-bg)] px-2 py-1 text-xs text-[var(--ant-color-warning-text)]">
-                        <Warning size={12} />
-                        Build kit overrides {keys.join(", ")}
-                    </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                    This value is overridden by the build kit in playground. Turn the build kit off
-                    to match the published agent.
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
     )
 }
