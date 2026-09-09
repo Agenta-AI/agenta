@@ -18,9 +18,11 @@ from typing import Any, List, Tuple
 import pytest
 
 from agenta.sdk.agents.dtos import AgentTemplate
+from agenta.sdk.agents.platform.gateway import _to_gateway_reference
 from agenta.sdk.agents.tools import (
     GatewayConnectionToolConfig,
     GatewayToolConfig,
+    ToolConfigurationError,
     coerce_tool_config,
     coerce_tool_configs,
     parse_tool_config,
@@ -114,8 +116,36 @@ def test_provider_action_is_read_as_the_action():
     # revision goes through. `parse_tool_config` stays strict on the canonical spelling.
     config = coerce_tool_config(_PROVIDER_ACTION_ENTRY)
     assert isinstance(config, GatewayToolConfig)
-    assert config.action == "GITHUB_GET_AN_ISSUE"
     assert config.connection == "github-work"
+
+
+def test_the_integration_prefix_is_stripped_from_a_provider_action():
+    # The backend resolves a legacy reference by the CATALOG KEY, which carries no
+    # integration prefix. A verbatim copy of the provider action id would name a tool the
+    # catalog does not hold, and the run would drop the tool as stale.
+    config = coerce_tool_config(_PROVIDER_ACTION_ENTRY)
+    assert config.action == "GET_AN_ISSUE"
+
+
+def test_a_provider_action_without_the_prefix_is_kept_whole():
+    config = coerce_tool_config(
+        {**_PROVIDER_ACTION_ENTRY, "provider_action": "GET_AN_ISSUE"}
+    )
+    assert config.action == "GET_AN_ISSUE"
+
+
+def test_a_translated_entry_resolves_to_the_catalog_key_on_the_wire():
+    # The reference the resolver sends to the backend is where the key has to be right: the
+    # backend matches it against the catalog key, so a provider id here resolves to nothing
+    # and the tool is dropped as stale at run time instead of running.
+    reference = _to_gateway_reference(coerce_tool_config(_PROVIDER_ACTION_ENTRY))
+    assert reference == {
+        "type": "gateway",
+        "provider": "composio",
+        "integration": "github",
+        "action": "GET_AN_ISSUE",
+        "connection": "github-work",
+    }
 
 
 def test_an_explicit_action_wins_over_provider_action():
@@ -170,6 +200,42 @@ def test_an_unrepairable_entry_is_dropped_with_a_warning_and_the_rest_survive(
         "ClientToolConfig",
     ]
     assert len(recorder.warnings) == 1
+
+
+def test_a_misspelled_tool_field_still_fails_the_run():
+    # Tolerance must not swallow a typo. The author believes this tool is configured, so a
+    # silent drop would take it away with nothing to see anywhere.
+    with pytest.raises(ToolConfigurationError):
+        AgentTemplate(tools=[{"type": "client", "nmae": "ask_user"}])
+
+
+def test_two_conflicting_policies_for_one_integration_still_fail_the_run():
+    # One integration takes one entry. Dropping the second would silently pick a policy,
+    # and the pair here disagree: the run would allow what the author also denied.
+    permissive = {
+        **_NO_POLICY_ENTRY,
+        "policy": {"permissions": {"default": "allow", "tools": {}}},
+    }
+    restrictive = {
+        **_NO_POLICY_ENTRY,
+        "policy": {"permissions": {"default": "deny", "tools": {}}},
+    }
+    with pytest.raises(ToolConfigurationError):
+        AgentTemplate(tools=[permissive, restrictive])
+
+
+def test_a_malformed_connection_entry_still_fails_the_run():
+    # Only the LEGACY gateway shape is tolerated. A connection entry missing a routing
+    # field is a current-format mistake, and it stays a loud one.
+    with pytest.raises(ToolConfigurationError):
+        AgentTemplate(
+            tools=[
+                {
+                    "type": "gateway_connection",
+                    "connection": {"provider": "composio", "integration": "github"},
+                }
+            ]
+        )
 
 
 def test_a_template_with_only_valid_tools_logs_nothing(

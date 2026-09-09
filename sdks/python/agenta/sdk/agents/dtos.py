@@ -35,10 +35,25 @@ from .mcp import (
 from .pi_builtins import PI_BUILTIN_TOOL_NAMES
 from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
 from .permission_rules import wire_author_permission_rules
-from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
+from .tools import (
+    ToolCallback,
+    ToolConfig,
+    ToolConfigurationError,
+    ToolSpec,
+    coerce_tool_configs,
+)
 from .tools.models import PermissionMode, ResolvedGatewayPolicy, coerce_tool_spec
 
 log = get_module_logger(__name__)
+
+
+def _is_legacy_gateway_entry(entry: Any) -> bool:
+    """Whether an entry is the pre-rework one-action gateway shape.
+
+    ``composio`` is the same shape under its older name: ``coerce_tool_config`` renames it
+    before it parses, so a refusal for either spelling names the same legacy entry.
+    """
+    return isinstance(entry, dict) and entry.get("type") in {"gateway", "composio"}
 
 
 # ---------------------------------------------------------------------------
@@ -719,13 +734,31 @@ class AgentTemplate(BaseModel):
     @field_validator("tools", mode="before")
     @classmethod
     def _coerce_tools(cls, value: Any) -> List[ToolConfig]:
-        # A saved revision is never re-validated against these models when it is written,
-        # so one unparsable entry must not fail the whole run. Drop it with a warning, as
-        # the resolver already does for a gateway action the catalog no longer carries.
-        result = coerce_tool_configs(_as_list(value), on_error="collect")
+        # Tolerance is deliberately narrow. A legacy ``gateway`` entry predates the rework
+        # and no migration ever rewrote one, so an unrepairable one is dropped rather than
+        # allowed to fail every run of an agent nobody can edit back into shape.
+        #
+        # Every OTHER refusal still fails the run, loudly and unchanged: a typo in a tool
+        # name, a malformed connection entry, and two conflicting policies for the same
+        # integration are all real misconfigurations the author must see. Dropping those
+        # would take a tool the author believes is configured and make it vanish in silence.
+        entries = _as_list(value)
+        result = coerce_tool_configs(entries, on_error="collect")
         for diagnostic in result.diagnostics:
+            entry = (
+                entries[diagnostic.index]
+                if 0 <= diagnostic.index < len(entries)
+                else None
+            )
+            if not _is_legacy_gateway_entry(entry):
+                raise ToolConfigurationError(
+                    diagnostic.message,
+                    index=diagnostic.index,
+                    value=entry,
+                )
             log.warning(
-                "agent: dropped an unparsable tool entry: %s", diagnostic.message
+                "agent: dropped an unrepairable legacy gateway tool entry: %s",
+                diagnostic.message,
             )
         return result.tool_configs
 

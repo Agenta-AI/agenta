@@ -60,6 +60,26 @@ def _copy_tool_metadata(
     return result
 
 
+def _action_key_from_provider_action(
+    provider_action: Any, integration: Any
+) -> Optional[str]:
+    """The catalog tool key a legacy ``provider_action`` names, or ``None``.
+
+    ``provider_action`` holds the PROVIDER action id, which carries the integration as a
+    prefix (``GITHUB_GET_AN_ISSUE``). The ``action`` field holds the catalog key, which does
+    not (``GET_AN_ISSUE``), and the backend resolves a legacy reference by that key alone.
+    Copying the id across verbatim would name a tool no catalog carries, so strip the prefix
+    exactly as the catalog does when it derives the key.
+    """
+    if not isinstance(provider_action, str) or not provider_action:
+        return None
+    if isinstance(integration, str) and integration:
+        prefix = f"{integration.upper()}_"
+        if provider_action.upper().startswith(prefix):
+            return provider_action[len(prefix) :]
+    return provider_action
+
+
 def coerce_tool_config(value: Any) -> ToolConfig:
     """Convert one supported legacy shape into canonical tool configuration."""
     if isinstance(
@@ -94,12 +114,12 @@ def coerce_tool_config(value: Any) -> ToolConfig:
     # canonical ``action`` would refuse the entry for the field it no longer needs.
     if data.get("type") == "gateway":
         provider_action = data.pop("provider_action", None)
-        if (
-            not data.get("action")
-            and isinstance(provider_action, str)
-            and provider_action
-        ):
-            data["action"] = provider_action
+        if not data.get("action"):
+            action = _action_key_from_provider_action(
+                provider_action, data.get("integration")
+            )
+            if action:
+                data["action"] = action
 
     if data.get("type") in {
         "builtin",
