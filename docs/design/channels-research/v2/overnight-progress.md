@@ -131,3 +131,41 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
 - Screenshots: ui-5-connected-card, ui-6-manage-panel, ui-7-advanced in the evidence dir.
 - Only dark mode remains unverified (no simple toggle); a check for Mahmoud. The UI first pass is
   now visually verified across empty/connect/connected/manage/advanced on desktop and mobile.
+
+## CI analysis on PR #6679 (2026-09-09): red is infra + pre-existing, not the Telegram code
+- The API unit job reports "10 failed, 4016 passed". All 10 failures are sessions DAO tests
+  (test_session_inputs_dao.py, test_late_record_quarantine_dao.py) that fail with
+  `socket.gaierror: [Errno -3] Temporary failure in name resolution`. This is a DB/name
+  resolution problem in the CI job, not a code defect. It matches memory
+  "CI infra name-resolution failures are not the PR".
+- The changed test files on this branch are channels and secrets only. None touch sessions DAO,
+  so the failures cannot come from the Telegram changes.
+- The TypeScript-lint and web-test failures touch no file this branch changed. The branch adds
+  NO web/ files, so those are pre-existing standing red on the stacked base. It matches memory
+  "Web acceptance CI is standing red — never gate on it".
+- The channels unit tests pass locally (874 tests) and are among the 4016 that pass in CI.
+- Conclusion: the branch is not the cause of any CI red. Merge on green-elsewhere plus reviews,
+  per the standing-red memory.
+
+## PR #6679 merge-readiness re-checked on the current tip (2026-09-09)
+- Unresolved review threads: 0.
+- Codex astra review: done earlier; all findings fixed.
+- CodeRabbit: was skipped (base is a stacked branch). Forced a full review with an
+  @coderabbitai comment on the PR; result pending.
+- CI red is fully characterised and is NOT this branch:
+  - run-api-unit-tests: "10 failed, 4016 passed". Every failure is
+    `socket.gaierror: Temporary failure in name resolution` on sessions DAO tests. Infra.
+  - run-web-unit-tests: the failures are agenta-chat session-control hook tests
+    (useServerSessionInputs, session-cancel-stream) on the stacked base, not channels.
+  - The channels tests pass in both jobs: api channels unit, and web
+    ChannelSetupCredentialsForm, state/channels/api, AgentaChannelSurface NodeRenderer.
+- NOTE found during this check: a Channels settings UI and an AgentaChannelSurface already
+  exist on the base branch (web tests reference them). The first-pass UI in
+  agenta-settings-ui must be reconciled with these before any UI merge. This needs Mahmoud.
+- Conclusion: the custom-bot Telegram PR is code-complete and merge-ready pending Mahmoud's
+  lgtm, the CodeRabbit result, and the base branch landing.
+
+## Lane 3 (hosted bind): starting the backend build (2026-09-09)
+- Decision: build the hosted-bot backend now, scoped and unit-tested, on a branch stacked on
+  channels/telegram. The custom path stays untouched. Live verification is deferred because it
+  needs a dedicated hosted bot token that only Mahmoud can create.
