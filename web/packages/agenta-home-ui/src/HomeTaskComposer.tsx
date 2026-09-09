@@ -143,10 +143,12 @@ export const HomeTaskComposer = ({
             {/* Docked UNDER the composer, not inside its footer: what the message is aimed at is a
                 standing fact about the composer, and in the footer it competed for the same row as
                 the actions you take on this one message. It slides BEHIND the composer — same
-                border, no fill of its own — so the composer keeps its own shape and only the
-                dock's sides and foot show below it. */}
+                the divider step for a border — so the composer keeps its own shape and only the
+                dock's sides and foot show below it. No top border: the composer's fill is 4%
+                opaque, so a line tucked under it shows straight THROUGH rather than behind — its
+                own bottom edge is the rule between them. */}
             {bound ? (
-                <div className="-mt-3 flex items-center gap-2 rounded-b-lg border border-solid border-[var(--ag-composer-border)] bg-transparent px-2.5 pb-2 pt-5">
+                <div className="-mt-3 flex items-center gap-2 rounded-b-lg border border-t-0 border-solid border-[var(--ag-colorSplit)] bg-transparent px-2.5 pb-2 pt-5">
                     {bound}
                 </div>
             ) : null}
