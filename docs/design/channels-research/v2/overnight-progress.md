@@ -277,3 +277,22 @@ deployment-secret verify_signature returning the project, no-op activation), the
 hosted-resolve branch, and the bind-start router endpoint. Live verification needs the staging
 bot pointed at the hosted webhook (needs the bot's group privacy off and the custom connection
 removed first).
+
+## Group live QA PASSED (2026-09-09, after Mahmoud disabled group privacy)
+Created a group, added the bot. A plain message got no reply; an @mention got "GROUPOK" in
+~10s. Groups work end to end for the custom bot. Decision taken: keep QR in the hosted flow
+from the start (Mahmoud), and Option 1 for groups (setup tells users to disable group privacy).
+
+## Lane 3 increment 3 (2026-09-09): bind persistence, applied + smoke-tested live
+- Binding service now composes the account key from the hosted capabilities (chat id scope,
+  sender user), matching the inbox worker, and hands the store a ready key. 8 tests.
+- Tables: channel_telegram_bind_tokens, channel_telegram_chat_bindings (migration
+  oss000000030, applied to the channels stack DB). Globally keyed (looked up without a project).
+- TelegramBindingDAO: atomic consume_token_and_bind (guarded token consume + chat binding +
+  account link, all one transaction, concurrent-safe via ON CONFLICT).
+- Smoke-tested end to end against Postgres: issue, consume+bind, account link with the worker
+  key, resolve, replay idempotency, conflicting-project refusal. 763 channels unit tests green.
+Remaining lane-3 slice: HostedTelegramAdapter (deployment-token egress, deployment-secret
+verify returning project, no-op activation), ingress hosted-resolve branch, the bind-start
+router endpoint (returns the deep link + a QR), and wiring the binding service in the app.
+Then repoint the staging bot at the hosted webhook and live-test /start end to end.
