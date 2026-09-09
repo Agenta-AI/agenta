@@ -1,4 +1,4 @@
-import {useCallback, useRef, useState, type ReactNode} from "react"
+import {useCallback, useRef, useState, type CSSProperties, type ReactNode} from "react"
 
 import type {useComposerAttachments} from "@agenta/chat/hooks"
 import {AGENT_TEMPLATES, type AgentStarterTemplate} from "@agenta/entities/workflow"
@@ -84,7 +84,20 @@ export const HomeFocus = ({
             <div className="mx-auto flex w-full max-w-[620px] flex-col gap-[26px]">
                 <HomeGreeting title={title} />
 
-                <div className="relative box-border rounded-[9px] p-px">
+                {/* Home's send is the primary, not the composer accent — the page has one thing to
+                    press. `colorPrimary` already carries the brand's own answer per theme: ink on
+                    light, brand yellow on dark. `colorBgContainer` is the readable counterpart to
+                    both, so the pair never needs a second definition here. */}
+                <div
+                    className="relative box-border rounded-[9px] p-px"
+                    style={
+                        {
+                            "--ag-composer-send-bg": "var(--ag-colorPrimary)",
+                            "--ag-composer-send-fg": "var(--ag-colorBgContainer)",
+                            "--ag-composer-send-hover-bg": "var(--ag-colorPrimaryHover)",
+                        } as CSSProperties
+                    }
+                >
                     {creating ? (
                         // A conic sweep behind the composer's own border, clipped to its radius.
                         <div className="animate-composer-ring-in pointer-events-none absolute inset-0 overflow-hidden rounded-[9px]">

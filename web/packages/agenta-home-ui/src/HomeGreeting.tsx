@@ -20,7 +20,7 @@ export const HomeGreeting = ({title}: {title: string}) => {
     const name = firstName(user?.username)
 
     return (
-        <div className="flex flex-col gap-1.5 px-3">
+        <div className="flex flex-col gap-1.5 px-1.5">
             {name ? (
                 <span className="font-mono text-[11px] uppercase leading-none tracking-[0.1em] text-muted-foreground">
                     {greetingFor(new Date().getHours())}, {name}

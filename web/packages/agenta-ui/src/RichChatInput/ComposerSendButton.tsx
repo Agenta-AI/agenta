@@ -33,10 +33,15 @@ export function ComposerSendButton({onClick, disabled, ariaLabel, icon}: Compose
             // Filled accent when there's something to send, a clearly-inert grey fill when empty
             // (never a faint outlined ghost).
             className={cn(
-                "rounded-control-round",
+                // The control radius, not a circle: the composer is a rounded rectangle and every
+                // other control on it follows that radius — a puck was the one round thing on it.
+                "rounded-control",
                 disabled
                     ? "!border-[var(--ag-send-disabled-bg)] !bg-[var(--ag-send-disabled-bg)] !text-[var(--ag-send-disabled-fg)]"
-                    : "!border-[var(--ag-surface-accent)] !bg-[var(--ag-surface-accent)] !text-[#191a0d] hover:!border-[#b8cb3f] hover:!bg-[#b8cb3f]",
+                    : // Re-toned by its CONTAINER, not by a prop: the button sits five levels below
+                      // any host that might want a different fill, and threading a colour down
+                      // that chain is how one control becomes two. Defaults to the brand accent.
+                      "!border-[var(--ag-composer-send-bg,var(--ag-surface-accent))] !bg-[var(--ag-composer-send-bg,var(--ag-surface-accent))] !text-[var(--ag-composer-send-fg,#191a0d)] hover:!border-[var(--ag-composer-send-hover-bg,#b8cb3f)] hover:!bg-[var(--ag-composer-send-hover-bg,#b8cb3f)]",
             )}
         >
             {icon ?? <ArrowUp size={16} weight="bold" />}

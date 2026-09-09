@@ -46,7 +46,7 @@ const TAB_ON = "border-b-foreground font-medium text-foreground"
 const TAB_OFF = "border-b-transparent font-normal text-muted-foreground hover:text-foreground"
 
 const ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-3.5 rounded-[10px] border-0 bg-transparent px-3 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent"
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-3.5 rounded-[10px] border-0 bg-transparent px-1.5 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent"
 
 /** One row: a tile, the name over its description, and whatever marks the source carries. */
 const Row = ({
@@ -132,7 +132,9 @@ export const HomeEntityList = ({
 
     return (
         <div className="flex flex-col gap-2">
-            <div className="mb-1 flex items-center gap-5 border-0 border-b border-solid border-border px-3">
+            {/* `colorSplit`, the divider step — the active tab's underline is the mark that
+                matters here, and a rule at full border weight competed with it. */}
+            <div className="mb-1 flex items-center gap-5 border-0 border-b border-solid border-b-[var(--ag-colorSplit)] px-1.5">
                 <button
                     type="button"
                     onClick={() => switchTab("agents")}
@@ -155,7 +157,7 @@ export const HomeEntityList = ({
                         className="box-border flex h-7 cursor-pointer appearance-none items-center gap-1.5 rounded-control-sm border border-solid border-border bg-transparent px-2.5 font-[inherit] text-[13px] leading-none text-foreground outline-none transition-colors hover:bg-accent"
                     >
                         <PlusIcon aria-hidden size={12} />
-                        New
+                        New agent
                     </button>
                 </span>
             </div>
