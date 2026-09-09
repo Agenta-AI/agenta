@@ -89,10 +89,10 @@ Wiring prerequisites found (do these inside F2/F3, each leaving a compilable sta
   only, QR as a fast-follow. RECOMMEND (b) if a small MIT encoder fits, else (c)
   first so the flow works, then add QR. Mahmoud wants QR, so do not drop it
   silently; land the link, then the QR.
-- PRE-2 references: the agent page has appId only. The bind-link needs agent
-  references like {workflow_variant:{id}} (the custom QA agent used that). Find
-  the appId -> current variant/revision id source (an atom/hook in state) before
-  wiring the connect action; without a valid reference the agent is not runnable.
+- PRE-2 references: RESOLVED. RESOLVABLE_AGENT_REFERENCE_KEYS includes
+  "application", so the agent page connects with {application:{id: appId}}
+  directly (appId is the application id) -- no variant lookup needed. Verify it
+  resolves to a runnable agent during live QA.
 - PRE-3 rail injection: read AgentOverviewBody.tsx to see how a new rail card is
   added (edit it directly or via a slot). Add an AgentChannelsCard rendering the
   design's ChannelsPage with an @agenta/ui drawer (./drawer export) as renderPanel.
