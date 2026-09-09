@@ -51,7 +51,7 @@ Backend — Slack:
 Frontend — the new design on the AGENT PAGE (branch channels/telegram-ui):
 Sequenced build plan. Each step ends committed + verified; deploy to the stack and
 screenshot before marking a UI step done (UI changes need browser QA).
-- [ ] F1 Place the first-pass design components into web/packages/agenta-settings-ui/
+- [x] F1 Placed the first-pass design components into web/packages/agenta-settings-ui/
   src/channels/ (ChannelsPage, ChannelConnectFlow, ChannelManagePanel, helpers,
   icons, types, index). Package already has @agenta/ui + phosphor. Do NOT export
   from the package index until wired, so the app build is untouched. Verify the
