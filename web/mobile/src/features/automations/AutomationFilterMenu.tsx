@@ -6,21 +6,18 @@ import {
     isDefaultAutomationListView,
     type AutomationGrouping,
     type AutomationListView,
-    type AutomationSort,
     type AutomationStatusFilter,
     type AutomationTypeFilter,
 } from "@agenta/automation-ui"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {
-    ArrowsDownUp,
     ClockClockwise,
     Lightning,
     Minus,
     Robot,
     Rows,
     SquaresFour,
-    TextAa,
     Waveform,
 } from "@phosphor-icons/react"
 
@@ -32,8 +29,10 @@ const StatusDot = ({className}: {className: string}) => (
 )
 
 /**
- * The automations list's single view control: type, status and agent above the divider, sort and
- * group below it.
+ * The automations list's single view control: type, status and agent, then how the rows are cut.
+ *
+ * No sort row: the list is newest-first everywhere in this app, and a reader who wants a name
+ * has the search field. Grouping is the only cut worth choosing.
  *
  * Everything the shared `FilterMenu` knows about this screen arrives here as props — the package
  * never learns what an automation is, and this file never re-implements a row, a flyout or a
@@ -105,18 +104,6 @@ export const AutomationFilterMenu = ({
                 ],
                 emptyText: "No agents yet",
                 onChange: (value) => onChange({...view, agent: value}),
-            },
-            {
-                key: "sort",
-                label: "Sort by",
-                icon: <ArrowsDownUp size={ICON} />,
-                block: "sort",
-                value: view.sort,
-                options: [
-                    {value: "updated", label: "Last updated", icon: <ClockClockwise size={ICON} />},
-                    {value: "name", label: "Name", icon: <TextAa size={ICON} />},
-                ],
-                onChange: (value) => onChange({...view, sort: value as AutomationSort}),
             },
             {
                 key: "group",
