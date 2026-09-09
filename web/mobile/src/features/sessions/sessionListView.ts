@@ -72,14 +72,7 @@ export interface SessionListGroup {
  * first.
  */
 const DATE_ORDER: readonly string[] = ["today", "yesterday", "week", "older"]
-const STATUS_ORDER: readonly string[] = [
-    "waiting",
-    "running",
-    "alive",
-    "idle",
-    "ended",
-    "archived",
-]
+const STATUS_ORDER: readonly string[] = ["waiting", "running", "alive", "idle", "ended", "archived"]
 
 /** Local midnight, so "yesterday" means the calendar day and not "26 hours ago". */
 const startOfDay = (ms: number): number => {
@@ -130,7 +123,7 @@ const groupOf = (
 export function deriveSessionGroups(
     rows: SessionRowVm[],
     grouping: SessionGrouping,
-    agentNames: Map<string, string> = new Map(),
+    agentNames = new Map<string, string>(),
     now: number = Date.now(),
 ): SessionListGroup[] {
     if (grouping === "none") return rows.length ? [{key: "all", label: null, rows}] : []

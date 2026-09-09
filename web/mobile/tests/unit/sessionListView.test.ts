@@ -2,6 +2,7 @@ import {sessionRowStatusMeta, type SessionRowStatus, type SessionRowVm} from "@a
 import {describe, expect, it} from "vitest"
 
 import {
+    activityFloorIso,
     DEFAULT_SESSION_LIST_VIEW,
     deriveSessionGroups,
     isDefaultSessionListView,
@@ -69,9 +70,20 @@ describe("deriveSessionGroups", () => {
     })
 
     it("reads yesterday as the calendar day, not as 24 hours", () => {
-        // 13 hours back from midday is 23:00 the previous day — the same clock day boundary a
-        // reader means by "yesterday", and the case a naive 24-hour cutoff calls "today".
-        const groups = deriveSessionGroups([row("a", {activityAt: hoursAgo(13)})], "date", new Map(), NOW)
+        // An hour before LOCAL midnight — under a day old, but the previous calendar day, which
+        // is what a reader means by "yesterday" and what a naive 24-hour cutoff calls "today".
+        // Derived from the local day rather than a fixed offset, so the test does not assume the
+        // runner's timezone.
+        const localMidnight = new Date(NOW)
+        localMidnight.setHours(0, 0, 0, 0)
+        const lateYesterday = new Date(localMidnight.getTime() - 3_600_000).toISOString()
+
+        const groups = deriveSessionGroups(
+            [row("a", {activityAt: lateYesterday})],
+            "date",
+            new Map(),
+            NOW,
+        )
         expect(labels(groups)).toEqual(["Yesterday"])
     })
 
@@ -121,9 +133,25 @@ describe("deriveSessionGroups", () => {
 })
 
 describe("isDefaultSessionListView", () => {
-    it("groups by agent by default", () => {
-        expect(DEFAULT_SESSION_LIST_VIEW.group).toBe("agent")
+    it("groups by agent over the last seven days by default", () => {
+        expect(DEFAULT_SESSION_LIST_VIEW).toEqual({group: "agent", activity: "7d"})
         expect(isDefaultSessionListView(DEFAULT_SESSION_LIST_VIEW)).toBe(true)
-        expect(isDefaultSessionListView({group: "date"})).toBe(false)
+        expect(isDefaultSessionListView({group: "date", activity: "7d"})).toBe(false)
+        expect(isDefaultSessionListView({group: "agent", activity: "all"})).toBe(false)
+    })
+})
+
+describe("activityFloorIso", () => {
+    it("has no bound under All", () => {
+        expect(activityFloorIso("all", NOW)).toBeUndefined()
+    })
+
+    it("counts back from the hour, so the value is stable between renders", () => {
+        // Two instants inside the same hour must produce the same floor, or every render would
+        // mint a new query key.
+        expect(activityFloorIso("24h", NOW)).toBe(activityFloorIso("24h", NOW + 59 * 60_000))
+        expect(Date.parse(activityFloorIso("24h", NOW)!)).toBe(NOW - 24 * 3_600_000)
+        expect(Date.parse(activityFloorIso("7d", NOW)!)).toBe(NOW - 7 * 24 * 3_600_000)
+        expect(Date.parse(activityFloorIso("30d", NOW)!)).toBe(NOW - 30 * 24 * 3_600_000)
     })
 })

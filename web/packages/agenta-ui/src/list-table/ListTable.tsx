@@ -106,7 +106,10 @@ export const ListTable = <Row,>({
                                         active
                                         key={column.key}
                                         className={cn(
-                                            "h-3.5",
+                                            // The height of the line the cell's text will sit on,
+                                            // not a hair less: a thinner bar reads as a rule
+                                            // between rows rather than as text on its way.
+                                            "h-5 rounded",
                                             SKELETON_WIDTHS[(row + index) % SKELETON_WIDTHS.length],
                                             // A control column holds an icon, not a phrase.
                                             column.srOnly && "w-full",

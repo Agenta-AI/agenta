@@ -1,4 +1,9 @@
-import {isMenuDivider, useDeferredMenuSelect, type MenuSelect, type SessionMenuEntry} from "@agenta/sessions-ui"
+import {
+    isMenuDivider,
+    useDeferredMenuSelect,
+    type MenuSelect,
+    type SessionMenuEntry,
+} from "@agenta/sessions-ui"
 import {
     DropdownMenu,
     DropdownMenuContent,

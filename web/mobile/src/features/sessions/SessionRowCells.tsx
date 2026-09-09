@@ -1,4 +1,5 @@
 import {useCallback, useMemo, type MouseEvent as ReactMouseEvent} from "react"
+import type {ReactNode} from "react"
 
 import {AgentChip} from "@agenta/entity-ui/agent"
 import type {SessionRowStatusMeta, SessionRowVm} from "@agenta/sessions/row"
@@ -10,7 +11,6 @@ import {
 } from "@agenta/sessions-ui"
 import {timeAgo} from "@agenta/shared/utils"
 import {PencilSimple, PushPin} from "@phosphor-icons/react"
-import type {ReactNode} from "react"
 
 import {cn} from "@/lib/utils"
 
@@ -80,8 +80,8 @@ const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
  * which both the pencil and the kebab's "Rename" drive. A component boundary adds no DOM, so the
  * four cells below stay direct children of the table's grid.
  *
- * Pin and rename sit beside the title rather than hiding until hover — this app is a touch
- * surface and there is no hover to reveal them with.
+ * Pin and rename appear on the row.s hover from `sm` up, and not at all below it — see the
+ * wrapper around them.
  */
 export const SessionRowCells = ({
     vm,
@@ -141,7 +141,10 @@ export const SessionRowCells = ({
                     </span>
                 ) : (
                     <>
-                        <span className="min-w-0 truncate text-[14px] text-foreground" title={vm.title}>
+                        <span
+                            className="min-w-0 truncate text-[14px] text-foreground"
+                            title={vm.title}
+                        >
                             {vm.title}
                         </span>
                         {archived ? null : (
@@ -154,13 +157,10 @@ export const SessionRowCells = ({
                                 // Gone below `sm`, where the title is already down to a dozen
                                 // characters and the pair would cost it 60px more. The kebab
                                 // carries both verbs, so nothing is unreachable there.
-                                className={cn(
-                                    "hidden shrink-0 items-center gap-1 transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 sm:flex",
-                                    // A pinned row keeps its pin: the filled glyph IS how the row
-                                    // says it is pinned, and hiding it leaves the fact to the
-                                    // group heading alone.
-                                    !vm.isPinned && "opacity-0",
-                                )}
+                                // A pinned row hides its pin too: the Pinned group heading already
+                                // says the row is pinned, and one row wearing a glyph the others
+                                // only show on hover reads as a different kind of row.
+                                className="hidden shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 sm:flex"
                                 onClick={swallow}
                                 onKeyDown={(event) => event.stopPropagation()}
                             >
@@ -194,7 +194,12 @@ export const SessionRowCells = ({
                 <SessionAgentName agentId={null} />
             )}
 
-            <span className={cn("truncate text-right text-[13px] text-muted-foreground", archived && FADED)}>
+            <span
+                className={cn(
+                    "truncate text-right text-[13px] text-muted-foreground",
+                    archived && FADED,
+                )}
+            >
                 {updated}
             </span>
 

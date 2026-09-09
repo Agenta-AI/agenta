@@ -8,11 +8,11 @@ import {useAtomValue} from "jotai"
 
 import {useMediaQuery} from "@/lib/useMediaQuery"
 
+import {deriveSessionGroups, type SessionGrouping} from "./sessionListView"
+import {SessionRowCells} from "./SessionRowCells"
 import {SessionsEmpty} from "./states/SessionsEmpty"
 import {SessionsError} from "./states/SessionsError"
 import {SessionsNoMatch} from "./states/SessionsNoMatch"
-import {SessionRowCells} from "./SessionRowCells"
-import {deriveSessionGroups, type SessionGrouping} from "./sessionListView"
 
 /**
  * The columns, shared by the header row and every body row so the two can never drift.
@@ -55,11 +55,7 @@ const WIDE_COLUMNS: ListTableColumn[] = [
     updatedColumn("96px"),
     ACTIONS_COLUMN,
 ]
-const NARROW_COLUMNS: ListTableColumn[] = [
-    SESSION_COLUMN,
-    updatedColumn("64px"),
-    ACTIONS_COLUMN,
-]
+const NARROW_COLUMNS: ListTableColumn[] = [SESSION_COLUMN, updatedColumn("64px"), ACTIONS_COLUMN]
 
 /** Tailwind's `sm`. Below it the Agent column goes; the minima then fit a 375px screen. */
 const NARROW_QUERY = "(max-width: 639.98px)"
@@ -86,6 +82,7 @@ export const SessionListTable = ({
     group,
     activityFloor,
     agentNames,
+    agentNamesReady,
     verbs,
     onClearFilters,
 }: {
@@ -95,6 +92,12 @@ export const SessionListTable = ({
     /** Agent id → display name, for the group headings. A heading is a string, so it cannot
      *  resolve a name the way a row's `SessionAgentName` does. */
     agentNames: Map<string, string>
+    /**
+     * Whether that roster has arrived. Until it has, grouping by agent would label every run
+     * "Unknown agent" — a confident claim about rows whose agent this client simply has not read
+     * yet — so the list stays in one unlabelled run until it can name them.
+     */
+    agentNamesReady: boolean
     verbs: SessionRowVerbs
     onClearFilters: () => void
 }) => {
@@ -128,21 +131,22 @@ export const SessionListTable = ({
     )
 
     const groups = useMemo<ListTableGroup<SessionRowVm>[]>(() => {
+        const cut = group === "agent" && !agentNamesReady ? "none" : group
         const out: ListTableGroup<SessionRowVm>[] = []
         for (const source of list.groups) {
             // Pins, and the ungrouped case, keep the headings `useSessionsList` decided —
             // "Pinned 3", "Recent", "Automation runs".
-            if (source.key === "pinned" || group === "none") {
+            if (source.key === "pinned" || cut === "none") {
                 out.push({key: source.key, label: source.label ?? null, rows: source.rows})
                 continue
             }
             // Namespaced: a derived key is an agent id or a date bucket, and one of those could
             // otherwise collide with "pinned" and fold two groups into one.
-            for (const derived of deriveSessionGroups(source.rows, group, agentNames))
+            for (const derived of deriveSessionGroups(source.rows, cut, agentNames))
                 out.push({...derived, key: `${source.key}:${derived.key}`})
         }
         return out
-    }, [agentNames, group, list.groups])
+    }, [agentNames, agentNamesReady, group, list.groups])
 
     if (list.isError) return <SessionsError onRetry={list.refetch} />
 
@@ -151,7 +155,11 @@ export const SessionListTable = ({
         // search box mints a query per keystroke, so without this the list silently showed
         // results for what you typed a moment ago and looked settled doing it.
         <div aria-busy={list.isPlaceholder || undefined}>
-            <div className={list.isPlaceholder ? "opacity-50 transition-opacity" : "transition-opacity"}>
+            <div
+                className={
+                    list.isPlaceholder ? "opacity-50 transition-opacity" : "transition-opacity"
+                }
+            >
                 <ListTable
                     columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
                     minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}

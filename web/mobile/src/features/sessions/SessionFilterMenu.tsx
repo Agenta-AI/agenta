@@ -17,7 +17,6 @@ import {
 } from "@phosphor-icons/react"
 
 import {
-    DEFAULT_SESSION_LIST_VIEW,
     isDefaultSessionListView,
     type SessionActivityWindow,
     type SessionGrouping,
@@ -149,8 +148,7 @@ export const SessionFilterMenu = ({
                     {value: "7d", label: "Last 7 days", icon: <Clock size={ICON} />},
                     {value: "30d", label: "Last 30 days", icon: <Clock size={ICON} />},
                 ],
-                onChange: (value) =>
-                    onChange({...view, activity: value as SessionActivityWindow}),
+                onChange: (value) => onChange({...view, activity: value as SessionActivityWindow}),
             },
             {
                 key: "group",

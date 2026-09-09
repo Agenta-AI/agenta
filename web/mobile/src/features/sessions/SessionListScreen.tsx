@@ -9,9 +9,9 @@ import {
     useSessionsList,
 } from "@agenta/sessions/state"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar} from "@agenta/ui/list-table"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -25,11 +25,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
 import {SessionFilterMenu} from "./SessionFilterMenu"
 import {SessionListTable} from "./SessionListTable"
-import {
-    activityFloorIso,
-    DEFAULT_SESSION_LIST_VIEW,
-    type SessionListView,
-} from "./sessionListView"
+import {activityFloorIso, DEFAULT_SESSION_LIST_VIEW, type SessionListView} from "./sessionListView"
 import {useSessionRowMenu} from "./useSessionRowMenu"
 
 /**
@@ -146,7 +142,9 @@ export const SessionListScreen = ({
                         // The same frame the automations header uses, so the two pages line up at
                         // every width: page column, 16px gutters on a phone, 64px and a deeper
                         // top from `lg`.
-                        <div className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}>
+                        <div
+                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
+                        >
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
@@ -179,6 +177,7 @@ export const SessionListScreen = ({
                             group={view.group}
                             activityFloor={activityFloor}
                             agentNames={agentNames}
+                            agentNamesReady={!agentsQuery.isPending}
                             verbs={verbs}
                             onClearFilters={clearFilters}
                         />
