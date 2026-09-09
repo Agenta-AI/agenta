@@ -172,6 +172,12 @@ export const HomeTaskComposer = ({
                         placeholder={creating ? CREATE_PLACEHOLDER : placeholder}
                         disabled={!creating && !effectiveAgentId}
                         extraPrefix={extraPrefix}
+                        // While the ring is running it IS the border. The composer's own edge —
+                        // and the focus edge the autofocus fires — paint over the ring's 1px rim
+                        // and hide the very thing the mode exists to show. `!`, because
+                        // RichChatInput composes with clsx, so a plain class would be left to
+                        // stylesheet order against its own `focus-within:border-*`.
+                        className={creating ? "!border-transparent" : undefined}
                     />
                 </div>
             </div>
