@@ -1,4 +1,4 @@
-import {useCallback, useRef, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
 import {
     templateProviderSlugs,
@@ -107,27 +107,38 @@ export const HomeEntityList = ({
     const scrollerRef = useRef<HTMLDivElement>(null)
     const [mask, setMask] = useState<string>("none")
 
-    const readScroll = useCallback((el: HTMLDivElement | null) => {
+    const readScroll = useCallback(() => {
+        const el = scrollerRef.current
         if (!el) return
         const max = el.scrollHeight - el.clientHeight
         const top = el.scrollTop > 4
         const bottom = max > 4 && el.scrollTop < max - 4
-        if (!top && !bottom) {
-            setMask("none")
-            return
-        }
-        setMask(
-            `linear-gradient(to bottom, transparent 0, #000 ${top ? "26px" : "0"}, #000 ${
-                bottom ? "calc(100% - 34px)" : "100%"
-            }, transparent 100%)`,
-        )
+        const next =
+            !top && !bottom
+                ? "none"
+                : `linear-gradient(to bottom, transparent 0, #000 ${top ? "26px" : "0"}, #000 ${
+                      bottom ? "calc(100% - 34px)" : "100%"
+                  }, transparent 100%)`
+        // Idempotent, so this is safe to call on every render.
+        setMask((current) => (current === next ? current : next))
     }, [])
+
+    // Measured on every render, not only on scroll: the bottom fade IS the signal that there is
+    // more below, so a list that overflows on arrival has to show it before it is ever touched.
+    // Content height changes under a capped box without resizing it, so there is nothing cheaper
+    // (a ResizeObserver on the scroller never fires for it).
+    useEffect(readScroll)
+
+    // The window's width changes how many rows fit; the height they occupy is what the mask reads.
+    useEffect(() => {
+        window.addEventListener("resize", readScroll)
+        return () => window.removeEventListener("resize", readScroll)
+    }, [readScroll])
 
     const switchTab = (next: HomeListTab) => {
         onTabChange(next)
         // A new source starts at its own top; keeping the offset showed row 6 of a 4-row list.
         if (scrollerRef.current) scrollerRef.current.scrollTop = 0
-        setMask("none")
     }
 
     const showAgents = tab === "agents"
@@ -167,7 +178,7 @@ export const HomeEntityList = ({
 
             <div
                 ref={scrollerRef}
-                onScroll={(event) => readScroll(event.currentTarget)}
+                onScroll={readScroll}
                 className="flex max-h-[330px] flex-col gap-0.5 overflow-y-auto"
                 style={{maskImage: mask, WebkitMaskImage: mask}}
             >
@@ -176,7 +187,12 @@ export const HomeEntityList = ({
                         agents.map((agent) => (
                             <Row
                                 key={agent.id}
-                                tile={<AgentChip workflowId={agent.id} box="size-[34px]" glyph={19} />}
+                                tile={
+                                    // The glyph, not the tile, carries the breathing room: the
+                                    // box has to stay 34px or the row's left edge stops lining up
+                                    // with the tab above it.
+                                    <AgentChip workflowId={agent.id} box="size-[34px]" glyph={16} />
+                                }
                                 name={agent.name}
                                 description={agent.description}
                                 selected={agent.id === selectedAgentId}
