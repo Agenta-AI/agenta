@@ -73,8 +73,14 @@ const AgentPickerEmpty = ({
     </div>
 )
 
-/** The chip every row wears: the agent's own colour when it has one, a neutral tile when not. */
-const AgentPickerChip = ({
+/**
+ * The agent's mark as a tile: its own colour when it has an icon, a neutral fill when not.
+ *
+ * Exported because the tile is not the picker's — any list that names agents wants the same one,
+ * and a second implementation is how two columns of the same agents stop matching. `colorFillSecondary`
+ * for the neutral case: `muted` sits within a hair of a popover's own surface in dark mode.
+ */
+export const AgentChip = ({
     workflowId,
     box = "size-7",
     glyph = 16,
@@ -145,7 +151,7 @@ const AgentPickerRow = ({
                     : "bg-transparent hover:bg-accent focus-visible:bg-accent",
             ].join(" ")}
         >
-            <AgentPickerChip workflowId={String(agent.id)} />
+            <AgentChip workflowId={String(agent.id)} />
             <span className="flex min-w-0 flex-1 flex-col">
                 {/* One weight down the column: bolding the bound agent made the list look like
                     it had a heading in the middle of it. The tint and the check say enough. */}
@@ -278,7 +284,7 @@ export const AgentPicker = ({
                     .filter(Boolean)
                     .join(" ")}
             >
-                <AgentPickerChip workflowId={value} box="size-5" glyph={13} />
+                <AgentChip workflowId={value} box="size-5" glyph={13} />
                 <span className="min-w-0 truncate">{selectedLabel ?? placeholder}</span>
                 <CaretDown aria-hidden size={12} className="shrink-0 text-muted-foreground" />
             </button>
@@ -307,7 +313,7 @@ export const AgentPicker = ({
                     .join(" ")}
             >
                 <span className="flex min-w-0 flex-1 items-center gap-2">
-                    <AgentPickerChip workflowId={value} box="size-5" glyph={13} />
+                    <AgentChip workflowId={value} box="size-5" glyph={13} />
                     <span
                         className={[
                             "min-w-0 truncate",

@@ -13,6 +13,7 @@ export {
 } from "./agentIcon"
 export {AgentCard, agentAvatar, type AgentCardData, type AgentCardProps} from "./AgentCard"
 export {
+    AgentChip,
     AgentPicker,
     type AgentPickerProps,
     type AgentPickerDensity,
