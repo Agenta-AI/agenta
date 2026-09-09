@@ -45,6 +45,8 @@ export interface HomeTaskComposerProps {
     onCreate?: (input: {text: string}) => void | Promise<void>
     /** Unbind the agent. The host's answer is create mode — the composer is never aimed at nothing. */
     onClearAgent?: () => void
+    /** A template the composer is building from — named in the dock like an agent is. */
+    template?: {name: string; initials: string; color: string} | null
     /** The input itself, for a host that needs to put the caret in it (switching to create). */
     inputRef?: RefObject<RichChatInputHandle | null>
 }
@@ -80,6 +82,7 @@ export const HomeTaskComposer = ({
     mode = "task",
     onCreate,
     onClearAgent,
+    template,
     inputRef,
 }: HomeTaskComposerProps) => {
     // Default to the most recently touched agent — the one you're most likely to want next.
@@ -94,9 +97,33 @@ export const HomeTaskComposer = ({
         [agents, effectiveAgentId],
     )
 
-    // No way to clear create mode: the composer always sends somewhere, and "no agent" is not a
-    // state it can be in. Binding one of the rows below is what replaces it.
-    const bound = creating ? (
+    // No way to clear a blank create: the composer always sends somewhere, and "no agent" is not a
+    // state it can be in. Binding one of the rows below is what replaces it. A template IS
+    // clearable, because clearing it lands back on that blank create rather than on nothing.
+    const bound = template ? (
+        <>
+            <span className="flex min-w-0 items-center gap-1.5 pl-1 text-[12px] text-foreground">
+                <span
+                    className="flex size-5 shrink-0 items-center justify-center rounded-control-sm text-[10px] font-medium text-white"
+                    style={{background: template.color}}
+                >
+                    {template.initials}
+                </span>
+                <span className="min-w-0 truncate">{template.name}</span>
+            </span>
+            {onClearAgent ? (
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="ml-auto size-5"
+                    aria-label="Clear this template"
+                    onClick={onClearAgent}
+                >
+                    <XIcon size={13} />
+                </Button>
+            ) : null}
+        </>
+    ) : creating ? (
         <span className="flex min-w-0 items-center gap-1.5 pl-1 text-[12px] text-foreground">
             <span className="flex size-5 shrink-0 items-center justify-center rounded-control-sm bg-colorFillSecondary text-muted-foreground">
                 <RobotIcon aria-hidden size={13} />

@@ -27,6 +27,8 @@ export interface HomeEntityListProps {
     onSelectAgent: (agentId: string) => void
     /** The agent the composer is bound to, tinted in the list so the two read as one control. */
     selectedAgentId?: string | null
+    /** Likewise for a bound template. */
+    selectedTemplateKey?: string | null
     /** Build an agent from this template. */
     onPickTemplate: (template: AgentStarterTemplate) => void
     /** The full gallery, from the row that closes the templates tab. */
@@ -96,6 +98,7 @@ export const HomeEntityList = ({
     templates,
     onSelectAgent,
     selectedAgentId,
+    selectedTemplateKey,
     onPickTemplate,
     templatesHref,
     onNew,
@@ -223,6 +226,7 @@ export const HomeEntityList = ({
                                 }
                                 name={template.name}
                                 description={template.overview || template.description}
+                                selected={template.key === selectedTemplateKey}
                                 marks={
                                     <TemplateProviderMarks
                                         stacked

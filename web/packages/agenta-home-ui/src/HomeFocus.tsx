@@ -1,7 +1,11 @@
 import {useCallback, useRef, useState, type CSSProperties, type ReactNode} from "react"
 
 import type {useComposerAttachments} from "@agenta/chat/hooks"
-import {AGENT_TEMPLATES, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {
+    AGENT_TEMPLATES,
+    templateBuilderMessage,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {HomeEntityList, type HomeListAgent, type HomeListTab} from "./HomeEntityList"
@@ -17,9 +21,11 @@ export interface HomeFocusProps {
     attachments: ReturnType<typeof useComposerAttachments>
     /** Run the task with the bound agent. */
     onStartTask: (input: {agentId: string; text: string}) => void | Promise<void>
-    /** Create an agent from what was typed in create mode. */
-    onCreateFromPrompt: (input: {text: string}) => void | Promise<void>
-    onCreateFromTemplate: (template: AgentStarterTemplate) => void
+    /**
+     * Create an agent from what was typed in create mode. A template contributes only its NAME —
+     * its instruction is already in the composer, where it can be edited before sending.
+     */
+    onCreateFromPrompt: (input: {text: string; templateName?: string}) => void | Promise<void>
     /** Where "Browse all N templates" lands. */
     templatesHref: string
     /** Host extras in the composer's prefix (the voice mic). */
@@ -48,7 +54,6 @@ export const HomeFocus = ({
     attachments,
     onStartTask,
     onCreateFromPrompt,
-    onCreateFromTemplate,
     templatesHref,
     composerExtraPrefix,
     loading,
@@ -59,12 +64,14 @@ export const HomeFocus = ({
     const [tab, setTab] = useState<HomeListTab>("agents")
     const [creating, setCreating] = useState(false)
     const [agentId, setAgentId] = useState<string | null>(null)
+    const [template, setTemplate] = useState<AgentStarterTemplate | null>(null)
     const inputRef = useRef<RichChatInputHandle | null>(null)
 
     // "+ New" answers "what next" with "type here", so the caret goes there. A frame late: the
     // rich input is lazy, so on the click's own tick the handle can still be null.
     const startCreating = useCallback(() => {
         setCreating(true)
+        setTemplate(null)
         requestAnimationFrame(() => inputRef.current?.focus())
     }, [])
 
@@ -72,7 +79,20 @@ export const HomeFocus = ({
     // one" — leaving create mode on would send the pick nowhere.
     const selectAgent = useCallback((next: string) => {
         setAgentId(next)
+        setTemplate(null)
         setCreating(false)
+    }, [])
+
+    // A template row SELECTS rather than creates: it binds the template in the dock and writes its
+    // instruction into the composer, so the thing about to be built can be read and edited first.
+    // Creating on click sent people to a new agent they had not seen the brief for.
+    const selectTemplate = useCallback((next: AgentStarterTemplate) => {
+        setTemplate(next)
+        setCreating(true)
+        requestAnimationFrame(() => {
+            inputRef.current?.setMarkdown(templateBuilderMessage(next))
+            inputRef.current?.focus()
+        })
     }, [])
 
     return (
@@ -100,8 +120,13 @@ export const HomeFocus = ({
                             attachments={attachments}
                             agentId={agentId}
                             mode={creating ? "create" : "task"}
+                            template={template}
                             onCreate={async (input) => {
-                                await onCreateFromPrompt(input)
+                                await onCreateFromPrompt({
+                                    ...input,
+                                    templateName: template?.name,
+                                })
+                                setTemplate(null)
                                 setCreating(false)
                             }}
                             onClearAgent={startCreating}
@@ -119,7 +144,8 @@ export const HomeFocus = ({
                     templates={AGENT_TEMPLATES}
                     selectedAgentId={agentId ?? agents[0]?.id}
                     onSelectAgent={selectAgent}
-                    onPickTemplate={onCreateFromTemplate}
+                    onPickTemplate={selectTemplate}
+                    selectedTemplateKey={template?.key}
                     templatesHref={templatesHref}
                     onNew={startCreating}
                     loading={loading}

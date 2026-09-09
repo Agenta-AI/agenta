@@ -2,7 +2,6 @@ import {useCallback, useState} from "react"
 
 import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
 import {markSessionFresh} from "@agenta/chat/state"
-import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -62,18 +61,20 @@ export const useHomeHandoff = (base: string) => {
     )
 
     const onCreateFromPrompt = useCallback(
-        async ({text}: {text: string}) => {
+        async ({text, templateName}: {text: string; templateName?: string}) => {
             const {staged, parts} = stagedParts()
-            const ok = await newAgent.createFromPrompt({text, sessionId, parts})
+            const ok = await newAgent.createFromPrompt({
+                text,
+                sessionId,
+                parts,
+                // A template names the agent after itself; free text leaves the create core's
+                // own default to name it from the task.
+                name: templateName,
+            })
             if (ok) attachments.clearAttachments(staged.map((file) => file.uid))
         },
         [attachments, newAgent, sessionId, stagedParts],
     )
 
-    const onCreateFromTemplate = useCallback(
-        (template: AgentStarterTemplate) => newAgent.createFromTemplate(template.key),
-        [newAgent],
-    )
-
-    return {attachments, onStartTask, onCreateFromPrompt, onCreateFromTemplate}
+    return {attachments, onStartTask, onCreateFromPrompt}
 }
