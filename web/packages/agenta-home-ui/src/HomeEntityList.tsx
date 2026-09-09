@@ -49,7 +49,7 @@ const TAB_OFF = "border-b-transparent font-normal text-muted-foreground hover:te
 const TEMPLATE_SHORTLIST = 5
 
 const ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-3.5 rounded-[10px] border-0 bg-transparent px-1.5 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent"
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-3.5 rounded-[10px] border-0 bg-transparent px-3.5 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent"
 
 /** One row: a tile, the name over its description, and whatever marks the source carries. */
 const Row = ({
@@ -145,10 +145,16 @@ export const HomeEntityList = ({
     const agentsBody = errorSlot ?? (loading ? loadingSlot : agents.length === 0 ? emptySlot : null)
 
     return (
-        <div className="flex flex-col gap-2">
+        // The list bleeds 8px past the column on each side and hands it straight back as row
+        // padding: the hover fill needs room around the tile, and the tile cannot move — it is
+        // what the tab above it lines up with. The bleed is on this wrapper, not on the rows, so
+        // nothing overflows the scroller and no horizontal scrollbar appears.
+        <div className="-mx-2 flex flex-col gap-2">
             {/* `colorSplit`, the divider step — the active tab's underline is the mark that
                 matters here, and a rule at full border weight competed with it. */}
-            <div className="mb-1 flex items-center gap-5 border-0 border-b border-solid border-b-[var(--ag-colorSplit)] px-1.5">
+            {/* `mx-2` gives back the wrapper's bleed: the rows may run wide, but a rule that did
+                would sit proud of the composer above it. */}
+            <div className="mb-1 mx-2 flex items-center gap-5 border-0 border-b border-solid border-b-[var(--ag-colorSplit)] px-1.5">
                 <button
                     type="button"
                     onClick={() => switchTab("agents")}
