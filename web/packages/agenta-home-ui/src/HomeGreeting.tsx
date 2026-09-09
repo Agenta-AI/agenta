@@ -1,7 +1,16 @@
 import {useProfile} from "@agenta/entities/profile"
 
-const greetingFor = (hour: number): string =>
-    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
+/**
+ * 05:00–11:59 morning, 12:00–16:59 afternoon, 17:00–04:59 evening.
+ *
+ * The small hours read as evening rather than morning: someone up at 3am is at the end of a long
+ * day, not the start of one.
+ */
+const greetingFor = (hour: number): string => {
+    if (hour >= 5 && hour < 12) return "Good morning"
+    if (hour >= 12 && hour < 17) return "Good afternoon"
+    return "Good evening"
+}
 
 /** The name as a person would say it — the first word of the account's name, never the email. */
 const firstName = (username: string | undefined): string | null => {
