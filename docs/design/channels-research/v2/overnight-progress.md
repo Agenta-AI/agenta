@@ -335,3 +335,15 @@ Live re-verified after the fixes: the bound chat still answers ("STILLWORKS", ~8
 channels+secrets unit tests pass. PR #6724 is reviewed, tested, and live-verified.
 Known v1 limits (documented, accepted): hosted is private chats only; a chat cannot be rebound
 to a different project until its binding is released (disconnect binding cleanup is a follow-up).
+
+## CI caught a real (env-dependent) test bug on the hosted PR (2026-09-09)
+run-api-unit-tests on #6724 failed on one of my tests: test_telegram_hosted_env
+test_enabled_needs_both_token_and_secret asserted that token+secret alone is "enabled".
+That contradicts the new username requirement, but it PASSED locally because the dev
+container has TELEGRAM_HOSTED_BOT_USERNAME set (from live testing), so the config's username
+defaulted to a truthy value and masked it. CI has no such var, so it failed. Fixed in
+e0a0f0361d: every hosted-config test now passes bot_token, webhook_secret, and bot_username
+explicitly, so the result does not depend on the ambient environment. Verified by running the
+suite with the three vars unset (simulating CI): 771 channels tests pass. The remaining
+api-unit reds are the known socket.gaierror infra flake on unrelated session DAO tests.
+Lesson: config tests must set every field explicitly; the dev container's env can hide a CI gap.
