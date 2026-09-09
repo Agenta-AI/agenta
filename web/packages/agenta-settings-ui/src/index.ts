@@ -91,3 +91,16 @@ export {default as IntegrationDetail} from "./tools/IntegrationDetail"
 // see `web/packages/agenta-shared/tests/unit/workspaceGraph.test.ts`). Kept here so this package's
 // public API is unchanged for existing importers.
 export {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/gatewayTool"
+
+// Channels connect screen (agent page). First-pass design; wired to the real
+// backend by the host (web/oss) via the action props and renderPanel.
+export {
+    ChannelsPage,
+    type ChannelsPageProps,
+    type ChannelsPanelRenderProps,
+} from "./channels"
+export type {
+    ChannelConnection as DesignChannelConnection,
+    ChannelConnections as DesignChannelConnections,
+    ChannelPlatform as DesignChannelPlatform,
+} from "./channels"

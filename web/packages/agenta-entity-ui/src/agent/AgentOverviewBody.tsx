@@ -34,6 +34,8 @@ export interface AgentOverviewBodyProps {
     alwaysShowPin?: boolean
     /** Display names for the triggers section's bound-agent labels. */
     agentNames?: Map<string, string>
+    /** The Channels connect section, host-owned (it wires to the channels API). */
+    channels?: ReactNode
 }
 
 /**
@@ -56,6 +58,7 @@ export const AgentOverviewBody = ({
     onRenameRow,
     alwaysShowPin,
     agentNames,
+    channels,
 }: AgentOverviewBodyProps) => (
     <AgentOverviewLayout
         main={
