@@ -4,7 +4,6 @@ import {
     workflowMolecule,
     workflowVariantsListDataAtomFamily,
     workflowRevisionsListDataAtomFamily,
-    workflowRevisionsByWorkflowListDataAtomFamily,
 } from "@agenta/entities/workflow"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {PythonOutlined} from "@ant-design/icons"
@@ -36,13 +35,24 @@ interface VariantUseApiContentProps {
 const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) => {
     const appId = useAppId()
     const variants = useAtomValue(workflowVariantsListDataAtomFamily(appId || ""))
-    const revisionList = useAtomValue(workflowRevisionsByWorkflowListDataAtomFamily(appId || ""))
     const currentApp = useAtomValue(currentAppAtom)
 
-    const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>()
-    const [selectedRevisionId, setSelectedRevisionId] = useState<string | undefined>()
+    // The revision is the ONLY selection state here; the variant is DERIVED from it and is
+    // never stored. Two states that must agree cannot be reconciled by effects that each
+    // write what another reads: with more than one variant that reconciliation had no fixed
+    // point and the drawer re-rendered forever (issue #6708).
+    const [selectedRevisionId, setSelectedRevisionId] = useState<string | undefined>(
+        initialRevisionId,
+    )
     const [selectedLang, setSelectedLang] = useState("python")
     const [apiKeyValue, setApiKeyValue] = useState("")
+
+    // The drawer is destroyed when it closes, so this only fires when the host swaps the
+    // opened row while the drawer stays mounted. It is keyed on the prop, not on derived
+    // state, so it writes once per prop value.
+    useEffect(() => {
+        if (initialRevisionId) setSelectedRevisionId(initialRevisionId)
+    }, [initialRevisionId])
 
     // Get invocation URL and input ports from workflow molecule
     const uri = useAtomValue(
@@ -51,7 +61,6 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
             [selectedRevisionId],
         ),
     )
-    const isLoading = false
 
     const inputPorts = useAtomValue(
         useMemo(
@@ -70,22 +79,21 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         ),
     )
 
-    const initialRevision = useMemo(
-        () => revisionList.find((rev) => rev.id === initialRevisionId),
-        [initialRevisionId, revisionList],
+    // The selected revision carries its own parent variant, so read it straight from the
+    // revision entity instead of looking it up in a list that arrives later.
+    const selectedRevision = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.data(selectedRevisionId || ""),
+            [selectedRevisionId],
+        ),
     )
 
-    useEffect(() => {
-        if (initialRevision?.workflow_variant_id) {
-            setSelectedVariantId(initialRevision.workflow_variant_id)
-            setSelectedRevisionId(initialRevision.id)
-            return
-        }
+    const derivedVariantId =
+        selectedRevision?.workflow_variant_id ?? selectedRevision?.variant_id ?? undefined
 
-        if (!selectedVariantId && variants.length) {
-            setSelectedVariantId(variants[0]?.id)
-        }
-    }, [initialRevision, selectedVariantId, variants])
+    // With no revision selected yet the drawer defaults to the first variant, and the effect
+    // below then adopts that variant's latest revision.
+    const selectedVariantId = derivedVariantId ?? (selectedRevisionId ? undefined : variants[0]?.id)
 
     const variantRevisionsAtom = useMemo(
         () => workflowRevisionsListDataAtomFamily(selectedVariantId || ""),
@@ -99,50 +107,25 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
         return variantRevisions[0]
     }, [variantRevisions])
 
+    // The only other writer of the selection. It runs while nothing is selected and writes a
+    // truthy id, so it can run at most once and cannot cycle with anything.
     useEffect(() => {
-        if (!selectedVariantId) return
-
-        const hasSelectedRevision =
-            selectedRevisionId &&
-            (variantRevisions || []).some((rev) => rev.id === selectedRevisionId)
-
-        if (hasSelectedRevision) return
-
-        const nextRevisionId =
-            initialRevision && initialRevision.workflow_variant_id === selectedVariantId
-                ? initialRevision.id
-                : latestRevision?.id
-
-        if (nextRevisionId) {
-            setSelectedRevisionId(nextRevisionId)
-        }
-    }, [
-        initialRevision,
-        latestRevision?.id,
-        selectedRevisionId,
-        selectedVariantId,
-        variantRevisions,
-    ])
+        if (selectedRevisionId) return
+        if (latestRevision?.id) setSelectedRevisionId(latestRevision.id)
+    }, [latestRevision?.id, selectedRevisionId])
 
     const selectedVariant = useMemo(
         () => variants.find((variant) => variant.id === selectedVariantId),
         [selectedVariantId, variants],
     )
 
-    const selectedRevision = useMemo(
-        () => (variantRevisions || []).find((revision) => revision.id === selectedRevisionId),
-        [selectedRevisionId, variantRevisions],
-    )
+    // Show the spinner while the opened revision resolves, rather than a snippet built from
+    // whichever variant happens to be first.
+    const isLoading = Boolean(selectedRevisionId) && !selectedRevision
 
-    useEffect(() => {
-        if (!selectedRevisionId) return
-        const revision = revisionList.find((item) => item.id === selectedRevisionId)
-        if (revision?.workflow_variant_id && revision.workflow_variant_id !== selectedVariantId) {
-            setSelectedVariantId(revision.workflow_variant_id)
-        }
-    }, [revisionList, selectedRevisionId, selectedVariantId])
-
-    const variantSlug = selectedVariant?.slug || "my-variant-slug"
+    // The variants list can arrive after the revision does; the revision carries the same slug.
+    const variantSlug =
+        selectedVariant?.slug || selectedRevision?.workflow_variant_slug || "my-variant-slug"
     const variantVersion = selectedRevision?.version ?? latestRevision?.version ?? 1
     const appSlug = currentApp?.slug || "my-app-slug"
     const apiKey = apiKeyValue || "YOUR_API_KEY"
@@ -244,14 +227,7 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
                         <SelectVariant
                             value={selectedRevisionId}
                             onChange={(value) => {
-                                const nextRevisionId = value as string
-                                setSelectedRevisionId(nextRevisionId)
-                                const revision = revisionList.find(
-                                    (item) => item.id === nextRevisionId,
-                                )
-                                if (revision?.workflow_variant_id) {
-                                    setSelectedVariantId(revision.workflow_variant_id)
-                                }
+                                setSelectedRevisionId(value as string)
                             }}
                             showCreateNew={false}
                             showLatestTag={false}
