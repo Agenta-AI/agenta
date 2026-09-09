@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {getChannelsClient} from "@agenta/sdk/resources"
 import {
@@ -40,6 +40,8 @@ export const AgentChannelsCard = ({
 }) => {
     const [connections, setConnections] = useState<ChannelConnections>(EMPTY_CONNECTIONS)
     const [loading, setLoading] = useState(true)
+    // The newest reload owns the state: a slow earlier read must not overwrite it.
+    const reloadSeq = useRef(0)
 
     const resolve = useCallback((id: string) => resolveAgentName?.(id) ?? null, [resolveAgentName])
 
@@ -55,8 +57,9 @@ export const AgentChannelsCard = ({
         return {
             ...built,
             reload: async () => {
+                const seq = ++reloadSeq.current
                 const next = await built.reload()
-                setConnections(next)
+                if (seq === reloadSeq.current) setConnections(next)
                 return next
             },
         }

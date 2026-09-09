@@ -190,6 +190,11 @@ class ChannelsDAO(ChannelsDAOInterface):
             if not connection_dbe:
                 return None
 
+            if connection_dbe.deleted_at is not None:
+                # Already archived: keep the original instant so the agents archived
+                # with it (same timestamp) still come back on unarchive.
+                return map_connection_dbe_to_dto(connection_dbe=connection_dbe)
+
             now = datetime.now(timezone.utc)
 
             connection_dbe.deleted_at = now

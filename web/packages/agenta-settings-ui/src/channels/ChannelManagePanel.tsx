@@ -59,8 +59,9 @@ export const ChannelManagePanel = ({
 
     const revoked = connection.status === "revoked"
     const scope = connectionScope(connection, agentId)
-    const elsewhere = scope === "elsewhere"
-    const otherAgent = answeringAgentName(connection)
+    const unassigned = scope === "unassigned"
+    const elsewhere = scope === "elsewhere" || unassigned
+    const otherAgent = unassigned ? "no agent" : answeringAgentName(connection)
     const connectedOn = formatDate(connection.connectedAt)
 
     const run = async (kind: "disconnect" | "connect-here", action: () => Promise<void>) => {
@@ -124,7 +125,9 @@ export const ChannelManagePanel = ({
                         />
                         <div className="flex min-w-0 flex-1 flex-col gap-1">
                             <span className="text-[13px] font-medium text-colorText">
-                                {name} is connected to {otherAgent}
+                                {unassigned
+                                    ? `${name} is connected but answers as no agent yet`
+                                    : `${name} is connected to ${otherAgent}`}
                             </span>
                             <span className="text-xs leading-relaxed text-colorTextSecondary">
                                 One {name} connection per project. Connecting it here makes{" "}
@@ -139,7 +142,9 @@ export const ChannelManagePanel = ({
                         onClick={() => void run("connect-here", onConnectHere)}
                     >
                         {busy === "connect-here" ? <Spinner size="small" /> : null}
-                        Disconnect from {otherAgent} and connect here
+                        {unassigned
+                            ? "Connect here"
+                            : `Disconnect from ${otherAgent} and connect here`}
                     </Button>
                 </div>
             ) : null}

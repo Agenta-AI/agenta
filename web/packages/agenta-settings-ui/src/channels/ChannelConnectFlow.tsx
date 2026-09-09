@@ -114,6 +114,8 @@ export const ChannelConnectFlow = ({
     const [tgStep, setTgStep] = useState<TelegramHostedStep>("preparing")
     const [tgLink, setTgLink] = useState<HostedTelegramLink | null>(null)
     const [tgBaseline, setTgBaseline] = useState(0)
+    // The link's expiry, fixed once at mint: going back to the QR does not extend it.
+    const [tgExpiresAt, setTgExpiresAt] = useState(0)
     const [linkCopied, setLinkCopied] = useState(false)
     // The minted deep link names the real bot (t.me/<bot>?start=…); prefer it to the default.
     const telegramHandle = useMemo(() => {
@@ -168,6 +170,8 @@ export const ChannelConnectFlow = ({
             })
         return () => {
             cancelled = true
+            // The response is discarded, so the next visit must load again.
+            setupRequested.current = false
         }
     }, [mode, actions, platform, name])
 
@@ -182,6 +186,7 @@ export const ChannelConnectFlow = ({
                 .catch(() => 0)
             if (!alive.current) return
             setTgLink(link)
+            setTgExpiresAt(Date.now() + link.expiresInSeconds * 1000)
             setTgBaseline(baseline)
             setTgStep("qr")
         } catch (e) {
@@ -202,11 +207,12 @@ export const ChannelConnectFlow = ({
         void mintTelegramLink()
     }, [isSlack, mode, tgLink, tgStep, mintTelegramLink])
 
-    // Poll the bindings while waiting; a new binding means the /start completed.
+    // Poll the bindings while the link is on screen (QR or waiting): a scan from a phone
+    // never clicks the button, so the QR step must detect the /start too.
     useEffect(() => {
-        if (tgStep !== "waiting" || !tgLink) return
+        if ((tgStep !== "waiting" && tgStep !== "qr") || !tgLink) return
         let cancelled = false
-        const deadline = Date.now() + tgLink.expiresInSeconds * 1000
+        const deadline = tgExpiresAt
         const tick = async () => {
             if (cancelled) return
             try {
@@ -231,7 +237,7 @@ export const ChannelConnectFlow = ({
             cancelled = true
             clearTimeout(timer.current)
         }
-    }, [tgStep, tgLink, tgBaseline, actions, pollIntervalMs])
+    }, [tgStep, tgLink, tgBaseline, tgExpiresAt, actions, pollIntervalMs])
 
     // --- hosted Slack: open the install, then wait for the connection --------- //
     const startSlackInstall = async () => {
@@ -679,15 +685,6 @@ export const ChannelConnectFlow = ({
             {/* TELEGRAM · hosted */}
             {!isSlack && mode === "hosted" ? (
                 <div className="flex flex-col gap-4">
-                    {answeringAgentName ? (
-                        <p className="m-0 rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2.5 text-xs text-colorTextSecondary">
-                            This project&apos;s Telegram currently answers as{" "}
-                            <strong className="font-medium text-colorText">
-                                {answeringAgentName}
-                            </strong>
-                            . Connecting here switches it to {agentName}.
-                        </p>
-                    ) : null}
                     {tgStep === "preparing" ? (
                         <div className="flex items-center justify-center gap-2 py-6 text-[13px] text-colorTextSecondary">
                             <Spinner size="small" /> Preparing your link…
@@ -708,13 +705,13 @@ export const ChannelConnectFlow = ({
                     {tgStep === "qr" && tgLink ? (
                         <>
                             <div className="flex flex-col items-center gap-4 py-2 text-center">
-                                <div className="relative box-border h-[180px] w-[180px] rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer p-3.5 text-colorText">
+                                <div className="relative box-border h-[180px] w-[180px] rounded-xl border border-solid border-colorBorderSecondary bg-white p-3.5 text-black">
                                     <QrCode
                                         value={tgLink.url}
                                         size={150}
                                         label={`QR code: open ${telegramHandle} in Telegram`}
                                     />
-                                    <span className="absolute left-1/2 top-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-colorBgContainer">
+                                    <span className="absolute left-1/2 top-1/2 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white">
                                         {platformLogo("telegram", 20)}
                                     </span>
                                 </div>

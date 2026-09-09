@@ -59,7 +59,7 @@ export interface ChannelConnections {
  * How a connection relates to the agent whose page is open. A channel connection is one
  * per project; it answers as one agent, and the agent page retargets it ("connect here").
  */
-export type ChannelScope = "here" | "elsewhere" | "unknown"
+export type ChannelScope = "here" | "elsewhere" | "unassigned" | "unknown"
 
 /** The one-time deep link the hosted Telegram bot binds a chat with. */
 export interface HostedTelegramLink {

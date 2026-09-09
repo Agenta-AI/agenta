@@ -19,13 +19,16 @@ export const botHandle = (connection: ChannelConnection, hostedHandle = "@agenta
 /**
  * Where a connection points, relative to the agent whose page is open:
  * "here" = it answers as this agent; "elsewhere" = it answers as another agent;
+ * "unassigned" = the connection has no answering agent yet (repairable with "connect here");
  * "unknown" = the host did not resolve the answering agent (treated like "here").
  */
 export const connectionScope = (
     connection: ChannelConnection,
     agentId: string | undefined,
 ): ChannelScope => {
-    if (!agentId || connection.agent === undefined || connection.agent === null) return "unknown"
+    if (!agentId || connection.agent === undefined) return "unknown"
+    // Resolved, and no channel agent at all: the connection answers as nobody yet.
+    if (connection.agent === null) return "unassigned"
     return connection.agent.id === agentId ? "here" : "elsewhere"
 }
 
@@ -77,27 +80,14 @@ export const summarizeConnection = (
         }
     }
 
-    if (connection.answeredHere === false) {
+    if (connectionScope(connection, agentId) === "unassigned") {
         return {
-            sub: connection.answeringAgentName
-                ? `Answers as ${connection.answeringAgentName} · connect here`
-                : "Connected to another agent · connect here",
-            subClass: "text-colorTextSecondary",
-            dotClass: "bg-colorWarning",
-            connected: true,
-            needsAttention: false,
-            action: "manage",
-        }
-    }
-
-    if (connection.status === "pending") {
-        return {
-            sub: "Not linked yet · finish connecting",
+            sub: "Not answering as any agent yet · connect here",
             subClass: "text-colorWarning",
             dotClass: "bg-colorWarning",
-            connected: false,
-            needsAttention: false,
-            action: "connect",
+            connected: true,
+            needsAttention: true,
+            action: "connect-here",
         }
     }
 
@@ -142,7 +132,9 @@ export const hasAnyIssue = (connections: ChannelConnections): boolean =>
         const connection = connections[platform]
         return (
             !!connection &&
-            (connection.status === "revoked" || connection.chats.some((chat) => chat.removed))
+            (connection.status === "revoked" ||
+                connection.agent === null ||
+                connection.chats.some((chat) => chat.removed))
         )
     })
 

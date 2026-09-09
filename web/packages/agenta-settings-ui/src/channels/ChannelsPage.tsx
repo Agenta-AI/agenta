@@ -151,42 +151,41 @@ export const ChannelsPage = ({
                           activePlatform === "slack" ? workspaceName : "Telegram"
                       }`,
                       onClose: close,
-                      children:
-                          active && active.answeredHere !== false ? (
-                              <ChannelManagePanel
-                                  connection={active}
-                                  agentId={agentId}
-                                  agentName={agentName}
-                                  workspaceName={workspaceName}
-                                  hostedHandle={hostedHandle}
-                                  onConnectHere={async () => {
-                                      if (!active.connectionId) {
-                                          throw new Error("This connection has no id yet.")
-                                      }
-                                      await actions.connectHere(activePlatform, active.connectionId)
-                                      await actions.reload()
-                                  }}
-                                  onDisconnect={async () => {
-                                      if (!active.connectionId) {
-                                          throw new Error("This connection has no id yet.")
-                                      }
-                                      await actions.disconnect(activePlatform, active.connectionId)
-                                      await actions.reload()
-                                      close()
-                                  }}
-                              />
-                          ) : (
-                              <ChannelConnectFlow
-                                  platform={activePlatform}
-                                  agentName={agentName}
-                                  workspaceName={workspaceName}
-                                  hostedHandle={hostedHandle}
-                                  actions={actions}
-                                  onConnected={async () => {
-                                      await actions.reload()
-                                  }}
-                              />
-                          ),
+                      children: active ? (
+                          <ChannelManagePanel
+                              connection={active}
+                              agentId={agentId}
+                              agentName={agentName}
+                              workspaceName={workspaceName}
+                              hostedHandle={hostedHandle}
+                              onConnectHere={async () => {
+                                  if (!active.connectionId) {
+                                      throw new Error("This connection has no id yet.")
+                                  }
+                                  await actions.connectHere(activePlatform, active.connectionId)
+                                  await actions.reload()
+                              }}
+                              onDisconnect={async () => {
+                                  if (!active.connectionId) {
+                                      throw new Error("This connection has no id yet.")
+                                  }
+                                  await actions.disconnect(activePlatform, active.connectionId)
+                                  await actions.reload()
+                                  close()
+                              }}
+                          />
+                      ) : (
+                          <ChannelConnectFlow
+                              platform={activePlatform}
+                              agentName={agentName}
+                              workspaceName={workspaceName}
+                              hostedHandle={hostedHandle}
+                              actions={actions}
+                              onConnected={async () => {
+                                  await actions.reload()
+                              }}
+                          />
+                      ),
                   })
                 : null}
         </div>

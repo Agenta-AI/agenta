@@ -191,18 +191,12 @@ export const buildAgentChannelsActions = ({
         const res = await client
             .queryChannelConnections({}, scope())
             .catch(rethrow("Could not load the channel connections."))
-        const out: ChannelConnections = {slack: null, telegram: null}
-        for (const row of asArray(asRecord(res).connections)) {
-            const mapped = mapConnectionRow(row)
-            if (!mapped) continue
-            // one connection per platform in the design; the first active one wins
-            if (out[mapped.platform]?.status === "connected") continue
-            out[mapped.platform] = mapped
-        }
+        const rows = asArray(asRecord(res).connections)
+            .map(mapConnectionRow)
+            .filter((row): row is ChannelConnection => row !== null)
         await Promise.all(
-            (["slack", "telegram"] as const).map(async (platform) => {
-                const connection = out[platform]
-                if (!connection?.connectionId) return
+            rows.map(async (connection) => {
+                if (!connection.connectionId) return
                 try {
                     const answering = answeringAgentRow(await agentsOf(connection.connectionId))
                     const id = answering ? referencedAppId(answering) : null
@@ -213,7 +207,7 @@ export const buildAgentChannelsActions = ({
                 // A hosted Telegram connection is created when the link is minted, before
                 // any chat tapped Start. Until a chat is bound it is pending, not connected.
                 if (
-                    platform === "telegram" &&
+                    connection.platform === "telegram" &&
                     connection.kind === "hosted" &&
                     connection.status === "connected"
                 ) {
@@ -226,6 +220,16 @@ export const buildAgentChannelsActions = ({
                 }
             }),
         )
+        // One row per platform in the design. When the backend holds more than one (an
+        // unused hosted link next to a custom bot), the live one wins over a pending one,
+        // and a pending one over a revoked one.
+        const rank = (c: ChannelConnection) =>
+            c.status === "connected" ? 2 : c.status === "pending" ? 1 : 0
+        const out: ChannelConnections = {slack: null, telegram: null}
+        for (const connection of rows) {
+            const current = out[connection.platform]
+            if (!current || rank(connection) > rank(current)) out[connection.platform] = connection
+        }
         return out
     }
 
