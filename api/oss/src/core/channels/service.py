@@ -10,6 +10,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentData,
     ChannelAgentDataEdit,
+    ChannelAgentFlags,
     ChannelAgentEdit,
     ChannelAgentQuery,
     ChannelCapabilities,
@@ -599,6 +600,59 @@ class ChannelsService:
                 ) from e
 
         return edited
+
+    async def ensure_hosted_telegram_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        references: Dict[str, Any],
+    ) -> ChannelConnection:
+        """Create or reuse the one hosted Telegram connection for this project,
+        with the chosen agent as its default, and return it. Idempotent: a
+        second connect for the same project reuses the connection and leaves its
+        agent in place. The bind link is minted against the returned connection.
+        """
+
+        existing = await self.query_connections(project_id=project_id)
+        connection = next(
+            (
+                c
+                for c in existing
+                if c.channel == "telegram_hosted" and c.deleted_at is None
+            ),
+            None,
+        )
+        if connection is None:
+            connection = await self.create_connection(
+                project_id=project_id,
+                user_id=user_id,
+                connection=ChannelConnectionCreate(
+                    channel="telegram_hosted",
+                    slug="agenta-telegram",
+                    name="Agenta on Telegram",
+                    flags=ChannelConnectionFlags(is_hosted=True),
+                ),
+            )
+
+        agents = await self.query_agents(
+            project_id=project_id,
+            agent=ChannelAgentQuery(connection_id=connection.id),
+        )
+        if not any(a.deleted_at is None for a in agents):
+            await self.create_agent(
+                project_id=project_id,
+                user_id=user_id,
+                agent=ChannelAgentCreate(
+                    connection_id=connection.id,
+                    slug="default",
+                    name="Default agent",
+                    data=ChannelAgentData(references=references),
+                    flags=ChannelAgentFlags(is_default=True),
+                ),
+            )
+
+        return connection
 
     async def archive_connection(
         self,

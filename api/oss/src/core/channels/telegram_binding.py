@@ -130,6 +130,10 @@ class TelegramBindingService:
         self._capabilities = capabilities
         self._ttl = ttl
 
+    @property
+    def ttl_seconds(self) -> int:
+        return int(self._ttl.total_seconds())
+
     async def issue_bind_link(
         self,
         *,

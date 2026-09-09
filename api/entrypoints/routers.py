@@ -1194,6 +1194,7 @@ channels_ingress = ChannelsIngressRouter(
 channels = ChannelsRouter(
     channels_service=channels_service,
     adapter_registry=channels_adapter_registry,
+    telegram_binding_service=_telegram_binding_service,
 )
 
 simple_traces = SimpleTracesRouter(
