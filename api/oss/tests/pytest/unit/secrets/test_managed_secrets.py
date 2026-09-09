@@ -73,6 +73,13 @@ class _DAO:
     ):
         if resolve_update:
             update_secret_dto = resolve_update(self.record, update_secret_dto)
+        # Apply it, the way the real DAO does. A fake that returns the row untouched lets a
+        # test claiming the update landed pass against an update that changed nothing.
+        if update_secret_dto.header is not None:
+            self.record.header = update_secret_dto.header
+        if update_secret_dto.secret is not None:
+            self.record.kind = update_secret_dto.secret.kind
+            self.record.data = update_secret_dto.secret.data
         return self.record
 
     async def delete(
@@ -171,11 +178,22 @@ async def test_the_owning_manager_may_rewrite_a_managed_secret():
     updated = await service.update_managed_secret(
         secret_id=created.id,
         project_id=PROJECT_ID,
-        update_secret_dto=UpdateSecretDTO(header={"name": "Renamed"}),
+        update_secret_dto=UpdateSecretDTO(
+            header={"name": "Renamed"},
+            secret={
+                "kind": "provider_key",
+                "data": {"kind": "openai", "provider": {}},
+            },
+        ),
         manager=SecretManager.STARTER_CREDITS_BRIDGE,
     )
 
-    assert updated is not None
+    assert updated.header.name == "Renamed"
+    # The row keeps what it is and what it holds: still managed, still write-only, and the
+    # credential the update omitted was carried over rather than wiped.
+    assert updated.data.provider.key == "sk-managed"
+    assert updated.management == _management()
+    assert updated.write_only is True
 
 
 @pytest.mark.asyncio

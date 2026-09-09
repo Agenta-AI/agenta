@@ -9,7 +9,7 @@ from uuid import UUID
 import httpx
 
 from oss.src.services import db_manager
-from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 from oss.src.utils.env import env, StarterCreditsBridgeConfig
 from oss.src.utils.lazy import _load_posthog
 from oss.src.utils.logging import get_module_logger
@@ -237,50 +237,65 @@ async def reconcile_starter_credits_on_read(
 
     row = _find_starter_credits_row(secrets)
     if row is None or _stored_model_slugs(row) == [config.model_id]:
+        # The whole cost of a healthy project: a scan of the list already in hand.
         return None
 
     key = str(project_id)
-    if key in _reconciling_projects:
-        return None
+    if _may_repair(key):
+        _reconciling_projects.add(key)
+        try:
+            await reconcile_starter_credits_model(
+                client=_proxy_client(config),
+                config=config,
+                vault_service=_vault_service(),
+                project_id=project_id,
+                # The read knows the project, not the organization. The project id already
+                # identifies the row, and resolving the organization would cost a query on
+                # a path that runs on every secrets list.
+                organization_id=None,
+                row=row,
+            )
+        except Exception:
+            log.warning(
+                "[starter_credits_bridge] could not reconcile on read; the read stands",
+                project_id=key,
+                exc_info=True,
+            )
+        finally:
+            # Armed on every attempt, not only a failed one: a repeated repair means
+            # something is wrong (a row that will not stay repaired), and that must not run
+            # per read.
+            _hold_off(key)
+            _reconciling_projects.discard(key)
 
-    cooling_until = _reconcile_cooldowns.get(key)
-    if cooling_until is not None and _monotonic() < cooling_until:
-        return None
-
-    _reconciling_projects.add(key)
-
-    try:
-        repaired = await reconcile_starter_credits_model(
-            client=_proxy_client(config),
-            config=config,
-            vault_service=_vault_service(),
-            project_id=project_id,
-            # The read knows the project, not the organization. The project id already
-            # identifies the row, and resolving the organization would cost a query on a
-            # path that runs on every secrets list.
-            organization_id=None,
-            row=row,
-        )
-    except Exception:
-        log.warning(
-            "[starter_credits_bridge] could not reconcile on read; the read stands",
-            project_id=key,
-            exc_info=True,
-        )
-        return None
-    finally:
-        # Armed on every attempt, not only a failed one: a repeated repair means something
-        # is wrong (a row that will not stay repaired), and that must not run per read.
-        _hold_off(key)
-        _reconciling_projects.discard(key)
-
-    if not repaired:
-        return None
-
-    return await _vault_service().get_secret_by_slug(
+    # Read the row back whether or not THIS request repaired it. Skipping the repair does
+    # not mean the caller's snapshot is right: a concurrent request may have repaired the
+    # row already, and reads are served from a cached list, so a snapshot taken before that
+    # repair can still be published after it. Answering from the row itself is what keeps a
+    # reader that skipped the repair from serving the stale model anyway.
+    fresh = await _vault_service().get_secret_by_slug(
         STARTER_CREDITS_SLUG,
         project_id=project_id,
     )
+    if fresh is None or _stored_model_slugs(fresh) != [config.model_id]:
+        # Still stale, so there is nothing better to hand back than what the caller has.
+        return None
+
+    # The caller's list was stale while the row was not, so the cached list it came from is
+    # stale too. Drop it, or every read pays for this re-read until the entry expires.
+    await invalidate_cache(project_id=key)
+
+    return fresh
+
+
+def _may_repair(project_id: str) -> bool:
+    """Whether this request should attempt the repair, rather than let another one do it."""
+    if project_id in _reconciling_projects:
+        return False
+
+    cooling_until = _reconcile_cooldowns.get(project_id)
+
+    return cooling_until is None or _monotonic() >= cooling_until
 
 
 def _hold_off(project_id: str) -> None:

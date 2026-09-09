@@ -847,10 +847,17 @@ _FUNDED_MODEL = "vertex_ai/gemini-3.7-flash"
 
 
 def _funded_starter_credits(
-    *, name: str = "Agenta", slug: str = "starter-credits"
+    *,
+    name: str = "Agenta",
+    slug: str = "starter-credits",
+    managed: bool = True,
 ) -> dict:
-    """The seeded connection after Agenta re-pointed it at the model funded today."""
-    return _custom_provider(
+    """The seeded connection after Agenta re-pointed it at the model funded today.
+
+    The vault marks it managed, which is what says the model list is Agenta's and not the
+    user's. The public secret carries the policy only, never the manager's name.
+    """
+    secret = _custom_provider(
         name,
         "custom",
         key="sk-gateway",
@@ -858,6 +865,9 @@ def _funded_starter_credits(
         models=[_FUNDED_MODEL],
         slug=slug,
     )
+    if managed:
+        secret["management"] = {"policy": "manager_only"}
+    return secret
 
 
 async def test_a_stale_starter_credits_model_runs_the_funded_one(fake_http, connection):
@@ -909,6 +919,44 @@ async def test_a_current_starter_credits_model_is_left_untouched(fake_http, conn
     )
 
     assert resolved.model == _FUNDED_MODEL
+
+
+async def test_a_stale_deployment_prefixed_model_runs_the_funded_one(
+    fake_http, connection
+):
+    # The namespace strip runs before the fallback, so this spelling would otherwise reach
+    # the upstream stale, having matched nothing the connection has.
+    fake_http(connections, payload=[_funded_starter_credits()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model=f"custom/{_BACKEND_MODEL}",
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _FUNDED_MODEL
+
+
+async def test_a_connection_the_user_owns_under_the_slug_is_left_untouched(
+    fake_http, connection
+):
+    # A user may save their own connection under any slug, this one included. Their model
+    # list is theirs, so nothing may be substituted into it.
+    fake_http(connections, payload=[_funded_starter_credits(managed=False)])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model=_BACKEND_MODEL,
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _BACKEND_MODEL
 
 
 async def test_another_connections_unknown_model_is_left_untouched(

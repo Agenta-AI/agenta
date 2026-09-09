@@ -5,14 +5,16 @@ blocking, alias conflicts), policy resolution, and velocity caps, with every
 external dependency stubbed."""
 
 import asyncio
+import copy
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
 from oss.src.utils.env import env, PostHogConfig, StarterCreditsBridgeConfig
-from oss.src.core.secrets.dtos import SecretResponseDTO
+from oss.src.core.secrets.dtos import CustomModelSettingsDTO, SecretResponseDTO
 from oss.src.core.secrets.enums import CustomProviderKind
+from oss.src.core.secrets.redaction import project_secret_response
 from oss.src.core.secrets.managed import (
     SecretManagementDTO,
     SecretManagementPolicy,
@@ -265,6 +267,12 @@ def seeding_env(monkeypatch):
         "get_default_project_by_organization_id",
         fake_get_default_project,
     )
+    invalidations = []
+
+    async def fake_invalidate_cache(project_id=None, **kwargs):
+        invalidations.append(project_id)
+
+    monkeypatch.setattr(service, "invalidate_cache", fake_invalidate_cache)
     monkeypatch.setattr(service, "_vault_service", lambda: vault)
     monkeypatch.setattr(service, "_resolve_mint_policy", fake_resolve_policy)
     monkeypatch.setattr(service, "_team_ceiling_verified", fake_team_verified)
@@ -278,6 +286,7 @@ def seeding_env(monkeypatch):
         policy=policy,
         project=project,
         vault=vault,
+        invalidations=invalidations,
         alerts=alerts,
         released=released,
         monkeypatch=monkeypatch,
@@ -1325,8 +1334,14 @@ class TestReconcilingAStaleFundedModel:
             kind="custom_provider",
             data=row.data.model_dump(mode="json"),
             header=row.header,
+            write_only=True,
+            management=seeding_env.vault.management,
         )
-        (candidate,) = connections._catalog([stored.model_dump(mode="json")])
+        # The shape the route actually returns to the runtime resolver: the management
+        # POLICY without the manager's name, which is what says the model list is Agenta's.
+        public = project_secret_response(stored, reveal_write_only=True)
+        (candidate,) = connections._catalog([public.model_dump(mode="json")])
+        assert candidate.managed is True
 
         # A revision saved before the cutover still names the old id.
         stale = ModelRef(
@@ -1429,6 +1444,72 @@ class TestReconcilingOnRead:
         assert repaired is not None
         assert [model.slug for model in repaired.data.models] == ["vertex_ai/new-model"]
         assert len(_all_key_update_calls()) == 2
+
+    async def test_a_reader_that_skips_the_repair_still_answers_from_the_row(
+        self, seeding_env
+    ):
+        # Reads are served from a cached list, so a snapshot taken before another request
+        # repaired the row can still be published after it. A reader that skips the repair
+        # must not serve the stale model it is holding.
+        stale = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        snapshot = copy.deepcopy(stale)
+        # Another request has already repaired the row and is still in flight.
+        stale.data.models = [CustomModelSettingsDTO(slug="vertex_ai/new-model")]
+        service._reconciling_projects.add(str(seeding_env.project.id))
+
+        try:
+            fresh = await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[snapshot],
+            )
+        finally:
+            service._reconciling_projects.discard(str(seeding_env.project.id))
+
+        assert fresh is not None
+        assert [model.slug for model in fresh.data.models] == ["vertex_ai/new-model"]
+        # No second repair: the in-flight request owns it.
+        assert _all_key_update_calls() == []
+        assert seeding_env.vault.update_calls == []
+        # The cached list this snapshot came from is stale, so it is dropped.
+        assert seeding_env.invalidations == [str(seeding_env.project.id)]
+
+    async def test_a_cooling_reader_still_answers_from_the_row(self, seeding_env):
+        # Same for a project inside its cooldown: suppressing another proxy call must not
+        # mean serving stale data.
+        stale = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        snapshot = copy.deepcopy(stale)
+        stale.data.models = [CustomModelSettingsDTO(slug="vertex_ai/new-model")]
+        service._hold_off(str(seeding_env.project.id))
+
+        fresh = await service.reconcile_starter_credits_on_read(
+            project_id=seeding_env.project.id,
+            secrets=[snapshot],
+        )
+
+        assert fresh is not None
+        assert [model.slug for model in fresh.data.models] == ["vertex_ai/new-model"]
+        assert _all_key_update_calls() == []
+
+    async def test_a_row_that_is_still_stale_hands_nothing_back(self, seeding_env):
+        # Nothing better to give the caller than what it already holds, and the cached list
+        # must not be dropped on every read while a project cannot be repaired.
+        stale = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        service._hold_off(str(seeding_env.project.id))
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[stale],
+            )
+            is None
+        )
+        assert seeding_env.invalidations == []
 
     async def test_the_read_stands_when_the_repair_fails(self, seeding_env):
         # A caller must never lose its whole secrets list over a connection that is at

@@ -324,6 +324,9 @@ class _ConnectionCandidate:
     # True when value_status says a credential exists but this caller's
     # credential received the redacted, value-less shape.
     write_only_redacted: bool = False
+    # True when the vault says Agenta manages this row rather than the user. Only a managed
+    # row's model list is Agenta's to re-point, so only a managed row may be substituted.
+    managed: bool = False
 
     def matches_provider(self, provider: Optional[str]) -> bool:
         return bool(
@@ -376,11 +379,13 @@ class _ConnectionCandidate:
         if model.model in self.model_slugs:
             return model.model
         if model.model.startswith(prefix):
-            return model.model[len(prefix) :]
-        funded = self._funded_starter_credits_model(model)
-        if funded is not None:
-            return funded
-        return model.model
+            stripped = model.model[len(prefix) :]
+            # The strip runs before the fallback, so an id spelled ``custom/<model>`` would
+            # otherwise reach the upstream stale, having matched nothing this connection has.
+            if stripped in self.model_slugs:
+                return stripped
+            return self._funded_starter_credits_model(model) or stripped
+        return self._funded_starter_credits_model(model) or model.model
 
     def _funded_starter_credits_model(self, model: ModelRef) -> Optional[str]:
         """The funded model, when a saved id names one this connection no longer offers.
@@ -391,12 +396,13 @@ class _ConnectionCandidate:
         connection is healthy. The connection itself states what is funded now, so run that and
         say so in the log.
 
-        Deliberately narrow. It applies to this one connection, only when the connection offers
-        exactly one model, and only after every match above missed. Every other connection keeps
-        failing upstream, which is correct: silently running a model the user did not pick would
-        misreport what ran.
+        Deliberately narrow. It applies to this one connection, only while Agenta manages it,
+        only when it offers exactly one model, and only after every match above missed. A user
+        may save their own connection under this slug, and their model list is theirs. Every
+        other connection keeps failing upstream, which is correct: silently running a model the
+        user did not pick would misreport what ran.
         """
-        if self.slug != STARTER_CREDITS_SLUG:
+        if self.slug != STARTER_CREDITS_SLUG or not self.managed:
             return None
         if len(self.model_slugs) != 1:
             return None
@@ -579,7 +585,20 @@ def _custom_provider_candidate(
         write_only_redacted=_write_only_redacted(
             secret, bool(api_key) or bool(credential_extras(extras))
         ),
+        managed=_managed(secret),
     )
+
+
+def _managed(secret: Dict[str, Any]) -> bool:
+    """Whether the vault says Agenta manages this row rather than the user.
+
+    The public secret carries the management POLICY (never the manager's name), and any
+    policy at all means the row is not the user's to edit. That is the property the funded
+    fallback needs: a user may save their own connection under any slug, including this
+    one's, and their model list is theirs.
+    """
+    management = secret.get("management")
+    return isinstance(management, dict) and bool(management.get("policy"))
 
 
 def _catalog(secrets: Iterable[Any]) -> List[_ConnectionCandidate]:
