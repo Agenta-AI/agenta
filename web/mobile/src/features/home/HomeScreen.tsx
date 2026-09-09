@@ -16,8 +16,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 import {FirstRunScreen} from "../onboarding/FirstRunScreen"
 import {resolveHomeSurface} from "../onboarding/homeSurface"
-import {FirstRunLoading} from "../onboarding/states/FirstRunStates"
-
+import {HomeSkeleton} from "./states/HomeSkeleton"
 import {HomeListError, HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
 import {useHomeHandoff} from "./useHomeHandoff"
 
@@ -56,6 +55,12 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
         [agents],
     )
 
+    // The frame every screen here applies: the shared column plus a phone's own gutters below
+    // `lg`, widening to the page gutters above it. The deep top inset is Home's own — the centred
+    // column is the whole page, so it hangs rather than starting at the top. The skeleton takes
+    // the SAME frame, or the hold sits somewhere the page does not.
+    const frame = `${pageContentWidthClass} px-4 pb-12 pt-10 lg:px-16 lg:pb-16 lg:pt-[120px]`
+
     // A first run swaps only the BODY: the shell, its header and the nav drawer stay put, so a
     // user with no agents can still reach Settings — which is where they land if the key gate
     // sends them there. The two pre-Home states crossfade into each other rather than popping;
@@ -69,17 +74,18 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                 animate="animate"
                 exit="exit"
             >
-                {surface === "loading" ? <FirstRunLoading /> : <FirstRunScreen base={base} />}
+                {surface === "loading" ? (
+                    <HomeSkeleton className={frame} />
+                ) : (
+                    <FirstRunScreen base={base} />
+                )}
             </motion.div>
         </AnimatePresence>
     )
 
     const homeBody = (
         <HomeFocus
-            // The frame every screen here applies: the shared column plus a phone's own gutters
-            // below `lg`, widening to the page gutters above it. The deep top inset is Home's own
-            // — the centred column is the whole page, so it hangs rather than starting at the top.
-            className={`${pageContentWidthClass} px-4 pb-12 pt-10 lg:px-16 lg:pb-16 lg:pt-[120px]`}
+            className={frame}
             agents={listAgents}
             attachments={handoff.attachments}
             onStartTask={handoff.onStartTask}
