@@ -66,7 +66,7 @@ export const ListTable = <Row,>({
                         <span
                             key={column.key}
                             role="columnheader"
-                            className={column.srOnly ? "sr-only" : undefined}
+                            className={cn(column.srOnly && "sr-only", column.headerClassName)}
                         >
                             {column.label}
                         </span>
@@ -161,7 +161,11 @@ export const ListTable = <Row,>({
                                                 : undefined
                                         }
                                         className={cn(
-                                            "grid w-full items-center gap-3 rounded-md border-0 bg-transparent px-2 py-[13px] text-left",
+                                            // `group`, so a cell can reveal a control on the
+                                            // ROW's hover rather than on its own — a pin that
+                                            // appears only while the pointer is inside its own
+                                            // cell is one you have to find before you can see it.
+                                            "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent px-2 py-[13px] text-left",
                                             onOpenRow && "cursor-pointer hover:bg-accent/60",
                                             onOpenRow && FOCUS_RING,
                                         )}

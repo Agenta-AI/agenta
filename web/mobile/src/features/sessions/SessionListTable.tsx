@@ -10,24 +10,62 @@ import {
 } from "@agenta/sessions-ui"
 import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
 
+import {useMediaQuery} from "@/lib/useMediaQuery"
+
 import {SessionRowCells} from "./SessionRowCells"
 import {deriveSessionGroups, type SessionGrouping} from "./sessionListView"
 
 /**
- * The four columns, shared by the header row and every body row so the two can never drift.
+ * The columns, shared by the header row and every body row so the two can never drift.
  *
- * Identity takes twice the share of the two reading columns; the kebab is fixed at the button's
- * own width so the reading columns keep their proportions. The minima plus gaps sum to 436 — the
- * width below which the table scrolls sideways rather than crushing four columns into a phone.
+ * Identity takes twice the share of the reading columns; the kebab is fixed at the button's own
+ * width so the reading columns keep their proportions.
+ *
+ * A phone drops the Agent column outright rather than scrolling it off. Four columns in 375px
+ * left the title a dozen characters and pushed Updated past the edge, and a session's own name is
+ * what a reader is looking for — the agent is already the default grouping, so on a narrow screen
+ * the heading above the run says it once instead of every row repeating it.
  */
-const COLUMNS: ListTableColumn[] = [
-    {key: "session", label: "Session", width: "minmax(160px,2fr)"},
+const SESSION_COLUMN: ListTableColumn = {
+    key: "session",
+    label: "Session",
+    width: "minmax(160px,2fr)",
+}
+/**
+ * Right-aligned, so the timestamp sits against the kebab at the row's end rather than floating in
+ * the middle of its track — and the header follows its cells.
+ *
+ * Narrower on a phone. "13d ago" is the longest thing this column ever holds and it measures ~52px,
+ * so 96 was 40px of air taken straight off the title, which is the one column that needed it.
+ */
+const updatedColumn = (width: string): ListTableColumn => ({
+    key: "updated",
+    label: "Updated",
+    width,
+    headerClassName: "text-right",
+})
+const ACTIONS_COLUMN: ListTableColumn = {
+    key: "actions",
+    label: "Actions",
+    srOnly: true,
+    width: "24px",
+}
+const WIDE_COLUMNS: ListTableColumn[] = [
+    SESSION_COLUMN,
     {key: "agent", label: "Agent", width: "minmax(120px,1fr)"},
-    {key: "updated", label: "Updated", width: "96px"},
-    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+    updatedColumn("96px"),
+    ACTIONS_COLUMN,
+]
+const NARROW_COLUMNS: ListTableColumn[] = [
+    SESSION_COLUMN,
+    updatedColumn("64px"),
+    ACTIONS_COLUMN,
 ]
 
-const MIN_WIDTH = 440
+/** Tailwind's `sm`. Below it the Agent column goes; the minima then fit a 375px screen. */
+const NARROW_QUERY = "(max-width: 639.98px)"
+const WIDE_MIN_WIDTH = 440
+const NARROW_MIN_WIDTH = 272
 
 /** What the screen's `useSessionRowMenu` supplies — bound here, resolved there. */
 export interface SessionRowVerbs {
@@ -65,6 +103,10 @@ export const SessionListTable = ({
         automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
     })
     const {toggle: togglePin} = useSessionPins()
+    // A breakpoint that picks the COLUMN SET, not a `display` value — the header row and the body
+    // rows read one array, so a Tailwind class on the cell alone would leave the grid a track
+    // wider than its contents.
+    const narrow = useMediaQuery(NARROW_QUERY)
 
     // Group headings carry a chevron, so it has to do something: collapsed keys, not a flag per
     // group, because the groups themselves come and go as the grouping changes.
@@ -105,8 +147,8 @@ export const SessionListTable = ({
         <div aria-busy={list.isPlaceholder || undefined}>
             <div className={list.isPlaceholder ? "opacity-50 transition-opacity" : "transition-opacity"}>
                 <ListTable
-                    columns={COLUMNS}
-                    minWidth={MIN_WIDTH}
+                    columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
+                    minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
                     loading={list.isPending}
                     groups={groups}
                     rowKey={(vm) => vm.id}
@@ -127,6 +169,7 @@ export const SessionListTable = ({
                     renderRow={(vm) => (
                         <SessionRowCells
                             vm={vm}
+                            showAgent={!narrow}
                             entries={verbs.menuFor(vm)}
                             onMenuSelect={verbs.onMenuSelect}
                             onRenameRow={verbs.onRenameRow}

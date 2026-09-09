@@ -5,16 +5,44 @@ import type {SessionRowStatusMeta, SessionRowVm} from "@agenta/sessions/row"
 import {
     InlineRenameInput,
     SessionAgentName,
-    SessionPinButton,
     useInlineRename,
     type SessionMenuEntry,
 } from "@agenta/sessions-ui"
 import {timeAgo} from "@agenta/shared/utils"
-import {PencilSimple} from "@phosphor-icons/react"
+import {PencilSimple, PushPin} from "@phosphor-icons/react"
+import type {ReactNode} from "react"
 
 import {cn} from "@/lib/utils"
 
 import {SessionRowMenu} from "./SessionRowMenu"
+
+/**
+ * A row's inline verb — a real button with a box and a hover fill, not a bare glyph, so it reads
+ * as something to press.
+ *
+ * Local rather than `SessionPinButton`: that one carries a tooltip, and two tooltips firing off a
+ * row you are only passing over is noise. The `aria-label` still names it.
+ */
+const RowActionButton = ({
+    label,
+    onClick,
+    children,
+}: {
+    label: string
+    onClick: () => void
+    children: ReactNode
+}) => (
+    <button
+        type="button"
+        aria-label={label}
+        onClick={onClick}
+        // The transparent ::after is the hit extender: 20px is under the touch guideline, and
+        // growing the box itself would grow the row.
+        className="relative flex size-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary transition-colors after:absolute after:inset-[-10px] after:content-[''] hover:bg-colorFillSecondary hover:text-colorText [@media(hover:hover)]:after:inset-[-4px]"
+    >
+        {children}
+    </button>
+)
 
 /**
  * The row's whole status, as one 7px mark.
@@ -50,12 +78,15 @@ const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
  */
 export const SessionRowCells = ({
     vm,
+    showAgent,
     entries,
     onMenuSelect,
     onRenameRow,
     onTogglePin,
 }: {
     vm: SessionRowVm
+    /** Off below `sm`, where the table drops the Agent column — see `SessionListTable`. */
+    showAgent: boolean
     /** The shared verbs for this row, from `useSessionRowMenu`. */
     entries: SessionMenuEntry[]
     onMenuSelect: (vm: SessionRowVm, key: string) => void
@@ -92,7 +123,14 @@ export const SessionRowCells = ({
                 <StatusDot status={vm.status} />
                 {rename.renaming ? (
                     <span className="min-w-0 flex-1" onClick={swallow}>
-                        <InlineRenameInput rename={rename} />
+                        {/* This app's own field, not the package default: preflight is off here,
+                            so the border and the font have to be stated, and the ring is the one
+                            every other input on this surface draws. `focus`, not `focus-visible`
+                            — the editor is focused programmatically the moment it mounts. */}
+                        <InlineRenameInput
+                            rename={rename}
+                            className="h-7 w-full min-w-0 rounded-md border border-solid border-input bg-background px-2 text-[14px] leading-none text-foreground shadow-xs outline-none transition-[color,box-shadow] [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus:border-ring focus:ring-[3px] focus:ring-ring/50 dark:bg-input/30"
+                        />
                     </span>
                 ) : (
                     <>
@@ -101,33 +139,44 @@ export const SessionRowCells = ({
                         </span>
                         {archived ? null : (
                             <span
-                                className="flex shrink-0 items-center gap-1"
+                                // Revealed on the ROW's hover, so a resting list is titles and
+                                // nothing else; `focus-within` keeps them reachable by keyboard,
+                                // and `pointer-coarse` keeps them out on a touch screen that has
+                                // no hover to reveal them with.
+                                //
+                                // Gone below `sm`, where the title is already down to a dozen
+                                // characters and the pair would cost it 60px more. The kebab
+                                // carries both verbs, so nothing is unreachable there.
+                                className={cn(
+                                    "hidden shrink-0 items-center gap-1 transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 sm:flex",
+                                    // A pinned row keeps its pin: the filled glyph IS how the row
+                                    // says it is pinned, and hiding it leaves the fact to the
+                                    // group heading alone.
+                                    !vm.isPinned && "opacity-0",
+                                )}
                                 onClick={swallow}
                                 onKeyDown={(event) => event.stopPropagation()}
                             >
-                                <SessionPinButton
-                                    pinned={vm.isPinned}
-                                    onToggle={() => onTogglePin(vm.id)}
-                                    revealOnHover={false}
-                                />
-                                {/* The pin's twin: same glyph size and the same transparent hit
-                                    extender, so the pair reads as one control group and both are
-                                    thumb-sized without growing the row. */}
-                                <button
-                                    type="button"
-                                    aria-label="Rename session"
-                                    onClick={rename.start}
-                                    className="relative shrink-0 cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary after:absolute after:inset-[-12px] after:content-[''] [@media(hover:hover)]:after:inset-[-6px]"
+                                {/* The reveal is the wrapper's, not each button's. */}
+                                <RowActionButton
+                                    label={vm.isPinned ? "Unpin session" : "Pin session"}
+                                    onClick={() => onTogglePin(vm.id)}
                                 >
+                                    {/* Pin and unpin as ONE control: a pinned row keeps the same
+                                        pin, filled. A separate unpin glyph made the pinned state
+                                        look like a fault to undo. */}
+                                    <PushPin size={14} weight={vm.isPinned ? "fill" : "regular"} />
+                                </RowActionButton>
+                                <RowActionButton label="Rename session" onClick={rename.start}>
                                     <PencilSimple size={14} />
-                                </button>
+                                </RowActionButton>
                             </span>
                         )}
                     </>
                 )}
             </span>
 
-            {vm.agentId ? (
+            {!showAgent ? null : vm.agentId ? (
                 <span className="flex min-w-0 items-center gap-1.5">
                     {/* The agent's own mark, not a generic robot — the same tile the automations
                         table and the agent picker draw. */}
@@ -138,7 +187,7 @@ export const SessionRowCells = ({
                 <SessionAgentName agentId={null} />
             )}
 
-            <span className="truncate text-[13px] text-muted-foreground">{updated}</span>
+            <span className="truncate text-right text-[13px] text-muted-foreground">{updated}</span>
 
             <span className="flex justify-end" onClick={swallow}>
                 <SessionRowMenu

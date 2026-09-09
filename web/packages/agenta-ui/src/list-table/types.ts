@@ -15,6 +15,12 @@ export interface ListTableColumn {
      * its neighbours and the table looks unevenly spaced at every width but one.
      */
     width: string
+    /**
+     * Extra classes on the HEADER cell — in practice the alignment, for a column whose body cells
+     * are not left-aligned. The header has to follow the cells or the two read as different
+     * columns.
+     */
+    headerClassName?: string
 }
 
 /**
