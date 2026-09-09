@@ -17,18 +17,11 @@ import {
     useAutomations,
 } from "@agenta/automation-ui"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {AgentGlyph} from "@agenta/entity-ui/agent"
+import {AgentChip} from "@agenta/entity-ui/agent"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {InputGroup, InputGroupAddon, InputGroupInput} from "@agenta/ui/ui"
-import {
-    CaretDown,
-    ClockClockwise,
-    Lightning,
-    MagnifyingGlass,
-    Plus,
-    Robot,
-} from "@phosphor-icons/react"
+import {CaretDown, ClockClockwise, Lightning, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -282,16 +275,15 @@ export const AutomationListScreen = ({
 
                                                 {agentName ? (
                                                     <span className="flex min-w-0 items-center gap-1.5">
-                                                        {/* The agent's own glyph, not a generic robot —
-                                                    a column of identical icons identifies
-                                                    nothing. */}
-                                                        <AgentGlyph
+                                                        {/* The agent's own mark, not a generic
+                                                    robot — a column of identical icons
+                                                    identifies nothing. Same tile the agent
+                                                    picker draws, so the row and the control
+                                                    that set it match. */}
+                                                        <AgentChip
                                                             workflowId={automation.agentId}
-                                                            size={13}
-                                                            fallback={
-                                                                <Robot size={13} aria-hidden />
-                                                            }
-                                                            className="shrink-0"
+                                                            box="size-5"
+                                                            glyph={13}
                                                         />
                                                         <span
                                                             className="truncate text-[13px] text-foreground"
