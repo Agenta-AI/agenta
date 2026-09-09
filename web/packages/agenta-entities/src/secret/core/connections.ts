@@ -543,6 +543,11 @@ export const buildModelOptions = ({
  * A standard API key is reachable when the harness lists the family; the credential-set kinds are
  * reachable when the harness consumes that deployment surface. The saved harness list is user
  * policy layered on top — this is the technical limit underneath it.
+ *
+ * Deliberately coarse for a deployment surface, because the surface does not name a family: an
+ * endpoint the harness can speak to at all passes here. Which family a connection under that
+ * surface is ASSUMED to speak, and therefore which harnesses it is offered under by default, is
+ * `effectiveHarnesses` in ./agentModelCandidates.
  */
 export const harnessSupportsProviderKind = (
     capabilities: HarnessCapabilityMap | null | undefined,

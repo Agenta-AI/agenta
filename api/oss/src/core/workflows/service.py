@@ -280,11 +280,22 @@ class WorkflowsService:
         self._session_continuation_resumer: Optional[
             Callable[..., Awaitable[Optional[str]]]
         ] = None
+        # Reads the session row's name and whether the session already has a turn. Injected
+        # rather than constructed here for the same reason the continuation resumer is: this
+        # service owns workflows, and the sessions services live above it.
+        self._session_context_resolver: Optional[
+            Callable[..., Awaitable[tuple[Optional[str], bool]]]
+        ] = None
 
     def set_session_continuation_resumer(
         self, callback: Callable[..., Awaitable[Optional[str]]]
     ) -> None:
         self._session_continuation_resumer = callback
+
+    def set_session_context_resolver(
+        self, callback: Callable[..., Awaitable[tuple[Optional[str], bool]]]
+    ) -> None:
+        self._session_context_resolver = callback
 
     async def _resume_pending_session_continuation(
         self, *, project_id: UUID, request: WorkflowServiceRequest
@@ -2949,7 +2960,125 @@ class WorkflowsService:
         revision_data = self._get_revision_data(request=request)
         service_url = self._get_service_url(revision_data=revision_data)
 
+        await self._stamp_session_context(
+            project_id=project_id,
+            request=request,
+            revision_data=revision_data,
+        )
+
         return credentials, service_url
+
+    async def _stamp_session_context(
+        self,
+        *,
+        project_id: UUID,
+        request: WorkflowServiceRequest,
+        revision_data: Optional[WorkflowRevisionData],
+    ) -> None:
+        """Put the agent's name, the session's name, and the first-turn flag on ``request.meta``.
+
+        The platform prompt tells the agent to rename itself only while its name is a placeholder
+        and to name the session once at the start. It could follow neither rule, because the run
+        carried none of the three facts.
+
+        This stamp does NOT cover playground traffic, and never did. The playground posts a turn
+        straight to the agent service at ``{origin}/services/agent/v0/invoke``, which traefik
+        routes past the API, so this prelude never runs for a UI turn (issue #6661). What it
+        covers is the runs the API itself proxies: a HITL resume and a trigger fire, through
+        ``invoke_workflow`` and ``invoke_workflow_detached``.
+
+        The current agent service no longer reads this blob. It resolves the same three facts
+        itself, in ``agenta.sdk.agents.platform.session_context``, because a service cannot tell
+        this stamp apart from a forged copy in its own request body. The stamp remains the wire
+        contract for a workflow service built on an SDK that predates that resolution, so a
+        rolling deploy keeps working; the drop below still applies on every API path.
+
+        Server-owned. A caller-supplied ``session_context`` is dropped first and replaced by
+        what the server reads, never merged: it names the agent to itself, and a client must
+        not be able to tell the agent it is already named. The drop happens before any read,
+        so a read that fails leaves the key absent rather than leaving the client's version
+        in place.
+
+        Every fact is optional and ``None`` means UNKNOWN, not "no". Only a run with no
+        session id asserts ``first_turn`` as a fact: that run opens a fresh session, so it is
+        the first turn and the session has no name yet. A run that carries a session id but
+        has no resolver installed knows nothing about that session, and says so.
+
+        Gated to agent runs by the revision URI, so an evaluation batch over an LLM workflow
+        pays nothing. Failures are swallowed: this shapes prompt text, and a session row that
+        cannot be read must degrade to today's prompt rather than fail the run.
+        """
+        if request.meta:
+            request.meta.pop("session_context", None)
+        if revision_data is None:
+            return
+        _, _, key, _ = (
+            parse_uri(revision_data.uri) if revision_data.uri else (None,) * 4
+        )
+        if key != "agent":
+            return
+
+        session_name: Optional[str] = None
+        first_turn: Optional[bool] = None
+        session_id = request.session_id
+        try:
+            agent_name = await self._resolve_agent_name(
+                project_id=project_id,
+                request=request,
+            )
+            if session_id is None:
+                # No session id: this run opens a fresh session. First turn, no name.
+                first_turn = True
+            elif self._session_context_resolver is not None:
+                session_name, first_turn = await self._session_context_resolver(
+                    project_id=project_id,
+                    session_id=session_id,
+                )
+            # A session id with no resolver installed: both facts stay unknown. Claiming
+            # "unnamed, first turn" here would tell an already named session to name itself.
+        # Prompt text, never a run-breaking read: degrade to today's prompt.
+        except Exception as e:  # noqa: BLE001
+            log.warning(
+                "[WORKFLOWS] session context unavailable for "
+                f"session={request.session_id}: {e}"
+            )
+            return
+
+        request.meta = {
+            **(request.meta or {}),
+            "session_context": {
+                "agent_name": agent_name,
+                "session_name": session_name,
+                "first_turn": first_turn,
+            },
+        }
+
+    async def _resolve_agent_name(
+        self,
+        *,
+        project_id: UUID,
+        request: WorkflowServiceRequest,
+    ) -> Optional[str]:
+        """The workflow artifact's display name. That is what `rename_agent` renames.
+
+        `rename_agent` targets the artifact (`PUT /api/workflows/{workflow_id}` bound to
+        `$ctx.workflow.artifact.id`), so the artifact's name is the agent's name, not the
+        revision's. No new query in the steady state: `fetch_workflow` serves the artifact from
+        the same 60-second cache the read path already fills.
+        """
+        reference = (request.references or {}).get("workflow")
+        artifact_id = (
+            reference.get("id")
+            if isinstance(reference, dict)
+            else getattr(reference, "id", None)
+        )
+        if not artifact_id:
+            return None
+        workflow = await self.fetch_workflow(
+            project_id=project_id,
+            workflow_ref=Reference(id=artifact_id),
+        )
+        return workflow.name if workflow else None
 
     async def invoke_workflow(
         self,

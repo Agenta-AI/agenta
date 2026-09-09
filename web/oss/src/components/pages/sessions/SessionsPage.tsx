@@ -158,6 +158,7 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                     onOpenRow={handleOpen}
                     menuFor={menuFor}
                     onMenuSelect={onMenuSelect}
+                    onRenameRow={onRenameRow}
                     className="min-h-0 flex-1 overflow-y-auto px-6 pb-4"
                 />
             </FilterRailLayout>

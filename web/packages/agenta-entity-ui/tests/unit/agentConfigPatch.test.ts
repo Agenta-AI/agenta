@@ -9,6 +9,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    mergeAgentConfigDraft,
     readHarnessKind,
     readModelConnectionSlug,
     readModelId,
@@ -26,6 +27,87 @@ const template = (extra: Record<string, unknown> = {}) => ({
 })
 
 const nested = (extra?: Record<string, unknown>) => ({agent: template(extra)})
+
+describe("mergeAgentConfigDraft", () => {
+    it("removes pruned baseline leaves without deleting new concurrent descendants", () => {
+        const baseline = {sandbox: {kind: "local", nested: {removed: true}}}
+        const live = {
+            sandbox: {
+                ...baseline.sandbox,
+                permissions: {network: "off"},
+                nested: {removed: true, added: {deny: ["write"]}},
+            },
+        }
+        expect(mergeAgentConfigDraft(live, baseline, {})).toEqual({
+            sandbox: {
+                permissions: {network: "off"},
+                nested: {added: {deny: ["write"]}},
+            },
+        })
+        expect(mergeAgentConfigDraft(baseline, baseline, {})).toEqual({})
+        expect(live.sandbox.nested.removed).toBe(true)
+    })
+
+    it("saves model routing atomically while preserving concurrent extras and hidden policies", () => {
+        const baseline = template()
+        const draft = {...baseline, llm: {...baseline.llm, model: "gpt-5"}}
+        const live = {
+            ...baseline,
+            llm: {
+                model: "sonnet",
+                provider: "anthropic",
+                connection: {mode: "self_managed"},
+                extras: {seed: 2},
+            },
+            harness: {kind: "claude", permissions: {deny: ["Write"]}},
+        }
+        expect(mergeAgentConfigDraft(live, baseline, draft, "model-harness")).toEqual({
+            ...live,
+            llm: {model: "gpt-5", provider: "openai", extras: {seed: 2}},
+            harness: {kind: "pi_core", permissions: {deny: ["Write"]}},
+        })
+        expect(mergeAgentConfigDraft(live, baseline, baseline, "model-harness")).toEqual(live)
+    })
+
+    it("keeps the buffered connection and model when only the harness changed in the drawer", () => {
+        const baseline = template({
+            llm: {model: "gpt-5", provider: "openai", connection: {mode: "agenta", slug: "chosen"}},
+        })
+        const draft = {...baseline, harness: {...baseline.harness, kind: "codex"}}
+        const live = {...baseline, llm: {model: "sonnet", provider: "anthropic"}}
+        expect(mergeAgentConfigDraft(live, baseline, draft, "model-harness").llm).toEqual(
+            baseline.llm,
+        )
+    })
+    it("keeps concurrent fields when a drawer adds a previously missing object", () => {
+        const live = {
+            runner: {permissions: {rules: ["deny"]}},
+            sandbox: {permissions: {network: "off"}},
+        }
+        expect(mergeAgentConfigDraft(live, {}, {runner: {permissions: {default: "ask"}}})).toEqual({
+            ...live,
+            runner: {permissions: {rules: ["deny"], default: "ask"}},
+        })
+    })
+    it("applies intentional deletions and array edits without reverting untouched siblings", () => {
+        const baseline = {
+            llm: {model: "old", connection: {slug: "old"}, extras: {seed: 1}},
+            tools: ["old"],
+        }
+        const live = {
+            ...baseline,
+            llm: {...baseline.llm, extras: {seed: 2}},
+            sandbox: {kind: "daytona"},
+        }
+        const draft = {llm: {model: "new", extras: {seed: 1}}, tools: ["new"]}
+        expect(mergeAgentConfigDraft(live, baseline, draft)).toEqual({
+            llm: {model: "new", extras: {seed: 2}},
+            tools: ["new"],
+            sandbox: {kind: "daytona"},
+        })
+        expect(baseline.llm.connection).toEqual({slug: "old"})
+    })
+})
 
 describe("withModel", () => {
     it("writes the ModelRef under parameters.agent", () => {
