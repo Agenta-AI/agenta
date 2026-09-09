@@ -75,9 +75,35 @@ screenshot before marking a UI step done (UI changes need browser QA).
   a bottom-sheet renderPanel. Desktop + /m parity.
 - [ ] F6 Light + dark mode pass; Storybook entries for the components.
 - [ ] F7 Leave the old Settings channels screen in place, untouched.
-Mount point notes: desktop agents list = pages/.../agents -> components/pages/agents/
-AgentsPage; agent detail/overview TBD (find it in F4). /m agent overview =
-features/agents/AgentOverviewScreen.tsx.
+Mount point notes (RESOLVED 2026-09-09): desktop agent overview =
+web/oss/src/components/pages/overview/agent/AgentOverview.tsx, which renders
+AgentOverviewBody (web/packages/agenta-entity-ui/src/agent/AgentOverviewBody.tsx)
+with a config rail (AgentConfigSummaryCard, AgentFilesCard). The Channels section
+is a new rail card there. /m agent overview = features/agents/AgentOverviewScreen.tsx.
+
+Wiring prerequisites found (do these inside F2/F3, each leaving a compilable state):
+- PRE-1 QR: there is NO QR library in web. Options: (a) add a small dep like
+  qrcode.react (needs a package.json change + install, which is a shared-tree
+  hazard; build in a worktree/container carefully); (b) vendor a tiny pure-JS QR
+  encoder that emits inline SVG (no dep); (c) v1 ship the tappable deep link
+  only, QR as a fast-follow. RECOMMEND (b) if a small MIT encoder fits, else (c)
+  first so the flow works, then add QR. Mahmoud wants QR, so do not drop it
+  silently; land the link, then the QR.
+- PRE-2 references: the agent page has appId only. The bind-link needs agent
+  references like {workflow_variant:{id}} (the custom QA agent used that). Find
+  the appId -> current variant/revision id source (an atom/hook in state) before
+  wiring the connect action; without a valid reference the agent is not runnable.
+- PRE-3 rail injection: read AgentOverviewBody.tsx to see how a new rail card is
+  added (edit it directly or via a slot). Add an AgentChannelsCard rendering the
+  design's ChannelsPage with an @agenta/ui drawer (./drawer export) as renderPanel.
+
+Retrofit approach (decided): keep the first-pass components' JSX/look; inject real
+async actions as optional props (default to the existing simulate handlers so the
+package keeps compiling), then a web/oss wrapper supplies the real actions + real
+initial connections (mapped from queryChannelConnections) + the drawer. Wire the
+Telegram-hosted connect first (createTelegramHostedBindLink + real link/QR), then
+disconnect (archiveChannelConnection), then Slack hosted (OAuth redirect), then the
+behavior switches (grants/policy), then custom Telegram (createChannelConnection).
 
 Cross-cutting:
 - [ ] Codex (gpt-astra) review of the new frontend + disconnect fix.
