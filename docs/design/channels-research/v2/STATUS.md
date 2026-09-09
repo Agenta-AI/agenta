@@ -6,6 +6,19 @@ it; this file stays the map.
 
 Last updated: 2026-09-09.
 
+## INFRA FACTS (do not re-derive; correct as needed)
+- The ngrok tunnel is PAID, not free. There is NO interstitial. If a browser XHR
+  fails, it is NOT ngrok's warning screen — look elsewhere (stale build, expired
+  session, wrong path).
+- Public URL: https://subangular-groundlessly-bryn.ngrok-free.dev. Direct origin on
+  the box: http://144.76.237.122:8180 (traefik). Local curl: http://127.0.0.1:8180.
+- Stack: agenta-ee-dev-channels (this worktree). Postgres port 5437. QA project
+  01a080e0-77ee-7c50-be4c-04a2b0ce1af8, workspace 01a080e0-77d0-7893-937a-8317bd847299.
+- Hosted Telegram enabled on the stack (test bot @newagentabot, id 8950712471).
+- Browser QA uses the shared Chrome via chrome-devtools; session auth is SuperTokens
+  cookies. I do NOT type passwords (policy) — need a live session or OTP.
+
+
 ## Goal (Mahmoud, /goal "the working thing as discussed")
 A working deployment where Slack and Telegram both work end to end, reviewed,
 QA'd, live-QA'd for new work, UI-QA'd, and with Codex (gpt-astra) feedback. Do
