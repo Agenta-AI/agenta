@@ -266,16 +266,20 @@ export const ChannelConnectFlow = ({
             if (cancelled) return
             try {
                 const connections = await actions.reload()
-                if (cancelled) return
                 const slack = connections.slack
                 if (slack?.connectionId) {
-                    // The install created the connection; point it at this agent.
+                    // The install created the connection; point it at this agent. This runs
+                    // even if the reload above already switched the page to the manage view
+                    // and unmounted this flow: the retarget is idempotent, and skipping it
+                    // would leave a connection that answers as no agent.
                     await actions.connectHere("slack", slack.connectionId)
+                    await actions.reload()
                     if (cancelled) return
                     setAuthorizing(false)
                     await onConnectedRef.current()
                     return
                 }
+                if (cancelled) return
             } catch (e) {
                 if (cancelled) return
                 setAuthorizing(false)
