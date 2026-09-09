@@ -110,6 +110,21 @@ export const sessionListIdWindow = ({
  * time, refetch cadence) stays here, because desktop and mobile don't agree on it. Mobile adopts
  * the same factory once its session PRs stop moving.
  */
+/**
+ * The status filter as the server's own liveness predicate. `all` and `waiting` are absent on
+ * purpose: the first restricts nothing, and the second is an id intersection (see `idWindow`),
+ * not a flag.
+ */
+const STATUS_FLAGS: Partial<
+    Record<SessionStatusFilter, {is_alive?: boolean; is_running?: boolean}>
+> = {
+    live: {is_alive: true},
+    running: {is_running: true},
+    // The complement of `live`, so it covers ended and archived rows too — anything with no
+    // sandbox up. Passed as an explicit `false`, which the request builder forwards as given.
+    idle: {is_alive: false},
+}
+
 export const useSessionList = ({
     excludeSessionIds,
     sessionIds,
@@ -137,7 +152,7 @@ export const useSessionList = ({
         agentId,
         includeArchived,
         ...sessionListRequestFilters({origin: originPolicy, expansions}),
-        flags: status === "live" ? {is_alive: true} : undefined,
+        flags: STATUS_FLAGS[status],
         sessionIds: idWindow.sessionIds,
         excludeSessionIds,
         limit: idWindow.limit,

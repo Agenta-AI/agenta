@@ -4,7 +4,15 @@ import {atom} from "jotai"
  * Every filter here maps to a server predicate — see `useSessionList`. Nothing narrows a fetched
  * page client-side, because that would filter the window rather than the set.
  */
-export type SessionStatusFilter = "all" | "live" | "waiting"
+/**
+ * Each of these is a predicate the SERVER applies, not a pass over a fetched page.
+ *
+ * The backend's liveness flags nest — `is_alive ⊇ is_running` — so the three live options are
+ * genuinely different questions: `live` is "the sandbox is up", `running` is "a turn is going",
+ * and `idle` is the complement of `live`. `waiting` is the odd one out: it narrows to the gated
+ * session ids from the actionable-interactions poll rather than to a flag.
+ */
+export type SessionStatusFilter = "all" | "live" | "running" | "waiting" | "idle"
 
 export const sessionSearchAtom = atom("")
 /** Agent workflow id, matched against the turns' references. */

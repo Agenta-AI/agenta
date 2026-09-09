@@ -95,14 +95,22 @@ export const SessionFilterMenu = ({
                 label: "Status",
                 icon: <Waveform size={ICON} />,
                 value: status,
+                // Ordered by what it costs to miss, and each dot is the one a row of that status
+                // paints. `live` is not offered: "the sandbox is up" is a fact about the
+                // infrastructure, and Running answers the question a reader is actually asking.
                 options: [
                     {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
-                    {value: "live", label: "Live", icon: <StatusDot className="bg-colorSuccess" />},
                     {
                         value: "waiting",
-                        label: waitingCount ? `Waiting on you ${waitingCount}` : "Waiting on you",
+                        label: waitingCount ? `Waiting ${waitingCount}` : "Waiting",
                         icon: <StatusDot className="bg-colorWarning" />,
                     },
+                    {
+                        value: "running",
+                        label: "Running",
+                        icon: <StatusDot className="bg-colorSuccess" />,
+                    },
+                    {value: "idle", label: "Idle", icon: <StatusDot className="bg-colorBorder" />},
                 ],
                 onChange: (value) => setStatus(value as SessionStatusFilter),
             },
