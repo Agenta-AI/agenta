@@ -81,6 +81,11 @@ export interface RichChatInputProps {
     /** Speech is being dictated in. Locks editing for the duration so typing cannot interleave with
      * the incoming transcript and corrupt it. */
     dictating?: boolean
+    /**
+     * Shown in the hints' place while `dictating`. A ReactNode rather than an analyser, because
+     * the audio belongs to whoever owns the microphone — this only knows the row is free.
+     */
+    dictationWave?: ReactNode
     autoFocus?: boolean
     className?: string
     /** Leading slot in the footer (e.g. an attach-files button). */
@@ -164,6 +169,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             placeholder = "Type a message…",
             disabled = false,
             dictating = false,
+            dictationWave,
             autoFocus = false,
             className,
             prefix,
@@ -360,6 +366,11 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         )}
                     >
                         {prefix}
+                        {/* The hints have already stood down for dictation (`hintsVisible`), so
+                            this lands in a row that is free rather than pushing anything. */}
+                        {dictating && dictationWave ? (
+                            <div className="flex min-w-0 flex-1 items-center">{dictationWave}</div>
+                        ) : null}
                         {hideShortcutHints ? null : (
                             // The format hints are a focus-only aid: kept mounted (so their space
                             // never reflows the row) and faded in when the editor takes focus.

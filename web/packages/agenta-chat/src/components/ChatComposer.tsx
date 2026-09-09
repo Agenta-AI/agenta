@@ -22,6 +22,7 @@ import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
 import ComposerRejections from "./ComposerRejections"
+import RecordingWaveform from "./RecordingWaveform"
 
 // Lexical is the heaviest dependency of the chat chunk — keep it out of the synchronous
 // mount. React.lazy (not next/dynamic) so the imperative handle ref forwards.
@@ -37,6 +38,8 @@ export interface ChatComposerProps {
     autoFocus?: boolean
     /** Voice dictation is writing into the input (desktop). */
     dictating?: boolean
+    /** Live analyser for the dictated voice; absent ⇒ no wave (a refused stream, or no mic). */
+    dictationAnalyserRef?: RefObject<AnalyserNode | null>
     /** Width column for the input (desktop passes its chat column; mobile's rail is outside). */
     className?: string
     disabled?: boolean
@@ -88,6 +91,7 @@ export const ChatComposer = ({
     inputRef,
     autoFocus,
     dictating,
+    dictationAnalyserRef,
     className,
     disabled,
     hideSendButton,
@@ -172,6 +176,14 @@ export const ChatComposer = ({
                 ref={inputRef}
                 autoFocus={autoFocus}
                 dictating={dictating}
+                dictationWave={
+                    dictationAnalyserRef ? (
+                        <RecordingWaveform
+                            analyserRef={dictationAnalyserRef}
+                            className="h-5 flex-1 text-colorPrimary"
+                        />
+                    ) : null
+                }
                 className={className}
                 onSubmit={onSubmit}
                 disabled={disabled}

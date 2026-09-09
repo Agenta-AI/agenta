@@ -1,4 +1,4 @@
-import {useMemo, useRef, useState, type ReactNode, type RefObject} from "react"
+import {useMemo, useRef, type ReactNode, type RefObject} from "react"
 
 import {
     ChatComposer,
@@ -100,7 +100,6 @@ export const HomeTaskComposer = ({
     // Voice needs a handle whether or not the host asked for one.
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
     const richInputRef = inputRef ?? ownInputRef
-    const [dictating, setDictating] = useState(false)
 
     // A take on Home is always an ATTACHMENT, never a message of its own: there is no conversation
     // here to send it into — the composer's text is what gets sent, with the clip riding along.
@@ -205,7 +204,8 @@ export const HomeTaskComposer = ({
                 >
                     <ChatComposer
                         inputRef={richInputRef}
-                        dictating={dictating}
+                        dictating={voice.dictating}
+                        dictationAnalyserRef={voice.dictationAnalyserRef}
                         onSubmit={async (text) => {
                             try {
                                 if (creating) {
@@ -235,7 +235,7 @@ export const HomeTaskComposer = ({
                                     audioPerceivable={null}
                                     attachmentsFull={attachments.atMax}
                                     onDictationError={voice.setDictationError}
-                                    onDictatingChange={setDictating}
+                                    onDictatingChange={voice.setDictating}
                                     stopRef={voice.dictationStopRef}
                                 />
                                 {extraPrefix}
