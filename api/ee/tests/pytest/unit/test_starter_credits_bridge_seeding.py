@@ -1444,3 +1444,73 @@ class TestReconcilingOnRead:
             is None
         )
         assert _all_key_update_calls() == []
+
+
+class TestTheRepairSurvivesTheMapping:
+    """The repair is only worth anything if it PERSISTS. If the write did not change the
+    stored models, the read path would see the same stale row on every list and send the
+    same repair again, so this pins the round trip through the storage mapping."""
+
+    async def test_the_rewrite_round_trips_through_the_row(self, seeding_env):
+        from oss.src.dbs.postgres.secrets.mappings import (
+            map_secrets_dbe_to_dto,
+            map_secrets_dto_to_dbe,
+            map_secrets_dto_to_dbe_update,
+        )
+
+        await _seed()
+        created = seeding_env.vault.create_dto
+        dbe = map_secrets_dto_to_dbe(
+            project_id=seeding_env.project.id,
+            organization_id=None,
+            secret_dto=created,
+            management=seeding_env.vault.management,
+        )
+        stored = map_secrets_dbe_to_dto(secrets_dbe=dbe)
+        assert [model.slug for model in stored.data.models] == ["vertex_ai/some-model"]
+
+        config = _armed_config(model_id="vertex_ai/new-model")
+        map_secrets_dto_to_dbe_update(
+            secrets_dbe=dbe,
+            update_secret_dto=service._model_update(row=stored, config=config),
+        )
+        rewritten = map_secrets_dbe_to_dto(secrets_dbe=dbe)
+
+        assert [model.slug for model in rewritten.data.models] == [
+            "vertex_ai/new-model"
+        ]
+        # Everything else survives: the credential, the routing URL, the namespace, and
+        # the two server-controlled flags that ride inside the encrypted payload.
+        assert rewritten.data.provider.key == stored.data.provider.key
+        assert rewritten.data.provider.url == stored.data.provider.url
+        assert rewritten.data.provider_slug == service.STARTER_CREDITS_NAME
+        assert rewritten.data.harnesses == ["pi_core"]
+        assert rewritten.write_only is True
+        assert rewritten.management == seeding_env.vault.management
+        # The published namespaced key follows the new model, so the row stops offering
+        # the old one to the picker and to the runtime resolver.
+        assert rewritten.data.model_keys == [
+            f"{service.STARTER_CREDITS_NAME}/custom/vertex_ai/new-model"
+        ]
+
+    async def test_a_row_with_no_key_is_not_rewritten(self, seeding_env):
+        # A credential-less row cannot run any model, so a repair would fix nothing and the
+        # read path would send it again on every list.
+        await _seed()
+        row = seeding_env.vault.row
+        row.data.provider.key = None
+        seeding_env.monkeypatch.setattr(
+            env,
+            "starter_credits_bridge",
+            _armed_config(model_id="vertex_ai/new-model"),
+        )
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[row],
+            )
+            is None
+        )
+        assert seeding_env.vault.update_calls == []
+        assert _all_key_update_calls() == []

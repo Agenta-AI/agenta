@@ -235,7 +235,7 @@ async def reconcile_starter_credits_on_read(
     _reconciling_projects.add(key)
 
     try:
-        await reconcile_starter_credits_model(
+        repaired = await reconcile_starter_credits_model(
             client=_proxy_client(config),
             config=config,
             vault_service=_vault_service(),
@@ -255,6 +255,9 @@ async def reconcile_starter_credits_on_read(
         return None
     finally:
         _reconciling_projects.discard(key)
+
+    if not repaired:
+        return None
 
     return await _vault_service().get_secret_by_slug(
         STARTER_CREDITS_SLUG,
@@ -306,26 +309,29 @@ async def reconcile_starter_credits_model(
     # A failure here is logged, not raised — the row must still move, and a key pointing at
     # a model the proxy no longer serves is already unusable.
     virtual_key = _stored_virtual_key(row)
-    if virtual_key:
-        try:
-            await client.update_key_models(
-                key=virtual_key,
-                models=[config.model_id],
-            )
-        except Exception:
-            log.warning(
-                "[starter_credits_bridge] could not re-point the key's models; "
-                "rewriting the row anyway",
-                organization_id=organization_id,
-                project_id=str(project_id),
-                exc_info=True,
-            )
-    else:
+    if not virtual_key:
+        # A row with no credential cannot run whatever model it names, so re-pointing it
+        # would fix nothing. Bail rather than write: the read path retries a row it still
+        # sees as stale, and rewriting one that stays broken would retry on every read.
         log.warning(
-            "[starter_credits_bridge] the seeded row carries no key; "
-            "rewriting its models only",
+            "[starter_credits_bridge] the seeded row carries no key; nothing to repair",
             organization_id=organization_id,
             project_id=str(project_id),
+        )
+        return False
+
+    try:
+        await client.update_key_models(
+            key=virtual_key,
+            models=[config.model_id],
+        )
+    except Exception:
+        log.warning(
+            "[starter_credits_bridge] could not re-point the key's models; "
+            "rewriting the row anyway",
+            organization_id=organization_id,
+            project_id=str(project_id),
+            exc_info=True,
         )
 
     await vault_service.update_managed_secret(
