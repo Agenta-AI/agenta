@@ -5,7 +5,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel
 
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
@@ -49,6 +48,8 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelThreadResponse,
     ChannelThreadsResponse,
     ChannelsCatalogResponse,
+    TelegramHostedBindLinkRequest,
+    TelegramHostedBindLinkResponse,
 )
 from oss.src.core.channels.adapters.bridge.adapter import build_bridge_create_document
 from oss.src.core.channels.adapters.slack import oauth as slack_oauth
@@ -80,19 +81,6 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 if TYPE_CHECKING:
     from oss.src.core.channels.service import ChannelsService
     from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
-
-
-class TelegramHostedBindLinkRequest(BaseModel):
-    # The workflow the connected chat's agent runs, by reference
-    # (workflow/variant/revision) — the agent the user picked in the UI.
-    references: dict
-
-
-class TelegramHostedBindLinkResponse(BaseModel):
-    # The deep link the connect UI shows and renders as a QR code.
-    url: str
-    # How long the link stays valid, in seconds.
-    expires_in_seconds: int
 
 
 def handle_channel_adapter_exceptions():

@@ -115,3 +115,16 @@ class AgentaConversationItem(BaseModel):
 class AgentaConversationResponse(BaseModel):
     count: int = 0
     items: List[AgentaConversationItem] = Field(default_factory=list)
+
+
+class TelegramHostedBindLinkRequest(BaseModel):
+    # The workflow the connected chat's agent runs, by reference
+    # (workflow/variant/revision) — the agent the user picked in the UI.
+    references: Dict[str, Any]
+
+
+class TelegramHostedBindLinkResponse(BaseModel):
+    # The deep link the connect UI shows and renders as a QR code.
+    url: str
+    # How long the link stays valid, in seconds.
+    expires_in_seconds: int

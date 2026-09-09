@@ -31,10 +31,8 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelSpaceQueryRequest,
     ChannelThreadQueryRequest,
 )
-from oss.src.apis.fastapi.channels.router import (
-    ChannelsRouter,
-    TelegramHostedBindLinkRequest,
-)
+from oss.src.apis.fastapi.channels.router import ChannelsRouter
+from oss.src.apis.fastapi.channels.models import TelegramHostedBindLinkRequest
 from oss.src.core.channels.dtos import (
     ChannelAgent,
     ChannelAgentCreate,
