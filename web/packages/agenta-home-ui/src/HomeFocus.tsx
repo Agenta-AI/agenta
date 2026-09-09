@@ -146,7 +146,10 @@ export const HomeFocus = ({
                     onTabChange={setTab}
                     agents={agents}
                     templates={AGENT_TEMPLATES}
-                    selectedAgentId={agentId ?? agents[0]?.id}
+                    // Only while an AGENT is what the composer is aimed at. Creating — blank or
+                    // from a template — binds no agent, and the fallback to `agents[0]` was
+                    // checking the first row for a selection nobody made.
+                    selectedAgentId={creating ? null : (agentId ?? agents[0]?.id)}
                     onSelectAgent={selectAgent}
                     onPickTemplate={selectTemplate}
                     selectedTemplateKey={template?.key}
