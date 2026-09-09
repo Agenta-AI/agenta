@@ -133,3 +133,41 @@ Cross-cutting:
 
 ## History
 Detailed chronology is in overnight-progress.md. This file is the live map.
+
+## INCIDENT 2026-09-09: channels worktree wiped; code safe, env lost
+The worktree /home/mahmoud/code/agenta-2-worktrees/channels was removed from disk
+mid-session (likely the daily dev-box cleanup removing a worktree whose branch was
+fully pushed). Impact:
+- SAFE: all branches are intact on the remote (channels/telegram, -hosted, -ui).
+  Recreated the worktree from channels/telegram-ui (HEAD a135b200d1). No code lost.
+- LOST (gitignored, gone with the dir): the stack env file
+  hosting/docker-compose/ee/.env.ee.dev.channels, the local override
+  docker-compose.dev.channels.local.yml (image tags + runner login mounts + the
+  hosted TELEGRAM_HOSTED_* env), and the hosted webhook secret.
+- STILL RUNNING: all 18 agenta-ee-dev-channels containers keep working on their
+  baked-in env (hosted was verified answering earlier this session). But the WEB
+  container's source mount points at the deleted inode, so it will NOT serve the
+  recreated worktree until recreated; and no container can be recreated without the
+  env file.
+
+Recovery recipe (to redeploy for live QA; see deploy-worktree-testing skill):
+1. cp /home/mahmoud/code/agenta/hosting/docker-compose/ee/.env.ee.dev.local
+   hosting/docker-compose/ee/.env.ee.dev.channels ; chmod 600 ; set
+   COMPOSE_PROJECT_NAME=agenta-ee-dev-channels, ENV_FILE, TRAEFIK_PORT=8180, the
+   AGENTA_*_URL to the ngrok host, POSTGRES_PORT to this stack's (5437).
+2. Recreate the local override docker-compose.dev.channels.local.yml: image tags
+   (agenta-ee-dev-channels-*:latest), runner login mounts
+   (/home/mahmoud/agenta-qa-logins/{claude,codex,pi-agent}) + CLAUDE_CONFIG_DIR/
+   CODEX_HOME/PI_CODING_AGENT_DIR, and hosted env on api+worker-queues+worker-streams:
+   TELEGRAM_HOSTED_BOT_TOKEN=8950712471:AAHy_T8wxHF99NxH_isKJ9RD0CrGSAauefo,
+   TELEGRAM_HOSTED_WEBHOOK_SECRET=<generate a fresh one>, TELEGRAM_HOSTED_BOT_USERNAME=newagentabot.
+3. chmod o+w web/ee/public web/oss/public (uid 10001 writes __env.js).
+4. Recreate: docker compose -p agenta-ee-dev-channels --env-file .env.ee.dev.channels
+   -f docker-compose.dev.yml -f docker-compose.dev.channels.local.yml up -d
+   --no-deps --force-recreate api worker-queues worker-streams web.
+5. setWebhook the bot to <ngrok>/api/channels/telegram/events/8950712471/ with the
+   fresh secret. The hosted connection + chat binding persist in Postgres.
+RISK NOTE: the daily cleanup may remove this worktree again whenever its branch is
+fully pushed. Keep work pushed (safe) and recreate the worktree per session; do not
+rely on gitignored files surviving. Consider leaving one uncommitted sentinel file
+if the cleanup skips dirty worktrees.
