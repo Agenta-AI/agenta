@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import {CaretRight} from "@phosphor-icons/react"
 
@@ -56,6 +56,13 @@ export const ChannelsPage = ({
 }: ChannelsPageProps) => {
     const [connections, setConnections] = useState<ChannelConnections>(initialConnections)
     const [activePlatform, setActivePlatform] = useState<ChannelPlatform | null>(null)
+
+    // The host loads connections asynchronously and updates this prop when the
+    // request resolves. Sync it in so real connections actually appear; local
+    // connect/disconnect still updates the working copy below.
+    useEffect(() => {
+        setConnections(initialConnections)
+    }, [initialConnections])
 
     const close = () => setActivePlatform(null)
 

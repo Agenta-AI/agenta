@@ -103,6 +103,7 @@ export const AgentOverviewBody = ({
         rail={
             <PanelSurface className="flex flex-col gap-3">
                 <AgentConfigSummaryCard appId={agentId} onEdit={onEditConfig} />
+                {channels}
                 <AgentFilesCard appId={agentId} />
                 {/* Scoped to this agent. Automation RUNS say what already happened; an agent
                     whose schedule quietly stopped looks identical there. */}
