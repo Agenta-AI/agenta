@@ -32,6 +32,19 @@ replaces it. Everything reviewed (Codex + CodeRabbit), unit-tested, and
 live-verified end to end through the UI, on desktop and /m, light and dark.
 
 ## Decisions (Mahmoud)
+## DECISION (Mahmoud): per-project Telegram, retarget by agent (Option 1)
+A hosted Telegram connection is ONE per project. The agent page shows one of three
+states for Telegram:
+- Not connected -> "Connect".
+- Connected, and this project's Telegram already answers as THIS agent -> "Connected".
+- Connected, but it answers as ANOTHER agent (agent X) -> say "Connected to agent X",
+  and offer "Disconnect from agent X and connect here". "Connect here" retargets the
+  connection's default agent to THIS agent (edit/set the default channel-agent's
+  references to {application:{id: appId}}), not a full teardown.
+Implementation: resolve the connection's current default channel-agent -> its
+referenced app id -> that app's name. Compare to appId for the 3 states. "Connect
+here" = set this app as the connection's default agent. Slack later mirrors this.
+
 - NEW designed connect screens live on the AGENT PAGE. The OLD technical screens
   stay in the Settings page for now, untouched, until a new version replaces them.
 - Testing reuses ONE bot for everything (the QA test bot @newagentabot); do not
