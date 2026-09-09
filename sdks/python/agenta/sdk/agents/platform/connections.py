@@ -50,6 +50,11 @@ log = get_module_logger(__name__)
 # Canonical map lives in capabilities.py; this alias keeps the local name callers already use.
 _PROVIDER_ENV_VARS: Dict[str, str] = PROVIDER_ENV_VARS
 
+# The slug of the Agenta-funded starter-credits connection. It is the one connection whose
+# model list the user does not choose: Agenta seeds it, and Agenta re-points it when the
+# funded model is cut over. The same literal is `STARTER_CREDITS_SLUG` on the API side.
+STARTER_CREDITS_SLUG = "starter-credits"
+
 # The Claude harness selects a model by a bare alias (``haiku``/``sonnet``/``opus`` + ``[1m]``)
 # or by a dated id (``claude-opus-4-8``), never with a ``provider/`` prefix. Those bare ids are
 # unambiguously Anthropic, so the F-017 "needs a provider prefix" rule must not reject them: a
@@ -319,6 +324,9 @@ class _ConnectionCandidate:
     # True when value_status says a credential exists but this caller's
     # credential received the redacted, value-less shape.
     write_only_redacted: bool = False
+    # True when the vault says Agenta manages this row rather than the user. Only a managed
+    # row's model list is Agenta's to re-point, so only a managed row may be substituted.
+    managed: bool = False
 
     def matches_provider(self, provider: Optional[str]) -> bool:
         return bool(
@@ -371,8 +379,42 @@ class _ConnectionCandidate:
         if model.model in self.model_slugs:
             return model.model
         if model.model.startswith(prefix):
-            return model.model[len(prefix) :]
-        return model.model
+            stripped = model.model[len(prefix) :]
+            # The strip runs before the fallback, so an id spelled ``custom/<model>`` would
+            # otherwise reach the upstream stale, having matched nothing this connection has.
+            if stripped in self.model_slugs:
+                return stripped
+            return self._funded_starter_credits_model(model) or stripped
+        return self._funded_starter_credits_model(model) or model.model
+
+    def _funded_starter_credits_model(self, model: ModelRef) -> Optional[str]:
+        """The funded model, when a saved id names one this connection no longer offers.
+
+        The Agenta-funded starter-credits connection routes to a proxy that serves exactly one
+        model, and that model gets cut over. A revision saved before a cutover still names the
+        old id, so every turn fails upstream with an invalid-model error even though the
+        connection is healthy. The connection itself states what is funded now, so run that and
+        say so in the log.
+
+        Deliberately narrow. It applies to this one connection, only while Agenta manages it,
+        only when it offers exactly one model, and only after every match above missed. A user
+        may save their own connection under this slug, and their model list is theirs. Every
+        other connection keeps failing upstream, which is correct: silently running a model the
+        user did not pick would misreport what ran.
+        """
+        if self.slug != STARTER_CREDITS_SLUG or not self.managed:
+            return None
+        if len(self.model_slugs) != 1:
+            return None
+
+        funded = next(iter(self.model_slugs))
+        log.warning(
+            "starter credits: the saved model is not funded any more; using the funded one",
+            saved_model=model.model,
+            funded_model=funded,
+            slug=self.slug,
+        )
+        return funded
 
     def resolved_provider(self, model: ModelRef) -> str:
         if model.provider:
@@ -543,7 +585,20 @@ def _custom_provider_candidate(
         write_only_redacted=_write_only_redacted(
             secret, bool(api_key) or bool(credential_extras(extras))
         ),
+        managed=_managed(secret),
     )
+
+
+def _managed(secret: Dict[str, Any]) -> bool:
+    """Whether the vault says Agenta manages this row rather than the user.
+
+    The public secret carries the management POLICY (never the manager's name), and any
+    policy at all means the row is not the user's to edit. That is the property the funded
+    fallback needs: a user may save their own connection under any slug, including this
+    one's, and their model list is theirs.
+    """
+    management = secret.get("management")
+    return isinstance(management, dict) and bool(management.get("policy"))
 
 
 def _catalog(secrets: Iterable[Any]) -> List[_ConnectionCandidate]:
