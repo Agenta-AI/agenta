@@ -682,7 +682,10 @@ export const ChannelConnectFlow = ({
                     {answeringAgentName ? (
                         <p className="m-0 rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2.5 text-xs text-colorTextSecondary">
                             This project&apos;s Telegram currently answers as{" "}
-                            <strong className="font-medium text-colorText">{answeringAgentName}</strong>. Connecting here switches it to {agentName}.
+                            <strong className="font-medium text-colorText">
+                                {answeringAgentName}
+                            </strong>
+                            . Connecting here switches it to {agentName}.
                         </p>
                     ) : null}
                     {tgStep === "preparing" ? (
