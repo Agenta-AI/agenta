@@ -1,7 +1,8 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
+import {remapMessageShape} from "@agenta/entities/gatewayTrigger"
 import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {MessageComposer} from "@agenta/entity-ui/gatewayTrigger"
 import {useAtomValue} from "jotai"
 
@@ -14,8 +15,11 @@ import {AutomationField} from "./AutomationField"
  * unsaved config, and a second copy here is how a Discard leaves the old text sitting in the box.
  * Typing costs nothing now — the host holds it in memory until Save.
  *
- * The composer maps the message onto whichever input the bound agent takes; a mapping richer than
- * a single message keeps its own warning inside the composer.
+ * The composer maps the message onto whichever input the bound agent takes, read off the agent's
+ * LATEST REVISION rather than off the artifact: only a revision carries `flags.is_chat` and the
+ * input schema, so a screen that knows the agent only from a list would otherwise see neither and
+ * write a chat agent's instruction under "message", which the runner never reads. The field waits
+ * for the revision instead of guessing.
  */
 export const AutomationInstructionField = ({
     agentId,
@@ -28,15 +32,49 @@ export const AutomationInstructionField = ({
 }) => {
     const inputsText = useMemo(() => JSON.stringify(inputsFields ?? {}, null, 2), [inputsFields])
 
+    const latest = useAtomValue(workflowLatestRevisionQueryAtomFamily(agentId ?? ""))
+    const revision = latest.data ?? null
+
     // Which input the message lands on. The stored shape wins inside the composer's own
     // getter/setter; this only decides where a message goes when there is nothing stored yet.
-    const isChat = useAtomValue(workflowMolecule.selectors.executionMode(agentId ?? "")) === "chat"
-    const inputSchema = useAtomValue(workflowMolecule.selectors.inputSchema(agentId ?? ""))
+    // Same two checks the workflow molecule makes, against the revision we just resolved: the
+    // flag first, then a `messages` property on the input schema for when the flag lags behind.
+    const inputSchema = revision?.data?.schemas?.inputs as Record<string, unknown> | undefined
+    const isChat = useMemo(() => {
+        if (revision?.flags?.is_chat) return true
+        const properties = inputSchema?.properties as Record<string, unknown> | undefined
+        return Boolean(properties?.messages)
+    }, [inputSchema, revision?.flags?.is_chat])
+
     const primaryKey = useMemo(() => {
         if (isChat) return "messages"
-        const ports = extractInputPortsFromSchema(inputSchema)
+        const ports = extractInputPortsFromSchema(inputSchema ?? null)
         return ports.find((port) => port.type === "string")?.key ?? "message"
-    }, [isChat, inputSchema])
+    }, [inputSchema, isChat])
+
+    // Nothing is typed under a guessed key: without a revision there is no way to know whether
+    // this agent takes `messages` or a named string input, and the wrong one saves an automation
+    // that fails on every run with nothing on screen to say why.
+    const unresolved = !agentId || (!revision && latest.isPending)
+
+    // The revision can land after a message was typed, or an automation can have been saved under
+    // the wrong key before this resolved at all. Either way the stored shape is migrated to the
+    // one the agent takes, deleting the old key rather than leaving both.
+    const shape = useMemo(() => ({isChat, primaryKey}), [isChat, primaryKey])
+    const previousShape = useRef(shape)
+    useEffect(() => {
+        const previous = previousShape.current
+        previousShape.current = shape
+        if (unresolved) return
+        if (previous.isChat === shape.isChat && previous.primaryKey === shape.primaryKey) return
+        const next = remapMessageShape(inputsText, previous, shape)
+        if (next === inputsText) return
+        try {
+            onCommit(JSON.parse(next) as Record<string, unknown>)
+        } catch {
+            // A mapping the composer cannot read is left exactly as it was.
+        }
+    }, [inputsText, onCommit, shape, unresolved])
 
     const onChange = useCallback(
         (next: string) => {
@@ -58,6 +96,7 @@ export const AutomationInstructionField = ({
                 onChange={onChange}
                 isChat={isChat}
                 primaryKey={primaryKey}
+                disabled={unresolved}
             />
         </AutomationField>
     )

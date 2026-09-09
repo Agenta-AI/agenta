@@ -1,7 +1,10 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {type TriggerSchedule, type TriggerSubscription} from "@agenta/entities/gatewayTrigger"
-import {workflowVariantsListQueryStateAtomFamily} from "@agenta/entities/workflow"
+import {
+    workflowLatestRevisionQueryAtomFamily,
+    workflowVariantsListQueryStateAtomFamily,
+} from "@agenta/entities/workflow"
 import {
     buildTriggerReferences,
     EMPTY_BINDING,
@@ -83,6 +86,7 @@ export const useAutomationDraft = (automation: Automation | null, edit: SaveAuto
     // the agent's VARIANT so the newest revision resolves at run time — the rule lives in
     // `buildTriggerReferences`, and writing references by hand is how bindings go unresolvable.
     const variants = useAtomValue(workflowVariantsListQueryStateAtomFamily(draft.agentId ?? ""))
+    const latestRevision = useAtomValue(workflowLatestRevisionQueryAtomFamily(draft.agentId ?? ""))
 
     const patch = useCallback((next: Partial<AutomationConfigDraft>) => {
         setState((current) => ({...current, draft: {...current.draft, ...next}}))
@@ -124,12 +128,13 @@ export const useAutomationDraft = (automation: Automation | null, edit: SaveAuto
                               references: referencesFor(
                                   automation,
                                   draft.agentId,
-                                  // Exactly one variant binds it; more than one is ambiguous, and
-                                  // the artifact-only reference the builder then writes is what
-                                  // the desktop writes too.
-                                  variants.data.length === 1
-                                      ? (variants.data[0]?.id ?? null)
-                                      : null,
+                                  // The latest revision names its own variant, so a rebind lands
+                                  // on the newest one however many variants the agent has. The
+                                  // single-variant guess is only the fallback while it loads.
+                                  latestRevision.data?.workflow_variant_id ??
+                                      (variants.data.length === 1
+                                          ? (variants.data[0]?.id ?? null)
+                                          : null),
                               ),
                           }
                         : {}),
@@ -156,7 +161,16 @@ export const useAutomationDraft = (automation: Automation | null, edit: SaveAuto
         } finally {
             setSaving(false)
         }
-    }, [automation, baseline.agentId, dirty, draft, edit, saving, variants])
+    }, [
+        automation,
+        baseline.agentId,
+        dirty,
+        draft,
+        edit,
+        latestRevision.data?.workflow_variant_id,
+        saving,
+        variants,
+    ])
 
     // The fields read an `Automation` — the saved row with the draft written over it, so they
     // render what WILL be saved rather than what is stored.

@@ -3,6 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {type TriggerSchedule, type TriggerSubscription} from "@agenta/entities/gatewayTrigger"
 import {
     agentWorkflowsListQueryStateAtom,
+    workflowLatestRevisionQueryAtomFamily,
     workflowVariantsListQueryStateAtomFamily,
     type Workflow,
 } from "@agenta/entities/workflow"
@@ -102,9 +103,11 @@ export const useAutomationCreate = ({
         return agent?.name || agent?.slug || defaultAgentName || null
     }, [agentsQuery.data, defaultAgentName, draft.agentId])
 
-    // "Latest" binds the agent's VARIANT so the newest revision resolves at run time — the same
-    // rule an edit's save obeys. An agent with more than one variant (or one whose variants have
-    // not landed yet) binds the artifact alone, which is what the desktop drawer writes too.
+    // "Latest" binds the agent's VARIANT so the newest revision resolves at run time. The variant
+    // comes from the latest revision itself rather than from "the agent happens to have exactly
+    // one": an agent with two variants used to bind the artifact alone, which leaves the backend
+    // to pick, and an artifact-only binding is how an automation ends up running an old revision.
+    const latestRevision = useAtomValue(workflowLatestRevisionQueryAtomFamily(draft.agentId ?? ""))
     const variants = useAtomValue(workflowVariantsListQueryStateAtomFamily(draft.agentId ?? ""))
     const references = useMemo(() => {
         if (defaultReferences) return defaultReferences
@@ -113,11 +116,11 @@ export const useAutomationCreate = ({
         return buildTriggerReferences({
             mode: "latest",
             workflowId: draft.agentId,
-            variantId: only?.id ?? null,
+            variantId: latestRevision.data?.workflow_variant_id ?? only?.id ?? null,
             revisionId: null,
             family: "application",
         })
-    }, [defaultReferences, draft.agentId, variants.data])
+    }, [defaultReferences, draft.agentId, latestRevision.data?.workflow_variant_id, variants.data])
 
     // One sentence that both disables the button and explains it, so the two can never disagree.
     const blockedReason = useMemo(() => {
