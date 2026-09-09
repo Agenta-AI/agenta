@@ -260,9 +260,10 @@ connections were ignored). REMAINING (in priority order):
 - [P1 #4] DESIGN QUESTION for Mahmoud: a hosted Telegram connection is per-PROJECT
   (one shared connection, reused across agents), but the design puts "connect" on
   the agent page as if per-agent. So the card currently shows/【archives every
-  project connection regardless of agent. Decide how the agent page presents a
-  project-wide connection (see the report). Then scope the card by the agent's
-  channel-agent references and make archive's project-wide effect explicit.
+  project connection regardless of agent. DECIDED Option 1. BACKEND DONE: ensure retargets the connection's answering
+  agent to the calling agent (connect here). REMAINING (frontend): the 3-state
+  card (connected here / connected to agent X / not connected) + agent-name
+  resolution + wording.
 - [x P2 #5] Exclude archived rows (deleted_at) before mapping. DONE.
 - [x P2 #6] Preserve flags.is_hosted in the schema. DONE.
 - [P2 #7] Error/pending states: mint 404 leaves "Preparing…" forever; archive
