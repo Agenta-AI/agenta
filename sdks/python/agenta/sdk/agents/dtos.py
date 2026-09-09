@@ -23,6 +23,7 @@ from pydantic import (
 )
 
 from agenta.sdk.engines.running.errors import ERRORS_BASE_URL, ErrorStatus
+from agenta.sdk.utils.logging import get_module_logger
 
 from .connections import EnvironmentCredentialBinding, ModelRef, ResolvedConnection
 from .mcp import (
@@ -36,6 +37,8 @@ from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
 from .permission_rules import wire_author_permission_rules
 from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
 from .tools.models import PermissionMode, ResolvedGatewayPolicy, coerce_tool_spec
+
+log = get_module_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -716,7 +719,15 @@ class AgentTemplate(BaseModel):
     @field_validator("tools", mode="before")
     @classmethod
     def _coerce_tools(cls, value: Any) -> List[ToolConfig]:
-        return coerce_tool_configs(_as_list(value)).tool_configs
+        # A saved revision is never re-validated against these models when it is written,
+        # so one unparsable entry must not fail the whole run. Drop it with a warning, as
+        # the resolver already does for a gateway action the catalog no longer carries.
+        result = coerce_tool_configs(_as_list(value), on_error="collect")
+        for diagnostic in result.diagnostics:
+            log.warning(
+                "agent: dropped an unparsable tool entry: %s", diagnostic.message
+            )
+        return result.tool_configs
 
     @field_validator("mcp_servers", mode="before")
     @classmethod

@@ -88,6 +88,19 @@ def coerce_tool_config(value: Any) -> ToolConfig:
         data["type"] = "gateway"
         data.setdefault("provider", "composio")
 
+    # Pre-2026-08-27 ``gateway`` entries spelled the action ``provider_action``, the field
+    # name the discovery response uses. No migration ever rewrote them, so translate on
+    # read. The key is dropped either way: the arm forbids extras, so leaving it beside a
+    # canonical ``action`` would refuse the entry for the field it no longer needs.
+    if data.get("type") == "gateway":
+        provider_action = data.pop("provider_action", None)
+        if (
+            not data.get("action")
+            and isinstance(provider_action, str)
+            and provider_action
+        ):
+            data["action"] = provider_action
+
     if data.get("type") in {
         "builtin",
         "gateway",
