@@ -68,14 +68,17 @@ export const HomeFocus = ({
     emptySlot,
     errorSlot,
 }: HomeFocusProps) => {
-    // An empty project opens where the only thing it can do is: the templates, with the composer
-    // already describing an agent. Read once at mount, which is when the host knows the answer —
-    // Home does not render until the list has resolved.
-    const startsEmpty = agents.length === 0
-    const [tab, setTab] = useState<HomeListTab>(startsEmpty ? "templates" : "agents")
-    const [binding, setBinding] = useState<Binding>(
-        startsEmpty ? {kind: "new"} : {kind: "agent", id: null},
-    )
+    // Both DERIVE from the roster until someone chooses otherwise, rather than snapshotting it at
+    // mount: the list can arrive empty and fill a moment later, and a snapshot left the page stuck
+    // on templates with a roster sitting behind the other tab.
+    //
+    // `null` means "no choice made yet, follow the data". An explicit choice outlives the data.
+    const [tabChoice, setTabChoice] = useState<HomeListTab | null>(null)
+    const [bindingChoice, setBindingChoice] = useState<Binding | null>(null)
+    const hasAgents = agents.length > 0
+    const tab = tabChoice ?? (hasAgents ? "agents" : "templates")
+    const binding: Binding =
+        bindingChoice ?? (hasAgents ? {kind: "agent", id: null} : {kind: "new"})
     const inputRef = useRef<RichChatInputHandle | null>(null)
 
     // Resolved ONCE, here, because the composer's dock and the list's check are the same fact. A
@@ -97,18 +100,26 @@ export const HomeFocus = ({
 
     // "+ New agent" answers "what next" with "type here", so the caret goes there.
     const startCreating = useCallback(() => {
-        setBinding({kind: "new"})
+        setBindingChoice({kind: "new"})
         focusSoon()
     }, [focusSoon])
 
-    const selectAgent = useCallback((id: string) => setBinding({kind: "agent", id}), [])
+    // Binding an agent is half the sentence; the caret goes where the other half is typed. Every
+    // row in this list leaves you in the composer, whichever tab it came from.
+    const selectAgent = useCallback(
+        (id: string) => {
+            setBindingChoice({kind: "agent", id})
+            focusSoon()
+        },
+        [focusSoon],
+    )
 
     // A template row SELECTS rather than creates: it binds the template in the dock and writes its
     // instruction into the composer, so the thing about to be built can be read and edited first.
     // Creating on click sent people to a new agent they had not seen the brief for.
     const selectTemplate = useCallback(
         (template: AgentStarterTemplate) => {
-            setBinding({kind: "template", template})
+            setBindingChoice({kind: "template", template})
             focusSoon(templateBuilderMessage(template))
         },
         [focusSoon],
@@ -150,7 +161,7 @@ export const HomeFocus = ({
                                 templateName:
                                     binding.kind === "template" ? binding.template.name : undefined,
                             })
-                            setBinding({kind: "agent", id: null})
+                            setBindingChoice({kind: "agent", id: null})
                         }}
                         onClear={startCreating}
                         onStart={onStartTask}
@@ -163,7 +174,7 @@ export const HomeFocus = ({
 
                 <HomeEntityList
                     tab={tab}
-                    onTabChange={setTab}
+                    onTabChange={setTabChoice}
                     agents={agents}
                     templates={templates}
                     // Null while creating, so the list marks nothing when no agent is bound.
