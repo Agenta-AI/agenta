@@ -247,3 +247,18 @@ external bot config on the owner's account, not a code change.
 - Images/voice: needs a scope decision + a vision-capable model.
 - UI: first pass built + visually verified; needs reconciliation with the existing Channels
   settings UI, real-data wiring, dark mode, and Storybook (needs Mahmoud's taste + data layer).
+
+## Lane 3 build started (2026-09-09, after Mahmoud's go-ahead)
+Mahmoud confirmed: one shared hosted bot configured via an env var (TELEGRAM_HOSTED_BOT_TOKEN),
+reuse the existing test bot for staging for now, and the UI picks the default agent before the
+link is generated. Images are out of scope this release.
+Built on branch channels/telegram-hosted (stacked on channels/telegram):
+- core/channels/telegram_binding.py: the TelegramBindingService (issue_bind_link,
+  consume_bind_token, resolve_bound_connection) with an injected TelegramBindingStore
+  Protocol. Opaque token (token_urlsafe, <=64 chars for Telegram's deep-link cap), 30-min TTL,
+  one-time consume, one-chat-one-project rule, replay-idempotent on the same project, atomic
+  consume+bind+account-link in the store. 8 unit tests, all green.
+Next increments: the Postgres binding table + DAO + migration; the HostedTelegramAdapter
+(channel key telegram_hosted, fixed ["project"] identity, shared transport); the ingress
+hosted-resolve branch; the bind-start router endpoint; env.py TELEGRAM_HOSTED_BOT_TOKEN.
+Live verification waits on the staging bot being pointed at the hosted webhook.
