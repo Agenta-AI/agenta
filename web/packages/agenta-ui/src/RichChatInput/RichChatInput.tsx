@@ -366,12 +366,13 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         )}
                     >
                         {prefix}
-                        {/* The hints have already stood down for dictation (`hintsVisible`), so
-                            this lands in a row that is free rather than pushing anything. */}
+                        {/* The hints are UNMOUNTED for this, not just faded: kept mounted they
+                            still hold their width, and the wave was left drawing in whatever was
+                            left over instead of across the row. */}
                         {dictating && dictationWave ? (
                             <div className="flex min-w-0 flex-1 items-center">{dictationWave}</div>
                         ) : null}
-                        {hideShortcutHints ? null : (
+                        {hideShortcutHints || (dictating && dictationWave) ? null : (
                             // The format hints are a focus-only aid: kept mounted (so their space
                             // never reflows the row) and faded in when the editor takes focus.
                             // Dictation hides them the same way — editing is locked while speech

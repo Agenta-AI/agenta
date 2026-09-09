@@ -216,26 +216,29 @@ export const ChatComposer = ({
                 prefix={
                     <div className="flex items-center gap-2">
                         {extraPrefix}
-                        {/* Gate the attach button until inline file parts are supported. */}
-                        <SimpleTooltip
-                            title={
-                                !uploadsEnabled
-                                    ? "Attach files coming soon"
-                                    : atMax
-                                      ? `Up to ${limits.maxCount} files`
-                                      : "Attach files"
-                            }
-                        >
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                disabled={!uploadsEnabled || composerDisabled}
-                                onClick={() => fileInputRef.current?.click()}
-                                aria-label="Attach files"
+                        {/* Gone while dictating: the row belongs to the wave, and attaching a file
+                            mid-utterance is not a thing anyone is doing. */}
+                        {dictating ? null : (
+                            <SimpleTooltip
+                                title={
+                                    !uploadsEnabled
+                                        ? "Attach files coming soon"
+                                        : atMax
+                                          ? `Up to ${limits.maxCount} files`
+                                          : "Attach files"
+                                }
                             >
-                                <Plus size={16} />
-                            </Button>
-                        </SimpleTooltip>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={!uploadsEnabled || composerDisabled}
+                                    onClick={() => fileInputRef.current?.click()}
+                                    aria-label="Attach files"
+                                >
+                                    <Plus size={16} />
+                                </Button>
+                            </SimpleTooltip>
+                        )}
                     </div>
                 }
                 header={
