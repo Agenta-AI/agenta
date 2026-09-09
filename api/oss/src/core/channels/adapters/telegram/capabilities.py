@@ -77,6 +77,11 @@ TELEGRAM_CAPABILITIES: dict = {
             "Choose a name and a username for your bot.",
             "Copy the bot token BotFather gives you.",
             "Paste the bot token here and connect.",
+            # Group privacy is ON by default, which stops Telegram from
+            # delivering group messages to a bot. Without this step the bot
+            # answers in direct messages but never in group chats.
+            "For group chats: in BotFather open Bot Settings, then Group "
+            "Privacy, then Turn off.",
         ],
         "fields": [
             {

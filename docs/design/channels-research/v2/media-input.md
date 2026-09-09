@@ -73,3 +73,11 @@ Two things still need Mahmoud before building:
 Recommendation: confirm scope + a vision model, then build the four steps above in the shared
 layer (a day of work, both channels at once). Voice still needs a transcription step and stays
 after images.
+
+## DECISION (2026-09-09, Mahmoud): images are NOT in scope for this release
+Defer images and voice for now. When we do build image support, use the SAME flow as the web
+UI: upload the image (to the attachments store), so any vision-capable model can read it, and
+the same path then works for files too. Do NOT use inline base64 data URLs. Concretely, that
+is the Option B / attachments path already investigated: adapter downloads the bytes, uploads
+through the attachments service to get an attachment id, and the channel invoke carries the
+attachment id the way the playground's input does. No media work happens this release.
