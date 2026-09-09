@@ -103,14 +103,18 @@ export const SessionFilterMenu = ({
                     {
                         value: "waiting",
                         label: waitingCount ? `Waiting ${waitingCount}` : "Waiting",
-                        icon: <StatusDot className="bg-colorWarning" />,
+                        icon: <StatusDot className="bg-[var(--ag-run-status-warning)]" />,
                     },
                     {
                         value: "running",
                         label: "Running",
-                        icon: <StatusDot className="bg-colorSuccess" />,
+                        icon: <StatusDot className="bg-[var(--ag-run-status-success)]" />,
                     },
-                    {value: "idle", label: "Idle", icon: <StatusDot className="bg-colorBorder" />},
+                    {
+                        value: "idle",
+                        label: "Idle",
+                        icon: <StatusDot className="bg-[var(--ag-run-status-default)]" />,
+                    },
                 ],
                 onChange: (value) => setStatus(value as SessionStatusFilter),
             },
