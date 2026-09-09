@@ -119,28 +119,15 @@ export const SessionListTable = ({
         automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
     })
     const {toggle: togglePin} = useSessionPins()
-    // A breakpoint that picks the COLUMN SET, not a `display` value — the header row and the body
-    // rows read one array, so a Tailwind class on the cell alone would leave the grid a track
-    // wider than its contents.
-    // Narrow is the server default: this app is served at /m and read on a phone, so guessing
-    // wide meant every phone painted the four-column table once before swapping to three.
+    // Picks the COLUMN SET, not a `display` value: header and body read one array. Narrow is the
+    // server default because a phone is the common case and the wide-first paint was visible.
     const narrow = useMediaQuery(NARROW_QUERY, true)
     // The APPLIED term, not the field's draft: the empty state quotes what the rows were actually
     // queried for, so it can never name a search that has not run yet.
     const term = useAtomValue(sessionSearchAtom).trim()
 
-    /**
-     * Does this project have ANY session, ignoring every filter on this page?
-     *
-     * The empty state picks between two claims — "you have none yet" and "your filters hid them"
-     * — and nothing already on screen separates them. `filtersActive` reads only the shared
-     * atoms, and the activity window is a hook argument that is ON by default, so guessing from
-     * the filters gets one of the two wrong: count the window and a brand-new project is told its
-     * filters are hiding sessions it does not have; ignore it and a project whose work is all
-     * older than a week is told it has none.
-     *
-     * One row answers it outright, and the query only runs while the list is actually empty.
-     */
+    // Does the project have ANY session? The empty state cannot tell "none yet" from "filters
+    // hid them" out of what the page holds, so it asks. Runs only while the list is empty.
     const probe = useSessionList({
         originPolicy: "all",
         expansions: [],

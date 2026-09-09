@@ -5,12 +5,6 @@ import {cn} from "@/lib/utils"
 
 import {SESSIONS_PAGE_FRAME} from "../pageFrame"
 
-/**
- * The wide table's own tracks. This renders before the viewport is measured, so it takes the
- * wide set and lets the Agent bar hide below `sm` — the same thing the real table does there.
- */
-const SKELETON_GRID = "minmax(160px,2fr) minmax(120px,1fr) 96px"
-
 /** Cycled so the column reads as a list of titles rather than a stack of identical pills. */
 const TITLE_WIDTHS = ["w-4/5", "w-3/5", "w-11/12"]
 
@@ -58,8 +52,9 @@ export const SessionsPageSkeleton = () => (
                 // a rule rather than as text waiting to arrive.
                 <div
                     key={row}
-                    className="grid w-full items-center gap-3 px-2 py-[13px]"
-                    style={{gridTemplateColumns: SKELETON_GRID}}
+                    // The wide tracks: this renders before the viewport is measured, and the
+                    // Agent bar hides below `sm` as the real table does.
+                    className="grid w-full grid-cols-[minmax(160px,2fr)_minmax(120px,1fr)_96px] items-center gap-3 px-2 py-[13px]"
                 >
                     <SkeletonBlock active className={cn("h-5 rounded", TITLE_WIDTHS[row % 3])} />
                     <SkeletonBlock active className="hidden h-5 rounded sm:block" />

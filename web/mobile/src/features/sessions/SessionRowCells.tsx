@@ -16,20 +16,10 @@ import {cn} from "@/lib/utils"
 
 import {SessionRowMenu} from "./SessionRowMenu"
 
-/**
- * An archived row is still readable, just not competing: archived is a state the reader chose to
- * put a session out of the way, and under the Archived filter a whole page at full strength reads
- * as the live list. The kebab keeps its own weight — unarchiving is the point of being here.
- */
+/** Archived is a state the reader chose. The kebab keeps full weight; unarchiving lives there. */
 const FADED = "opacity-60"
 
-/**
- * A row's inline verb — a real button with a box and a hover fill, not a bare glyph, so it reads
- * as something to press.
- *
- * Local rather than `SessionPinButton`: that one carries a tooltip, and two tooltips firing off a
- * row you are only passing over is noise. The `aria-label` still names it.
- */
+/** A row's inline verb. Local rather than `SessionPinButton`, which carries a tooltip. */
 const RowActionButton = ({
     label,
     onClick,
@@ -51,13 +41,7 @@ const RowActionButton = ({
     </button>
 )
 
-/**
- * The row's whole status, as one 7px mark.
- *
- * Filled while something is happening, a hollow ring when it is not — a list where every row
- * carries a solid dot has told the reader nothing. The word is in the tooltip and in the Status
- * grouping; on a line this narrow a chip would cost the title its width.
- */
+/** Filled while something is happening, a hollow ring when not. The word is in the tooltip. */
 const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
     const live = status.status === "waiting" || status.status === "running"
     return (
@@ -74,14 +58,9 @@ const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
 }
 
 /**
- * One session row's cells, in column order.
- *
- * A component rather than a bare render function because a row owns state: the inline rename,
- * which both the pencil and the kebab's "Rename" drive. A component boundary adds no DOM, so the
- * four cells below stay direct children of the table's grid.
- *
- * Pin and rename appear on the row.s hover from `sm` up, and not at all below it — see the
- * wrapper around them.
+ * One session row's cells, in column order. A component, not a render function, because the row
+ * owns the inline rename that both the pencil and the kebab drive; the boundary adds no DOM, so
+ * the cells stay direct children of the table's grid.
  */
 export const SessionRowCells = ({
     vm,
@@ -115,9 +94,7 @@ export const SessionRowCells = ({
     // The row opens the session; every control on it has to say so itself.
     const swallow = useCallback((event: ReactMouseEvent) => event.stopPropagation(), [])
 
-    // An archived session is out of the way on purpose, and `useSessionActions` drops rename and
-    // pin from its menu for that reason. The inline pair honours the same rule, or the row would
-    // offer two verbs the shared model refuses.
+    // `useSessionActions` drops rename and pin for an archived row; the inline pair follows it.
     const archived = Boolean(vm.stream.archived_at)
     const updated = useMemo(
         () => (vm.activityAt ? timeAgo(Date.parse(vm.activityAt)) : "—"),
@@ -130,10 +107,8 @@ export const SessionRowCells = ({
                 <StatusDot status={vm.status} />
                 {rename.renaming ? (
                     <span className="min-w-0 flex-1" onClick={swallow}>
-                        {/* This app's own field, not the package default: preflight is off here,
-                            so the border and the font have to be stated, and the ring is the one
-                            every other input on this surface draws. `focus`, not `focus-visible`
-                            — the editor is focused programmatically the moment it mounts. */}
+                        {/* Preflight is off, so the border and font are stated. `focus`, not
+                            `focus-visible`: the editor is focused the moment it mounts. */}
                         <InlineRenameInput
                             rename={rename}
                             className="h-7 w-full min-w-0 rounded-md border border-solid border-input bg-background px-2 text-[14px] leading-none text-foreground shadow-xs outline-none transition-[color,box-shadow] [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus:border-ring focus:ring-[3px] focus:ring-ring/50 dark:bg-input/30"
@@ -149,17 +124,8 @@ export const SessionRowCells = ({
                         </span>
                         {archived ? null : (
                             <span
-                                // Revealed on the ROW's hover, so a resting list is titles and
-                                // nothing else; `focus-within` keeps them reachable by keyboard,
-                                // and `pointer-coarse` keeps them out on a touch screen that has
-                                // no hover to reveal them with.
-                                //
-                                // Gone below `sm`, where the title is already down to a dozen
-                                // characters and the pair would cost it 60px more. The kebab
-                                // carries both verbs, so nothing is unreachable there.
-                                // A pinned row hides its pin too: the Pinned group heading already
-                                // says the row is pinned, and one row wearing a glyph the others
-                                // only show on hover reads as a different kind of row.
+                                // Revealed on the ROW's hover, and gone below `sm` where the pair
+                                // would cost the title 60px it cannot spare. The kebab has both.
                                 className="hidden shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 sm:flex"
                                 onClick={swallow}
                                 onKeyDown={(event) => event.stopPropagation()}
@@ -169,9 +135,7 @@ export const SessionRowCells = ({
                                     label={vm.isPinned ? "Unpin session" : "Pin session"}
                                     onClick={() => onTogglePin(vm.id)}
                                 >
-                                    {/* Pin and unpin as ONE control: a pinned row keeps the same
-                                        pin, filled. A separate unpin glyph made the pinned state
-                                        look like a fault to undo. */}
+                                    {/* One control: a pinned row keeps the same pin, filled. */}
                                     <PushPin size={14} weight={vm.isPinned ? "fill" : "regular"} />
                                 </RowActionButton>
                                 <RowActionButton label="Rename session" onClick={rename.start}>

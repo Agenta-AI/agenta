@@ -64,8 +64,13 @@ export const SessionListScreen = ({
         persist: ["group"],
     })
 
-    // Recomputed only when the facet changes or the hour rolls over — `activityFloorIso` floors
-    // to the hour, so this cannot mint a fresh query key on every render.
+    // Computed once per mount and per facet change, never per render — a floor read from
+    // `Date.now()` on every render would mint a fresh query key each time and refetch forever.
+    //
+    // So it does NOT follow the clock: a tab left open all day keeps the floor it started with,
+    // and "Last 7 days" quietly becomes seven days and a bit. That is a boundary drifting, not a
+    // wrong answer, and a timer to correct it would cost a refetch of the whole list to move a
+    // line nobody is looking at.
     const activityFloor = useMemo(() => activityFloorIso(view.activity), [view.activity])
 
     // The SAME arguments `SessionListTable` passes, so both hooks resolve to one query rather

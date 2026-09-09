@@ -54,6 +54,10 @@ export function pinnedSessionListArgs(
         // The pin set is already the exact id list, so neither narrows anything worth keeping.
         activityFloor: undefined,
         archivedOnly: false,
+        // And archived pins are still pins. You cannot pin an archived session (the shared menu
+        // drops the verb), but you can archive a pinned one — and with the surface's default
+        // `includeArchived: false` the row then vanished from the group instead of staying put.
+        includeArchived: true,
         expansions: Array.from(new Set<SessionExpansion>([...shared.expansions, "trigger"])),
         sessionIds: pinnedIds,
         enabled: pinnedIds.length > 0,
