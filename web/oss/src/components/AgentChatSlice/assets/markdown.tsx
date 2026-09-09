@@ -1,6 +1,6 @@
 import {memo} from "react"
 
-import ChatMarkdown from "@agenta/chat/markdown"
+import ChatMarkdown, {MD_REHYPE_PLUGINS} from "@agenta/chat/markdown"
 import {useDriveSessionId} from "@agenta/entity-ui/drive"
 import {useAtomValue} from "jotai"
 
@@ -101,6 +101,9 @@ export const MD_CLASS =
     // The `display:block` fix for Shiki line spans lives in ChatMarkdown's structural class.
     // Trim the outer edges so the bubble padding isn't doubled by leading/trailing margins.
     "[&>:first-child]:!mt-0 [&>:last-child]:!mb-0 [&>:last-child>*]:!mb-0"
+
+/** Re-exported for the link-gate test, which drives the plugin list this surface renders with. */
+export {MD_REHYPE_PLUGINS}
 
 /** Resolve file mentions against THIS conversation's session, from the ambient drive context. */
 const useChatFileLink = () => {

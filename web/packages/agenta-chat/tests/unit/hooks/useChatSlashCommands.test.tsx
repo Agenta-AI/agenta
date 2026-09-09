@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import {act} from "react"
 
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
@@ -31,16 +32,9 @@ vi.mock("@agenta/entities/workflow", async (original) => {
         agentModelCandidatesAtomFamily: () => candidates,
     }
 })
-vi.mock("@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext", () => ({
-    useOptionalOnboardingContext: () => null,
-}))
-vi.mock("../state/scope", () => ({useChatScopeKey: () => "test"}))
-vi.mock("../state/sessions", () => {
-    const add = atom(null, () => undefined)
-    return {addSessionAtomFamily: () => add}
-})
-
-import {useChatSlashCommands} from "./useChatSlashCommands"
+// The host's own concerns (onboarding, scope, `/new`) reach the hook as props now, so nothing
+// app-shaped needs stubbing here.
+import {useChatSlashCommands} from "../../../src/hooks/useChatSlashCommands"
 
 it("pulses Permissions, not Advanced, and preserves explicit restrictions", async () => {
     Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})
