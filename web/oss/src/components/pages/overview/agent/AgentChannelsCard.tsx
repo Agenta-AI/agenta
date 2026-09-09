@@ -7,7 +7,7 @@ import {
 } from "@agenta/settings-ui"
 import {Drawer} from "antd"
 
-import {queryChannelConnections} from "@/oss/state/channels/api"
+import {createTelegramHostedBindLink, queryChannelConnections} from "@/oss/state/channels/api"
 
 /**
  * The agent page's Channels section: the designed connect screen, wired to the real
@@ -83,7 +83,18 @@ const AgentChannelsCard = ({appId}: {appId: string}) => {
         [],
     )
 
-    return <ChannelsPage initialConnections={connections} renderPanel={renderPanel} />
+    const onConnectHostedTelegram = useCallback(
+        () => createTelegramHostedBindLink({application: {id: appId}}),
+        [appId],
+    )
+
+    return (
+        <ChannelsPage
+            initialConnections={connections}
+            renderPanel={renderPanel}
+            onConnectHostedTelegram={onConnectHostedTelegram}
+        />
+    )
 }
 
 export default AgentChannelsCard

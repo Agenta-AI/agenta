@@ -25,6 +25,9 @@ export interface ChannelConnectFlowProps {
     /** Set once to preview the "install failed" state (placeholder wiring only). */
     forceInstallError?: boolean
     onConnected: (connection: ChannelConnection) => void
+    /** Real action: mint the hosted-Telegram bind link (and ensure the connection).
+     * When omitted, the flow falls back to the first-pass placeholder. */
+    onConnectHostedTelegram?: () => Promise<{url: string} | undefined>
 }
 
 type SlackCustomStep = "choose" | "guide" | "creds"
@@ -64,6 +67,7 @@ export const ChannelConnectFlow = ({
     workspaceName = "your workspace",
     forceInstallError = false,
     onConnected,
+    onConnectHostedTelegram,
 }: ChannelConnectFlowProps) => {
     const isSlack = platform === "slack"
     const name = platformLabel(platform)
@@ -85,10 +89,29 @@ export const ChannelConnectFlow = ({
     // Telegram
     const [tgStep, setTgStep] = useState<TelegramHostedStep>("qr")
     const [tgToken, setTgToken] = useState("")
+    const [tgUrl, setTgUrl] = useState("")
     const [allowed, setAllowed] = useState("")
 
     const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
     useEffect(() => () => clearTimeout(timer.current), [])
+
+    // Real hosted-Telegram connect: when the panel opens for Telegram hosted, mint
+    // the one-time bind link (which also ensures the project's hosted connection).
+    // The deep link below opens it. Falls back to the placeholder when no action.
+    useEffect(() => {
+        if (isSlack || mode !== "hosted" || tgUrl || !onConnectHostedTelegram) return
+        let alive = true
+        onConnectHostedTelegram()
+            .then((r) => {
+                if (alive && r?.url) setTgUrl(r.url)
+            })
+            .catch(() => {
+                /* leave tgUrl empty; the button shows a preparing state */
+            })
+        return () => {
+            alive = false
+        }
+    }, [isSlack, mode, tgUrl, onConnectHostedTelegram])
     const later = (fn: () => void, ms: number) => {
         clearTimeout(timer.current)
         timer.current = setTimeout(fn, ms)
@@ -504,14 +527,35 @@ export const ChannelConnectFlow = ({
                                     </p>
                                 </div>
                             </div>
-                            <Button
-                                variant="default"
-                                className="w-full"
-                                onClick={() => setTgStep("waiting")}
-                            >
-                                <ArrowSquareOut size={13} />
-                                Continue in Telegram
-                            </Button>
+                            {onConnectHostedTelegram ? (
+                                tgUrl ? (
+                                    <Button variant="default" className="w-full" asChild>
+                                        <a
+                                            href={tgUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            onClick={() => finish("hosted")}
+                                        >
+                                            <ArrowSquareOut size={13} />
+                                            Continue in Telegram
+                                        </a>
+                                    </Button>
+                                ) : (
+                                    <Button variant="default" className="w-full" disabled>
+                                        <Spinner size="small" />
+                                        Preparing your link…
+                                    </Button>
+                                )
+                            ) : (
+                                <Button
+                                    variant="default"
+                                    className="w-full"
+                                    onClick={() => setTgStep("waiting")}
+                                >
+                                    <ArrowSquareOut size={13} />
+                                    Continue in Telegram
+                                </Button>
+                            )}
                         </>
                     ) : null}
 

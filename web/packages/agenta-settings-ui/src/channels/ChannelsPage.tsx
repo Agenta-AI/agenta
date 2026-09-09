@@ -37,6 +37,8 @@ export interface ChannelsPageProps {
     forceInstallError?: boolean
     /** Host-provided sliding container: antd/@agenta drawer on desktop, a Sheet on /m. */
     renderPanel: (props: ChannelsPanelRenderProps) => React.ReactNode
+    /** Real action: mint the hosted-Telegram bind link. Omit for the placeholder flow. */
+    onConnectHostedTelegram?: () => Promise<{url: string} | undefined>
 }
 
 const PLATFORMS: ChannelPlatform[] = ["slack", "telegram"]
@@ -47,6 +49,7 @@ export const ChannelsPage = ({
     initialConnections = EMPTY_CONNECTIONS,
     forceInstallError = false,
     renderPanel,
+    onConnectHostedTelegram,
 }: ChannelsPageProps) => {
     const [connections, setConnections] = useState<ChannelConnections>(initialConnections)
     const [activePlatform, setActivePlatform] = useState<ChannelPlatform | null>(null)
@@ -149,6 +152,7 @@ export const ChannelsPage = ({
                               workspaceName={workspaceName}
                               forceInstallError={forceInstallError}
                               onConnected={(next) => setConnection(activePlatform, next)}
+                              onConnectHostedTelegram={onConnectHostedTelegram}
                           />
                       ),
                   })
