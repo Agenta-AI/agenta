@@ -75,10 +75,10 @@ export const HomeFocus = ({
             <div className="mx-auto flex w-full max-w-[620px] flex-col gap-[26px]">
                 <HomeGreeting title={title} />
 
-                <div className="relative box-border rounded-[13px] p-px">
+                <div className="relative box-border rounded-[9px] p-px">
                     {creating ? (
                         // A conic sweep behind the composer's own border, clipped to its radius.
-                        <div className="animate-composer-ring-in pointer-events-none absolute inset-0 overflow-hidden rounded-[13px]">
+                        <div className="animate-composer-ring-in pointer-events-none absolute inset-0 overflow-hidden rounded-[9px]">
                             <div
                                 className="animate-composer-ring absolute left-1/2 top-1/2 w-[170%] pb-[170%]"
                                 style={{
@@ -88,7 +88,16 @@ export const HomeFocus = ({
                             />
                         </div>
                     ) : null}
-                    <div className="relative flex flex-col">
+                    {/* Opaque, so the sweep behind it shows only as the 1px rim the padding
+                        leaves — a composer you can read the animation through is a distraction,
+                        not a border. */}
+                    <div
+                        className={`relative flex flex-col ${
+                            creating
+                                ? "overflow-hidden rounded-lg bg-[var(--ag-colorBgContainer)]"
+                                : ""
+                        }`}
+                    >
                         <HomeTaskComposer
                             agents={agents.map((agent) => ({id: agent.id, name: agent.name}))}
                             attachments={attachments}

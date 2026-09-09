@@ -184,12 +184,12 @@ export const HomeEntityList = ({
                             <Row
                                 key={template.key}
                                 tile={
+                                    // Solid fill, white monogram — the template palette is the
+                                    // white-safe deep steps, so the colour is only legible AS a
+                                    // fill. Same tile the strip cards and the New agent menu draw.
                                     <span
-                                        className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] text-[13px] font-medium"
-                                        style={{
-                                            background: `color-mix(in oklab, ${template.color} 14%, transparent)`,
-                                            color: template.color,
-                                        }}
+                                        className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] text-[13px] font-medium text-white"
+                                        style={{background: template.color}}
                                     >
                                         {template.initials}
                                     </span>
