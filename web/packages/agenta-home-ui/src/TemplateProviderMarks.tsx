@@ -4,10 +4,13 @@ import {LogoMarks} from "@agenta/ui/components/presentational"
 /** Brand-logo marks for a template's integrations. Resolution only: the run is {@link LogoMarks}. */
 export const TemplateProviderMarks = ({
     providers,
+    size = 16,
     stacked,
 }: {
     providers: string[]
-    /** Overlap the run — for a list row's end, where a spaced run would crowd the description. */
+    /** 16 is the template card's; a dense two-line row wants less weight at its end. */
+    size?: number
+    /** Overlap the run — for a row end, where a spaced run costs too much width. */
     stacked?: boolean
 }) => (
     <LogoMarks
@@ -15,7 +18,7 @@ export const TemplateProviderMarks = ({
             const provider = PROVIDERS[slug]
             return provider ? [{key: slug, name: provider.label, logo: provider.logo}] : []
         })}
-        size={16}
+        size={size}
         stacked={stacked}
     />
 )

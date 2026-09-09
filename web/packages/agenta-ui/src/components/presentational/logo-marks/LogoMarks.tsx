@@ -18,12 +18,22 @@ export interface LogoMarksProps {
     max?: number
     /** Rendered in place of an empty run. Omit to render nothing at all. */
     empty?: React.ReactNode
-    /** Overlap the marks into a stack, each ringed in the page background. For a dense row end. */
+    /** Overlap the marks into a run. For a dense row end, where a spaced run is too wide. */
     stacked?: boolean
 }
 
 /** An item with no logo still has to occupy its slot, or the run reflows as logos load. */
-function Mark({item, size, stacked}: {item: LogoMark; size: number; stacked?: boolean}) {
+function Mark({
+    item,
+    size,
+    stacked,
+    first,
+}: {
+    item: LogoMark
+    size: number
+    stacked?: boolean
+    first?: boolean
+}) {
     const label = item.name || item.key
     return (
         <SimpleTooltip title={label}>
@@ -32,8 +42,17 @@ function Mark({item, size, stacked}: {item: LogoMark; size: number; stacked?: bo
             <span
                 role="listitem"
                 aria-label={label}
-                className={`inline-flex shrink-0 ${stacked ? "-ml-1 rounded-[3px] ring-2 ring-[var(--ag-colorBgContainer)] first:ml-0" : ""}`}
-                style={{width: size, height: size}}
+                // Overlap only, no ring behind it. A ring can be one colour, and these sit on a
+                // transparent row over the page — and over the hover fill on top of that — so in
+                // `colorBgContainer` it was a bright halo biting into its neighbour in both themes.
+                className="inline-flex shrink-0"
+                // The tuck scales with the mark: a fixed 4px was a quarter of a 13px logo and left
+                // the run reading as one smudge, while barely showing on a large one.
+                style={{
+                    width: size,
+                    height: size,
+                    ...(stacked && !first ? {marginLeft: -Math.round(size * 0.18)} : {}),
+                }}
             >
                 {item.logo ? (
                     // Plain img, not next/image: remote brand CDNs would need a host list per app.
@@ -71,8 +90,8 @@ export const LogoMarks = ({items, size = 16, max, empty, label, stacked}: LogoMa
             aria-label={label}
             className={`flex items-center ${stacked ? "gap-0" : "gap-1.5"}`}
         >
-            {shown.map((item) => (
-                <Mark key={item.key} item={item} size={size} stacked={stacked} />
+            {shown.map((item, i) => (
+                <Mark key={item.key} item={item} size={size} stacked={stacked} first={i === 0} />
             ))}
             {overflow.length > 0 ? (
                 <SimpleTooltip title={overflowNames}>

@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
 import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {AgentChip} from "@agenta/entity-ui/agent"
-import {ArrowRightIcon, ListBulletsIcon, PlusIcon} from "@phosphor-icons/react"
+import {ArrowRightIcon, CheckIcon, ListBulletsIcon, PlusIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
 import {TemplateProviderMarks} from "./TemplateProviderMarks"
@@ -78,6 +78,11 @@ const Row = ({
             </span>
         </span>
         {marks ? <span className="flex shrink-0 items-center pl-2">{marks}</span> : null}
+        {/* The same check the agent picker marks its bound row with — a tinted row alone reads as
+            hover on the one you happen to be pointing at. */}
+        {selected ? (
+            <CheckIcon aria-hidden size={14} className="ml-2 shrink-0 text-foreground" />
+        ) : null}
     </button>
 )
 
@@ -146,11 +151,14 @@ export const HomeEntityList = ({
     const agentsBody = errorSlot ?? (loading ? loadingSlot : agents.length === 0 ? emptySlot : null)
 
     return (
+        // `-mt-1` closes 4px of the column's 26px gap: the tabs read as the composer's own
+        // footer rail, not as the next section down.
+        //
         // The list bleeds 8px past the column on each side and hands it straight back as row
         // padding: the hover fill needs room around the tile, and the tile cannot move — it is
         // what the tab above it lines up with. The bleed is on this wrapper, not on the rows, so
         // nothing overflows the scroller and no horizontal scrollbar appears.
-        <div className="-mx-2 flex flex-col gap-2">
+        <div className="-mx-2 -mt-1 flex flex-col gap-2">
             {/* `colorSplit`, the divider step — the active tab's underline is the mark that
                 matters here, and a rule at full border weight competed with it. */}
             {/* `mx-2` gives back the wrapper's bleed: the rows may run wide, but a rule that did
@@ -228,6 +236,7 @@ export const HomeEntityList = ({
                                 marks={
                                     <TemplateProviderMarks
                                         stacked
+                                        size={13}
                                         providers={templateProviderSlugs(template)}
                                     />
                                 }
