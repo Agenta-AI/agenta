@@ -12,6 +12,12 @@ export {
     type AgentIconChrome,
 } from "./agentIcon"
 export {AgentCard, agentAvatar, type AgentCardData, type AgentCardProps} from "./AgentCard"
+export {
+    AgentPicker,
+    type AgentPickerProps,
+    type AgentPickerDensity,
+    type AgentPickerTriggerVariant,
+} from "./AgentPicker"
 export {NextTriggersSection, type NextTriggersSectionProps} from "./NextTriggersSection"
 export {AgentConfigSummaryCard, type AgentConfigSummaryCardProps} from "./AgentConfigSummaryCard"
 export {agentConfigSummary, prettifyKind, type AgentConfigSummary} from "./agentConfigSummary"
