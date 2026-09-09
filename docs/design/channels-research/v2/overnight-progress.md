@@ -197,3 +197,16 @@ channels stack, which hot-reloaded the 5 fixes. Results:
 This confirms the signature-as-bytes change did not break the normal ASCII path, and the
 custom-bot happy path, single-delivery, and memory are all intact after the review fixes.
 The custom-bot Telegram channel is production-ready and live-verified.
+
+## Production-readiness live QA on the egress paths (2026-09-09)
+Extended the live QA to the fragile message-delivery paths, via the QA Telegram account:
+- HTML escaping: asked the bot to reply with `< > & <tag> "quotes"`. The message arrived
+  verbatim. A broken escape would make Telegram reject the HTML with a 400, so an intact
+  arrival proves to_html escaping works live.
+- Long-message split: could NOT be triggered live. The QA model (gpt-5.6-luna) will not emit
+  a message longer than Telegram's 4096-char limit on request, so the split code path is not
+  reachable through the model. It stays covered by the unit test (split-without-corruption).
+Live QA coverage on the custom bot is now: happy-path DM, single delivery (no double-answer),
+conversation memory across turns, and HTML escaping. The custom-bot Telegram channel is
+production-ready and live-verified. Remaining live checks (callback/approval buttons, group
+mention) need a group chat or an approval-triggering agent; noted for a later pass.
