@@ -187,3 +187,13 @@ belongs in a separate change to the worker, not this PR.
 The 6 doc findings are on planning docs; the security notes are already addressed by the
 revised lane-3 plan (webhook secret before write, opaque token, sender-match). All replied
 and resolved. Only the deferred outbox thread stays open.
+
+## Live QA regression after the fixes (2026-09-09)
+Drove the QA Telegram account (Telethon, ~/.agenta-telegram-qa.env) against the live
+channels stack, which hot-reloaded the 5 fixes. Results:
+- Direct message: the bot replied "PONG" in ~9s. Exactly ONE reply (no double-answer).
+- Conversation memory: a follow-up "what word did I ask you to reply with a moment ago?"
+  got "PONG", so thread/session continuity still works across turns.
+This confirms the signature-as-bytes change did not break the normal ASCII path, and the
+custom-bot happy path, single-delivery, and memory are all intact after the review fixes.
+The custom-bot Telegram channel is production-ready and live-verified.
