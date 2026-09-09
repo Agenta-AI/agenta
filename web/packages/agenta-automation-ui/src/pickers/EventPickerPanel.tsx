@@ -96,7 +96,10 @@ export const EventPickerPanel = ({
         () => connections.find((candidate) => candidate.id === connectionId),
         [connections, connectionId],
     )
-    const {event} = useTriggerEvent(connection?.integration_key ?? "", eventKey)
+    const {event, isLoading: eventLoading} = useTriggerEvent(
+        connection?.integration_key ?? "",
+        eventKey,
+    )
     const schema = (event?.trigger_config ?? null) as Record<string, unknown> | null
 
     const activeApp = useMemo<ConnectedApp | undefined>(() => {
@@ -142,7 +145,9 @@ export const EventPickerPanel = ({
     const showFilters = !browsing && !query
 
     const missing = useMemo(() => requiredGaps(schema, values), [schema, values])
-    const ready = Boolean(connectionId && eventKey) && missing.length === 0
+    // The schema is what says which filters are required, so Done stays shut until it lands:
+    // in flight, `schema` is null, `missing` is empty, and an unfilled event would look ready.
+    const ready = Boolean(connectionId && eventKey) && !eventLoading && missing.length === 0
 
     const onPick = useCallback((pickedConnectionId: string, pickedEventKey: string) => {
         setConnectionId(pickedConnectionId)

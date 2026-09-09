@@ -12,7 +12,7 @@ import {cn} from "./lib/utils"
 import {
     DEFAULT_RUN_LIST_VIEW,
     deriveRunList,
-    isDefaultRunListView,
+    isRunListFiltered,
     type RunListView,
 } from "./runListView"
 import {useAutomationRuns} from "./useAutomationRuns"
@@ -52,7 +52,7 @@ export const AutomationRunHistoryView = ({
         persist: ["group"],
     })
     const runs = useMemo(() => deriveRunList(allRuns, view), [allRuns, view])
-    const filtered = !isDefaultRunListView(view)
+    const filtered = isRunListFiltered(view)
 
     const [selectedId, setSelectedId] = useState<string | null>(null)
     // The newest run answers "did it work?", which is the question that opened this, so the view
@@ -116,6 +116,7 @@ export const AutomationRunHistoryView = ({
                         </p>
                         <AutomationRunList
                             runs={runs}
+                            grouping={view.group}
                             filtered={filtered}
                             selectedId={selected?.id ?? null}
                             isLoading={isLoading}

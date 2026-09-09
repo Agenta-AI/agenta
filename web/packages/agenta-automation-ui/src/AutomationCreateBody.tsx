@@ -51,11 +51,9 @@ export const AutomationCreateBody = ({
                         size="sm"
                         checked={draft.isActive}
                         onCheckedChange={state.setActive}
-                        aria-label={
-                            draft.isActive
-                                ? "Create this automation switched off"
-                                : "Create this automation switched on"
-                        }
+                        // Names the setting, not the pending action: `role="switch"` already
+                        // announces the state, so a label that inverts reads "…switched off, on".
+                        aria-label="Create this automation switched on"
                     />
                     <span className="text-[14px] text-foreground">
                         {draft.isActive ? "On" : "Off"}

@@ -80,7 +80,7 @@ export const AutomationTitle = ({
                     title="Rename"
                     // No focus ring: the shared FOCUS_RING draws a hard near-black outline and
                     // the softer ring still glowed around the title. Hover carries the affordance.
-                    className="group -ml-2 flex min-w-0 items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground outline-none hover:bg-accent"
+                    className="group -ml-2 flex min-w-0 items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground outline-none hover:bg-accent focus-visible:bg-accent"
                 >
                     <h1
                         className={`m-0 min-w-0 truncate text-[18px] font-semibold leading-[1.25] tracking-[-0.02em] ${

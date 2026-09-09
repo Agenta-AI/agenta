@@ -164,6 +164,11 @@ export const FilterMenuPanel = ({
         rowRefs.current.get(key)?.focus()
     }
 
+    /** A frame late: the flyout is still unmounting, and a focus call inside that is lost. */
+    const restoreFocus = (key: string) => {
+        requestAnimationFrame(() => focusRow(key))
+    }
+
     // Radix focuses the content wrapper on open, which beats an input's own `autoFocus` — the
     // popover suppresses that (`onOpenAutoFocus`) and the entry point is chosen here instead.
     // A frame late, because on the opening frame the content is still being positioned and a
@@ -297,7 +302,12 @@ export const FilterMenuPanel = ({
                                 onActivate={() => setDrillKey(entry.section.key)}
                                 onHoverOpen={() => openByHover(entry.section.key)}
                                 onHoverLeave={scheduleClose}
-                                onOpenChange={(next) =>
+                                onOpenChange={(next) => {
+                                    // A flyout the keyboard opened took focus into itself, and
+                                    // `onCloseAutoFocus` is prevented, so closing it would drop
+                                    // focus on <body>. The row it came from gets it back.
+                                    if (!next && openedByKeyboard && openKey === entry.section.key)
+                                        restoreFocus(entry.section.key)
                                     setOpenKey((current) => {
                                         if (next) return entry.section.key
                                         // The row being closed is not always the row that just
@@ -306,7 +316,7 @@ export const FilterMenuPanel = ({
                                         // Honouring that late close would wipe the new key.
                                         return current === entry.section.key ? null : current
                                     })
-                                }
+                                }}
                                 flyoutSide={flyoutSide}
                                 flyoutAlign={flyoutAlign}
                                 flyoutSideOffset={flyoutSideOffset}
