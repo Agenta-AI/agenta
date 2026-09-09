@@ -116,6 +116,9 @@ export interface RichChatInputProps {
     busyActions?: {label: string; onSubmit: (markdown: string) => void}[]
     /** Min-height class for the editor area (default `min-h-[72px]`). */
     minHeightClassName?: string
+    /** How far the editor may grow before it scrolls itself. A surface with a page behind it
+     * wants a lower ceiling than a chat dock, which has nothing under it to push. */
+    maxHeightClassName?: string
     /** Visual density: `compact` (default, chat) or `comfortable` (hero-scale surfaces) —
      * pads the editor/footer without forking the component. */
     size?: "compact" | "comfortable"
@@ -185,6 +188,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             onStop,
             busyActions,
             minHeightClassName = "min-h-[72px]",
+            maxHeightClassName = "max-h-40",
             size = "compact",
             textSizeClassName = "text-xs",
             hideShortcutHints = false,
@@ -337,7 +341,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             aria-label="Chat message"
                             aria-placeholder={placeholder}
                             className={clsx(
-                                "max-h-40 overflow-y-auto break-words leading-relaxed text-[var(--ag-colorText)] outline-none",
+                                "overflow-y-auto break-words leading-relaxed text-[var(--ag-colorText)] outline-none",
+                                maxHeightClassName,
                                 comfortable ? "px-5 py-4" : "px-3 py-2.5",
                                 textSizeClassName,
                                 minHeightClassName,

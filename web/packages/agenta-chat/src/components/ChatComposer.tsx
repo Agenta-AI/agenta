@@ -42,6 +42,8 @@ export interface ChatComposerProps {
     dictationAnalyserRef?: RefObject<AnalyserNode | null>
     /** Width column for the input (desktop passes its chat column; mobile's rail is outside). */
     className?: string
+    /** How far the editor may grow before it scrolls itself; see RichChatInput. */
+    maxHeightClassName?: string
     disabled?: boolean
     hideSendButton?: boolean
     /**
@@ -93,6 +95,7 @@ export const ChatComposer = ({
     dictating,
     dictationAnalyserRef,
     className,
+    maxHeightClassName,
     disabled,
     hideSendButton,
     hideShortcutHints,
@@ -185,6 +188,7 @@ export const ChatComposer = ({
                     ) : null
                 }
                 className={className}
+                maxHeightClassName={maxHeightClassName}
                 onSubmit={onSubmit}
                 disabled={disabled}
                 hideSendButton={hideSendButton}

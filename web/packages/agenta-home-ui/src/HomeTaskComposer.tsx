@@ -223,6 +223,9 @@ export const HomeTaskComposer = ({
                         attachments={attachments}
                         placeholder={creating ? CREATE_PLACEHOLDER : placeholder}
                         disabled={!creating && !effectiveAgentId}
+                        // Home has a page under the composer — the list it grows over. A chat dock
+                        // has nothing below it to push, so it keeps the taller default.
+                        maxHeightClassName="max-h-28"
                         extraPrefix={
                             <>
                                 <VoiceInputButton
