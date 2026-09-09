@@ -147,7 +147,10 @@ export const HomeEntityList = ({
         if (scrollerRef.current) scrollerRef.current.scrollTop = 0
     }
 
-    const showAgents = tab === "agents"
+    // With nothing in it, "Your agents" is a tab that can only disappoint. It comes back the
+    // moment there is one, and the source falls to templates until then.
+    const hasAgentsTab = agents.length > 0
+    const showAgents = hasAgentsTab && tab === "agents"
     const agentsBody = errorSlot ?? (loading ? loadingSlot : agents.length === 0 ? emptySlot : null)
 
     return (
@@ -164,13 +167,15 @@ export const HomeEntityList = ({
             {/* `mx-2` gives back the wrapper's bleed: the rows may run wide, but a rule that did
                 would sit proud of the composer above it. */}
             <div className="mb-1 mx-2 flex items-center gap-5 border-0 border-b border-solid border-b-[var(--ag-colorSplit)] px-1.5">
-                <button
-                    type="button"
-                    onClick={() => switchTab("agents")}
-                    className={`${TAB_BASE} ${showAgents ? TAB_ON : TAB_OFF}`}
-                >
-                    Your agents
-                </button>
+                {hasAgentsTab ? (
+                    <button
+                        type="button"
+                        onClick={() => switchTab("agents")}
+                        className={`${TAB_BASE} ${showAgents ? TAB_ON : TAB_OFF}`}
+                    >
+                        Your agents
+                    </button>
+                ) : null}
                 <button
                     type="button"
                     onClick={() => switchTab("templates")}

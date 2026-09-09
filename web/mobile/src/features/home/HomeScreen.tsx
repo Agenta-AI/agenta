@@ -9,19 +9,16 @@ import {
 import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue} from "jotai"
-import {AnimatePresence, motion} from "motion/react"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {useMotionPresets} from "@/lib/motion/presets"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
-import {FirstRunScreen} from "../onboarding/FirstRunScreen"
-import {resolveHomeSurface} from "../onboarding/homeSurface"
 
+import {resolveHomeSurface} from "./homeSurface"
 import {HomeSkeleton} from "./states/HomeSkeleton"
 import {HomeListError, HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
 import {useHomeHandoff} from "./useHomeHandoff"
@@ -34,8 +31,9 @@ import {useHomeHandoff} from "./useHomeHandoff"
  * under it (sessions, automation runs, next triggers, usage) lives on the pages that own those
  * things: as summaries here they made Home a table of contents rather than a place to start work.
  *
- * A project with no agents gets [[FirstRunScreen]] in this same frame instead. Home has nothing to
- * offer that user: its composer runs a task with an agent that already exists. See `homeSurface`.
+ * EVERY project gets this page, empty or not. With no agents it opens on the templates tab with
+ * the composer already describing one, which is the job the first-run hero used to do on a page
+ * of its own. `homeSurface` only decides whether we know enough to draw it yet.
  */
 export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; projectId: string}) => {
     useBindProjectContext(projectId)
@@ -43,7 +41,6 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     const base = `/w/${workspaceId}/p/${projectId}`
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
-    const presets = useMotionPresets()
     const handoff = useHomeHandoff(base)
     const surface = resolveHomeSurface({
         agentCount: agents.length,
@@ -73,28 +70,6 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     // column is the whole page, so it hangs rather than starting at the top. The skeleton takes
     // the SAME frame, or the hold sits somewhere the page does not.
     const frame = `${pageContentWidthClass} px-4 pb-12 pt-10 lg:px-16 lg:pb-16 lg:pt-[120px]`
-
-    // A first run swaps only the BODY: the shell, its header and the nav drawer stay put, so a
-    // user with no agents can still reach Settings — which is where they land if the key gate
-    // sends them there. The two pre-Home states crossfade into each other rather than popping;
-    // Home itself is left unanimated, exactly as it has always rendered.
-    const firstRunBody = (
-        <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-                key={surface}
-                variants={presets.crossfade}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-            >
-                {surface === "loading" ? (
-                    <HomeSkeleton className={frame} />
-                ) : (
-                    <FirstRunScreen base={base} />
-                )}
-            </motion.div>
-        </AnimatePresence>
-    )
 
     const homeBody = (
         <HomeFocus
@@ -131,7 +106,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                         </div>
                     }
                 >
-                    {surface === "home" ? homeBody : firstRunBody}
+                    {surface === "home" ? homeBody : <HomeSkeleton className={frame} />}
                 </ScreenScaffold>
             </AppShell>
         </>

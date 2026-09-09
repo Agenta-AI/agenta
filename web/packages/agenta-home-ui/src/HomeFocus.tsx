@@ -68,8 +68,14 @@ export const HomeFocus = ({
     emptySlot,
     errorSlot,
 }: HomeFocusProps) => {
-    const [tab, setTab] = useState<HomeListTab>("agents")
-    const [binding, setBinding] = useState<Binding>({kind: "agent", id: null})
+    // An empty project opens where the only thing it can do is: the templates, with the composer
+    // already describing an agent. Read once at mount, which is when the host knows the answer —
+    // Home does not render until the list has resolved.
+    const startsEmpty = agents.length === 0
+    const [tab, setTab] = useState<HomeListTab>(startsEmpty ? "templates" : "agents")
+    const [binding, setBinding] = useState<Binding>(
+        startsEmpty ? {kind: "new"} : {kind: "agent", id: null},
+    )
     const inputRef = useRef<RichChatInputHandle | null>(null)
 
     // Resolved ONCE, here, because the composer's dock and the list's check are the same fact. A
