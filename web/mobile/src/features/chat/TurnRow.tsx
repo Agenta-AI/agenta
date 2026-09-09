@@ -65,7 +65,7 @@ const ReasoningFold = ({
                 type="button"
                 onClick={() => setManual(!open)}
                 aria-expanded={open}
-                className="text-colorTextSecondary -ml-1 flex w-fit items-center gap-1 rounded px-1 py-0.5 text-xs italic"
+                className="text-colorTextSecondary -ml-1 flex w-fit cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-xs italic"
             >
                 <ChevronRight
                     className={`size-3 transition-transform ${open ? "rotate-90" : ""}`}
@@ -113,7 +113,7 @@ const RunErrorCallout = ({text, onRetry}: {text: string; onRetry?: () => void}) 
                     <button
                         type="button"
                         onClick={() => setExpanded((v) => !v)}
-                        className="text-colorError -ml-1 rounded px-1 py-0.5 text-[11px] font-medium"
+                        className="text-colorError -ml-1 cursor-pointer rounded px-1 py-0.5 text-[11px] font-medium"
                     >
                         {expanded ? "Show less" : "Show more"}
                     </button>

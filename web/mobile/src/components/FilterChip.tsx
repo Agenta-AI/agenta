@@ -32,7 +32,7 @@ export const FilterChip = ({
         className={cn(
             // 32px tall so it reads as a chip, not a button; `after` extends the touch target to
             // the 44px minimum without the visual bulk that gave it.
-            "relative inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium",
+            "relative inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium",
             "after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']",
             active
                 ? "border-primary bg-primary text-primary-foreground"
