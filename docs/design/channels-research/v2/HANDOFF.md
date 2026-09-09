@@ -84,3 +84,45 @@ Frontend — first pass, on channels/telegram-ui, compiles on the stack:
   `git worktree add <path> channels/telegram-ui`, then `chmod -R a+rwX web/` and
   `docker restart` the web and api containers so their source mounts re-resolve. The env file
   and the local docker override are gitignored; rebuild them from a sibling stack (recipe in STATUS.md).
+
+## The full PR stack (all channels PRs, bottom to top)
+This is one linear stack. Each PR's base is the PR below it. Slack, the bridge, and
+the Agenta channel are in the foundational PR (#6644); Telegram and the UI are on top.
+- #6644 feat/channels -> release/v0.115.4 — Channels foundation: Slack, bridge, Agenta
+  channel (takeover of the original #6051). This is where Slack lives.
+- #6646 channels/fix-deploy-blockers -> feat/channels — first-deploy fixes (slug, handshake, refs).
+- #6647 channels/fix-conversation-semantics -> fix-deploy-blockers — what opens a turn; DM = one conversation.
+- #6649 channels/fix-edit-and-delivery -> fix-conversation-semantics — edit semantics; failed-post write.
+- #6650 channels/fix-approvals-seam -> fix-edit-and-delivery — approval answer resumes the parked turn.
+- #6651 channels/feature-flag -> fix-approvals-seam — feature flag (env var + UI switch).
+- #6652 channels/docs-and-decisions -> feature-flag — takeover decision record, live QA, findings.
+- #6653 channels/fix-approval-card-on-park -> docs-and-decisions — render the approval card on a park.
+- #6679 channels/telegram -> fix-approval-card-on-park — custom Telegram bot (my work).
+- #6724 channels/telegram-hosted -> telegram — hosted Telegram bot (my work).
+- channels/telegram-ui -> telegram-hosted — the agent-page connect screen (my work, no PR yet).
+All PRs are ready for review, NOT to be merged yet. Merge order is bottom-up, into
+release/v0.115.4 (never main). Check each PR's threads + Codex/CodeRabbit before merging.
+
+## Slack status
+Slack is JP's foundational work in #6644 and the fix-* PRs above, reviewed and live-QA'd
+during that stack (see takeover-2026-09-08.md and review-*.md). What exists:
+- Adapters: api/oss/src/core/channels/adapters/slack/ (hosted OAuth install + custom
+  "own app"); the bridge adapter for Slack-over-bridge.
+- Settings UI: web/oss/src/components/pages/settings/Channels/components/Slack*.tsx
+  (SlackHostedAppSection, SlackOwnAppSection) — the OLD technical screen, which stays.
+- The hosted Slack app uses SLACK_CLIENT_ID/SECRET/SIGNING_SECRET (env.channels.slack).
+Remaining for Slack in THIS release: wire Slack connect into the NEW agent-page design
+(hosted install is an OAuth redirect; mirror the Telegram card's states), and a fresh
+live QA of Slack on this stack (not re-done during the Telegram/UI work).
+
+## History and work-package docs (read for the full story)
+JP tracked the whole build as work packages and waves. For any earlier context:
+- docs/design/channels-research/v2/plan.md — the work-package map (WP0..WP19).
+- docs/design/channels-research/v2/waves.md + workstreams/ — waves, exit conditions,
+  per-package specs and task lists, file ownership.
+- docs/design/channels-research/v2/takeover-2026-09-08.md — the takeover decision record.
+- docs/design/channels-research/v2/decisions.md, review-findings.md,
+  review-telegram-quality.md, design-findings.md — decisions and review history.
+- docs/design/channels-research/v2/overnight-progress.md — the dated chronology of the
+  Telegram + hosted + UI work (my sessions).
+- STATUS.md — the live map and current task detail.
