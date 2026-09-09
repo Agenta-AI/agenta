@@ -1,0 +1,79 @@
+import {useCallback, useState} from "react"
+
+import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
+import {markSessionFresh} from "@agenta/chat/state"
+import type {AgentStarterTemplate} from "@agenta/entities/workflow"
+import {useSetAtom} from "jotai"
+import {useRouter} from "next/router"
+
+import {newId} from "@/lib/ids"
+
+import {useNewAgentAction} from "../agents/useNewAgentAction"
+
+import {stashPendingTaskAtom, takePendingTaskAtom} from "./pendingTask"
+
+/**
+ * Home's verbs, bound to mobile's routing: mint the session id here, stash the task, and navigate
+ * to the chat route that owns the conversation engine — the first send is what actually creates
+ * the session server-side.
+ *
+ * The id is minted once per mount rather than per send so staged attachments have a stable scope
+ * to upload against before the session exists. Creating an agent reuses that same id, so a file
+ * staged before "+ New" was pressed still rides along.
+ */
+export const useHomeHandoff = (base: string) => {
+    const router = useRouter()
+    const stash = useSetAtom(stashPendingTaskAtom)
+    const dropPendingTask = useSetAtom(takePendingTaskAtom)
+    const newAgent = useNewAgentAction(base)
+    const [sessionId] = useState(() => {
+        const id = newId()
+        // Same reason as the rail's "+": a session minted here has no durable records yet.
+        markSessionFresh(id)
+        return id
+    })
+    const attachments = useComposerAttachments({sessionId})
+
+    const stagedParts = useCallback(() => {
+        const staged = attachments.files
+        return {
+            staged,
+            parts: staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined,
+        }
+    }, [attachments.files, sessionId])
+
+    const onStartTask = useCallback(
+        async ({agentId, text}: {agentId: string; text: string}) => {
+            const {staged, parts} = stagedParts()
+            stash({sessionId, task: {agentId, text, parts}})
+            try {
+                await router.push(`${base}/sessions/${sessionId}?agent=${agentId}`)
+            } catch (error) {
+                // The chat route never mounted, so drop the stash — otherwise the task replays the
+                // next time this session id is opened. Attachments stay staged, still sendable.
+                dropPendingTask(sessionId)
+                console.error("[useHomeHandoff] could not open the session", error)
+                return
+            }
+            // Cleared only once the destination is committed to.
+            attachments.clearAttachments(staged.map((file) => file.uid))
+        },
+        [attachments, base, dropPendingTask, router, sessionId, stagedParts, stash],
+    )
+
+    const onCreateFromPrompt = useCallback(
+        async ({text}: {text: string}) => {
+            const {staged, parts} = stagedParts()
+            const ok = await newAgent.createFromPrompt({text, sessionId, parts})
+            if (ok) attachments.clearAttachments(staged.map((file) => file.uid))
+        },
+        [attachments, newAgent, sessionId, stagedParts],
+    )
+
+    const onCreateFromTemplate = useCallback(
+        (template: AgentStarterTemplate) => newAgent.createFromTemplate(template.key),
+        [newAgent],
+    )
+
+    return {attachments, onStartTask, onCreateFromPrompt, onCreateFromTemplate}
+}

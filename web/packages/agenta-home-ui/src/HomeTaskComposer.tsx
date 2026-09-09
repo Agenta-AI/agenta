@@ -2,14 +2,17 @@ import {useMemo, useState, type ReactNode} from "react"
 
 import {ChatComposer} from "@agenta/chat/components"
 import type {useComposerAttachments} from "@agenta/chat/hooks"
-import {AgentGlyph} from "@agenta/entity-ui/agent"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
-import {RobotIcon} from "@phosphor-icons/react"
+import {AgentPicker} from "@agenta/entity-ui/agent"
+import {Button} from "@agenta/ui/ui"
+import {RobotIcon, XIcon} from "@phosphor-icons/react"
 
 export interface HomeTaskComposerAgent {
     id: string
     name: string
 }
+
+/** What the composer is for right now: running a task, or describing an agent to create. */
+export type HomeComposerMode = "task" | "create"
 
 export interface HomeTaskComposerProps {
     /** Pickable agents, most-recently-touched first — the head is the default selection. */
@@ -29,19 +32,35 @@ export interface HomeTaskComposerProps {
     fixedAgentId?: string
     /** Placeholder override; a pinned host names the agent it is talking to. */
     placeholder?: string
+    /** The bound agent, when the host drives the selection (Home's list binds it by clicking). */
+    agentId?: string | null
+    onAgentChange?: (agentId: string) => void
+    /**
+     * `create` turns the same composer into "describe an agent": the picker becomes a cancellable
+     * "New agent" pill and send creates instead of starting. A separate create composer beside
+     * this one would be two inputs answering the same question in the same place.
+     */
+    mode?: HomeComposerMode
+    /** Send, in create mode. Absent ⇒ the host does not offer creating here. */
+    onCreate?: (input: {text: string}) => void | Promise<void>
+    onCancelCreate?: () => void
 }
+
+const CREATE_PLACEHOLDER = "Describe the agent you want — what it does, when it runs…"
 
 /**
  * Home's primary action: describe a task, pick the agent to run it, send.
  *
  * The picker rides the composer's prefix (left), leaving the send button where it always is —
  * the send affordance is the one the rest of the app teaches, and a bespoke "Start" button
- * beside it would be a second way to do the same thing.
+ * beside it would be a second way to do the same thing. The picker is the app's ONE
+ * `AgentPicker`, not a local select: a second list of the same agents is how two surfaces stop
+ * agreeing on what an agent looks like.
  *
- * This composer does exactly ONE thing: run a task with an agent that exists. Creating an agent
- * is its own surface; it used to sit in this picker as a mode, which meant the only entry point
- * to creating an agent was hidden inside a dropdown, and send did two different things depending
- * on a selection you couldn't see.
+ * Two modes, one input. `task` runs work with an agent that exists; `create` describes one to
+ * make. Create used to live inside the picker as a hidden option, which meant send did two
+ * different things depending on a selection you could not see — here the mode is a visible pill
+ * with a way out of it.
  */
 export const HomeTaskComposer = ({
     agents,
@@ -51,24 +70,36 @@ export const HomeTaskComposer = ({
     extraPrefix,
     fixedAgentId,
     placeholder = "Describe the task, or start the conversation…",
+    agentId: controlledAgentId,
+    onAgentChange,
+    mode = "task",
+    onCreate,
+    onCancelCreate,
 }: HomeTaskComposerProps) => {
-    const [agentId, setAgentId] = useState<string | null>(null)
+    const [ownAgentId, setOwnAgentId] = useState<string | null>(null)
+    const agentId = controlledAgentId !== undefined ? controlledAgentId : ownAgentId
 
     // Default to the most recently touched agent — the one you're most likely to want next.
     // A pick only counts while it is still in the list: an agent deleted (or filtered out) under
     // the composer otherwise left the trigger blank and sent the task to an agent that is gone.
     const picked = agentId && agents.some((agent) => agent.id === agentId) ? agentId : null
     const effectiveAgentId = fixedAgentId ?? picked ?? agents[0]?.id ?? null
-    const selectedName = useMemo(
-        () => agents.find((agent) => agent.id === effectiveAgentId)?.name,
-        [agents, effectiveAgentId],
+    const creating = mode === "create"
+
+    const setAgentId = useMemo(
+        () => onAgentChange ?? setOwnAgentId,
+        [onAgentChange],
     )
 
     return (
         <ChatComposer
             onSubmit={async (text) => {
-                if (!effectiveAgentId) return
                 try {
+                    if (creating) {
+                        await onCreate?.({text})
+                        return
+                    }
+                    if (!effectiveAgentId) return
                     await onStart({agentId: effectiveAgentId, text})
                 } catch (error) {
                     // `ChatComposer.onSubmit` is fire-and-forget, so a rejecting host would
@@ -77,42 +108,40 @@ export const HomeTaskComposer = ({
                 }
             }}
             attachments={attachments}
-            placeholder={placeholder}
-            disabled={!effectiveAgentId}
+            placeholder={creating ? CREATE_PLACEHOLDER : placeholder}
+            disabled={!creating && !effectiveAgentId}
             extraPrefix={
-                fixedAgentId ? (
+                creating ? (
+                    <span className="flex items-center gap-1 rounded-control bg-muted py-1 pl-2 pr-1 text-[13px] font-medium text-foreground">
+                        <span className="flex size-5 shrink-0 items-center justify-center rounded-control-sm bg-colorFillSecondary text-muted-foreground">
+                            <RobotIcon aria-hidden size={13} />
+                        </span>
+                        New agent
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-5"
+                            aria-label="Cancel creating an agent"
+                            onClick={onCancelCreate}
+                        >
+                            <XIcon size={13} />
+                        </Button>
+                        {extraPrefix}
+                    </span>
+                ) : fixedAgentId ? (
                     extraPrefix
                 ) : (
                     <span className="flex items-center gap-1">
-                        <Select value={effectiveAgentId ?? undefined} onValueChange={setAgentId}>
-                            <SelectTrigger
-                                aria-label="Agent"
-                                className="min-w-40 border-0 bg-transparent px-1 shadow-none"
-                            >
-                                <SelectValue placeholder="Select an agent">
-                                    <span className="inline-flex items-center gap-1.5">
-                                        <AgentGlyph
-                                            workflowId={effectiveAgentId}
-                                            size={14}
-                                            fallback={
-                                                <RobotIcon
-                                                    size={14}
-                                                    className="text-colorTextTertiary"
-                                                />
-                                            }
-                                        />
-                                        {selectedName}
-                                    </span>
-                                </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                                {agents.map((agent) => (
-                                    <SelectItem key={agent.id} value={agent.id}>
-                                        {agent.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <AgentPicker
+                            trigger="pill"
+                            density="compact"
+                            value={effectiveAgentId}
+                            onChange={setAgentId}
+                            triggerAriaLabel="Agent"
+                            // The composer's own surface already reads as a field; a filled pill
+                            // inside it makes a second box within a box.
+                            triggerClassName="bg-transparent hover:bg-muted"
+                        />
                         {extraPrefix}
                     </span>
                 )

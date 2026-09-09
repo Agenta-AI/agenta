@@ -18,10 +18,12 @@ export interface LogoMarksProps {
     max?: number
     /** Rendered in place of an empty run. Omit to render nothing at all. */
     empty?: React.ReactNode
+    /** Overlap the marks into a stack, each ringed in the page background. For a dense row end. */
+    stacked?: boolean
 }
 
 /** An item with no logo still has to occupy its slot, or the run reflows as logos load. */
-function Mark({item, size}: {item: LogoMark; size: number}) {
+function Mark({item, size, stacked}: {item: LogoMark; size: number; stacked?: boolean}) {
     const label = item.name || item.key
     return (
         <SimpleTooltip title={label}>
@@ -30,7 +32,7 @@ function Mark({item, size}: {item: LogoMark; size: number}) {
             <span
                 role="listitem"
                 aria-label={label}
-                className="inline-flex shrink-0"
+                className={`inline-flex shrink-0 ${stacked ? "-ml-1 rounded-[3px] ring-2 ring-[var(--ag-colorBgContainer)] first:ml-0" : ""}`}
                 style={{width: size, height: size}}
             >
                 {item.logo ? (
@@ -56,7 +58,7 @@ function Mark({item, size}: {item: LogoMark; size: number}) {
     )
 }
 
-export const LogoMarks = ({items, size = 16, max, empty, label}: LogoMarksProps) => {
+export const LogoMarks = ({items, size = 16, max, empty, label, stacked}: LogoMarksProps) => {
     if (items.length === 0) return <>{empty ?? null}</>
 
     const shown = max ? items.slice(0, max) : items
@@ -64,9 +66,13 @@ export const LogoMarks = ({items, size = 16, max, empty, label}: LogoMarksProps)
     const overflowNames = overflow.map((i) => i.name || i.key).join(", ")
 
     return (
-        <div role="list" aria-label={label} className="flex items-center gap-1.5">
+        <div
+            role="list"
+            aria-label={label}
+            className={`flex items-center ${stacked ? "gap-0" : "gap-1.5"}`}
+        >
             {shown.map((item) => (
-                <Mark key={item.key} item={item} size={size} />
+                <Mark key={item.key} item={item} size={size} stacked={stacked} />
             ))}
             {overflow.length > 0 ? (
                 <SimpleTooltip title={overflowNames}>
