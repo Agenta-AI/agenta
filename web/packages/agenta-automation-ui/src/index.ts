@@ -17,7 +17,6 @@ export * from "./automationListView"
 export * from "./automationEdit"
 export * from "./runModel"
 export * from "./runListView"
-export * from "./templates"
 
 // Data: the entity hooks, already scoped to a project by the host's binding.
 export {useAutomation} from "./useAutomation"
@@ -45,7 +44,6 @@ export {AutomationBackLink} from "./AutomationBackLink"
 export {AutomationFailureBanner} from "./AutomationFailureBanner"
 export {AutomationRunHistoryCard} from "./AutomationRunHistoryCard"
 export {AutomationRunHistoryView} from "./AutomationRunHistoryView"
-export {AutomationTemplateCard} from "./AutomationTemplateCard"
 export {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 
 // Run history.

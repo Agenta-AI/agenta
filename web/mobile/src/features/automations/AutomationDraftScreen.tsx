@@ -1,7 +1,6 @@
-import {useCallback, useMemo} from "react"
+import {useCallback} from "react"
 
 import {
-    AUTOMATION_TEMPLATES,
     AutomationBackLink,
     AutomationCreateBody,
     AutomationTriggerDrawers,
@@ -21,23 +20,15 @@ import {NavDrawer} from "../nav/NavDrawer"
 export const AutomationDraftScreen = ({
     workspaceId,
     projectId,
-    templateId,
 }: {
     workspaceId: string
     projectId: string
-    /** `?template=` from the empty state's cards — seeds the name and description only. */
-    templateId?: string
 }) => {
     useBindProjectContext(projectId)
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
 
-    const template = useMemo(
-        () => AUTOMATION_TEMPLATES.find((candidate) => candidate.id === templateId) ?? null,
-        [templateId],
-    )
-
-    const state = useAutomationCreate({template})
+    const state = useAutomationCreate()
 
     const onCreate = useCallback(async () => {
         const created = await state.create()
@@ -61,7 +52,7 @@ export const AutomationDraftScreen = ({
                     <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px]">
                         <AutomationCreateBody
                             state={state}
-                            autoEditName={!template}
+                            autoEditName
                             footer={
                                 <div className="mt-[30px] flex items-center justify-end gap-2.5 border-0 border-t border-solid border-border pt-5">
                                     <Button

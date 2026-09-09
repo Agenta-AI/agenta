@@ -149,14 +149,6 @@ export const AutomationListScreen = ({
 
     const body = (() => {
         if (error) return <AutomationListError onRetry={refetch} />
-        if (isEmpty && !term)
-            return (
-                <AutomationListEmpty
-                    onSelectTemplate={(template) =>
-                        void router.push(`${base}/automations/new?template=${template.id}`)
-                    }
-                />
-            )
 
         return (
             <ListTable
@@ -172,16 +164,25 @@ export const AutomationListScreen = ({
                 collapsedKeys={collapsed}
                 onToggleGroup={toggleGroup}
                 empty={
-                    <AutomationListNoMatch
-                        term={term || undefined}
-                        onClear={
-                            term
-                                ? () => setSearch("")
-                                : isDefaultAutomationListView(view)
-                                  ? undefined
-                                  : () => setView(DEFAULT_AUTOMATION_LIST_VIEW)
-                        }
-                    />
+                    // The columns stay true whether the project has no automations or a filter
+                    // hid them all, so both states sit UNDER the header rather than replacing the
+                    // table — what is missing is rows.
+                    // `isEmpty` alone is not "this project has none": the search narrows the
+                    // query itself, so a term that matches nothing empties the list too.
+                    isEmpty && !term && isDefaultAutomationListView(view) ? (
+                        <AutomationListEmpty />
+                    ) : (
+                        <AutomationListNoMatch
+                            term={term || undefined}
+                            onClear={
+                                term
+                                    ? () => setSearch("")
+                                    : isDefaultAutomationListView(view)
+                                      ? undefined
+                                      : () => setView(DEFAULT_AUTOMATION_LIST_VIEW)
+                            }
+                        />
+                    )
                 }
                 renderRow={(automation) => {
                     // Run outcomes land in W6; until then nothing here has failed.

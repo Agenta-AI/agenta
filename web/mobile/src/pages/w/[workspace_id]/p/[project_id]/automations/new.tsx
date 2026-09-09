@@ -10,17 +10,7 @@ import {AutomationDraftScreen} from "@/features/automations/AutomationDraftScree
  */
 export default function AutomationDraftPage() {
     const router = useRouter()
-    const {workspace_id: workspaceId, project_id: projectId, template} = router.query
+    const {workspace_id: workspaceId, project_id: projectId} = router.query
     if (typeof workspaceId !== "string" || typeof projectId !== "string") return null
-    // Keyed on the template so picking a different card starts a fresh draft rather than leaving
-    // the previous seed in place.
-    const templateId = typeof template === "string" ? template : undefined
-    return (
-        <AutomationDraftScreen
-            key={templateId ?? "blank"}
-            workspaceId={workspaceId}
-            projectId={projectId}
-            templateId={templateId}
-        />
-    )
+    return <AutomationDraftScreen workspaceId={workspaceId} projectId={projectId} />
 }

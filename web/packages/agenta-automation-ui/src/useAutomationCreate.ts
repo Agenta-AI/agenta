@@ -18,7 +18,6 @@ import {
 } from "./automationEdit"
 import {generatedAutomationName, type Automation, type AutomationKind} from "./automationModel"
 import {type EventSelection} from "./pickers/EventPickerPanel"
-import {type AutomationTemplate} from "./templates"
 import {useAutomation} from "./useAutomation"
 
 /** Weekdays at 09:00 UTC — the cadence a blank draft opens on. */
@@ -32,7 +31,7 @@ export const DRAFT_ID = "new"
 /** Everything a draft carries before it becomes a row. */
 export interface AutomationDraft {
     name: string
-    /** Seeded by a template and sent on create; the draft never renders a description line. */
+    /** Sent on create; the draft never renders a description line of its own. */
     description: string
     kind: AutomationKind
     /** Schedules only — the 5-field UTC cron expression. */
@@ -55,14 +54,11 @@ export interface AutomationDraft {
  * screen navigates to the row, a drawer closes over it.
  */
 export const useAutomationCreate = ({
-    template,
     defaultKind = "schedule",
     defaultAgentId = null,
     defaultAgentName = null,
     defaultReferences,
 }: {
-    /** Seeds the name and the instruction. */
-    template?: AutomationTemplate | null
     /** Which half of the "Runs when" control the draft opens on. */
     defaultKind?: AutomationKind
     /** Pre-bound agent — the playground opens this already knowing whose automation it is. */
@@ -79,13 +75,12 @@ export const useAutomationCreate = ({
      */
     defaultReferences?: AutomationReferences
 } = {}) => {
-    // Seeded once: a template is a starting point, so a later change must not overwrite what has
-    // been typed since.
+    // Seeded once, so a later change never overwrites what has been typed since.
     const [draft, setDraft] = useState<AutomationDraft>(() => ({
-        // Blank without a template, so a create surface can open on an empty, focused name field
-        // rather than on a placeholder the user has to clear first.
-        name: template?.title ?? "",
-        description: template?.body ?? "",
+        // Blank, so a create surface opens on an empty, focused name field rather than on a
+        // placeholder the user has to clear first.
+        name: "",
+        description: "",
         kind: defaultKind,
         cron: DEFAULT_CRON,
         agentId: defaultAgentId,

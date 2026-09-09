@@ -1,44 +1,16 @@
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
-import {Lightning, MagnifyingGlass, Funnel} from "@phosphor-icons/react"
+import {Funnel, Lightning, MagnifyingGlass} from "@phosphor-icons/react"
 import {RefreshCw, TriangleAlert} from "lucide-react"
-
-import {AutomationTemplateCard} from "../AutomationTemplateCard"
-import {AUTOMATION_TEMPLATES, type AutomationTemplate} from "../templates"
 
 /**
  * Designed states for the automations screens.
  *
- * The list skeleton mirrors the real table — the same grid, the same hairline rows, the same
- * padding — so the rows do not shift when the two trigger queries land.
+ * The list's loading state is not here: `@agenta/ui/list-table` draws its own skeleton in the
+ * real columns, so a second copy of them cannot drift from the table.
  *
  * None of these carries a top margin: each stands where the table would, so the search bar sits
  * the same distance above whatever is showing.
  */
-
-// The list's own columns, kebab included, so the skeleton and the table line up cell for cell.
-const GRID =
-    "grid gap-3 [grid-template-columns:minmax(140px,2fr)_minmax(110px,1fr)_minmax(130px,1fr)_minmax(120px,1fr)_24px]"
-
-export const AutomationListSkeleton = ({rows = 5}: {rows?: number}) => (
-    <div className="overflow-x-auto" aria-hidden>
-        <div className="min-w-[572px]">
-            <div className={`${GRID} mb-1 border-0 border-b border-solid border-border px-2 py-2`}>
-                {Array.from({length: 4}, (_, i) => (
-                    <SkeletonBlock active key={i} className="h-3 w-16" />
-                ))}
-            </div>
-            {Array.from({length: rows}, (_, i) => (
-                <div key={i} className={`${GRID} items-center px-2 py-[13px]`}>
-                    <SkeletonBlock active className="h-3.5 w-4/5" />
-                    <SkeletonBlock active className="h-3.5 w-16" />
-                    <SkeletonBlock active className="h-3.5 w-3/5" />
-                    <SkeletonBlock active className="h-3.5 w-2/3" />
-                </div>
-            ))}
-        </div>
-    </div>
-)
-
 /**
  * The table has rows, but none the reader asked for.
  *
@@ -83,33 +55,31 @@ export const AutomationListNoMatch = ({
 )
 
 /**
- * No automations at all — the one screen where the reader has to be told what an automation IS
- * before a "New automation" button means anything. The three examples do that work: each names
- * a job rather than a trigger type, and picking one seeds the draft (W5).
+ * No automations at all.
+ *
+ * The one screen where the reader has to be told what an automation IS before "New automation"
+ * means anything, so the line under the heading answers that rather than describing the button.
+ *
+ * Three example cards used to sit here. They were the only thing that ever set `?template=`, and
+ * an example nobody picked is a screen asking the reader to choose before they know what they
+ * are choosing between — the emptiest screen in the product is the wrong place for a decision.
+ *
+ * No button of its own either: "New automation" already sits in the page header, a few hundred
+ * pixels above, and the same action twice on one screen reads as two different ones.
  */
-export const AutomationListEmpty = ({
-    onSelectTemplate,
-}: {
-    onSelectTemplate: (template: AutomationTemplate) => void
-}) => (
-    <div className="rounded-md border border-solid border-border bg-card p-10 text-center">
-        <span className="mb-3.5 inline-flex size-11 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
-            <Lightning size={22} weight="fill" aria-hidden />
+export const AutomationListEmpty = () => (
+    // Inside the table, under the header row, like {@link AutomationListNoMatch}: the columns
+    // are still true, and a project with no automations is a table with no rows rather than a
+    // different screen. The header above it is the frame, so this carries no card of its own.
+    <div className="flex flex-col items-center justify-center gap-2.5 px-8 py-16 text-center">
+        <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-muted">
+            <Lightning aria-hidden size={19} className="text-muted-foreground" />
         </span>
-        <h2 className="m-0 mb-1.5 text-[17px] font-semibold text-foreground">No automations yet</h2>
-        <p className="mx-auto mb-[22px] mt-0 max-w-[46ch] text-[14px] text-muted-foreground">
-            An automation runs one of your agents without you asking. Start from an example, or
-            build your own.
+        <p className="m-0 text-[14px] font-medium text-foreground">No automations yet</p>
+        <p className="m-0 max-w-[42ch] text-[13px] leading-snug text-muted-foreground">
+            An automation runs one of your agents without you asking — on a schedule, or when
+            something happens in an app you have connected.
         </p>
-        <div className="grid gap-3 text-left [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
-            {AUTOMATION_TEMPLATES.map((template) => (
-                <AutomationTemplateCard
-                    key={template.id}
-                    template={template}
-                    onSelect={onSelectTemplate}
-                />
-            ))}
-        </div>
     </div>
 )
 
