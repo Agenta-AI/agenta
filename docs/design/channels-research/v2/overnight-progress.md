@@ -296,3 +296,22 @@ Remaining lane-3 slice: HostedTelegramAdapter (deployment-token egress, deployme
 verify returning project, no-op activation), ingress hosted-resolve branch, the bind-start
 router endpoint (returns the deep link + a QR), and wiring the binding service in the app.
 Then repoint the staging bot at the hosted webhook and live-test /start end to end.
+
+## Lane 3 hosted bot: LIVE END-TO-END TEST PASSED (2026-09-09)
+Completed the hosted slice (adapter, ingress hosted-resolve branch, bind-link endpoint,
+ensure-connection, wiring) and live-tested the whole tap-to-connect flow on the channels stack:
+- Configured the deployment env (test bot as the hosted bot) via the stack's local override:
+  TELEGRAM_HOSTED_BOT_TOKEN/WEBHOOK_SECRET/BOT_USERNAME; recreated api + both workers.
+- Pointed the bot webhook at /api/channels/telegram/events/<bot_id>/ with the deployment secret.
+- Created the hosted connection + agent for the QA project and minted a bind link.
+- Drove it from the QA Telegram account: "/start <token>" -> "You are connected." in 0.3s;
+  then a question -> the agent replied "HOSTEDOK" in 9s.
+- DB verified: chat binding row (bot, chat, project, connection), token consumed, and the
+  account identity link with the worker-matching key attributing the invoking user (the link
+  creator), so the agent answered as that user, not the agent owner.
+QR: the bind-link endpoint returns the deep-link url and expiry; the UI renders the QR from the
+url client-side (no backend QR dependency). Kept QR from the start per Mahmoud.
+The hosted bot is code-complete, unit-tested (871 channels+secrets), persistence proven against
+Postgres, and live-verified end to end. Branch channels/telegram-hosted.
+Note: this dev stack now runs the test bot as the hosted bot (local override, gitignored). The
+custom-bot PR #6679 is independent and already verified/merge-ready.
