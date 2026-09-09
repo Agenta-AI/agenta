@@ -530,12 +530,7 @@ export const ChannelConnectFlow = ({
                             {onConnectHostedTelegram ? (
                                 tgUrl ? (
                                     <Button variant="default" className="w-full" asChild>
-                                        <a
-                                            href={tgUrl}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            onClick={() => finish("hosted")}
-                                        >
+                                        <a href={tgUrl} target="_blank" rel="noreferrer">
                                             <ArrowSquareOut size={13} />
                                             Continue in Telegram
                                         </a>
