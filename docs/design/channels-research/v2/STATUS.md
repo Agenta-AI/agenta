@@ -223,3 +223,16 @@ Two facts block the in-browser visual QA; neither is the channels code.
    there regardless.
 Net: visual QA needs (a) the IP origin wired and (b) an auth path that is not me
 typing a password. The code (F1-F4 first pass) compiles on the stack and is pushed.
+
+## Empty-app root cause CONFIRMED (2026-09-09): browser session refresh fails
+Captured the network on the running app: it renders empty because
+POST /api/auth/session/refresh fails with "Failed to fetch" and getJWT logs
+"Failed to fetch JWT". With no JWT the app makes no authed API calls, so every
+page shows only the "Agenta" shell. This is a SuperTokens/session/stack issue in
+the browser, NOT the channels code (which compiles; only PostHog 404s otherwise).
+curl to /api works because it is not a browser doing session refresh. Visual QA is
+blocked until the app can refresh its session in the browser. Needs Mahmoud to
+confirm whether it renders in his own browser, or a stack auth fix.
+Meanwhile: UI code (F1-F4 first pass; Telegram connect + disconnect wired) compiles
+and is pushed on channels/telegram-ui. Running Codex review of it now (no browser
+needed).
