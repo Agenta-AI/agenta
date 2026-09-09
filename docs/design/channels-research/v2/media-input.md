@@ -45,3 +45,31 @@ Recommendation: defer voice until images land, then add transcription as its own
 ## Shared, not per-channel
 Whatever we build goes in the shared channels layer (download + content-part shaping),
 so Slack and Telegram both get it from one implementation.
+
+
+## Investigation update (2026-09-09): image support IS buildable
+The platform already has the pieces, so images are not a missing-infrastructure blocker:
+- `core/sessions/attachments/` is a full attachments subsystem with `AttachmentKind.IMAGE`,
+  media-type validation, and a size cap (`max_image_bytes`). The playground uploads images here.
+- The session input carries `PendingInputAttachment` (an `attachment_id`), so a message
+  references an uploaded attachment by id.
+- The runner already handles images: codex-acp expands an ACP image into an inline data URL for
+  the model call.
+
+Concrete integration path for channels (Slack + Telegram, shared layer):
+1. Adapter: detect a photo, download the bytes (Telegram getFile + file URL; Slack private URL).
+2. Upload the bytes through the attachments service -> get an attachment_id.
+3. Pass the attachment through the channel invoke. Today `_invoke_via_workflows_service` sends
+   only `inputs.messages[].content` (text). It must also carry the attachment id, the way the
+   playground's input does (`PendingInputAttachment`).
+4. The runner then forwards the image to the model.
+
+Two things still need Mahmoud before building:
+- SCOPE: confirm images are in scope for this release (he flagged the gap; did not confirm "now").
+- MODEL VISION: the current QA model is gpt-5.6-luna via the Pi harness. The runner's image
+  expansion is codex-acp-specific; whether the Pi harness/gpt-5.6-luna accepts images is
+  unconfirmed. A vision-capable model is required to actually process the image.
+
+Recommendation: confirm scope + a vision model, then build the four steps above in the shared
+layer (a day of work, both channels at once). Voice still needs a transcription step and stays
+after images.

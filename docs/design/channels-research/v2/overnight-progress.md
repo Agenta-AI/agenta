@@ -34,7 +34,7 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
 - [x] CodeRabbit requested on #6679.
 - [x] Addressed all Codex + subagent findings (commit 44be48026f).
 - [~] Lane 3 hosted bot: precise plan written (lane3-hosted-telegram-plan.md). Needs a dedicated hosted bot token + one confirmation; build deferred to avoid a blind risky ingress change overnight.
-- [ ] Media: image support (Telegram + Slack shared) — investigate multimodal session input; implement if tractable, else write a scoped requirements doc. Voice: transcription, scope it.
+- [~] Media investigated: the platform HAS image infra (sessions attachments + runner image expansion). Buildable via adapter-download -> attachments-upload -> pass attachment id through the channel invoke. Needs Mahmoud: confirm scope + a vision-capable model (Pi/gpt-5.6-luna vision unconfirmed). Detailed in media-input.md. Voice after images.
 - [x] UI (lane 4) FIRST PASS: built, compiles + lints clean, wired into desktop + /m. Branch origin/feat/channels-connect-ui; clean patch in docs/design/channels-research/v2/ui-firstpass/. Placeholder data (no backend). NEEDS: reconcile with the existing channels components, wire real data (connections/agents atoms), visual QA in a browser (light/dark, desktop/phone), and Storybook stories. Do this WITH Mahmoud (needs his taste + the data layer).
 - [x] Test/QA pass: 874 channels+secrets+middlewares unit tests pass; added explicit tests for the P1 security fixes (channel-secret redaction, rotation carry-over, no-edit idempotency). Custom-bot Telegram is production-ready (reviewed, tested, live). Hosted/UI-wiring/media remain, blocked on Mahmoud.
 - [ ] Update decision notes; final morning report.
