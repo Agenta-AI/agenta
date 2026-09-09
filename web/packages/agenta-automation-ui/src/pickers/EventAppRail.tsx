@@ -43,52 +43,56 @@ export const EventAppRail = ({
     }, [integrations])
 
     return (
-        <div className="flex w-1/3 shrink-0 flex-col gap-px border-0 border-r border-solid border-border pr-[9px]">
-            {isLoading ? (
-                <>
-                    <Skeleton className="h-7 w-full" />
-                    <Skeleton className="h-7 w-4/5" />
-                    <Skeleton className="h-7 w-3/5" />
-                </>
-            ) : apps.length === 0 ? (
-                <p className="m-0 px-2 py-3 text-[12px] leading-snug text-muted-foreground">
-                    No connected apps yet.
-                </p>
-            ) : (
-                apps.map((app) => (
-                    <button
-                        key={app.integrationKey}
-                        type="button"
-                        aria-pressed={app.integrationKey === selectedKey}
-                        onClick={() => onSelect(app)}
-                        className={cn(
-                            "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-foreground hover:bg-muted",
-                            app.integrationKey === selectedKey && "bg-muted font-medium",
-                        )}
-                    >
-                        <AppIcon
-                            logo={catalog.get(app.integrationKey)?.logo}
-                            label={app.label}
-                            loading={catalogLoading}
-                        />
-                        <span className="min-w-0 truncate">
-                            {catalog.get(app.integrationKey)?.name || app.label}
-                        </span>
-                    </button>
-                ))
-            )}
-            {/* Last row of the list it grows, not a footer under the whole panel: connecting an
+        // The box stretches so its rule runs the whole panel; the rows inside stick, so the app
+        // you are browsing stays reachable while a long event list or filter form scrolls past.
+        <div className="w-1/3 shrink-0 border-0 border-r border-solid border-border pr-[9px]">
+            <div className="sticky top-0 flex flex-col gap-px">
+                {isLoading ? (
+                    <>
+                        <Skeleton className="h-7 w-full" />
+                        <Skeleton className="h-7 w-4/5" />
+                        <Skeleton className="h-7 w-3/5" />
+                    </>
+                ) : apps.length === 0 ? (
+                    <p className="m-0 px-2 py-3 text-[12px] leading-snug text-muted-foreground">
+                        No connected apps yet.
+                    </p>
+                ) : (
+                    apps.map((app) => (
+                        <button
+                            key={app.integrationKey}
+                            type="button"
+                            aria-pressed={app.integrationKey === selectedKey}
+                            onClick={() => onSelect(app)}
+                            className={cn(
+                                "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-foreground hover:bg-muted",
+                                app.integrationKey === selectedKey && "bg-muted font-medium",
+                            )}
+                        >
+                            <AppIcon
+                                logo={catalog.get(app.integrationKey)?.logo}
+                                label={app.label}
+                                loading={catalogLoading}
+                            />
+                            <span className="min-w-0 truncate">
+                                {catalog.get(app.integrationKey)?.name || app.label}
+                            </span>
+                        </button>
+                    ))
+                )}
+                {/* Last row of the list it grows, not a footer under the whole panel: connecting an
                 app is the same kind of act as picking one. */}
-            {onConnectAnother ? (
-                <button
-                    type="button"
-                    onClick={onConnectAnother}
-                    className="mt-px flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-muted-foreground hover:bg-muted"
-                >
-                    <Plug aria-hidden className="size-3.5 shrink-0" />
-                    <span className="min-w-0 truncate">Connect another app…</span>
-                </button>
-            ) : null}
+                {onConnectAnother ? (
+                    <button
+                        type="button"
+                        onClick={onConnectAnother}
+                        className="mt-px flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-muted-foreground hover:bg-muted"
+                    >
+                        <Plug aria-hidden className="size-3.5 shrink-0" />
+                        <span className="min-w-0 truncate">Connect another app…</span>
+                    </button>
+                ) : null}
+            </div>
         </div>
     )
 }
