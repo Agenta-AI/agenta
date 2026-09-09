@@ -67,6 +67,14 @@ class _FakeStore:
         self.links.append((bot_id, chat_id, external_user_key))
         return binding
 
+    async def delete_bindings_for_connection(self, *, connection_id) -> int:
+        removed = [
+            key for key, b in self.bindings.items() if b.connection_id == connection_id
+        ]
+        for key in removed:
+            del self.bindings[key]
+        return len(removed)
+
 
 def _service(store, *, bot_username="AgentaBot", ttl=timedelta(minutes=30)):
     return TelegramBindingService(
@@ -239,3 +247,34 @@ async def test_a_fresh_token_on_an_already_connected_chat_is_refused():
     # the fresh token is untouched and only one account link was ever written
     assert (await store.get_token(token2)).is_consumed() is False
     assert len(store.links) == 1
+
+
+async def test_release_connection_bindings_frees_the_chat_to_rebind():
+    # disconnect: releasing a connection's bindings lets the chat bind again,
+    # even to a different project, instead of ChatBoundElsewhere forever.
+    store = _FakeStore()
+    svc = _service(store)
+    project_a = uuid4()
+    conn_a = uuid4()
+    url = await svc.issue_bind_link(
+        project_id=project_a, user_id=uuid4(), connection_id=conn_a
+    )
+    token = url.rsplit("=", 1)[1]
+    await svc.consume_bind_token(
+        token=token, bot_id="100", chat_id="555", sender_id="777"
+    )
+    assert await svc.resolve_bound_connection(bot_id="100", chat_id="555") is not None
+
+    removed = await svc.release_connection_bindings(connection_id=conn_a)
+    assert removed == 1
+    assert await svc.resolve_bound_connection(bot_id="100", chat_id="555") is None
+
+    # the chat can now bind to a DIFFERENT project
+    url2 = await svc.issue_bind_link(
+        project_id=uuid4(), user_id=uuid4(), connection_id=uuid4()
+    )
+    token2 = url2.rsplit("=", 1)[1]
+    binding2 = await svc.consume_bind_token(
+        token=token2, bot_id="100", chat_id="555", sender_id="888"
+    )
+    assert binding2.project_id != project_a

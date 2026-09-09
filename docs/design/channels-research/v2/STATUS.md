@@ -39,8 +39,9 @@ Backend — Telegram:
   hosted adapter, ingress hosted-resolve, bind-link endpoint. PR #6724 (stacked
   on #6679). Reviewed (Codex + CodeRabbit, all addressed), unit-tested,
   live-verified end to end. Merge-ready, NOT merged.
-- [~] Disconnect frees the chat binding so a chat can reconnect (incl. to a
-  different project). Codex P2. NEXT ITEM.
+- [x] Disconnect frees the chat binding so a chat can reconnect (incl. to a
+  different project). DAO delete_bindings_for_connection, released in the archive
+  endpoint; unit-tested + DB-verified. (Codex P2 closed.)
 
 Backend — Slack:
 - [x] Slack custom + hosted adapters exist on the branch (JP's work). Present and
@@ -80,7 +81,7 @@ Cross-cutting:
 ## Known limits / follow-ups
 - Hosted needs a dedicated production bot token for prod (staging reuses the test
   bot, per Mahmoud).
-- Disconnect binding cleanup: being fixed now.
+- Disconnect binding cleanup: DONE (release on archive).
 
 ## History
 Detailed chronology is in overnight-progress.md. This file is the live map.

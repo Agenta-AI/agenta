@@ -859,6 +859,15 @@ class ChannelsRouter:
                 detail="Channel connection not found",
             )
 
+        # Disconnect frees any hosted chat bindings that point at this
+        # connection, so those chats can reconnect (to the same or a different
+        # project). A no-op for a connection with no bindings, so it is safe to
+        # call for every channel.
+        if self.telegram_binding_service is not None:
+            await self.telegram_binding_service.release_connection_bindings(
+                connection_id=connection_id
+            )
+
         platform_notice = await self.channels_service.describe_connection_teardown(
             connection=connection
         )

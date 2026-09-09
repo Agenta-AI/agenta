@@ -11,8 +11,9 @@ the stored binding is read back and returned.
 
 from datetime import datetime, timezone
 from typing import Optional
+from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from oss.src.core.channels.telegram_binding import (
@@ -90,6 +91,21 @@ class TelegramBindingDAO:
             )
             dbe = result.scalar_one_or_none()
             return _to_chat_binding(dbe) if dbe is not None else None
+
+    async def delete_bindings_for_connection(self, *, connection_id: UUID) -> int:
+        """Release every chat binding that points at this connection, so those
+        chats are free to reconnect (to the same or a different project). Called
+        when a hosted connection is disconnected. A no-op for a connection with
+        no bindings. Returns the number of rows removed."""
+
+        async with self.engine.session() as session:
+            result = await session.execute(
+                delete(TelegramChatBindingDBE).where(
+                    TelegramChatBindingDBE.connection_id == connection_id
+                )
+            )
+            await session.commit()
+            return result.rowcount or 0
 
     async def consume_token_and_bind(
         self,

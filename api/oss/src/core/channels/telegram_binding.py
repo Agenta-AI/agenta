@@ -114,6 +114,8 @@ class TelegramBindingStore(Protocol):
         external_user_key: str,
     ) -> ChatBinding: ...
 
+    async def delete_bindings_for_connection(self, *, connection_id: UUID) -> int: ...
+
 
 class TelegramBindingService:
     """Issue, consume, and resolve hosted Telegram binds."""
@@ -222,3 +224,12 @@ class TelegramBindingService:
         shared bot. `None` means the chat is not bound yet."""
 
         return await self._store.get_binding(bot_id=bot_id, chat_id=chat_id)
+
+    async def release_connection_bindings(self, *, connection_id: UUID) -> int:
+        """Free every chat bound to this connection, so they can reconnect.
+        Called when a hosted connection is disconnected. Safe to call for any
+        connection: one with no bindings removes nothing."""
+
+        return await self._store.delete_bindings_for_connection(
+            connection_id=connection_id
+        )
