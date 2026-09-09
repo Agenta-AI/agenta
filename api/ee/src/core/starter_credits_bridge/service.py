@@ -225,7 +225,8 @@ async def reconcile_starter_credits_on_read(
     before the funded model was cut over. This is the path that reaches those rows: the
     picker and the runtime resolver both list a project's secrets, so the first read after
     a cutover repairs the row and every read after it is a list scan that finds nothing to
-    do. Returns None when there was nothing to repair.
+    do. Returns the current row when the caller's snapshot was stale, and None when there
+    was nothing to correct or nothing better to hand back.
 
     Never raises. A read must not fail because a repair could not run — the caller would
     lose its whole secrets list over a connection that is at worst as broken as it already
