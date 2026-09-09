@@ -57,8 +57,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
         () =>
             [...agents]
                 .sort(
-                    (a, b) =>
-                        Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? "") || 0,
+                    (a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? "") || 0,
                 )
                 .map((agent) => ({
                     id: agent.id,
