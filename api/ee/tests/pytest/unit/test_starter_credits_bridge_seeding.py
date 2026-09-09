@@ -79,6 +79,7 @@ class FakeVaultService:
         self.management = None
         self.create_error = None
         self.update_calls = []
+        self.invalidations = []
 
     async def get_secret_by_slug(self, secret_slug, project_id=None, **kwargs):
         assert secret_slug == service.STARTER_CREDITS_SLUG
@@ -102,6 +103,10 @@ class FakeVaultService:
         )
         self.created_count += 1
         return self.row
+
+    async def invalidate_secrets_cache(self, project_id):
+        await asyncio.sleep(0)
+        self.invalidations.append(str(project_id))
 
     async def update_managed_secret(
         self,
@@ -267,12 +272,6 @@ def seeding_env(monkeypatch):
         "get_default_project_by_organization_id",
         fake_get_default_project,
     )
-    invalidations = []
-
-    async def fake_invalidate_cache(project_id=None, **kwargs):
-        invalidations.append(project_id)
-
-    monkeypatch.setattr(service, "invalidate_cache", fake_invalidate_cache)
     monkeypatch.setattr(service, "_vault_service", lambda: vault)
     monkeypatch.setattr(service, "_resolve_mint_policy", fake_resolve_policy)
     monkeypatch.setattr(service, "_team_ceiling_verified", fake_team_verified)
@@ -286,7 +285,6 @@ def seeding_env(monkeypatch):
         policy=policy,
         project=project,
         vault=vault,
-        invalidations=invalidations,
         alerts=alerts,
         released=released,
         monkeypatch=monkeypatch,
@@ -1473,7 +1471,7 @@ class TestReconcilingOnRead:
         assert _all_key_update_calls() == []
         assert seeding_env.vault.update_calls == []
         # The cached list this snapshot came from is stale, so it is dropped.
-        assert seeding_env.invalidations == [str(seeding_env.project.id)]
+        assert seeding_env.vault.invalidations == [str(seeding_env.project.id)]
 
     async def test_a_cooling_reader_still_answers_from_the_row(self, seeding_env):
         # Same for a project inside its cooldown: suppressing another proxy call must not
@@ -1532,7 +1530,7 @@ class TestReconcilingOnRead:
             )
             is None
         )
-        assert seeding_env.invalidations == []
+        assert seeding_env.vault.invalidations == []
 
     async def test_the_read_stands_when_the_repair_fails(self, seeding_env):
         # A caller must never lose its whole secrets list over a connection that is at

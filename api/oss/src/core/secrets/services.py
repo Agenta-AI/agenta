@@ -548,6 +548,15 @@ class VaultService:
             await invalidate_cache(project_id=str(project_id))
         return secret_dto
 
+    async def invalidate_secrets_cache(self, project_id: UUID) -> None:
+        """Drop this project's cached secrets list.
+
+        The vault owns list-cache invalidation so every writer goes through one path. A
+        reader that finds the cached list disagrees with the stored row needs the same door,
+        rather than reaching for the cache helper itself.
+        """
+        await invalidate_cache(project_id=str(project_id))
+
     async def delete_secret(
         self,
         secret_id: UUID,

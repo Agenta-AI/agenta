@@ -9,7 +9,7 @@ from uuid import UUID
 import httpx
 
 from oss.src.services import db_manager
-from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
+from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env, StarterCreditsBridgeConfig
 from oss.src.utils.lazy import _load_posthog
 from oss.src.utils.logging import get_module_logger
@@ -242,13 +242,14 @@ async def reconcile_starter_credits_on_read(
         return None
 
     key = str(project_id)
+    vault_service = _vault_service()
     if _may_repair(key):
         _reconciling_projects.add(key)
         try:
             await reconcile_starter_credits_model(
                 client=_proxy_client(config),
                 config=config,
-                vault_service=_vault_service(),
+                vault_service=vault_service,
                 project_id=project_id,
                 # The read knows the project, not the organization. The project id already
                 # identifies the row, and resolving the organization would cost a query on
@@ -275,7 +276,7 @@ async def reconcile_starter_credits_on_read(
     # repair can still be published after it. Answering from the row itself is what keeps a
     # reader that skipped the repair from serving the stale model anyway.
     try:
-        fresh = await _vault_service().get_secret_by_slug(
+        fresh = await vault_service.get_secret_by_slug(
             STARTER_CREDITS_SLUG,
             project_id=project_id,
         )
@@ -285,7 +286,8 @@ async def reconcile_starter_credits_on_read(
 
         # The caller's list was stale while the row was not, so the cached list it came from
         # is stale too. Drop it, or every read pays for this re-read until the entry expires.
-        await invalidate_cache(project_id=key)
+        # Through the vault, which owns list-cache invalidation, and never the cache helper.
+        await vault_service.invalidate_secrets_cache(project_id)
     except Exception:
         # Inside the guard like everything else: the re-read and the cache drop both reach
         # the database, and neither may take the caller's secrets list down with it.
