@@ -6,7 +6,6 @@ import {
     AutomationListEmpty,
     AutomationListError,
     AutomationListNoMatch,
-    AutomationListSkeleton,
     automationStatus,
     type AutomationStatus,
     type AutomationListView,
@@ -149,7 +148,6 @@ export const AutomationListScreen = ({
     )
 
     const body = (() => {
-        if (isLoading) return <AutomationListSkeleton />
         if (error) return <AutomationListError onRetry={refetch} />
         if (isEmpty && !term)
             return (
@@ -163,6 +161,7 @@ export const AutomationListScreen = ({
         return (
             <ListTable
                 columns={COLUMNS}
+                loading={isLoading}
                 groups={groups.map((group) => ({
                     key: group.key,
                     label: group.label,

@@ -44,6 +44,12 @@ export interface ListTableProps<Row> {
     /** Collapsed group keys. Absent ⇒ headings are labels, not buttons. */
     collapsedKeys?: ReadonlySet<string>
     onToggleGroup?: (key: string) => void
+    /**
+     * Rows are still on their way. The frame draws its own skeleton in the real columns rather
+     * than a spinner, so the list arrives into the shape it was already occupying.
+     */
+    loading?: boolean
+    skeletonRows?: number
     /** Drawn in place of the rows when every group is empty. */
     empty?: ReactNode
     className?: string
