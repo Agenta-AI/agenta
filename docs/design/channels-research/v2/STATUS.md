@@ -191,3 +191,22 @@ sibling (see the recovery recipe above), recreate web (and api/workers for hoste
 env), then load an agent overview. Root cause of the instability: the daily cleanup
 removes this worktree once its branch is pushed, taking the gitignored env/override
 with it. Recommend excluding this worktree from the cleanup.
+
+## Browser QA root cause pinned (2026-09-09)
+Two facts block the in-browser visual QA; neither is the channels code.
+1. ngrok free blocks the app's browser API calls. Loaded via the ngrok URL, the
+   app's XHRs fail ("Failed to fetch") because ngrok free serves an interstitial /
+   abuse screen to browsers. curl works (not a browser), which is why health is 200
+   server-side but the app renders blank. Injecting `ngrok-skip-browser-warning`
+   got the app to RENDER (it reached /auth), but XHRs stay flaky.
+   Fix: do browser QA via the DIRECT server origin http://144.76.237.122:8180, not
+   ngrok. That needs the app's API URL to be the IP too (either a redeploy with
+   AGENTA_*_URL=http://144.76.237.122:8180, or a session-local __env override via an
+   initScript) so calls are same-origin IP->IP and skip ngrok.
+2. Auth. The prior session redirected to /auth (session check could not reach the
+   API over ngrok). Re-login needs a password, which I do not enter (policy). The
+   QA account's OTP path (testmail) or a fresh valid session from Mahmoud is the
+   way in. On the IP origin the ngrok cookie does not apply, so a login is needed
+   there regardless.
+Net: visual QA needs (a) the IP origin wired and (b) an auth path that is not me
+typing a password. The code (F1-F4 first pass) compiles on the stack and is pushed.
