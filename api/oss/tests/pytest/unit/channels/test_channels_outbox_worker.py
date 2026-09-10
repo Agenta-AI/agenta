@@ -181,8 +181,16 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def fetch_connection(self, *, project_id, connection_id):
         return self.connections.get(connection_id)
 
-    async def edit_connection(self, **kwargs):
-        raise NotImplementedError
+    async def edit_connection(self, *, project_id, user_id, connection):
+        # enough for deactivate_connection: apply the flags an edit carries
+        existing = self.connections.get(connection.id)
+        if existing is None:
+            return None
+        updated = existing.model_copy(
+            update={"flags": connection.flags or existing.flags}
+        )
+        self.connections[connection.id] = updated
+        return updated
 
     async def archive_connection(self, **kwargs):
         raise NotImplementedError
@@ -1367,3 +1375,31 @@ async def test_no_progress_loop_on_a_channel_that_cannot_edit():
         project_id=PROJECT_ID, thread=thread, turn_id="turn-n", session_id="sess-n"
     )
     assert "turn-n" not in worker._progress_tasks
+
+
+# --- a revoked credential switches the connection off ----------------------- #
+
+
+class _RevokedAdapter(WellBehavedFakeAdapter):
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        from oss.src.core.channels.types import ChannelCredentialRevoked
+
+        raise ChannelCredentialRevoked(channel="fake", detail="Unauthorized")
+
+
+@pytest.mark.asyncio
+async def test_a_revoked_credential_marks_the_row_and_switches_the_connection_off():
+    channels_dao = FakeChannelsDAO()
+    records_dao = FakeRecordsDAO()
+    worker = _progress_worker(channels_dao, records_dao, _RevokedAdapter())
+    connection, thread = await _seed_connection_and_thread(channels_dao, "sess-r")
+
+    await worker.on_turn_started(project_id=PROJECT_ID, thread=thread, turn_id="turn-r")
+
+    row = next(iter(channels_dao.outbox.values()))
+    assert row.state is ChannelDeliveryState.FAILED
+    assert row.status.code == "credential_revoked"
+    stored = await channels_dao.fetch_connection(
+        project_id=PROJECT_ID, connection_id=connection.id
+    )
+    assert stored.flags.is_active is False

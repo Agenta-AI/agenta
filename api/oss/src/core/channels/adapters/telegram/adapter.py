@@ -33,6 +33,7 @@ from oss.src.core.channels.types import (
     ChannelConnectionIncomplete,
     ChannelConnectionVerificationFailed,
     ChannelSignatureInvalid,
+    ChannelCredentialRevoked,
 )
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -432,6 +433,12 @@ class TelegramAdapter(ChannelAdapterInterface):
                 description="non-json response", status_code=response.status_code
             )
         if not body.get("ok"):
+            if response.status_code == 401:
+                # "Unauthorized": the bot token was revoked or regenerated in
+                # @BotFather. No retry can pass; the connection must be marked.
+                raise ChannelCredentialRevoked(
+                    channel="telegram", detail=body.get("description", "")
+                )
             raise _TelegramApiError(
                 description=body.get("description", "unknown_error"),
                 status_code=response.status_code,

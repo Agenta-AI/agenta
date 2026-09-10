@@ -1684,3 +1684,51 @@ class TestApprovalAnswers:
         assert result is not None
         assert result.agent.id == default_agent.id
         assert result.answered_interaction_id is None
+
+
+# --- the connection's sender allow-list ("Allowed users") -------------------- #
+
+
+@pytest.mark.asyncio
+async def test_an_allow_list_drops_senders_outside_it_and_empty_means_everyone():
+    from oss.src.core.channels.service import _sender_allowed
+
+    def conn(allowed):
+        return ChannelConnection(
+            id=uuid4(),
+            slug="c",
+            channel="agenta",
+            external_key=uuid4(),
+            data={"allowed_senders": allowed} if allowed is not None else {},
+            flags=ChannelConnectionFlags(is_verified=True),
+        )
+
+    event = _make_event()  # sender id "U1"
+    assert _sender_allowed(conn(None), event) is True
+    assert _sender_allowed(conn([]), event) is True
+    assert _sender_allowed(conn(["U1"]), event) is True
+    assert _sender_allowed(conn([8883745180]), _make_event()) is False
+    assert _sender_allowed(conn(["U2", "U3"]), event) is False
+
+
+@pytest.mark.asyncio
+async def test_resolve_returns_none_for_a_sender_outside_the_allow_list():
+    dao = _make_fake_dao()
+    dao.fetch_connection = AsyncMock(
+        return_value=ChannelConnection(
+            id=uuid4(),
+            slug="conn-1",
+            channel="agenta",
+            external_key=uuid4(),
+            data={"allowed_senders": ["someone-else"]},
+            flags=ChannelConnectionFlags(is_verified=True),
+        )
+    )
+    adapter = MagicMock()
+    adapter.fetch_capabilities = AsyncMock()
+    service = _make_service(dao=dao, adapter=adapter)
+    result = await service.resolve(
+        project_id=uuid4(), connection_id=uuid4(), event=_make_event()
+    )
+    assert result is None
+    dao.get_or_create_space.assert_not_awaited()  # dropped before provisioning

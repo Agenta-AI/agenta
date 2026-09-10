@@ -35,6 +35,7 @@ from oss.src.core.sessions.interactions.service import SessionInteractionsServic
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.tasks.asyncio.sessions.streaming import deserialize_turn_event
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
+from oss.src.core.channels.types import ChannelCredentialRevoked
 from oss.src.core.shared.dtos import Status
 from oss.src.utils.logging import get_module_logger
 
@@ -515,6 +516,26 @@ class ChannelsOutboxWorker:
                     content=content,
                     idempotency_key=idempotency_key,
                 )
+        except ChannelCredentialRevoked as exc:
+            # The platform refused the credential itself: switch the
+            # connection off so the agent page shows "token revoked" and
+            # offers an update, and stop retrying a call that cannot pass.
+            await self.channels_service.channels_dao.transition_outbox_event(
+                project_id=project_id,
+                event_id=event.id,
+                state=ChannelDeliveryState.FAILED,
+                status=Status(code="credential_revoked", message=str(exc)[:500]),
+            )
+            await self.channels_service.deactivate_connection(
+                project_id=project_id, connection_id=connection.id
+            )
+            log.error(
+                "[SESSIONS-OUTBOX] credential revoked; connection switched off "
+                "connection=%s: %s",
+                connection.id,
+                str(exc)[:200],
+            )
+            return
         except Exception as exc:
             # The row said CREATED forever after a rejected post, which reads
             # as "not attempted yet" from outside (F87). Write the failure

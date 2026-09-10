@@ -1449,6 +1449,12 @@ class ChannelsService:
         ):
             return None
 
+        # An allow-list on the connection ("Allowed users" on the agent page):
+        # when it names anyone, a sender outside it is dropped before any
+        # space is provisioned. Empty means everyone.
+        if not _sender_allowed(connection, event):
+            return None
+
         capabilities = await self.fetch_capabilities(
             channel=connection.channel, connection=connection
         )
@@ -1966,6 +1972,18 @@ def _canonical_locator(locator: Optional[dict]) -> str:
     from oss.src.core.channels.utils import canonical_json
 
     return canonical_json(locator or {})
+
+
+def _sender_allowed(connection: ChannelConnection, event: ChannelInboxEvent) -> bool:
+    data = connection.data if isinstance(connection.data, dict) else {}
+    allowed = data.get("allowed_senders")
+    if not isinstance(allowed, list) or not allowed:
+        return True
+    sender = event.data.processed.sender if event.data and event.data.processed else {}
+    sender_id = sender.get("id") if isinstance(sender, dict) else None
+    if sender_id is None:
+        return False
+    return str(sender_id) in {str(item) for item in allowed}
 
 
 def _admitting_grant(
