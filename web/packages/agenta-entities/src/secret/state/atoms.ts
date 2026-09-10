@@ -349,9 +349,9 @@ export const deleteSecretAtom = atom(null, async (get, set, provider: LlmProvide
  * migrated. The hook's `useEffect` is responsible for the user-presence
  * trigger and the logout reset (re-arm).
  *
- * On success, sets `{migrating: false, migrated: true}`.
- * On failure, rolls back to `{migrating: false, migrated: false}` so the
- * next mount can retry.
+ * Always ends in `{migrating: false, migrated: true}`, on failure too: a legacy payload
+ * that cannot be parsed stays backed up in localStorage, and the vault UI must never wait
+ * on it. The server list is the source of truth.
  */
 export const migrateVaultKeysAtom = atom(null, async (get, set) => {
     const migrationStatus = get(vaultMigrationAtom)
@@ -366,24 +366,42 @@ export const migrateVaultKeysAtom = atom(null, async (get, set) => {
         const localStorageProviders = localStorage.getItem(llmAvailableProvidersToken)
 
         if (localStorageProviders) {
-            const _providers = JSON.parse(localStorageProviders)
-            const providers = JSON.parse(_providers)
-
-            for (const provider of providers) {
-                if (provider.key) {
-                    await set(createStandardSecretAtom, provider as LlmProvider)
+            const providers = parseLegacyProviders(localStorageProviders)
+            if (providers) {
+                for (const provider of providers) {
+                    if (provider.key) {
+                        await set(createStandardSecretAtom, provider as LlmProvider)
+                    }
                 }
+            } else {
+                console.error(
+                    "[vault] Legacy provider keys could not be parsed; leaving them backed up.",
+                )
             }
 
             // Create backup and cleanup
             localStorage.setItem(`${llmAvailableProvidersToken}Backup`, localStorageProviders)
             localStorage.removeItem(llmAvailableProvidersToken)
         }
-
-        set(vaultMigrationAtom, {migrating: false, migrated: true})
     } catch (error) {
+        // A failed migration must not hold the vault UI in its loading state: the keys stay
+        // in localStorage for a later attempt, and the app keeps working with the server list.
         console.error("Migration failed:", error)
-        set(vaultMigrationAtom, {migrating: false, migrated: false})
-        throw error
+    } finally {
+        set(vaultMigrationAtom, {migrating: false, migrated: true})
     }
 })
+
+/**
+ * The legacy localStorage payload was double-encoded JSON (a JSON string holding JSON), but
+ * older builds wrote it once. Accept both; return null for anything that is not a list.
+ */
+function parseLegacyProviders(raw: string): LlmProvider[] | null {
+    try {
+        let parsed: unknown = JSON.parse(raw)
+        if (typeof parsed === "string") parsed = JSON.parse(parsed)
+        return Array.isArray(parsed) ? (parsed as LlmProvider[]) : null
+    } catch {
+        return null
+    }
+}
