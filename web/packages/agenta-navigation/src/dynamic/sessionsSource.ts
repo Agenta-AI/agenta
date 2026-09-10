@@ -183,7 +183,11 @@ const sidebarWaitingIdsQueryAtomFamily = atomFamily((scopeId: string) =>
                     actionableOnly: true,
                     abortSignal: signal,
                 })
-                return [...new Set((rows ?? []).map((row) => row.session_id))]
+                // The interactions query applies no ORDER BY, so row order is not stable between
+                // executions. Both session queries put this array in their cache key, and a pure
+                // reorder would re-key them on every poll and re-fetch the whole tail. The server
+                // sorts the id list anyway, so ordering it here costs nothing.
+                return [...new Set((rows ?? []).map((row) => row.session_id))].sort()
             },
             enabled: Boolean(projectId) && (needed || scopeGroups(scopeId)),
             staleTime: 10_000,

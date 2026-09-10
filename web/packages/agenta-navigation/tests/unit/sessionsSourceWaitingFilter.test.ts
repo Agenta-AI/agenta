@@ -97,11 +97,9 @@ const settle = async (ticks = 12) => {
 
 const newStore = () => {
     const store = createStore()
-    store.set(
-        queryClientAtom,
-        new QueryClient({defaultOptions: {queries: {retry: false, gcTime: 0}}}),
-    )
-    return store
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false, gcTime: 0}}})
+    store.set(queryClientAtom, queryClient)
+    return {store, queryClient}
 }
 
 describe("Awaiting input sidebar filter and the paging tail", () => {
@@ -124,7 +122,7 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
             (args.sessionIds ?? waitingIds).slice(0, PAGE_SIZE).map(sessionRow),
         )
 
-        const store = newStore()
+        const {store} = newStore()
         const scope = MAIN_SIDEBAR_SCOPE_ID
         store.set(sidebarSessionFiltersAtomFamily(scope), {status: "waiting"})
 
@@ -134,7 +132,7 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
 
         const headCalls = querySessions.mock.calls.map(([args]) => args)
         expect(headCalls.length).toBeGreaterThan(0)
-        expect(headCalls[0].sessionIds).toEqual(waitingIds)
+        expect(headCalls[0].sessionIds).toEqual([...waitingIds].sort())
         expect(store.get(sidebarSessionPagingAtomFamily(scope)).hasMore).toBe(true)
 
         querySessions.mockClear()
@@ -144,9 +142,50 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
         const tailCalls = querySessions.mock.calls.map(([args]) => args)
         expect(tailCalls.length).toBeGreaterThan(0)
         const tail = tailCalls[tailCalls.length - 1]
-        expect(tail.sessionIds).toEqual(waitingIds)
+        expect(tail.sessionIds).toEqual([...waitingIds].sort())
         expect(tail.newest).toBeTruthy()
         expect(tail.limit).toBe(PAGE_SIZE)
+
+        unsubscribe()
+    })
+
+    it("keys on a stable id order, so a reordered poll refetches nothing", async () => {
+        const {MAIN_SIDEBAR_SCOPE_ID} = await import("../../src/constants")
+        const {sidebarSessionFiltersAtomFamily} = await import("../../src/dynamic/sessionFilters")
+        const {sidebarSessionPagingAtomFamily, loadMoreSidebarSessionsAtomFamily} =
+            await import("../../src/dynamic/sessionsSource")
+
+        const waitingIds = Array.from({length: 60}, (_, index) => `s${index}`)
+        const sorted = [...waitingIds].sort()
+        // The interactions endpoint applies no ORDER BY, so consecutive polls can answer with the
+        // same ids in a different order.
+        queryInteractions
+            .mockResolvedValueOnce(waitingIds.map((id) => ({session_id: id})))
+            .mockResolvedValue([...waitingIds].reverse().map((id) => ({session_id: id})))
+        querySessions.mockImplementation(async (args: {sessionIds?: string[]}) =>
+            (args.sessionIds ?? sorted).slice(0, PAGE_SIZE).map(sessionRow),
+        )
+
+        const {store, queryClient} = newStore()
+        const scope = MAIN_SIDEBAR_SCOPE_ID
+        store.set(sidebarSessionFiltersAtomFamily(scope), {status: "waiting"})
+
+        const unsubscribe = store.sub(sidebarSessionPagingAtomFamily(scope), () => {})
+        store.get(sidebarSessionPagingAtomFamily(scope))
+        await settle()
+        store.set(loadMoreSidebarSessionsAtomFamily(scope))
+        await settle()
+
+        const before = querySessions.mock.calls.length
+        expect(before).toBeGreaterThan(0)
+
+        await queryClient.refetchQueries({queryKey: ["sidebar-sessions-waiting"]})
+        await settle()
+
+        expect(queryInteractions.mock.calls.length).toBeGreaterThan(1)
+        // The reordered poll must not re-key either session query. Without the sort both the head
+        // and the tail refetch, and the tail asks for up to twelve pages.
+        expect(querySessions.mock.calls.length).toBe(before)
 
         unsubscribe()
     })
@@ -161,7 +200,7 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
         queryInteractions.mockResolvedValue([])
         querySessions.mockImplementation(async () => allIds.slice(0, PAGE_SIZE).map(sessionRow))
 
-        const store = newStore()
+        const {store} = newStore()
         const scope = MAIN_SIDEBAR_SCOPE_ID
         store.set(sidebarSessionFiltersAtomFamily(scope), {status: "all"})
 
@@ -193,7 +232,7 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
             (args.sessionIds ?? []).map(sessionRow),
         )
 
-        const store = newStore()
+        const {store} = newStore()
         const scope = MAIN_SIDEBAR_SCOPE_ID
         store.set(sidebarSessionFiltersAtomFamily(scope), {status: "waiting"})
 
