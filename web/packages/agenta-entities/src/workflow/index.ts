@@ -499,4 +499,7 @@ export type {
 
 export {agentRosterSearchAtom, matchesAgentQuery} from "./state/agentRoster"
 
-export {commitAgentCredentialsAtom} from "./state/agentCredentials"
+export {
+    commitAgentCredentialsAtom,
+    AGENT_CREDENTIALS_CONFLICT_MESSAGE,
+} from "./state/agentCredentials"

@@ -110,7 +110,11 @@ export function AgentSecretAttachmentDrawer({
     onAttached,
     zIndex = 1000,
 }: AgentSecretAttachmentDrawerProps) {
-    const {namedSecrets, loading} = useVaultSecret()
+    const {namedSecrets, loading, mutate: refetchVault} = useVaultSecret()
+    // The drawer stacks above the Advanced dialog, and the shared Select portals its list to
+    // <body> at z-50. Without this the options paint UNDER the drawer and the picker looks
+    // empty (#6733). One layer above the drawer is enough; nothing else sits between them.
+    const popupZIndex = zIndex + 1
     const textSecrets = useMemo(
         () => namedSecrets.filter((secret) => secret.format === CustomSecretFormat.Text),
         [namedSecrets],
@@ -139,6 +143,9 @@ export function AgentSecretAttachmentDrawer({
 
     useEffect(() => {
         if (!open) return
+        // The vault query keeps a live subscriber for the whole page, so nothing refetches it on
+        // its own; a secret created in Settings or another tab stays invisible until a reload.
+        refetchVault()
         const original = editingBinding?.value
         const initialSlug = original?.secret.slug ?? ""
         const initialSecret = textSecrets.find((secret) => secret.slug === initialSlug)
@@ -303,7 +310,7 @@ export function AgentSecretAttachmentDrawer({
                                         }
                                     />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent style={{zIndex: popupZIndex}}>
                                     {allSecrets.map((secret) => (
                                         <SelectItem key={secret.slug} value={secret.slug ?? ""}>
                                             {secret.name}
@@ -346,7 +353,11 @@ export function AgentSecretAttachmentDrawer({
                         </div>
                     </TabsContent>
                     <TabsContent value="create" className="mt-4">
-                        <SecretForm controller={createController} textOnly />
+                        <SecretForm
+                            controller={createController}
+                            textOnly
+                            popupZIndex={popupZIndex}
+                        />
                     </TabsContent>
                 </Tabs>
 
