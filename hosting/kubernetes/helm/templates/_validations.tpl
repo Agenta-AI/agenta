@@ -77,7 +77,12 @@ The chart derives these from ingress.host when ingress.enabled=true. Either:
        ingress:
          enabled: true
          host: agenta.example.com
-         tls: true   # optional
+         # tls is optional and is a list, in the shape the Ingress spec uses.
+         # Any non-empty list also switches the derived URLs to https.
+         tls:
+           - hosts:
+               - agenta.example.com
+             secretName: agenta-tls
 
   2. Or set the three URLs explicitly:
 
@@ -90,6 +95,42 @@ Empty URLs would silently break OAuth redirects, email links, CORS, and any
 absolute-URL builder in the app.
 ` }}
 {{- end }}
+{{- end }}
+
+{{/* ================================================================
+   A public object-store route hands credentials and signed requests to
+   clients outside the cluster. Require the URL advertised to those
+   clients to use HTTPS. TLS may be configured through spec.tls or
+   controller-specific annotations, so validate the advertised URL
+   rather than prescribing one Ingress controller's configuration.
+   ================================================================ */}}
+{{- define "agenta.validateSeaweedfsIngress" -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $store := default dict $values.store -}}
+{{- $seaweedfs := default dict $store.seaweedfs -}}
+{{- $ingress := default dict $seaweedfs.ingress -}}
+{{- if and (eq (include "agenta.store.enabled" .) "true") (eq (include "agenta.seaweedfs.enabled" .) "true") $ingress.enabled -}}
+{{- $endpoint := default "" $store.endpointUrl -}}
+{{- if not (hasPrefix "https://" $endpoint) -}}
+{{- fail `
+
+CONFIGURATION ERROR: a public SeaweedFS ingress requires an HTTPS store.endpointUrl.
+
+Set store.endpointUrl to the public HTTPS URL and configure TLS through
+store.seaweedfs.ingress.tls or your Ingress controller's annotations. For example:
+
+  store:
+    endpointUrl: "https://store.example.com"
+    seaweedfs:
+      ingress:
+        enabled: true
+        host: store.example.com
+        tls:
+          - hosts: [store.example.com]
+            secretName: agenta-store-tls
+` -}}
+{{- end -}}
+{{- end -}}
 {{- end }}
 
 {{/* ================================================================
@@ -227,6 +268,28 @@ If you didn't intend to toggle persistence, restore the previous value of
 redisDurable.persistence.enabled in your values file (was: %v).
 ` $existingHasPersistence $desiredEnabled .Release.Namespace $name .Release.Namespace $name .Release.Namespace $name $existingHasPersistence) -}}
 {{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/* ================================================================
+   Validate the Alembic hook phase. A typo would silently fall back to
+   "post", so an operator who asked for "pre" would keep the behavior
+   they tried to change and never learn why.
+   ================================================================ */}}
+{{- define "agenta.validateAlembicHookPhase" -}}
+{{- $phase := include "agenta.alembic.hookPhase" . -}}
+{{- if not (has $phase (list "post" "pre")) -}}
+{{- fail (printf `
+
+CONFIGURATION ERROR: alembic.hookPhase=%q is not a valid phase.
+
+Allowed values:
+
+  post   (default) run the migrations after the release is applied. Required with
+         the bundled PostgreSQL, which does not exist yet at pre-install time.
+  pre              run the migrations before the app pods start. Use this with an
+         external database (postgresql.enabled=false).
+` $phase) -}}
 {{- end -}}
 {{- end }}
 
