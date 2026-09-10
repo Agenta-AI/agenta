@@ -85,6 +85,9 @@ const memory = new Map<string, string>()
 
 const PAGE_SIZE = 50
 
+/** `session_ids` is capped at this length by the request model; a longer list is a 422. */
+const MAX_SESSION_IDS = 500
+
 const sessionRow = (id: string) => ({
     session_id: id,
     created_at: "2026-09-01T00:00:00Z",
@@ -199,6 +202,43 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
         // The reordered poll must not re-key either session query. Without the sort both the head
         // and the tail refetch, and the tail walks every page again.
         expect(requests()).toBe(before)
+
+        unsubscribe()
+    })
+
+    it("truncates the waiting set to the longest id list the server accepts", async () => {
+        const {MAIN_SIDEBAR_SCOPE_ID} = await import("../../src/constants")
+        const {sidebarSessionFiltersAtomFamily} = await import("../../src/dynamic/sessionFilters")
+        const {sidebarSessionPagingAtomFamily, loadMoreSidebarSessionsAtomFamily} =
+            await import("../../src/dynamic/sessionsSource")
+
+        // More sessions awaiting input than the request model allows in one `session_ids` list.
+        const waitingIds = Array.from({length: 620}, (_, index) => `s${index}`)
+        const kept = [...waitingIds].sort().slice(0, MAX_SESSION_IDS)
+        queryInteractions.mockResolvedValue(waitingIds.map((id) => ({session_id: id})))
+        querySessions.mockImplementation(async (args: {sessionIds?: string[]}) =>
+            (args.sessionIds ?? []).slice(0, PAGE_SIZE).map(sessionRow),
+        )
+        querySessionsFlatPage.mockImplementation(servePage(kept))
+
+        const {store} = newStore()
+        const scope = MAIN_SIDEBAR_SCOPE_ID
+        store.set(sidebarSessionFiltersAtomFamily(scope), {status: "waiting"})
+
+        const unsubscribe = store.sub(sidebarSessionPagingAtomFamily(scope), () => {})
+        store.get(sidebarSessionPagingAtomFamily(scope))
+        await settle()
+
+        const head = querySessions.mock.calls.map(([args]) => args)[0]
+        // Sending all 620 is a 422, which shows the user an empty list rather than a subset.
+        expect(head.sessionIds).toHaveLength(MAX_SESSION_IDS)
+        expect(head.sessionIds).toEqual(kept)
+
+        store.set(loadMoreSidebarSessionsAtomFamily(scope))
+        await settle()
+
+        const tail = querySessionsFlatPage.mock.calls.map(([args]) => args).at(-1)
+        expect(tail.sessionIds).toHaveLength(MAX_SESSION_IDS)
 
         unsubscribe()
     })

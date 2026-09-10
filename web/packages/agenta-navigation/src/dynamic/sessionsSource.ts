@@ -153,6 +153,12 @@ const queryByAgents = async (
  */
 const MAX_SESSION_QUERY_LIMIT = 200
 
+/**
+ * The longest `session_ids` list the sessions query accepts. Above it the server answers 422 and
+ * the request returns nothing, so the id push-down has to stay inside it.
+ */
+const MAX_SESSION_IDS_PER_QUERY = 500
+
 interface SessionPageWalkParams {
     projectId: string
     references: {id: string}[] | undefined
@@ -255,7 +261,15 @@ const sidebarWaitingIdsQueryAtomFamily = atomFamily((scopeId: string) =>
                 // executions. Both session queries put this array in their cache key, and a pure
                 // reorder would re-key them on every poll and re-fetch the whole tail. The server
                 // sorts the id list anyway, so ordering it here costs nothing.
-                return [...new Set((rows ?? []).map((row) => row.session_id))].sort()
+                //
+                // Truncated because the id push-down is the filter: a longer list is a 422 and the
+                // rail would show nothing at all rather than a subset. Sorting first makes which
+                // ids survive stable across polls. Paging closes on its own once the capped set
+                // runs out, since a short page ends the walk. Past 500 sessions gated at once the
+                // rail lists 500 of them; there is no server predicate to narrow it further.
+                return [...new Set((rows ?? []).map((row) => row.session_id))]
+                    .sort()
+                    .slice(0, MAX_SESSION_IDS_PER_QUERY)
             },
             enabled: Boolean(projectId) && (needed || scopeGroups(scopeId)),
             staleTime: 10_000,
