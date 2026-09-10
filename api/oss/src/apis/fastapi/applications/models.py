@@ -366,6 +366,14 @@ class ApplicationRevisionQueryRequest(BaseModel):
             revision_refs=self.application_revision_refs,
             windowing=self.windowing,
         )
+        if (
+            self.grouping
+            and self.application_revision
+            and self.application_revision.flags
+        ):
+            raise ValueError(
+                "grouping cannot be combined with application revision flags"
+            )
         return self
 
 

@@ -285,6 +285,10 @@ class EvaluatorRevisionQueryRequest(BaseModel):
             revision_refs=self.evaluator_revision_refs,
             windowing=self.windowing,
         )
+        if self.grouping and self.evaluator_revision and self.evaluator_revision.flags:
+            raise ValueError(
+                "grouping cannot be combined with evaluator revision flags"
+            )
         return self
 
 

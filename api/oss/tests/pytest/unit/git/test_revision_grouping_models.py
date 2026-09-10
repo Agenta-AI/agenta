@@ -72,3 +72,25 @@ def test_grouping_rejects_explicit_revision_references(request_model, prefix):
                 "grouping": {"by": "artifact", "get": "latest"},
             }
         )
+
+
+@pytest.mark.parametrize(
+    ("request_model", "prefix", "flags"),
+    [
+        (ApplicationRevisionQueryRequest, "application", {}),
+        (EvaluatorRevisionQueryRequest, "evaluator", {}),
+        (WorkflowRevisionQueryRequest, "workflow", {"is_agent": True}),
+    ],
+)
+def test_grouping_rejects_revision_flags(request_model, prefix, flags):
+    with pytest.raises(
+        ValidationError,
+        match=f"grouping cannot be combined with {prefix} revision flags",
+    ):
+        request_model.model_validate(
+            {
+                f"{prefix}_revision": {"flags": flags},
+                f"{prefix}_refs": [{"id": str(uuid4())}],
+                "grouping": {"by": "artifact", "get": "latest"},
+            }
+        )
