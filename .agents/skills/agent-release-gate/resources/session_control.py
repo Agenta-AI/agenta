@@ -464,6 +464,16 @@ class DockerComposeHooks(OperatorHooks):
         )
 
     def kill_runner(self) -> None:
+        """SIGKILL the runner and bring the replacement back up. Both halves are load-bearing.
+
+        The kill must be a SIGKILL, because on SIGTERM the runner runs its shutdown handler and
+        destroys every sandbox it owns, including the one the cell is testing.
+
+        The start must be explicit, which is why this is `restart -t 0` rather than `kill`:
+        Docker treats an operator-issued kill as a manual stop and skips the `always` restart
+        policy, so a bare kill leaves the runner exited for every later cell. Do not simplify
+        this into `docker kill`.
+        """
         self.dc("restart", "-t", "0", f"{self.project}-runner-1", timeout=60)
 
     def pause_runner(self) -> None:

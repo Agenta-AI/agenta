@@ -69,6 +69,25 @@ configured and pass `--require-store`, or the greenest possible run still says n
 durability. `cold2` additionally needs an operator hook that SIGKILLs the runner replica
 (`--cold2-replace-cmd`) and SKIPs without it.
 
+**Write that hook to kill AND start, and do not shorten it.** The kill has to be a SIGKILL,
+because on SIGTERM the runner runs its shutdown handler and destroys every sandbox it owns,
+including the session the journey wants to resume. The start has to be explicit, because Docker
+treats an operator-issued kill as a manual stop and skips the `always` restart policy: a hook
+that kills and then waits for the container to come back on its own waits forever. So the hook
+is a kill, an explicit start, and a wait for health before it returns:
+
+```bash
+export AGENTA_QA_RUNNER_REPLACE_CMD='docker kill -s KILL <runner> && docker start <runner> && \
+  until [ "$(docker inspect -f "{{.State.Health.Status}}" <runner>)" = healthy ]; do sleep 2; done'
+```
+
+This is not theoretical. A hook without the explicit start left the runner down for about seven
+minutes mid-gate on 2026-09-10, and every cell after it failed for a reason that had nothing to
+do with what it was testing. With the start and the health wait, later cold2 and hook cells
+restored the runner in about forty seconds each. The same rule governs the session-control hook
+cells, and `DockerComposeHooks.kill_runner` already implements it as `compose restart -t 0`
+rather than a bare kill, with `ensure_runner_healthy` in a `finally` as the backstop.
+
 **The flag that makes the gate fit the release: `--release-base`.** The matrix is fixed, so
 without it a release that reworked a subsystem gets exactly the coverage of a release that did
 not touch it. Pass the ref the release branches from, and the driver reads the release's own
