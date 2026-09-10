@@ -3,6 +3,8 @@ from typing import Any, Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, Request, status, HTTPException, Depends
+from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
 
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -863,7 +865,7 @@ class WorkflowsRouter:
         edit_name = workflow_edit_request.workflow.name
         if edit_name is not None and not edit_name.strip():
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="workflow.name must contain a non-whitespace character.",
             )
 
@@ -1543,9 +1545,17 @@ class WorkflowsRouter:
         ),
         query_request_body: Optional[WorkflowRevisionQueryRequest] = Body(None),
     ) -> WorkflowRevisionsResponse:
-        workflow_revision_query_request = merge_workflow_revision_query_requests(
-            query_request_params, query_request_body
-        )
+        try:
+            workflow_revision_query_request = merge_workflow_revision_query_requests(
+                query_request_params, query_request_body
+            )
+        except ValidationError as exc:
+            # Merging re-runs request validation, so an invalid params/body combination
+            # must reach the caller as 422 instead of being suppressed into an empty 200.
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=jsonable_encoder(exc.errors()),
+            ) from exc
 
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,

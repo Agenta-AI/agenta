@@ -1573,7 +1573,9 @@ class ApplicationsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=ApplicationRevisionsResponse())
+    @suppress_exceptions(
+        default=ApplicationRevisionsResponse(), exclude=[HTTPException]
+    )
     async def query_application_revisions(
         self,
         request: Request,
