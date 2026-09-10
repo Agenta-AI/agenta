@@ -10,6 +10,26 @@
  * — preventing a circular dependency. Consumers that need the enum import it
  * directly from `@agenta/entities/secret`.
  */
+/**
+ * The sign-in facts a hosted subscription row carries.
+ *
+ * The login itself never leaves the vault, so the row reports only how usable it is. `loginState`
+ * stays a plain string: an API that grows a fourth state must not make the row unreadable, and the
+ * readers here treat anything but `ready` as "sign in needed".
+ */
+export interface SubscriptionLoginFacts {
+    /** The product family behind the connection (`chatgpt`). */
+    provider: string
+    /** `pending_login`, `ready`, or `needs_login`. */
+    loginState: string
+    /** Bumps on every stored login change, a pushed refresh included. */
+    loginVersion?: number
+    /** Bumps only on a new device login. */
+    loginGeneration?: number
+    /** Why the last run found the login unusable; shown next to Sign in again. */
+    loginError?: string | null
+}
+
 export interface LlmProvider {
     title?: string
     key?: string
@@ -48,6 +68,8 @@ export interface LlmProvider {
     keyPreview?: string
     /** Public management policy for the row; internal manager identity is never exposed. */
     managementPolicy?: string
+    /** Present only on a `subscription_provider` row: how usable its stored sign-in is. */
+    subscription?: SubscriptionLoginFacts
     id?: string
     type?: string
     created_at?: string

@@ -239,11 +239,14 @@ export function fakeHarness(options: FakeOptions = {}) {
       durable ?? options.cwd ?? "/tmp/agenta-fake-cwd",
     createDaytonaCwd: (durable?: string) =>
       durable ?? "/home/sandbox/agenta-fake-cwd",
-    resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
+    resolveSkillDirs: () => ({ skills: [], dropped: [], cleanup: () => {} }),
     buildDaemonEnv: (agent, daemonOptions) => {
       calls.daemonAgent = agent;
       calls.daemonOptions = daemonOptions;
-      return {};
+      // The real `buildDaemonEnv` always names a pi command, and a local subscription run wraps
+      // it to deliver its own system prompts. A double that returned `{}` would fail every such
+      // run on the prompt-channel gate.
+      return { PI_ACP_PI_COMMAND: "/bin/pi" };
     },
     resolveDaemonBinary: () => "/bin/sandbox-agent",
     buildSandboxProvider: (...args: unknown[]) => {

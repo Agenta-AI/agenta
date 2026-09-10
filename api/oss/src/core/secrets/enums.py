@@ -7,6 +7,50 @@ class SecretKind(str, Enum):
     SSO_PROVIDER = "sso_provider"
     WEBHOOK_PROVIDER = "webhook_provider"
     CUSTOM_SECRET = "custom_secret"
+    SUBSCRIPTION_PROVIDER = "subscription_provider"
+
+
+class SubscriptionProviderKind(str, Enum):
+    """The product family behind a hosted subscription connection."""
+
+    CHATGPT = "chatgpt"
+
+
+class SubscriptionLoginState(str, Enum):
+    """How usable the stored subscription login is right now."""
+
+    # No login has ever been stored, or the last one was removed.
+    PENDING_LOGIN = "pending_login"
+    READY = "ready"
+    # A run reported that the login is dead and no newer login exists.
+    NEEDS_LOGIN = "needs_login"
+
+
+# The models a ChatGPT subscription can drive, and the harnesses that can drive them.
+# Copied from `PI_SUBSCRIPTION_MODELS["openai-codex"]` in
+# `sdks/python/agenta/sdk/agents/capabilities.py` rather than imported: the API must not
+# depend on the SDK's agent catalog. Keep the two lists in agreement when Pi's pinned
+# version changes its codex model set.
+SUBSCRIPTION_PROVIDER_MODELS = {
+    SubscriptionProviderKind.CHATGPT: [
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        "gpt-5.5",
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "gpt-5.3-codex-spark",
+    ],
+}
+
+SUBSCRIPTION_PROVIDER_HARNESSES = {
+    SubscriptionProviderKind.CHATGPT: ["pi_core"],
+}
+
+# The display name a new subscription connection takes when the caller sends none.
+SUBSCRIPTION_PROVIDER_DISPLAY_NAMES = {
+    SubscriptionProviderKind.CHATGPT: "ChatGPT",
+}
 
 
 class CustomSecretFormat(str, Enum):

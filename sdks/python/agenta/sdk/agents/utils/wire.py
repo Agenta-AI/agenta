@@ -92,6 +92,7 @@ def request_to_wire(
     messages: Sequence[Message],
     trace: Optional[TraceContext] = None,
     run_context: Optional[RunContext] = None,
+    turn_context: Optional[str] = None,
     session_id: Optional[str] = None,
     detached: bool = False,
     turn_id: Optional[str] = None,
@@ -131,6 +132,9 @@ def request_to_wire(
     (``call.context`` on direct-call specs and ``contextBindings`` on callRef specs) (direct-call tools, Phase 3a). Omitted when unset (and when its ``to_wire`` is empty),
     so a run that needs no binding stays byte-identical to before.
 
+    ``turn_context`` is SDK-rendered context included in this turn's harness prompt.
+    It is separate from the stable platform instructions and never changes session identity.
+
     ``effective_parameters`` is the POST-HYDRATION config this turn actually runs (the handler's
     resolved ``data.parameters``). It rides as the opaque ``effectiveParameters`` ONLY on a
     session run — a non-session run has no interaction row to stamp it onto, so its payload stays
@@ -157,10 +161,11 @@ def request_to_wire(
         "telemetry": trace.telemetry_to_wire() if trace else None,
         **config.wire_tools(),
         **config.wire_prompt(),
-        **config.wire_gateway_guidance(),
+        **config.wire_platform_instructions(),
         **config.wire_mcp(),
         **config.wire_skills(),
         **config.wire_sandbox_permission(),
+        **config.wire_sandbox_credentials(),
         **config.wire_connection_ref(),
         **config.wire_model_connection(),
         **config.wire_harness_mode(),
@@ -172,6 +177,8 @@ def request_to_wire(
         run_context_wire = run_context.to_wire()
         if run_context_wire:
             payload["runContext"] = run_context_wire
+    if turn_context is not None:
+        payload["turnContext"] = turn_context
     if turn_id is not None:
         payload["turnId"] = turn_id
     if detached and session_id:

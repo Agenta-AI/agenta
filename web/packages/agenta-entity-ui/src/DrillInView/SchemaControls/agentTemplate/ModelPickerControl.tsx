@@ -98,8 +98,11 @@ const ModelPickerControl = ({
                 candidates,
                 connections,
                 capabilities,
+                // The candidates above were narrowed to these, so the sign-in-needed row has to
+                // know them too, or it speaks for a subscription this agent cannot drive.
+                harnessIds,
             }),
-        [candidates, connections, capabilities],
+        [candidates, connections, capabilities, harnessIds],
     )
 
     // The exact row the config points at. `value` alone selects by model id, which lights up every
@@ -139,6 +142,7 @@ const ModelPickerControl = ({
                 ),
                 connections: fresh.connections,
                 capabilities: fresh.capabilities,
+                harnessIds,
             })
             const selection = pickerSelectionAfterProviderSave({
                 rows: freshRows,

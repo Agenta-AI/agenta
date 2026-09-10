@@ -263,21 +263,18 @@ export function DataTable<T>({
                 aria-label={reloadLabel}
                 disabled={reloading}
                 onClick={() => onReload()}
+                className="max-sm:h-control-sm max-sm:w-control-sm max-sm:rounded-control-sm"
             >
                 <ArrowClockwise size={14} />
             </Button>
         </SimpleTooltip>
     ) : null
 
-    // The empty state carries its own call to action, and on a phone the two sit far enough
-    // apart to read as different controls — so show only that one.
+    // Phone: the same actions, one size down. They used to stretch full-width and drop out
+    // entirely behind an empty state's own call to action, which left the toolbar with a lone
+    // reload button and no way to act on the table.
     const primaryGroup = primaryActions ? (
-        <div
-            className={clsx(
-                "flex items-center gap-2 max-sm:w-full max-sm:[&>*]:flex-1",
-                showEmpty && empty && "max-sm:hidden",
-            )}
-        >
+        <div className="flex items-center gap-2 max-sm:[&>*]:h-control-sm max-sm:[&>*]:rounded-control-sm max-sm:[&>*]:px-btn-sm max-sm:[&>*]:text-btn-sm">
             {primaryActions}
         </div>
     ) : null
@@ -317,12 +314,7 @@ export function DataTable<T>({
                                 // what keeps the actions on the right. A section with neither
                                 // title nor search (Secrets) was left-aligning them against the
                                 // content edge while every other table put them opposite.
-                                <div
-                                    className={clsx(
-                                        "flex flex-wrap items-start gap-2 max-sm:w-full",
-                                        !title && "sm:ml-auto",
-                                    )}
-                                >
+                                <div className="ml-auto flex flex-wrap items-start justify-end gap-2">
                                     {reloadButton ? (
                                         <div className="shrink-0">{reloadButton}</div>
                                     ) : null}
@@ -369,7 +361,7 @@ export function DataTable<T>({
                             ) : null}
                             {filters}
                             {title ? null : (
-                                <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
+                                <div className="ml-auto flex shrink-0 items-center gap-2">
                                     {reloadButton}
                                     {primaryGroup}
                                 </div>

@@ -1,6 +1,7 @@
 import {useEffect} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
+import {useClassicModeCookieSync} from "@agenta/shared/hooks"
 import {activeUserIdAtom, setProjectIdAtom, setSessionAtom, setUserAtom} from "@agenta/shared/state"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -30,10 +31,14 @@ export const ContextSync = () => {
     // someone a blank slate on every reload. A settled answer with no user IS a sign-out though,
     // and holding the old id there would show the next person on this browser the last one's
     // preferences.
+    // `uid`, not `id`: the desktop scopes these by `Session.getUserId()`.
     useEffect(() => {
         if (profilePending) return
-        setActiveUserId(user?.id ?? null)
-    }, [profilePending, user?.id, setActiveUserId])
+        setActiveUserId(user?.uid ?? null)
+    }, [profilePending, user?.uid, setActiveUserId])
+
+    // Publish Classic mode as a cookie here too, or a switch flipped on /m would not stick.
+    useClassicModeCookieSync()
 
     // The auth half of the same context, and the other half of the desktop's `SessionListener`.
     // `sessionAtom` defaults to FALSE and every entity query gates on it, so a host that never

@@ -20,7 +20,20 @@ from oss.src.apis.fastapi.vault import router as vault_router_module
 from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
+from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
+
+
+def _vault_router(vault_service: VaultService) -> VaultRouter:
+    """The router as the entrypoint wires it, with a runner client nothing here calls."""
+    return VaultRouter(
+        vault_service=vault_service,
+        subscription_login_service=SubscriptionLoginService(
+            vault_service=vault_service,
+            runner_client=SubscriptionLoginRunnerClient(base_url="", token=""),
+        ),
+    )
 
 
 PROJECT_ID = str(uuid4())
@@ -115,7 +128,7 @@ def _harness(monkeypatch):
             request.state.token_grants = (SECRET_RESOLVE_GRANT,)
         return await call_next(request)
 
-    app.include_router(VaultRouter(vault_service=VaultService(dao)).router)
+    app.include_router(_vault_router(VaultService(dao)).router)
 
     return TestClient(app)
 
@@ -346,7 +359,7 @@ def _token_client(monkeypatch):
             return JSONResponse({"detail": "Unauthorized"}, status_code=exc.status_code)
         return await call_next(request)
 
-    app.include_router(VaultRouter(vault_service=VaultService(dao)).router)
+    app.include_router(_vault_router(VaultService(dao)).router)
 
     return TestClient(app)
 
@@ -448,3 +461,60 @@ def test_malformed_create_never_echoes_the_submitted_key(harness):
 
     assert response.status_code == 422
     assert CANARY not in response.text
+
+
+def test_write_only_custom_secret_keeps_default_environment_metadata(harness):
+    response = harness.post(
+        "/secrets/",
+        json={
+            "header": {"name": "GitHub token"},
+            "slug": "github-token",
+            "write_only": True,
+            "secret": {
+                "kind": "custom_secret",
+                "data": {
+                    "secret": {
+                        "format": "text",
+                        "content": "github-secret-value",
+                        "default_env_var": "GITHUB_TOKEN",
+                    }
+                },
+            },
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["data"]["secret"]["default_env_var"] == "GITHUB_TOKEN"
+    assert "content" not in body["data"]["secret"]
+
+
+def test_custom_secret_update_keeps_omitted_default_environment_metadata(harness):
+    created = harness.post(
+        "/secrets/",
+        json={
+            "header": {"name": "GitHub token"},
+            "slug": "github-token-update",
+            "write_only": True,
+            "secret": {
+                "kind": "custom_secret",
+                "data": {
+                    "secret": {
+                        "format": "text",
+                        "content": "old",
+                        "default_env_var": "GITHUB_TOKEN",
+                    }
+                },
+            },
+        },
+    ).json()
+    updated = harness.put(
+        f"/secrets/{created['id']}",
+        json={
+            "secret": {
+                "kind": "custom_secret",
+                "data": {"secret": {"format": "text", "content": "new"}},
+            }
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["data"]["secret"]["default_env_var"] == "GITHUB_TOKEN"

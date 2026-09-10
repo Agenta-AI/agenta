@@ -20,10 +20,15 @@ import {
 } from "./pi-model-config.ts";
 import {
   type RunPlan,
+  type RunPlanCredentials,
   type RunPlanPrompt,
   type RunPlanTools,
   type RunPlanWorkspace,
 } from "./run-plan.ts";
+import {
+  materializeSubscriptionLoginForRun,
+  type SubscriptionSandboxFs,
+} from "./subscription-login/files.ts";
 
 type Log = (message: string) => void;
 
@@ -38,6 +43,41 @@ export const DAYTONA_PI_INSTALL_DIR = "/home/sandbox/.agenta-pi";
 export const PINNED_PI_VERSION = "0.85.1";
 /** The expected Pi executable path the runner probes and points `PI_ACP_PI_COMMAND` at. */
 export const DAYTONA_PI_COMMAND = `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/pi`;
+
+/** The slice that says whether this Daytona run brings its own subscription agent dir. */
+type DaytonaSubscriptionPlan = Pick<RunPlan, "isPi" | "isDaytona"> & {
+  credentials: Pick<RunPlanCredentials, "subscriptionHome">;
+};
+
+/**
+ * The in-sandbox Pi agent dir for a run.
+ *
+ * A HOSTED subscription run gets its own per-connection dir on in-VM disk, because that dir holds
+ * a credential and must not be shared with the next connection that lands on a warm sandbox. Every
+ * other run keeps the image's shared `~/.pi/agent`.
+ *
+ * The whole agent dir moves, not just the login file: Pi reads its extension, skills, models.json,
+ * and system prompt out of `PI_CODING_AGENT_DIR`, so uploading assets to one dir and pointing Pi at
+ * another would start a session with no Agenta extension and therefore no permission gating.
+ */
+export function daytonaPiAgentDir(plan: DaytonaSubscriptionPlan): string {
+  return plan.credentials.subscriptionHome ?? DAYTONA_PI_DIR;
+}
+
+/**
+ * Point a Daytona daemon at this run's subscription agent dir. A no-op for every other run.
+ *
+ * Called from `buildRuntimeEnvironment`, into the env object that becomes the sandbox's `envVars`:
+ * the Daytona daemon environment is fixed at sandbox creation, so a value decided later never
+ * reaches the harness.
+ */
+export function configureDaytonaSubscriptionEnv(
+  plan: DaytonaSubscriptionPlan,
+  daytonaEnv: Record<string, string>,
+): void {
+  if (!plan.isDaytona || !plan.isPi || !plan.credentials.subscriptionHome) return;
+  daytonaEnv.PI_CODING_AGENT_DIR = plan.credentials.subscriptionHome;
+}
 
 /**
  * In-sandbox env for the Daytona daemon: where Pi reads its login, any provider keys,
@@ -200,7 +240,8 @@ export async function removePiModelsConfigFromSandbox(
 
 export interface PrepareDaytonaPiAssetsInput {
   sandbox: any;
-  plan: Pick<RunPlan, "isPi"> & {
+  plan: Pick<RunPlan, "isPi" | "isDaytona"> & {
+    credentials: Pick<RunPlanCredentials, "subscription" | "subscriptionHome">;
     workspace: Pick<RunPlanWorkspace, "skillDirs" | "relayDir">;
     tools: Pick<RunPlanTools, "toolSpecs">;
     prompt: Pick<
@@ -231,13 +272,29 @@ export async function prepareDaytonaPiAssets({
 }: PrepareDaytonaPiAssetsInput): Promise<boolean> {
   if (!plan.isPi) return true;
 
-  // A Daytona run never receives the runner's own Pi login: subscription (runtime_provided) auth
-  // is rejected for Daytona in buildRunPlan, and a managed run authenticates from the vault keys
-  // in `daytonaEnvVars`. The runner therefore uploads only the inert Agenta extension, forced
-  // skills, and system prompts — never a personal `auth.json` (interface.md section 6).
+  // Every asset goes into THIS run's agent dir, which is the shared image dir for an ordinary run
+  // and a per-connection dir for a hosted subscription run. Splitting them would leave Pi without
+  // the Agenta extension.
+  const agentDir = daytonaPiAgentDir(plan);
+
+  // The runner's OWN Pi login is still never uploaded: an operator-mount subscription stays
+  // rejected on Daytona in buildRunPlan, and a managed run authenticates from the vault keys in
+  // `daytonaEnvVars`. What CAN be delivered is a hosted subscription login, which belongs to the
+  // project rather than to this box — written before the harness starts, on in-VM disk, never on
+  // the geesefs cwd.
+  const subscription = plan.credentials.subscription;
+  if (subscription && plan.credentials.subscriptionHome) {
+    await materializeSubscriptionLoginForRun({
+      home: plan.credentials.subscriptionHome,
+      isDaytona: true,
+      sandbox: sandbox as SubscriptionSandboxFs,
+      subscription,
+      log,
+    });
+  }
   const extensionInstalled = await uploadPiExtensionToSandbox(
     sandbox,
-    DAYTONA_PI_DIR,
+    agentDir,
     log,
   );
   // The run's tool specs. The sandbox env map was fixed at creation with the in-sandbox PATH of
@@ -258,17 +315,17 @@ export async function prepareDaytonaPiAssets({
   if (piModelConfig) {
     await uploadPiModelsConfigToSandbox(
       sandbox,
-      DAYTONA_PI_DIR,
+      agentDir,
       piModelConfig,
       log,
     );
   } else {
-    await removePiModelsConfigFromSandbox(sandbox, DAYTONA_PI_DIR, log);
+    await removePiModelsConfigFromSandbox(sandbox, agentDir, log);
   }
   if (plan.workspace.skillDirs.length > 0) {
     await uploadSkillsToSandbox(
       sandbox,
-      DAYTONA_PI_DIR,
+      agentDir,
       plan.workspace.skillDirs,
       log,
     );
@@ -276,7 +333,7 @@ export async function prepareDaytonaPiAssets({
   if (plan.prompt.hasSystemPrompt) {
     await uploadSystemPromptToSandbox(
       sandbox,
-      DAYTONA_PI_DIR,
+      agentDir,
       plan.prompt.systemPrompt,
       plan.prompt.appendSystemPrompt,
       log,

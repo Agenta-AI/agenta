@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     ProjectOrgSwitcherView,
@@ -9,7 +9,7 @@ import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
 import {useMutation, useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-import {fetchProjects, writeLastContext} from "@/lib/context"
+import {fetchProjects, projectHomeUrl, writeLastContext} from "@/lib/context"
 
 import {useLogout} from "../auth/useLogout"
 import {groupByOrganization} from "../context/workspaceGroups"
@@ -23,9 +23,12 @@ import {CreateProjectSheet} from "./CreateProjectSheet"
 export const DrawerProjectSwitcher = ({
     workspaceId,
     projectId,
+    collapsed = false,
 }: {
     workspaceId: string
     projectId: string
+    /** The rail's state. False in the drawer, which never collapses. */
+    collapsed?: boolean
 }) => {
     const router = useRouter()
     const logout = useLogout()
@@ -53,7 +56,8 @@ export const DrawerProjectSwitcher = ({
 
     const goTo = (nextWorkspaceId: string, nextProjectId: string) => {
         writeLastContext({workspaceId: nextWorkspaceId, projectId: nextProjectId})
-        void router.push(`/w/${nextWorkspaceId}/p/${nextProjectId}/apps`)
+        // The resolver's own spelling of this route; the literal it replaces dropped the encoding.
+        void router.push(projectHomeUrl({workspaceId: nextWorkspaceId, projectId: nextProjectId}))
     }
 
     const projects = useMemo<SwitcherEntry[]>(
@@ -92,13 +96,24 @@ export const DrawerProjectSwitcher = ({
             const {createProject: create} = await import("@agenta/entities/project")
             return create({name: name.trim()}, workspaceId)
         },
-        onSuccess: async () => {
+        // Creating a project is a switch into it, exactly like picking one from the list.
+        onSuccess: async (created) => {
             setCreateOpen(false)
+            // Refetch first: the destination reads this same query for its title.
             await query.refetch()
+            goTo(created.workspace_id ?? workspaceId, created.project_id)
         },
     })
 
+    // Inside the nav drawer the panel must portal into the sheet or it renders behind it. In the
+    // docked rail there is no sheet, and portalling into this wrapper put the 220px panel inside a
+    // 48px `overflow-y-auto` column, which cropped it to a sliver — so there, use the body.
     const [panelContainer, setPanelContainer] = useState<HTMLElement | null>(null)
+    const anchorRef = useCallback(
+        (node: HTMLDivElement | null) =>
+            setPanelContainer(node?.closest<HTMLElement>('[data-slot="sheet-content"]') ?? null),
+        [],
+    )
 
     // The same fly-out the desktop rail carries, over the same three choices — Preferences offers
     // them too, but the switcher is where you already are when you want to flip the lights.
@@ -118,10 +133,10 @@ export const DrawerProjectSwitcher = ({
     )
 
     return (
-        <div ref={setPanelContainer}>
+        <div ref={anchorRef}>
             <ProjectOrgSwitcherView
                 panelContainer={panelContainer}
-                collapsed={false}
+                collapsed={collapsed}
                 projectLabel={currentProject?.project_name ?? "Select project"}
                 orgLabel={currentGroup?.organizationName ?? "Organization"}
                 projects={projects}

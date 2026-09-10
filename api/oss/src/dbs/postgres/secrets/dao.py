@@ -129,7 +129,7 @@ class SecretsDAO(SecretsDAOInterface):
         organization_id: UUID | None,
         user_id: UUID | None = None,
         resolve_update: Optional[
-            Callable[[SecretResponseDTO, UpdateSecretDTO], UpdateSecretDTO]
+            Callable[[SecretResponseDTO, UpdateSecretDTO], Optional[UpdateSecretDTO]]
         ] = None,
     ):
         async with self.engine.session() as session:
@@ -155,10 +155,16 @@ class SecretsDAO(SecretsDAOInterface):
             # snapshot another writer has already replaced; the keep-on-omit carry-over
             # in particular would then write a rotated credential back to its old value.
             if resolve_update is not None:
-                update_secret_dto = resolve_update(
+                resolved = resolve_update(
                     map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe),
                     update_secret_dto,
                 )
+                # None means the resolver found nothing to change. Returning here leaves
+                # the lifecycle columns alone and rolls the transaction back, so a poll
+                # that learns nothing costs a read and no write.
+                if resolved is None:
+                    return map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
+                update_secret_dto = resolved
 
             map_secrets_dto_to_dbe_update(
                 secrets_dbe=secrets_dbe,

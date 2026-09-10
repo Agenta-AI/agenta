@@ -156,7 +156,7 @@ export function ItemRow({
                 <ItemAvatar descriptor={descriptor} />
                 <div className="min-w-0 flex-1">
                     <div
-                        className={`truncate text-[13px] font-medium ${
+                        className={`truncate text-[13px] font-normal ${
                             descriptor.monoName === false ? "" : "font-mono"
                         }`}
                     >
@@ -171,11 +171,15 @@ export function ItemRow({
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
                 {status ? <StatusTag status={status} /> : null}
-                {descriptor.tags.map((tag) => (
-                    <Tag key={tag} className={TAG_CLS}>
-                        {tag}
-                    </Tag>
-                ))}
+                {descriptor.tags.map((tag) => {
+                    const label = typeof tag === "string" ? tag : tag.label
+                    const tone = typeof tag === "string" ? undefined : tag.tone
+                    return (
+                        <Tag key={label} tone={tone} className={TAG_CLS}>
+                            {label}
+                        </Tag>
+                    )
+                })}
                 {locked ? <Tag className={TAG_CLS}>Locked</Tag> : null}
                 {extra}
                 {onRemove && !disabled && !locked ? (
@@ -295,10 +299,7 @@ export function InstructionsFileRow({
 }) {
     const descriptor = describeInstruction(filename, content)
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
-    const meta =
-        wordCount > 0
-            ? `Markdown · ${wordCount} word${wordCount === 1 ? "" : "s"}`
-            : "Markdown · empty"
+    const meta = wordCount > 0 ? `${wordCount} word${wordCount === 1 ? "" : "s"}` : "empty"
     return (
         <div
             role="button"
@@ -311,8 +312,10 @@ export function InstructionsFileRow({
                 }
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
+            // Same border and ground as the integration and subagent rows above: --ag-c-EAEFF5 is
+            // a fixed light hex, so this row's edge vanished against a dark section.
             className={cn(
-                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2.5 transition-colors",
+                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] px-3 py-2.5 transition-colors",
                 !status && "hover:border-[var(--ag-zinc-5)]",
             )}
         >

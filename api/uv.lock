@@ -8,7 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "agenta"
-version = "0.115.2"
+version = "0.117.0"
 source = { editable = "../sdks/python" }
 dependencies = [
     { name = "agenta-client" },
@@ -72,7 +72,7 @@ dev = [
 
 [[package]]
 name = "agenta-client"
-version = "0.115.2"
+version = "0.117.0"
 source = { editable = "../clients/python" }
 dependencies = [
     { name = "httpx" },
@@ -276,7 +276,7 @@ wheels = [
 
 [[package]]
 name = "api"
-version = "0.115.2"
+version = "0.117.0"
 source = { virtual = "." }
 dependencies = [
     { name = "agenta" },
@@ -304,6 +304,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "python-jsonpath" },
     { name = "python-multipart" },
+    { name = "pyyaml" },
     { name = "redis" },
     { name = "sendgrid" },
     { name = "sqlalchemy" },
@@ -359,6 +360,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1,<2" },
     { name = "python-jsonpath", specifier = ">=2,<3" },
     { name = "python-multipart", specifier = ">=0.0.32,<0.0.33" },
+    { name = "pyyaml", specifier = ">=6,<7" },
     { name = "redis", specifier = ">=8,<9" },
     { name = "sendgrid", specifier = ">=6,<7" },
     { name = "sqlalchemy", specifier = ">=2,<3" },

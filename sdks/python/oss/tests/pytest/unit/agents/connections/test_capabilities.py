@@ -204,3 +204,13 @@ def test_models_round_trip_as_a_plain_dict():
             assert isinstance(provider, str)
             assert isinstance(ids, list)
             assert all(isinstance(model_id, str) for model_id in ids)
+
+
+def test_hosted_subscription_pairs_need_no_new_capability():
+    # A hosted subscription run resolves to `self_managed` plus a provider family the harness
+    # already publishes. If either pair ever closed, every subscription run would fail the
+    # post-resolve capability check, so pin both.
+    for harness, provider in (("pi_core", "openai-codex"), ("codex", "openai")):
+        assert harness_allows_mode(harness, "self_managed") is True
+        assert harness_allows_provider(harness, provider) is True
+        assert harness_allows_pair(harness, provider, "direct") is True

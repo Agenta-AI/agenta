@@ -8,3 +8,14 @@ export {
     type ProbeProviderResponse,
 } from "./probe"
 export {getSecretsClient, projectScopedRequest} from "./client"
+export {
+    LOGIN_ATTEMPT_BACKSTOP_MS,
+    LOGIN_ATTEMPT_STATES,
+    MIN_LOGIN_POLL_MS,
+    cancelLoginAttempt,
+    fetchLoginAttempt,
+    isTerminalLoginAttemptState,
+    startLoginAttempt,
+    type LoginAttemptResponse,
+    type LoginAttemptState,
+} from "./loginAttempts"

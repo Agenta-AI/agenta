@@ -20,6 +20,29 @@ import {adoptTranscriptRead, shouldAdoptTranscript} from "./transcriptAdoption"
 
 const INTERACTION_GATE_POLL_MS = 1_000
 
+/** Last adopted transcript per session, so returning to one shows it instead of re-blanking. */
+const SNAPSHOTS = new Map<
+    string,
+    {messages: UIMessage[]; recordCount: number | undefined; sequenceCursor: number | undefined}
+>()
+// Bounds the retained transcripts; a switch rarely lands further back than this.
+const SNAPSHOT_LIMIT = 12
+
+/** Logout is a client-side route change, so these outlive it without this. */
+export const clearTranscriptSnapshots = () => SNAPSHOTS.clear()
+
+const rememberSnapshot = (
+    id: string,
+    messages: UIMessage[],
+    recordCount: number | undefined,
+    sequenceCursor: number | undefined,
+) => {
+    SNAPSHOTS.delete(id)
+    SNAPSHOTS.set(id, {messages, recordCount, sequenceCursor})
+    const oldest = SNAPSHOTS.keys().next()
+    if (SNAPSHOTS.size > SNAPSHOT_LIMIT && !oldest.done) SNAPSHOTS.delete(oldest.value)
+}
+
 /**
  * Read-only transcript for one session: server record replay via `loadSessionMessages`
  * (IndexedDB-restored, revalidation re-delivered through `onRefreshed`). `null` history
@@ -33,8 +56,12 @@ const INTERACTION_GATE_POLL_MS = 1_000
  * (`useSessionWatch`) can drive the exact same revalidate path push-style.
  */
 export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
-    const [messages, setMessages] = useState<UIMessage[]>([])
-    const [state, setState] = useState<"loading" | "ready" | "empty">("loading")
+    const [messages, setMessages] = useState<UIMessage[]>(
+        () => SNAPSHOTS.get(sessionId)?.messages ?? [],
+    )
+    const [state, setState] = useState<"loading" | "ready" | "empty">(() =>
+        SNAPSHOTS.has(sessionId) ? "ready" : "loading",
+    )
     // Session-switch guard: a late resolve for a previous session must never land.
     const sessionRef = useRef(sessionId)
     sessionRef.current = sessionId
@@ -69,6 +96,12 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
             if (transcript.sequenceCursor !== undefined)
                 sequenceCursorRef.current = transcript.sequenceCursor
             messagesRef.current = transcript.messages
+            rememberSnapshot(
+                sessionId,
+                transcript.messages,
+                recordCountRef.current,
+                sequenceCursorRef.current,
+            )
             setMessages(transcript.messages)
             setState("ready")
             return true
@@ -86,11 +119,14 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         // deliveries order-independent, and this flag keeps a stale empty result from blanking
         // a transcript the revalidation already adopted.
         let adopted = false
-        setState("loading")
-        setMessages([])
-        messagesRef.current = []
-        recordCountRef.current = undefined
-        sequenceCursorRef.current = undefined
+        // Seeded from the last adopted transcript when we have one: the load below still runs and
+        // adopts anything newer, but the switch itself no longer empties the screen first.
+        const seeded = SNAPSHOTS.get(sessionId)
+        setState(seeded ? "ready" : "loading")
+        setMessages(seeded?.messages ?? [])
+        messagesRef.current = seeded?.messages ?? []
+        recordCountRef.current = seeded?.recordCount
+        sequenceCursorRef.current = seeded?.sequenceCursor
         void loadSessionMessages(sessionId, (fresh) => {
             // Disk-restore revalidation re-delivery — fresh is non-empty by contract.
             if (cancelled) return
@@ -102,11 +138,12 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
                     adopted = true
                     return
                 }
-                // Nothing adopted from either delivery → no durable history for this session.
-                if (!adopted) setState("empty")
+                // Nothing adopted from either delivery → no durable history for this session. A
+                // seeded transcript is not that: an unchanged record log declines to adopt.
+                if (!adopted && !seeded) setState("empty")
             })
             .catch(() => {
-                if (!cancelled && !adopted) setState("empty")
+                if (!cancelled && !adopted && !seeded) setState("empty")
             })
         return () => {
             cancelled = true

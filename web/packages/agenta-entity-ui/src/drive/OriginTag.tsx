@@ -18,14 +18,10 @@ export const ORIGIN_TIP: Record<FileOrigin, string> = {
 
 export const OriginTag = ({origin}: {origin: FileOrigin}) => (
     <Tooltip title={ORIGIN_TIP[origin]}>
-        {origin === "agent" ? (
-            <span className="inline-flex shrink-0 cursor-default items-center rounded bg-[var(--ag-type-agent-bg)] px-1 align-middle text-[12px] font-medium leading-[15px] text-[var(--ag-type-agent-text)]">
-                Agent
-            </span>
-        ) : (
-            <span className="inline-flex shrink-0 cursor-default items-center rounded border border-solid border-colorBorderSecondary px-1 align-middle text-[12px] font-medium leading-[15px] text-colorTextTertiary">
-                Session
-            </span>
-        )}
+        {/* One quiet treatment for both scopes: a tinted Agent pill read as a status next to the
+            neutral Session one, when the two are just the halves of the same distinction. */}
+        <span className="inline-flex shrink-0 cursor-default items-center rounded border border-solid border-colorBorderSecondary px-1 align-middle text-[12px] font-medium leading-[15px] text-colorTextTertiary">
+            {origin === "agent" ? "Agent" : "Session"}
+        </span>
     </Tooltip>
 )

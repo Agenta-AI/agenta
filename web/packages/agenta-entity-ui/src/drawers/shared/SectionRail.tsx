@@ -8,14 +8,17 @@
  *
  * Styling uses antd semantic tokens (`--ag-color*`) only — dark-safe.
  */
-import type {ReactNode} from "react"
+import {useState, type ReactNode} from "react"
 
 import {Button} from "@agenta/ui/ui"
+import {ArrowLeft} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 export interface SectionRailItem {
     value: string
     label: string
+    /** Optional leading glyph, sized by the caller (14-15px matches the drawer rails). */
+    icon?: ReactNode
     /** Optional trailing count (e.g. a schema's field count). */
     count?: number
     /**
@@ -29,7 +32,7 @@ export interface SectionRailProps {
     items: SectionRailItem[]
     value: string
     onChange: (value: string) => void
-    /** Rail column width. @default "w-[116px]" */
+    /** Rail column width. @default "w-[96px] sm:w-[116px]" */
     railWidth?: string
     /** Disable the rail toggles (e.g. a read-only revision). @default false */
     disabled?: boolean
@@ -38,6 +41,15 @@ export interface SectionRailProps {
      * internally-scrolling child. @default false (content-flow, natural height — the drawer case).
      */
     fill?: boolean
+    /** Bleed the divider past the host's 16px vertical padding, onto its rules. @default false */
+    bleed?: boolean
+    /**
+     * Phone: show one pane at a time (rail, then the picked section) instead of side by side.
+     * Off by default — a short two-item axis reads better as a toggle. @default false
+     */
+    drillIn?: boolean
+    /** What the phone back link calls the rail. @default "Sections" */
+    listLabel?: string
     /** Right-hand content panel; separated from the rail by a left border. */
     children: ReactNode
 }
@@ -46,14 +58,26 @@ export function SectionRail({
     items,
     value,
     onChange,
-    railWidth = "w-[116px]",
+    railWidth = "w-[96px] sm:w-[116px]",
     disabled = false,
     fill = false,
+    bleed = false,
+    drillIn = false,
+    listLabel = "Sections",
     children,
 }: SectionRailProps) {
+    // The rail opens, picking a section pushes its panel, a back link returns — side by side left
+    // the panel a sliver on a phone.
+    const [mobileView, setMobileView] = useState<"list" | "detail">("list")
     return (
-        <div className={clsx("flex gap-3", fill && "min-h-0 flex-1")}>
-            <div className={`flex ${railWidth} shrink-0 flex-col gap-0.5`}>
+        <div className={clsx("flex gap-2", fill && "min-h-0 flex-1")}>
+            <div
+                className={clsx(
+                    "flex flex-col gap-0.5 sm:shrink-0",
+                    railWidth,
+                    drillIn && (mobileView === "list" ? "max-sm:!w-full" : "max-sm:hidden"),
+                )}
+            >
                 {items.map((item) => {
                     const active = item.value === value
                     return (
@@ -61,8 +85,11 @@ export function SectionRail({
                             key={item.value}
                             variant="ghost"
                             disabled={disabled}
-                            onClick={() => onChange(item.value)}
-                            className={`h-8 w-full rounded-md px-2.5 text-xs transition-colors ${
+                            onClick={() => {
+                                onChange(item.value)
+                                if (drillIn) setMobileView("detail")
+                            }}
+                            className={`h-8 w-full rounded-md px-2 text-xs transition-colors ${
                                 item.count != null || item.status
                                     ? "flex items-center justify-between"
                                     : "justify-start"
@@ -74,7 +101,14 @@ export function SectionRail({
                                     : "text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillTertiary)] hover:text-[var(--ag-colorText)] disabled:text-[var(--ag-colorTextSecondary)]"
                             }`}
                         >
-                            <span className="truncate">{item.label}</span>
+                            <span className="flex min-w-0 items-center gap-1.5">
+                                {item.icon ? (
+                                    <span className="flex shrink-0 items-center opacity-75">
+                                        {item.icon}
+                                    </span>
+                                ) : null}
+                                <span className="truncate">{item.label}</span>
+                            </span>
                             {item.status ? (
                                 <span
                                     className={`h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -90,7 +124,25 @@ export function SectionRail({
                     )
                 })}
             </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorder)] pl-4">
+            <div
+                className={clsx(
+                    "min-w-0 flex-1 flex-col gap-1.5 border-0 border-solid border-[var(--ag-colorBorder)] sm:border-l sm:pl-4",
+                    // Side by side on a phone too, so it keeps the divider and a tighter gutter.
+                    !drillIn && "border-l pl-2",
+                    bleed && "-my-4 py-4",
+                    !drillIn || mobileView === "detail" ? "flex" : "hidden sm:flex",
+                )}
+            >
+                {drillIn ? (
+                    <button
+                        type="button"
+                        onClick={() => setMobileView("list")}
+                        className="flex shrink-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] sm:hidden"
+                    >
+                        <ArrowLeft />
+                        {listLabel}
+                    </button>
+                ) : null}
                 {children}
             </div>
         </div>

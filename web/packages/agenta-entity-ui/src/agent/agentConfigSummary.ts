@@ -18,6 +18,9 @@ export interface AgentConfigSummary {
     tools: number
     mcps: number
     skills: number
+    /** Display names of the agent's skills (embed refs by their sibling name/slug, inline
+     * packages by their own name), so the overview row can list them. */
+    skillNames: string[]
     sandbox: string | null
     /** Default tool permission, e.g. "allow_reads". */
     permissions: string | null
@@ -30,6 +33,17 @@ const str = (value: unknown): string | null =>
     typeof value === "string" && value.trim() ? value.trim() : null
 
 const count = (value: unknown): number => (Array.isArray(value) ? value.length : 0)
+
+/** A skill entry's display name: the sibling `name` (embed refs carry it too), else the
+ * referenced workflow slug, else null (an unparseable entry stays counted but unnamed). */
+const skillName = (entry: unknown): string | null => {
+    if (!isRecord(entry)) return null
+    const name = str(entry.name)
+    if (name) return name
+    const refs = nested(nested(entry, "@ag.embed"), "@ag.references")
+    const slug = str(nested(refs, "workflow")?.slug) ?? str(nested(refs, "workflow_revision")?.slug)
+    return slug
+}
 
 const nested = (parent: unknown, key: string): Record<string, unknown> | null => {
     if (!isRecord(parent)) return null
@@ -58,6 +72,9 @@ export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
         tools: count(agent.tools),
         mcps: count(agent.mcps),
         skills: count(agent.skills),
+        skillNames: Array.isArray(agent.skills)
+            ? agent.skills.map(skillName).filter((name): name is string => Boolean(name))
+            : [],
         sandbox: prettifyKind(str(nested(agent, "sandbox")?.kind)),
         permissions: prettifyKind(str(nested(nested(agent, "runner"), "permissions")?.default)),
     }

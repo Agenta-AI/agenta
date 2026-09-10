@@ -23,8 +23,9 @@ from pydantic import (
 )
 
 from agenta.sdk.engines.running.errors import ERRORS_BASE_URL, ErrorStatus
+from agenta.sdk.utils.logging import get_module_logger
 
-from .connections import ModelRef, ResolvedConnection
+from .connections import EnvironmentCredentialBinding, ModelRef, ResolvedConnection
 from .mcp import (
     MCPServerConfig,
     ResolvedMCPServer,
@@ -34,8 +35,36 @@ from .mcp import (
 from .pi_builtins import PI_BUILTIN_TOOL_NAMES
 from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
 from .permission_rules import wire_author_permission_rules
-from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
+from .tools import (
+    ToolCallback,
+    ToolConfig,
+    ToolConfigurationError,
+    ToolSpec,
+    coerce_tool_configs,
+)
 from .tools.models import PermissionMode, ResolvedGatewayPolicy, coerce_tool_spec
+
+log = get_module_logger(__name__)
+
+
+def _is_legacy_gateway_entry(entry: Any) -> bool:
+    """Whether an entry is the pre-rework one-action gateway shape.
+
+    The tag alone does not say so. A current-format ``gateway`` entry is still authored
+    today, and a malformed one is a mistake its author must see, so the entry has to carry a
+    positive mark of its age before it may be dropped:
+
+    * ``provider_action``, the field name the pre-2026-08-27 writer used, or
+    * neither ``action`` nor ``connection``, which no current-format entry can be missing.
+
+    ``composio`` is the same shape under its older name: ``coerce_tool_config`` renames it
+    before it parses, so a refusal for either spelling names the same legacy entry.
+    """
+    if not isinstance(entry, dict) or entry.get("type") not in {"gateway", "composio"}:
+        return False
+    if entry.get("provider_action"):
+        return True
+    return not entry.get("action") and not entry.get("connection")
 
 
 # ---------------------------------------------------------------------------
@@ -598,6 +627,18 @@ class RunContext(BaseModel):
         return out
 
 
+class SessionContext(BaseModel):
+    """API-supplied facts rendered by the SDK for the current turn.
+
+    These are prompt inputs, not tool bindings or environment configuration.
+    The runner receives only the rendered text as ``turnContext``.
+    """
+
+    agent_name: Optional[str] = None
+    session_name: Optional[str] = None
+    first_turn: Optional[bool] = None
+
+
 # ---------------------------------------------------------------------------
 # Run result
 # ---------------------------------------------------------------------------
@@ -617,6 +658,32 @@ class AgentResult(BaseModel):
     session_id: Optional[str] = None
     model: Optional[str] = None
     trace_id: Optional[str] = None
+
+
+class SandboxSecretReference(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    slug: str
+
+
+class SandboxEnvironmentBinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["env"] = "env"
+    name: str
+
+
+class SandboxCredentialConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    secret: SandboxSecretReference
+    binding: SandboxEnvironmentBinding
+
+
+class ResolvedSandboxCredential(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    binding: EnvironmentCredentialBinding
+    value: str = Field(repr=False, min_length=1)
+
+    def to_wire(self) -> Dict[str, Any]:
+        return {"binding": self.binding.to_wire(), "value": self.value}
 
 
 # ---------------------------------------------------------------------------
@@ -663,6 +730,7 @@ class AgentTemplate(BaseModel):
     harness_permissions: Dict[str, Any] = Field(default_factory=dict)
     harness_extras: Dict[str, Any] = Field(default_factory=dict)
     sandbox_permission: Optional[SandboxPermission] = None
+    sandbox_credentials: List[SandboxCredentialConfig] = Field(default_factory=list)
     # The execution selectors: the coding agent to drive, where it runs, and the runner-enforced
     # default permission mode (sourced from ``runner.permissions.default``).
     harness: str = "pi_core"
@@ -677,7 +745,33 @@ class AgentTemplate(BaseModel):
     @field_validator("tools", mode="before")
     @classmethod
     def _coerce_tools(cls, value: Any) -> List[ToolConfig]:
-        return coerce_tool_configs(_as_list(value)).tool_configs
+        # Tolerance is deliberately narrow. A legacy ``gateway`` entry predates the rework
+        # and no migration ever rewrote one, so an unrepairable one is dropped rather than
+        # allowed to fail every run of an agent nobody can edit back into shape.
+        #
+        # Every OTHER refusal still fails the run, loudly and unchanged: a typo in a tool
+        # name, a malformed connection entry, and two conflicting policies for the same
+        # integration are all real misconfigurations the author must see. Dropping those
+        # would take a tool the author believes is configured and make it vanish in silence.
+        entries = _as_list(value)
+        result = coerce_tool_configs(entries, on_error="collect")
+        for diagnostic in result.diagnostics:
+            entry = (
+                entries[diagnostic.index]
+                if 0 <= diagnostic.index < len(entries)
+                else None
+            )
+            if not _is_legacy_gateway_entry(entry):
+                raise ToolConfigurationError(
+                    diagnostic.message,
+                    index=diagnostic.index,
+                    value=entry,
+                )
+            log.warning(
+                "agent: dropped an unrepairable legacy gateway tool entry: %s",
+                diagnostic.message,
+            )
+        return result.tool_configs
 
     @field_validator("mcp_servers", mode="before")
     @classmethod
@@ -722,6 +816,7 @@ class AgentTemplate(BaseModel):
             harness_permissions=harness_permissions,
             harness_extras=harness_extras,
             sandbox_permission=_parse_sandbox_permission(params, base),
+            sandbox_credentials=_parse_sandbox_credentials(params, base),
             harness=harness,
             sandbox=sandbox,
             permission_default=permission_default,
@@ -731,26 +826,6 @@ class AgentTemplate(BaseModel):
 # ---------------------------------------------------------------------------
 # Per-harness configs (what an adapter consumes)
 # ---------------------------------------------------------------------------
-
-
-class GatewayGuidance(BaseModel):
-    """The derived gateway-tools instruction section, carried as its own wire field.
-
-    It used to be composed INTO the prompt strings (``append_system`` for Pi, ``agents_md``
-    for the file-based harnesses). That put the integration NAMES inside the session
-    fingerprint, so adding a second integration evicted a warm session for a one-word prompt
-    change. As a separate field the runner splices it into ``carrier`` when it BUILDS an
-    environment, and deliberately excludes it from the fingerprint: the text refreshes
-    whenever a session is built or reopened, and never evicts one on its own. The wording
-    presents the names as examples ("for instance"), so a list that goes stale mid-session
-    stays honest.
-    """
-
-    text: str
-    carrier: Literal["appendSystemPrompt", "agentsMd"]
-
-    def to_wire(self) -> Dict[str, Any]:
-        return {"text": self.text, "carrier": self.carrier}
 
 
 class HarnessAgentTemplate(BaseModel):
@@ -780,15 +855,18 @@ class HarnessAgentTemplate(BaseModel):
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
     skills: List[SkillTemplate] = Field(default_factory=list)
     sandbox_permission: Optional[SandboxPermission] = None
+    sandbox_credentials: List[ResolvedSandboxCredential] = Field(
+        default_factory=list, repr=False
+    )
     permission_default: PermissionMode = "allow_reads"
     # The selected harness's first-class allow/ask/deny posture, carried verbatim from
     # ``AgentTemplate.harness_permissions`` by the harness adapter. A gating harness's CONFIG renders
     # it into files for the wire (see :meth:`wire_harness_files`); the raw slice does not ride the
     # wire.
     harness_permissions: Dict[str, Any] = Field(default_factory=dict)
-    # The derived gateway-tools guidance, set by the adapter when the agent has at least one
-    # gateway connection. Rides the wire as ``gatewayGuidance``; see :class:`GatewayGuidance`.
-    gateway_guidance: Optional[GatewayGuidance] = None
+    # Agenta-owned static and configuration-derived guidance. The runner chooses the existing
+    # delivery channel from the harness and keeps this value outside lifecycle fingerprints.
+    platform_instructions: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -832,13 +910,11 @@ class HarnessAgentTemplate(BaseModel):
         by default; a harness that exposes prompt overrides (Pi) emits them here."""
         return {}
 
-    def wire_gateway_guidance(self) -> Dict[str, Any]:
-        """The ``gatewayGuidance`` field for the ``/run`` payload. Omitted when the agent has
-        no gateway connection so a connection-free payload is unchanged (the golden wire
-        contract)."""
-        if not self.gateway_guidance:
+    def wire_platform_instructions(self) -> Dict[str, Any]:
+        """The internal ``platformInstructions`` field for the ``/run`` payload."""
+        if not self.platform_instructions:
             return {}
-        return {"gatewayGuidance": self.gateway_guidance.to_wire()}
+        return {"platformInstructions": self.platform_instructions}
 
     def wire_mcp(self) -> Dict[str, Any]:
         """The ``mcpServers`` field for the ``/run`` payload. Omitted when none are declared so
@@ -863,6 +939,13 @@ class HarnessAgentTemplate(BaseModel):
         if self.sandbox_permission is None:
             return {}
         return {"sandboxPermission": self.sandbox_permission.to_wire()}
+
+    def wire_sandbox_credentials(self) -> Dict[str, Any]:
+        if not self.sandbox_credentials:
+            return {}
+        return {
+            "sandboxCredentials": [item.to_wire() for item in self.sandbox_credentials]
+        }
 
     def wire_harness_files(self) -> Dict[str, Any]:
         """The generic ``harnessFiles`` field for the ``/run`` payload: files this harness's config
@@ -1167,6 +1250,8 @@ class SessionConfig(BaseModel):
     # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted from the
     # wire when unset, so a run that needs no binding is byte-identical to before.
     run_context: Optional[RunContext] = None
+    # Refreshed per invoke and rendered as turn context before reaching the backend.
+    session_context: Optional[SessionContext] = None
     session_id: Optional[str] = None
     # Explicit per-invoke ownership handoff. False preserves request-owned cancellation.
     detached: bool = False
@@ -1191,6 +1276,9 @@ class SessionConfig(BaseModel):
     # /run serializer. ``None`` when the agent has no connection entry.
     gateway_policy: Optional[ResolvedGatewayPolicy] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
+    sandbox_credentials: List[ResolvedSandboxCredential] = Field(
+        default_factory=list, repr=False
+    )
 
     @field_validator("tool_specs", mode="before")
     @classmethod
@@ -1309,7 +1397,7 @@ _LEGACY_FLAT_TEMPLATE_KEYS: Dict[str, str] = {
 # for forward-compat; only these three objects are locked down.
 _SELECTOR_ALLOWED_KEYS: Dict[str, frozenset] = {
     "harness": frozenset({"kind", "permissions", "extras"}),
-    "sandbox": frozenset({"kind", "permissions"}),
+    "sandbox": frozenset({"kind", "permissions", "credentials"}),
     "runner": frozenset({"kind", "permissions"}),
 }
 
@@ -1507,6 +1595,27 @@ def _model_from_llm(llm: Dict[str, Any]) -> Any:
     if extras:
         ref["extras"] = extras
     return ref
+
+
+def _parse_sandbox_credentials(
+    params: Dict[str, Any], defaults: AgentTemplate
+) -> List[SandboxCredentialConfig]:
+    sandbox = _section(params, "sandbox")
+    if "credentials" not in sandbox:
+        return list(defaults.sandbox_credentials)
+    raw = sandbox.get("credentials")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise AgentTemplateShapeError(
+            "agent template sandbox.credentials must be a list"
+        )
+    try:
+        return [SandboxCredentialConfig.model_validate(item) for item in raw]
+    except Exception as exc:
+        raise AgentTemplateShapeError(
+            f"agent template sandbox.credentials is invalid: {exc}"
+        ) from exc
 
 
 def _parse_agent_fields(

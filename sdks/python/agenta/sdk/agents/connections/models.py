@@ -24,8 +24,9 @@ from pydantic import BaseModel, Field, field_serializer, model_validator
 # How a credential connection is named in the agent config. A connection is a portable
 # reference into the vault, never a database id and never a raw secret value. Exactly two
 # modes: ``agenta`` (a vault connection, project-default when ``slug`` is omitted, named when
-# set) and ``self_managed`` (Agenta injects nothing). "The project default" is just ``agenta``
-# with no slug; there is no separate ``default`` mode.
+# set) and ``self_managed`` (the harness owns authentication; a ``slug`` names a hosted
+# subscription connection whose stored OAuth login Agenta delivers to the run). "The project
+# default" is just ``agenta`` with no slug; there is no separate ``default`` mode.
 ConnectionMode = Literal["agenta", "self_managed"]
 
 # Where a resolved credential comes from, as seen by the harness adapter. ``env`` ships one
@@ -51,27 +52,22 @@ class Connection(BaseModel):
       - **set** -> the named connection whose secret name equals ``slug``.
       In both cases ``agenta`` names nothing project-local (a slug is a name, never a db id),
       so it stays portable across projects.
-    - ``self_managed``: Agenta injects nothing; the sandbox / sidecar / local env / the
-      harness's own OAuth login owns auth. Covers OAuth subscriptions and self-hosting.
+    - ``self_managed``: Agenta injects no provider key; the harness signs itself in.
+      - **omitted** -> the operator's login mounted on the runner process (the sidecar
+        recipe). Agenta holds no record of it.
+      - **set** -> a hosted subscription connection in the project vault, whose secret name
+        equals ``slug``. Agenta stores the OAuth login and delivers it to the run, but it is
+        still the harness that authenticates, so the mode stays ``self_managed``.
 
     A default-constructed ``Connection()`` is ``agenta`` with no slug (the project default) and
-    always valid. ``slug`` is meaningful only for ``agenta``; a ``self_managed`` connection that
-    carries a ``slug`` is rejected (the slug has nothing to resolve against).
+    always valid. A ``slug`` names a vault record in both modes, so it never encodes a db id
+    and the config stays portable across projects.
     """
 
     mode: ConnectionMode = "agenta"
     slug: Optional[str] = (
-        None  # meaningful only for "agenta"; the secret's name, never a db id
+        None  # the secret's name, never a db id; optional in both modes
     )
-
-    @model_validator(mode="after")
-    def _reject_slug_for_self_managed(self) -> "Connection":
-        if self.mode == "self_managed" and (self.slug and self.slug.strip()):
-            raise ValueError(
-                "connection mode 'self_managed' must not carry a 'slug' "
-                "(it injects nothing, so there is nothing for a slug to resolve against)"
-            )
-        return self
 
 
 class Endpoint(BaseModel):
@@ -152,6 +148,67 @@ class ResolvedCredential(BaseModel):
         }
 
 
+class ResolvedSubscription(BaseModel):
+    """The hosted subscription login a ``self_managed`` connection resolved to.
+
+    Delivered beside the connection, never inside ``credentials``: the login is not a provider
+    key the harness reads from an environment variable. It is the harness's own OAuth
+    credential file, which the runner materializes on disk before the session starts and reads
+    back after a turn to push a refreshed token home.
+
+    ``version`` and ``generation`` order two logins. ``version`` bumps on every stored change
+    (a new login or a pushed refresh); ``generation`` bumps only on a new device login, so a
+    refresh keeps a warm session warm.
+
+    Serialization safety: ``login`` is masked from ``repr``/``str`` AND from
+    ``model_dump()``/``model_dump_json()`` by construction, exactly like a credential value.
+    :meth:`to_wire` reads the attribute directly and is the only way the login leaves.
+    """
+
+    id: str
+    slug: str
+    provider: str
+    version: int = 0
+    generation: int = 0
+    # The harness-format credential, carried verbatim. Pi's shape today; unknown keys survive.
+    login: Dict[str, Any] = Field(default_factory=dict, repr=False)
+
+    @model_validator(mode="after")
+    def _require_identity_and_login(self) -> "ResolvedSubscription":
+        if not self.id.strip():
+            raise ValueError("resolved subscription requires a secret id")
+        if not self.slug.strip():
+            raise ValueError("resolved subscription requires a slug")
+        if not self.login:
+            raise ValueError("resolved subscription requires a login")
+        return self
+
+    @field_serializer("login", when_used="always")
+    def _mask_login(self, value: Dict[str, Any]) -> str:
+        return "**********"
+
+    def to_wire(self) -> Dict[str, Any]:
+        """The subscription block as wire fields. Every name is already camelCase."""
+        return {
+            "id": self.id,
+            "slug": self.slug,
+            "provider": self.provider,
+            "version": self.version,
+            "generation": self.generation,
+            "login": dict(self.login),
+        }
+
+    def secret_values(self) -> List[str]:
+        """Every string in the login, for the per-run redactor's deny-set.
+
+        The tokens must never reach a log line, a trace, or an error message, so the run seeds
+        them the same way it seeds a resolved credential value.
+        """
+        return [
+            value for value in self.login.values() if isinstance(value, str) and value
+        ]
+
+
 class ModelRef(BaseModel):
     """Model intent plus the credential connection, carried in the agent config.
 
@@ -227,6 +284,10 @@ class ResolvedConnection(BaseModel):
     environment: Dict[str, str] = Field(default_factory=dict)
     endpoint: Optional[Endpoint] = None  # NON-secret connection config only
     input_modalities: Optional[List[str]] = None
+    # The hosted subscription login, when the connection resolved to one. Secret-bearing, and
+    # deliberately NOT a `credentials` entry: it is a credential FILE the harness owns, not an
+    # environment variable Agenta binds, so the `credential_mode != env` rule below still holds.
+    subscription: Optional[ResolvedSubscription] = Field(default=None, repr=False)
 
     @model_validator(mode="after")
     def _validate_credential_route(self) -> "ResolvedConnection":
@@ -239,6 +300,10 @@ class ResolvedConnection(BaseModel):
             raise ValueError("credential_mode 'env' requires at least one credential")
         if self.credential_mode != "env" and self.credentials:
             raise ValueError("resolved credentials require credential_mode 'env'")
+        if self.subscription is not None and self.credential_mode != "runtime_provided":
+            raise ValueError(
+                "a resolved subscription requires credential_mode 'runtime_provided'"
+            )
         if any(item.usage == "opaque_http" for item in self.credentials):
             base_url = self.endpoint.base_url if self.endpoint else None
             parsed = urlparse(base_url or "")
@@ -271,6 +336,8 @@ class ResolvedConnection(BaseModel):
                 wire["endpoint"] = endpoint_wire
         if self.input_modalities is not None:
             wire["modelCapabilities"] = {"inputModalities": list(self.input_modalities)}
+        if self.subscription is not None:
+            wire["subscription"] = self.subscription.to_wire()
         return wire
 
 

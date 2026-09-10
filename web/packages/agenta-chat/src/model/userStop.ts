@@ -50,7 +50,13 @@ export interface UserStoppedState {
 const lastTurnIdentity = (messages: UIMessage[]): string | null => {
     const last = messages[messages.length - 1]
     if (!last) return null
-    const turnId = (last.metadata as {turnId?: unknown} | undefined)?.turnId
+    // Assistant rows only. User rows carry a `turnId` too now, and reading it here would give a
+    // question and its answer the same identity, so adopting the answer would stop reading as a
+    // newer turn.
+    const turnId =
+        last.role === "assistant"
+            ? (last.metadata as {turnId?: unknown} | undefined)?.turnId
+            : undefined
     if (typeof turnId === "string" && turnId.trim()) return `turn:${turnId}`
     return `message:${messages.length}:${last.role}:${last.id}`
 }

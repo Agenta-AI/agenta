@@ -30,7 +30,7 @@
  * so it is uniform across every harness and always nests under the caller's /invoke
  * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
  */
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { apiBase } from "../../apiBase.ts";
@@ -65,6 +65,8 @@ import {
 } from "./daytona.ts";
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { classifyRunError, conciseError, type RunErrorCode } from "./errors.ts";
+import { startSubscriptionPublisher } from "./subscription-login/publisher.ts";
+import { recoverSubscriptionAuthFailure } from "./subscription-recovery.ts";
 import {
   awaitCredentialSubstitution,
   buildCredentialPreflightInput,
@@ -96,6 +98,7 @@ import {
 import {
   PI_AGENT_DIR_UNWRITABLE_MESSAGE,
   PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE,
+  PI_PROMPT_CHANNEL_UNAVAILABLE_MESSAGE,
   PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE,
   PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
   prepareLocalPiAssets,
@@ -115,6 +118,14 @@ import {
   agentMountAppendix,
   agentMountUnavailableAppendix,
 } from "./agent-mount-guidance.ts";
+import {
+  AGENT_TOOLS_DIR_NAME,
+  agentToolsLocalDir,
+  localAgentToolsExec,
+  remoteAgentToolsExec,
+  removeAgentToolsLocalDir,
+  runAgentToolsSetup,
+} from "./agent-tools-setup.ts";
 import {
   appendPlatformGuidance,
   appendToSystemPrompt,
@@ -451,6 +462,8 @@ async function acquireEnvironmentOnce(
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
     localPiAgentDirUnwritable,
+    localPiPromptChannelUnavailable,
+    localSubscriptionError,
     logger,
     mcpAbort,
     piExtEnv,
@@ -514,6 +527,11 @@ async function acquireEnvironmentOnce(
       mcpAbort: environment.mcpAbort,
       closeToolMcp: environment.closeToolMcp,
     });
+    // Session end, and the LAST moment a Daytona sandbox is still reachable. The drain awaits the
+    // pass in flight and takes one final sample, so a token Pi wrote after the last interval still
+    // reaches the API before the sandbox goes.
+    await environment.subscriptionPublisher?.stop();
+    environment.subscriptionPublisher = undefined;
     inFlightSandboxes.delete(environment);
     // Graceful `session/cancel` BEFORE tearing down the daemon, or the ACP adapter subprocess
     // reparents to PID 1 and never exits. Skip if the pause path already sent it.
@@ -563,6 +581,13 @@ async function acquireEnvironmentOnce(
         ).catch(() => false),
       );
     }
+    if (!parked && !plan.isDaytona) {
+      // The per-session tools dir on local disk dies with the environment (`agent-tools-setup.ts`).
+      await removeAgentToolsLocalDir(
+        agentToolsLocalDir(plan.workspace.cwd, false),
+        { log },
+      );
+    }
     if (!parked && !plan.isDaytona && environment.agentMountedPath) {
       const agentMountSafeToDelete = await (
         environment.deps.unmountStorage ?? unmountStorage
@@ -591,6 +616,7 @@ async function acquireEnvironmentOnce(
     // Codex auth.json backstop that deliberately does NOT exist — lives with the unit.
     removeRuntimeFiles({
       runAgentDir: environment.runAgentDir,
+      piPromptDir: environment.piPromptDir,
       codexSqliteHome: environment.codexSqliteHome,
     });
     // Remove the per-run skills temp root the materializer created (success or error).
@@ -631,6 +657,31 @@ async function acquireEnvironmentOnce(
     if (localPiAgentDirUnwritable) {
       throw new Error(PI_AGENT_DIR_UNWRITABLE_MESSAGE);
     }
+    // Fail closed before the harness starts: a hosted subscription run whose login could not be
+    // written would come up unauthenticated, and Pi never re-reads the file once it is running.
+    if (localSubscriptionError) {
+      throw localSubscriptionError;
+    }
+    // Fail closed: without its own prompt dir the run would read, or write, the system prompts
+    // of the other sessions on this connection.
+    if (localPiPromptChannelUnavailable) {
+      throw new Error(PI_PROMPT_CHANNEL_UNAVAILABLE_MESSAGE);
+    }
+    // The one publisher for this session, started as soon as the login is on disk and
+    // BEFORE the remaining fail-closed gates, so an acquire that fails later still publishes
+    // through the teardown drain. Its first pass repairs a publication a
+    // previous session lost: the agent dir can already hold a login newer than the delivered one,
+    // whose push never reached the API. The sandbox is read at each pass because a Daytona run
+    // acquires one further down.
+    environment.subscriptionPublisher = startSubscriptionPublisher({
+      plan,
+      state: environment.subscriptionPublish,
+      sandbox: () => environment.sandbox,
+      apiBase: apiBase(),
+      authorization: runCred,
+      log: logger,
+    });
+
     // Fail closed before any sandbox/mount infra spins up: a local Pi run whose policy could gate a
     // built-in tool cannot proceed without the permission extension installed (Decision 2).
     if (localBuiltinGatingUnenforceable) {
@@ -1033,6 +1084,45 @@ async function acquireEnvironmentOnce(
       }
     }
 
+    // Restore the agent's own tools (`agent-files/.tools/`) now that both agent-mount paths
+    // have settled and before the session opens, so a venv or a binary the model saved in an
+    // earlier session is ready on local disk when this one starts. Never fails the turn; see
+    // `agent-tools-setup.ts` for the convention, the permission guard, and why the mount itself
+    // cannot hold a venv.
+    if (environment.agentMountedPath) {
+      const agentToolsStartedAt = Date.now();
+      const mountPath = environment.agentMountedPath;
+      await runAgentToolsSetup(
+        {
+          mountPath,
+          cwd: plan.workspace.cwd,
+          localDir: agentToolsLocalDir(plan.workspace.cwd, plan.isDaytona),
+          // Owner-authored startup code runs unattended only under the posture that also lets
+          // a model shell call run unattended.
+          runSetup: plan.tools.permissionDefault === "allow",
+        },
+        plan.isDaytona
+          ? remoteAgentToolsExec(environment.sandbox)
+          : localAgentToolsExec,
+        {
+          log: logger,
+          signal,
+          hostEnv: process.env,
+          // Local: a stat is cheaper than a shell. Remote: the script's own `[ -d ]` is the check.
+          ...(plan.isDaytona
+            ? {}
+            : {
+                hasToolsDir: async () =>
+                  existsSync(join(mountPath, AGENT_TOOLS_DIR_NAME)),
+              }),
+        },
+      );
+      timingLog("agent_tools_setup", agentToolsStartedAt);
+      // The restore can wait up to its timeout; a Stop that landed meanwhile must not let the
+      // acquire continue into workspace and session setup.
+      throwIfAcquireAborted(signal);
+    }
+
     const prepareWorkspaceStartedAt = Date.now();
     emit?.({
       type: "data",
@@ -1412,12 +1502,41 @@ async function acquireEnvironmentOnce(
     // added to acquire, this site needs BOTH the predicate and that counter.
     // The CLASS as well as the line, because acquire is now a user-facing failure surface: the
     // loop turns a classified code into the error event the client renders a retry state from.
-    const classified = classifyRunError(
+    let classified = classifyRunError(
       err,
       plan.harness,
       request.modelConnection?.provider,
       { authFault: () => describeCodexSubscriptionAuthFault(plan) },
     );
+    // Same substitution as the turn path: a hosted subscription run must never be told to add a
+    // vault key. Acquire itself makes no model call, but the harness starts here and a dead login
+    // can surface as a startup failure.
+    //
+    // `replayable: false` on purpose. There is no turn to replay at acquire, and the automatic
+    // retry of amendment A1 belongs to the turn path. The recovery still runs its provider check
+    // and its failure report, so the connection's own state ends up correct and the user gets the
+    // retry copy rather than a sign-in prompt whenever a newer login already exists.
+    const subscriptionForError = plan.credentials.subscription;
+    const subscriptionHomeForError = plan.credentials.subscriptionHome;
+    if (
+      subscriptionForError &&
+      subscriptionHomeForError &&
+      environment.subscriptionPublish
+    ) {
+      const publisher = environment.subscriptionPublisher;
+      const recovery = await recoverSubscriptionAuthFailure({
+        err,
+        subscription: subscriptionForError,
+        state: environment.subscriptionPublish,
+        home: subscriptionHomeForError,
+        isDaytona: plan.isDaytona,
+        sandbox: environment.sandbox as never,
+        api: { apiBase: apiBase(), authorization: runCred, log: logger },
+        ...(publisher ? { publish: publisher.reconcile } : {}),
+        log: logger,
+      });
+      if (recovery?.action === "fail") classified = recovery.classified;
+    }
     const error = classified.message;
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.
