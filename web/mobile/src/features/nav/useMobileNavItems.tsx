@@ -14,7 +14,8 @@ import {
     sidebarSessionToggledGroupsAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
-    sidebarSessionScopeLimit,
+    loadMoreSidebarSessionsAtomFamily,
+    SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
     withEntityGroups,
     withRefsByRecency,
@@ -40,7 +41,7 @@ import {
     ScrollIcon,
     SlackLogoIcon,
 } from "@phosphor-icons/react"
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
@@ -101,7 +102,7 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
         // No visible cap: the rail renders every row it fetched, so nothing is dropped between
         // the request and the render. The server window is the only bound.
-        maxItems: sidebarSessionScopeLimit(MOBILE_NAV_SCOPE_ID),
+        maxItems: SIDEBAR_UNBOUNDED,
     },
 )
 
@@ -135,6 +136,7 @@ const mobileAgentsEntity = defineSidebarEntity(MOBILE_NAV_SCOPE_ID, AGENTS_SIDEB
  */
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const rawSource = useAtomValue(mobileSessionsEntity.activeSourceAtom)
+    const loadMoreSessions = useSetAtom(loadMoreSidebarSessionsAtomFamily(MOBILE_NAV_SCOPE_ID))
     const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
     // MEMOIZED, and load-bearing: `withEntityGroups` spreads into a new object, so an unmemoized
     // call changes identity on every render — which busts the memo below, re-buckets every row,
@@ -197,6 +199,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 // The rail does not scroll; THIS group does. Sessions is the only list that grows
                 // without bound, so Observability (and whatever lands after it) stays on screen.
                 scrollChildren: true,
+                onReachEnd: loadMoreSessions,
                 groupAction: createElement(SessionFilterMenu, {
                     scopeId: MOBILE_NAV_SCOPE_ID,
                 }),
@@ -221,7 +224,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                   ]
                 : []),
         ],
-        [agentsSource, source, projectURL, wrapSessionRow],
+        [agentsSource, loadMoreSessions, source, projectURL, wrapSessionRow],
     )
 }
 

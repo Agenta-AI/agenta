@@ -3,7 +3,10 @@ import {useCallback, useMemo, useRef, useState, type KeyboardEvent} from "react"
 import {
     clearSidebarManualOrderAtom,
     DEFAULT_SIDEBAR_SESSION_FILTERS,
+    SESSIONS_SIDEBAR_KEY,
+    setSidebarFilterMenuOpenAtom,
     sidebarSessionAgentOptionsAtomFamily,
+    sidebarSessionAgentOptionsPendingAtomFamily,
     sidebarSessionFiltersAtomFamily,
     sidebarSessionMenuDirtyAtomFamily,
     type SidebarSessionActivityFilter,
@@ -67,7 +70,15 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
     const [filters, setFilters] = useAtom(filtersAtom)
     const dirty = useAtomValue(sidebarSessionMenuDirtyAtomFamily(scopeId))
     const clearManualOrder = useSetAtom(clearSidebarManualOrderAtom)
+    // Both read gated atoms: until this menu reports itself open they return empty without
+    // touching the agent catalog, which is what keeps the catalog off every sidebar mount.
     const agentOptions = useAtomValue(sidebarSessionAgentOptionsAtomFamily(scopeId))
+    const agentOptionsPending = useAtomValue(sidebarSessionAgentOptionsPendingAtomFamily(scopeId))
+    const setFilterMenuOpen = useSetAtom(setSidebarFilterMenuOpenAtom)
+    const onOpenChange = useCallback(
+        (open: boolean) => setFilterMenuOpen({scopeId, key: SESSIONS_SIDEBAR_KEY, open}),
+        [scopeId, setFilterMenuOpen],
+    )
 
     const facets = useMemo<FilterMenuFacet[]>(
         () => [
@@ -103,6 +114,10 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 // default, so there is a way back to all without deselecting each one.
                 noneValue: ALL_AGENTS,
                 options: [{value: ALL_AGENTS, label: "All agents"}, ...agentOptions],
+                // The catalog only starts loading when this menu opens, so the facet is briefly
+                // empty. Say so, rather than let it read as "this project has no agents".
+                loading: agentOptionsPending,
+                loadingLabel: "Loading agents…",
             },
             {
                 key: "status",
@@ -123,6 +138,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
         ],
         [
             agentOptions,
+            agentOptionsPending,
             filters.activity,
             filters.agentIds,
             filters.groupBy,
@@ -198,6 +214,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
             // it anchors to comes from `measureAlign` instead.
             align={align}
             avoidCollisions={false}
+            onOpenChange={onOpenChange}
         >
             <button
                 ref={triggerRef}
