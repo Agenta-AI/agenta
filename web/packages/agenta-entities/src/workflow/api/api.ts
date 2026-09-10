@@ -1350,18 +1350,18 @@ export async function fetchWorkflowsBatch(
  * Classify workflows as agent / not-agent, in ONE bounded request.
  *
  * `is_agent` lives on the revision, never on the artifact, so the artifact list cannot answer
- * this. Asking the revision query for `latest_per_artifact` gets the server to return one row per
- * workflow — its real head, placeholder revisions skipped — instead of the entire history of each,
- * which is what this used to cost through `fetchWorkflowsBatch`.
+ * this. Asking the revision query to group by artifact and get the latest revision returns one row
+ * per workflow — its real head, placeholder revisions skipped — instead of the entire history of
+ * each, which is what this used to cost through `fetchWorkflowsBatch`.
  *
  * Returns booleans, not revisions: a caller that wants the revision object wants a different
  * cache entry, and mixing the two is what spread this fetch across six uncoordinated call sites.
  *
  * Endpoint: `POST /workflows/revisions/query`
  *
- * Raw axios rather than the Fern client this file's newer functions prefer: `latest_per_artifact`
- * ships in the same change as this call, so the generated client does not carry it until the
- * OpenAPI spec is regenerated. Migrate with the rest of this file once it does.
+ * Raw axios rather than the Fern client this file's newer functions prefer: revision grouping
+ * ships in the same stack as this call, so the generated client does not carry it until the OpenAPI
+ * spec is regenerated. Migrate with the rest of this file once it does.
  *
  * @param projectId - Project ID
  * @param workflowIds - Workflow IDs to classify
@@ -1380,7 +1380,7 @@ export async function fetchWorkflowAgentFlags(
         `${getAgentaApiUrl()}/workflows/revisions/query`,
         {
             workflow_refs: workflowIds.map((id) => ({id})),
-            workflow_revision: {latest_per_artifact: true},
+            grouping: {by: "artifact", get: "latest"},
             // Archived workflows are classified too: the archived Agents tab needs them split the
             // same way, and their revisions are not themselves archived.
             include_archived: true,
