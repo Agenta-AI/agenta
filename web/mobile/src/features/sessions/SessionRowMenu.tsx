@@ -41,14 +41,18 @@ export const SessionRowMenu = ({
             <DropdownMenuTrigger asChild>
                 <Button
                     type="button"
-                    // The same 24px column and the same glyph the automations list's row kebab
-                    // sits in, so the two tables' last column lines up.
+                    // The automations list row's kebab, to the class: same 24px box, same glyph
+                    // size, same hover. The two tables share a last column.
                     size="icon-xs"
                     variant="ghost"
                     aria-label={`Actions for ${label}`}
-                    className="text-muted-foreground"
+                    className="text-muted-foreground hover:bg-foreground/10 dark:hover:bg-foreground/15"
                 >
-                    <DotsThreeVertical size={16} weight="bold" />
+                    {/* `size-3.5` as a CLASS, not a `size` prop: the button's own
+                        `[&_svg:not([class*='size-'])]:size-3` wins over the attribute, so the prop
+                        silently rendered 12px. Three dots also read smaller than a glyph that
+                        fills its box, so 14 is what matches by eye. */}
+                    <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onCloseAutoFocus={handleCloseAutoFocus}>
