@@ -253,6 +253,19 @@ class TestWorkflowRevisionsGrouping:
 
         assert response.status_code == 422
 
+    def test_rejects_revision_flags(self, authed_api, mock_data):
+        response = authed_api(
+            "POST",
+            "/workflows/revisions/query",
+            json={
+                "workflow_revision": {"flags": {"is_agent": True}},
+                "workflow_refs": [{"id": mock_data["plain"][0]["workflow_id"]}],
+                "grouping": {"by": "artifact", "get": "latest"},
+            },
+        )
+
+        assert response.status_code == 422
+
     def test_returns_latest_revision_per_variant(self, authed_api, mock_data):
         response = _query(
             authed_api,
