@@ -209,12 +209,12 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if and (eq (include "agenta.store.enabled" .) "true") (eq (include "agenta.agentRunner.fuse.enabled" .) "true") (not $runner.securityContext) }}
+          {{- if and (eq (include "agenta.store.enabled" .) "true") (eq (include "agenta.agentRunner.fuse.enabled" .) "true") }}
           volumeMounts:
             - name: fuse
               mountPath: /dev/fuse
           {{- end }}
-      {{- if and (eq (include "agenta.store.enabled" .) "true") (eq (include "agenta.agentRunner.fuse.enabled" .) "true") (not $runner.securityContext) }}
+      {{- if and (eq (include "agenta.store.enabled" .) "true") (eq (include "agenta.agentRunner.fuse.enabled" .) "true") }}
       volumes:
         - name: fuse
           hostPath:

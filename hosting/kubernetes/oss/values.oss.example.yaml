@@ -429,10 +429,10 @@ posthog:
 # ================================================================== #
 # === api / web / services / workers / cron — deployment knobs ===
 # ================================================================== #
-# Every workload below also takes `extraEnv` (a raw list of Kubernetes env entries,
-# so valueFrom works) and `envFrom` (raw list of secretRef/configMapRef). Both render
-# after the chart's own variables, so a later entry wins. Use extraEnv to reach a
-# Secret key the chart does not model:
+# Every workload below also takes `extraEnv` (explicit Kubernetes env entries, so
+# valueFrom works) and `envFrom` (raw secretRef/configMapRef entries). Matching names
+# in extraEnv override chart entries. envFrom supplies only names absent from explicit
+# env entries. Use extraEnv to reach a Secret key the chart does not model:
 #   api:
 #     extraEnv:
 #       - name: AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY
@@ -480,8 +480,8 @@ posthog:
 #       memory: 512Mi
 #     limits:
 #       memory: 1Gi
-# The chart has two worker deployments. `streams` and `queues` are selector
-# lists; an empty list means every loop of that kind.
+# The chart has two worker deployments. `streams` and `queues` are comma-separated
+# selector strings; an empty string means every loop of that kind.
 # workerStreams:
 #   enabled: true
 #   replicas: 1
@@ -539,7 +539,7 @@ posthog:
 # ================================================================== #
 # store:
 #   enabled: false
-#   endpointUrl:       # wins over the internal Service URL even with SeaweedFS bundled.
+#   endpointUrl: https://store.example.com  # wins over the internal Service URL even with SeaweedFS bundled.
 #                      # Set it to the ingress host below so a Daytona sandbox, which runs
 #                      # outside the cluster, can reach the store.
 #   stsEndpointUrl:

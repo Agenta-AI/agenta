@@ -291,7 +291,8 @@
               "type": "object",
               "additionalProperties": false,
               "description": "Optional public route to the bundled S3 gateway, for clients outside the cluster such as a Daytona sandbox. Set store.endpointUrl to the same hostname so every pod hands out that URL.",
-              "required": ["host"],
+              "if": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] },
+              "then": { "required": ["host"] },
               "properties": {
                 "enabled":     { "type": "boolean", "description": "Default false." },
                 "className":   { "type": "string", "description": "IngressClass name. Unset leaves the field out and the cluster default applies." },
@@ -478,7 +479,7 @@
             "required": ["host", "paths"],
             "properties": {
               "host":  { "type": "string" },
-              "paths": { "type": "array", "items": { "$ref": "#/$defs/ingressExtraPath" } }
+              "paths": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/ingressExtraPath" } }
             }
           }
         }

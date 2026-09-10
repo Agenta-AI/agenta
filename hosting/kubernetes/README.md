@@ -8,7 +8,7 @@ This file is the operator reference for the values you need on a managed cluster
 
 | Path | What it is |
 | --- | --- |
-| `helm/` | The chart. `values.yaml` holds the defaults, `values.schema.json` documents and validates every key. |
+| `helm/` | The chart. `values.yaml` holds the defaults, and `values.schema.json` documents and validates declared fields. |
 | `oss/values.oss.example.yaml` | A commented starting point for the OSS edition. |
 | `ee/values.ee.example.yaml` | The same for the Enterprise edition. |
 | `run.sh` | A wrapper around `helm upgrade --install`. Run `./hosting/kubernetes/run.sh --help`. |
@@ -229,14 +229,17 @@ store:
 `store.endpointUrl` wins over the internal Service URL whenever it is set, with
 or without the bundled SeaweedFS. Leave it unset to keep the store internal.
 The Ingress renders only when the bundled SeaweedFS is deployed, and `host` is
-required once you enable it. Compose does the same thing with
-`AGENTA_STORE_TRAEFIK_ENABLE` and `AGENTA_STORE_DOMAIN`.
+required once you enable it. The advertised `store.endpointUrl` must use HTTPS;
+configure TLS with `ingress.tls` or controller-specific annotations. Compose
+does the same thing with `AGENTA_STORE_TRAEFIK_ENABLE` and
+`AGENTA_STORE_DOMAIN`.
 
 ## Extra environment variables
 
 `<component>.env` takes plain strings only, so it cannot reference a Secret key.
-Two more keys take raw Kubernetes entries and render verbatim after the chart's
-own variables, which means a later entry wins:
+Two more keys take raw Kubernetes entries. `extraEnv` renders explicit `env`
+entries after the chart's own variables, so matching names there win. `envFrom`
+supplies only names absent from explicit `env` entries, regardless of order:
 
 ```yaml
 api:
@@ -276,8 +279,10 @@ helm lint hosting/kubernetes/helm -f my-values.yaml
 helm template agenta hosting/kubernetes/helm -f my-values.yaml
 ```
 
-`values.schema.json` rejects an unknown or misspelled key, and the chart's own
-validations fail the render with a message that names the key to fix.
+`values.schema.json` validates declared fields, and the chart's own validations
+fail the render with a message that names the key to fix. Some open sections,
+including the root and `postgresql`, accept unknown keys for subchart wiring and
+other pass-through settings.
 
 The tests in `helm/tests/` render the chart and assert on the result. Run one
 with `uv run hosting/kubernetes/helm/tests/<name>.py`; each needs `helm` on the

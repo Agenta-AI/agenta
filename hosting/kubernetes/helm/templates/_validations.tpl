@@ -98,6 +98,42 @@ absolute-URL builder in the app.
 {{- end }}
 
 {{/* ================================================================
+   A public object-store route hands credentials and signed requests to
+   clients outside the cluster. Require the URL advertised to those
+   clients to use HTTPS. TLS may be configured through spec.tls or
+   controller-specific annotations, so validate the advertised URL
+   rather than prescribing one Ingress controller's configuration.
+   ================================================================ */}}
+{{- define "agenta.validateSeaweedfsIngress" -}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $store := default dict $values.store -}}
+{{- $seaweedfs := default dict $store.seaweedfs -}}
+{{- $ingress := default dict $seaweedfs.ingress -}}
+{{- if and (eq (include "agenta.store.enabled" .) "true") (eq (include "agenta.seaweedfs.enabled" .) "true") $ingress.enabled -}}
+{{- $endpoint := default "" $store.endpointUrl -}}
+{{- if not (hasPrefix "https://" $endpoint) -}}
+{{- fail `
+
+CONFIGURATION ERROR: a public SeaweedFS ingress requires an HTTPS store.endpointUrl.
+
+Set store.endpointUrl to the public HTTPS URL and configure TLS through
+store.seaweedfs.ingress.tls or your Ingress controller's annotations. For example:
+
+  store:
+    endpointUrl: "https://store.example.com"
+    seaweedfs:
+      ingress:
+        enabled: true
+        host: store.example.com
+        tls:
+          - hosts: [store.example.com]
+            secretName: agenta-store-tls
+` -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/* ================================================================
    Validate that the canonical app secrets are provided when the chart
    is creating the Secret itself (i.e. secrets.existingSecret is unset).
    Without this guard the chart renders, the pods start, and the app

@@ -146,6 +146,19 @@ def runner_bind_address(docs: list[dict]) -> str:
     raise AssertionError("no runner Deployment found in the rendered chart")
 
 
+def runner_pod_spec(docs: list[dict]) -> dict:
+    """The runner Deployment's pod spec."""
+    for doc in docs:
+        if doc.get("kind") != "Deployment":
+            continue
+        if (
+            doc.get("metadata", {}).get("labels", {}).get("app.kubernetes.io/component")
+            == "runner"
+        ):
+            return doc["spec"]["template"]["spec"]
+    raise AssertionError("no runner Deployment found in the rendered chart")
+
+
 def deployment_env_names(docs: list[dict], component: str) -> set[str]:
     """Environment variable names on a component's primary container."""
     for doc in docs:
@@ -225,6 +238,26 @@ def main() -> int:
         got = runner_bind_address(render(args))
         if got != expected:
             failures.append(f"runner bind override gave {got!r}, expected {expected!r}")
+
+    # A custom securityContext controls capabilities, but it must not suppress the /dev/fuse
+    # device when FUSE is enabled. Operators use this path to supply their own SYS_ADMIN shape.
+    fuse_docs = render(
+        DEFAULT_TOKEN_ARGS
+        + [
+            "--set",
+            "store.enabled=true",
+            "--set",
+            "agentRunner.securityContext.allowPrivilegeEscalation=true",
+        ]
+    )
+    spec = runner_pod_spec(fuse_docs)
+    runner = next(c for c in spec["containers"] if c["name"] == "runner")
+    mounts = {m["name"]: m["mountPath"] for m in runner.get("volumeMounts", [])}
+    volumes = {v["name"]: v for v in spec.get("volumes", [])}
+    if mounts.get("fuse") != "/dev/fuse":
+        failures.append("custom runner securityContext suppresses the /dev/fuse mount")
+    if volumes.get("fuse", {}).get("hostPath", {}).get("path") != "/dev/fuse":
+        failures.append("custom runner securityContext suppresses the /dev/fuse hostPath")
 
     if failures:
         print("FAIL: runner environment is not narrow:", file=sys.stderr)

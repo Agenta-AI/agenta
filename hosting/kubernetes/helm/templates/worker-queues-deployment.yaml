@@ -50,10 +50,9 @@ spec:
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
-            {{- /* extraEnv is a raw list of Kubernetes env entries, so valueFrom works and the
-                   operator can reach a Secret key the chart knows nothing about. envFrom pulls
-                   whole Secrets or ConfigMaps. Both render last, so they win over the entries
-                   above. */}}
+            {{- /* extraEnv is a raw list of explicit Kubernetes env entries, so valueFrom works
+                   and names here override earlier chart entries. envFrom pulls whole Secrets or
+                   ConfigMaps, but Kubernetes uses those values only for names absent from env. */}}
             {{- with $workerQueues.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
