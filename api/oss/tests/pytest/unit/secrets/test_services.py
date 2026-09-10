@@ -8,6 +8,7 @@ from oss.src.core.secrets.dtos import (
     UpdateSecretDTO,
 )
 from oss.src.core.secrets.enums import SecretKind, StandardProviderKind
+from oss.src.core.secrets.managed import SecretManagementDTO, SecretManager
 from oss.src.core.secrets.services import VaultService, next_provider_key_name
 
 
@@ -32,16 +33,37 @@ class _FakeSecretsDAO:
             if scope == (project_id, organization_id)
         ]
 
-    async def create(self, project_id, organization_id, create_secret_dto):
+    async def create(
+        self, project_id, organization_id, create_secret_dto, management=None
+    ):
         record = SecretResponseDTO(
             id=uuid4(),
             slug=create_secret_dto.slug,
             kind=create_secret_dto.secret.kind,
             data=create_secret_dto.secret.data.model_dump(exclude_none=True),
             header=create_secret_dto.header,
+            management=management,
         )
         self.records.append(((project_id, organization_id), record))
         return record
+
+    async def create_with_derived_naming(
+        self,
+        project_id,
+        organization_id,
+        create_secret_dto,
+        lock_scope,
+        derive_naming,
+        management=None,
+    ):
+        # The postgres DAO holds an advisory lock on `lock_scope` so the read, the naming and
+        # the write are one atomic step. Nothing here runs concurrently, so only the ordering
+        # matters: the payload is named against the scope's current records, then written.
+        del lock_scope
+        derive_naming(self._scoped(project_id, organization_id))
+        return await self.create(
+            project_id, organization_id, create_secret_dto, management
+        )
 
     async def list(self, project_id, organization_id):
         return self._scoped(project_id, organization_id)
@@ -185,6 +207,23 @@ async def test_create_names_and_slugs_unnamed_provider_keys(vault):
     assert first.slug and second.slug and first.slug != second.slug
     assert first.slug.startswith("openai-")
     assert second.slug.startswith("openai-2-")
+
+
+async def test_managed_create_keeps_its_management_while_deriving_a_name(vault):
+    """A managed connection created unnamed is still managed.
+
+    Deriving the name takes its own DAO path, so `management` has to be carried down it —
+    losing it would silently turn a manager-owned credential into an ordinary editable one.
+    """
+    secret = await vault.create_managed_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_provider_key_payload(),
+        management=SecretManagementDTO(manager=SecretManager.STARTER_CREDITS_BRIDGE),
+    )
+
+    assert secret.header.name == "OpenAI"
+    assert secret.management is not None
+    assert secret.management.manager is SecretManager.STARTER_CREDITS_BRIDGE
 
 
 async def test_create_keeps_a_user_supplied_name_and_still_assigns_a_slug(vault):

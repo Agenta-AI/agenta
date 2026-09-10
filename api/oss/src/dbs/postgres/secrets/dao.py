@@ -1,4 +1,4 @@
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 from uuid import UUID
 
 from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
@@ -21,7 +21,7 @@ from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dto_to_dbe_update,
 )
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 
 class SecretsDAO(SecretsDAOInterface):
@@ -66,6 +66,55 @@ class SecretsDAO(SecretsDAOInterface):
 
         secrets_dto = map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
         return secrets_dto
+
+    async def create_with_derived_naming(
+        self,
+        project_id: UUID | None,
+        organization_id: UUID | None,
+        create_secret_dto: CreateSecretDTO,
+        lock_scope: str,
+        derive_naming: Callable[[List], None],
+        management: SecretManagementDTO | None = None,
+    ):
+        """Create a secret whose naming is derived from the secrets already stored.
+
+        `derive_naming` receives the scope's current secrets and fills in the fields it
+        needs on `create_secret_dto`. Reading the taken names and writing the new row
+        have to be one atomic step, or two concurrent creates both observe the same
+        names and pick the same one. They share a transaction here, serialized by an
+        advisory lock on `lock_scope`: the lock is transaction-scoped, so it can only
+        live where the session does — the same reason quota enforcement sits inside
+        `SessionAttachmentsDAO`.
+        """
+        self._validate_scope(project_id, organization_id)
+
+        async with self.engine.session() as session:
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:scope, 0))"),
+                {"scope": lock_scope},
+            )
+
+            scope_filter = self._scope_filter(project_id, organization_id)
+            results = await session.execute(
+                select(SecretsDBE).filter_by(**scope_filter)
+            )
+            secrets_dtos = [
+                map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
+                for secrets_dbe in results.scalars().all()
+            ]
+
+            derive_naming(secrets_dtos)
+
+            secrets_dbe = map_secrets_dto_to_dbe(
+                project_id=project_id,
+                organization_id=organization_id,
+                secret_dto=create_secret_dto,
+                management=management,
+            )
+            session.add(secrets_dbe)
+            await session.commit()
+
+        return map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
 
     async def get_by_id(
         self,
