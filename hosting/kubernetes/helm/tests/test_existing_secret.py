@@ -17,6 +17,7 @@ Requires the `helm` binary on PATH.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -107,6 +108,12 @@ def secret_references(docs: list[dict]) -> list[tuple[str, str, str]]:
     return refs
 
 
+def redact_failure_line(line: str) -> str:
+    """Redact potentially sensitive values from failure output."""
+    # Replace quoted values (for example secret names shown with !r) with a marker.
+    return re.sub(r"'[^']*'", "'<redacted>'", line)
+
+
 def main() -> int:
     failures: list[str] = []
     docs = render()
@@ -168,11 +175,11 @@ def main() -> int:
     if failures:
         print("FAIL: secrets.existingSecret is not honored:", file=sys.stderr)
         for line in failures:
-            print(f"  - {line}", file=sys.stderr)
+            print(f"  - {redact_failure_line(line)}", file=sys.stderr)
         return 1
 
     print("OK: every Secret reference honors secrets.existingSecret.")
-    print(f"  runner token sources: {sorted(token_refs.items())}")
+    print(f"  runner token sources: {len(token_refs)} workload(s)")
     return 0
 
 
