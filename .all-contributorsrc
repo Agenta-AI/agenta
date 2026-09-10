@@ -807,6 +807,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "jabrailkhalil",
+      "name": "Jabrail",
+      "avatar_url": "https://avatars.githubusercontent.com/u/78273416?v=4",
+      "profile": "https://github.com/jabrailkhalil",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
