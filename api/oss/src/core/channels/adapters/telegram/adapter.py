@@ -15,8 +15,8 @@ from oss.src.core.channels.adapters.telegram.mapping import (
     is_bot_authored,
     render_content,
     routing_token_from_path,
+    MAX_CHARS,
     split_for_max_chars,
-    to_html,
 )
 from oss.src.core.channels.adapters.telegram.signature import verify_telegram_secret
 from oss.src.core.channels.dtos import (
@@ -41,13 +41,11 @@ log = get_module_logger(__name__)
 
 _TELEGRAM_API_BASE = "https://api.telegram.org"
 
+
 # Split the RAW answer text at this size before html-escaping each chunk, below
 # Telegram's 4096 limit so ordinary escape expansion (< > & -> &lt; &gt; &amp;)
 # still fits. Splitting the raw text (not the escaped text) is what keeps a
 # split from cutting an HTML entity in half.
-_RAW_SPLIT_LIMIT = 3900
-
-
 def _bot_token(connection: ChannelConnection) -> str:
     data = connection.data if isinstance(connection.data, dict) else {}
     token = data.get("bot_token")
@@ -295,26 +293,24 @@ class TelegramAdapter(ChannelAdapterInterface):
         content: List[Dict[str, Any]],
         idempotency_key: UUID,
     ) -> Dict[str, Any]:
-        # The turn-start indicator becomes the native "typing…" action in the
-        # chat header, the way other Telegram bots show it. We post no
-        # placeholder message for it and return an empty receipt, so the outbox
-        # then delivers the real answer as its own fresh message rather than
-        # editing a "Thinking…" bubble. That is why the Telegram capability
-        # declares controls.update = false.
+        # The turn-start indicator: the native "typing…" action plus a real
+        # "Thinking…" message the outbox edits as the answer takes shape (the
+        # capability declares controls.update). The typing action alone lasts
+        # five seconds on Telegram; the outbox re-sends it through
+        # `signal_activity` while the turn runs.
         if _is_indicator(content):
             await self._send_typing(connection, locator)
-            return {}
 
         text, reply_markup = render_content(content)
         receipts: List[Dict[str, Any]] = []
-        # Split the RAW text first, then escape each chunk. Escaping before the
-        # split could cut an HTML entity (e.g. "&amp;") in half and break the
-        # message. The raw budget leaves headroom for escape expansion.
-        chunks = split_for_max_chars(text, max_chars=_RAW_SPLIT_LIMIT) or [""]
+        # `render_content` returns HTML-ready text (the render layer sizes its
+        # chunks to the declared max_chars); this split is only the safety net
+        # for content that arrived oversize anyway.
+        chunks = split_for_max_chars(text, max_chars=MAX_CHARS) or [""]
         for chunk in chunks:
             params: Dict[str, Any] = {
                 "chat_id": locator["chat_id"],
-                "text": to_html(chunk) or " ",
+                "text": chunk or " ",
                 "parse_mode": "HTML",
             }
             # The keyboard belongs on the last chunk, the one the answer ends on.
@@ -360,6 +356,11 @@ class TelegramAdapter(ChannelAdapterInterface):
             "chat_id": external_locator["chat_id"],
             "message_id": external_locator["message_id"],
         }
+
+    async def signal_activity(
+        self, *, connection: ChannelConnection, locator: Dict[str, Any]
+    ) -> None:
+        await self._send_typing(connection, locator)
 
     async def _send_typing(
         self, connection: ChannelConnection, locator: Dict[str, Any]

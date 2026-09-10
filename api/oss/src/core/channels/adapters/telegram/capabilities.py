@@ -41,7 +41,7 @@ TELEGRAM_CAPABILITIES: dict = {
         # "typing…" action, and the answer is posted as its own fresh message,
         # so update is off. (editMessageText still exists on the adapter for a
         # future in-place-edit use, it is just not driven by the outbox here.)
-        "controls": {"update": False, "ephemeral": False},
+        "controls": {"update": True, "ephemeral": False},
         # inline_keyboard buttons; callback_data is capped at 64 bytes, which
         # the approval tokens fit inside.
         "buttons": {"supported": True, "max": 8},

@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from typing import Dict, List
 from uuid import UUID, uuid4
 
+import asyncio
+
 import pytest
 
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
@@ -1068,13 +1070,12 @@ async def test_an_empty_fold_is_re_read_before_it_is_rendered(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_a_fold_still_empty_after_the_re_reads_leaves_the_indicator_alone(
+async def test_a_fold_still_empty_after_the_re_reads_tells_the_chat(
     monkeypatch, caplog
 ):
-    """A blank bubble is worse than no bubble: editing the indicator into an
-    empty answer marks the row SENT and erases the only signal that the answer
-    was lost. When the re-reads run out, the indicator stays and the worker
-    fails loudly instead."""
+    """A blank bubble is worse than no bubble, and a "Thinking…" that never
+    changes is no better: when the re-reads run out, the indicator is edited
+    into a plain "the run failed" line and the worker fails loudly in the log."""
 
     monkeypatch.setattr(
         "oss.src.tasks.asyncio.channels.outbox._EMPTY_FOLD_BACKOFF_SECONDS", 0
@@ -1101,7 +1102,9 @@ async def test_a_fold_still_empty_after_the_re_reads_leaves_the_indicator_alone(
 
     assert records_dao.reads == 3  # bounded: one read plus two re-reads
     assert len(channels_dao.outbox) == 1
-    assert _delivered_text(channels_dao) == indicator  # never edited to blank
+    from oss.src.core.channels.render.render import NO_ANSWER_TEXT
+
+    assert _delivered_text(channels_dao) == NO_ANSWER_TEXT  # never blank
     assert any(
         "empty" in record.message and record.levelname == "ERROR"
         for record in caplog.records
@@ -1265,3 +1268,102 @@ async def test_no_edit_channel_does_not_duplicate_on_redelivered_turn_ended():
     )
     # indicator (1) + the answer (1); the duplicate is skipped, not a third post.
     assert adapter.post_count == 2
+
+
+# --- progress: keep the chat alive while the turn runs ----------------------- #
+
+
+class _ActivitySpy(WellBehavedFakeAdapter):
+    def __init__(self):
+        super().__init__()
+        self.activity = 0
+
+    async def signal_activity(self, *, connection, locator):
+        self.activity += 1
+
+
+def _progress_worker(channels_dao, records_dao, adapter) -> ChannelsOutboxWorker:
+    return ChannelsOutboxWorker(
+        channels_service=ChannelsService(
+            channels_dao=channels_dao,
+            adapter_registry=ChannelAdapterRegistry(adapters={"fake": adapter}),
+        ),
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(records_dao=records_dao),
+        progress_interval_seconds=0.01,
+    )
+
+
+@pytest.mark.asyncio
+async def test_progress_moves_the_dots_signals_activity_and_edits_the_answer_so_far():
+    channels_dao = FakeChannelsDAO()
+    records_dao = FakeRecordsDAO()
+    adapter = _ActivitySpy()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    _, thread = await _seed_connection_and_thread(channels_dao, "sess-p")
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-p", session_id="sess-p"
+    )
+    await asyncio.sleep(0.05)
+    # no text yet: the indicator's dots move, and the activity signal repeats
+    assert _delivered_text(channels_dao).startswith("Thinking")
+    assert adapter.activity >= 1
+
+    records_dao.seed(
+        session_id="sess-p",
+        turn_id="turn-p",
+        record_type="message",
+        attributes={"text": "the answer so far"},
+    )
+    await asyncio.sleep(0.05)
+    # the partial answer is edited into the same row, with a cursor
+    assert len(channels_dao.outbox) == 1
+    assert _delivered_text(channels_dao).startswith("the answer so far")
+    assert _delivered_text(channels_dao).endswith("…")
+
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-p", session_id="sess-p"
+    )
+    # turn_ended stops the loop and posts the final answer without the cursor
+    assert "turn-p" not in worker._progress_tasks
+    assert _delivered_text(channels_dao) == "the answer so far"
+    activity_at_end = adapter.activity
+    await asyncio.sleep(0.05)
+    assert adapter.activity == activity_at_end  # nothing runs after the end
+
+
+@pytest.mark.asyncio
+async def test_progress_stops_by_itself_when_the_records_say_the_turn_is_done():
+    channels_dao = FakeChannelsDAO()
+    records_dao = FakeRecordsDAO()
+    adapter = _ActivitySpy()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    _, thread = await _seed_connection_and_thread(channels_dao, "sess-d")
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-d", session_id="sess-d"
+    )
+    records_dao.seed(
+        session_id="sess-d",
+        turn_id="turn-d",
+        record_type="done",
+        attributes={"stopReason": "end_turn"},
+    )
+    await asyncio.sleep(0.05)
+    assert "turn-d" not in worker._progress_tasks
+
+
+@pytest.mark.asyncio
+async def test_no_progress_loop_on_a_channel_that_cannot_edit():
+    channels_dao = FakeChannelsDAO()
+    records_dao = FakeRecordsDAO()
+    adapter = _ActivitySpy()
+    adapter._capabilities["rendering"]["controls"]["update"] = False
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    _, thread = await _seed_connection_and_thread(channels_dao, "sess-n")
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-n", session_id="sess-n"
+    )
+    assert "turn-n" not in worker._progress_tasks
