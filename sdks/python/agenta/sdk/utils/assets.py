@@ -127,21 +127,21 @@ supported_llm_models = {
         "gpt-3.5-turbo-1106",
         "gpt-3.5-turbo",
     ],
-    # OpenRouter's 10 most-used tool-capable text models as of 2026-09-07, from
+    # OpenRouter's 10 most-used tool-capable text models as of 2026-09-10, from
     # GET /api/v1/models?sort=most-popular&supported_parameters=tools&output_modalities=text.
     # Every id below is also a valid key in Pi's vendored OpenRouter catalog
     # (drop the "openrouter/" prefix), so it is settable by the Pi harness picker.
     "openrouter": [
         "openrouter/tencent/hy4-preview",
         "openrouter/openai/gpt-5.6-luna",
-        "openrouter/z-ai/glm-5.3-flash",
         "openrouter/deepseek/deepseek-v4-flash-0731",
+        "openrouter/z-ai/glm-5.3-flash",
         "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/xiaomi/mimo-v2.5",
         "openrouter/tencent/hy3",
         "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
         "openrouter/z-ai/glm-5.3",
-        "openrouter/xiaomi/mimo-v2.5",
-        "openrouter/z-ai/glm-5.2",
+        "openrouter/google/gemini-3.8-flash",
     ],
     # NOTE: provider kind must match Secrets API enums ("perplexityai").
     # Models remain "perplexity/..." but the provider key is used to match secrets.

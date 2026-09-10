@@ -185,14 +185,14 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
     "openrouter": [
         "openrouter/tencent/hy4-preview",
         "openrouter/openai/gpt-5.6-luna",
-        "openrouter/z-ai/glm-5.3-flash",
         "openrouter/deepseek/deepseek-v4-flash-0731",
+        "openrouter/z-ai/glm-5.3-flash",
         "openrouter/deepseek/deepseek-v4-flash",
+        "openrouter/xiaomi/mimo-v2.5",
         "openrouter/tencent/hy3",
         "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
         "openrouter/z-ai/glm-5.3",
-        "openrouter/xiaomi/mimo-v2.5",
-        "openrouter/z-ai/glm-5.2",
+        "openrouter/google/gemini-3.8-flash",
     ],
 }
 
