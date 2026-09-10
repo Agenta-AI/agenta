@@ -110,7 +110,7 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
             title: "Skills",
             ...(summary.skills
                 ? stated(`${summary.skills} ${summary.skills === 1 ? "skill" : "skills"}`)
-                : emptyAction(onEdit ? "Add skills" : "None added")),
+                : emptyAction(onEdit ? "Add skills" : "None available")),
             // Expands to the skill names — the count alone says how many, never which.
             expands: summary.skillNames.length > 0,
         },
