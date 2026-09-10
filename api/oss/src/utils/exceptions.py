@@ -73,7 +73,7 @@ class suppress(AbstractContextManager):  # pylint: disable=invalid-name
                 if any(isinstance(exc_value, excl) for excl in self.exclude):
                     raise exc_value
 
-                log.warn(
+                log.warning(
                     f"[SUPPRESSED] {self.message}\n{format_exc()}",
                     support_id=support.support_id,
                     support_ts=support.support_ts,
@@ -102,7 +102,7 @@ def suppress_exceptions(
                 operation_id = func.__name__ if hasattr(func, "__name__") else None
 
                 if verbose is True:
-                    log.warn(
+                    log.warning(
                         f"[SUPPRESSED] {message}\n{format_exc()}",
                         support_id=support.support_id,
                         support_ts=support.support_ts,

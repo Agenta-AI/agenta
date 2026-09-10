@@ -166,7 +166,7 @@ class MetersDAO(MetersDAOInterface):
         unique_rows = len({m.meter_id for m in sorted_meters})
 
         if unique_rows != total_attempted:
-            log.warn(
+            log.warning(
                 f"[report] [bump] Duplicate meter rows in batch: attempted={total_attempted} unique={unique_rows}"
             )
 
@@ -231,7 +231,7 @@ class MetersDAO(MetersDAOInterface):
                         )
 
         if missing_count > 0:
-            log.warn(
+            log.warning(
                 f"[report] [bump] Missing rows after commits: "
                 f"attempted={total_attempted} updated={updated_count} missing={missing_count} "
                 f"samples={missing_samples}"
@@ -274,7 +274,7 @@ class MetersDAO(MetersDAOInterface):
                     if len(missing_samples) < 5:
                         missing_samples.append(this_meter)
 
-                    log.warn(
+                    log.warning(
                         f"[report] [bump] ❌ No rows updated for {this_meter}",
                     )
                 else:

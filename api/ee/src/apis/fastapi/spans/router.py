@@ -87,7 +87,7 @@ class SpansRetentionRouter:
                 if released:
                     log.info("[flush-spans] [endpoint] Lock released")
                 else:
-                    log.warn(
+                    log.warning(
                         "[flush-spans] [endpoint] Lock release skipped (expired/lost)"
                     )
 

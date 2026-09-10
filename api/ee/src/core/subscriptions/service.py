@@ -322,11 +322,11 @@ class SubscriptionsService:
         elif subscription.plan != free_plan and event == Event.SUBSCRIPTION_SWITCHED:
             stripe = _load_stripe()
             if stripe is None:
-                log.warn("✗ Stripe unavailable")
+                log.warning("✗ Stripe unavailable")
                 raise EventException("Stripe is not available for plan switching")
 
             if subscription.plan == plan:
-                log.warn("Subscription already on the plan: %s", plan)
+                log.warning("Subscription already on the plan: %s", plan)
 
                 raise EventException(
                     f"Same plan [{plan}] already exists for organization ID: {organization_id}"
@@ -342,7 +342,7 @@ class SubscriptionsService:
                     id=subscription.subscription_id,
                 )
             except Exception as e:  # pylint: disable=too-broad-exception
-                log.warn(
+                log.warning(
                     "Failed to retrieve subscription from Stripe: %s", subscription
                 )
 
@@ -381,7 +381,7 @@ class SubscriptionsService:
             )
 
         else:
-            log.warn("Invalid subscription event: %s ", subscription)
+            log.warning("Invalid subscription event: %s ", subscription)
 
             raise EventException(
                 f"Invalid subscription event {event} for organization ID: {organization_id}"

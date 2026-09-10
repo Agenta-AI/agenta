@@ -3639,7 +3639,7 @@ class SimpleEvaluationsService:
                     return None
 
                 if not application_revision.slug:
-                    log.warn(
+                    log.warning(
                         "[EVAL] [run] [make] [failure] application revision is missing slug",
                         id=application_revision.id,
                     )

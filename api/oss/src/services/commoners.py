@@ -405,7 +405,7 @@ async def create_accounts(
 
                 emailing.add_contact(email)
             except ConnectionError as ex:
-                log.warn("error adding contact to loops %s", ex)
+                log.warning("error adding contact to loops %s", ex)
 
         return user
 
@@ -418,4 +418,4 @@ async def create_accounts(
         if released:
             log.info("[scopes] account creation lock released")
         else:
-            log.warn("[scopes] account creation lock already expired")
+            log.warning("[scopes] account creation lock already expired")

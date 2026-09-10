@@ -152,7 +152,7 @@ class EventsRetentionRouter:
                 if released:
                     log.info("[flush-events] [endpoint] Lock released")
                 else:
-                    log.warn(
+                    log.warning(
                         "[flush-events] [endpoint] Lock release skipped (expired/lost)"
                     )
 

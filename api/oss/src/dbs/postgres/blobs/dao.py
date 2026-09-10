@@ -100,7 +100,7 @@ class BlobsDAO(BlobsDAOInterface):
                 )
 
         except Exception as e:
-            log.warn(f"Failed to add blob: {e}")
+            log.warning(f"Failed to add blob: {e}")
             check_entity_creation_conflict(e)
 
             raise
@@ -289,7 +289,7 @@ class BlobsDAO(BlobsDAOInterface):
                 return all_blobs
 
         except Exception as e:
-            log.warn(f"Failed to add blobs: {e}")
+            log.warning(f"Failed to add blobs: {e}")
             check_entity_creation_conflict(e)
 
             raise

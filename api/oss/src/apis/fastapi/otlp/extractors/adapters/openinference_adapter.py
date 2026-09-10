@@ -186,11 +186,11 @@ class OpenInferenceAdapter(BaseAdapter):
                         transformed_attributes["ag.type.node"] = mapped_kind
                         has_data = True
                     else:
-                        log.warn(
+                        log.warning(
                             f"OpenInferenceAdapter: Unknown or unmapped openinference.span.kind '{value}'"
                         )
                 else:
-                    log.warn(
+                    log.warning(
                         f"OpenInferenceAdapter: Expected string for openinference.span.kind, got {type(value)}"
                     )
                 continue  # Move to next attribute
@@ -224,7 +224,7 @@ class OpenInferenceAdapter(BaseAdapter):
                             else:
                                 # Log if pattern didn't match for a key that might be expected to have it.
                                 # This could happen for new, unexpected sub-structures under messages.
-                                log.warn(
+                                log.warning(
                                     f"OpenInferenceAdapter: Suffix '{suffix}' for prefix '{otel_prefix}' did not match '.message.' stripping pattern for key '{key}'. Using original suffix."
                                 )
 

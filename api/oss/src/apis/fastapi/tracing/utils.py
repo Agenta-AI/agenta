@@ -69,14 +69,14 @@ def _parse_filtering(
             try:
                 filtering_json_data = loads(filter)
             except Exception as e:  # pylint: disable=broad-exception-caught
-                log.warn(f"Error parsing filter string to JSON: {e}")
+                log.warning(f"Error parsing filter string to JSON: {e}")
                 filtering_json_data = None
 
         if filtering_json_data:
             try:
                 _filtering = Filtering(**filtering_json_data)
             except Exception as e:  # pylint: disable=broad-exception-caught
-                log.warn(f"Error parsing filter JSON to Filtering DTO: {e}")
+                log.warning(f"Error parsing filter JSON to Filtering DTO: {e}")
 
     return _filtering
 
@@ -151,7 +151,7 @@ def parse_query_from_body_request(
             ),
         )
     except Exception as e:  # pylint: disable=broad-except
-        log.warn(e)
+        log.warning(e)
 
         _query = TracingQuery()
 
@@ -206,13 +206,13 @@ def parse_specs_from_body_request(
         try:
             specs = loads(specs)
         except Exception as e:  # pylint: disable=broad-except
-            log.warn(f"Error parsing specs string to JSON: {e}")
+            log.warning(f"Error parsing specs string to JSON: {e}")
             return None
 
     if isinstance(specs, list):
         return [MetricSpec(**spec) for spec in specs if isinstance(spec, dict)]
 
-    log.warn("Specs should be a list or a JSON string")
+    log.warning("Specs should be a list or a JSON string")
 
     return None
 

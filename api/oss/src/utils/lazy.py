@@ -33,7 +33,7 @@ def _load_stripe() -> Optional["stripe"]:
         # Stripe module": None signals "not available" (disabled OR import/config
         # failure), and callers need a single `if stripe is None` check.
         if not env.stripe.enabled:
-            log.warn("✗ Stripe disabled")
+            log.warning("✗ Stripe disabled")
             _stripe_module = None
             return _stripe_module
 
@@ -66,7 +66,7 @@ def _load_posthog() -> Optional["posthog"]:
         # PostHog module": None signals "not available" (disabled OR import/config
         # failure), and callers need a single `if posthog is None` check.
         if not env.posthog.enabled:
-            log.warn("✗ PostHog disabled")
+            log.warning("✗ PostHog disabled")
             _posthog_module = None
             return _posthog_module
 
@@ -101,9 +101,9 @@ def _load_sendgrid() -> Optional["SendGridAPIClient"]:
         # failure), and callers need a single `if sg is None` check.
         if not env.sendgrid.enabled:
             if env.sendgrid.api_key and not env.sendgrid.from_email:
-                log.warn("✗ SendGrid disabled: missing sender email address")
+                log.warning("✗ SendGrid disabled: missing sender email address")
             else:
-                log.warn("✗ SendGrid disabled")
+                log.warning("✗ SendGrid disabled")
             _sendgrid_client = None
             return _sendgrid_client
 

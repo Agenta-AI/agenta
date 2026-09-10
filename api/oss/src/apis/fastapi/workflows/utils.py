@@ -537,7 +537,7 @@ def parse_workflow_revision_query_request_from_body(
         )
 
     except Exception as e:  # pylint: disable=broad-except
-        log.warn(e)
+        log.warning(e)
 
         workflow_revision_query_request = WorkflowRevisionQueryRequest()
 

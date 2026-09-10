@@ -572,7 +572,7 @@ def parse_environment_revision_query_request_from_body(
         )
 
     except Exception as e:  # pylint: disable=broad-except
-        log.warn(e)
+        log.warning(e)
 
         environment_revision_query_request = EnvironmentRevisionQueryRequest()
 

@@ -200,7 +200,7 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
                         )
                     )
                 except Exception as e:
-                    log.warn(
+                    log.warning(
                         f"OTelFlatSpanBuilder: Error creating OTelLink from link: {link}. Error: {e}."
                     )
 
@@ -222,7 +222,7 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
                             )
                         )
                 except Exception as e:
-                    log.warn(
+                    log.warning(
                         f"OTelFlatSpanBuilder: Error creating OTelEvent from event: {event}. Error: {e}."
                     )
 
