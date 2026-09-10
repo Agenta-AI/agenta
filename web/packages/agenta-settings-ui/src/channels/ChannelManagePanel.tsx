@@ -114,95 +114,100 @@ export const ChannelManagePanel = ({
             ) : null}
 
             {elsewhere ? (
-                <div
-                    className="flex flex-col gap-3 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-3"
-                    data-testid="channels-connect-here"
-                >
+                <div className="flex flex-col gap-4" data-testid="channels-connect-here">
                     <div className="flex items-start gap-2.5">
                         <ArrowsLeftRight
-                            size={16}
+                            size={18}
                             className="mt-0.5 flex-shrink-0 text-colorTextSecondary"
                         />
                         <div className="flex min-w-0 flex-1 flex-col gap-1">
-                            <span className="text-[13px] font-medium text-colorText">
+                            <span className="text-[15px] font-semibold text-colorText">
                                 {unassigned
-                                    ? `${name} is connected but answers as no agent yet`
+                                    ? `${name} is connected, but answers as no agent yet`
                                     : `${name} is connected to ${otherAgent}`}
                             </span>
-                            <span className="text-xs leading-relaxed text-colorTextSecondary">
-                                One {name} connection per project. Connecting it here makes{" "}
-                                {agentName} answer instead of {otherAgent}. The chats stay linked.
+                            <span className="text-[13px] leading-relaxed text-colorTextSecondary">
+                                One {name} connection per project, and it answers as one agent.
+                                {unassigned
+                                    ? ` Connect it here so ${agentName} answers.`
+                                    : ` Connecting it here makes ${agentName} answer instead of ${otherAgent}. The linked chats stay linked.`}
                             </span>
                         </div>
                     </div>
                     <Button
                         variant="default"
-                        size="sm"
+                        className="w-full"
                         disabled={busy !== null}
                         onClick={() => void run("connect-here", onConnectHere)}
                     >
                         {busy === "connect-here" ? <Spinner size="small" /> : null}
                         {unassigned
-                            ? "Connect here"
+                            ? `Connect ${agentName}`
                             : `Disconnect from ${otherAgent} and connect here`}
                     </Button>
                 </div>
             ) : null}
 
-            <div className="overflow-hidden rounded-lg border border-solid border-colorBorderSecondary">
-                {summaryRows.map(([label, value], i) => (
-                    <div
-                        key={label}
-                        className={`flex items-center justify-between gap-3 px-3 py-2.5 ${
-                            i ? "border-0 border-t border-solid border-colorBorderSecondary" : ""
-                        }`}
-                    >
-                        <span className="text-xs text-colorTextSecondary">{label}</span>
-                        <span className="truncate text-[13px] text-colorText">{value}</span>
+            {elsewhere ? null : (
+                <>
+                    <div className="overflow-hidden rounded-lg border border-solid border-colorBorderSecondary">
+                        {summaryRows.map(([label, value], i) => (
+                            <div
+                                key={label}
+                                className={`flex items-center justify-between gap-3 px-3 py-2.5 ${
+                                    i
+                                        ? "border-0 border-t border-solid border-colorBorderSecondary"
+                                        : ""
+                                }`}
+                            >
+                                <span className="text-xs text-colorTextSecondary">{label}</span>
+                                <span className="truncate text-[13px] text-colorText">{value}</span>
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
 
-            <div className="flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-4">
-                {confirming ? (
-                    <div className="flex flex-col gap-3 rounded-lg border border-solid border-colorBorderSecondary p-3">
-                        <span className="text-xs leading-relaxed text-colorTextSecondary">
-                            Disconnect {name}? {elsewhere ? otherAgent : agentName} stops answering
-                            there. Past conversations stay in Agenta.
-                        </span>
-                        <div className="flex gap-2">
+                    <div className="flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-4">
+                        {confirming ? (
+                            <div className="flex flex-col gap-3 rounded-lg border border-solid border-colorBorderSecondary p-3">
+                                <span className="text-xs leading-relaxed text-colorTextSecondary">
+                                    Disconnect {name}? {elsewhere ? otherAgent : agentName} stops
+                                    answering there. Past conversations stay in Agenta.
+                                </span>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={busy !== null}
+                                        onClick={() => setConfirming(false)}
+                                    >
+                                        Keep
+                                    </Button>
+                                    <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        disabled={busy !== null}
+                                        onClick={() => void run("disconnect", onDisconnect)}
+                                        data-testid="channels-disconnect-confirm"
+                                    >
+                                        {busy === "disconnect" ? <Spinner size="small" /> : null}
+                                        Disconnect
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
                             <Button
-                                variant="outline"
-                                size="sm"
+                                variant="destructive-outline"
                                 disabled={busy !== null}
-                                onClick={() => setConfirming(false)}
+                                onClick={() => setConfirming(true)}
+                                data-testid="channels-disconnect"
                             >
-                                Keep
+                                <LinkBreak size={14} />
+                                Disconnect {name}
                             </Button>
-                            <Button
-                                variant="destructive"
-                                size="sm"
-                                disabled={busy !== null}
-                                onClick={() => void run("disconnect", onDisconnect)}
-                                data-testid="channels-disconnect-confirm"
-                            >
-                                {busy === "disconnect" ? <Spinner size="small" /> : null}
-                                Disconnect
-                            </Button>
-                        </div>
+                        )}
                     </div>
-                ) : (
-                    <Button
-                        variant="destructive-outline"
-                        disabled={busy !== null}
-                        onClick={() => setConfirming(true)}
-                        data-testid="channels-disconnect"
-                    >
-                        <LinkBreak size={14} />
-                        Disconnect {name}
-                    </Button>
-                )}
-            </div>
+                </>
+            )}
         </div>
     )
 }
