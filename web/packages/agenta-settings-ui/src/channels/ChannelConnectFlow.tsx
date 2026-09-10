@@ -33,11 +33,16 @@ export interface ChannelConnectFlowProps {
     /** The hosted bot/app handle to show, e.g. "@newagentabot". */
     hostedHandle?: string
     actions?: ChannelsActions
+    /** Which tab the flow opens on. "custom" is how an agent gets a bot of its own. */
+    initialMode?: ChannelInstallMode
     /** Called once a connection is confirmed; the host reloads and the panel shows manage. */
     onConnected: () => Promise<void> | void
     /** Polling cadence for the hosted waits, ms. Exposed for tests and stories. */
     pollIntervalMs?: number
 }
+
+/** Where a self-hosted deployment learns to run the Agenta Telegram bot itself. */
+const TELEGRAM_HOSTED_DOCS = "https://docs.agenta.ai/self-host/channels/telegram-hosted-bot"
 
 type SlackCustomStep = "choose" | "guide" | "creds"
 type TelegramHostedStep = "preparing" | "qr" | "waiting" | "linked" | "expired" | "unavailable"
@@ -88,13 +93,14 @@ export const ChannelConnectFlow = ({
     workspaceName = "your workspace",
     hostedHandle = "@agenta",
     actions = NOOP_ACTIONS,
+    initialMode = "hosted",
     onConnected,
     pollIntervalMs = 2500,
 }: ChannelConnectFlowProps) => {
     const isSlack = platform === "slack"
     const name = platformLabel(platform)
 
-    const [mode, setMode] = useState<ChannelInstallMode>("hosted")
+    const [mode, setMode] = useState<ChannelInstallMode>(initialMode)
     const [error, setError] = useState<string | null>(null)
 
     // --- custom app/bot: the declared setup ---------------------------------- //
@@ -692,14 +698,25 @@ export const ChannelConnectFlow = ({
                     ) : null}
 
                     {tgStep === "unavailable" ? (
-                        <div className="grid grid-cols-2 gap-2.5">
-                            <Button variant="outline" onClick={() => void mintTelegramLink()}>
-                                Try again
-                            </Button>
-                            <Button variant="default" onClick={() => setMode("custom")}>
-                                Use your own bot
-                            </Button>
-                        </div>
+                        <>
+                            <a
+                                href={TELEGRAM_HOSTED_DOCS}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center justify-center gap-1 text-xs text-colorText"
+                            >
+                                Set up the hosted bot on a self-hosted deployment (docs)
+                                <ArrowSquareOut size={12} />
+                            </a>
+                            <div className="grid grid-cols-2 gap-2.5">
+                                <Button variant="outline" onClick={() => void mintTelegramLink()}>
+                                    Try again
+                                </Button>
+                                <Button variant="default" onClick={() => setMode("custom")}>
+                                    Use your own bot
+                                </Button>
+                            </div>
+                        </>
                     ) : null}
 
                     {tgStep === "qr" && tgLink ? (
@@ -815,13 +832,19 @@ export const ChannelConnectFlow = ({
                     ) : null}
 
                     {tgStep === "linked" ? (
-                        <div
-                            className="flex items-center gap-2 rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-[13px] text-colorText"
-                            data-testid="channels-telegram-linked"
-                        >
-                            <Check size={14} weight="bold" className="text-colorSuccess" />
-                            Linked. {agentName} answers in that Telegram chat now.
-                        </div>
+                        <>
+                            <div
+                                className="flex items-center gap-2 rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-[13px] text-colorText"
+                                data-testid="channels-telegram-linked"
+                            >
+                                <Check size={14} weight="bold" className="text-colorSuccess" />
+                                Linked. {agentName} answers in that Telegram chat now.
+                            </div>
+                            <p className="m-0 text-center text-xs leading-relaxed text-colorTextSecondary">
+                                This panel switches to the connected view in a moment. Who may
+                                message the bot is set there, under Behavior.
+                            </p>
+                        </>
                     ) : null}
                 </div>
             ) : null}

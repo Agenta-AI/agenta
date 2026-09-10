@@ -16,7 +16,10 @@ export {
 export {
     buildAgentChannelsActions,
     channelKey,
+    chatTypeOf,
+    groupKindsOf,
     mapConnectionRow,
+    mapSpaceRow,
     type AgentChannelsActionsOptions,
     type ChannelsClientLike,
 } from "./actions"
@@ -27,7 +30,11 @@ export type {
     ChannelStatus,
     ChannelChatType,
     ChannelBehavior,
+    ChannelBehaviorState,
     ChannelChat,
+    ChannelSpace,
+    ChannelSpaceCandidate,
+    ChannelSpaceKind,
     ChannelConnection,
     ChannelConnections,
     ChannelAnsweringAgent,

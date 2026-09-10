@@ -1,8 +1,13 @@
 import type {
+    ChannelBehaviorState,
+    ChannelChatType,
     ChannelConnection,
     ChannelConnections,
     ChannelPlatform,
     ChannelSetupInfo,
+    ChannelSpace,
+    ChannelSpaceCandidate,
+    ChannelSpaceKind,
     ChannelsActions,
     HostedTelegramLink,
 } from "./types"
@@ -36,9 +41,16 @@ export interface ChannelsClientLike {
     editChannelAgent(body: object, scope?: Scope): Promise<unknown>
     createChannelConnection(body: object, scope?: Scope): Promise<unknown>
     archiveChannelConnection(body: object, scope?: Scope): Promise<unknown>
+    editChannelConnection(body: object, scope?: Scope): Promise<unknown>
     fetchChannelSetup(body: object, scope?: Scope): Promise<unknown>
     createTelegramHostedBindLink(body: object, scope?: Scope): Promise<unknown>
     listTelegramHostedBindings(body: object, scope?: Scope): Promise<unknown>
+    queryChannelSpaces(body: object, scope?: Scope): Promise<unknown>
+    discoverChannelSpaces(body: object, scope?: Scope): Promise<unknown>
+    createChannelSpace(body: object, scope?: Scope): Promise<unknown>
+    queryChannelGrants(body: object, scope?: Scope): Promise<unknown>
+    createChannelGrant(body: object, scope?: Scope): Promise<unknown>
+    deleteChannelGrant(body: object, scope?: Scope): Promise<unknown>
 }
 
 export interface AgentChannelsActionsOptions {
@@ -78,6 +90,52 @@ export const referencedAppId = (agent: Row): string | null => {
     }
     return null
 }
+
+const SPACE_KINDS: ChannelSpaceKind[] = ["private", "group", "topic"]
+
+const asSpaceKind = (value: unknown): ChannelSpaceKind =>
+    value === "private" || value === "topic" ? value : "group"
+
+/**
+ * A v4 uuid, without `crypto.randomUUID`.
+ *
+ * `randomUUID` exists only in a secure context, and /m is served over plain HTTP on a dev
+ * box, where calling it throws and blanks the page. The service derives the real external
+ * key from the locator and discards this value, but the wire schema still demands a uuid.
+ */
+const randomUuid = (): string => {
+    const bytes = new Uint8Array(16)
+    const source = typeof crypto !== "undefined" ? crypto : undefined
+    if (source?.getRandomValues) source.getRandomValues(bytes)
+    else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256)
+    bytes[6] = (bytes[6] & 0x0f) | 0x40
+    bytes[8] = (bytes[8] & 0x3f) | 0x80
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+/** Map a backend space row to the design's shape. A private space is always "Direct messages". */
+export const mapSpaceRow = (row: Row): ChannelSpace | null => {
+    const id = asString(row.id)
+    if (!id || row.deleted_at) return null
+    const kind = asSpaceKind(row.kind)
+    const name = asString(row.name) ?? asString(row.description)
+    return {
+        id,
+        kind,
+        name: kind === "private" ? "Direct messages" : (name ?? "Untitled"),
+    }
+}
+
+/** The card's chat type for a space kind: only "is it a DM" changes the row's copy. */
+export const chatTypeOf = (kind: ChannelSpaceKind, platform: ChannelPlatform): ChannelChatType => {
+    if (kind === "private") return "dm"
+    return platform === "slack" ? "channel" : "group"
+}
+
+/** The space kinds the "group" switch covers. A Slack channel is a topic-bearing space. */
+export const groupKindsOf = (platform: ChannelPlatform): ChannelSpaceKind[] =>
+    platform === "slack" ? ["group", "topic"] : ["group"]
 
 /** The active default channel agent of a connection, or its first active agent. */
 export const answeringAgentRow = (agents: Row[]): Row | null => {
@@ -181,6 +239,164 @@ export const buildAgentChannelsActions = ({
         )
     }
 
+    /** The channel agent row that answers on this connection — the subject of every grant. */
+    const channelAgentId = async (connectionId: string): Promise<string> => {
+        const answering = answeringAgentRow(await agentsOf(connectionId))
+        const id = answering ? asString(answering.id) : null
+        if (!id) throw new Error("This connection answers as no agent yet.")
+        return id
+    }
+
+    const listSpaces = async (connectionId: string): Promise<ChannelSpace[]> => {
+        const res = await client
+            .queryChannelSpaces({space: {connection_id: connectionId}}, scope())
+            .catch(rethrow("Could not load where this connection answers."))
+        return asArray(asRecord(res).spaces)
+            .map(mapSpaceRow)
+            .filter((space): space is ChannelSpace => space !== null)
+    }
+
+    const discoverSpaces = async (connectionId: string): Promise<ChannelSpaceCandidate[]> => {
+        const res = await client
+            .discoverChannelSpaces({connection_id: connectionId}, scope())
+            .catch(rethrow("Could not list the channels this app can see."))
+        return asArray(asRecord(res).candidates).map((row) => ({
+            kind: asSpaceKind(row.kind),
+            externalLocator: asRecord(row.external_locator),
+            displayName: asString(row.display_name) ?? asString(row.kind) ?? "Untitled",
+            isConfigured: row.is_configured === true,
+        }))
+    }
+
+    const addSpace = async (
+        connectionId: string,
+        candidate: ChannelSpaceCandidate,
+    ): Promise<void> => {
+        await client
+            .createChannelSpace(
+                {
+                    space: {
+                        connection_id: connectionId,
+                        kind: candidate.kind,
+                        // The service derives the real key from the locator and discards this.
+                        external_key: randomUuid(),
+                        name: candidate.displayName,
+                        data: {external_locator: candidate.externalLocator},
+                    },
+                },
+                scope(),
+            )
+            .catch(rethrow("Could not add this channel."))
+    }
+
+    /** This agent's grants that name a kind and no single space — the switches' storage. */
+    const kindGrants = async (agentId: string): Promise<Row[]> => {
+        const res = await client
+            .queryChannelGrants({grant: {agent_id: agentId}}, scope())
+            .catch(rethrow("Could not read where this agent may answer."))
+        return asArray(asRecord(res).grants).filter(
+            (grant) => !grant.deleted_at && !grant.space_id && asString(grant.kind),
+        )
+    }
+
+    const readBehavior = async (
+        platform: ChannelPlatform,
+        connectionId: string,
+    ): Promise<ChannelBehaviorState> => {
+        const grants = await kindGrants(await channelAgentId(connectionId))
+        const denied = (kinds: ChannelSpaceKind[]) =>
+            grants.some(
+                (grant) => grant.effect === "deny" && kinds.includes(asSpaceKind(grant.kind)),
+            )
+        return {dm: !denied(["private"]), group: !denied(groupKindsOf(platform))}
+    }
+
+    const writeBehavior = async (
+        platform: ChannelPlatform,
+        connectionId: string,
+        next: ChannelBehaviorState,
+    ): Promise<void> => {
+        const agentId = await channelAgentId(connectionId)
+        const grants = await kindGrants(agentId)
+        const drop = async (rows: Row[]) => {
+            for (const row of rows) {
+                const grantId = asString(row.id)
+                if (!grantId) continue
+                await client
+                    .deleteChannelGrant({grant_id: grantId}, scope())
+                    .catch(rethrow("Could not save this setting."))
+            }
+        }
+
+        // Both on is the unrestricted state, and the backend spells that "no grant at all".
+        // Leaving an allow grant behind would deny every kind nobody named.
+        if (next.dm && next.group) {
+            await drop(grants)
+            return
+        }
+
+        // The group switch covers topics too: a Slack channel is a topic-bearing space, and
+        // an unnamed kind is denied once any grant exists.
+        const wanted = (kind: ChannelSpaceKind) =>
+            (kind === "private" ? next.dm : next.group) ? "allow" : "deny"
+
+        for (const kind of SPACE_KINDS) {
+            const mine = grants.filter((grant) => asSpaceKind(grant.kind) === kind)
+            const keep = mine.find((grant) => grant.effect === wanted(kind))
+            await drop(mine.filter((grant) => grant !== keep))
+            if (keep) continue
+            await client
+                .createChannelGrant(
+                    {grant: {agent_id: agentId, effect: wanted(kind), kind, data: {}}},
+                    scope(),
+                )
+                .catch(rethrow("Could not save this setting."))
+        }
+    }
+
+    const connectionRow = async (connectionId: string): Promise<Row> => {
+        const res = await client
+            .queryChannelConnections({}, scope())
+            .catch(rethrow("Could not load the channel connections."))
+        const row = asArray(asRecord(res).connections).find(
+            (candidate) => asString(candidate.id) === connectionId,
+        )
+        if (!row) throw new Error("This connection no longer exists.")
+        return row
+    }
+
+    const readAllowedUsers = async (connectionId: string): Promise<string[]> => {
+        const data = asRecord(asRecord(await connectionRow(connectionId)).data)
+        const raw = data.allowed_senders
+        if (!Array.isArray(raw)) return []
+        return raw.map((value) => String(value).trim()).filter(Boolean)
+    }
+
+    const writeAllowedUsers = async (connectionId: string, ids: string[]): Promise<void> => {
+        // `data` merges key by key on the backend, so this replaces the list and nothing else.
+        await client
+            .editChannelConnection(
+                {
+                    connection_id: connectionId,
+                    connection: {id: connectionId, data: {allowed_senders: ids}},
+                },
+                scope(),
+            )
+            .catch(rethrow("Could not save the allowed accounts."))
+    }
+
+    const updateCredentials = async (
+        connectionId: string,
+        credentials: Record<string, string>,
+    ): Promise<void> => {
+        await client
+            .editChannelConnection(
+                {connection_id: connectionId, connection: {id: connectionId, credentials}},
+                scope(),
+            )
+            .catch(rethrow("The platform rejected the new credentials."))
+    }
+
     const countHostedTelegramBindings = async (connectionId: string): Promise<number> => {
         const res = await client.listTelegramHostedBindings({connection_id: connectionId}, scope())
         const count = Number(asRecord(res).count)
@@ -204,6 +420,16 @@ export const buildAgentChannelsActions = ({
                 } catch {
                     connection.agent = undefined // unresolved: treated as "here"
                 }
+                // The row's copy counts the places it answers in ("1 group + DMs"). One call
+                // per connection, and a failure only costs the count, not the row.
+                try {
+                    connection.chats = (await listSpaces(connection.connectionId)).map((space) => ({
+                        name: space.name,
+                        type: chatTypeOf(space.kind, connection.platform),
+                    }))
+                } catch {
+                    /* the row falls back to "Direct messages" */
+                }
                 // A hosted Telegram connection is created when the link is minted, before
                 // any chat tapped Start. Until a chat is bound it is pending, not connected.
                 if (
@@ -220,11 +446,14 @@ export const buildAgentChannelsActions = ({
                 }
             }),
         )
-        // One row per platform in the design. When the backend holds more than one (an
-        // unused hosted link next to a custom bot), the live one wins over a pending one,
-        // and a pending one over a revoked one.
-        const rank = (c: ChannelConnection) =>
-            c.status === "connected" ? 2 : c.status === "pending" ? 1 : 0
+        // One row per platform in the design, but a platform may now hold both a hosted and a
+        // custom connection. The one that answers as this agent wins whatever its status —
+        // a revoked bot of this agent is the row the user came to fix. Among the rest, a live
+        // connection beats a pending one, and a pending one beats a revoked one.
+        const rank = (c: ChannelConnection) => {
+            const here = c.agent === undefined || c.agent?.id === appId ? 4 : 0
+            return here + (c.status === "connected" ? 2 : c.status === "pending" ? 1 : 0)
+        }
         const out: ChannelConnections = {slack: null, telegram: null}
         for (const connection of rows) {
             const current = out[connection.platform]
@@ -315,5 +544,13 @@ export const buildAgentChannelsActions = ({
         connectCustom,
         connectHere,
         disconnect,
+        listSpaces,
+        discoverSpaces,
+        addSpace,
+        readBehavior,
+        writeBehavior,
+        readAllowedUsers,
+        writeAllowedUsers,
+        updateCredentials,
     }
 }

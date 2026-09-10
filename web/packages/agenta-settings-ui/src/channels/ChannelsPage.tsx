@@ -12,7 +12,12 @@ import {
     summarizeConnection,
 } from "./helpers"
 import {platformLogo} from "./icons"
-import type {ChannelConnections, ChannelPlatform, ChannelsActions} from "./types"
+import type {
+    ChannelConnections,
+    ChannelInstallMode,
+    ChannelPlatform,
+    ChannelsActions,
+} from "./types"
 
 /**
  * The agent page's Channels section: connect and manage the chat tools an agent answers in.
@@ -65,12 +70,24 @@ export const ChannelsPage = ({
     hostedHandle = "@agenta",
 }: ChannelsPageProps) => {
     const [activePlatform, setActivePlatform] = useState<ChannelPlatform | null>(null)
+    // A connected platform normally opens the manage view. This holds the tab to open when the
+    // manage view sends the user back into the connect flow: a bot of this agent's own, or a
+    // second attempt at an install the platform threw away.
+    const [forceConnect, setForceConnect] = useState<ChannelInstallMode | null>(null)
 
-    const close = useCallback(() => setActivePlatform(null), [])
+    const close = useCallback(() => {
+        setActivePlatform(null)
+        setForceConnect(null)
+    }, [])
+
+    const open = useCallback((platform: ChannelPlatform) => {
+        setForceConnect(null)
+        setActivePlatform(platform)
+    }, [])
 
     // A pending connection (link minted, no chat bound yet) opens the connect flow, not manage.
     const current = activePlatform ? connections[activePlatform] : null
-    const active = current && current.status !== "pending" ? current : null
+    const active = current && current.status !== "pending" && !forceConnect ? current : null
     const anyIssue = hasAnyIssue(connections)
     const nothingConnected = (["slack", "telegram"] as const).every(
         (platform) => !connections[platform] || connections[platform]?.status === "pending",
@@ -103,7 +120,7 @@ export const ChannelsPage = ({
                                 key={platform}
                                 type="button"
                                 disabled={loading}
-                                onClick={() => setActivePlatform(platform)}
+                                onClick={() => open(platform)}
                                 className="flex cursor-pointer items-center gap-2.5 border-0 bg-transparent px-0 py-2.5 text-left disabled:cursor-default"
                                 data-testid={`channels-row-${platform}`}
                             >
@@ -158,6 +175,9 @@ export const ChannelsPage = ({
                               agentName={agentName}
                               workspaceName={workspaceName}
                               hostedHandle={hostedHandle}
+                              actions={actions}
+                              onUseOwnBot={() => setForceConnect("custom")}
+                              onReconnect={() => setForceConnect(active.kind)}
                               onConnectHere={async () => {
                                   if (!active.connectionId) {
                                       throw new Error("This connection has no id yet.")
@@ -181,7 +201,9 @@ export const ChannelsPage = ({
                               workspaceName={workspaceName}
                               hostedHandle={hostedHandle}
                               actions={actions}
+                              initialMode={forceConnect ?? "hosted"}
                               onConnected={async () => {
+                                  setForceConnect(null)
                                   await actions.reload()
                               }}
                           />

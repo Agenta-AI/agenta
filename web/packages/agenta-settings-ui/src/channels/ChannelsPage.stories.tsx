@@ -11,6 +11,8 @@ import {
     telegramBotRemoved,
     telegramElsewhere,
     telegramHere,
+    telegramPending,
+    telegramRevoked,
 } from "./storyFixtures"
 
 /**
@@ -91,6 +93,38 @@ export const TelegramConnectedElsewhere: Story = {
     },
 }
 
+/** Both platforms answer as this agent. */
+export const BothConnected: Story = {
+    render: () => (
+        <ChannelsPageHost initial={{slack: slackHere, telegram: telegramHere}} options={setup} />
+    ),
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    "Each row names the bot and counts the places it answers in, so the card " +
+                    "answers “where does this agent speak?” without opening anything.",
+            },
+        },
+    },
+}
+
+/** The hosted link is minted, but no chat has tapped Start. */
+export const NotLinkedYet: Story = {
+    render: () => (
+        <ChannelsPageHost initial={{slack: null, telegram: telegramPending}} options={setup} />
+    ),
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    "A connection exists, but nothing answers through it yet. The row warns and " +
+                    "leads back into the connect flow rather than into an empty manage view.",
+            },
+        },
+    },
+}
+
 /** A revoked credential: the card header carries the badge and the row turns red. */
 export const NeedsAttention: Story = {
     render: () => (
@@ -100,8 +134,24 @@ export const NeedsAttention: Story = {
         docs: {
             description: {
                 story:
-                    'Slack revoked the credential. The card shows "Needs attention" and the row ' +
-                    "reads as an error until the connection is made again.",
+                    'Slack uninstalled the app. The card shows "Needs attention" and the row ' +
+                    "reads as an error until the app is installed again.",
+            },
+        },
+    },
+}
+
+/** Telegram threw the bot token away. */
+export const TelegramTokenRevoked: Story = {
+    render: () => (
+        <ChannelsPageHost initial={{slack: slackHere, telegram: telegramRevoked}} options={setup} />
+    ),
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    'A custom bot can be repaired in place, so the row says "update it" rather ' +
+                    'than "reconnect". The panel behind it leads with the token form.',
             },
         },
     },

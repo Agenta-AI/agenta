@@ -26,6 +26,40 @@ export interface ChannelChat {
     removed?: boolean
 }
 
+/** The backend's space kinds: a 1:1 chat, a group, and a thread-bearing room (a Slack channel). */
+export type ChannelSpaceKind = "private" | "group" | "topic"
+
+/** One place a connection answers in, as the backend stores it. */
+export interface ChannelSpace {
+    id: string
+    kind: ChannelSpaceKind
+    /** The display name; "Direct messages" for a private chat. */
+    name: string
+}
+
+/** A place the connected app can see but that has no space row yet. */
+export interface ChannelSpaceCandidate {
+    kind: ChannelSpaceKind
+    /** The platform-side address; passed straight back to `addSpace`. */
+    externalLocator: Record<string, unknown>
+    displayName: string
+    /** True when a space row already backs it, so adding it again would be a no-op. */
+    isConfigured: boolean
+}
+
+/**
+ * The two behavior switches, as the agent's kind-level grants express them.
+ *
+ * An agent with no grant at all answers everywhere; once any grant exists, a kind nobody
+ * named is denied. Both switches on therefore means "no kind-level grants".
+ */
+export interface ChannelBehaviorState {
+    /** The agent answers a direct message. */
+    dm: boolean
+    /** The agent answers in a group chat (and, on Slack, in a channel). */
+    group: boolean
+}
+
 /** The agent a connection answers as. `name` is null when the host could not resolve it. */
 export interface ChannelAnsweringAgent {
     id: string
@@ -110,4 +144,24 @@ export interface ChannelsActions {
     connectHere: (platform: ChannelPlatform, connectionId: string) => Promise<void>
     /** Disconnect (archive) a connection. */
     disconnect: (platform: ChannelPlatform, connectionId: string) => Promise<void>
+    /** The places this connection already answers in. */
+    listSpaces: (connectionId: string) => Promise<ChannelSpace[]>
+    /** The places the connected app can see, for the "Add channel" picker. */
+    discoverSpaces: (connectionId: string) => Promise<ChannelSpaceCandidate[]>
+    /** Turn a discovered candidate into a space the agent answers in. */
+    addSpace: (connectionId: string, candidate: ChannelSpaceCandidate) => Promise<void>
+    /** Read the two behavior switches from this agent's kind-level grants. */
+    readBehavior: (platform: ChannelPlatform, connectionId: string) => Promise<ChannelBehaviorState>
+    /** Write the two behavior switches back as kind-level grants. */
+    writeBehavior: (
+        platform: ChannelPlatform,
+        connectionId: string,
+        next: ChannelBehaviorState,
+    ) => Promise<void>
+    /** The Telegram accounts allowed to message the bot; empty means everyone. */
+    readAllowedUsers: (connectionId: string) => Promise<string[]>
+    /** Replace the allowed Telegram accounts; an empty list opens the bot to everyone. */
+    writeAllowedUsers: (connectionId: string, ids: string[]) => Promise<void>
+    /** Replace the secrets of a custom app/bot (a rotated Telegram token, a new Slack pair). */
+    updateCredentials: (connectionId: string, credentials: Record<string, string>) => Promise<void>
 }

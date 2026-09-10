@@ -71,12 +71,28 @@ export const summarizeConnection = (
 
     if (connection.status === "revoked") {
         return {
-            sub: "Credential revoked · reconnect",
+            sub:
+                platform === "telegram"
+                    ? "Bot token revoked · update it"
+                    : "App uninstalled · reconnect",
             subClass: "text-colorError",
             dotClass: "bg-colorError",
             connected: true,
             needsAttention: true,
             action: "manage",
+        }
+    }
+
+    // The hosted link is minted before any chat taps Start. Nothing answers yet, so the row
+    // leads back into the connect flow rather than into a manage view with nothing in it.
+    if (connection.status === "pending") {
+        return {
+            sub: "Not linked yet · finish connecting",
+            subClass: "text-colorWarning",
+            dotClass: "bg-colorWarning",
+            connected: false,
+            needsAttention: false,
+            action: "connect",
         }
     }
 
@@ -165,4 +181,12 @@ export const NOOP_ACTIONS: ChannelsActions = {
     connectCustom: async () => {},
     connectHere: async () => {},
     disconnect: async () => {},
+    listSpaces: async () => [],
+    discoverSpaces: async () => [],
+    addSpace: async () => {},
+    readBehavior: async () => ({dm: true, group: true}),
+    writeBehavior: async () => {},
+    readAllowedUsers: async () => [],
+    writeAllowedUsers: async () => {},
+    updateCredentials: async () => {},
 }

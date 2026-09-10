@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState, type ReactNode} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
 import {Button} from "@agenta/ui/ui"
 
@@ -6,11 +6,14 @@ import {ChannelConnectFlow} from "./ChannelConnectFlow"
 import {ChannelsPage} from "./ChannelsPage"
 import {DIRECT_MESSAGES_CHAT, EMPTY_CONNECTIONS} from "./helpers"
 import type {
+    ChannelBehaviorState,
     ChannelConnection,
     ChannelConnections,
     ChannelInstallMode,
     ChannelPlatform,
     ChannelSetupInfo,
+    ChannelSpace,
+    ChannelSpaceCandidate,
     ChannelsActions,
     HostedTelegramLink,
 } from "./types"
@@ -130,6 +133,70 @@ export const slackRevoked: ChannelConnection = {
     status: "revoked",
 }
 
+/** The customer's own Telegram bot, so the panel carries a Token row. */
+export const telegramCustomHere: ChannelConnection = {
+    ...telegramHere,
+    connectionId: "cx-telegram-own",
+    kind: "custom",
+    handle: "@acme_support_bot",
+    chats: [DIRECT_MESSAGES_CHAT],
+    connectedAt: "2026-09-02T08:30:00.000Z",
+}
+
+/** Telegram threw the bot token away: the panel leads with the update form. */
+export const telegramRevoked: ChannelConnection = {
+    ...telegramCustomHere,
+    status: "revoked",
+}
+
+/** The hosted link is minted, but no chat has tapped Start yet. */
+export const telegramPending: ChannelConnection = {
+    ...telegramHere,
+    status: "pending",
+    chats: [],
+}
+
+// --- where each fixture connection answers ---------------------------------- //
+
+export const SLACK_SPACES: ChannelSpace[] = [
+    {id: "sp-support", kind: "topic", name: "#support"},
+    {id: "sp-oncall", kind: "topic", name: "#eng-oncall"},
+    {id: "sp-dm", kind: "private", name: "Direct messages"},
+]
+
+export const TELEGRAM_SPACES: ChannelSpace[] = [
+    {id: "sp-tg-dm", kind: "private", name: "Direct messages"},
+    {id: "sp-tg-ops", kind: "group", name: "Ops team"},
+]
+
+/** What the Slack app can see: two rooms it was added to that have no space row yet. */
+export const SLACK_CANDIDATES: ChannelSpaceCandidate[] = [
+    {
+        kind: "topic",
+        externalLocator: {channel: "C0SUPPORT"},
+        displayName: "#support",
+        isConfigured: true,
+    },
+    {
+        kind: "topic",
+        externalLocator: {channel: "C0PRODUCT"},
+        displayName: "#product",
+        isConfigured: false,
+    },
+    {
+        kind: "topic",
+        externalLocator: {channel: "C0SALES"},
+        displayName: "#sales-questions",
+        isConfigured: false,
+    },
+]
+
+const DEFAULT_SPACES: Record<string, ChannelSpace[]> = {
+    "cx-slack": SLACK_SPACES,
+    "cx-telegram": TELEGRAM_SPACES,
+    "cx-telegram-own": [TELEGRAM_SPACES[0]],
+}
+
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 export interface ChannelStoryActionsOptions {
@@ -152,6 +219,20 @@ export interface ChannelStoryActionsOptions {
     connectCustomError?: string
     connectHereError?: string
     disconnectError?: string
+    /** The places each connection answers in, keyed by connection id. */
+    spaces?: Record<string, ChannelSpace[]>
+    /** What "Add channel" discovers, keyed by connection id. */
+    candidates?: Record<string, ChannelSpaceCandidate[]>
+    /** The switches each connection starts with, keyed by connection id. Default: both on. */
+    behavior?: Record<string, ChannelBehaviorState>
+    /** The allowed Telegram accounts, keyed by connection id. Default: everyone. */
+    allowedUsers?: Record<string, string[]>
+    spacesError?: string
+    discoverError?: string
+    addSpaceError?: string
+    behaviorError?: string
+    allowedUsersError?: string
+    credentialsError?: string
     /** Called with the fixture after every change, so a host component can re-render. */
     onChange?: (connections: ChannelConnections) => void
 }
@@ -180,10 +261,25 @@ export const createChannelStoryActions = (
         connectCustomError,
         connectHereError,
         disconnectError,
+        spacesError,
+        discoverError,
+        addSpaceError,
+        behaviorError,
+        allowedUsersError,
+        credentialsError,
         onChange,
     } = options
 
     let store: ChannelConnections = options.connections ?? EMPTY_CONNECTIONS
+
+    const spaces: Record<string, ChannelSpace[]> = {...DEFAULT_SPACES, ...options.spaces}
+    const candidates: Record<string, ChannelSpaceCandidate[]> = {
+        "cx-slack": SLACK_CANDIDATES,
+        ...options.candidates,
+    }
+    const behavior: Record<string, ChannelBehaviorState> = {...options.behavior}
+    const allowedUsers: Record<string, string[]> = {...options.allowedUsers}
+    let nextSpaceId = 0
 
     const write = (next: ChannelConnections) => {
         store = next
@@ -250,6 +346,66 @@ export const createChannelStoryActions = (
             if (disconnectError) throw new Error(disconnectError)
             write({...store, [platform]: null})
         },
+        listSpaces: async (connectionId) => {
+            await delay(latencyMs)
+            if (spacesError) throw new Error(spacesError)
+            return spaces[connectionId] ?? []
+        },
+        discoverSpaces: async (connectionId) => {
+            await delay(latencyMs)
+            if (discoverError) throw new Error(discoverError)
+            const known = new Set((spaces[connectionId] ?? []).map((space) => space.name))
+            return (candidates[connectionId] ?? []).map((candidate) => ({
+                ...candidate,
+                isConfigured: candidate.isConfigured || known.has(candidate.displayName),
+            }))
+        },
+        addSpace: async (connectionId, candidate) => {
+            await delay(latencyMs)
+            if (addSpaceError) throw new Error(addSpaceError)
+            nextSpaceId += 1
+            const added: ChannelSpace = {
+                id: `sp-added-${nextSpaceId}`,
+                kind: candidate.kind,
+                name: candidate.displayName,
+            }
+            const current = spaces[connectionId] ?? []
+            // A new room sits above the direct-messages row, as the backend orders them.
+            const dm = current.findIndex((space) => space.kind === "private")
+            spaces[connectionId] =
+                dm < 0
+                    ? [...current, added]
+                    : [...current.slice(0, dm), added, ...current.slice(dm)]
+        },
+        readBehavior: async (_platform, connectionId) => {
+            await delay(latencyMs)
+            return behavior[connectionId] ?? {dm: true, group: true}
+        },
+        writeBehavior: async (_platform, connectionId, next) => {
+            await delay(latencyMs)
+            if (behaviorError) throw new Error(behaviorError)
+            behavior[connectionId] = next
+        },
+        readAllowedUsers: async (connectionId) => {
+            await delay(latencyMs)
+            return allowedUsers[connectionId] ?? []
+        },
+        writeAllowedUsers: async (connectionId, ids) => {
+            await delay(latencyMs)
+            if (allowedUsersError) throw new Error(allowedUsersError)
+            allowedUsers[connectionId] = ids
+        },
+        updateCredentials: async (connectionId) => {
+            await delay(latencyMs)
+            if (credentialsError) throw new Error(credentialsError)
+            // A good token brings the connection back: the panel re-reads it as active.
+            for (const platform of ["slack", "telegram"] as const) {
+                const current = store[platform]
+                if (current?.connectionId === connectionId && current.status === "revoked") {
+                    write({...store, [platform]: {...current, status: "connected"}})
+                }
+            }
+        },
     }
 
     return {actions, read: () => store}
@@ -283,28 +439,6 @@ export const InlinePanel = ({title, subtitle, onClose, children}: InlinePanelPro
         <div className="p-4">{children}</div>
     </div>
 )
-
-/**
- * Opens the connect flow on the "custom" tab. The flow owns the tab state and takes no
- * initial value, so the story clicks the second segmented option once after mount.
- */
-export const AutoSelectMode = ({
-    mode,
-    children,
-}: {
-    mode: ChannelInstallMode
-    children: ReactNode
-}) => {
-    const box = useRef<HTMLDivElement>(null)
-    useEffect(() => {
-        if (mode !== "custom") return
-        const items = box.current?.querySelectorAll<HTMLButtonElement>(
-            '[data-slot="segmented-item"]',
-        )
-        items?.[1]?.click()
-    }, [mode])
-    return <div ref={box}>{children}</div>
-}
 
 /**
  * Holds `window.open` for as long as the story is mounted and shows what was asked for.
@@ -389,6 +523,7 @@ export const ConnectFlowHost = ({
             workspaceName={WORKSPACE_NAME}
             hostedHandle={HOSTED_HANDLE}
             actions={run.actions}
+            initialMode={mode}
             pollIntervalMs={pollIntervalMs}
             onConnected={() => setConnected(true)}
         />
@@ -400,9 +535,7 @@ export const ConnectFlowHost = ({
             subtitle={`${AGENT_NAME} · ${platform === "slack" ? WORKSPACE_NAME : "Telegram"}`}
             onClose={() => setOpen(false)}
         >
-            <AutoSelectMode key={run.id} mode={mode}>
-                {capturePopups ? <CapturePopups>{flow}</CapturePopups> : flow}
-            </AutoSelectMode>
+            {capturePopups ? <CapturePopups>{flow}</CapturePopups> : flow}
             {connected ? (
                 <p
                     className="m-0 mt-4 rounded-md border border-solid border-colorSuccessBorder bg-colorSuccessBg p-2 text-xs text-colorText"
