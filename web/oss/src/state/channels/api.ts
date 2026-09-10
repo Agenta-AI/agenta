@@ -3,6 +3,7 @@ import {getChannelsClient} from "@agenta/sdk/resources"
 import type {AgentaApi} from "@agentaai/api-client"
 import {getDefaultStore} from "jotai"
 
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {channelConnectionsResponseSchema, type ChannelConnectionsResponse} from "./schemas"
@@ -22,6 +23,13 @@ export const fetchChannelCapabilities = (channel: string) =>
 // Reachable before any connection exists -- the step that precedes `fetchChannelConnectionSetup`.
 export const fetchChannelSetup = (channel: string) =>
     getChannelsClient().fetchChannelSetup({channel}, scope())
+
+// Builds the install link from the project in scope -- exported so the test
+// can assert on it without rendering the button.
+export function buildSlackInstallUrl(projectId: string): string {
+    const params = new URLSearchParams({project_id: projectId})
+    return `${getAgentaApiUrl()}/channels/catalog/channels/slack/install/?${params.toString()}`
+}
 
 // --- connections (own row shape — see schemas.ts for why this validates) - //
 

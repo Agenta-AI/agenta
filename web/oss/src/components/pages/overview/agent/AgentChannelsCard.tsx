@@ -11,8 +11,8 @@ import {
 import {Drawer} from "antd"
 import {getDefaultStore, useAtomValue} from "jotai"
 
-import {buildSlackInstallUrl} from "@/oss/components/pages/settings/Channels/components/SlackHostedAppSection"
 import {appsAtom} from "@/oss/state/app"
+import {buildSlackInstallUrl} from "@/oss/state/channels/api"
 import {projectIdAtom} from "@/oss/state/project"
 
 /**

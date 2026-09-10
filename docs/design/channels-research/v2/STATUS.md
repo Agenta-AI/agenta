@@ -385,3 +385,28 @@ Deferred (need backend work or a broader refactor; not in this release unless as
   `ChannelsPage` to `AgentChannelsSection`; split the 900-line connect flow into three
   components; cut the unused dm/group/chats fields and their stories; move NOOP_ACTIONS to
   story fixtures; stop exporting QR internals from the package root.
+
+
+## Mahmoud's feedback round, 2026-09-10 (all four implemented and live-checked)
+1. Telegram while the agent works: the indicator is now a real "Thinking…" message plus the
+   typing action; the outbox re-sends typing every 4 s (new adapter port `signal_activity`,
+   no-op elsewhere), moves the dots, and edits the answer so far into the message as records
+   land (per completed message; token streaming needs the live-frame stream, not done). A turn
+   that ends with nothing edits the placeholder into "The agent run failed…" (fixes the silent
+   failure). Telegram capability `controls.update` is now true. Tests: outbox progress loop,
+   adapter, render (900 total).
+2. Markdown in Telegram: `render/markdown_html.py`, a dependency-free Markdown -> Telegram HTML
+   converter (headings -> bold, lists -> "•"/"1.", fenced and inline code, bold/italic/strike,
+   links, quotes -> blockquote, tables -> pre, rules), chunked between blocks. The render
+   layer applies it on any channel that declares `text.format = html`; the adapter escapes
+   only plain parts. Live: heading, bullets, bold and a code block rendered correctly.
+3. "Connected to another agent" panel: one statement, one sentence of why, one button
+   ("Disconnect from X and connect here"). No summary rows, no second disconnect.
+4. Settings > Channels: only Connections by default. Removed the Slack hosted/own-app sections
+   and the agent roster (and their drawers/forms/tests, all unreferenced). Spaces, threads,
+   inbox and outbox events sit behind a per-user "Channel debug" preference switch (same
+   pattern as the playground inspector), on desktop and /m. `buildSlackInstallUrl` moved to
+   `state/channels/api.ts`. Verified in the browser: off shows Connections only; on shows the
+   four debug sections.
+Also fixed on the way: the import-order lint errors in the foundation files that kept the
+stack's "TypeScript lint" job red.

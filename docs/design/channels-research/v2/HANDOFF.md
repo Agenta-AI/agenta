@@ -75,11 +75,12 @@ light and dark (2026-09-09 evening; details and screenshots in STATUS.md, sectio
    custom and hosted Slack). Decide with Mahmoud whether they block this release.
 2. PR #6737 is open (base channels/telegram-hosted). CodeRabbit skips this base branch, so
    the review is Codex + a human. Do NOT merge.
-3. CI "TypeScript lint" is red on the whole stack (#6679, #6724, #6737 alike): four
-   `import/order` errors in the foundation PR's files (web/oss ConversationPanel.tsx,
-   settings/Channels ConnectionsSection.tsx, InboxEventsSection.tsx, OutboxEventsSection.tsx).
-   Fix them on #6644's branch, not here. CodeRabbit shows green on these PRs because it is
-   disabled for the base branch, not because it reviewed.
+3. The stack-wide "TypeScript lint" red (four `import/order` errors in foundation files) is
+   fixed on this branch as of 2026-09-10; the lower PRs still show it. CodeRabbit shows green
+   on these PRs because it is disabled for the base branch, not because it reviewed.
+   Mahmoud's 2026-09-10 feedback (Telegram progress + Markdown, the simplified "connected
+   elsewhere" panel, the Settings cleanup behind a "Channel debug" switch) is implemented and
+   live-checked; see STATUS.md, last section.
 4. Slack live QA on this stack through the NEW card: complete the hosted install (needs a
    Slack workspace login) and submit a custom app (needs the signing secret; the QA Slack env
    has it commented out). Both flows are wired and reach Slack; only the last step is unproven.
