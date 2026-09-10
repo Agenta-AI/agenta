@@ -89,15 +89,15 @@ export const useAgentActions = () => {
     const remove = useCallback(
         (target: AgentActionTarget) => {
             modal.confirm({
-                title: "Delete agent",
+                title: "Archive agent",
                 content: `"${target.name?.trim() || "This agent"}" will be archived along with its variants and revisions. Its past sessions stay readable.`,
-                okText: "Delete",
+                okText: "Archive",
                 okButtonProps: {danger: true},
                 onOk: async () => {
                     try {
                         await archiveWorkflow(projectId, target.id)
                     } catch {
-                        message.error("Couldn't delete this agent")
+                        message.error("Couldn't archive this agent")
                         return
                     }
                     revalidate()
