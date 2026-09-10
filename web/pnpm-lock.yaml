@@ -451,6 +451,9 @@ importers:
       '@streamdown/math':
         specifier: ^1.0.2
         version: 1.0.2(react@19.2.6)
+      '@swc/helpers':
+        specifier: 0.5.23
+        version: 0.5.23
       '@tanstack/react-query':
         specifier: ^5.90.21
         version: 5.100.9(react@19.2.6)
