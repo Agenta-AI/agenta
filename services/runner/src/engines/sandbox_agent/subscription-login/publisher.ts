@@ -17,6 +17,10 @@
 import { createHash } from "node:crypto";
 
 import {
+  startPlatformCredentialLease,
+  type PlatformCredentialLease,
+} from "../../../sessions/auth.ts";
+import {
   observeSubscription,
   thrownFields,
 } from "../../../subscription-events.ts";
@@ -119,17 +123,14 @@ export function adoptSubscriptionLogin(
 
 export interface SubscriptionApiDeps {
   apiBase: string;
-  authorization: string;
+  /** Read at request time because a session can outlive the platform credential it started with. */
+  authorization: string | (() => string);
   fetchImpl?: typeof fetch;
   log?: Log;
 }
 
 /** Which moment asked for a pass. A log field, so a publication can be traced to its cause. */
-export type PublishTrigger =
-  | "start"
-  | "interval"
-  | "recovery"
-  | "shutdown";
+export type PublishTrigger = "start" | "interval" | "recovery" | "shutdown";
 
 /**
  * A running publisher. `stop` drains and is idempotent; neither method ever rejects.
@@ -164,6 +165,8 @@ export function startSubscriptionPublisher(input: {
   log?: Log;
   intervalMs?: number;
   fileDeps?: LocalSubscriptionFileDeps;
+  /** Test seam. Production creates and owns a refreshing platform-credential lease. */
+  credentialLease?: PlatformCredentialLease;
 }): SubscriptionPublisher | undefined {
   const subscription = input.plan.credentials.subscription;
   const home = input.plan.credentials.subscriptionHome;
@@ -183,9 +186,12 @@ export function startSubscriptionPublisher(input: {
     return undefined;
   }
   const isDaytona = input.plan.isDaytona;
+  const credentialLease =
+    input.credentialLease ??
+    startPlatformCredentialLease(input.apiBase, input.authorization);
   const api: SubscriptionApiDeps = {
     apiBase: input.apiBase,
-    authorization: input.authorization,
+    authorization: credentialLease.credential,
     ...(input.fetchImpl ? { fetchImpl: input.fetchImpl } : {}),
     log,
   };
@@ -272,7 +278,11 @@ export function startSubscriptionPublisher(input: {
     // The final sample goes through the queue, so it runs AFTER the in-flight pass and a refresh
     // written during that pass is still seen.
     queue = queue.then(() => pass("shutdown")).catch(() => {});
-    await queue;
+    try {
+      await queue;
+    } finally {
+      credentialLease.release();
+    }
   };
 
   // The start pass repairs a publication a previous session lost: the agent dir can already hold a
@@ -285,11 +295,17 @@ export function startSubscriptionPublisher(input: {
   };
 }
 
+function authorizationValue(
+  authorization: SubscriptionApiDeps["authorization"],
+): string {
+  return typeof authorization === "function" ? authorization() : authorization;
+}
+
 /**
  * Send one login to the API. `answered` is true when the API judged it, which is what lets the
- * runner stop retrying: a 4xx other than 408 and 429 is the API's decision and repeating the same
- * body cannot change it, while a timeout, a network failure, and a 5xx leave the credential
- * unacknowledged for the next pass.
+ * runner stop retrying: a 4xx other than 401, 403, 408 and 429 is the API's decision and repeating
+ * the same body cannot change it. Authentication failures can change after the platform credential
+ * lease refreshes, so they leave the login unacknowledged with timeouts, network failures and 5xx.
  *
  * `version` is the row version the API reports, and ONLY when the answer says this credential is
  * what the row now holds: `updated: true` (it was stored) or `reason: "same_login"` (the row
@@ -326,7 +342,7 @@ async function pushLogin(
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: deps.authorization,
+        authorization: authorizationValue(deps.authorization),
       },
       // `version` is the newest row version this session knows about. The API orders by generation
       // and expiry and does not read it as a precondition; it stays on the wire because the route
@@ -340,7 +356,11 @@ async function pushLogin(
     });
     if (!res.ok) {
       const retryable =
-        res.status >= 500 || res.status === 408 || res.status === 429;
+        res.status >= 500 ||
+        res.status === 401 ||
+        res.status === 403 ||
+        res.status === 408 ||
+        res.status === 429;
       // The body can carry the API's own account and version detail; only the status is recorded.
       observeSubscription(log, "subscription.publish", {
         ...event,
@@ -424,7 +444,7 @@ export async function reportSubscriptionLoginFailure(
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: deps.authorization,
+        authorization: authorizationValue(deps.authorization),
       },
       // What was DELIVERED to this run, which is what asks "was the login I ran on superseded?".
       body: JSON.stringify({
@@ -456,7 +476,8 @@ export async function reportSubscriptionLoginFailure(
       report.login = body.login as SubscriptionLogin;
     }
     if (typeof body.version === "number") report.version = body.version;
-    if (typeof body.generation === "number") report.generation = body.generation;
+    if (typeof body.generation === "number")
+      report.generation = body.generation;
     observeSubscription(log, "subscription.recovery", {
       ...event,
       decision: stale ? "stale" : "dead",

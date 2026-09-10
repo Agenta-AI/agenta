@@ -74,6 +74,7 @@ SESSION_CONTEXT = ("matrix_n1_session_context.py",)
 # green release while the coverage the rule exists for never ran. Journeys named here are FORCED
 # into the selection, even against an explicit --only.
 CONCURRENCY_JOURNEYS = ("burst", "crosstalk")
+HOSTED_SUBSCRIPTION_JOURNEYS = ("refresh",)
 
 # Glob -> cells. Matching is fnmatch over the whole repo-relative path, so `*` crosses directory
 # separators: `a/b/*` and `a/b/**` behave the same, and both mean "anything under a/b". Write
@@ -136,7 +137,7 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "web/packages/agenta-entity-ui/src/secret/**": CUSTOM_SECRETS,
     "web/packages/agenta-entity-ui/src/clientTools/SecretRequest*": CUSTOM_SECRETS,
     "web/packages/agenta-chat/src/clientTools/secretInteractions.ts": CUSTOM_SECRETS,
-    "api/oss/src/core/secrets/**": CUSTOM_SECRETS,
+    "api/oss/src/core/secrets/**": CUSTOM_SECRETS + HOSTED_SUBSCRIPTION,
     "api/oss/src/apis/fastapi/vault/router.py": CUSTOM_SECRETS,
     "api/oss/src/apis/fastapi/workflows/router.py": CUSTOM_SECRETS,
     "api/oss/src/core/workflows/static_catalog.py": CUSTOM_SECRETS,
@@ -186,6 +187,14 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
 # separate table so a rule can demand a cell, a journey, or both, without changing the shape of
 # either one.
 PATH_TRIGGER_JOURNEYS: dict[str, tuple[str, ...]] = {
+    # Selecting H1/H2 is insufficient when --only names another journey. A credential-path change
+    # must prove that a provider refresh reaches the vault, because a normal chat can keep working
+    # from the runner's private auth.json while the durable vault remains stale.
+    "services/runner/src/engines/sandbox_agent/subscription-*": HOSTED_SUBSCRIPTION_JOURNEYS,
+    "services/runner/src/subscription-*": HOSTED_SUBSCRIPTION_JOURNEYS,
+    "api/oss/src/core/secrets/subscription_*": HOSTED_SUBSCRIPTION_JOURNEYS,
+    "api/oss/src/core/secrets/services.py": HOSTED_SUBSCRIPTION_JOURNEYS,
+    "api/oss/src/dbs/postgres/secrets/**": HOSTED_SUBSCRIPTION_JOURNEYS,
     # The concurrency journeys (`burst`, `crosstalk`) are journeys, not cells: listed under
     # PATH_TRIGGERS they would be registered as cell names and never run. A change to the
     # sandbox engine or the Daytona provider makes them mandatory on every applicable cell.
@@ -226,6 +235,17 @@ def mandatory_cells(paths: list[str]) -> dict[str, list[str]]:
                 for cell in cells:
                     activated.setdefault(cell, set()).add(path)
     return {cell: sorted(why) for cell, why in sorted(activated.items())}
+
+
+def mandatory_journeys(paths: list[str]) -> dict[str, list[str]]:
+    """Journey -> the changed paths that make it mandatory."""
+    activated: dict[str, set[str]] = {}
+    for glob, journeys in PATH_TRIGGER_JOURNEYS.items():
+        for path in paths:
+            if fnmatch.fnmatch(path, glob):
+                for journey in journeys:
+                    activated.setdefault(journey, set()).add(path)
+    return {journey: sorted(why) for journey, why in sorted(activated.items())}
 
 
 def main() -> int:

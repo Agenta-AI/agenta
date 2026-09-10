@@ -79,6 +79,7 @@ interface FakeApi {
   fetchImpl: typeof fetch;
   pushed: SubscriptionLogin[];
   bodies: Array<Record<string, unknown>>;
+  authorizations: string[];
 }
 
 function fakeApi(
@@ -89,10 +90,12 @@ function fakeApi(
 ): FakeApi {
   const pushed: SubscriptionLogin[] = [];
   const bodies: Array<Record<string, unknown>> = [];
+  const authorizations: string[] = [];
   const fetchImpl = (async (_url: string, init: RequestInit) => {
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;
     bodies.push(body);
     pushed.push(body.login as SubscriptionLogin);
+    authorizations.push(new Headers(init.headers).get("authorization") ?? "");
     const answer = respond(bodies.length);
     return {
       ok: answer.status >= 200 && answer.status < 300,
@@ -100,7 +103,7 @@ function fakeApi(
       json: async () => answer.body ?? {},
     };
   }) as unknown as typeof fetch;
-  return { fetchImpl, pushed, bodies };
+  return { fetchImpl, pushed, bodies, authorizations };
 }
 
 function start(input: {
@@ -111,6 +114,7 @@ function start(input: {
   log?: (line: string) => void;
   /** Pass one in to read it back after the pass; the publisher mutates it in place. */
   state?: SubscriptionPublishState;
+  credentialLease?: { credential: () => string; release: () => void };
 }): SubscriptionPublisher {
   const publisher = startSubscriptionPublisher({
     plan: {
@@ -123,6 +127,7 @@ function start(input: {
     authorization: "ApiKey test",
     fetchImpl: input.api.fetchImpl,
     log: input.log ?? (() => {}),
+    ...(input.credentialLease ? { credentialLease: input.credentialLease } : {}),
     ...(input.intervalMs !== undefined ? { intervalMs: input.intervalMs } : {}),
   });
   assert.ok(publisher, "the publisher must start for a wired subscription run");
@@ -308,6 +313,43 @@ describe("the reconciliation pass", () => {
     assert.deepEqual(api.pushed, [REFRESHED, REFRESHED, REFRESHED]);
   });
 
+  for (const status of [401, 403]) {
+    it(`retries ${status} with the refreshed platform credential`, async () => {
+      const home = tempHome();
+      writeLogin(home, REFRESHED);
+      let authorization = "ApiKey expired";
+      let released = false;
+      const api = fakeApi((call) =>
+        call === 1
+          ? { status }
+          : { status: 200, body: { version: 4, updated: true } },
+      );
+      const publisher = start({
+        home,
+        api,
+        intervalMs: 60_000,
+        credentialLease: {
+          credential: () => authorization,
+          release: () => { released = true; },
+        },
+      });
+
+      const deadline = Date.now() + 2_000;
+      while (api.pushed.length === 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      assert.equal(api.pushed.length, 1, "the start pass reached the API");
+      authorization = "ApiKey refreshed";
+      await publisher.reconcile("interval");
+      await publisher.reconcile("interval");
+      await publisher.stop();
+
+      assert.deepEqual(api.pushed, [REFRESHED, REFRESHED]);
+      assert.deepEqual(api.authorizations, ["ApiKey expired", "ApiKey refreshed"]);
+      assert.equal(released, true, "the publisher releases its credential lease");
+    });
+  }
+
   it("stops retrying a login the API judged and refused", async () => {
     const home = tempHome();
     writeLogin(home, REFRESHED);
@@ -435,7 +477,7 @@ describe("shutdown", () => {
         json: async () => ({ version: 4, updated: true }),
       };
     }) as unknown as typeof fetch;
-    const api: FakeApi = { fetchImpl, pushed, bodies: [] };
+    const api: FakeApi = { fetchImpl, pushed, bodies: [], authorizations: [] };
 
     const lines: string[] = [];
     const publisher = start({ home, api, intervalMs: 60_000, log: (l) => lines.push(l) });
