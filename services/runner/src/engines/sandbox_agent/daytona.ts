@@ -40,7 +40,7 @@ export const DAYTONA_PI_DIR =
 // runner pins the Pi version, probes the expected executable in the sandbox, and installs the
 // pinned version when a custom image or snapshot lacks it. There is no "installed" env flag.
 export const DAYTONA_PI_INSTALL_DIR = "/home/sandbox/.agenta-pi";
-export const PINNED_PI_VERSION = "0.80.6";
+export const PINNED_PI_VERSION = "0.85.1";
 /** The expected Pi executable path the runner probes and points `PI_ACP_PI_COMMAND` at. */
 export const DAYTONA_PI_COMMAND = `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/pi`;
 

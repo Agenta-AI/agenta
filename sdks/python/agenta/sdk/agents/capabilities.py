@@ -75,6 +75,7 @@ PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
     # ``openai-codex``, served via ``chatgpt.com/backend-api``); keep it in sync when the pinned
     # Pi version changes its codex model list.
     "openai-codex": [
+        "gpt-6-astra",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
@@ -107,6 +108,7 @@ CLAUDE_MODEL_ALIASES: List[str] = [
 # sync with ``data/codex_models.curated.json`` and the ``sync-model-catalog`` skill. See decision
 # D-006.
 CODEX_MODELS: List[str] = [
+    "gpt-6-astra",
     "gpt-5.6-sol",
     "gpt-5.6-terra",
     "gpt-5.6-luna",
@@ -145,13 +147,14 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
 # the spelling it accepts. A saved list on a connection — including an empty one — always wins.
 PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
     "openai": [
+        "openai/gpt-6-astra",
         "openai/gpt-5.6-luna",
         "openai/gpt-5.6-terra",
         "openai/gpt-5.6-sol",
     ],
     "anthropic": [
-        "anthropic/claude-fable-5",
         "anthropic/claude-opus-5",
+        "anthropic/claude-fable-5-1",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-4-5",
     ],
@@ -180,12 +183,16 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "together_ai/zai-org/GLM-5.2",
     ],
     "openrouter": [
-        "openrouter/z-ai/glm-5.2",
-        "openrouter/deepseek/deepseek-v4-flash",
-        "openrouter/deepseek/deepseek-v4-pro",
+        "openrouter/tencent/hy4-preview",
         "openrouter/openai/gpt-5.6-luna",
+        "openrouter/deepseek/deepseek-v4-flash-0731",
+        "openrouter/z-ai/glm-5.3-flash",
+        "openrouter/deepseek/deepseek-v4-flash",
         "openrouter/xiaomi/mimo-v2.5",
-        "openrouter/tencent/hy3-preview",
+        "openrouter/tencent/hy3",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/z-ai/glm-5.3",
+        "openrouter/google/gemini-3.8-flash",
     ],
 }
 
@@ -194,11 +201,13 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
 # be translated before it can be matched. Keyed by prefix because the alias tracks the tier
 # across versions (``claude-sonnet-5`` and its successor both answer to ``sonnet``). Only ids a
 # harness could otherwise not name belong here: ``claude-fable-5`` is its own alias, so it needs
-# no entry. Opus maps to the bracketed ``opus[1m]`` rather than a bare ``opus`` because that
+# no entry. Fable 5.1 maps to Claude Code's stable Fable 5 alias. Opus maps to the bracketed
+# ``opus[1m]`` rather than a bare ``opus`` because that
 # bracketed spelling is the exact value Claude Code publishes for the Opus tier in its accepted
 # alias set (see :data:`CLAUDE_MODEL_ALIASES`), and a harness only advertises defaults it can
 # actually select, so any other spelling would be dropped instead of offered.
 MODEL_ID_ALIASES: Dict[str, str] = {
+    "anthropic/claude-fable-5-": "claude-fable-5",
     "anthropic/claude-sonnet-": "sonnet",
     "anthropic/claude-haiku-": "haiku",
     "anthropic/claude-opus-": "opus[1m]",

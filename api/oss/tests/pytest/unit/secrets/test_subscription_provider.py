@@ -108,7 +108,7 @@ class TestDefaultsAndValidation:
     def test_model_keys_are_provider_slug_over_model(self):
         secret = _response(_create().secret.data.model_dump())
 
-        assert secret.data.model_keys[0] == "chatgpt/gpt-5.6-sol"
+        assert secret.data.model_keys[0] == "chatgpt/gpt-6-astra"
         assert len(secret.data.model_keys) == len(secret.data.models)
 
 

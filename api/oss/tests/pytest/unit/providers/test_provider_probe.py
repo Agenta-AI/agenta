@@ -15,26 +15,24 @@ import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from oss.src.apis.fastapi.providers import router as router_module
 from oss.src.apis.fastapi.providers.models import ProbeProviderRequest
 from oss.src.apis.fastapi.providers.router import ProvidersRouter
 from oss.src.core.providers.dtos import ProviderCredentials
-from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.providers.exceptions import (
     ProviderEndpointNotAllowed,
     ProviderEndpointRequired,
     UnsupportedProviderKind,
 )
 from oss.src.core.providers.service import ProviderProbeService
-from oss.src.core.secrets.managed import SecretManagementDTO, SecretManager
+from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.enums import SecretKind
+from oss.src.core.secrets.managed import SecretManagementDTO, SecretManager
 from oss.src.core.secrets.redaction import (
     CREDENTIAL_FIELD_KINDS,
     DATA_CREDENTIAL_FIELDS,
     PRIMARY_CREDENTIAL_FIELDS,
 )
-
 
 CANARY = "sk-CANARY-DO-NOT-LEAK-abc123"
 PUBLIC_IP = "93.184.216.34"
@@ -264,7 +262,10 @@ async def test_openrouter_valid_key_fetches_the_catalog():
     def responder(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/key"):
             return httpx.Response(200, json={"data": {"limit": None}})
-        return httpx.Response(200, json={"data": [{"id": "z-ai/glm-5.2"}]})
+        return httpx.Response(
+            200,
+            json={"data": [{"id": "z-ai/glm-5.2", "name": "Z.ai: GLM 5.2"}]},
+        )
 
     result, recorder = await run_probe(
         responder,
@@ -275,6 +276,7 @@ async def test_openrouter_valid_key_fetches_the_catalog():
     assert result.credential.status.value == "valid"
     assert result.discovery.status.value == "fetched"
     assert result.discovery.models == ["z-ai/glm-5.2"]
+    assert result.discovery.model_names == {"z-ai/glm-5.2": "Z.ai: GLM 5.2"}
     assert [request.url.path for request in recorder.requests] == [
         "/api/v1/key",
         "/api/v1/models",
@@ -745,7 +747,11 @@ def test_probe_route_returns_both_statuses_and_a_timestamp(monkeypatch, path):
     assert response.status_code == 200
     body = response.json()
     assert body["credential"]["status"] == "valid"
-    assert body["discovery"] == {"status": "fetched", "models": ["gpt-5.6-luna"]}
+    assert body["discovery"] == {
+        "status": "fetched",
+        "models": ["gpt-5.6-luna"],
+        "model_names": {},
+    }
     assert body["fetched_at"].endswith("Z")
     assert CANARY not in response.text
 

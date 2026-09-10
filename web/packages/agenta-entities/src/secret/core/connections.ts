@@ -55,6 +55,8 @@ export interface ProviderConnection {
     secretKind: SecretKind
     /** Saved active models. `undefined` means "use Agenta's defaults"; `[]` means "offer none". */
     models?: string[]
+    /** Provider-supplied display names keyed by model id. */
+    modelNames?: Record<string, string>
     /** Saved harness policy. `undefined` means "any harness Agenta supports". */
     harnesses?: string[]
     createdAt?: string
@@ -141,6 +143,7 @@ export const toProviderConnections = (rows: LlmProvider[]): ProviderConnection[]
             title,
             secretKind: row.type as SecretKind,
             models: row.models,
+            modelNames: row.modelNames,
             harnesses: row.harnesses,
             createdAt: row.created_at,
             // A readable record proves it by carrying the value; a write-only one only says so.
@@ -393,6 +396,8 @@ export const defaultNamePreview = (kind: string, connections: ProviderConnection
 /** One row of the card's Active models list. */
 export interface ModelOption {
     id: string
+    /** Provider-supplied display name. */
+    name?: string
     checked: boolean
     /** Part of Agenta's default set for this provider — tagged in the list. */
     isDefault: boolean
@@ -542,6 +547,7 @@ export const buildModelOptions = ({
     defaults = [],
     discovered = false,
     order,
+    names = {},
 }: {
     available: string[]
     checked: string[]
@@ -549,6 +555,7 @@ export const buildModelOptions = ({
     defaults?: string[]
     discovered?: boolean
     order?: string[]
+    names?: Record<string, string>
 }): ModelOption[] => {
     const availableSet = new Set(available)
     const checkedSet = new Set(checked)
@@ -563,6 +570,7 @@ export const buildModelOptions = ({
 
     return ids.map((id) => ({
         id,
+        ...(names[id] && names[id] !== id ? {name: names[id]} : {}),
         checked: checkedSet.has(id),
         isDefault: defaultSet.has(id),
         unavailable: discovered && !availableSet.has(id) && !manualSet.has(id),
@@ -664,6 +672,8 @@ export interface ConnectionDraft {
     credential: CredentialValues
     /** The explicit list of checked models; `undefined` leaves the connection on Agenta's defaults. */
     models?: string[]
+    /** Provider-supplied display names for the selected models. */
+    modelNames?: Record<string, string>
     /** The explicit harness policy; `undefined` leaves it open to any harness Agenta supports. */
     harnesses?: string[]
 }
@@ -713,7 +723,14 @@ export const buildConnectionPayload = (
     const name = draft.name.trim()
     const key = (draft.credential.apiKey ?? "").trim()
     const policy = {
-        ...(draft.models ? {models: draft.models.map((slug) => ({slug}))} : {}),
+        ...(draft.models
+            ? {
+                  models: draft.models.map((slug) => ({
+                      slug,
+                      ...(draft.modelNames?.[slug] ? {extras: {name: draft.modelNames[slug]}} : {}),
+                  })),
+              }
+            : {}),
         ...(draft.harnesses ? {harnesses: draft.harnesses} : {}),
     }
 

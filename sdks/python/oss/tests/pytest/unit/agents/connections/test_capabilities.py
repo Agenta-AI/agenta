@@ -173,13 +173,13 @@ def test_pi_models_are_a_subset_of_the_shared_catalog():
             assert provider not in supported_llm_models
 
 
-def test_pi_publishes_concrete_gpt_5_6_models_for_both_openai_providers():
-    expected = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
+def test_pi_publishes_current_models_for_both_openai_providers():
+    expected = ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
 
     for harness in ("pi_core",):
         models = HARNESS_CONNECTION_CAPABILITIES[harness].models
         for provider in ("openai", "openai-codex"):
-            assert models[provider][:3] == expected
+            assert models[provider][:4] == expected
             assert "gpt-5.6" not in models[provider]
 
 
