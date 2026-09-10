@@ -41,7 +41,9 @@ import type {QueryKey} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
+import {z} from "zod"
 
+import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {createVaultSecret, deleteVaultSecret, fetchVaultSecret, updateVaultSecret} from "../api/api"
 import {
     getEnvNameMap,
@@ -369,8 +371,12 @@ export const migrateVaultKeysAtom = atom(null, async (get, set) => {
             const providers = parseLegacyProviders(localStorageProviders)
             if (providers) {
                 for (const provider of providers) {
-                    if (provider.key) {
+                    if (!provider.key) continue
+                    try {
                         await set(createStandardSecretAtom, provider as LlmProvider)
+                    } catch (error) {
+                        // One bad entry must not stop the others; the backup below keeps it.
+                        console.error("[vault] Legacy provider key was not migrated:", error)
                     }
                 }
             } else {
@@ -392,16 +398,26 @@ export const migrateVaultKeysAtom = atom(null, async (get, set) => {
     }
 })
 
+/** One legacy entry: whatever else it carried, only a named provider with a key can migrate. */
+const legacyProviderSchema = z.object({key: z.string().optional()}).passthrough()
+const legacyProvidersSchema = z.array(legacyProviderSchema.nullable())
+
 /**
  * The legacy localStorage payload was double-encoded JSON (a JSON string holding JSON), but
- * older builds wrote it once. Accept both; return null for anything that is not a list.
+ * older builds wrote it once. Accept both; return null for anything that is not a list of
+ * objects. Null entries are dropped rather than failing the whole list.
  */
 function parseLegacyProviders(raw: string): LlmProvider[] | null {
+    let parsed: unknown
     try {
-        let parsed: unknown = JSON.parse(raw)
+        parsed = JSON.parse(raw)
         if (typeof parsed === "string") parsed = JSON.parse(parsed)
-        return Array.isArray(parsed) ? (parsed as LlmProvider[]) : null
     } catch {
         return null
     }
+    const entries = safeParseWithLogging(legacyProvidersSchema, parsed, "[vault] legacy providers")
+    if (!entries) return null
+    return entries.filter(
+        (entry): entry is NonNullable<typeof entry> => entry != null,
+    ) as LlmProvider[]
 }
