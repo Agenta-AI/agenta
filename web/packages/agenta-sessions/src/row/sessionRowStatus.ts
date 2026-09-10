@@ -16,6 +16,11 @@ export interface SessionRowStatusMeta {
      * rail and the list would disagree about the same session.
      */
     dotClassName: string
+    /**
+     * The word beside that dot, where a surface has room for one. A readable semantic text
+     * colour, NOT the dot's hue: `#F79009` is a mark, and as 13px type on white it is a smear.
+     */
+    textClassName: string
     /** Only `waiting` and `running` justify a pulse; a warm sandbox is not activity. */
     pulse: boolean
     /** Text shown inline on the row. Set only where a colour alone would under-report the state. */
@@ -31,15 +36,42 @@ const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
     waiting: {
         label: "Waiting on you",
         dotClassName: "bg-[var(--ag-run-status-warning)]",
+        textClassName: "text-colorWarningText",
         pulse: true,
         chipLabel: "Waiting",
         chipClassName: "bg-colorWarningBg text-colorWarningText",
     },
-    running: {label: "Running", dotClassName: "bg-[var(--ag-run-status-success)]", pulse: true},
-    alive: {label: "Ready to resume", dotClassName: "bg-colorInfoBorder", pulse: false},
-    ended: {label: "Ended", dotClassName: "bg-colorTextQuaternary", pulse: false},
-    archived: {label: "Archived", dotClassName: "bg-colorTextQuaternary", pulse: false},
-    idle: {label: "Idle", dotClassName: "bg-colorBorder", pulse: false},
+    running: {
+        label: "Running",
+        dotClassName: "bg-[var(--ag-run-status-success)]",
+        textClassName: "text-colorSuccessText",
+        pulse: true,
+    },
+    // The rest are states, not calls to action, so they read as muted as the timestamp beside them.
+    alive: {
+        label: "Ready to resume",
+        dotClassName: "bg-colorInfoBorder",
+        textClassName: "text-muted-foreground",
+        pulse: false,
+    },
+    ended: {
+        label: "Ended",
+        dotClassName: "bg-colorTextQuaternary",
+        textClassName: "text-muted-foreground",
+        pulse: false,
+    },
+    archived: {
+        label: "Archived",
+        dotClassName: "bg-colorTextQuaternary",
+        textClassName: "text-muted-foreground",
+        pulse: false,
+    },
+    idle: {
+        label: "Idle",
+        dotClassName: "bg-colorBorder",
+        textClassName: "text-muted-foreground",
+        pulse: false,
+    },
 }
 
 export function sessionRowStatus(

@@ -55,8 +55,11 @@ const ACTIONS_COLUMN: ListTableColumn = {
     srOnly: true,
     width: "24px",
 }
+// Status earns a column where there is room for the word. On a phone it stays the dot beside the
+// title: a column there would cost the title the width it needs to be a title.
 const WIDE_COLUMNS: ListTableColumn[] = [
     SESSION_COLUMN,
+    {key: "status", label: "Status", width: "minmax(110px,1fr)"},
     {key: "agent", label: "Agent", width: "minmax(120px,1fr)"},
     updatedColumn("96px"),
     ACTIONS_COLUMN,
@@ -65,7 +68,7 @@ const NARROW_COLUMNS: ListTableColumn[] = [SESSION_COLUMN, updatedColumn("64px")
 
 /** Tailwind's `sm`. Below it the Agent column goes; the minima then fit a 375px screen. */
 const NARROW_QUERY = "(max-width: 639.98px)"
-const WIDE_MIN_WIDTH = 440
+const WIDE_MIN_WIDTH = 560
 const NARROW_MIN_WIDTH = 272
 
 /** What the screen's `useSessionRowMenu` supplies — bound here, resolved there. */
@@ -219,7 +222,7 @@ export const SessionListTable = ({
                     renderRow={(vm) => (
                         <SessionRowCells
                             vm={vm}
-                            showAgent={!narrow}
+                            narrow={narrow}
                             entries={verbs.menuFor(vm)}
                             onMenuSelect={verbs.onMenuSelect}
                             onRenameRow={verbs.onRenameRow}

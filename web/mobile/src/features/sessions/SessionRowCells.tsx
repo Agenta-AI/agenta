@@ -64,15 +64,15 @@ const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
  */
 export const SessionRowCells = ({
     vm,
-    showAgent,
+    narrow,
     entries,
     onMenuSelect,
     onRenameRow,
     onTogglePin,
 }: {
     vm: SessionRowVm
-    /** Off below `sm`, where the table drops the Agent column — see `SessionListTable`. */
-    showAgent: boolean
+    /** Below `sm` the table drops the Status and Agent columns — see `SessionListTable`. */
+    narrow: boolean
     /** The shared verbs for this row, from `useSessionRowMenu`. */
     entries: SessionMenuEntry[]
     onMenuSelect: (vm: SessionRowVm, key: string) => void
@@ -104,7 +104,8 @@ export const SessionRowCells = ({
     return (
         <>
             <span className={cn("flex min-w-0 items-center gap-2", archived && FADED)}>
-                <StatusDot status={vm.status} />
+                {/* Only where there is no Status column to carry it. */}
+                {narrow ? <StatusDot status={vm.status} /> : null}
                 {rename.renaming ? (
                     <span className="min-w-0 flex-1" onClick={swallow}>
                         {/* Preflight is off, so the border and font are stated. `focus`, not
@@ -147,7 +148,18 @@ export const SessionRowCells = ({
                 )}
             </span>
 
-            {!showAgent ? null : vm.agentId ? (
+            {narrow ? null : (
+                // A dot and a coloured word, never a pill: the column is read down, and a stack
+                // of pills reads as a stack of buttons. Same shape the automations table uses.
+                <span className={cn("flex min-w-0 items-center gap-[7px]", archived && FADED)}>
+                    <StatusDot status={vm.status} />
+                    <span className={cn("truncate text-[13px]", vm.status.textClassName)}>
+                        {vm.status.label}
+                    </span>
+                </span>
+            )}
+
+            {narrow ? null : vm.agentId ? (
                 <span className={cn("flex min-w-0 items-center gap-1.5", archived && FADED)}>
                     {/* The agent's own mark, not a generic robot — the same tile the automations
                         table and the agent picker draw. */}
