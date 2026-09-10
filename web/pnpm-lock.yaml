@@ -1411,8 +1411,8 @@ importers:
         specifier: ^1.11.13
         version: 1.11.20
       fflate:
-        specifier: 0.4.8
-        version: 0.4.8
+        specifier: 0.4.9
+        version: 0.4.9
       immer:
         specifier: ^10.2.0
         version: 10.2.0
@@ -8531,6 +8531,9 @@ packages:
 
   fflate@0.4.8:
     resolution: {integrity: sha512-FJqqoDBR00Mdj9ppamLa/Y7vxm+PRmNWA67N846RvsoYVMKB4q3y/de5PA7gUmRMYK/8CMz2GDZQmCRN1wBcWA==}
+
+  fflate@0.4.9:
+    resolution: {integrity: sha512-zdxgIEddhfsyCaWpJ2SdXEP8ZMrKJ6+5jl4OupODcywU0IhRk6gdXuVGcPICyfx2H97hVK7xmJtRLPjkxAX8Vw==}
 
   file-entry-cache@6.0.1:
     resolution: {integrity: sha512-7Gps/XWymbLk2QLYK4NzpMOrYjMhdIxXuIvy2QBsLE6ljuodKvdkWs/cpyJJ3CVIVpH0Oi1Hvg1ovbMzLdFBBg==}
@@ -18299,6 +18302,8 @@ snapshots:
       web-streams-polyfill: 3.3.3
 
   fflate@0.4.8: {}
+
+  fflate@0.4.9: {}
 
   file-entry-cache@6.0.1:
     dependencies:
