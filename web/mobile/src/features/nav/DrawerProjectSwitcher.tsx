@@ -9,7 +9,7 @@ import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
 import {useMutation, useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-import {fetchProjects, writeLastContext} from "@/lib/context"
+import {fetchProjects, projectHomeUrl, writeLastContext} from "@/lib/context"
 
 import {useLogout} from "../auth/useLogout"
 import {groupByOrganization} from "../context/workspaceGroups"
@@ -56,7 +56,8 @@ export const DrawerProjectSwitcher = ({
 
     const goTo = (nextWorkspaceId: string, nextProjectId: string) => {
         writeLastContext({workspaceId: nextWorkspaceId, projectId: nextProjectId})
-        void router.push(`/w/${nextWorkspaceId}/p/${nextProjectId}/apps`)
+        // The resolver's own spelling of this route; the literal it replaces dropped the encoding.
+        void router.push(projectHomeUrl({workspaceId: nextWorkspaceId, projectId: nextProjectId}))
     }
 
     const projects = useMemo<SwitcherEntry[]>(
@@ -95,9 +96,12 @@ export const DrawerProjectSwitcher = ({
             const {createProject: create} = await import("@agenta/entities/project")
             return create({name: name.trim()}, workspaceId)
         },
-        onSuccess: async () => {
+        // Creating a project is a switch into it, exactly like picking one from the list.
+        onSuccess: async (created) => {
             setCreateOpen(false)
+            // Refetch first: the destination reads this same query for its title.
             await query.refetch()
+            goTo(created.workspace_id ?? workspaceId, created.project_id)
         },
     })
 

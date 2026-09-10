@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Mapping, Optional, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence
 
 from agenta.sdk.agents.pi_builtins import PI_BUILTIN_TOOL_NAMES
 from agenta.sdk.utils.logging import get_module_logger
@@ -148,6 +148,44 @@ def _validate_declared_config_names(tool_configs: Sequence[ToolConfig]) -> None:
         _check_tool_name(name, seen)
 
 
+# The playground build kit embeds these client tools for every agent. A revision saved before
+# a tool joined the kit may carry its own copy, embedded by hand, and the playground overlay
+# merges tools by embed slug or by name, so an inline copy or an id-based embed survives next to
+# the kit's entry. Two identical copies are one tool, not a name clash.
+RESERVED_CLIENT_TOOL_NAMES = frozenset(
+    {"request_connection", "request_input", "request_secret"}
+)
+
+
+def _drop_duplicate_reserved_client_tools(
+    tool_configs: Sequence[ToolConfig],
+) -> List[ToolConfig]:
+    """Keep the first of two identical reserved client tools; leave everything else alone.
+
+    Only an exact duplicate is dropped: same reserved name, same description, same input
+    schema. Two DIFFERENT tools that share a reserved name still reach the duplicate check and
+    are refused, because that is a real conflict the author must resolve.
+    """
+    kept: List[ToolConfig] = []
+    seen: Dict[str, ClientToolConfig] = {}
+    for tool_config in tool_configs:
+        if (
+            isinstance(tool_config, ClientToolConfig)
+            and tool_config.name in RESERVED_CLIENT_TOOL_NAMES
+        ):
+            earlier = seen.get(tool_config.name)
+            if earlier is not None and earlier.model_dump() == tool_config.model_dump():
+                log.warning(
+                    "tool %r: a second identical copy of this platform tool was dropped "
+                    "(the build kit already provides it)",
+                    tool_config.name,
+                )
+                continue
+            seen.setdefault(tool_config.name, tool_config)
+        kept.append(tool_config)
+    return kept
+
+
 def _validate_unique_names(tool_specs: Sequence[ToolSpec]) -> None:
     seen: set[str] = set()
     for tool_spec in tool_specs:
@@ -198,6 +236,7 @@ class ToolResolver:
         # this one only keeps a resolver usable without an agent template.
         permission_default: PermissionMode = "allow_reads",
     ) -> ResolvedToolSet:
+        tool_configs = _drop_duplicate_reserved_client_tools(tool_configs)
         _validate_declared_config_names(tool_configs)
         for tool_config in tool_configs:
             if isinstance(tool_config, BuiltinToolConfig):

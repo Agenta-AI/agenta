@@ -50,9 +50,12 @@ const MAX_FILE_SIZE = 8 * 1024 * 1024 // 8MB
 // UTILITIES
 // ============================================================================
 
-const isUrl = (value: string): boolean => {
-    return /^(blob:)?https?:\/\//.test(value)
-}
+// Only absolute http(s) URLs — plus the `blob:` URLs we mint for locally uploaded
+// files — may be used as a link target. Anything else, `javascript:` above all, would
+// turn text typed into the URL field into an executable link (CodeQL js/xss-through-dom).
+const SAFE_URL_PATTERN = /^(?:blob:)?https?:\/\//i
+
+const isUrl = (value: string): boolean => SAFE_URL_PATTERN.test(value)
 
 // ============================================================================
 // COMPONENT
@@ -97,6 +100,19 @@ const PromptDocumentUpload = ({
         if (!rawValue) return ""
         return isBase64(rawValue) ? dataUriToObjectUrl(rawValue) : rawValue
     }, [rawValue])
+
+    // Parse before matching so scheme obfuscation (`java\tscript:`, leading control
+    // characters, uppercase schemes) cannot slip past the pattern; an unparseable or
+    // non-allowlisted value yields "" and no link is rendered at all.
+    const safeHref = useMemo(() => {
+        let normalized: string
+        try {
+            normalized = new URL(displayValue).href
+        } catch {
+            return ""
+        }
+        return SAFE_URL_PATTERN.test(normalized) ? normalized : ""
+    }, [displayValue])
 
     return (
         <>
@@ -164,9 +180,9 @@ const PromptDocumentUpload = ({
                                 allowClear
                             />
 
-                            {isUrl(displayValue) && (
+                            {safeHref && (
                                 <a
-                                    href={displayValue}
+                                    href={safeHref}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-start text-xs text-colorTextDescription"

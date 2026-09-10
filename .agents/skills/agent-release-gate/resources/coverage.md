@@ -238,6 +238,62 @@ I2 reports an unset `TELEGRAM_BOT_TOKEN` as a loud journey `SKIP` and makes the 
 green. The token is read from the process environment only and is never printed or stored in the
 result.
 
+## Session-context cell (`matrix_n1_session_context.py`)
+
+The per-turn session facts are the agent's display name, the session's name, and the first-turn
+flag. They reach the harness only as prompt text (`turnContext`), so no SSE frame carries them and
+no stored row records them. Every cell above reads frames and side effects, which is why the whole
+matrix stayed green while the playground delivered no facts at all (#6661).
+
+| Cell | Tier | What it pins | Extra requirement |
+|---|---|---|---|
+| `matrix_n1_session_context.py` | journey, with two controls | A rename between two turns must reach the agent on the path the playground posts (`{BASE}/services/agent/v0/invoke`), the agent's own display name must reach it too, and a client-supplied `meta.session_context` must be ignored. | a working model provider for the selected harness |
+
+**Why this cell asserts on model prose, which the gate otherwise refuses.** There is no
+deterministic surface. `turnContext` is a prompt string on the service-to-runner `/run` payload,
+the runner prepends it and logs nothing, and it is deliberately excluded from `request.messages`
+and from persisted user input so a replay cannot duplicate it. The stored turn row carries harness,
+sandbox, and timing only. The transport half is pinned by unit tests instead
+(`sdks/python/oss/tests/pytest/unit/agents/test_wire_contract.py` for the payload field,
+`services/runner/tests/unit/sandbox-agent-orchestration.test.ts` for the prepend); the cell owns
+the journey. If a later change ever exposes the text on the wire or in a row, assert on that and
+demote the prose half to corroboration.
+
+**What makes the prose evidence honest.** Every fact the cell asks for carries a random token
+minted for the run and spoken nowhere in the conversation, so a transcript-derived answer cannot
+match. The second ask is the exact shape of #6661: by then the FIRST name is in the transcript,
+from the agent's own previous reply, and the second name exists only in the stored header.
+
+**Two controls, so a FAIL cannot be blamed on the model.** An echo probe opens the session and
+must come back with a literal token from its own user message, or the cell reports INCONCLUSIVE.
+Every rename is read back from `GET /sessions/streams/` before the ask, so a rename that did not
+land fails as a rename rather than as a transport defect.
+
+**The forged step is the security half.** `meta` is client input on this path, so a browser can
+hand the agent forged facts. The API's stamp drops a caller-supplied `session_context` on purpose:
+a client must not be able to tell the agent an unnamed session is already named. Before #6667 the
+service believed the forgery.
+
+```bash
+uv run resources/matrix_n1_session_context.py                 # pi_core on a local sandbox
+uv run resources/matrix_n1_session_context.py --sandbox daytona   # the shape staging accepts
+uv run resources/matrix_n1_session_context.py --harness-all   # all three harnesses
+```
+
+The sandbox is not what this cell tests: the facts are resolved in the agent service, before any
+sandbox exists. It is a flag because a deployment can refuse one. Staging enables Daytona only and
+answers 403 for a local sandbox, so a cell pinned to local cannot run there at all.
+
+**Verifying a fix before it is deployed.** `AGENTA_SERVICE_BASE` moves the TURNS to an agent
+service run by hand, while every API read and write still goes to `AGENTA_BASE`. That is how this
+cell was signed: FAIL against the deployed stack, PASS against a service built from the fix, with
+the same backend under both. It is a development override, it announces itself on stderr, and each
+result records the `service_base` it used. A release run must never set it.
+
+```bash
+AGENTA_SERVICE_BASE=http://localhost:8099 uv run resources/matrix_n1_session_context.py
+```
+
 ## Cross-cutting invariants (fold into every cell's verdict)
 
 These are not cells. They are pure checks in `qa_matrix_lib.py` that a cell folds into its PASS
@@ -247,7 +303,7 @@ own assertions are scenario-shaped and can be satisfied for the wrong reason.
 | Invariant | What it pins | Wired into |
 |---|---|---|
 | `check_no_blank_success_on_refusal(turns, log_lines)` | No `tool_result` with empty output and `isError:false` may exist for a call the runner logged as `[commit-auth] refused`. A refusal must reach the wire as an error or a denial, never as a blank that reads as success. | `matrix_invariant_commit_auth_refusal.py` |
-| `check_no_silent_turn(turns)` | No turn may come back completely bare — no text, no tool call, no approval gate, no file or data payload, no error. That is a swallowed provider failure (ASD-EST100) arriving as a clean empty finish: the user sees a blank bubble with no reason anywhere. | `matrix_w7.py`, `matrix_w7_daytona.py`, `matrix_w7_per_harness.py`, `matrix_t8_saved_files.py`, `matrix_b1_builtin_find.py`, `matrix_invariant_commit_auth_refusal.py`, `matrix_l3_abandoned_approval.py`, `matrix_w3.py`, `matrix_w4.py`, `matrix_w5.py` |
+| `check_no_silent_turn(turns)` | No turn may come back completely bare — no text, no tool call, no approval gate, no file or data payload, no error. That is a swallowed provider failure (ASD-EST100) arriving as a clean empty finish: the user sees a blank bubble with no reason anywhere. | `matrix_w7.py`, `matrix_w7_daytona.py`, `matrix_w7_per_harness.py`, `matrix_t8_saved_files.py`, `matrix_t9_agent_tools.py`, `matrix_b1_builtin_find.py`, `matrix_invariant_commit_auth_refusal.py`, `matrix_l3_abandoned_approval.py`, `matrix_w3.py`, `matrix_w4.py`, `matrix_w5.py`, `matrix_n1_session_context.py` |
 
 The silent-turn check matters most in cells whose PASS depends on something NOT appearing (no
 error, no leak, no blank success): a turn that produced nothing satisfies those by doing nothing
@@ -281,6 +337,7 @@ exists for never ran. So a journey a rule demands is FORCED into the selection, 
 | `api/oss/src/core/tools/**`, `sdks/python/agenta/sdk/agents/platform/gateway.py`, `sdks/python/agenta/sdk/agents/tools/gateway_policy.py`, `services/runner/src/tools/**`, `services/runner/src/engines/sandbox_agent/gateway-gate.ts` | `matrix_gw1_gateway_tools.py` | The gateway chain — the API's catalog and resolve, the SDK's two model-facing tools and its permission compiler, the runner's policy and semantic gate. `tool`, `approve`, and `deny` prove the approval machinery with a BUILTIN, never with a gateway tool, so nothing in the fixed matrix notices when a compiled policy and an enforced policy drift apart. Proposed in [`docs/design/composio-tools-rework/release-gate-changes.md`](../../../../docs/design/composio-tools-rework/release-gate-changes.md). |
 | Custom-secret vault/workflow paths, `sdks/python/agenta/sdk/agents/{sandbox_credentials.py,wire_models.py,utils/wire.py}`, and runner credential validation/composition/identity/redaction paths | `matrix_s1_custom_secrets.py` | A normal model turn can stay green while the credential is missing, stale, leaked, or injected into only one sandbox provider. This cell checks the saved-reference boundary, both providers, secret rotation, removal, and SSE non-disclosure through durable side effects. |
 | `services/runner/src/engines/sandbox_agent/**`, `services/runner/src/providers/daytona*` | Cells `C2`, `C4`, `X2`; journeys `burst` and `crosstalk` | The sandbox engine and the Daytona provider: sandbox creation, the secret plan, the credential preflight, and the retry the runner does when a first model call is refused. A fault here appears only when many sandboxes start at once, which no other journey does. Production hit it as one first message in five failing with a credential error (AGE-4249 / #6485) while the sequential gate stayed green. `P3` is a Daytona cell too but is deliberately not named: it needs `--custom-slug` and `--custom-name`, and the driver exits when a selected custom cell has no slug, so the rule would stop every release run that did not pass them. |
+| `sdks/python/agenta/sdk/agents/platform/session_context.py`, `sdks/python/agenta/sdk/agents/platform_instructions.py`, `sdks/python/agenta/sdk/agents/handler.py`, `api/oss/src/core/sessions/context.py` | `matrix_n1_session_context.py` | The per-turn session facts: the agent's display name, the session's name, and the first-turn flag. They reach the harness only as prompt text, so no SSE frame and no stored row reflects them and every frame-level cell is blind to them going missing. That is how #6661 shipped through a green gate: the API stamped the facts in its invoke prelude, the SDK and the runner consumed them correctly, and the playground posts straight to the agent service, where the prelude never runs. |
 
 What the driver does with a mandatory cell depends on which kind it is:
 

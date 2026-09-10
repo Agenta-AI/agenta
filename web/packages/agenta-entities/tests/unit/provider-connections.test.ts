@@ -466,6 +466,21 @@ describe("harnessSupportsProviderKind", () => {
         expect(harnessSupportsProviderKind(capabilities, "claude", "bedrock")).toBe(true)
         expect(harnessSupportsProviderKind(capabilities, "pi_core", "bedrock")).toBe(false)
     })
+
+    // Deliberately coarse: the surface says the harness can speak to the endpoint at all, not which
+    // family the endpoint serves. Which harnesses a custom connection is OFFERED under by default is
+    // `effectiveHarnesses`, tested in @agenta/entity-ui's connectionPicker suite (#6692).
+    it("does not judge the family behind a deployment surface", () => {
+        const shipped: HarnessCapabilityMap = {
+            claude: {
+                providers: ["anthropic"],
+                deployments: ["direct", "custom", "bedrock", "vertex_ai"],
+            },
+        }
+
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "claude", "vertex_ai")).toBe(true)
+    })
 })
 
 describe("doneState", () => {

@@ -337,6 +337,20 @@ describe("configFingerprint", () => {
     assert.equal(b, c);
   });
 
+  it("excludes turn context, so naming a session never evicts", () => {
+    const a = configFingerprint(base);
+    const unnamed = configFingerprint({
+      ...base,
+      turnContext: "This session has no name yet.",
+    });
+    const named = configFingerprint({
+      ...base,
+      turnContext: 'This session is named "Q3 notes".',
+    });
+    assert.equal(a, unnamed);
+    assert.equal(unnamed, named);
+  });
+
   it("ignores per-turn volatiles and credential values", () => {
     const a = configFingerprint({
       ...base,

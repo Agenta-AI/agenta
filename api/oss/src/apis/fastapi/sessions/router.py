@@ -58,6 +58,7 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 # Core domain imports — new paths
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
+    SessionNameSource,
     SessionHeartbeatRequest,
     SessionHeartbeatResult,
     SessionStreamCommandRequest,
@@ -69,6 +70,7 @@ from oss.src.core.sessions.streams.dtos import (
 from oss.src.core.sessions.streams.types import (
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
+    SessionNameProtected,
     SessionTurnInUse,
     SessionTurnMismatch,
     SessionStreamAlreadyExists,
@@ -255,6 +257,34 @@ def _validate_session_id_http(session_id: str) -> None:
         )
 
 
+#: The transitional spelling of `name_source`, before the parameter was named for what it
+#: records rather than for who called. It never shipped in a release, but a warm agent
+#: session can still hold a tool descriptor that carries it.
+_LEGACY_AUTHOR_VALUES = {
+    "auto": SessionNameSource.automatic,
+    "user": SessionNameSource.manual,
+}
+
+
+def _resolve_name_source(
+    *,
+    name_source: Optional[SessionNameSource],
+    author: Optional[str],
+) -> SessionNameSource:
+    """The effective name source: the current parameter, then the old one, then `manual`.
+
+    An explicit `name_source` always wins, so the alias can never override a caller that
+    speaks the current spelling. An unrecognized `author` falls through to the default
+    rather than erroring: it is a value nothing we ship produces, and refusing the whole
+    rename over it would be worse than the protection the default gives.
+    """
+    if name_source is not None:
+        return name_source
+    if author is not None:
+        return _LEGACY_AUTHOR_VALUES.get(author, SessionNameSource.manual)
+    return SessionNameSource.manual
+
+
 def _handle_session_exceptions():
     def decorator(func):
         @wraps(func)
@@ -297,6 +327,15 @@ def _handle_session_exceptions():
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=e.message,
+                ) from e
+            except SessionNameProtected as e:
+                # The agent-actionable envelope (`api/AGENTS.md`): the caller is usually the
+                # agent's `rename_session`, and the runner passes an object `detail` through
+                # to the model. It carries the current name so the agent adopts it, and one
+                # imperative next step so it knows whether a retry can ever work.
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=e.envelope(),
                 ) from e
 
         return wrapper
@@ -673,8 +712,30 @@ class SessionStreamsRouter:
         *,
         header: SessionStreamHeaderEdit,
         session_id: str = Query(...),
+        name_source: Optional[SessionNameSource] = Query(None),
+        author: Optional[str] = Query(None, include_in_schema=False, deprecated=True),
     ) -> SessionStreamResponse:
+        """Rename a session.
+
+        `name_source` says where the name came from: `manual` (the default) is a person
+        typing one, and `automatic` is a program proposing one — the agent's
+        `rename_session`, or the browser's auto-title. An `automatic` edit is refused with
+        409 when it would change a name a person controls, unless the body names the exact
+        name and revision it replaces.
+
+        It is a query parameter rather than a body field on purpose. The `rename_session`
+        catalog entry fixes `name_source=automatic` inside its path and the model fills only
+        the body, so an agent cannot claim a person chose its name.
+
+        `author` is the transitional spelling, hidden from the schema. A warm agent session
+        holds the tool descriptors it opened with, so a sandbox that started under an
+        earlier build of this change can still execute `?author=auto` after the service has
+        moved on. Reading it costs one branch and keeps that call on the guarded path; the
+        alternative is a rename that silently claims a person made it. Delete this parameter
+        once no such session can still be alive.
+        """
         _validate_session_id_http(session_id)
+        resolved_source = _resolve_name_source(name_source=name_source, author=author)
 
         if not await check_action_access(
             user_uid=request.state.user_id,
@@ -688,6 +749,7 @@ class SessionStreamsRouter:
             user_id=UUID(request.state.user_id),
             session_id=session_id,
             header=header,
+            name_source=resolved_source,
         )
         return SessionStreamResponse(stream=sanitize_session_stream(stream))
 

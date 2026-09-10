@@ -64,6 +64,22 @@ const CAPABILITIES = {
         models: {openai: ["openai/gpt-5"]},
         default_models: {openai: ["openai/gpt-5"]},
     },
+    claude: {
+        providers: ["anthropic"],
+        deployments: ["direct"],
+        connection_modes: ["agenta", "self_managed"],
+        model_selection: "alias",
+        models: {anthropic: ["sonnet"]},
+        default_models: {anthropic: ["sonnet"]},
+    },
+    codex: {
+        providers: ["openai"],
+        deployments: ["direct"],
+        connection_modes: ["agenta", "self_managed"],
+        model_selection: "provider/id",
+        models: {openai: ["gpt-5.5"]},
+        default_models: {openai: ["gpt-5.5"]},
+    },
 }
 
 const standardConnection = () => ({
@@ -97,13 +113,14 @@ const PI_DEFAULT_BUILTINS = ["read", "bash", "edit", "write"].map((name) => ({
     name,
 }))
 
-const agentTemplate = () => ({
+const agentTemplate = (policy: "allow" | "ask" | "deny" = "allow") => ({
     key: "agent",
     data: {
         uri: "agenta:builtin:agent:v0",
         parameters: {
             agent: {
                 harness: {kind: "pi_core"},
+                runner: {permissions: {default: policy}},
                 llm: {model: "gpt-5"},
                 tools: PI_DEFAULT_BUILTINS.map((tool) => ({...tool})),
             },
@@ -115,6 +132,7 @@ const agentTemplate = () => ({
 /** Minimal shape of the agent config these assertions read off the local entity. */
 interface AgentConfigShape {
     harness?: {kind?: string}
+    runner?: {permissions?: {default?: string}}
     llm?: Record<string, unknown>
     tools?: {type?: string; name?: string}[]
 }
@@ -153,6 +171,68 @@ describe("createEphemeralAppFromTemplate (agent tools)", () => {
         const localId = await createEphemeralAppFromTemplate({type: "agent"})
         expect(localId).not.toBeNull()
         expect(readAgentConfig(localId!).tools).toEqual(PI_DEFAULT_BUILTINS)
+    })
+
+    describe.each([
+        {harness: "pi_core", provider: "openai", model: "openai/gpt-5", vaultModel: "gpt-5"},
+        {harness: "claude", provider: "anthropic", model: "sonnet", vaultModel: "sonnet"},
+        {harness: "codex", provider: "openai", model: "gpt-5.5", vaultModel: "gpt-5.5"},
+    ])("remembered $harness route", ({harness, provider, model, vaultModel}) => {
+        beforeEach(() => {
+            fetchVaultSecretMock.mockResolvedValue([
+                managedConnection(),
+                {
+                    ...standardConnection(),
+                    id: `conn-${provider}`,
+                    title: provider,
+                    displayName: provider,
+                    slug: provider,
+                    models: [vaultModel],
+                    harnesses: [harness],
+                },
+            ])
+            getDefaultStore().set(agentCreationPrefsAtom, {
+                version: 1,
+                harness,
+                model,
+                provider,
+                connectionMode: "agenta",
+                connectionSlug: provider,
+            })
+        })
+
+        it.each([
+            {policy: "allow", deferInspect: false},
+            {policy: "allow", deferInspect: true},
+            {policy: "ask", deferInspect: false},
+            {policy: "deny", deferInspect: false},
+        ] as const)(
+            "preserves the catalog policy $policy (deferInspect=$deferInspect)",
+            async ({policy, deferInspect}) => {
+                const template = agentTemplate(policy)
+                fetchWorkflowCatalogTemplatesMock.mockResolvedValue({
+                    count: 1,
+                    templates: [template],
+                })
+
+                const localId = await createEphemeralAppFromTemplate({type: "agent", deferInspect})
+
+                expect(localId).not.toBeNull()
+                const agent = readAgentConfig(localId!)
+                expect(agent.harness).toEqual({kind: harness})
+                expect(agent.llm).toEqual({
+                    model,
+                    provider,
+                    connection: {mode: "agenta", slug: provider},
+                })
+                expect(agent.runner).toEqual({permissions: {default: policy}})
+                expect(agent.tools).toEqual(PI_DEFAULT_BUILTINS)
+                expect(template.data.parameters.agent.harness).toEqual({kind: "pi_core"})
+                expect(template.data.parameters.agent.runner).toEqual({
+                    permissions: {default: policy},
+                })
+            },
+        )
     })
 
     it("ignores a partial legacy preference instead of guessing a route", async () => {

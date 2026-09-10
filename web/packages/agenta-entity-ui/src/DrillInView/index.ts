@@ -115,6 +115,8 @@ export type {
     DrillInUIComponents,
     DrillInUIProviderProps,
     GatewayToolsBridge,
+    SkillsBridge,
+    SkillsPickerHostProps,
     WorkflowReferenceBridge,
     WorkflowReferenceUI,
     WorkflowReferenceType,
@@ -439,6 +441,8 @@ export {
     ToolManagementList,
     selectSubagentTools,
 } from "./SchemaControls/agentTemplate/ToolManagementList"
+export {CatalogListRow} from "./SchemaControls/agentTemplate/CatalogListRow"
+export type {CatalogListRowProps} from "./SchemaControls/agentTemplate/CatalogListRow"
 export {AddSubagentDrawer} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
 export type {
     SubagentOption,
@@ -452,6 +456,8 @@ export {SkillFormView} from "./SchemaControls/SkillFormView"
 export type {SkillFormViewProps} from "./SchemaControls/SkillFormView"
 export {SkillUploadZone} from "./SchemaControls/SkillUploadZone"
 export type {SkillUploadZoneProps} from "./SchemaControls/SkillUploadZone"
+export {scanSkillFromDataTransfer, scanSkillFromFileList} from "./SchemaControls/skillUpload"
+export type {ParsedSkill, SkillScanCandidate, SkillUploadScan} from "./SchemaControls/skillUpload"
 
 // Agent config panel — presentational siblings of the AgentTemplateControl container (the
 // control itself stays code-split behind SchemaPropertyRenderer's lazy import). Prop-driven,
