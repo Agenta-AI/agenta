@@ -61,7 +61,7 @@ export const AutomationRunFilterMenu = ({
                     },
                     {
                         value: "pending",
-                        label: "Pending",
+                        label: "Running",
                         icon: <Circle size={ICON} className="text-muted-foreground" />,
                     },
                 ],

@@ -171,7 +171,9 @@ export function runOutcomeLabel(delivery: TriggerDelivery): string {
         case "bad":
             return "Failed"
         default:
-            return "Pending"
+            // "Running", not "Pending": a delivery that is neither succeeded nor failed has
+            // been handed to the runner, which has it in flight rather than queued.
+            return "Running"
     }
 }
 
