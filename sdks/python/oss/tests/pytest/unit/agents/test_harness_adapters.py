@@ -381,9 +381,11 @@ def test_platform_instructions_reach_every_harness(make_env, harness_cls, kind):
     assert "`GITHUB_TOKEN`" in instructions
     assert "never-render-this-secret" not in instructions
     assert "Do not inspect or enumerate the environment" in instructions
-    assert (
-        "do not request that secret again unless the user asks to retry" in instructions
-    )
+    # The credential rules ride the always-on base; the `request_secret` flow is named with an
+    # availability hedge because the tool ships through the build kit.
+    flat = " ".join(instructions.split())
+    assert "Never ask the person to paste a credential into chat" in flat
+    assert "do not ask again unless they say to retry" in flat
     assert result.agents_md == _AUTHOR_INSTRUCTIONS
     if isinstance(result, PiAgentTemplate):
         assert result.append_system == _AUTHOR_APPEND

@@ -38,24 +38,25 @@ import type { SystemPromptAppendix } from "./system-prompt-appendix.ts";
 
 export function agentMountGuidance(mountPath: string): string {
   return (
-  "You have two storage areas. Your current working directory is scratch for this " +
-  "conversation only. Your durable agent folder, `agent-files/` in your working directory " +
-  `(absolute path \`${mountPath}\`), persists across all of your sessions. Put throwaway or ` +
-  "session-specific work in the working directory; put anything you want to keep, reuse " +
-  "later, or share across conversations in the durable agent folder. This includes anything " +
-  "you would normally save to your own memory tool or notes file: when someone asks you to " +
-  "remember something for next time, or to save a note, write a plain file into the durable " +
-  "agent folder — do not use your built-in memory system (files there do not persist between " +
-  "sessions for this agent), and do not edit your own agent configuration or instructions to " +
-  "store the information. The reverse matters just as much. This conversation started with no " +
-  "memory of any previous session, but your durable agent folder might already hold notes " +
-  "from one. Before you answer any question shaped like a recall (\"what's our X\", \"what " +
-  "did we decide\", \"did I tell you Y\", \"do you remember Z\") — including one where your " +
-  "first instinct is that you have no such information — list and check the durable agent " +
-  "folder for a relevant file first. Only answer that you don't know after actually checking; " +
-  "never assume nothing was saved just because this conversation is new. Example: when you " +
-  "research a go-to-market plan, keep your intermediate notes and drafts in the working " +
-  "directory, and write the final report into the durable agent folder."
+    "You have two storage areas. Your current working directory is scratch for this " +
+    "conversation only. Your durable agent folder, `agent-files/` in your working directory " +
+    `(absolute path \`${mountPath}\`), persists across all of your sessions. Put throwaway or ` +
+    "session-specific work in the working directory; put anything you want to keep, reuse " +
+    "later, or share across conversations in the durable agent folder. This includes anything " +
+    "you would normally save to your own memory tool or notes file: when someone asks you to " +
+    "remember something for next time, or to save a note, write a plain file into the durable " +
+    "agent folder — do not use your built-in memory system (files there do not persist between " +
+    "sessions for this agent). A lasting preference or a fact about the job goes in the Memory " +
+    "section of your instructions instead, as the platform instructions say. The reverse " +
+    "matters just as much. This conversation started with no " +
+    "memory of any previous session, but your durable agent folder might already hold notes " +
+    'from one. Before you answer any question shaped like a recall ("what\'s our X", "what ' +
+    'did we decide", "did I tell you Y", "do you remember Z") — including one where your ' +
+    "first instinct is that you have no such information — list and check the durable agent " +
+    "folder for a relevant file first. Only answer that you don't know after actually checking; " +
+    "never assume nothing was saved just because this conversation is new. Example: when you " +
+    "research a go-to-market plan, keep your intermediate notes and drafts in the working " +
+    "directory, and write the final report into the durable agent folder."
   );
 }
 

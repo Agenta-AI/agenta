@@ -176,6 +176,12 @@ export interface RunPlanTools {
   executableToolSpecs: ResolvedToolSpec[];
   /** True when the permission policy needs the extension to intercept Pi builtin calls. */
   builtinGatingActive: boolean;
+  /**
+   * The run's permission posture. `allow` is the only posture under which the runner executes
+   * owner-authored startup code (`agent-files/.tools/setup.sh`) unattended; see
+   * `agent-tools-setup.ts`.
+   */
+  permissionDefault: PermissionPlan["default"];
   useToolRelay: boolean;
   /**
    * How a parked client tool disposes of the turn and the in-sandbox shim's blocking call (closed
@@ -798,6 +804,7 @@ export function buildRunPlan(
         toolSpecs,
         executableToolSpecs: executableToolSpecsForRun,
         builtinGatingActive,
+        permissionDefault: permissionPlan.default,
         // The relay carries tool EXECUTION only (permission gates ride the extension's
         // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.
         useToolRelay: toolSpecs.length > 0,

@@ -3,7 +3,7 @@
  *
  * The agent playground's left config panel. It renders the whole agent config as a set
  * of collapsible accordion sections (Model, Instructions, Integrations, Subagents,
- * MCP servers, Advanced), built on the reusable {@link ConfigAccordionSection} primitive
+ * MCP servers, Permissions, Advanced), built on the reusable {@link ConfigAccordionSection} primitive
  * so the same pattern can roll out to other config surfaces.
  *
  * Dispatched from `x-ag-type: "agent-template"` / `x-ag-type-ref: "agent-template"` (see
@@ -45,6 +45,7 @@ import {
     Plugs,
     PuzzlePiece,
     Robot,
+    ShieldCheck,
     SlidersHorizontal,
     UploadSimple,
 } from "@phosphor-icons/react"
@@ -55,7 +56,7 @@ import {ChangedPathsProvider} from "../../drawers/shared"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
-import {readRunnerPermission} from "./agentConfigPatch"
+import {mergeAgentConfigDraft, readRunnerPermission} from "./agentConfigPatch"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
 import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
 import {
@@ -125,6 +126,7 @@ const DRAFT_TIP: Record<string, string> = {
     mcp: "Unsaved MCP server changes.",
     skills: "Unsaved skill changes.",
     advanced: "Unsaved advanced-setting changes.",
+    permissions: "Unsaved permission changes.",
 }
 
 export interface AgentTemplateControlProps {
@@ -151,9 +153,10 @@ const ModelHarnessSectionBody = ({
     section,
     ...params
 }: {
-    section: "model-harness" | "advanced"
+    section: "model-harness" | "advanced" | "permissions"
 } & Parameters<typeof useModelHarness>[0]) => {
     const mh = useModelHarness(params)
+    if (section === "permissions") return <>{mh.permissionsBody}</>
     if (section === "advanced") {
         return <>{mh.advancedDrawerBody}</>
     }
@@ -292,8 +295,19 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Cancel: nothing was written live, so just drop the draft.
     const cancelSection = closeSectionDraft
     const saveSection = useCallback(() => {
-        if (draftConfig !== null) {
-            onChange(draftConfig)
+        if (sectionRevision !== (revisionIdRef.current ?? "")) {
+            closeSectionDraft()
+            return
+        }
+        if (draftConfig !== null && sectionBaseline.current !== null) {
+            onChange(
+                mergeAgentConfigDraft(
+                    configRef.current,
+                    sectionBaseline.current.config,
+                    draftConfig,
+                    openSection ?? undefined,
+                ),
+            )
             // Remember the harness/model/connection pick for future agent creations — only on an
             // explicit Model-section save, not on every keystroke or the Advanced section.
             if (openSection === "model-harness") {
@@ -317,10 +331,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 }))
             }
         }
-        if (draftBuildKit !== null) {
+        if (draftBuildKit !== null && sectionBaseline.current !== null) {
             const revision = sectionRevision ?? revisionIdRef.current ?? ""
-            store.set(workflowBuildKitEnabledAtomFamily(revision), draftBuildKit.enabled)
-            store.set(workflowBuildKitDisabledOpsAtomFamily(revision), draftBuildKit.disabledOps)
+            if (draftBuildKit.enabled !== sectionBaseline.current.buildKit.enabled)
+                store.set(workflowBuildKitEnabledAtomFamily(revision), draftBuildKit.enabled)
+            if (!deepEqual(draftBuildKit.disabledOps, sectionBaseline.current.buildKit.disabledOps))
+                store.set(
+                    workflowBuildKitDisabledOpsAtomFamily(revision),
+                    draftBuildKit.disabledOps,
+                )
         }
         closeSectionDraft()
     }, [
@@ -351,6 +370,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
+    useEffect(() => {
+        if (openSection && sectionRevision !== (revisionId ?? "")) closeSectionDraft()
+    }, [revisionId, sectionRevision, openSection, closeSectionDraft])
 
     // Trigger count for the section auto-expand/summary state (the Triggers UI itself now lives in
     // the sibling AgentOperationsSections; this shares the same deduped query).
@@ -417,7 +439,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     //  - The DRAFT instance (config + build-kit buffer) that drives the OPEN section drawer's body
     //    now lives inside `ModelHarnessSectionBody`, mounted only while a drawer/inline body is on screen, so
     //    its harness/vault/overlay subscriptions don't run in the background.
-    const mh = useModelHarness({schema, config, onChange, disabled, withTooltip, revisionId})
+    const mh = useModelHarness({
+        schema,
+        config,
+        onChange,
+        disabled,
+        withTooltip,
+        revisionId,
+        normalizeSandbox: true,
+    })
     const draftBuildKitOverride = useMemo(
         () =>
             draftBuildKit !== null ? {value: draftBuildKit, onChange: setDraftBuildKit} : undefined,
@@ -623,10 +653,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const drawerChangedPaths = useMemo(
         () => ({
             ...sectionChanges.draft,
-            revert: (paths: string[]) =>
-                applyDraftConfig(revertPathsTo(draftConfig ?? config, committed, paths)),
+            revert: disabled
+                ? undefined
+                : (paths: string[]) =>
+                      applyDraftConfig(revertPathsTo(draftConfig ?? config, committed, paths)),
         }),
-        [sectionChanges.draft, applyDraftConfig, committed, draftConfig, config],
+        [sectionChanges.draft, applyDraftConfig, committed, draftConfig, config, disabled],
     )
 
     // Revert for the PANEL's own inline bodies: writes the entity draft straight through `onChange`,
@@ -635,9 +667,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const panelChangedPaths = useMemo(
         () => ({
             ...sectionChanges.draft,
-            revert: (paths: string[]) => onChange(revertPathsTo(config, committed, paths)),
+            revert: disabled
+                ? undefined
+                : (paths: string[]) => onChange(revertPathsTo(config, committed, paths)),
         }),
-        [sectionChanges.draft, onChange, config, committed],
+        [sectionChanges.draft, onChange, config, committed, disabled],
     )
     // The inline body for a drawer-backed section: its own controls, narrowed to what changed — the
     // same affordance as the Connect-key field, with a different filter (see SectionChangeBody).
@@ -648,7 +682,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             // The classifier already assigns each changed path to its own section bucket; read this
             // section's paths from there so Advanced never picks up an instructions/tools/mcp/skills edit.
             const section = sectionChanges.draft.sectionsByKey.get(key)
-            const sectionPaths = (section?.scalarChanges ?? []).map((c) => c.key)
+            const sectionPaths = (section?.scalarChanges ?? [])
+                .map((c) => c.key)
+                .filter(
+                    (path) =>
+                        key !== "advanced" || (mh.hasExecutionGroup && path === "sandbox.kind"),
+                )
             if (!sectionPaths.length) return null
             return (
                 <SectionChangeBody
@@ -679,6 +718,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             onChange,
             withTooltip,
             revisionId,
+            mh.hasExecutionGroup,
         ],
     )
 
@@ -1188,6 +1228,27 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         emptyAdd={<AddTextLink label="add a skill" onClick={handleAddSkill} />}
                     />
                 </>
+            ),
+        },
+        mh.hasPermissions && {
+            key: "permissions",
+            icon: <ShieldCheck size={16} />,
+            title: "Permissions",
+            summary: mh.runnerPermissionSummary,
+            indicator: sectionIndicator("permissions"),
+            defaultOpen: true,
+            content: (
+                <ChangedPathsProvider changes={panelChangedPaths}>
+                    <ModelHarnessSectionBody
+                        section="permissions"
+                        schema={schema}
+                        config={config}
+                        onChange={onChange}
+                        disabled={disabled}
+                        withTooltip={withTooltip}
+                        revisionId={revisionId}
+                    />
+                </ChangedPathsProvider>
             ),
         },
         mh.hasAdvanced && {

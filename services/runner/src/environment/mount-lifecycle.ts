@@ -37,7 +37,7 @@
  * would swallow the violation and log it as an ordinary mount failure — which is exactly what the
  * external review caught in revision 1 of the contract.
  */
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 
 import { apiBase } from "../apiBase.ts";
 import {
@@ -58,6 +58,11 @@ import {
 import { conciseError } from "../engines/sandbox_agent/errors.ts";
 import { mountStorage } from "../engines/sandbox_agent/mount.ts";
 import {
+  agentToolsLocalDir,
+  localAgentToolsExec,
+  relinkAgentTools,
+} from "../engines/sandbox_agent/agent-tools-setup.ts";
+import {
   uploadSystemPromptToSandbox,
   writeSystemPromptLocal,
 } from "../engines/sandbox_agent/pi-assets.ts";
@@ -71,11 +76,15 @@ export interface MountDeps {
   signMount: (
     sessionId: string,
     opts: { apiBase: string; authorization: string; log: (m: string) => void },
-  ) => Promise<import("../engines/sandbox_agent/mount.ts").MountCredentials | null>;
+  ) => Promise<
+    import("../engines/sandbox_agent/mount.ts").MountCredentials | null
+  >;
   signAgentMount: (
     artifactId: string,
     opts: { apiBase: string; authorization: string; log: (m: string) => void },
-  ) => Promise<import("../engines/sandbox_agent/mount.ts").MountCredentials | null>;
+  ) => Promise<
+    import("../engines/sandbox_agent/mount.ts").MountCredentials | null
+  >;
   /** The remote Pi directory constant, passed in rather than imported. */
   daytonaPiDir: string;
   /** The turn signal that must preempt a mount during environment acquisition. */
@@ -221,6 +230,20 @@ export async function mountLocalDurableCwd(
           `codex subscription auth.json link failed after mount: ${conciseError(err, plan.harness)}`,
         );
       });
+    }
+    // Same rule for the agent's tools link (`<cwd>/.tools` -> local disk): a remount hands back
+    // a 0-byte file where it was, while the executables it pointed at still exist. Relink only;
+    // never re-run the owner's setup script from a recovery path. First acquire ("initial") has
+    // nothing to relink yet: the restore step creates the link after the agent mount.
+    if (reason !== "initial") {
+      const localDir = agentToolsLocalDir(plan.workspace.cwd, false);
+      if (existsSync(localDir)) {
+        await relinkAgentTools(
+          { cwd: plan.workspace.cwd, localDir },
+          localAgentToolsExec,
+          { log: ctx.log },
+        );
+      }
     }
     return true;
   }
@@ -374,7 +397,9 @@ export function remountLocalCwdAfterRuntimeEnotconn(
   );
   ctx.setRuntimeRemount(
     (async () => {
-      const cwdOk = cwdEligible ? await reSignAndRemountLocalCwd(ctx, deps) : true;
+      const cwdOk = cwdEligible
+        ? await reSignAndRemountLocalCwd(ctx, deps)
+        : true;
       const agentOk = agentEligible
         ? await reSignAndRemountLocalAgentMount(ctx, deps)
         : true;

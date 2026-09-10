@@ -206,8 +206,9 @@ export function useChatSlashCommands({
     const applyPermission = useCallback(
         (policy: PermissionPolicy) => {
             const label = permissionPolicyLabel(policy) ?? policy
-            // `advanced` is the panel key `runner.permissions.default` classifies under.
-            write(withRunnerPermission(config, policy), `Permissions set to ${label}`, ["advanced"])
+            write(withRunnerPermission(config, policy), `Permissions set to ${label}`, [
+                "permissions",
+            ])
             setPicker(null)
         },
         [config, write],

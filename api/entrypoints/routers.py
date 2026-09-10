@@ -201,6 +201,7 @@ from oss.src.dbs.redis.shared.engine import get_lock_engine
 from oss.src.dbs.postgres.sessions.turns.dbes import SessionTurnDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
 from oss.src.core.sessions.turns.service import SessionTurnsService
+from oss.src.core.sessions.context import make_session_context_resolver
 
 # Interactions
 from oss.src.dbs.postgres.sessions.interactions.dbes import SessionInteractionDBE  # noqa: F401
@@ -1207,6 +1208,12 @@ session_inputs_service = SessionInputsService(
 )
 workflows_service.set_session_continuation_resumer(
     session_commands_service.resume_recoverable_continuation
+)
+workflows_service.set_session_context_resolver(
+    make_session_context_resolver(
+        streams_service=session_streams_service,
+        turns_service=session_turns_service,
+    )
 )
 
 sessions = SessionsRouter(

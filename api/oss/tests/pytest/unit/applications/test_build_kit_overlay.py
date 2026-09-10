@@ -9,7 +9,10 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
     BUILD_AN_AGENT_SLUG,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
-from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
+from agenta.sdk.agents.platform.workflow import (
+    REQUEST_CONNECTION_WORKFLOW_SLUG,
+    REQUEST_SECRET_WORKFLOW_SLUG,
+)
 from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
@@ -43,8 +46,6 @@ EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
     "check_skill_updates",
     "apply_skill_update",
     "commit_revision",
-    "annotate_trace",
-    "query_spans",
     "test_run",
     "rename_session",
     "rename_agent",
@@ -54,6 +55,7 @@ EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
     "list_schedules",
     "list_deliveries",
     "test_subscription",
+    "list_subscriptions",
     "remove_schedule",
     "remove_subscription",
 )
@@ -65,8 +67,6 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "apply_skill_update",
     "read_config",
     "commit_revision",
-    "annotate_trace",
-    "query_spans",
     "test_run",
     "rename_session",
     "rename_agent",
@@ -76,6 +76,7 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "list_schedules",
     "list_deliveries",
     "test_subscription",
+    "list_subscriptions",
     "remove_schedule",
     "remove_subscription",
 )
@@ -107,14 +108,33 @@ EXPECTED_DEFAULT_BUILD_KIT_OPS = (
 )
 
 CUT_BUILD_KIT_OPS = (
+    "annotate_trace",
+    "query_spans",
     "pause_schedule",
     "resume_schedule",
     "pause_subscription",
     "resume_subscription",
     "query_workflows",
     "list_connections",
-    "list_subscriptions",
 )
+
+EXPECTED_BUILD_KIT_PERMISSIONS = {
+    "discover_tools": "allow",
+    "read_config": "allow",
+    "commit_revision": "allow",
+    "test_run": "allow",
+    "rename_session": "allow",
+    "rename_agent": "allow",
+    "discover_triggers": "allow",
+    "create_schedule": "ask",
+    "create_subscription": "ask",
+    "list_schedules": "allow",
+    "list_deliveries": "allow",
+    "test_subscription": "allow",
+    "list_subscriptions": "allow",
+    "remove_schedule": "ask",
+    "remove_subscription": "ask",
+}
 
 
 def _embed_slug(entry: dict) -> str | None:
@@ -136,17 +156,14 @@ def test_agent_template_overlay_tools_list_is_pinned():
         slug=REQUEST_CONNECTION_WORKFLOW_SLUG
     )
     request_input = catalog.retrieve_revision(slug=REQUEST_INPUT_WORKFLOW_SLUG)
+    request_secret = catalog.retrieve_revision(slug=REQUEST_SECRET_WORKFLOW_SLUG)
 
     assert overlay["tools"] == [
         *[
             {
                 "type": "platform",
                 "op": op_name,
-                **(
-                    {"permission": "allow"}
-                    if op_name in {"rename_session", "rename_agent"}
-                    else {}
-                ),
+                "permission": EXPECTED_BUILD_KIT_PERMISSIONS[op_name],
             }
             for op_name in DEFAULT_BUILD_KIT_OPS
         ],
@@ -166,6 +183,13 @@ def test_agent_template_overlay_tools_list_is_pinned():
             },
             "name": request_input.name,
         },
+        {
+            "@ag.embed": {
+                "@ag.references": {"workflow": {"slug": REQUEST_SECRET_WORKFLOW_SLUG}},
+                "@ag.selector": {"path": "parameters.tool"},
+            },
+            "name": request_secret.name,
+        },
     ]
 
 
@@ -184,22 +208,10 @@ def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permiss
         {
             "type": "platform",
             "op": op_name,
-            **(
-                {"permission": "allow"}
-                if op_name in {"rename_session", "rename_agent"}
-                else {}
-            ),
+            "permission": EXPECTED_BUILD_KIT_PERMISSIONS[op_name],
         }
         for op_name in DEFAULT_BUILD_KIT_OPS
     ]
-    assert [
-        tool["op"] for tool in platform_tools if tool.get("permission") == "allow"
-    ] == ["rename_session", "rename_agent"]
-    assert all(
-        "permission" not in tool
-        for tool in platform_tools
-        if tool["op"] not in {"rename_session", "rename_agent"}
-    )
 
     authoring_skill = StaticWorkflowCatalog().retrieve_revision(
         slug=BUILD_AN_AGENT_SLUG
@@ -251,6 +263,7 @@ def test_agent_template_overlay_includes_only_allowlisted_static_tool_embeds():
     assert tool_embed_slugs == {
         REQUEST_CONNECTION_WORKFLOW_SLUG,
         REQUEST_INPUT_WORKFLOW_SLUG,
+        REQUEST_SECRET_WORKFLOW_SLUG,
     }
 
 
@@ -364,14 +377,20 @@ async def test_resolved_build_kit_overlay_parses_through_from_params():
         tool for tool in template.tools if isinstance(tool, ClientToolConfig)
     ]
     assert [tool.op for tool in platform_ops] == list(DEFAULT_BUILD_KIT_OPS)
+    assert {tool.op: tool.permission for tool in platform_ops} == {
+        op: EXPECTED_BUILD_KIT_PERMISSIONS[op] for op in EXPECTED_DEFAULT_BUILD_KIT_OPS
+    }
     # The reserved static embeds must coerce to client tools, not builtins.
     assert [tool.name for tool in client_tools] == [
         "request_connection",
         "request_input",
+        "request_secret",
     ]
     assert client_tools[0].render == {"kind": "connect"}
     # The elicitation tool (interaction kinds M1) carries its REQUIRED render.kind.
     assert client_tools[1].render == {"kind": "elicitation"}
+    # The secret request opens the secret dock, so it carries its own render.kind.
+    assert client_tools[2].render == {"kind": "secret"}
     assert [skill.name for skill in template.skills] == ["build-an-agent"]
 
 

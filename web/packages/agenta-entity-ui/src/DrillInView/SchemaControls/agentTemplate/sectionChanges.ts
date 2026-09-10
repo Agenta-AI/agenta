@@ -4,8 +4,8 @@
  *
  * The commit-diff classifier's sections were deliberately built to mirror this panel's ("Grouped to
  * mirror the agent-template control sections", `commitDiff/classify.ts`), so the panel reuses it
- * verbatim instead of re-diffing: `model` → Model & harness, `params` → Advanced (the runner /
- * sandbox / harness knobs), and the lists map 1:1. This module owns that mapping plus the lookups
+ * instead of re-diffing: `model` → Model, `runner.permissions.default` → Permissions,
+ * remaining `params` → Advanced, and the lists map 1:1. This module owns that mapping plus the lookups
  * the panel and its drawers need:
  *   - which sections changed (header indicators),
  *   - the section's render-ready `ChangeSection` (the inline "what changed" body),
@@ -42,6 +42,7 @@ export type PanelSectionKey =
     | "mcp"
     | "skills"
     | "advanced"
+    | "permissions"
 
 /**
  * Classifier section id → config-panel key. Typed against `SectionId`, so adding or renaming a
@@ -83,7 +84,27 @@ export function toSectionChanges(sections: ChangeSection[]): SectionChanges {
     for (const section of sections) {
         const key = SECTION_ID_TO_PANEL_KEY[section.id]
         if (!key) continue
-        sectionsByKey.set(key, section)
+        if (section.id === "params") {
+            const permissions = (section.scalarChanges ?? []).filter(
+                (change) => change.key === "runner.permissions.default",
+            )
+            const advanced = (section.scalarChanges ?? []).filter(
+                (change) => change.key !== "runner.permissions.default",
+            )
+            if (permissions.length)
+                sectionsByKey.set("permissions", {
+                    ...section,
+                    title: "Permissions",
+                    scalarChanges: permissions,
+                    totalCount: permissions.length,
+                })
+            if (advanced.length)
+                sectionsByKey.set(key, {
+                    ...section,
+                    scalarChanges: advanced,
+                    totalCount: advanced.length,
+                })
+        } else sectionsByKey.set(key, section)
         for (const scalar of section.scalarChanges ?? []) {
             changedPaths.add(scalar.key)
             byPath.set(scalar.key, scalar)

@@ -11,7 +11,7 @@ import {
     FileTextIcon,
     GraduationCapIcon,
     PlugsIcon,
-    SlidersHorizontalIcon,
+    ShieldCheckIcon,
     WrenchIcon,
 } from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -34,7 +34,7 @@ interface ConfigRow {
     expands?: boolean
 }
 
-/** An unset row says what to do about it — every row opens the editor anyway. */
+/** Empty rows offer an action only when the host provides an editor. */
 const emptyAction = (label: string) => ({summary: label, status: "default" as const})
 // "default", not "complete": complete tints the icon green, and a read-only card full of
 // green checkmark-colored icons reads as noise. Grey is the resting state; only the
@@ -62,12 +62,6 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
     // Model id only. The harness rode along as "· Pi core", which is the one part of this string a
     // narrow row can least afford and the least likely thing anyone is checking here.
     const model = summary.model ?? ""
-    const advanced = [
-        summary.sandbox && `Sandbox: ${summary.sandbox.toLowerCase()}`,
-        summary.permissions && `Permissions: ${summary.permissions.toLowerCase()}`,
-    ]
-        .filter(Boolean)
-        .join(" · ")
 
     // Same order and icons as the playground's config sections, so this reads as a view of that
     // panel rather than a second account of the same settings.
@@ -81,7 +75,7 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
             // A model is the one required setting, so its absence is a warning rather than a gap.
             ...(summary.model
                 ? stated(model)
-                : {summary: "Choose a model", status: "warning" as const}),
+                : {summary: onEdit ? "Choose a model" : "Not set", status: "warning" as const}),
         },
         {
             key: "instructions",
@@ -89,7 +83,7 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
             title: "Instructions",
             ...(summary.instructions
                 ? stated(`${INSTRUCTIONS_FILE} · ${summary.instructionWords} words`)
-                : emptyAction("Add instructions")),
+                : emptyAction(onEdit ? "Add instructions" : "No instructions")),
             // The one row whose summary can't stand in for its value — "28 words" says how much,
             // never what — so it expands in place instead of leaving for the editor.
             expands: Boolean(summary.instructions),
@@ -98,7 +92,9 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
             key: "tools",
             icon: <WrenchIcon size={16} />,
             title: "Tools",
-            ...(summary.tools ? stated(`${summary.tools} enabled`) : emptyAction("Add tools")),
+            ...(summary.tools
+                ? stated(`${summary.tools} enabled`)
+                : emptyAction(onEdit ? "Add tools" : "None enabled")),
         },
         {
             key: "mcps",
@@ -106,7 +102,7 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
             title: "MCP servers",
             ...(summary.mcps
                 ? stated(`${summary.mcps} connected`)
-                : emptyAction("Connect a server")),
+                : emptyAction(onEdit ? "Connect a server" : "None connected")),
         },
         {
             key: "skills",
@@ -114,15 +110,15 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
             title: "Skills",
             ...(summary.skills
                 ? stated(`${summary.skills} ${summary.skills === 1 ? "skill" : "skills"}`)
-                : emptyAction("Add skills")),
+                : emptyAction(onEdit ? "Add skills" : "None added")),
             // Expands to the skill names — the count alone says how many, never which.
             expands: summary.skillNames.length > 0,
         },
         {
-            key: "advanced",
-            icon: <SlidersHorizontalIcon size={16} />,
-            title: "Advanced",
-            ...stated(advanced || "Defaults"),
+            key: "permissions",
+            icon: <ShieldCheckIcon size={16} />,
+            title: "Permissions",
+            ...stated(summary.permissions || "Not set"),
         },
     ]
 
@@ -154,18 +150,17 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
                     <ConfigAccordionSection
                         key={row.key}
                         size="compact"
-                        headerBand="-mx-4 px-4"
+                        headerBand={row.expands ? "-mx-4 px-4" : undefined}
+                        bodyClassName={row.expands ? undefined : ""}
                         icon={row.icon}
                         title={row.title}
                         summary={row.summary}
                         status={row.status}
-                        preserveTitle={row.key === "advanced" || row.key === "model"}
+                        preserveTitle={row.key === "model" || row.key === "permissions"}
                         // `onOpen` is the primitive's "leaves for somewhere else" mode; only the
                         // expanding row (and a read-only host) omits it.
                         onOpen={row.expands || !onEdit ? undefined : onEdit}
-                        // A row with no expansion and nowhere to go is a STATEMENT: no caret,
-                        // no empty accordion (the /m overview passes no onEdit).
-                        collapsible={row.expands || Boolean(onEdit)}
+                        collapsible={Boolean(row.expands)}
                         defaultOpen={false}
                         // No row rules anywhere in this card: a line inside a section competes
                         // with the line that ends it. Rows separate by spacing.
