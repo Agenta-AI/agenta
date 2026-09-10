@@ -91,6 +91,10 @@ describe("secret attachment transaction", () => {
             },
         })
         expect(options.queryParams.project_id).toBe("project-1")
+        expect(api.retrieve).toHaveBeenCalledTimes(1)
+        expect(api.retrieve).toHaveBeenCalledWith(
+            expect.objectContaining({workflowVariantRef: {id: "variant-1"}}),
+        )
         expect(api.adopt).toHaveBeenCalledWith(expect.objectContaining({newRevisionId: "rev-2"}), {
             revisionId: "rev-1",
         })
@@ -143,6 +147,66 @@ describe("secret attachment transaction", () => {
         ).rejects.toThrow(AGENT_CREDENTIALS_CONFLICT_MESSAGE)
         expect(api.commit).toHaveBeenCalledTimes(2)
         expect(api.adopt).not.toHaveBeenCalled()
+    })
+    it("refuses when the head's attachments differ from the displayed ones", async () => {
+        const other = {secret: {slug: "other"}, binding: {type: "env" as const, name: "OTHER"}}
+        api.retrieve.mockResolvedValue({
+            ...head,
+            data: {
+                parameters: {
+                    agent: {
+                        ...head.data.parameters.agent,
+                        sandbox: {kind: "daytona", credentials: [other]},
+                    },
+                },
+            },
+        })
+        await expect(
+            store.set(commitAgentCredentialsAtom, {revisionId: "rev-1", bindings}),
+        ).rejects.toThrow(AGENT_CREDENTIALS_CONFLICT_MESSAGE)
+        expect(api.commit).not.toHaveBeenCalled()
+        expect(api.adopt).not.toHaveBeenCalled()
+    })
+    it("refuses when the head that moved during the commit carries other attachments", async () => {
+        const other = {secret: {slug: "other"}, binding: {type: "env" as const, name: "OTHER"}}
+        const moved = {
+            ...head,
+            id: "rev-moved",
+            data: {
+                parameters: {
+                    agent: {
+                        ...head.data.parameters.agent,
+                        sandbox: {kind: "daytona", credentials: [other]},
+                    },
+                },
+            },
+        }
+        api.retrieve.mockResolvedValueOnce(base).mockResolvedValueOnce(moved)
+        api.commit.mockRejectedValueOnce(conflict())
+        await expect(
+            store.set(commitAgentCredentialsAtom, {revisionId: "rev-1", bindings}),
+        ).rejects.toThrow(AGENT_CREDENTIALS_CONFLICT_MESSAGE)
+        expect(api.commit).toHaveBeenCalledTimes(1)
+    })
+    it("treats a 409 without the conflict code as a plain failure", async () => {
+        api.commit.mockRejectedValue(
+            Object.assign(new Error("Status code: 409"), {statusCode: 409, body: "<html>"}),
+        )
+        await expect(
+            store.set(commitAgentCredentialsAtom, {revisionId: "rev-1", bindings}),
+        ).rejects.toThrow("Status code: 409")
+        expect(api.commit).toHaveBeenCalledTimes(1)
+    })
+    it("does not carry an in-flight draft onto a revision built on a newer head", async () => {
+        api.retrieve.mockResolvedValue(head)
+        api.commit.mockImplementation(async ({workflow_revision}) => {
+            store.set(workflowDraftAtomFamily("rev-1"), {
+                data: {parameters: {agent: {instructions: "Typed while saving"}}},
+            } as never)
+            return {workflow_revision: {...head, ...workflow_revision, id: "rev-2"}}
+        })
+        await store.set(commitAgentCredentialsAtom, {revisionId: "rev-1", bindings})
+        expect(store.get(workflowDraftAtomFamily("rev-2"))).toBeNull()
     })
     it("does not commit or consume unrelated unsaved edits", async () => {
         store.set(workflowIsDirtyAtomFamily("rev-1") as ReturnType<typeof atom<boolean>>, true)

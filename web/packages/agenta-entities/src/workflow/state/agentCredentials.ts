@@ -20,15 +20,22 @@ import {
     invalidateWorkflowRevisionsByVariantCache,
 } from "./store"
 
-/** The message the drawer shows when the head moved twice in a row. Names the fix. */
+/** The message the drawer shows when the attachments changed under it. Names the fix. */
 export const AGENT_CREDENTIALS_CONFLICT_MESSAGE =
-    "This agent changed while the secret was being attached. Reload the configuration and attach it again."
+    "This agent's secret attachments changed while you were editing them. Reload the configuration and attach again."
 
 const isRevisionConflict = (error: unknown): boolean => {
     const candidate = error as {statusCode?: number; body?: unknown} | null
     if (candidate?.statusCode !== 409) return false
     const detail = (candidate.body as {detail?: {code?: string}} | undefined)?.detail
-    return !detail || detail.code === "revision_conflict"
+    return detail?.code === "revision_conflict"
+}
+
+const credentialsOf = (revision: Pick<Workflow, "data">): unknown => {
+    const parameters = revision.data?.parameters as Record<string, unknown> | undefined
+    const agent = parameters?.agent as Record<string, unknown> | undefined
+    const sandbox = agent?.sandbox as Record<string, unknown> | undefined
+    return sandbox?.credentials ?? []
 }
 
 /** The revision data with only the credentials replaced. Every other field rides along. */
@@ -63,7 +70,9 @@ const withCredentials = (
 // The commit anchors on the variant HEAD, not on the revision the panel displays. A secret
 // attachment touches only `agent.sandbox.credentials`, so building it on the head keeps every
 // newer edit and never fails because the panel sat on an older revision (#6734). The displayed
-// revision only names the variant and gates on unsaved edits.
+// revision names the variant, gates on unsaved edits, and supplies the attachments the user
+// was looking at: the callers send the full list, so a head whose attachments differ from
+// the displayed ones would be overwritten. That case asks for a reload instead.
 export const commitAgentCredentialsAtom = atom(
     null,
     async (
@@ -85,13 +94,19 @@ export const commitAgentCredentialsAtom = atom(
                 () => null,
             )
 
-        const commitOn = async (base: Pick<Workflow, "id" | "data">) => {
+        const displayedCredentials = credentialsOf(entity)
+        const commitOn = async (base: Pick<Workflow, "id" | "data" | "workflow_id">) => {
+            if (base.id !== revisionId && !isEqual(credentialsOf(base), displayedCredentials)) {
+                // Someone attached, edited, or removed a secret since the panel loaded. The
+                // caller's list would silently undo that, so the user reviews it first.
+                throw new Error(AGENT_CREDENTIALS_CONFLICT_MESSAGE)
+            }
             const data = withCredentials(base, bindings)
             try {
                 const response = await getWorkflowsClient().commitWorkflowRevision(
                     {
                         workflow_revision: {
-                            workflow_id: entity.workflow_id,
+                            workflow_id: base.workflow_id ?? entity.workflow_id,
                             workflow_variant_id: variantId,
                             base_revision_id: base.id,
                             data,
@@ -108,14 +123,16 @@ export const commitAgentCredentialsAtom = atom(
                 if (!revision) {
                     throw new Error("The server did not return the saved agent revision.")
                 }
-                return {revision, conflict: false as const}
+                return {revision, conflict: false as const, base: base.id}
             } catch (error) {
-                if (isRevisionConflict(error)) return {revision: null, conflict: true as const}
+                if (isRevisionConflict(error)) {
+                    return {revision: null, conflict: true as const, base: base.id}
+                }
                 // A lost response may hide a successful commit. Recover only the exact intended
                 // configuration; a different head must be reviewed, never silently overwritten.
                 const latest = await readHead()
                 if (!latest || latest.id === base.id || !isEqual(latest.data, data)) throw error
-                return {revision: latest, conflict: false as const}
+                return {revision: latest, conflict: false as const, base: base.id}
             }
         }
 
@@ -136,7 +153,11 @@ export const commitAgentCredentialsAtom = atom(
         primeWorkflowRevisionDetailCacheImperative(revision)
         primeCommittedRevisionRefLists(revision)
         invalidateWorkflowRevisionsByVariantCache(variantId)
-        const concurrentDraft = get(workflowDraftAtomFamily(revisionId))
+        // Edits typed during the request live on the displayed revision's draft. Carry them to
+        // the adopted revision only when it was built on that same revision: copied onto a
+        // newer head they would revert the head's other fields locally.
+        const concurrentDraft =
+            outcome.base === revisionId ? get(workflowDraftAtomFamily(revisionId)) : null
         if (concurrentDraft) {
             // Preserve edits typed while the binding request was in flight on the adopted revision.
             const draftParameters = concurrentDraft.data?.parameters as

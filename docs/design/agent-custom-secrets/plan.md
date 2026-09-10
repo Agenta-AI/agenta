@@ -163,10 +163,14 @@ displays. The server rejects any base that is not the head. When the panel shows
 revision, every attach fails, and the drawer prints the raw wire error.
 
 Change: the commit reads the variant head first and builds the bindings-only revision on
-top of the head's data. The displayed revision only supplies the variant id and the dirty
-check. If the head moves between the read and the commit, the atom re-reads once and
-retries. A second conflict raises a plain message that names the fix. The lost-response
-recovery stays.
+top of the head's data. The displayed revision supplies the variant id, the dirty check,
+and the attachments the user was looking at. When the head's attachments differ from
+those, the atom refuses with a plain message and the user reloads, because the callers
+send the full list and a commit would undo the other change. This keeps the review rule
+from step 4 of the request flow above. If the head moves between the read and the commit,
+the atom re-reads once and retries under the same rule. Edits typed during the request are
+carried to the adopted revision only when it was built on the displayed revision. The
+lost-response recovery stays.
 
 Acceptance: with the panel on an older revision and a newer head, attach succeeds and the
 panel adopts the new head. The unit suite in

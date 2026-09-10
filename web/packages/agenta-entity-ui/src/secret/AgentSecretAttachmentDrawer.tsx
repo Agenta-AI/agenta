@@ -145,7 +145,13 @@ export function AgentSecretAttachmentDrawer({
         if (!open) return
         // The vault query keeps a live subscriber for the whole page, so nothing refetches it on
         // its own; a secret created in Settings or another tab stays invisible until a reload.
+        // `refetchVault` is keyed on the query result and changes identity on every fetch, so
+        // it must stay out of the deps or this effect refetches forever.
         refetchVault()
+    }, [open])
+
+    useEffect(() => {
+        if (!open) return
         const original = editingBinding?.value
         const initialSlug = original?.secret.slug ?? ""
         const initialSecret = textSecrets.find((secret) => secret.slug === initialSlug)

@@ -26,8 +26,10 @@ printing secret values.
   environment owners retain their values and policies.
 - Missing, deleted, wrong-project, wrong-kind, empty, and unreadable secrets fail before
   harness execution. API writes enforce the same permission rule as the editor.
-- A moved `base_revision_id` produces a conflict without overwriting another edit. Retry
-  confirms the selected binding against the current revision.
+- An attachment commits on the variant head, whatever revision the panel shows, and keeps
+  the head's other fields. If the head's attachments differ from the ones the panel showed,
+  or the head moves twice during the commit, the drawer asks for a reload instead of
+  overwriting them.
 
 ## Card completion and recovery
 
