@@ -47,7 +47,9 @@ def test_grouping_requires_a_selection_rule(request_model, prefix):
 
 @pytest.mark.parametrize(("request_model", "prefix"), REQUEST_MODELS)
 def test_grouping_rejects_windowing(request_model, prefix):
-    with pytest.raises(ValidationError, match="grouping cannot be combined with windowing"):
+    with pytest.raises(
+        ValidationError, match="grouping cannot be combined with windowing"
+    ):
         request_model.model_validate(
             {
                 f"{prefix}_refs": [{"id": str(uuid4())}],
