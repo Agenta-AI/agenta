@@ -132,7 +132,7 @@ export const ListTable = <Row,>({
                 ) : isEmpty ? (
                     empty
                 ) : (
-                    groups.map((group) => {
+                    groups.map((group, groupIndex) => {
                         const collapsed = collapsedKeys?.has(group.key) ?? false
                         return (
                             // A box per group, not a Fragment: `sticky` is bounded by the
@@ -142,7 +142,14 @@ export const ListTable = <Row,>({
                             // of the flow. A box per group makes each heading hand off to the
                             // next as its own run ends. Layout is unchanged: every row is its own
                             // grid, and this parent is a plain block either way.
-                            <div key={group.key}>
+                            <div
+                                key={group.key}
+                                // The sticky header drops its own bottom margin (a gap there
+                                // would let rows show through as they pass under), so the first
+                                // run pays it back as padding instead — without it the first
+                                // row's hover fill sits flush on the header's rule.
+                                className={cn(stickyHeader && groupIndex === 0 && "pt-1")}
+                            >
                                 {group.label === null ? null : onToggleGroup ? (
                                     <button
                                         type="button"
