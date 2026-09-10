@@ -387,6 +387,64 @@ def _attachment_payload():
     )
 
 
+#: The login the hosted-subscription golden carries. Not a credential: every value is a literal.
+_SUBSCRIPTION_LOGIN = {
+    "type": "oauth",
+    "access": "access-token",
+    "refresh": "refresh-token",
+    "expires": 1789000000000,
+    "accountId": "acct-1",
+}
+
+
+def _subscription_connection_payload():
+    """A Pi run authenticated by a hosted subscription instead of an API key.
+
+    The harness still owns authentication (``runtime_provided``, no credentials), and Agenta
+    delivers the login it signs in with. This is the only wire shape that carries a login, so
+    the golden is the anchor the runner's own mirror is asserted against.
+    """
+    from agenta.sdk.agents.connections import Connection, ResolvedSubscription
+    from agenta.sdk.agents.dtos import ModelRef
+
+    config = PiAgentTemplate(
+        agents_md="You are a helpful assistant.",
+        model="openai-codex/gpt-5.5",
+        model_ref=ModelRef(
+            model="gpt-5.5",
+            provider="openai-codex",
+            connection=Connection(mode="self_managed", slug="chatgpt"),
+        ),
+        resolved_connection=ResolvedConnection(
+            provider="openai-codex",
+            model="gpt-5.5",
+            credential_mode="runtime_provided",
+            subscription=ResolvedSubscription(
+                id="0199-secret-id",
+                slug="chatgpt",
+                provider="chatgpt",
+                version=3,
+                generation=1,
+                login=dict(_SUBSCRIPTION_LOGIN),
+            ),
+        ),
+    )
+    return request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        session_id=None,
+    )
+
+
+def test_request_to_wire_subscription_connection_matches_golden(golden):
+    """The hosted-subscription run's whole payload, login included (contracts section 1)."""
+    payload = _subscription_connection_payload()
+    assert payload == golden("run_request.subscription_connection.json")
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+
 def test_request_to_wire_gateway_connection_matches_golden(golden):
     """The connection run's whole payload, including ``gatewayPolicy`` (contracts section 5)."""
     payload = _gateway_connection_payload()
@@ -429,6 +487,10 @@ def test_request_to_wire_omits_gateway_policy_without_a_connection(golden):
         ("run_request.claude.json", _claude_payload()),
         ("run_request.codex.json", _codex_payload()),
         ("run_request.attachment.json", _attachment_payload()),
+        (
+            "run_request.subscription_connection.json",
+            _subscription_connection_payload(),
+        ),
     ):
         assert "gatewayPolicy" not in payload
         assert "gatewayPolicy" not in golden(name)
@@ -1192,6 +1254,41 @@ def test_request_to_wire_carries_consumer_owned_model_connection():
         "credentialMode",
     ):
         assert removed not in payload
+
+
+def test_request_to_wire_carries_the_hosted_subscription_block():
+    # A hosted subscription run: the harness still owns authentication (runtime_provided, no
+    # credentials), and Agenta delivers the login the harness signs in with.
+    login = dict(_SUBSCRIPTION_LOGIN)
+    payload = _subscription_connection_payload()
+
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["model"] == "openai-codex/gpt-5.5"
+    # The author's choice still rides `connection`; the resolved login rides `modelConnection`.
+    assert payload["connection"] == {"mode": "self_managed", "slug": "chatgpt"}
+    assert payload["modelConnection"] == {
+        "provider": "openai-codex",
+        "deployment": "direct",
+        "credentialMode": "runtime_provided",
+        "credentials": [],
+        "subscription": {
+            "id": "0199-secret-id",
+            "slug": "chatgpt",
+            "provider": "chatgpt",
+            "version": 3,
+            "generation": 1,
+            "login": login,
+        },
+    }
+    # The schema must describe what the producer emits, or the runner mirror drifts. The login is
+    # a typed model, so a producer that dropped one of its four required fields fails right here.
+    parsed = WireRunRequest.model_validate(payload)
+    assert parsed.model_connection is not None
+    subscription = parsed.model_connection.subscription
+    assert subscription is not None
+    assert subscription.version == 3
+    assert subscription.generation == 1
+    assert subscription.login.model_dump(by_alias=True) == login
 
 
 @pytest.mark.parametrize(

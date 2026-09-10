@@ -3,9 +3,10 @@
  *
  * The contexts differ in what they can honestly show. Settings has a connections table beside the
  * drawer, so the drawer is the catalog and nothing else. The agent playground has no such table
- * and a harness runtime underneath it, so it gets Connected above the catalog and Subscriptions
- * below. The completion playground has the table's problem but not the runtime — a completion runs
- * no harness — so it gets Connected and drops Subscriptions.
+ * and a harness runtime underneath it, so it gets Connected above the catalog, and below it the
+ * hosted ChatGPT sign-in and the deployment's mounted Subscriptions. The completion playground has
+ * the table's problem but not the runtime — a completion runs no harness — so it gets Connected
+ * and drops both subscription blocks.
  *
  * Structure: everything is pinned except the catalog. Connected, Subscriptions, and the footer
  * hold their place while the catalog absorbs all spare height, which is what keeps the footer off
@@ -19,6 +20,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
+    isSubscriptionConnection,
     SecretManagementPolicy,
     type ProviderCatalogEntry,
     type ProviderConnection,
@@ -40,6 +42,7 @@ import {
 } from "./PlaygroundProviderSections"
 import ProviderCatalogList from "./ProviderCatalogList"
 import ProviderConnectionCard, {type ProviderCardSaveState} from "./ProviderConnectionCard"
+import SubscriptionConnectionCard from "./SubscriptionConnectionCard"
 import SubscriptionPairCard, {type SubscriptionPairCardSaveState} from "./SubscriptionPairCard"
 
 /**
@@ -131,20 +134,23 @@ const ProviderDrawer = ({
     width = DRAWER_WIDTH,
 }: ProviderDrawerProps) => {
     const [view, setView] = useState<DrawerView>({level: "catalog"})
-    /**
-     * The connections the user actually connected. A manager-only one is not editable
-     * — saving it answers 409 — so it is neither counted nor listed, the same rule the Settings
-     * table applies. It stays in the `connections` prop the card reads, and in the callers' own
-     * lists, so the model picker and the "Connect key" gate keep counting it.
-     */
+    // Only what this card can edit: a manager-only connection 409s on save, and a subscription's
+    // credential is a sign-in. Both stay in `connections`, so the picker still counts them.
     const userConnections = useMemo(
         () =>
             connections.filter(
-                (candidate) => candidate.managementPolicy !== SecretManagementPolicy.ManagerOnly,
+                (candidate) =>
+                    candidate.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
+                    !isSubscriptionConnection(candidate),
             ),
         [connections],
     )
     const visibleCount = userConnections.length
+    // One per project, so the first is it. Null still renders the card: it carries the Connect verb.
+    const hostedSubscription = useMemo(
+        () => connections.find(isSubscriptionConnection) ?? null,
+        [connections],
+    )
     const settingsHref = useSettingsHref()
     // The card owns the save; the footer that triggers it lives out here, so the card publishes
     // what it needs. Cleared on every level change — the next card publishes its own.
@@ -176,7 +182,8 @@ const ProviderDrawer = ({
     const isSettings = context === "settings"
     const showConnected = !isSettings
     // Only the agent playground runs a harness, so only it can offer a subscription.
-    const showSubscriptionRows = context === "playground" && showSubscriptions
+    const isPlayground = context === "playground"
+    const showSubscriptionRows = isPlayground && showSubscriptions
 
     const backButton = (
         <button
@@ -348,10 +355,16 @@ const ProviderDrawer = ({
                         label={isSettings ? undefined : "Add a provider"}
                         hint={isSettings ? undefined : "several connections per provider are fine"}
                     />
-                    {showSubscriptionRows ? (
+                    {/* `showSubscriptions` gates the MOUNTED rows only: a deployment that mounts
+                        nothing still runs a hosted subscription. */}
+                    {isPlayground ? (
                         <PlaygroundSubscriptionsSection
                             subscriptionDocsUrl={subscriptionDocsUrl}
                             onSelectPair={(pair) => showView({level: "subscription", pair})}
+                            hostedCard={
+                                <SubscriptionConnectionCard connection={hostedSubscription} />
+                            }
+                            showMounted={showSubscriptionRows}
                         />
                     ) : null}
                 </>

@@ -243,7 +243,10 @@ export function fakeHarness(options: FakeOptions = {}) {
     buildDaemonEnv: (agent, daemonOptions) => {
       calls.daemonAgent = agent;
       calls.daemonOptions = daemonOptions;
-      return {};
+      // The real `buildDaemonEnv` always names a pi command, and a local subscription run wraps
+      // it to deliver its own system prompts. A double that returned `{}` would fail every such
+      // run on the prompt-channel gate.
+      return { PI_ACP_PI_COMMAND: "/bin/pi" };
     },
     resolveDaemonBinary: () => "/bin/sandbox-agent",
     buildSandboxProvider: (...args: unknown[]) => {

@@ -458,6 +458,9 @@ services:
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
+            # Where the runner keeps state that must outlive a container recreate: the per-connection
+            # copy of a hosted subscription login (Pi rotates the refresh token on every exchange).
+            AGENTA_RUNNER_STATE_DIR: /var/lib/agenta/runner-state
             AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: ${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}
             AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: ${AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER:-local}
             # Worst-case turn duration. Keep AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS (API) above it
@@ -492,6 +495,7 @@ services:
             # token must persist back to the host login (a copy would discard it).
             - ${HOME}/.pi/agent:/pi-agent:rw
         # === NETWORK ============================================== #
+            - runner-state:/var/lib/agenta/runner-state
         networks:
             - agenta-network
         # === RUNTIME ============================================== #
@@ -805,6 +809,7 @@ networks:
     agenta-network:
 
 volumes:
+    runner-state:
     postgres-data:
     redis-volatile-data:
     redis-durable-data:

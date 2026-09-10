@@ -1,3 +1,4 @@
+from functools import wraps
 from uuid import UUID
 from typing import List
 
@@ -20,6 +21,26 @@ from oss.src.core.secrets.dtos import (
 )
 from oss.src.core.secrets.managed import ManagedSecretReadOnlyError
 from oss.src.core.secrets.redaction import project_secret_response
+from oss.src.core.secrets.subscription_service import (
+    SubscriptionLoginAttemptView,
+    SubscriptionLoginService,
+)
+from oss.src.core.secrets.types import (
+    ServerOwnedFieldNotWritable,
+    SubscriptionLoginAttemptNotFound,
+    SubscriptionLoginRunnerNotConfigured,
+    SubscriptionLoginRunnerUnavailable,
+    SubscriptionProviderConflict,
+    SubscriptionSecretNotFound,
+)
+
+from oss.src.apis.fastapi.vault.models import (
+    SubscriptionLoginAttemptResponse,
+    SubscriptionLoginFailureRequest,
+    SubscriptionLoginFailureResponse,
+    SubscriptionLoginPushRequest,
+    SubscriptionLoginPushResponse,
+)
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
@@ -38,6 +59,55 @@ else:  # OSS seeds no managed connection, so there is nothing to reconcile.
 
     async def reconcile_starter_credits_on_read(*, project_id, secrets):  # type: ignore[misc]
         return None
+
+
+def handle_subscription_exceptions():
+    """Turn the subscription domain failures into their HTTP answers.
+
+    The runner hop has two distinct outcomes on purpose. Not configured is this
+    deployment's own gap and stays a 503. Unreachable or refusing is an upstream failure
+    and is a 502, so a caller can tell "sign-in is not available here" from "the runner is
+    down right now".
+    """
+
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except (SubscriptionSecretNotFound, SubscriptionLoginAttemptNotFound) as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=e.message,
+                ) from e
+            except SubscriptionLoginRunnerNotConfigured as e:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=e.message,
+                ) from e
+            except SubscriptionLoginRunnerUnavailable as e:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=e.message,
+                ) from e
+
+        return wrapper
+
+    return decorator
+
+
+def _attempt_response(view: SubscriptionLoginAttemptView):
+    # Named field by field, not spread: a field added to the view never reaches a browser
+    # by accident, and adding one here is a deliberate edit to this boundary.
+    return SubscriptionLoginAttemptResponse(
+        attempt_id=view.attempt_id,
+        state=view.state,
+        user_code=view.user_code,
+        verification_uri=view.verification_uri,
+        expires_at=view.expires_at,
+        poll_after_ms=view.poll_after_ms,
+        error=view.error,
+    )
 
 
 class SecretSafeRoute(APIRoute):
@@ -75,8 +145,10 @@ class VaultRouter:
     def __init__(
         self,
         vault_service: VaultService,
+        subscription_login_service: SubscriptionLoginService,
     ):
         self.service = vault_service
+        self.subscription_login_service = subscription_login_service
 
         self.router = APIRouter(route_class=SecretSafeRoute)
 
@@ -113,6 +185,43 @@ class VaultRouter:
             response_model=PublicSecretResponseDTO,
         )
         self.router.add_api_route(
+            "/secrets/{secret_id}/login-attempts",
+            self.start_subscription_login,
+            methods=["POST"],
+            operation_id="start_subscription_login",
+            response_model=SubscriptionLoginAttemptResponse,
+        )
+        self.router.add_api_route(
+            "/secrets/{secret_id}/login-attempts/{attempt_id}",
+            self.read_subscription_login,
+            methods=["GET"],
+            operation_id="read_subscription_login",
+            response_model=SubscriptionLoginAttemptResponse,
+        )
+        self.router.add_api_route(
+            "/secrets/{secret_id}/login-attempts/{attempt_id}/cancel",
+            self.cancel_subscription_login,
+            methods=["POST"],
+            operation_id="cancel_subscription_login",
+            response_model=SubscriptionLoginAttemptResponse,
+        )
+        self.router.add_api_route(
+            "/secrets/{secret_id}/subscription-login",
+            self.push_subscription_login,
+            methods=["POST"],
+            operation_id="push_subscription_login",
+            response_model=SubscriptionLoginPushResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/secrets/{secret_id}/subscription-login/failure",
+            self.report_subscription_login_failure,
+            methods=["POST"],
+            operation_id="report_subscription_login_failure",
+            response_model=SubscriptionLoginFailureResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
             "/secrets/{secret_id}",
             self.delete_secret,
             status_code=status.HTTP_204_NO_CONTENT,
@@ -135,6 +244,27 @@ class VaultRouter:
             reveal_write_only=request_has_grant(request, SECRET_RESOLVE_GRANT),
         )
 
+    @staticmethod
+    def _require_platform_runtime(request: Request) -> None:
+        """Refuse a caller that is not the run's own credential.
+
+        Both login-upkeep routes answer a stale call with the STORED login in plaintext, so
+        they read a write-only value the way `_for_caller` does. RUN_SESSIONS plus
+        USE_MOUNTS is a pair an ordinary editor holds, and permissions alone would hand that
+        editor the access and refresh tokens. The `secret-resolve` grant rides only the
+        Secret token the platform mints for a run (`core/workflows/service.py`), which is the
+        same credential the run's own vault read uses, so a real subscription run keeps
+        working and nobody else reaches these routes.
+        """
+        if not request_has_grant(request, SECRET_RESOLVE_GRANT):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "You do not have access to perform this action. Please contact "
+                    "your organization admin."
+                ),
+            )
+
     @intercept_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
         has_permission = await check_action_access(
@@ -150,10 +280,20 @@ class VaultRouter:
                 status_code=403,
             )
 
-        vault_secret = await self.service.create_secret(
-            project_id=UUID(request.state.project_id),
-            create_secret_dto=body,
-        )
+        try:
+            vault_secret = await self.service.create_secret(
+                project_id=UUID(request.state.project_id),
+                create_secret_dto=body,
+            )
+        except SubscriptionProviderConflict as e:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=e.message
+            ) from e
+        except ServerOwnedFieldNotWritable as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.message
+            ) from e
+
         return self._for_caller(request, vault_secret)
 
     @intercept_exceptions()
@@ -275,6 +415,10 @@ class VaultRouter:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=e.message
             ) from e
+        except ServerOwnedFieldNotWritable as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.message
+            ) from e
         if secrets_dto is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
@@ -306,3 +450,110 @@ class VaultRouter:
                 status_code=status.HTTP_409_CONFLICT, detail=e.message
             ) from e
         return status.HTTP_204_NO_CONTENT
+
+    async def _require(self, request: Request, *permissions: Permission) -> None:
+        for permission in permissions:
+            has_permission = await check_action_access(
+                user_uid=str(request.state.user_id),
+                project_id=str(request.state.project_id),
+                permission=permission,
+            )
+            if not has_permission:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=(
+                        "You do not have access to perform this action. Please contact "
+                        "your organization admin."
+                    ),
+                )
+
+    @intercept_exceptions()
+    @handle_subscription_exceptions()
+    async def start_subscription_login(self, request: Request, secret_id: UUID):
+        await self._require(request, Permission.EDIT_SECRET)
+
+        view = await self.subscription_login_service.start_attempt(
+            project_id=UUID(request.state.project_id),
+            secret_id=secret_id,
+            user_id=UUID(str(request.state.user_id)),
+        )
+        return _attempt_response(view)
+
+    @intercept_exceptions()
+    @handle_subscription_exceptions()
+    async def read_subscription_login(
+        self,
+        request: Request,
+        secret_id: UUID,
+        attempt_id: str,
+    ):
+        await self._require(request, Permission.EDIT_SECRET)
+
+        view = await self.subscription_login_service.read_attempt(
+            project_id=UUID(request.state.project_id),
+            secret_id=secret_id,
+            attempt_id=attempt_id,
+            user_id=UUID(str(request.state.user_id)),
+        )
+        return _attempt_response(view)
+
+    @intercept_exceptions()
+    @handle_subscription_exceptions()
+    async def cancel_subscription_login(
+        self,
+        request: Request,
+        secret_id: UUID,
+        attempt_id: str,
+    ):
+        await self._require(request, Permission.EDIT_SECRET)
+
+        view = await self.subscription_login_service.cancel_attempt(
+            project_id=UUID(request.state.project_id),
+            secret_id=secret_id,
+            attempt_id=attempt_id,
+            user_id=UUID(str(request.state.user_id)),
+        )
+        return _attempt_response(view)
+
+    @intercept_exceptions()
+    @handle_subscription_exceptions()
+    async def push_subscription_login(
+        self,
+        request: Request,
+        secret_id: UUID,
+        body: SubscriptionLoginPushRequest,
+    ):
+        # The caller here is the run's own credential, not an editor, so this is the pair
+        # the mount sign route uses rather than EDIT_SECRET. The grant is what proves the
+        # caller IS that credential; a stale answer carries the stored login.
+        self._require_platform_runtime(request)
+        await self._require(request, Permission.RUN_SESSIONS, Permission.USE_MOUNTS)
+
+        result = await self.subscription_login_service.push_login(
+            project_id=UUID(request.state.project_id),
+            secret_id=secret_id,
+            login=body.login,
+            version=body.version,
+            generation=body.generation,
+        )
+        return SubscriptionLoginPushResponse(**result.model_dump())
+
+    @intercept_exceptions()
+    @handle_subscription_exceptions()
+    async def report_subscription_login_failure(
+        self,
+        request: Request,
+        secret_id: UUID,
+        body: SubscriptionLoginFailureRequest,
+    ):
+        self._require_platform_runtime(request)
+        await self._require(request, Permission.RUN_SESSIONS, Permission.USE_MOUNTS)
+
+        result = await self.subscription_login_service.report_login_failure(
+            project_id=UUID(request.state.project_id),
+            secret_id=secret_id,
+            version=body.version,
+            generation=body.generation,
+            reason=body.reason,
+        )
+        return SubscriptionLoginFailureResponse(**result.model_dump())

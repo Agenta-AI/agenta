@@ -29,7 +29,11 @@ from oss.src.core.providers.exceptions import (
 from oss.src.core.providers.service import ProviderProbeService
 from oss.src.core.secrets.managed import SecretManagementDTO, SecretManager
 from oss.src.core.secrets.enums import SecretKind
-from oss.src.core.secrets.redaction import PRIMARY_CREDENTIAL_FIELDS
+from oss.src.core.secrets.redaction import (
+    CREDENTIAL_FIELD_KINDS,
+    DATA_CREDENTIAL_FIELDS,
+    PRIMARY_CREDENTIAL_FIELDS,
+)
 
 
 CANARY = "sk-CANARY-DO-NOT-LEAK-abc123"
@@ -1158,7 +1162,10 @@ def test_a_bedrock_connection_probes_with_its_stored_extras_credential(
 
 
 def test_every_secret_kind_has_a_credential_location():
-    assert set(PRIMARY_CREDENTIAL_FIELDS) == {kind.value for kind in SecretKind}
+    # A kind names its credential in the container map or in the data map, never in both
+    # and never in neither: a kind in neither is a kind nothing redacts.
+    assert CREDENTIAL_FIELD_KINDS == {kind.value for kind in SecretKind}
+    assert not set(PRIMARY_CREDENTIAL_FIELDS) & set(DATA_CREDENTIAL_FIELDS)
 
 
 @pytest.mark.parametrize("path", ["/providers/probe", "/vault/v1/providers/probe"])

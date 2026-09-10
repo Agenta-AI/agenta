@@ -8,6 +8,8 @@ import pytest
 
 from oss.src.apis.fastapi.vault import router as vault_router
 from oss.src.core.secrets.dtos import SecretResponseDTO
+from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
+from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 
 
 PROJECT_ID = uuid4()
@@ -51,7 +53,18 @@ def route(monkeypatch):
 
     monkeypatch.setattr(vault_router, "check_action_access", allowed)
     monkeypatch.setattr(vault_router, "request_has_grant", lambda request, grant: False)
-    return vault_router.VaultRouter
+
+    def build(service):
+        # The router as the entrypoint wires it, with a runner client nothing here calls.
+        return vault_router.VaultRouter(
+            vault_service=service,
+            subscription_login_service=SubscriptionLoginService(
+                vault_service=service,
+                runner_client=SubscriptionLoginRunnerClient(base_url="", token=""),
+            ),
+        )
+
+    return build
 
 
 @pytest.mark.asyncio

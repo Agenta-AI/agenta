@@ -14,9 +14,24 @@ from agenta.sdk.agents.connections import (
     ModelRef,
     ProviderMismatchError,
     RuntimeAuthContext,
+    SubscriptionConnectionMissingError,
+    SubscriptionLoginRequiredError,
+    SubscriptionNotSupportedError,
 )
 from agenta.sdk.agents.platform import PlatformConnection, VaultConnectionResolver
 from agenta.sdk.agents.platform import connections
+
+
+# The login shape Pi writes, carried verbatim through the vault.
+_READY_LOGIN = {
+    "type": "oauth",
+    "access": "access-token",
+    "refresh": "refresh-token",
+    "expires": 1789000000000,
+    "accountId": "acct-1",
+}
+# Distinguishes "the test passed no login" from "the test passed None on purpose".
+_SENTINEL_LOGIN: dict = {"sentinel": True}
 
 
 def _credential_environment(resolved) -> dict[str, str]:
@@ -1229,3 +1244,166 @@ def test_a_slugged_custom_record_keeps_its_model_key_namespace():
 
     assert candidate.slug == "my-bedrock-abcdef123456"
     assert candidate.model_keys == {"my-bedrock/bedrock/anthropic.claude-3"}
+
+
+# ------------------------------------------------ hosted subscription (self_managed + slug)
+
+
+def _subscription_secret(
+    *,
+    slug: str = "chatgpt",
+    state: str = "ready",
+    login: dict | None = _SENTINEL_LOGIN,
+) -> dict:
+    """A `subscription_provider` record as the vault returns it WITH the resolve grant."""
+    return {
+        "id": "0199-secret-id",
+        "slug": slug,
+        "kind": "subscription_provider",
+        "header": {"name": "ChatGPT"},
+        "data": {
+            "provider": "chatgpt",
+            "harnesses": ["pi_core"],
+            "models": ["gpt-5.5"],
+            "login": _READY_LOGIN if login is _SENTINEL_LOGIN else login,
+            "login_version": 3,
+            "login_generation": 1,
+            "login_state": state,
+        },
+    }
+
+
+def _subscription_model(slug: str | None = "chatgpt") -> ModelRef:
+    connection: dict = {"mode": "self_managed"}
+    if slug is not None:
+        connection["slug"] = slug
+    return ModelRef(provider="openai-codex", model="gpt-5.5", connection=connection)
+
+
+async def test_subscription_resolves_to_runtime_provided_with_the_login(
+    fake_http, connection
+):
+    capture = fake_http(connections, payload=[_subscription_secret()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_subscription_model(), context=_context()
+    )
+
+    # The harness still owns authentication, so nothing is bound to an env var.
+    assert resolved.credential_mode == "runtime_provided"
+    assert resolved.credentials == []
+    assert resolved.environment == {}
+    # Pi reaches the ChatGPT subscription under its own provider family.
+    assert resolved.provider == "openai-codex"
+    assert resolved.model == "gpt-5.5"
+    assert resolved.subscription is not None
+    assert resolved.subscription.id == "0199-secret-id"
+    assert resolved.subscription.slug == "chatgpt"
+    assert resolved.subscription.provider == "chatgpt"
+    assert resolved.subscription.version == 3
+    assert resolved.subscription.generation == 1
+    assert resolved.subscription.login == _READY_LOGIN
+    # A named self-managed connection reads the vault, exactly like an `agenta` one.
+    assert capture["method"] == "GET"
+    assert capture["url"] == "https://api.x/api/secrets/"
+
+
+@pytest.mark.parametrize("harness", ["codex", "claude_code", None])
+async def test_a_subscription_on_another_harness_fails_loud(
+    fake_http, connection, harness
+):
+    """Only Pi can consume the ChatGPT login.
+
+    Codex refuses a login file without an `id_token`, which this credential never carries.
+    Handing it over anyway would start a run that authenticates with nothing and reports a
+    provider auth error the person cannot act on.
+    """
+    fake_http(connections, payload=[_subscription_secret()])
+
+    with pytest.raises(SubscriptionNotSupportedError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=ModelRef(
+                provider="openai",
+                model="gpt-5.5",
+                connection={"mode": "self_managed", "slug": "chatgpt"},
+            ),
+            context=RuntimeAuthContext(harness=harness, backend="local"),
+        )
+
+    assert raised.value.status_code == 422
+    assert "Pi harness" in str(raised.value)
+    assert _READY_LOGIN["access"] not in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    "payload_kwargs",
+    [
+        {"state": "pending_login"},
+        {"state": "needs_login"},
+        {"login": None},
+    ],
+    ids=["pending", "needs_login", "no_login"],
+)
+async def test_subscription_without_a_ready_login_fails_loud(
+    fake_http, connection, payload_kwargs
+):
+    fake_http(connections, payload=[_subscription_secret(**payload_kwargs)])
+
+    with pytest.raises(SubscriptionLoginRequiredError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_subscription_model(), context=_context()
+        )
+
+    assert raised.value.failure_code == "subscription_login_required"
+    assert raised.value.status_code == 422
+    assert str(raised.value) == (
+        "The ChatGPT sign-in is not ready. Sign in from AI providers."
+    )
+
+
+async def test_subscription_with_an_unknown_slug_names_the_connection(
+    fake_http, connection
+):
+    """A name the project does not hold is a config problem, not a sign-in problem.
+
+    It used to raise the sign-in error, which sent a user with a typo to the AI providers
+    page to sign in again. No sign-in can fix a name.
+    """
+    fake_http(connections, payload=[_subscription_secret(slug="other")])
+
+    with pytest.raises(SubscriptionConnectionMissingError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_subscription_model(), context=_context()
+        )
+
+    assert raised.value.failure_code == "subscription_connection_missing"
+    assert raised.value.status_code == 422
+    assert str(raised.value) == (
+        "No ChatGPT connection named 'chatgpt'. Check the agent's model connection."
+    )
+    # Not the sign-in error: a client keys its "Sign in again" verb on that one.
+    assert not isinstance(raised.value, SubscriptionLoginRequiredError)
+
+
+async def test_subscription_error_never_names_the_login(fake_http, connection):
+    fake_http(connections, payload=[_subscription_secret(state="needs_login")])
+
+    with pytest.raises(SubscriptionLoginRequiredError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_subscription_model(), context=_context()
+        )
+
+    message = str(raised.value)
+    assert "access-token" not in message
+    assert "refresh-token" not in message
+
+
+async def test_self_managed_without_a_slug_still_skips_the_vault(fake_http):
+    # The mounted-login path is unchanged: no slug, no fetch, no subscription block.
+    resolved = await VaultConnectionResolver(PlatformConnection()).resolve(
+        model=_subscription_model(slug=None), context=_context()
+    )
+
+    assert resolved.credential_mode == "runtime_provided"
+    assert resolved.subscription is None
+    assert resolved.provider == "openai-codex"
