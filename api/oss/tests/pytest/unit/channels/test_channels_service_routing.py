@@ -1756,12 +1756,14 @@ def test_attribution_names_the_sender_by_name_username_or_id():
     from oss.src.core.channels.service import _attribution_part
 
     assert _attribution_part(
-        {"id": 8883745180, "name": "Sara Ahmed", "username": "sara"},
+        {"id": 1000001, "name": "Test User", "username": "testuser"},
         channel="telegram_hosted",
-    ) == {"type": "text", "text": "From Sara Ahmed (@sara, Telegram id 8883745180):"}
-    assert _attribution_part({"id": 42, "username": "sara"}, channel="telegram") == {
+    ) == {"type": "text", "text": "From Test User (@testuser, Telegram id 1000001):"}
+    assert _attribution_part(
+        {"id": 42, "username": "testuser"}, channel="telegram"
+    ) == {
         "type": "text",
-        "text": "From @sara (Telegram id 42):",
+        "text": "From @testuser (Telegram id 42):",
     }
     assert _attribution_part({"id": "U1"}, channel="slack") == {
         "type": "text",

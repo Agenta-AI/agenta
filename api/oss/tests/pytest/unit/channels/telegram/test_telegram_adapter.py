@@ -614,9 +614,9 @@ async def test_parse_event_keeps_the_senders_name_and_username():
                 "from": {
                     "id": 8883745180,
                     "is_bot": False,
-                    "first_name": "Sara",
-                    "last_name": "Ahmed",
-                    "username": "sara",
+                    "first_name": "Test",
+                    "last_name": "User",
+                    "username": "testuser",
                 },
                 "text": "hello",
             },
@@ -625,6 +625,6 @@ async def test_parse_event_keeps_the_senders_name_and_username():
     event = await adapter.parse_event(connection=_connection(), body=body)
     assert event.processed.sender == {
         "id": 8883745180,
-        "name": "Sara Ahmed",
-        "username": "sara",
+        "name": "Test User",
+        "username": "testuser",
     }
