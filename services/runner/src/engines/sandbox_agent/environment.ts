@@ -34,6 +34,10 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { apiBase } from "../../apiBase.ts";
+import {
+  observeSubscription,
+  thrownFields,
+} from "../../subscription-events.ts";
 import { abortableSandboxProvider } from "../../environment/abortable-sandbox-provider.ts";
 import { throwIfAcquireAborted } from "../../environment/acquire-abort.ts";
 
@@ -1524,18 +1528,29 @@ async function acquireEnvironmentOnce(
       environment.subscriptionPublish
     ) {
       const publisher = environment.subscriptionPublisher;
-      const recovery = await recoverSubscriptionAuthFailure({
-        err,
-        subscription: subscriptionForError,
-        state: environment.subscriptionPublish,
-        home: subscriptionHomeForError,
-        isDaytona: plan.isDaytona,
-        sandbox: environment.sandbox as never,
-        api: { apiBase: apiBase(), authorization: runCred, log: logger },
-        ...(publisher ? { publish: publisher.reconcile } : {}),
-        log: logger,
-      });
-      if (recovery?.action === "fail") classified = recovery.classified;
+      try {
+        const recovery = await recoverSubscriptionAuthFailure({
+          err,
+          subscription: subscriptionForError,
+          state: environment.subscriptionPublish,
+          home: subscriptionHomeForError,
+          isDaytona: plan.isDaytona,
+          sandbox: environment.sandbox as never,
+          api: { apiBase: apiBase(), authorization: runCred, log: logger },
+          ...(publisher ? { publish: publisher.reconcile } : {}),
+          log: logger,
+        });
+        if (recovery?.action === "fail") classified = recovery.classified;
+      } catch (recoveryError) {
+        // Recovery is best effort. The original acquire failure still has to reach the caller,
+        // and every resource registered so far still has to be destroyed below.
+        observeSubscription(logger, "subscription.recovery", {
+          connection: subscriptionForError.id,
+          trigger: "acquire",
+          verdict: "threw",
+          ...thrownFields(recoveryError),
+        });
+      }
     }
     const error = classified.message;
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial

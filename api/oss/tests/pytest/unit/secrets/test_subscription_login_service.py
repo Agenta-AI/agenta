@@ -257,6 +257,22 @@ class TestCreateRules:
         with pytest.raises(SubscriptionProviderConflict):
             await _make_secret(vault)
 
+    async def test_a_caller_cannot_replace_the_provider_storage_slug(self, vault):
+        secret = await vault.create_secret(
+            project_id=PROJECT_ID,
+            create_secret_dto=CreateSecretDTO.model_validate(
+                {
+                    "slug": "my-personal-plan",
+                    "header": {"name": "Personal ChatGPT"},
+                    "secret": {"kind": "subscription_provider", "data": {}},
+                }
+            ),
+        )
+
+        assert secret.slug == "chatgpt"
+        assert secret.header.name == "Personal ChatGPT"
+        assert secret.data.provider_slug == "personal-chatgpt"
+
 
 class TestAttemptLifecycle:
     async def test_start_stores_the_attempt_and_hides_the_code_from_the_row_reader(

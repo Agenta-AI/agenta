@@ -32,7 +32,7 @@ import uuid
 
 import httpx
 
-from path_triggers import changed_paths, mandatory_cells
+from path_triggers import changed_paths, mandatory_cells, mandatory_journeys
 
 HERE = pathlib.Path(__file__).resolve().parent
 # Results land in the CURRENT working directory, never inside the skill, so repeated runs do not
@@ -2949,12 +2949,14 @@ def main() -> int:
     # fact, and so a rule naming a cell nobody has written yet fails immediately instead of
     # spending the whole matrix first.
     triggered: dict = {}
+    triggered_journeys: dict = {}
     if args.release_base or args.changed_path:
         paths = list(args.changed_path or [])
         if args.release_base:
             repo = pathlib.Path(args.repo) if args.repo else None
             paths += changed_paths(args.release_base, repo=repo)
         triggered = mandatory_cells(paths)
+        triggered_journeys = mandatory_journeys(paths)
     missing_cells = [
         cell for cell in triggered if cell not in CELLS and not (HERE / cell).exists()
     ]
@@ -2964,6 +2966,15 @@ def main() -> int:
     for cell in triggered:
         if cell in CELLS and cell not in cells:
             cells.append(cell)
+    missing_journeys = [name for name in triggered_journeys if name not in JOURNEYS]
+    if missing_journeys:
+        raise SystemExit(
+            "The release diff makes these journeys mandatory, but they do not exist: "
+            + ", ".join(missing_journeys)
+        )
+    for journey in triggered_journeys:
+        if journey not in journeys:
+            journeys.append(journey)
     if triggered:
         print("Path-scoped rules make these cells MANDATORY for this release:")
         for cell, why in triggered.items():
@@ -2977,6 +2988,13 @@ def main() -> int:
                 )
             )
             print(f"  {cell} ({where})")
+            for path in why:
+                print(f"      because this release changed {path}")
+        print()
+    if triggered_journeys:
+        print("Path-scoped rules make these journeys MANDATORY for this release:")
+        for journey, why in triggered_journeys.items():
+            print(f"  {journey} (added to this run)")
             for path in why:
                 print(f"      because this release changed {path}")
         print()
@@ -3109,6 +3127,14 @@ def main() -> int:
                 "\nThis release is NOT green until every cell above marked "
                 "`run it separately` has a recorded result.\n"
             )
+    if triggered_journeys:
+        (outdir / "mandatory-journeys.json").write_text(
+            json.dumps(triggered_journeys, indent=2)
+        )
+        table += "\n\nMandatory journeys for this release, by path rule:\n\n"
+        table += "| journey | because this release changed |\n|---|---|\n"
+        for journey, why in triggered_journeys.items():
+            table += f"| {journey} | {', '.join(why)} |\n"
     (outdir / "summary.md").write_text(table + "\n")
     print("\n" + table)
     print(f"\nresults: {outdir}")

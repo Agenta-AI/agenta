@@ -547,8 +547,9 @@ class VaultService:
         if not header.name:
             header.name = SUBSCRIPTION_PROVIDER_DISPLAY_NAMES[provider_kind]
 
-        if not create_secret_dto.slug:
-            create_secret_dto.slug = provider_kind.value
+        # This is the storage identity, not the editable display identity. Keeping it canonical
+        # lets the database's (project_id, slug) unique index serialize concurrent creates.
+        create_secret_dto.slug = provider_kind.value
 
         create_secret_dto.secret.data.provider_slug = subscription_provider_slug(
             header.name

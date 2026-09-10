@@ -80,6 +80,9 @@ journey expires the stored login itself and needs the stack for that (`--db-cont
 hide the expiry), and their `dead` journey needs a reachable runner replica (`--runner`). Run
 `dead` LAST:
 proving the failure a user meets means killing the login, and only a person can sign in again.
+For a release that changes subscription login storage or publication, `--release-base` forces the
+`refresh` journey even when `--only` names another journey. A successful chat alone does not prove
+that the rotated login reached the durable vault.
 The `relogin_needed` journey always SKIPs and its reason carries the steps. Full runbook and
 ordering: `resources/coverage.md`.
 

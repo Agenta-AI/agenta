@@ -104,6 +104,28 @@ function runRequest(): AgentRunRequest {
 }
 
 describe("a subscription recovery that throws", () => {
+  it("still destroys an environment when acquire-time recovery throws", async () => {
+    const { calls, deps, logs } = fakeHarness({
+      probeError: new Error("Authentication failed for openai-codex"),
+    });
+
+    const result = await runSandboxAgent(runRequest(), undefined, undefined, deps);
+
+    assert.equal(result.ok, false);
+    assert.equal(calls.sandboxDestroyed, 1, "acquire failure releases the sandbox");
+    assert.equal(calls.sandboxDisposed, 1, "acquire failure disposes the sandbox client");
+    assert.equal(calls.workspaceCleanup, 1, "acquire failure releases the workspace");
+    assert.equal(
+      logs.some((line) =>
+        line.includes("event=subscription.recovery") &&
+        line.includes("trigger=acquire") &&
+        line.includes("verdict=threw")
+      ),
+      true,
+      logs.join("\n"),
+    );
+  });
+
   it("ends the turn with its own error instead of rejecting", async () => {
     const { deps, logs } = fakeHarness({
       // Pi's own words for a login it cannot use, which is what asks for a recovery.
