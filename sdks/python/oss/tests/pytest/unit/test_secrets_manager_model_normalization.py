@@ -147,7 +147,7 @@ def test_slug_path_leaves_a_keyless_record_resolving_to_nothing(resolve):
         ("anthropic", "anthropic/claude-haiku-4-5"),
         ("mistralai", "mistral/mistral-small"),
         ("perplexityai", "perplexity/sonar"),
-        ("openrouter", "openrouter/z-ai/glm-5"),
+        ("openrouter", "openrouter/z-ai/glm-5.2"),
         ("minimax", "minimax/MiniMax-M3"),
         # Bare by design, and it stays bare.
         ("openai", "gpt-4o-mini"),
