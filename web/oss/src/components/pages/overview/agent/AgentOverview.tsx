@@ -1,8 +1,10 @@
 import {useCallback} from "react"
 
+import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {AgentOverviewBody} from "@agenta/entity-ui/agent"
 import {sessionRouteModes} from "@agenta/sessions/state"
 import {RichChatInput} from "@agenta/ui/rich-chat-input"
+import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
 import {useSessionCardVerbs} from "@/oss/components/pages/sessions/components/useSessionCardVerbs"
@@ -50,10 +52,12 @@ const AgentOverview = ({appId, agentName}: Props) => {
 
     const verbs = useSessionCardVerbs()
     const {goToPlayground} = usePlaygroundNavigation()
-    const openConfig = useCallback(
-        () => goToPlayground(undefined, {appId}),
-        [goToPlayground, appId],
-    )
+    const revealConfigPane = useSetAtom(revealConfigPaneAtom)
+    // Edit asks for the configuration, so it clears what hides it before navigating (#6381).
+    const openConfig = useCallback(() => {
+        revealConfigPane()
+        goToPlayground(undefined, {appId})
+    }, [goToPlayground, appId, revealConfigPane])
 
     const attachments = useSeedAttachments()
 

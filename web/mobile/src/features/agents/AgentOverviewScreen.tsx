@@ -1,6 +1,6 @@
-import {useCallback, useMemo} from "react"
+import {useMemo} from "react"
 
-import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {AgentActionsMenu, AgentIdentity, AgentOverviewBody} from "@agenta/entity-ui/agent"
 import {UsageCard} from "@agenta/home-ui"
@@ -33,6 +33,16 @@ export const AgentOverviewScreen = ({
 }) => {
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
+    const startBlank = useStartBlankSession(base)
+    const revealConfigPane = useSetAtom(revealConfigPaneAtom)
+    // Edit opens this agent's playground with the configuration showing. `/m` has no `/playground`
+    // route — a session IS the playground here — so it opens a BLANK one: the id is client-side
+    // and nothing reaches the backend until a message lands, so reading the config costs no
+    // session. The reveal is shared with the desktop's Edit so both mean the same thing (#6381).
+    const openConfig = () => {
+        revealConfigPane()
+        startBlank(agentId)
+    }
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
@@ -44,18 +54,6 @@ export const AgentOverviewScreen = ({
     )
 
     const sessionMenu = useSessionRowMenu(base)
-
-    // Configuration is edited in the session workspace here, so this lands on a blank session
-    // with this agent and puts the config pane on screen. BOTH panel flags are written because
-    // either one alone leaves the pane hidden — the pair `resolveSessionPanes` reads.
-    const startBlank = useStartBlankSession(base)
-    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
-    const onEditConfig = useCallback(() => {
-        setChatMaximized(false)
-        setConfigCollapsed(false)
-        startBlank(agentId)
-    }, [agentId, setChatMaximized, setConfigCollapsed, startBlank])
 
     return (
         <>
@@ -140,7 +138,7 @@ export const AgentOverviewScreen = ({
                             usage={<UsageCard appId={agentId} />}
                             sessionsHref={`${base}/sessions`}
                             automationSessionsHref={`${base}/sessions?mode=${sessionRouteModes.automation}`}
-                            onEditConfig={onEditConfig}
+                            onEditConfig={openConfig}
                             onOpenRow={sessionMenu.open}
                             menuFor={sessionMenu.menuFor}
                             onMenuSelect={sessionMenu.onMenuSelect}

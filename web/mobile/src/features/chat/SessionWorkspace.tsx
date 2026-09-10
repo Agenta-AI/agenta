@@ -4,7 +4,7 @@ import {
     chatPanelMaximizedAtom,
     configPanelCollapsedAtom,
     configPanelCollapsedOverrideAtom,
-    configPanelCollapsedPreferenceAtom,
+    configPanelCollapsedViewportPreferenceAtom,
     FILES_PANE_MAX,
     FILES_PANE_MIN,
     filesPaneWidthAtom,
@@ -122,7 +122,7 @@ export const SessionWorkspace = ({
     )
 
     // Resolved from the parts rather than read off `configPanelCollapsedAtom`: that atom answers
-    // for a device, and this surface gets to answer too.
+    // for a device, and this surface gets to answer too. A stored preference still beats both.
     //
     // `collapseConfigByDefault` surfaces (the create-an-agent page) LAND collapsed no matter
     // what the session pages stored — the two surfaces must not share their landing state. The
@@ -135,7 +135,7 @@ export const SessionWorkspace = ({
         return () => setConfigOverride(null)
     }, [collapseConfigByDefault, setConfigOverride])
     const configOverride = useAtomValue(configPanelCollapsedOverrideAtom)
-    const configPreference = useAtomValue(configPanelCollapsedPreferenceAtom)
+    const configPreference = useAtomValue(configPanelCollapsedViewportPreferenceAtom)
     const phoneViewport = useAtomValue(phoneViewportAtom)
     const configCollapsed =
         configOverride ??

@@ -57,6 +57,17 @@ export const configPanelCollapsedPreferenceAtom = atomWithStorage<boolean | null
 )
 
 /**
+ * The same answer asked separately at phone width (#6378) — one shared key let a desktop
+ * `false` open the pane over the whole phone screen. The wide side keeps the original key.
+ */
+export const configPanelCollapsedPhonePreferenceAtom = atomWithStorage<boolean | null>(
+    "agenta:chat:config-panel-collapsed-phone",
+    null,
+    undefined,
+    {getOnInit: true},
+)
+
+/**
  * The default when nothing is stored: hidden on a phone, visible everywhere else — and hidden
  * anywhere a surface asks for it via `hostCollapsed` (first run, which leads with the question
  * rather than a form for an agent that does not exist yet).
@@ -71,6 +82,16 @@ export const resolveConfigPanelCollapsed = (
     hostCollapsed = false,
 ): boolean => stored ?? (phoneViewport || hostCollapsed)
 
+/** The stored preference for the CURRENT viewport; reading either atom directly picks the
+ * wrong breakpoint's answer. */
+export const configPanelCollapsedViewportPreferenceAtom = atom((get) =>
+    get(
+        get(phoneViewportAtom)
+            ? configPanelCollapsedPhonePreferenceAtom
+            : configPanelCollapsedPreferenceAtom,
+    ),
+)
+
 /**
  * Mount-scoped override, NOT persisted: a surface that must LAND with the pane collapsed no
  * matter what the session pages stored (the create-an-agent surface leads with the question,
@@ -80,20 +101,35 @@ export const resolveConfigPanelCollapsed = (
  */
 export const configPanelCollapsedOverrideAtom = atom<boolean | null>(null)
 
-/** Build mode's config pane collapsed to 0. Separate from the maximize flag: collapsing the pane
- * in Build is not the same as switching to Chat. */
+/** Build mode's config pane collapsed to 0, separate from the maximize flag. A mount-scoped
+ * override wins while set; otherwise it reads and writes the current viewport's preference so
+ * neither breakpoint overwrites the other (#6378). */
 export const configPanelCollapsedAtom = atom(
     (get) =>
         get(configPanelCollapsedOverrideAtom) ??
         resolveConfigPanelCollapsed(
-            get(configPanelCollapsedPreferenceAtom),
+            get(configPanelCollapsedViewportPreferenceAtom),
             get(phoneViewportAtom),
         ),
-    (_get, set, collapsed: boolean) => {
+    (get, set, collapsed: boolean) => {
         set(configPanelCollapsedOverrideAtom, null)
-        set(configPanelCollapsedPreferenceAtom, collapsed)
+        set(
+            get(phoneViewportAtom)
+                ? configPanelCollapsedPhonePreferenceAtom
+                : configPanelCollapsedPreferenceAtom,
+            collapsed,
+        )
     },
 )
+
+/**
+ * "Show me the configuration": clears BOTH things that hide the pane — the maximize flag and
+ * the collapse preference — since either one alone leaves nothing to edit (#6381).
+ */
+export const revealConfigPaneAtom = atom(null, (_get, set) => {
+    set(chatPanelMaximizedAtom, false)
+    set(configPanelCollapsedAtom, false)
+})
 
 /** Persisted width of the pane docked beside the chat (the desktop Inspector, /m's config rail). */
 export const rightPanelWidthAtom = atomWithStorage<number>(
