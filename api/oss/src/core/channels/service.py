@@ -1797,8 +1797,25 @@ class ChannelsService:
                 capabilities=capabilities,
             )
 
+        if capabilities is None:
+            connection = await self.channels_dao.fetch_connection(
+                project_id=project_id,
+                connection_id=resolution.space.connection_id,
+            )
+            capabilities = await self.fetch_capabilities(
+                channel=connection.channel, connection=connection
+            )
+
         content: List[dict] = []
         for stored in events:
+            # Who is speaking, as its own part before their words: the agent
+            # can address people by name and keep them apart, and the words
+            # themselves are never rewritten.
+            attribution = _attribution_part(
+                stored.data.processed.sender, channel=capabilities.channel
+            )
+            if attribution is not None:
+                content.append(attribution)
             if stored.id == event_id and resolution.resolved_choice is not None:
                 # the resolved label stands in for the raw arrival here only
                 # -- the logged row itself was never rewritten
@@ -1972,6 +1989,35 @@ def _canonical_locator(locator: Optional[dict]) -> str:
     from oss.src.core.channels.utils import canonical_json
 
     return canonical_json(locator or {})
+
+
+def _platform_label(channel: str) -> str:
+    if channel.startswith("telegram"):
+        return "Telegram"
+    if channel.startswith("slack"):
+        return "Slack"
+    return channel
+
+
+def _attribution_part(sender: Dict[str, Any], *, channel: str) -> Optional[dict]:
+    """ "From Sara Ahmed (@sara, Telegram id 8883745180):" -- the name when the
+    platform sent one, else the username, else the bare id. None when the
+    event names no sender at all (an Agenta-internal event, for instance)."""
+
+    if not isinstance(sender, dict):
+        return None
+    sender_id = sender.get("id")
+    if sender_id in (None, ""):
+        return None
+    name = sender.get("name") or ""
+    username = sender.get("username") or ""
+    platform = _platform_label(channel)
+    who = name or (f"@{username}" if username else f"user {sender_id}")
+    details = []
+    if name and username:
+        details.append(f"@{username}")
+    details.append(f"{platform} id {sender_id}")
+    return {"type": "text", "text": f"From {who} ({', '.join(details)}):"}
 
 
 def _sender_allowed(connection: ChannelConnection, event: ChannelInboxEvent) -> bool:

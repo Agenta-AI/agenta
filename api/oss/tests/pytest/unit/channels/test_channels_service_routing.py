@@ -54,6 +54,18 @@ from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
 from .contract.fakes import WellBehavedFakeAdapter
 
 
+def _without_attribution(content):
+    """The turn content minus the "From <who> (...):" parts compose_input
+    puts before each message, for tests about the words themselves."""
+    return [
+        part
+        for part in content
+        if not (
+            part.get("type") == "text" and str(part.get("text", "")).startswith("From ")
+        )
+    ]
+
+
 _LOCATOR = {"team": "T1", "channel": "C1", "thread_ts": "1000.1"}
 
 
@@ -803,7 +815,10 @@ class TestComposeInput:
             event_id=addressing_event.id,
         )
 
-        assert turn_input.content == addressing_event.data.processed.content
+        assert (
+            _without_attribution(turn_input.content)
+            == addressing_event.data.processed.content
+        )
 
     async def test_resolved_choice_reaches_the_agent_without_touching_the_log(self):
         """The seam this package moved: `resolve()` no longer rewrites the
@@ -856,7 +871,7 @@ class TestComposeInput:
             event_id=addressing_event.id,
         )
 
-        assert turn_input.content == [
+        assert _without_attribution(turn_input.content) == [
             {"type": "text", "text": "hey"},
             {"type": "text", "text": "Approve"},
         ]
@@ -1382,7 +1397,7 @@ class TestForwardfillIsThreadScoped:
             project_id=uuid4(), resolution=resolution, event_id=addressing.id
         )
 
-        texts = [part["text"] for part in turn_input.content]
+        texts = [part["text"] for part in _without_attribution(turn_input.content)]
         assert texts == ["earlier in this thread", "~triage now"]
 
 
@@ -1732,3 +1747,25 @@ async def test_resolve_returns_none_for_a_sender_outside_the_allow_list():
     )
     assert result is None
     dao.get_or_create_space.assert_not_awaited()  # dropped before provisioning
+
+
+# --- who is speaking ---------------------------------------------------------- #
+
+
+def test_attribution_names_the_sender_by_name_username_or_id():
+    from oss.src.core.channels.service import _attribution_part
+
+    assert _attribution_part(
+        {"id": 8883745180, "name": "Sara Ahmed", "username": "sara"},
+        channel="telegram_hosted",
+    ) == {"type": "text", "text": "From Sara Ahmed (@sara, Telegram id 8883745180):"}
+    assert _attribution_part({"id": 42, "username": "sara"}, channel="telegram") == {
+        "type": "text",
+        "text": "From @sara (Telegram id 42):",
+    }
+    assert _attribution_part({"id": "U1"}, channel="slack") == {
+        "type": "text",
+        "text": "From user U1 (Slack id U1):",
+    }
+    assert _attribution_part({}, channel="slack") is None
+    assert _attribution_part({"id": ""}, channel="agenta") is None

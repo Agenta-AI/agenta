@@ -279,7 +279,7 @@ class TelegramAdapter(ChannelAdapterInterface):
             external_locator=locator,
             processed=ChannelInboxEventProcessed(
                 content=[{"type": "text", "text": text}],
-                sender={"id": sender.get("id")},
+                sender=_sender_fields(sender),
             ),
             addressed=addressed,
         )
@@ -453,6 +453,21 @@ class _TelegramApiError(Exception):
         super().__init__(f"Telegram API error: {description}")
 
 
+def _sender_fields(user: Dict[str, Any]) -> Dict[str, Any]:
+    """Who wrote it, for the agent: the id, plus the display name and the
+    username Telegram sends with every update. No other profile fields."""
+
+    name = " ".join(
+        part for part in (user.get("first_name"), user.get("last_name")) if part
+    ).strip()
+    fields: Dict[str, Any] = {"id": user.get("id")}
+    if name:
+        fields["name"] = name
+    if user.get("username"):
+        fields["username"] = user["username"]
+    return fields
+
+
 def _is_indicator(content: List[Dict[str, Any]]) -> bool:
     """True when this content is the turn-start indicator. Identified by the
     explicit `indicator` marker the render layer sets, not by the display text,
@@ -498,7 +513,7 @@ def _parse_callback_query(callback: Dict[str, Any]) -> Optional[ChannelInboundEv
         external_locator=build_locator(chat_id=chat_id),
         processed=ChannelInboxEventProcessed(
             content=[{"type": "text", "text": token}],
-            sender={"id": user.get("id")},
+            sender=_sender_fields(user),
         ),
         addressed=True,
     )

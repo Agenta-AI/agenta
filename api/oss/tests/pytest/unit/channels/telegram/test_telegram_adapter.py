@@ -600,3 +600,31 @@ async def test_answer_callback_query_swallows_a_transport_error():
     await adapter.answer_callback_query(
         connection=_connection(), callback_query_id="cbq-1"
     )
+
+
+@pytest.mark.asyncio
+async def test_parse_event_keeps_the_senders_name_and_username():
+    adapter, _ = _adapter_with_capture()
+    body = json.dumps(
+        {
+            "update_id": 1,
+            "message": {
+                "message_id": 5,
+                "chat": {"id": 8883745180, "type": "private"},
+                "from": {
+                    "id": 8883745180,
+                    "is_bot": False,
+                    "first_name": "Sara",
+                    "last_name": "Ahmed",
+                    "username": "sara",
+                },
+                "text": "hello",
+            },
+        }
+    ).encode()
+    event = await adapter.parse_event(connection=_connection(), body=body)
+    assert event.processed.sender == {
+        "id": 8883745180,
+        "name": "Sara Ahmed",
+        "username": "sara",
+    }
