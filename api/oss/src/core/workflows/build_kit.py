@@ -36,6 +36,11 @@ _READ_CONFIG_OPS: tuple[str, ...] = (
 
 _BUILD_KIT_OP_PERMISSIONS = {
     "discover_tools": "allow",
+    # Registry discovery and the source-sync check are reads. The apply is a write, and its
+    # approval card is the user prompt, so it asks.
+    "search_skills": "allow",
+    "check_skill_updates": "allow",
+    "apply_skill_update": "ask",
     "read_config": "allow",
     "commit_revision": "allow",
     "test_run": "allow",
