@@ -78,9 +78,11 @@ light and dark (2026-09-09 evening; details and screenshots in STATUS.md, sectio
 3. The stack-wide "TypeScript lint" red (four `import/order` errors in foundation files) is
    fixed on this branch as of 2026-09-10; the lower PRs still show it. CodeRabbit shows green
    on these PRs because it is disabled for the base branch, not because it reviewed.
-   Mahmoud's 2026-09-10 feedback (Telegram progress + Markdown, the simplified "connected
-   elsewhere" panel, the Settings cleanup behind a "Channel debug" switch) is implemented and
-   live-checked; see STATUS.md, last section.
+   Mahmoud's 2026-09-10 feedback is implemented and live-checked: Telegram progress and
+   Markdown, the Settings cleanup behind a "Channel debug" switch, and the full connected view
+   from the design canvas (spaces, behavior switches, allowed users, advanced, revoked, the
+   own-bot path). See STATUS.md, last two sections. Still unverified live: the Slack channel
+   picker and a real token revocation.
 4. Slack live QA on this stack through the NEW card: complete the hosted install (needs a
    Slack workspace login) and submit a custom app (needs the signing secret; the QA Slack env
    has it commented out). Both flows are wired and reach Slack; only the last step is unproven.

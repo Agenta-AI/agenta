@@ -410,3 +410,28 @@ Deferred (need backend work or a broader refactor; not in this release unless as
    four debug sections.
 Also fixed on the way: the import-order lint errors in the foundation files that kept the
 stack's "TypeScript lint" job red.
+
+
+## The agreed design, built for real (2026-09-10, afternoon)
+Mahmoud reviewed the canvas (https://claude.ai/code/artifact/a3673685-405b-4df1-9762-e2ee7e55167d)
+and asked for the full connected view. Implemented and live-checked on the throwaway project:
+- Connected view: summary rows (bot, workspace/account, token + Update for a custom bot or
+  app, status with a green/red dot, connected date); "Answers in" fed by the connection's
+  spaces (Slack: an inline "Add channel" picker over discovery; Telegram: the "add the bot to a
+  group and mention it" hint); the two Behavior switches, written as one grant per chat kind
+  (private / group / topic; both on deletes them: live-verified rows appear and disappear);
+  "Allowed users" on Telegram, saved to `connection.data.allowed_senders`, enforced by
+  `resolve()` (live: a sender outside the list is logged "no resolution", no turn; empty =
+  everyone, and the answer came back); Advanced collapsed with the shipped defaults;
+  Disconnect behind a confirm.
+- Connected to another agent: the retarget offer plus "Use your own bot for <agent>", which
+  opens the connect flow in custom mode (live-checked). The card may now hold a hosted and a
+  custom connection per platform and shows the one answering as this agent first.
+- Revoked credentials: a Telegram 401 raises ChannelCredentialRevoked; the outbox marks the
+  row `credential_revoked` and deactivates the connection; the row reads "Bot token revoked ·
+  update it" and the panel offers the token update (custom) or Reconnect (hosted). The Slack
+  uninstall path already deactivated; it now reads "App uninstalled · reconnect".
+- "Bot removed from a channel" is dropped as a state (Mahmoud: hide it).
+- Telegram unavailable links to docs/self-host/channels/telegram-hosted-bot (new page).
+Not verified live: the Slack channel picker (needs a Slack install on this stack) and a real
+token revocation (needs a revoked bot). Both have stories and unit tests.
