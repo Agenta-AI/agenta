@@ -30,14 +30,49 @@ const AUTH_SCHEME_LABELS: Record<string, string> = {
     api_key: "API Key",
 }
 
+/**
+ * Nouns for the connected rows. The defaults say "tool", which is what oss/ee call this page;
+ * a host that names the concept differently (the mobile app says "integration") passes its own
+ * rather than forking the section.
+ */
+export interface GatewayToolsSectionCopy {
+    integrationColumn: string
+    run: string
+    searchPlaceholder: string
+    connect: string
+    emptyTitle: string
+    emptyBody: string
+    noMatch: (term: string) => string
+}
+
+const DEFAULT_COPY: GatewayToolsSectionCopy = {
+    integrationColumn: "Tool",
+    run: "Run tool",
+    searchPlaceholder: "Search tools",
+    connect: "Connect tool",
+    emptyTitle: "No tools connected yet",
+    emptyBody: "Connect a tool to let your agents call it.",
+    noMatch: (term) => `No tools match “${term}”`,
+}
+
 export interface GatewayToolsSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
     confirm?: ConfirmDestructive
     /** Hides connect/run and skips the catalog drawer, whose schema form is still antd-backed. */
     readOnly?: boolean
+    /** Overrides the row noun; defaults to the "tool" wording oss/ee use. */
+    copy?: Partial<GatewayToolsSectionCopy>
 }
 
-export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSectionProps) {
+export default function GatewayToolsSection({
+    confirm,
+    readOnly,
+    copy: copyOverrides,
+}: GatewayToolsSectionProps) {
+    const copy = useMemo<GatewayToolsSectionCopy>(
+        () => ({...DEFAULT_COPY, ...copyOverrides}),
+        [copyOverrides],
+    )
     const {connections, isLoading, refetch} = useToolConnectionsQuery()
     const {handleDelete, handleRefresh, handleRevoke, invalidateConnections} =
         useToolConnectionActions()
@@ -244,7 +279,7 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
             },
             {
                 key: "integration_key",
-                title: "Tool",
+                title: copy.integrationColumn,
                 width: 180,
                 render: (record) => <Tag>{record.integration_key}</Tag>,
             },
@@ -278,7 +313,7 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
                         : "-",
             },
         ],
-        [logoFor],
+        [logoFor, copy.integrationColumn],
     )
     return (
         <>
@@ -296,7 +331,7 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
                         {
                             key: "run",
                             hidden: readOnly,
-                            label: "Run tool",
+                            label: copy.run,
                             icon: <Play size={16} />,
                             onClick: () => openExecution(record),
                         },
@@ -325,7 +360,7 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
                         },
                     ]}
                     search={{
-                        placeholder: "Search tools",
+                        placeholder: copy.searchPlaceholder,
                         value: searchTerm,
                         onChange: setSearchTerm,
                         disabled: isLoading,
@@ -338,7 +373,7 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
                             {readOnly ? null : (
                                 <Button disabled={isLoading} onClick={() => setCatalogOpen(true)}>
                                     <Plus size={14} />
-                                    Connect tool
+                                    {copy.connect}
                                 </Button>
                             )}
                         </>
@@ -347,7 +382,7 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
                         searchTerm.trim() ? (
                             <EmptyState
                                 image="simple"
-                                description={`No tools match “${searchTerm.trim()}”`}
+                                description={copy.noMatch(searchTerm.trim())}
                             />
                         ) : (
                             <EmptyState
@@ -355,16 +390,16 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
                                 description={
                                     <div className="flex flex-col gap-1">
                                         <span className="text-xs font-medium text-colorText">
-                                            No tools connected yet
+                                            {copy.emptyTitle}
                                         </span>
-                                        <span>Connect a tool to let your agents call it.</span>
+                                        <span>{copy.emptyBody}</span>
                                     </div>
                                 }
                             >
                                 {readOnly ? null : (
                                     <Button variant="outline" onClick={() => setCatalogOpen(true)}>
                                         <Plus size={14} />
-                                        Connect tool
+                                        {copy.connect}
                                     </Button>
                                 )}
                             </EmptyState>

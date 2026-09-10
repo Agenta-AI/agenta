@@ -41,15 +41,44 @@ const emptyAction = (label: string) => ({summary: label, status: "default" as co
 // required-but-empty warning keeps a color.
 const stated = (summary: string) => ({summary, status: "default" as const})
 
+/**
+ * The tools row's noun. Defaults to "tool", which is what oss/ee call the concept; a host that
+ * names it differently (the mobile app says "integration") passes its own instead of forking
+ * the card.
+ */
+export interface AgentConfigSummaryCopy {
+    toolsTitle: string
+    toolsCount: (count: number) => string
+    toolsAdd: string
+    toolsNone: string
+}
+
+const DEFAULT_COPY: AgentConfigSummaryCopy = {
+    toolsTitle: "Tools",
+    toolsCount: (count) => `${count} enabled`,
+    toolsAdd: "Add tools",
+    toolsNone: "None enabled",
+}
+
 export interface AgentConfigSummaryCardProps {
     appId: string
     /** Opens the editing surface (the playground on desktop). Absent = read-only host (mobile):
      * the Edit action and the row-level "opens elsewhere" affordances are hidden. */
     onEdit?: () => void
+    /** Overrides the tools row's wording; defaults to the "tool" noun oss/ee use. */
+    copy?: Partial<AgentConfigSummaryCopy>
 }
 
 /** What this agent IS, in one read-only card, built on the playground panel's own row primitives. */
-export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardProps) => {
+export const AgentConfigSummaryCard = ({
+    appId,
+    onEdit,
+    copy: copyOverrides,
+}: AgentConfigSummaryCardProps) => {
+    const copy = useMemo<AgentConfigSummaryCopy>(
+        () => ({...DEFAULT_COPY, ...copyOverrides}),
+        [copyOverrides],
+    )
     // Configuration lives on a revision, not on the artifact — reading the artifact gave a
     // workflow with no parameters, so every row said "Not set".
     const revisionAtom = useMemo(() => agentLatestRevisionAtomFamily(appId), [appId])
@@ -91,10 +120,10 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
         {
             key: "tools",
             icon: <WrenchIcon size={16} />,
-            title: "Tools",
+            title: copy.toolsTitle,
             ...(summary.tools
-                ? stated(`${summary.tools} enabled`)
-                : emptyAction(onEdit ? "Add tools" : "None enabled")),
+                ? stated(copy.toolsCount(summary.tools))
+                : emptyAction(onEdit ? copy.toolsAdd : copy.toolsNone)),
         },
         {
             key: "mcps",

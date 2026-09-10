@@ -20,7 +20,11 @@ export {
     type AgentPickerTriggerVariant,
 } from "./AgentPicker"
 export {NextTriggersSection, type NextTriggersSectionProps} from "./NextTriggersSection"
-export {AgentConfigSummaryCard, type AgentConfigSummaryCardProps} from "./AgentConfigSummaryCard"
+export {
+    AgentConfigSummaryCard,
+    type AgentConfigSummaryCardProps,
+    type AgentConfigSummaryCopy,
+} from "./AgentConfigSummaryCard"
 export {agentConfigSummary, prettifyKind, type AgentConfigSummary} from "./agentConfigSummary"
 export {agentLatestRevisionAtomFamily} from "./state"
 export {AgentCardGrid, type AgentCardGridProps} from "./AgentCardGrid"

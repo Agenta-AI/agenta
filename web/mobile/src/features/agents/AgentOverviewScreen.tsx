@@ -11,6 +11,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {Skeleton} from "@/components/ui/skeleton"
+import {AGENT_CONFIG_INTEGRATIONS_COPY} from "@/lib/integrationsCopy"
 
 import {useStartBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -137,6 +138,8 @@ export const AgentOverviewScreen = ({
                             }
                             agentId={agentId}
                             agentNames={agentNames}
+                            // This app says "Integrations" where oss/ee still say "Tools".
+                            configCopy={AGENT_CONFIG_INTEGRATIONS_COPY}
                             usage={<UsageCard appId={agentId} />}
                             sessionsHref={`${base}/sessions`}
                             automationSessionsHref={`${base}/sessions?mode=${sessionRouteModes.automation}`}
