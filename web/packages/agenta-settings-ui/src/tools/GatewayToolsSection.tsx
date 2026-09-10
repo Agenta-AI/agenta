@@ -30,11 +30,7 @@ const AUTH_SCHEME_LABELS: Record<string, string> = {
     api_key: "API Key",
 }
 
-/**
- * Nouns for the connected rows. The defaults say "tool", which is what oss/ee call this page;
- * a host that names the concept differently (the mobile app says "integration") passes its own
- * rather than forking the section.
- */
+/** Nouns for the connected rows; a host that calls them something else passes its own. */
 export interface GatewayToolsSectionCopy {
     integrationColumn: string
     run: string

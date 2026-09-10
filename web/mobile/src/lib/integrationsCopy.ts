@@ -7,13 +7,7 @@ import {
     type SettingsTabKey,
 } from "@agenta/settings"
 
-/**
- * This app calls the gateway-tool surface "Integrations", not "Tools" — the row a user connects
- * is Gmail or Slack, not a single callable function, and "tool" collides with the tool CALLS a
- * transcript shows. The shared `@agenta/settings` copy still says "Tools" for oss/ee, so the
- * rename lives here rather than in the package: flip these tables into `navigation.ts` the day
- * the desktop renames too.
- */
+/** This app says "Integrations" where the shared copy says "Tools", which oss/ee still use. */
 const TAB_LABELS: Partial<Record<SettingsTabKey, string>> = {
     tools: "Integrations",
 }

@@ -41,11 +41,7 @@ const emptyAction = (label: string) => ({summary: label, status: "default" as co
 // required-but-empty warning keeps a color.
 const stated = (summary: string) => ({summary, status: "default" as const})
 
-/**
- * The tools row's noun. Defaults to "tool", which is what oss/ee call the concept; a host that
- * names it differently (the mobile app says "integration") passes its own instead of forking
- * the card.
- */
+/** The tools row's noun; a host that calls it something else passes its own. */
 export interface AgentConfigSummaryCopy {
     toolsTitle: string
     toolsCount: (count: number) => string
