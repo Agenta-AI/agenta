@@ -23,6 +23,7 @@ import {
     type ProviderConnection,
 } from "./connections"
 import {fromLitellmModelId, toLitellmModelId} from "./litellmModelId"
+import {SUBSCRIPTION_PROVIDER_KIND} from "./subscriptionConnections"
 import {SecretKind} from "./types"
 
 /** One option in a picker group. Structurally the `ProviderGroup` option `@agenta/ui` renders. */
@@ -214,6 +215,10 @@ export const buildConnectionModelGroups = ({
     const groups: PromptModelGroup[] = []
 
     for (const connection of connections) {
+        // A hosted subscription holds no API key, so it can never back a litellm-run prompt.
+        // Offering it here persists a credential the run then fails to resolve.
+        if ((connection.secretKind as string) === SUBSCRIPTION_PROVIDER_KIND) continue
+
         const isStandard = connection.secretKind === SecretKind.ProviderKey
         const models = modelsFor(connection, catalog, capabilities).filter((model) => !!model.value)
         if (!models.length) continue
