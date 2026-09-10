@@ -24,10 +24,7 @@ export const AutomationAgentField = ({
     /** Absent ⇒ the field reads only. */
     onSelectAgent?: (agentId: string) => void
 }) => (
-    <AutomationField
-        label="Agent"
-        helper="This agent does the work, with the tools it already has."
-    >
+    <AutomationField label="Agent" helper="The agent this automation runs.">
         <AgentPicker
             value={agentId}
             // The read-only case still renders the picker so the bound agent keeps its glyph and

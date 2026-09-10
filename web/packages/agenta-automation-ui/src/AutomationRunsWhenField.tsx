@@ -51,7 +51,7 @@ export const AutomationRunsWhenField = ({
     const helper = useMemo(() => {
         if (isSchedule && !schedule.validation.valid) return schedule.validation.error
         if (!automation.isActive) return "Paused — it won't run until you switch it on."
-        return isSchedule ? "" : "It runs each time this event arrives."
+        return isSchedule ? "" : "Runs each time this event arrives."
     }, [automation.isActive, isSchedule, schedule.validation])
 
     const Icon = isSchedule ? CalendarBlank : Lightning
