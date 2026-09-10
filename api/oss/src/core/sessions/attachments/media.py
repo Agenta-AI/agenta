@@ -1,11 +1,11 @@
-from typing import Optional
+from io import BytesIO
+from zipfile import BadZipFile, ZipFile
 
 import puremagic
 from puremagic.main import PureError
 
 from oss.src.core.sessions.attachments.dtos import AttachmentKind, AttachmentMedia
 from oss.src.core.sessions.attachments.types import AttachmentInvalid
-
 
 _NATIVE_IMAGE_TYPES = {
     "image/gif",
@@ -43,9 +43,13 @@ _WEBM_VIDEO_CODECS = (
     b"V_VP9",
 )
 _CONTAINER_SCAN_BYTES = 1024 * 1024
+_ZIP_MEDIA_TYPE = "application/zip"
+_DOCX_MEDIA_TYPE = (
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+)
 
 
-def _sniff(data: bytes) -> Optional[str]:
+def _sniff(data: bytes) -> str | None:
     """The only puremagic call; classification is policy, not a security boundary."""
     try:
         media_type = puremagic.from_string(data, mime=True)
@@ -71,13 +75,38 @@ def _is_m4a(*, data: bytes) -> bool:
     return any(brand in _M4A_BRANDS for brand in brands)
 
 
+def _canonical_zip_media_type(
+    *,
+    data: bytes,
+    inspected_media_type: str | None,
+) -> str | None:
+    if inspected_media_type not in {_ZIP_MEDIA_TYPE, _DOCX_MEDIA_TYPE}:
+        return inspected_media_type
+
+    try:
+        with ZipFile(BytesIO(data)) as archive:
+            names = set(archive.namelist())
+    except (BadZipFile, ValueError):
+        return inspected_media_type
+
+    if "[Content_Types].xml" in names and "word/document.xml" in names:
+        return _DOCX_MEDIA_TYPE
+
+    return _ZIP_MEDIA_TYPE
+
+
 def _canonical_container_media_type(
     *,
     data: bytes,
-    inspected_media_type: Optional[str],
-) -> Optional[str]:
+    inspected_media_type: str | None,
+) -> str | None:
     if _is_m4a(data=data):
         return "audio/mp4"
+
+    inspected_media_type = _canonical_zip_media_type(
+        data=data,
+        inspected_media_type=inspected_media_type,
+    )
 
     scan = data[:_CONTAINER_SCAN_BYTES]
     if scan.startswith(b"OggS"):
@@ -109,9 +138,7 @@ def _kind_for(*, media_type: str) -> AttachmentKind:
     return AttachmentKind.OTHER
 
 
-def classify(
-    *, data: bytes, declared_media_type: Optional[str] = None
-) -> AttachmentMedia:
+def classify(*, data: bytes, declared_media_type: str | None = None) -> AttachmentMedia:
     if not data:
         raise AttachmentInvalid()
 
