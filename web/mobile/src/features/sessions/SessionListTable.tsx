@@ -9,10 +9,9 @@ import {
     useSessionsList,
 } from "@agenta/sessions/state"
 import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
 import {useAtomValue} from "jotai"
-
-import {useMediaQuery} from "@/lib/useMediaQuery"
 
 import {deriveSessionGroups, type SessionGrouping} from "./sessionListView"
 import {SessionRowCells} from "./SessionRowCells"
@@ -67,7 +66,7 @@ const WIDE_COLUMNS: ListTableColumn[] = [
 const NARROW_COLUMNS: ListTableColumn[] = [SESSION_COLUMN, updatedColumn("64px"), ACTIONS_COLUMN]
 
 /** Tailwind's `sm`. Below it the Agent column goes; the minima then fit a 375px screen. */
-const NARROW_QUERY = "(max-width: 639.98px)"
+const WIDE_QUERY = "(min-width: 640px)"
 const WIDE_MIN_WIDTH = 560
 const NARROW_MIN_WIDTH = 272
 
@@ -122,9 +121,10 @@ export const SessionListTable = ({
         automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
     })
     const {toggle: togglePin} = useSessionPins()
-    // Picks the COLUMN SET, not a `display` value: header and body read one array. Narrow is the
-    // server default because a phone is the common case and the wide-first paint was visible.
-    const narrow = useMediaQuery(NARROW_QUERY, true)
+    // Picks the COLUMN SET, not a `display` value: header and body read one array. Asked as
+    // "wide?" because the shared hook starts false before it reads the viewport, and a phone
+    // is the common case here — the wide-first paint was visible.
+    const narrow = !useMediaQuery(WIDE_QUERY)
     // The APPLIED term, not the field's draft: the empty state quotes what the rows were actually
     // queried for, so it can never name a search that has not run yet.
     const term = useAtomValue(sessionSearchAtom).trim()

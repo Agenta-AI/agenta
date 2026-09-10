@@ -46,14 +46,11 @@ export const SessionListScreen = ({
 }) => {
     useBindProjectContext(projectId)
     // `?mode=automation` — what the agent overview's "Automation runs" card links to, so a cold
-    // load or a pasted link lands on the same set the card was showing.
+    // load or a pasted link lands on the same set the card was showing. Applied below, once the
+    // search field exists to be cleared with it.
     const router = useRouter()
     const applyScope = useSetAtom(applySessionScopeAtom)
     const routeMode = typeof router.query.mode === "string" ? router.query.mode : undefined
-    useEffect(() => {
-        const scope = sessionScopeFromRouteQuery({mode: routeMode})
-        if (scope) applyScope(scope)
-    }, [applyScope, routeMode])
 
     // Grouping is a display preference a reader sets once; the filters are a question they were
     // asking at the time, so only the first survives a reload — and the rest live in the shared
@@ -101,6 +98,16 @@ export const SessionListScreen = ({
         search.reset()
         setView(DEFAULT_SESSION_LIST_VIEW)
     }, [resetFilters, search, setView])
+
+    useEffect(() => {
+        const scope = sessionScopeFromRouteQuery({mode: routeMode})
+        if (!scope) return
+        applyScope(scope)
+        // The scope clears the search ATOM, but a keystroke already on the debounce would land
+        // after it and re-narrow the list the route just scoped. The hook cannot see that on its
+        // own: the atom was already empty, so its value never changed and nothing told the draft.
+        clearSearch()
+    }, [applyScope, clearSearch, routeMode])
 
     // The shared row verbs — rename, pin, archive, delete — the same ones the agent overview and
     // the desktop list bind. Without them a row here offers only the pin.
