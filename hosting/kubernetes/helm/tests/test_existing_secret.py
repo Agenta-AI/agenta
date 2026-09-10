@@ -85,7 +85,9 @@ def secret_references(docs: list[dict]) -> list[tuple[str, str, str]]:
     """(workload, where, secret name) for every Secret reference in every pod spec."""
     refs: list[tuple[str, str, str]] = []
     for workload, spec in pod_specs(docs):
-        containers = list(spec.get("initContainers", [])) + list(spec.get("containers", []))
+        containers = list(spec.get("initContainers", [])) + list(
+            spec.get("containers", [])
+        )
         for container in containers:
             where = f"container {container.get('name')}"
             for entry in container.get("env", []):
@@ -111,7 +113,10 @@ def main() -> int:
 
     # 1. The chart must not create its own Secret when the operator supplies one.
     for doc in docs:
-        if doc.get("kind") == "Secret" and doc["metadata"]["name"] == CHART_MANAGED_SECRET:
+        if (
+            doc.get("kind") == "Secret"
+            and doc["metadata"]["name"] == CHART_MANAGED_SECRET
+        ):
             failures.append(
                 f"chart rendered its own Secret {CHART_MANAGED_SECRET} despite secrets.existingSecret"
             )
@@ -141,7 +146,9 @@ def main() -> int:
             )
     for suffix in ("-runner", "-api", "-services"):
         if not any(workload.endswith(suffix) for workload in token_refs):
-            failures.append(f"no {suffix.lstrip('-')} workload reads AGENTA_RUNNER_TOKEN")
+            failures.append(
+                f"no {suffix.lstrip('-')} workload reads AGENTA_RUNNER_TOKEN"
+            )
 
     # 4. agentRunner.auth.tokenSecretRef still wins over both Secret names.
     own_ref_docs = render(

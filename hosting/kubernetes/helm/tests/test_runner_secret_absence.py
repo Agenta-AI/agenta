@@ -231,7 +231,8 @@ def main() -> int:
     for args, expected in (
         (DEFAULT_TOKEN_ARGS + ["--set", "agentRunner.host=127.0.0.1"], "127.0.0.1"),
         (
-            DEFAULT_TOKEN_ARGS + ["--set", "agentRunner.env.AGENTA_RUNNER_HOST=10.0.0.5"],
+            DEFAULT_TOKEN_ARGS
+            + ["--set", "agentRunner.env.AGENTA_RUNNER_HOST=10.0.0.5"],
             "10.0.0.5",
         ),
     ):
@@ -257,7 +258,9 @@ def main() -> int:
     if mounts.get("fuse") != "/dev/fuse":
         failures.append("custom runner securityContext suppresses the /dev/fuse mount")
     if volumes.get("fuse", {}).get("hostPath", {}).get("path") != "/dev/fuse":
-        failures.append("custom runner securityContext suppresses the /dev/fuse hostPath")
+        failures.append(
+            "custom runner securityContext suppresses the /dev/fuse hostPath"
+        )
 
     if failures:
         print("FAIL: runner environment is not narrow:", file=sys.stderr)
