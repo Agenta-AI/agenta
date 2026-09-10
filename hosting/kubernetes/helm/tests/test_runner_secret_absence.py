@@ -86,6 +86,10 @@ FORBIDDEN_PREFIXES = (
 REQUIRED = {
     "AGENTA_RUNNER_PORT",
     "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS",
+    # The runner binds 127.0.0.1 unless told otherwise. In a pod that makes every health
+    # probe fail with connection refused and the pod never becomes ready, which is what
+    # happened on a live GKE cluster. See runner_bind_address() below for the value check.
+    "AGENTA_RUNNER_HOST",
 }
 
 
@@ -117,6 +121,41 @@ def runner_container_env_names(docs: list[dict]) -> list[str]:
         containers = doc["spec"]["template"]["spec"]["containers"]
         runner = next(c for c in containers if c["name"] == "runner")
         return [entry["name"] for entry in runner.get("env", [])]
+    raise AssertionError("no runner Deployment found in the rendered chart")
+
+
+def runner_bind_address(docs: list[dict]) -> str:
+    """The AGENTA_RUNNER_HOST value on the runner container, and how many times it is set."""
+    for doc in docs:
+        if doc.get("kind") != "Deployment":
+            continue
+        if (
+            doc.get("metadata", {}).get("labels", {}).get("app.kubernetes.io/component")
+            != "runner"
+        ):
+            continue
+        containers = doc["spec"]["template"]["spec"]["containers"]
+        runner = next(c for c in containers if c["name"] == "runner")
+        values = [
+            entry.get("value")
+            for entry in runner.get("env", [])
+            if entry["name"] == "AGENTA_RUNNER_HOST"
+        ]
+        assert len(values) == 1, f"AGENTA_RUNNER_HOST set {len(values)} times"
+        return values[0]
+    raise AssertionError("no runner Deployment found in the rendered chart")
+
+
+def runner_pod_spec(docs: list[dict]) -> dict:
+    """The runner Deployment's pod spec."""
+    for doc in docs:
+        if doc.get("kind") != "Deployment":
+            continue
+        if (
+            doc.get("metadata", {}).get("labels", {}).get("app.kubernetes.io/component")
+            == "runner"
+        ):
+            return doc["spec"]["template"]["spec"]
     raise AssertionError("no runner Deployment found in the rendered chart")
 
 
@@ -182,6 +221,47 @@ def main() -> int:
     names_with_token = runner_container_env_names(render(TOKEN_ARGS))
     failures += check(names_with_token)
 
+    # The runner must bind every interface, or the kubelet cannot reach its health endpoint
+    # over the pod IP and the pod never becomes ready.
+    bind = runner_bind_address(docs)
+    if bind != "0.0.0.0":
+        failures.append(f"runner binds {bind!r}, expected '0.0.0.0'")
+
+    # Both override paths still win, and neither produces a duplicate entry.
+    for args, expected in (
+        (DEFAULT_TOKEN_ARGS + ["--set", "agentRunner.host=127.0.0.1"], "127.0.0.1"),
+        (
+            DEFAULT_TOKEN_ARGS
+            + ["--set", "agentRunner.env.AGENTA_RUNNER_HOST=10.0.0.5"],
+            "10.0.0.5",
+        ),
+    ):
+        got = runner_bind_address(render(args))
+        if got != expected:
+            failures.append(f"runner bind override gave {got!r}, expected {expected!r}")
+
+    # A custom securityContext controls capabilities, but it must not suppress the /dev/fuse
+    # device when FUSE is enabled. Operators use this path to supply their own SYS_ADMIN shape.
+    fuse_docs = render(
+        DEFAULT_TOKEN_ARGS
+        + [
+            "--set",
+            "store.enabled=true",
+            "--set",
+            "agentRunner.securityContext.allowPrivilegeEscalation=true",
+        ]
+    )
+    spec = runner_pod_spec(fuse_docs)
+    runner = next(c for c in spec["containers"] if c["name"] == "runner")
+    mounts = {m["name"]: m["mountPath"] for m in runner.get("volumeMounts", [])}
+    volumes = {v["name"]: v for v in spec.get("volumes", [])}
+    if mounts.get("fuse") != "/dev/fuse":
+        failures.append("custom runner securityContext suppresses the /dev/fuse mount")
+    if volumes.get("fuse", {}).get("hostPath", {}).get("path") != "/dev/fuse":
+        failures.append(
+            "custom runner securityContext suppresses the /dev/fuse hostPath"
+        )
+
     if failures:
         print("FAIL: runner environment is not narrow:", file=sys.stderr)
         for line in failures:
@@ -193,6 +273,11 @@ def main() -> int:
     )
     print(f"  default env: {sorted(names)}")
     return 0
+
+
+def test_runner_env_stays_narrow() -> None:
+    """pytest entry point. The module also runs standalone; both call main()."""
+    assert main() == 0, "the runner environment stays narrow"
 
 
 if __name__ == "__main__":
