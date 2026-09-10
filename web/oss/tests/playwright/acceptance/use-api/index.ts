@@ -229,10 +229,11 @@ const useApiTests = () => {
                     waitUntil: "domcontentloaded",
                 })
                 await uiHelpers.expectPath(`/apps/${appId}/variants`)
-                // Wait for the variants table radio controls to confirm the page has rendered
-                await expect(
-                    page.locator(".ant-radio-button-wrapper").filter({hasText: "Variants"}).first(),
-                ).toBeVisible({timeout: 15000})
+                // Wait for the registry table itself — the thing this test goes on to use —
+                // rather than a tab control, so the check cannot drift with the chrome again.
+                await expect(page.locator(".avt-body, .ant-table-tbody").first()).toBeVisible({
+                    timeout: 15000,
+                })
             })
 
             let useApiDrawer: any

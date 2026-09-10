@@ -36,6 +36,11 @@ _READ_CONFIG_OPS: tuple[str, ...] = (
 
 _BUILD_KIT_OP_PERMISSIONS = {
     "discover_tools": "allow",
+    # Registry discovery and the source-sync check are reads. The apply is a write, and its
+    # approval card is the user prompt, so it asks.
+    "search_skills": "allow",
+    "check_skill_updates": "allow",
+    "apply_skill_update": "ask",
     "read_config": "allow",
     "commit_revision": "allow",
     "test_run": "allow",
@@ -56,6 +61,11 @@ _BUILD_KIT_OP_PERMISSIONS = {
 # no skill text told the model when to use them, and both are due for their own rework.
 DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "discover_tools",
+    # Registry discovery: search + the self-config commit IS the agent-driven install.
+    "search_skills",
+    # Source sync: silent check; the apply is a write, so its approval card IS the user prompt.
+    "check_skill_updates",
+    "apply_skill_update",
     *_READ_CONFIG_OPS,
     "commit_revision",
     "test_run",

@@ -109,8 +109,10 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
             icon: <GraduationCapIcon size={16} />,
             title: "Skills",
             ...(summary.skills
-                ? stated(`${summary.skills} available`)
+                ? stated(`${summary.skills} ${summary.skills === 1 ? "skill" : "skills"}`)
                 : emptyAction(onEdit ? "Add skills" : "None available")),
+            // Expands to the skill names — the count alone says how many, never which.
+            expands: summary.skillNames.length > 0,
         },
         {
             key: "permissions",
@@ -164,13 +166,25 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
                         // with the line that ends it. Rows separate by spacing.
                         noDivider
                     >
-                        {row.expands ? (
+                        {row.expands && row.key === "instructions" ? (
                             <InstructionsFileRow
                                 filename={INSTRUCTIONS_FILE}
                                 content={summary.instructions ?? ""}
                                 // The row demands a handler; a read-only host has nowhere to go.
                                 onOpen={onEdit ?? (() => undefined)}
                             />
+                        ) : null}
+                        {row.expands && row.key === "skills" ? (
+                            <div className="flex flex-wrap gap-1.5">
+                                {summary.skillNames.map((name) => (
+                                    <span
+                                        key={name}
+                                        className="rounded-full border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-2 py-px font-mono text-[11px]"
+                                    >
+                                        {name}
+                                    </span>
+                                ))}
+                            </div>
                         ) : null}
                     </ConfigAccordionSection>
                 ))

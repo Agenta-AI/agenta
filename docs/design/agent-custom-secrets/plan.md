@@ -131,3 +131,48 @@ closed at the next run boundary.
 Milestone one is implemented and validated in this PR. See [README](README.md) for the
 shipped behavior and [qa.md](qa.md) for the validation record. Milestone two, the vault
 policy for readable secrets, is not implemented, so this PR must not close #5703.
+
+## Follow-up fixes, 2026-09-10
+
+Two bugs came out of live use on the OSS team stack after the feature shipped in v0.115.4.
+Both are frontend only. They land together on one branch because they touch the same
+drawer and the same commit path.
+
+### Slice A: the secret picker shows nothing (#6733)
+
+The **Attach a secret** drawer opens at `zIndex` 1000 so it sits above the Advanced
+dialog. The shared `SelectContent` portals to `body` at `z-50`, so the option list paints
+under the drawer. The list is in the DOM with every secret in it, and nothing is visible.
+The same applies to the two selects inside `SecretForm` when it renders in
+`CreateSecretDrawer` at 1100.
+
+Change: the drawer passes `zIndex + 1` down to every `SelectContent` it renders, and
+`SecretForm` takes an optional `popupZIndex` for its own selects. The drawer also refetches
+the vault list when it opens, because the vault query never refetches on its own once the
+page holds a subscriber.
+
+Acceptance: with two text secrets in the vault, open Advanced, Custom secrets, Attach,
+click the Secret select. Both names are visible on screen in a screenshot, not only in the
+accessibility tree. Create a secret in another tab, reopen the drawer, and the new name is
+listed without a reload.
+
+### Slice B: attach fails with a 409 and Retry can never succeed (#6734)
+
+`commitAgentCredentialsAtom` sends `base_revision_id` equal to the revision the panel
+displays. The server rejects any base that is not the head. When the panel shows an older
+revision, every attach fails, and the drawer prints the raw wire error.
+
+Change: the commit reads the variant head first and builds the bindings-only revision on
+top of the head's data. The displayed revision supplies the variant id, the dirty check,
+and the attachments the user was looking at. When the head's attachments differ from
+those, the atom refuses with a plain message and the user reloads, because the callers
+send the full list and a commit would undo the other change. This keeps the review rule
+from step 4 of the request flow above. If the head moves between the read and the commit,
+the atom re-reads once and retries under the same rule. Edits typed during the request are
+carried to the adopted revision only when it was built on the displayed revision. The
+lost-response recovery stays.
+
+Acceptance: with the panel on an older revision and a newer head, attach succeeds and the
+panel adopts the new head. The unit suite in
+`web/packages/agenta-entities/tests/unit/agent-credentials-commit.test.ts` covers the head
+anchor, the single retry, and the plain conflict message.

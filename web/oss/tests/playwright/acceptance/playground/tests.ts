@@ -347,6 +347,8 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 1. Click on the save button
                 const commitButton = page.getByRole("button", {name: "Commit", exact: true})
+                // `isDisabled()` on a missing locator hangs to the timeout, so assert it first.
+                await expect(commitButton).toBeVisible({timeout: 15000})
                 const isCommitButtonDisabled = await commitButton.isDisabled()
 
                 if (!isCommitButtonDisabled) {

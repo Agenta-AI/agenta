@@ -1091,6 +1091,8 @@ class WorkflowsService:
         workflow_create: WorkflowCreate,
         #
         workflow_id: Optional[UUID] = None,
+        #
+        platform_meta: bool = False,
     ) -> Optional[Workflow]:
         self._reject_static_slug(workflow_create.slug)
 
@@ -1111,6 +1113,8 @@ class WorkflowsService:
             artifact_create=artifact_create,
             #
             artifact_id=workflow_id,
+            #
+            platform_meta=platform_meta,
         )
 
         if not artifact:
@@ -1171,6 +1175,8 @@ class WorkflowsService:
         user_id: UUID,
         #
         workflow_edit: WorkflowEdit,
+        #
+        platform_meta: bool = False,
     ) -> Optional[Workflow]:
         current_artifact = await self.workflows_dao.fetch_artifact(
             project_id=project_id,
@@ -1200,6 +1206,8 @@ class WorkflowsService:
             user_id=user_id,
             #
             artifact_edit=artifact_edit,
+            #
+            platform_meta=platform_meta,
         )
 
         if not artifact:
@@ -2194,6 +2202,79 @@ class WorkflowsService:
 
         return _workflow_revisions
 
+    async def query_workflow_head_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        workflow_revision_query: Optional[WorkflowRevisionQuery] = None,
+        #
+        artifact_search: Optional[str] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[WorkflowRevision]:
+        """Head (latest) revision per variant, revision-flag-filtered in SQL —
+        the correct-pagination path for revision-derived listings (skills)."""
+        _revision_query = (
+            RevisionQuery(
+                **workflow_revision_query.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude={"flags"},
+                ),
+                flags=self._drop_default_server_owned_query_flags(
+                    self._dump_flags(
+                        self._revision_query_flags_from_any(
+                            workflow_revision_query.flags,
+                        )
+                    )
+                )
+                or None,
+            )
+            if workflow_revision_query
+            else RevisionQuery()
+        )
+
+        revisions = await self.workflows_dao.query_head_revisions(
+            project_id=project_id,
+            #
+            revision_query=_revision_query,
+            #
+            artifact_search=artifact_search,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        _workflow_revisions = []
+
+        workflows_by_id: Dict[UUID, Optional[Workflow]] = {}
+        for revision in revisions:
+            if revision.artifact_id not in workflows_by_id:
+                workflows_by_id[revision.artifact_id] = await self.fetch_workflow(
+                    project_id=project_id,
+                    #
+                    workflow_ref=Reference(id=revision.artifact_id),
+                    #
+                    include_archived=include_archived,
+                )
+
+        for revision in revisions:
+            workflow_revision = await self._normalize_revision_for_read(
+                project_id=project_id,
+                revision=WorkflowRevision(
+                    **revision.model_dump(mode="json"),
+                ),
+                include_archived=include_archived,
+                workflow=workflows_by_id[revision.artifact_id],
+            )
+            _workflow_revisions.append(workflow_revision)
+
+        return _workflow_revisions
+
     async def read_workflow_revision_config(
         self,
         *,
@@ -2245,6 +2326,8 @@ class WorkflowsService:
         user_id: UUID,
         #
         workflow_revision_commit: WorkflowRevisionCommit,
+        #
+        platform_meta: bool = False,
         #
         scope_policy=None,
         agent_context: bool = False,
@@ -2331,6 +2414,7 @@ class WorkflowsService:
                     if answers_no_change
                     else None
                 ),
+                platform_meta=platform_meta,
             )
         except RevisionConflict as e:
             raise RevisionConflictError(
@@ -2491,6 +2575,8 @@ class WorkflowsService:
         expected_head_revision_id: Optional[UUID] = None,
         #
         no_change_check=None,
+        #
+        platform_meta: bool = False,
     ) -> Optional[WorkflowRevision]:
         self._reject_static_slug(workflow_revision_commit.slug)
 
@@ -2531,6 +2617,7 @@ class WorkflowsService:
             expected_head_revision_id=expected_head_revision_id,
             #
             no_change_check=no_change_check,
+            platform_meta=platform_meta,
         )
 
         if not revision:
@@ -3399,6 +3486,8 @@ class SimpleWorkflowsService:
         #
         simple_workflow_create: SimpleWorkflowCreate,
         #
+        platform_meta: bool = False,
+        #
         workflow_id: Optional[UUID] = None,
     ) -> Optional[SimpleWorkflow]:
         simple_workflow_flags = SimpleWorkflowFlags(
@@ -3427,6 +3516,7 @@ class SimpleWorkflowsService:
             workflow_create=workflow_create,
             #
             workflow_id=workflow_id,
+            platform_meta=platform_meta,
         )
 
         if workflow is None:
@@ -3485,6 +3575,7 @@ class SimpleWorkflowsService:
             project_id=project_id,
             user_id=user_id,
             workflow_revision_commit=workflow_revision_commit,
+            platform_meta=platform_meta,
         )
 
         if workflow_revision is None:
@@ -3512,6 +3603,7 @@ class SimpleWorkflowsService:
             project_id=project_id,
             user_id=user_id,
             workflow_revision_commit=workflow_revision_commit,
+            platform_meta=platform_meta,
         )
 
         if workflow_revision is None:
