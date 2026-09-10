@@ -77,9 +77,27 @@ that kills and then waits for the container to come back on its own waits foreve
 is a kill, an explicit start, and a wait for health before it returns:
 
 ```bash
-export AGENTA_QA_RUNNER_REPLACE_CMD='docker kill -s KILL <runner> && docker start <runner> && \
-  until [ "$(docker inspect -f "{{.State.Health.Status}}" <runner>)" = healthy ]; do sleep 2; done'
+cat > /tmp/replace-runner.sh <<'SH'
+set -eu
+R=<runner>
+docker kill -s KILL "$R"
+docker start "$R"
+for _ in $(seq 60); do
+  [ "$(docker inspect -f '{{.State.Health.Status}}' "$R")" = healthy ] && exit 0
+  sleep 2
+done
+echo "runner $R never reached healthy: $(docker inspect -f '{{.State.Status}}/{{.State.Health.Status}}' "$R")" >&2
+exit 1
+SH
+chmod +x /tmp/replace-runner.sh
+export AGENTA_QA_RUNNER_REPLACE_CMD=/tmp/replace-runner.sh
 ```
+
+Bound the health wait and exit non-zero when it lapses, as above. The driver caps the hook at
+180 seconds and reports the timeout, but a hook that spins silently until that cap burns the
+budget and tells you nothing; a hook that gives up at 120 seconds and prints the container's
+actual status tells you whether the replacement crashed, is still starting, or came back
+unhealthy.
 
 This is not theoretical. A hook without the explicit start left the runner down for about seven
 minutes mid-gate on 2026-09-10, and every cell after it failed for a reason that had nothing to
