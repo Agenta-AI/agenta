@@ -3,6 +3,7 @@ from typing import Any, List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.streams.dtos import (
+    SessionNameSource,
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
@@ -101,6 +102,7 @@ class SessionStreamsDAOInterface(ABC):
         user_id: Optional[UUID],
         session_id: str,
         header: SessionStreamHeaderEdit,
+        name_source: SessionNameSource = SessionNameSource.manual,
     ) -> Optional[SessionStream]: ...
 
     @abstractmethod

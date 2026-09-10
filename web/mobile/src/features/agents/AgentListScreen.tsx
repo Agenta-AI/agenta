@@ -11,6 +11,7 @@ import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
 import {SearchInput} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
+import Link from "next/link"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -66,6 +67,8 @@ export const AgentListScreen = ({
     const hasQuery = search.trim().length > 0
 
     // Identical content in both shells — a toolbar above the results, or the rail beside them.
+    // Toolbar shape mirrors the desktop Agents page: [title ... archived link], then
+    // [search ... create].
     const browseControls = (
         <div
             className={
@@ -81,18 +84,30 @@ export const AgentListScreen = ({
                 <h1 className="text-colorText m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] sm:text-[24px] sm:leading-[1.3333333333333333]">
                     Agents
                 </h1>
+                {/* The archived view is a destination, not a control on this list — it rides the
+                    title row so the toolbar below carries only the search and the create action. */}
+                <Link
+                    href={`${base}/agents/archived`}
+                    className="text-muted-foreground shrink-0 text-xs hover:underline"
+                >
+                    Archived agents
+                </Link>
+            </div>
+
+            {/* Desktop's toolbar axis (TableShell): search left and growing, action right. */}
+            <div className="flex min-w-0 items-center justify-between gap-3">
+                <SearchInput
+                    value={search}
+                    onValueChange={setSearch}
+                    placeholder="Search agents by name…"
+                    className="min-w-0 grow sm:max-w-80"
+                />
                 <NewAgentAction
                     base={base}
                     align="end"
                     className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
                 />
             </div>
-
-            <SearchInput
-                value={search}
-                onValueChange={setSearch}
-                placeholder="Search agents by name…"
-            />
         </div>
     )
 

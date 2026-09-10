@@ -34,7 +34,9 @@ export const NewAgentAction = ({
     const router = useRouter()
 
     return (
-        <span className={`flex flex-col gap-1 ${align === "end" ? "items-end" : "items-stretch"}`}>
+        <span
+            className={`flex flex-col gap-1 ${align === "end" ? "shrink-0 items-end" : "items-stretch"}`}
+        >
             <NewAgentButton
                 className={className}
                 label={label}

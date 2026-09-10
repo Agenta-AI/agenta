@@ -1,5 +1,6 @@
 import {useTypewriter} from "@agenta/chat/hooks"
 import ChatMarkdown from "@agenta/chat/markdown"
+import {chatFileResolver} from "@agenta/entity-ui/drive"
 
 /**
  * Streamdown's built-in classes assume a 14–30px type scale; the mobile app's base is 12px.
@@ -35,6 +36,10 @@ const proseClassName = [
  * Text is revealed on the frame clock, so incomplete-markdown repair has to outlive the last
  * delta — until the reveal drains, what is on screen is a truncated prefix.
  */
+/** A markdown link to a path, not to the web, opens the file in the Files pane (#6659). Module
+ * scope so the renderer's resolver context keeps a stable identity across streamed tokens. */
+const useDriveLinkResolver = () => chatFileResolver
+
 export const AssistantMarkdown = ({
     streaming,
     text,
@@ -51,6 +56,7 @@ export const AssistantMarkdown = ({
             baseClassName={proseClassName}
             content={revealed}
             streaming={streaming || !settled}
+            useLinkResolver={useDriveLinkResolver}
         />
     )
 }

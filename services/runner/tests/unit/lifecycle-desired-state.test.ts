@@ -173,6 +173,10 @@ describe("facet normalization: stability and coverage", () => {
       // Generated platform text is fixed when an environment is built. It intentionally stays
       // outside both identity views so an integration change does not evict a warm session.
       { platformInstructions: "new generated platform text" },
+      // Current context is delivered with each prompt, without changing the environment.
+      {
+        turnContext: 'This session is named "Q3 notes".',
+      },
       // Rolling-deployment compatibility has the same identity behavior as its replacement.
       {
         gatewayGuidance: {

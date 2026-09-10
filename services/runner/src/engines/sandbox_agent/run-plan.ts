@@ -153,6 +153,8 @@ export interface RunPlanWorkspace {
   toolMcpDir: string;
   usageOutPath?: string;
   skillDirs: MaterializedSkill[];
+  /** "name: reason" per skill that did NOT materialize — stamped as `ag.meta.skills.dropped`. */
+  skillsDropped: string[];
   /** Removes the per-run skills temp root. The engine runs it in its `finally` so it never leaks. */
   skillsCleanup: () => void;
   sourcePiAgentDir: string;
@@ -174,6 +176,12 @@ export interface RunPlanTools {
   executableToolSpecs: ResolvedToolSpec[];
   /** True when the permission policy needs the extension to intercept Pi builtin calls. */
   builtinGatingActive: boolean;
+  /**
+   * The run's permission posture. `allow` is the only posture under which the runner executes
+   * owner-authored startup code (`agent-files/.tools/setup.sh`) unattended; see
+   * `agent-tools-setup.ts`.
+   */
+  permissionDefault: PermissionPlan["default"];
   useToolRelay: boolean;
   /**
    * How a parked client tool disposes of the turn and the in-sandbox shim's blocking call (closed
@@ -690,10 +698,11 @@ export function buildRunPlan(
   // Skills materialize once from the resolved inline packages. Pi/Agenta consume the dirs
   // through Pi's agent-dir user scope; Claude consumes the same packages from the project-local
   // `.claude/skills` tree that `prepareWorkspace` writes below.
-  const { skills: skillDirs, cleanup: skillsCleanup } = resolveSkillDirs(
-    request.skills,
-    log,
-  );
+  const {
+    skills: skillDirs,
+    dropped: skillsDropped,
+    cleanup: skillsCleanup,
+  } = resolveSkillDirs(request.skills, log);
   if (skillDirs.length > 0)
     log(`skills: ${skillDirs.map((s) => s.name).join(", ")}`);
 
@@ -782,6 +791,7 @@ export function buildRunPlan(
           ? join(telemetryDir, ".agenta-usage.json")
           : undefined,
         skillDirs,
+        skillsDropped,
         skillsCleanup,
         sourcePiAgentDir:
           process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"),
@@ -794,6 +804,7 @@ export function buildRunPlan(
         toolSpecs,
         executableToolSpecs: executableToolSpecsForRun,
         builtinGatingActive,
+        permissionDefault: permissionPlan.default,
         // The relay carries tool EXECUTION only (permission gates ride the extension's
         // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.
         useToolRelay: toolSpecs.length > 0,

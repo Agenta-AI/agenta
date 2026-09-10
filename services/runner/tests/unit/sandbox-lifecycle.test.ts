@@ -103,7 +103,7 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
     createDaytonaCwd: (durable?: string) =>
       durable ?? "/home/sandbox/agenta-fake-cwd",
     createLocalCwd: (durable?: string) => durable ?? "/tmp/agenta-fake-cwd",
-    resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
+    resolveSkillDirs: () => ({ skills: [], dropped: [], cleanup: () => {} }),
     buildDaemonEnv: () => ({}),
     resolveDaemonBinary: () => "/bin/sandbox-agent",
     buildSandboxProvider: () =>

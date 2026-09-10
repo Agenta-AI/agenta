@@ -26,6 +26,8 @@ Files here persist across all sessions and runs of this agent.
 Your working directory persists only for the current session.
 Without a session, the working directory does not persist.
 Concurrent runs share this folder, so the last writer wins for each file.
+Tools you keep under .tools/ (static binaries in .tools/bin/, and a .tools/setup.sh that
+rebuilds environments on local disk) are restored before each session starts.
 `;
 
 function defaultLog(msg: string): void {

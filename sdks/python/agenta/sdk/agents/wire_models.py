@@ -552,6 +552,10 @@ class WireRunRequest(_WireModel):
     # The run's own context (trace + variant identity), refreshed per turn; consumed only by a
     # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted when unset.
     run_context: Optional[WireRunContext] = Field(default=None, alias="runContext")
+    # The agent's display name, the session name, and whether this is the first turn. Rendered
+    # into ``platformInstructions`` by the SDK, so the runner reads it from there and never from
+    # here. Excluded from lifecycle identity, like ``platformInstructions`` itself.
+    turn_context: Optional[str] = Field(default=None, alias="turnContext")
     # Tools + skills.
     tools: Optional[List[str]] = None
     custom_tools: Optional[List[WireResolvedToolSpec]] = Field(

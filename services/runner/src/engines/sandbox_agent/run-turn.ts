@@ -392,6 +392,7 @@ export async function runTurn(
       harness: plan.harness,
       model: env.model,
       skills: plan.workspace.skillDirs.map((s) => s.name),
+      skillsDropped: plan.workspace.skillsDropped,
       traceparent: request.context?.propagation?.traceparent,
       baggage: request.context?.propagation?.baggage,
       endpoint: otlpTarget.endpoint,
@@ -480,6 +481,19 @@ export async function runTurn(
           },
         ];
       }
+    }
+
+    // Add current context after cold-history replay / warm-tail selection and attachments.
+    // Keep it out of request.messages and persisted user input so replay cannot duplicate it.
+    if (
+      request.turnContext !== undefined &&
+      typeof request.turnContext !== "string"
+    ) {
+      throw new Error("turnContext must be a string when provided.");
+    }
+    const turnContext = request.turnContext?.trim();
+    if (turnContext) {
+      promptBlocks.unshift({ type: "text", text: turnContext });
     }
 
     const sessionTurnClient = deps.appendSessionTurn ?? appendSessionTurn;
