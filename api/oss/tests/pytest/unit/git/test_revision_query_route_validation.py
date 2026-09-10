@@ -1,10 +1,11 @@
-"""Revision-query routes must report validation and permission failures, not swallow them.
+"""Read routes must report validation and permission failures, not swallow them.
 
 Both failures are invisible from the pydantic layer alone. Grouping and windowing are
-rejected by the request model, but the workflows and environments routes merge query
-params into the body model inside the handler, so that rejection happens under
-`suppress_exceptions` rather than under FastAPI's own body validation. The applications
-route takes a single body model and has no merge, so what it can lose is its 403.
+rejected by the request model, but the workflows and environments revision-query routes
+merge query params into the body model inside the handler, so that rejection happens
+under `suppress_exceptions` rather than under FastAPI's own body validation. The
+applications routes take a single body model and have no merge, so what they can lose is
+their 403.
 
 The routers are built with stub services and mounted on a bare app, so the real route
 registration, the real `Depends` param parsing and the real decorator stack all run.
@@ -17,7 +18,10 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from oss.src.apis.fastapi.applications import router as applications_router_module
-from oss.src.apis.fastapi.applications.router import ApplicationsRouter
+from oss.src.apis.fastapi.applications.router import (
+    ApplicationsRouter,
+    SimpleApplicationsRouter,
+)
 from oss.src.apis.fastapi.environments import router as environments_router_module
 from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
 from oss.src.apis.fastapi.workflows import router as workflows_router_module
@@ -28,7 +32,7 @@ GROUPING = {"by": "artifact", "get": "latest"}
 
 
 class _StubService:
-    """Answers every revision query with an empty list."""
+    """Answers every query with an empty list and every fetch with nothing."""
 
     async def query_workflow_revisions(self, **_kwargs):
         return []
@@ -38,6 +42,20 @@ class _StubService:
 
     async def query_application_revisions(self, **_kwargs):
         return []
+
+    async def query_applications(self, **_kwargs):
+        return []
+
+    async def fetch_application(self, **_kwargs):
+        return None
+
+    async def fetch(self, **_kwargs):
+        return None
+
+    @property
+    def applications_service(self):
+        # `SimpleApplicationsRouter` reads this off its service when it is constructed.
+        return self
 
 
 def _build_client(monkeypatch, *, access_allowed: bool = True) -> TestClient:
@@ -86,6 +104,10 @@ def _build_client(monkeypatch, *, access_allowed: bool = True) -> TestClient:
             environments_service=stub_service,
         ).router,
         prefix="/applications",
+    )
+    app.include_router(
+        SimpleApplicationsRouter(simple_applications_service=stub_service).router,
+        prefix="/simple/applications",
     )
 
     return TestClient(app)
@@ -172,5 +194,25 @@ def test_denied_access_returns_403(monkeypatch, prefix, refs_field):
         f"{prefix}/revisions/query",
         json={refs_field: [{"id": str(uuid4())}]},
     )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "method, path, body",
+    [
+        ("GET", "/applications/{application_id}", None),
+        ("POST", "/applications/query", {}),
+        ("GET", "/simple/applications/{application_id}", None),
+    ],
+)
+def test_denied_access_on_the_application_read_routes_returns_403(
+    monkeypatch, method, path, body
+):
+    """These share the revision-query route's decorator, so they share its defect."""
+    client = _build_client(monkeypatch, access_allowed=False)
+
+    url = path.format(application_id=str(uuid4()))
+    response = client.get(url) if method == "GET" else client.post(url, json=body)
 
     assert response.status_code == 403

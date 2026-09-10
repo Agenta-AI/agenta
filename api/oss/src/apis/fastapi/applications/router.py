@@ -596,7 +596,7 @@ class ApplicationsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=ApplicationResponse())
+    @suppress_exceptions(default=ApplicationResponse(), exclude=[HTTPException])
     async def fetch_application(
         self,
         request: Request,
@@ -735,7 +735,7 @@ class ApplicationsRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=ApplicationsResponse())
+    @suppress_exceptions(default=ApplicationsResponse(), exclude=[HTTPException])
     async def query_applications(
         self,
         request: Request,
@@ -1883,7 +1883,7 @@ class SimpleApplicationsRouter:
         return simple_application_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleApplicationResponse())
+    @suppress_exceptions(default=SimpleApplicationResponse(), exclude=[HTTPException])
     async def fetch_simple_application(
         self,
         request: Request,
