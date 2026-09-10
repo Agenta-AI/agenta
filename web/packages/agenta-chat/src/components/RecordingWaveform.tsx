@@ -92,9 +92,11 @@ const RecordingWaveform = ({
             const width = canvas.clientWidth
             const height = canvas.clientHeight
             const mid = height / 2
-            const barWidth = Math.max(1, Math.min(BAR_WIDTH, width / HISTORY))
-            // The remainder, so the strip still spans the full width at whatever size it is given.
-            const gap = HISTORY > 1 ? Math.max(1, (width - barWidth * HISTORY) / (HISTORY - 1)) : 0
+            // No minimums: 64 bars at 2.5px with a 1px gap need 223px, and below that the floors
+            // pushed the last bar off the right edge. The bar takes its share of a narrow strip and
+            // the gap closes to nothing rather than either one forcing an overflow.
+            const barWidth = Math.min(BAR_WIDTH, width / HISTORY)
+            const gap = HISTORY > 1 ? Math.max(0, (width - barWidth * HISTORY) / (HISTORY - 1)) : 0
             const radius = barWidth / 2
             const rounded = ctx as RoundRectCtx
 

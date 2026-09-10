@@ -40,8 +40,12 @@ export interface HomeEntityListProps {
     errorSlot?: ReactNode
 }
 
+/** The mobile theme's focus recipe. No `ring-offset`: this theme provides none. */
+const FOCUS_RING = "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+
 const TAB_BASE =
-    "box-border cursor-pointer appearance-none border-0 border-b-2 border-solid bg-transparent px-0.5 pb-[7px] font-[inherit] text-sm leading-[1.4] outline-none transition-colors"
+    "box-border cursor-pointer appearance-none border-0 border-b-2 border-solid bg-transparent px-0.5 pb-[7px] font-[inherit] text-sm leading-[1.4] outline-none transition-colors " +
+    FOCUS_RING
 const TAB_ON = "border-b-foreground font-medium text-foreground"
 const TAB_OFF = "border-b-transparent font-normal text-muted-foreground hover:text-foreground"
 
@@ -49,7 +53,8 @@ const TAB_OFF = "border-b-transparent font-normal text-muted-foreground hover:te
 const TEMPLATE_SHORTLIST = 5
 
 const ROW =
-    "box-border flex w-full cursor-pointer appearance-none items-center gap-3.5 rounded-[10px] border-0 bg-transparent px-3.5 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent"
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-3.5 rounded-[10px] border-0 bg-transparent px-3.5 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent " +
+    FOCUS_RING
 
 /** One row: a tile, the name over its description, and whatever marks the source carries. */
 const Row = ({
@@ -147,11 +152,12 @@ export const HomeEntityList = ({
         if (scrollerRef.current) scrollerRef.current.scrollTop = 0
     }
 
-    // With nothing in it, "Your agents" is a tab that can only disappoint. It comes back the
-    // moment there is one, and the source falls to templates until then.
-    const hasAgentsTab = agents.length > 0
-    const showAgents = hasAgentsTab && tab === "agents"
     const agentsBody = errorSlot ?? (loading ? loadingSlot : agents.length === 0 ? emptySlot : null)
+    // With nothing in it, "Your agents" is a tab that can only disappoint — unless the host has
+    // something to say there. A failed fetch hands us an error slot with a retry in it, and
+    // hiding the tab hid the retry along with it.
+    const hasAgentsTab = agents.length > 0 || agentsBody !== null
+    const showAgents = hasAgentsTab && tab === "agents"
 
     return (
         // `-mt-1` closes 4px of the column's 26px gap: the tabs read as the composer's own
@@ -188,7 +194,7 @@ export const HomeEntityList = ({
                     <button
                         type="button"
                         onClick={onNew}
-                        className="box-border flex h-7 cursor-pointer appearance-none items-center gap-1.5 rounded-control-sm border border-solid border-border bg-transparent px-2.5 font-[inherit] text-[13px] leading-none text-foreground outline-none transition-colors hover:bg-accent"
+                        className={`box-border flex h-7 cursor-pointer appearance-none items-center gap-1.5 rounded-control-sm border border-solid border-border bg-transparent px-2.5 font-[inherit] text-[13px] leading-none text-foreground outline-none transition-colors hover:bg-accent ${FOCUS_RING}`}
                     >
                         <PlusIcon aria-hidden size={12} />
                         New agent

@@ -76,7 +76,9 @@ export const HomeFocus = ({
     const [tabChoice, setTabChoice] = useState<HomeListTab | null>(null)
     const [bindingChoice, setBindingChoice] = useState<Binding | null>(null)
     const hasAgents = agents.length > 0
-    const tab = tabChoice ?? (hasAgents ? "agents" : "templates")
+    // `loading` keeps the agents tab in play before the roster resolves — otherwise a project
+    // that turns out to have agents opens on templates, and a FAILED fetch hides its own retry.
+    const tab = tabChoice ?? (hasAgents || loading || errorSlot ? "agents" : "templates")
     const binding: Binding =
         bindingChoice ?? (hasAgents ? {kind: "agent", id: null} : {kind: "new"})
     const inputRef = useRef<RichChatInputHandle | null>(null)
@@ -90,12 +92,26 @@ export const HomeFocus = ({
                   ? binding.id
                   : agents[0]?.id) ?? null)
 
-    // The rich input is lazy, so on the click's own tick the handle can still be null.
+    /**
+     * Put the caret in the composer, and a seed with it.
+     *
+     * `RichChatInput` is lazy behind Suspense, so the handle is null for however long that chunk
+     * takes — a single frame's delay was enough on a warm load and not enough on a cold one, which
+     * silently dropped the template's instruction and left create mode submitting empty text.
+     * Retries until the handle exists, bounded so a composer that never mounts cannot spin.
+     */
     const focusSoon = useCallback((seed?: string) => {
-        requestAnimationFrame(() => {
-            if (seed !== undefined) inputRef.current?.setMarkdown(seed)
-            inputRef.current?.focus()
-        })
+        let framesLeft = 120
+        const attempt = () => {
+            const input = inputRef.current
+            if (!input) {
+                if (framesLeft-- > 0) requestAnimationFrame(attempt)
+                return
+            }
+            if (seed !== undefined) input.setMarkdown(seed)
+            input.focus()
+        }
+        requestAnimationFrame(attempt)
     }, [])
 
     // "+ New agent" answers "what next" with "type here", so the caret goes there.

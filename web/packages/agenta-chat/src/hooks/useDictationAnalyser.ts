@@ -50,7 +50,11 @@ export const useDictationAnalyser = (active: boolean): RefObject<AnalyserNode | 
                 }
                 streamRef.current = stream
                 const Ctor = getAudioContextCtor()
-                if (!Ctor) return
+                // Nothing can be measured without one, so the mic has no reason to stay open.
+                if (!Ctor) {
+                    stop()
+                    return
+                }
                 const ctx = new Ctor()
                 audioCtxRef.current = ctx
                 const analyser = ctx.createAnalyser()

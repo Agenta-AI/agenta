@@ -45,13 +45,16 @@ export const useHomeHandoff = (base: string) => {
         async ({agentId, text}: {agentId: string; text: string}) => {
             const {staged, parts} = stagedParts()
             stash({sessionId, task: {agentId, text, parts}})
-            try {
-                await router.push(`${base}/sessions/${sessionId}?agent=${agentId}`)
-            } catch (error) {
+            // A cancelled navigation RESOLVES false rather than throwing, so both outcomes have to
+            // land here — the same hazard `useNewAgentAction` documents. Catching alone cleared the
+            // attachments while the task sat unplayed in the stash.
+            const navigated = await router
+                .push(`${base}/sessions/${sessionId}?agent=${agentId}`)
+                .catch(() => false)
+            if (!navigated) {
                 // The chat route never mounted, so drop the stash — otherwise the task replays the
                 // next time this session id is opened. Attachments stay staged, still sendable.
                 dropPendingTask(sessionId)
-                console.error("[useHomeHandoff] could not open the session", error)
                 return
             }
             // Cleared only once the destination is committed to.

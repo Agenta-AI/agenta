@@ -27,7 +27,7 @@ export const HomeListError = ({onRetry}: {onRetry: () => void}) => (
         <button
             type="button"
             onClick={onRetry}
-            className="text-foreground hover:bg-accent rounded-control-sm border-border box-border cursor-pointer appearance-none border border-solid bg-transparent px-2 py-1 font-[inherit] text-xs outline-none"
+            className="text-foreground hover:bg-accent rounded-control-sm border-border focus-visible:border-ring focus-visible:ring-ring/50 box-border cursor-pointer appearance-none border border-solid bg-transparent px-2 py-1 font-[inherit] text-xs outline-none focus-visible:ring-[3px]"
         >
             Try again
         </button>

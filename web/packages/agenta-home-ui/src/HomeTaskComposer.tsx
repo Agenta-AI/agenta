@@ -227,12 +227,19 @@ export const HomeTaskComposer = ({
                         dictating={voiceEnabled && voice.dictating}
                         dictationAnalyserRef={voiceEnabled ? voice.dictationAnalyserRef : undefined}
                         onSubmit={async (text) => {
-                            if (creating) {
-                                await onCreate?.({text})
-                                return
+                            // `RichChatInput` neither awaits nor catches this, so a rejecting host
+                            // would surface as an unhandled rejection and nothing else. Both hosts
+                            // report their own failures; this only stops the rejection escaping.
+                            try {
+                                if (creating) {
+                                    await onCreate?.({text})
+                                    return
+                                }
+                                if (!effectiveAgentId) return
+                                await onStart({agentId: effectiveAgentId, text})
+                            } catch (error) {
+                                console.error("[HomeTaskComposer] the send did not complete", error)
                             }
-                            if (!effectiveAgentId) return
-                            await onStart({agentId: effectiveAgentId, text})
                         }}
                         attachments={attachments}
                         placeholder={creating ? CREATE_PLACEHOLDER : placeholder}
