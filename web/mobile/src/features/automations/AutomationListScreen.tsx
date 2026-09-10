@@ -61,6 +61,12 @@ const STATUS_COLOR: Record<AutomationStatus, {dot: string; text: string}> = {
  */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
+/** The kind mark's tile. Preset pairs, so both halves flip with the theme. */
+const KIND_CHIP: Record<"event" | "schedule", string> = {
+    event: "bg-[var(--ag-preset-orange-bg)] text-[var(--ag-preset-orange-text)]",
+    schedule: "bg-[var(--ag-preset-purple-bg)] text-[var(--ag-preset-purple-text)]",
+}
+
 const COLUMNS: ListTableColumn[] = [
     {key: "name", label: "Automation", width: "minmax(140px,2fr)"},
     {key: "status", label: "Status", width: "minmax(110px,1fr)"},
@@ -198,19 +204,20 @@ export const AutomationListScreen = ({
                     return (
                         <>
                             <span className="flex min-w-0 items-center gap-2">
-                                {automation.kind === "event" ? (
-                                    <Lightning
-                                        size={15}
-                                        className="shrink-0 text-muted-foreground"
-                                        aria-hidden
-                                    />
-                                ) : (
-                                    <ClockClockwise
-                                        size={15}
-                                        className="shrink-0 text-muted-foreground"
-                                        aria-hidden
-                                    />
-                                )}
+                                {/* A tile, like the agent's beside it, so the two marks on a row
+                                    read as the same kind of thing. The two kinds get their own
+                                    tint: at a glance down the column, colour separates "when
+                                    something happens" from "on a schedule" faster than two
+                                    small glyphs do. */}
+                                <span
+                                    className={`flex size-7 shrink-0 items-center justify-center rounded-md ${KIND_CHIP[automation.kind]}`}
+                                >
+                                    {automation.kind === "event" ? (
+                                        <Lightning size={15} aria-hidden />
+                                    ) : (
+                                        <ClockClockwise size={15} aria-hidden />
+                                    )}
+                                </span>
                                 <span
                                     className="truncate text-[14px] text-foreground"
                                     title={automation.name}
