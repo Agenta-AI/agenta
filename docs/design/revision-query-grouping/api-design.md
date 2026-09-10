@@ -1,192 +1,185 @@
 # The interface
 
-## The role this field plays
+## What the caller asks for
 
-Classify the field before naming it. "Return the newest revision of each workflow" is a
-result-shaping instruction. It says how to fold the result set. It is not a filter on a
-revision's own fields, it is not a scope reference, and it is not a policy.
+A grouped revision query makes two choices:
 
-The request object already separates those roles:
+1. `by` divides matching revisions by their parent.
+2. `get` selects one revision from each group.
 
-| Field | Role |
-| --- | --- |
-| `<entity>_revision` | attribute filter |
-| `<entity>_refs`, `<entity>_variant_refs`, `<entity>_revision_refs` | scope |
-| `include_archived` | policy |
-| `windowing` | result shaping |
-
-The new field belongs with `windowing`, as a sibling.
-
-## The proposed shape
+Both fields shape the result set, so they belong in one top-level `grouping` object beside
+`windowing`. They do not belong in `<entity>_revision`, which filters attributes of an
+individual revision.
 
 ```jsonc
 POST /workflows/revisions/query
 {
-  "workflow_refs": [{"id": "..."}, {"id": "..."}, {"id": "..."}],
-  "windowing": { "order": "descending", "limit": 50 },
-  "grouping":  { "by": "artifact" }
+  "workflow_refs": [{"id": "..."}, {"id": "..."}],
+  "grouping": {
+    "by": "artifact",
+    "get": "latest"
+  }
 }
 ```
 
-```python
-class RevisionGrouping(BaseModel):
-    by: Literal["artifact", "variant"] = Field(
-        description="Return the newest eligible revision within each parent.",
-    )
+This reads as: group revisions by workflow and get the latest eligible revision from each
+group. The response remains a flat list.
+
+For the latest revision of each variant under the requested workflows:
+
+```jsonc
+{
+  "workflow_refs": [{"id": "..."}],
+  "grouping": {
+    "by": "variant",
+    "get": "latest"
+  }
+}
 ```
 
-The first release carries `by` and nothing else. It returns at most one revision per
-requested parent. We dropped a `limit` field for "the newest N per parent", because no
-caller asks for it today, and it forces a second SQL branch plus a page cursor over
-parents that we cannot define yet. The section "What we removed after review" explains
-that decision.
+## Request model
 
-Each entity request model gains one optional field:
+```python
+class RevisionGrouping(BaseModel):
+    by: Literal["artifact", "variant"]
+    get: Literal["latest"]
+```
+
+`get` is required. `grouping.by` alone would leave the selection rule implicit. It could
+reasonably mean a nested response, an aggregate, or a first row. Requiring both fields makes
+the operation explicit and leaves room for another selection rule when a caller needs one.
+
+Each of the six revision-query request models gains:
 
 ```python
 grouping: Optional[RevisionGrouping] = Field(
     default=None,
     description=(
-        "Return the newest revisions within each parent instead of a flat list. "
-        "When set, `windowing.limit` and `windowing.next` count parents, not revisions."
+        "Divide matching revisions by artifact or variant and select one revision "
+        "from each group."
     ),
 )
 ```
 
-The two limits compose, and that is a sign the split is correct. `grouping.limit` says how
-many revisions to keep inside each parent. `windowing.limit` still caps how many parents
-come back. They answer different questions, so they sit side by side.
+## Query order
 
-## Rules the contract must state
+The server evaluates a grouped query in this order:
 
-1. When `grouping` is absent, behavior does not change at all.
-2. `grouping` needs a non-empty list of parent references, and the API caps how many.
-   The result is then bounded by the number of parents the caller named.
-3. Selection order is fixed by the server, and `windowing.order` does not change it.
-   Ascending order would otherwise select the oldest revision inside each parent, which
-   contradicts the name of the feature.
-4. `grouping` with `windowing.next`, `windowing.newest`, or `windowing.oldest` returns a
-   client error. A revision cursor cannot page over parents. See the next section.
-5. `grouping` with the environments `references` filter returns a client error. That
-   filter compares neighboring rows in a history, so it needs the history intact.
-6. A parent with no eligible revision produces no row. It does not produce an empty one.
-7. `grouping.by: "variant"` groups by the variant that owns the revision.
-   `grouping.by: "artifact"` groups by the artifact above the variant.
+1. Apply project scope, parent references, revision attribute filters, and archive policy.
+2. Exclude empty seed revisions. A configured revision whose version is `"0"` remains
+   eligible.
+3. Divide the eligible rows by `artifact_id` or `variant_id`.
+4. For `get: "latest"`, select the row with the greatest UUID7 revision id in each group.
+5. Return the selected rows as a flat list ordered by revision id, newest first.
 
-## Why the cursor is rejected rather than redefined
+The UUID7 id records commit order. The `version` column cannot define latest because it is a
+string and restarts for every variant. Ordering it descending puts `"9"` before `"10"`, and
+two variants can both have the same version.
 
-An earlier draft said `windowing.next` would page over parents. That does not work, and
-the failure is easy to reach.
+An empty seed revision is version `"0"` with no `data`, `flags`, `tags`, or `meta`. A first
+real commit can also be version `"0"`, but it carries at least one of those fields and remains
+eligible.
 
-The response cursor is built from the last returned revision's id, in
-`apis/fastapi/shared/utils.py`. Take parent A with revisions 100 and 80, and parent B with
-revision 90. Page one folds to A/100 and sets the cursor to 100. Page two applies `id < 100`
-before the fold, so it returns B/90, and a later page returns A/80. Parent A appears twice.
+Filters apply before selection. Therefore a grouped query means "the latest eligible revision
+that matches the request", not "the absolute latest revision, if it matches". This follows the
+normal query rule that filters determine the candidate rows before result shaping occurs.
 
-Paging over parents needs a parent-keyed cursor and a response contract that several of
-the six endpoints do not have today. No caller needs it, so the first release rejects the
-combination instead of half-supporting it.
+## Supported combinations
 
-## What "newest" must mean
+1. Omitting `grouping` preserves existing behavior.
+2. `grouping.by: "artifact"` requires non-empty artifact references.
+3. `grouping.by: "variant"` requires non-empty artifact or variant references.
+4. A parent with no eligible matching revision contributes no row.
+5. `grouping` cannot be combined with `windowing` in the first release.
+6. `grouping` cannot be combined with explicit revision references. Exact revision references
+   already select rows, so applying another selection rule would silently discard requested
+   revisions.
+7. A grouped request rejects any domain filter that is evaluated after the SQL query. This
+   includes server-owned revision flags and the environment `references` history filter.
+8. Malformed or unsupported grouping returns a client error. A parser must never swallow the
+   error and broaden the query.
 
-The frontend does not treat the newest row as the latest revision.
-`selectMostRecentWorkflowRevision` in `web/packages/agenta-entities/src/workflow/api/api.ts`
-skips version 0 and ranks by `created_at`. Version 0 is an auto-created placeholder.
+## Why grouped windowing is rejected
 
-A fold that picks the newest row by id can therefore pick a placeholder that the frontend
-then discards, and the parent disappears from the result. That is a regression, not a
-speed-up.
+The current cursor identifies a revision in one flat stream. It cannot page groups correctly.
 
-So the server must decide eligibility before it selects, and the rule has to be written
-down. Version 0 is not automatically excluded: `WorkflowsService` distinguishes an empty
-placeholder from a configured revision that happens to be version 0.
+Take workflow A with revisions 100 and 80, and workflow B with revision 90. A first page could
+select A/100 and use 100 as its cursor. The next page applies `id < 100` before grouping and
+returns B/90 and A/80. Workflow A now appears twice.
 
-The same question applies to flags. `WorkflowsService` sends some flags to SQL, drops
-server-owned flags from that filter, builds the revisions, then matches the requested
-flags again in Python. Folding first can drop a parent whose older revision would have
-matched. The contract must say which of these it means:
+Paging groups needs a cursor based on the group and a response contract shared by all six
+endpoints. No current caller needs it, so this release rejects every `windowing` field when
+`grouping` is present.
 
-- the newest revision that matches the filter, or
-- the newest revision, returned only when it matches.
+## Shared scope
 
-Until that is settled per endpoint, `grouping` combined with post-SQL flag matching
-returns a client error.
+`RevisionGrouping` lives beside `RevisionQuery` in the git core DTOs. The shared git DAO serves
+these endpoints:
 
-## Naming
+- `/workflows/revisions/query`
+- `/testsets/revisions/query`
+- `/evaluators/revisions/query`
+- `/environments/revisions/query`
+- `/applications/revisions/query`
+- `/queries/revisions/query`
 
-`by` takes `artifact` or `variant`, not the entity's own name. The git DAO calls the
-parent levels artifact and variant, and one shared DTO serves six entity families. A
-value of `workflow` would not read correctly inside a testset request.
+In that layer, `artifact` is the common name for a workflow, testset, evaluator, environment,
+application, or saved query. `variant` is a branch of that artifact.
 
-The field names use `lower_snake_case`, which matches the rest of the request.
+## Shapes rejected
 
-## Shapes we rejected
-
-### Extending the shared `Windowing`
+### `workflow_revision.latest_per_artifact`
 
 ```jsonc
-"windowing": { "limit": 1, "order": "descending", "group_by": "artifact" }
+{
+  "workflow_revision": {"latest_per_artifact": true}
+}
 ```
 
-`Windowing` already carries folding concepts, `interval` and `rate`, so this looks
-consistent at first. It fails on reach. 87 request models embed `Windowing`, and only six
-have a parent column. The other 81 would accept `group_by` and ignore it, and a caller
-could not tell the difference between a field that worked and a field that did nothing.
+The behavior is clear, but the location is wrong. `workflow_revision` filters attributes of an
+individual row. Latest-per-parent shapes the whole result. The boolean also hard-codes artifact
+grouping and cannot express the variant case.
 
-It also breaks the meaning of `next`. That token is a cursor over one flat stream.
-Grouping changes what the stream contains.
-
-### A limit on the reference
+### `grouping.by` without `grouping.get`
 
 ```jsonc
-"workflow_refs": [{"id": "...", "limit": 1}]
+{"grouping": {"by": "artifact"}}
 ```
 
-`Reference` is an identity type carrying `id`, `slug`, and `version`. Result shaping is
-not identity. No reader would predict finding a limit there.
+This states how rows are divided but leaves the selection behavior implicit. Grouping does not
+inherently mean latest. Requiring `get: "latest"` states the complete operation.
 
-This shape is not hypothetical. The testsets batch fetcher in
-`web/packages/agenta-entities/src/testset/api/api.ts` already sent it, and the API silently
-dropped it. That dead code is now removed, along with a docstring that described a
-`ReferenceWithLimit` feature which never existed.
-
-### An `is_latest` query flag
+### Extending `Windowing`
 
 ```jsonc
-"workflow_revision": { "flags": { "is_latest": true } }
+{"windowing": {"limit": 1, "group_by": "artifact"}}
 ```
 
-Rejected for meaning and for effect.
+Eighty-seven request models embed `Windowing`, while only the six revision endpoints have the
+artifact and variant columns. Adding the field there would expose it on unrelated APIs. It also
+mixes a revision cursor with a per-parent selection operation.
 
-On meaning: the flags describe what a revision *is*. Some are derived from its own fields,
-some are user-declared, and some are merged from the artifact during a read. None of them
-depend on the revision's position in its own history. "Newest among its siblings" does,
-and it changes when a sibling arrives.
+### A limit on each reference
 
-On effect: flags are matched in Python after each model is built. A flag filter would
-still cut the serialization and compression cost, so it is not useless, but it would keep
-the database transfer and the model construction. Those are 531 ms of the 1916 ms we
-measured. Selecting in SQL removes all of it.
+```jsonc
+{"workflow_refs": [{"id": "...", "limit": 1}]}
+```
 
-## Where the DTO lives
+`Reference` identifies an entity through `id`, `slug`, or `version`. A result limit is not part
+of identity. The testset client previously sent this field, and Pydantic silently discarded it.
 
-`RevisionGrouping` goes next to `RevisionQuery` in the git core DTOs, because the git DAO
-serves all six entity families and one implementation should serve all of them.
+### An `is_latest` revision flag
 
-All six request models get the field in the same change. Adding it to workflows alone
-would split a family that is identical today, and consistency across the six is worth
-more than a smaller diff.
+```jsonc
+{"workflow_revision": {"flags": {"is_latest": true}}}
+```
 
-## What we removed after review
+A revision flag describes that revision. "Latest among siblings" changes whenever a sibling is
+created. Flags are also matched in Python in several services, after the expensive rows have
+already left PostgreSQL.
 
-Three things left the first release. Each added a branch of implementation and testing
-that no caller needs today.
+## Deferred behavior
 
-**The `limit` field, for the newest N per parent.** Every caller we found wants exactly
-one. Supporting N forces a second SQL path with `ROW_NUMBER`, and it makes the result size
-unbounded again, which is the problem we set out to fix.
-
-**Paging over parents.** Explained above. It needs a cursor the six endpoints do not have.
-
-**Grouping on unbounded queries.** `grouping` needs explicit parent references. Without
-them the fold still scans every revision in the project.
+The first release supports exactly one selection rule, `latest`, and one selected row per group.
+It does not support newest N per group or paging groups. Those features need a real caller and a
+group-aware cursor contract before we add them.

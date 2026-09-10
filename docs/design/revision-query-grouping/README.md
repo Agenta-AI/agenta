@@ -1,7 +1,7 @@
 # Per-parent grouping on revision queries
 
-This folder plans one change to the Agenta API. The change lets a caller ask for the
-newest revisions of each parent, instead of every revision of every parent.
+This folder defines one change to the Agenta API. The change lets a caller group
+revisions by parent and explicitly get the latest revision from every group.
 
 ## Reading order
 

@@ -24,19 +24,11 @@ client that adopted the field early would make the exact incident worse.
 So the parsers change in the same step as the models, and a malformed `grouping` returns a
 client error rather than a silently broader query.
 
-## Step 1: settle eligibility, then write it down
+## Step 1: record the settled contract
 
-Before any code, answer these per endpoint and record the answers in `api-design.md`:
-
-- Which revision counts as the newest one, given that version 0 can be either an empty
-  placeholder or a real configured revision.
-- Whether `grouping` means "the newest revision that matches the filter" or "the newest
-  revision, returned only if it matches".
-- Which combinations return a client error. The current list is a revision cursor, a time
-  range, the environments `references` filter, and post-SQL flag matching.
-
-This step exists because folding first changes which parents appear at all, not just how
-many rows come back.
+Record `grouping: {by, get}`, eligibility, ordering, and rejected combinations in
+`api-design.md`. Both fields are required inside grouping. Filters and archive policy
+run before the server selects the latest eligible revision in each group.
 
 ## Step 2: API, end to end, in one change
 
@@ -47,6 +39,8 @@ many rows come back.
   router that has them. Workflows and environments both parse by keyword expansion.
 - Make a malformed or unsupported `grouping` return a client error. Do not let it fall
   through the bare `except` into an unscoped query.
+- Reject grouped requests with `windowing`, explicit revision references, or filters
+  evaluated after SQL.
 - Extend `GitDAOInterface.query_revisions`, the concrete `GitDAO`, and the six service
   signatures. Applications and evaluators reach this through `WorkflowsService`.
 - Apply the fold in SQL with `DISTINCT ON`. Its expressions must lead the `ORDER BY`, so
@@ -60,7 +54,7 @@ many rows come back.
 - Regenerate both clients with `clients/scripts/generate.sh`: Python under
   `clients/python/agenta_client`, TypeScript under `web/packages/agenta-api-client`.
 - Rebuild `@agentaai/api-client` so consumers see the new types.
-- Update the query and versioning guides with what "latest" means and which combinations
+- Update the query and versioning guides with what `by` and `get` mean and which combinations
   are rejected.
 
 ## Step 4: move the three callers

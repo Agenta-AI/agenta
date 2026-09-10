@@ -1,10 +1,11 @@
 # Status
 
-Last updated 2026-09-05.
+Last updated 2026-09-10.
 
 ## Where the work stands
 
-Planning, with one small fix already landed. The API change is not written yet.
+The interface is settled and implementation is in progress. One related testset
+correctness fix has already landed.
 
 The measurements in `research.md` come from the running `agenta-oss-team` stack on images
 `v0.114.5`. The design was reviewed by Codex (`gpt-6-astra`, medium effort) on 2026-09-05,
@@ -31,23 +32,25 @@ The fix does not stop the over-fetch. That needs the API change planned here.
 
 ## Decisions made
 
-- The new field is a sibling of `windowing`, named `grouping`. Mahmoud chose this shape.
-- The first release carries `by` only, and returns at most one revision per parent. The
-  `limit` field for "newest N per parent" is dropped until a caller needs it.
-- Paging over parents is rejected, not redefined. `api-design.md` gives the worked example
-  where a revision cursor makes a parent appear on two pages.
+- The new field is a sibling of `windowing`, named `grouping`.
+- `grouping.by` defines the parent level and the required `grouping.get` defines which
+  revision to select. The first release accepts `artifact` or `variant` for `by` and
+  only `latest` for `get`.
+- Grouped requests reject all `windowing`. `api-design.md` gives the worked example
+  where a revision cursor makes one parent appear on two pages.
+- Filters and archive policy run before grouping. `latest` selects the greatest eligible
+  UUID7 revision id in every group.
+- Empty seed revisions do not count. Configured version 0 revisions remain eligible.
+- Explicit revision references and filters evaluated after SQL are rejected with grouping.
 - All six revision query endpoints get the field in the same change.
 - Nothing ships until the behavior works end to end. The earlier plan to land the field
   first, accepted and ignored, is unsafe here, and `plan.md` explains why.
 
-## Open questions
+## Remaining verification
 
-- What counts as the newest revision when version 0 can be either an empty placeholder or a
-  real configured revision. This blocks Step 2.
-- Whether `grouping` means "the newest revision that matches the filter" or "the newest
-  revision, returned only if it matches". The two differ whenever a filter is present.
-- Whether any caller outside this repository depends on the current unbounded behavior. The
-  change is additive, so the risk is low, but the SDK is public.
+- Confirm the generated clients expose the grouped request on all six endpoints.
+- Measure the response size and latency on the seeded project.
+- Exercise the sidebar against the deployed API on exe.dev.
 
 ## Related work found in the same investigation
 

@@ -48,7 +48,8 @@ row per group in one pass. The repository already does exactly this in
 
 ## Goals
 
-1. Let a caller ask for the newest N revisions of each parent, in one request.
+1. Let a caller explicitly group revisions by parent and get the latest revision from
+   each group in one request.
 2. Push the fold into SQL, so the discarded rows never reach Python.
 3. Keep the six revision query endpoints consistent with each other.
 4. Change nothing for callers that do not ask for the new behavior.
