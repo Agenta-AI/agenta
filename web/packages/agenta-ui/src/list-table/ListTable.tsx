@@ -74,7 +74,7 @@ export const ListTable = <Row,>({
                 <div
                     role="row"
                     className={cn(
-                        "grid gap-3 border-0 border-b border-solid border-border px-2 text-[12px] font-medium text-muted-foreground",
+                        "grid gap-3 border-0 border-b border-solid border-border/40 px-2 text-[13px] font-medium text-muted-foreground",
                         // Opaque, or the rows read straight through it as they pass under. A
                         // stated height rather than padding, so the group headings below can be
                         // stuck directly beneath it without measuring anything — and the margin
