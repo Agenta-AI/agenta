@@ -1,5 +1,7 @@
 """Domain exceptions for session streams."""
 
+from typing import Optional
+
 
 class SessionStreamError(Exception):
     """Base exception for session stream errors."""
@@ -36,6 +38,40 @@ class SessionTurnInUse(SessionStreamError):
         super().__init__(self.message)
 
 
+class SessionTurnMismatch(SessionStreamError):
+    """Raised when a cancel would displace a turn the caller did not mean to cancel.
+
+    Two ways to get here, one meaning: the Stop is stale. Either the caller named a turn
+    (`expected_execution_id`) and a different one now holds the session, or the caller named
+    none and the holding turn started after the cancel arrived. Both are the stop-then-send
+    race: the turn the user meant has already ended and the next one has taken the session.
+    """
+
+    def __init__(
+        self,
+        session_id: str,
+        *,
+        actual_turn_id: Optional[str] = None,
+        expected_turn_id: Optional[str] = None,
+    ) -> None:
+        self.session_id = session_id
+        self.actual_turn_id = actual_turn_id
+        self.expected_turn_id = expected_turn_id
+        if expected_turn_id:
+            self.message = (
+                f"Session '{session_id}' is running turn '{actual_turn_id}',"
+                f" not the expected turn '{expected_turn_id}'."
+                " Nothing was cancelled."
+            )
+        else:
+            self.message = (
+                f"Session '{session_id}' started turn '{actual_turn_id}' after this"
+                " cancel arrived, so the cancel is stale. Nothing was cancelled."
+                " Send `expected_execution_id` to cancel a specific turn."
+            )
+        super().__init__(self.message)
+
+
 class ConcurrencyLimitExceeded(SessionStreamError):
     """Raised when the per-project concurrent-run limit is exceeded."""
 
@@ -45,3 +81,115 @@ class ConcurrencyLimitExceeded(SessionStreamError):
             f"Concurrency limit of {limit} concurrent runs reached for this project."
         )
         super().__init__(self.message)
+
+
+#: How much of a session name the refusal PROSE repeats. The runner cuts a tool error at 2000
+#: characters, and a name is unbounded at this API, so an unbounded echo would push the
+#: machine-readable half of the envelope off the end.
+NAME_ECHO_MAX_CHARS = 120
+
+
+def _quotable(name: str) -> Optional[str]:
+    """The name to put in a sentence, or None when it is too long to put in one.
+
+    A truncated name is worse than no name here. `replacing_name` has to match the stored
+    value exactly, so a caller that copies a shortened quote out of the message is refused
+    forever and cannot tell why. `details.current_name` is the only place the name appears,
+    and it appears whole.
+    """
+    return name if len(name) <= NAME_ECHO_MAX_CHARS else None
+
+
+class SessionNameProtected(SessionStreamError):
+    """Raised when an automatic rename would take a name away from the person who chose it.
+
+    The agent decides a `rename_session` call's arguments at one moment and can run them at
+    a later one: an approval card holds the call while the person renames the session by
+    hand, and the deferred call then writes the name the agent chose before that rename. The
+    agent reports the stale name afterwards, so the person sees their name silently
+    reverted.
+
+    Three ways to get here, one meaning: the caller is acting on a session state that is no
+    longer the current one, or on an authority it does not have.
+
+    - `session_name_is_manual`: it named nothing it was replacing.
+    - `session_name_changed`: it named one, and the session has moved on since. The name and
+      the revision are checked together. The name is what a person recognizes and is not
+      guessable; the revision is what makes an authorization single-use, so restoring an
+      earlier name does not revive a request that already ran against it.
+    - `session_name_clear_is_manual`: it tried to remove the name entirely. Only a person
+      does that, and an automatic clear would otherwise leave the row with nothing to
+      protect.
+
+    The current name and revision ride on the exception because the caller is usually a
+    model, and the useful answer is not "refused" but "here is where the session actually is".
+    """
+
+    def __init__(
+        self,
+        session_id: str,
+        current_name: str,
+        *,
+        name_revision: Optional[int] = None,
+        stale_precondition: bool = False,
+        clearing: bool = False,
+    ) -> None:
+        self.session_id = session_id
+        self.current_name = current_name
+        self.name_revision = name_revision
+        self.stale_precondition = stale_precondition
+        self.clearing = clearing
+        quotable = _quotable(current_name)
+        named = (
+            f'This session is named "{quotable}"'
+            if quotable is not None
+            else "This session's name is too long to repeat here, and details.current_name"
+            " below has it exactly"
+        )
+        # Every next_step points at `details` rather than at the sentence above it, because
+        # the sentence is prose and `details` is the contract.
+        take_it_from_details = (
+            "send replacing_name and replacing_revision set to details.current_name and"
+            " details.name_revision below, copied exactly."
+        )
+        if clearing:
+            self.code = "session_name_clear_is_manual"
+            self.message = f"{named}, and only a person can remove a session's name."
+            self.next_step = (
+                "Keep the name. If the person wants it gone, tell them to clear it"
+                " themselves."
+            )
+        elif stale_precondition:
+            self.code = "session_name_changed"
+            self.message = (
+                f"{named}. That is not the name you asked to replace, so the rename was not"
+                " applied."
+            )
+            self.next_step = (
+                "Tell the person what the session is called now. Rename it only if they"
+                f" still want a different name, and {take_it_from_details}"
+            )
+        else:
+            self.code = "session_name_is_manual"
+            self.message = f"{named}, and a person named it."
+            self.next_step = (
+                "Keep that name and do not rename the session. Only if the person asked you"
+                f" for a different one, {take_it_from_details}"
+            )
+        super().__init__(self.message)
+
+    def envelope(self) -> dict:
+        """The agent-actionable error body (`api/AGENTS.md`, "Agent-actionable errors")."""
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": self.next_step,
+            # The revision comes first so the runner's 2000-character cut of the whole
+            # serialized detail reaches it before a long name can crowd it out. Both are
+            # verbatim: a caller has to reproduce them exactly for a rename to land.
+            "details": {
+                "name_revision": self.name_revision,
+                "current_name": self.current_name,
+            },
+        }

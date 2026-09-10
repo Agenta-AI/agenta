@@ -13,10 +13,14 @@ import {z} from "zod"
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     mountFileContentResponseSchema,
+    pendingInputAdmissionResponseSchema,
+    pendingInputResponseSchema,
     mountFileListResponseSchema,
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
+    sessionCancelExecutionResponseSchema,
+    sessionSnapshotSchema,
     sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
     sessionStreamSchema,
@@ -29,6 +33,7 @@ import {
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionRecord,
+    type SessionSnapshot,
     type SessionExpansion,
     type SessionOrigin,
     type SessionStream,
@@ -43,6 +48,8 @@ import {
     getLowPrioritySessionsClient,
     getMountsClient,
     getSessionsClient,
+    isAbortError,
+    isConflictError,
     projectScopedRequest,
 } from "./client"
 
@@ -87,11 +94,266 @@ export async function querySessionRecords({
     return validated?.records ?? null
 }
 
+export interface QuerySessionTranscriptParams extends QueryRecordsParams {
+    /** Snapshot watermark. Rows committed later are replayed over SSE, never mixed into paging. */
+    throughSequence: number
+    pageSize?: number
+}
+
+/** Load the transcript fixed at a snapshot watermark, following bounded backend pages. */
+export async function querySessionTranscript({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    lowPriority,
+    throughSequence,
+    pageSize = 100,
+}: QuerySessionTranscriptParams): Promise<SessionRecord[] | null> {
+    if (!projectId || !sessionId) return null
+
+    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
+    const records: SessionRecord[] = []
+    const visitedOffsets = new Set<number>()
+    let offset = 0
+
+    while (!visitedOffsets.has(offset)) {
+        visitedOffsets.add(offset)
+        const data = await callFern("[querySessionTranscript]", () =>
+            client.queryRecords(
+                {
+                    session_id: sessionId,
+                    windowing: {
+                        offset,
+                        limit: Math.max(1, Math.min(200, pageSize)),
+                        through_sequence: throughSequence,
+                    },
+                },
+                projectScopedRequest(projectId, appId, abortSignal),
+            ),
+        )
+        if (!data) return null
+
+        const validated = safeParseWithLogging(
+            sessionRecordsQueryResponseSchema,
+            data,
+            "[querySessionTranscript]",
+        )
+        if (!validated) return null
+        records.push(...validated.records)
+        if (!validated.windowing) return records
+        offset = validated.windowing.offset
+    }
+
+    return null
+}
+
 export interface SessionScopedParams {
     sessionId: string
     projectId: string
     appId?: string
     abortSignal?: AbortSignal
+}
+
+/**
+ * The one snapshot read. It carries the reconnect half (the stream row, the last turn, the
+ * durable watermark) and the queue half (the current lifecycle, the pending inputs, the feature
+ * capabilities), so the live preview and the durable queue never ask two endpoints that can
+ * disagree.
+ */
+export async function fetchSessionSnapshot({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<SessionSnapshot | null> {
+    if (!projectId || !sessionId) return null
+
+    const data = await callFern("[fetchSessionSnapshot]", () =>
+        getSessionsClient().getSessionSnapshot(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]") ?? null
+}
+
+export async function removePendingSessionInput({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    inputId,
+}: SessionScopedParams & {inputId: string}): Promise<boolean> {
+    if (!projectId || !sessionId || !inputId) return false
+
+    const data = await callFern("[removePendingSessionInput]", () =>
+        getSessionsClient().removePendingSessionInput(
+            {session_id: sessionId, input_id: inputId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return !!data
+}
+
+export async function updatePendingSessionInput({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    inputId,
+    text,
+    attachments,
+}: SessionScopedParams & {
+    inputId: string
+    text: string
+    attachments?: {
+        uri: string
+        mime_type: string
+        filename?: string
+        attachment_id?: string
+    }[]
+}): Promise<boolean> {
+    if (!projectId || !sessionId || !inputId) return false
+    const data = await callFern("[updatePendingSessionInput]", () =>
+        getSessionsClient().updatePendingSessionInput(
+            {session_id: sessionId, input_id: inputId, text, attachments},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return (
+        safeParseWithLogging(pendingInputResponseSchema, data, "[updatePendingSessionInput]") !==
+        null
+    )
+}
+
+export async function sendPendingSessionInputNow({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    inputId,
+}: SessionScopedParams & {inputId: string}): Promise<boolean> {
+    if (!projectId || !sessionId || !inputId) return false
+    const data = await callFern("[sendPendingSessionInputNow]", () =>
+        getSessionsClient().sendPendingSessionInputNow(
+            {session_id: sessionId, input_id: inputId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return (
+        safeParseWithLogging(
+            pendingInputAdmissionResponseSchema,
+            data,
+            "[sendPendingSessionInputNow]",
+        ) !== null
+    )
+}
+
+const SESSION_CAPABILITY_TIMEOUT_SECONDS = 2
+const SESSION_CAPABILITY_NEGATIVE_RETRY_MS = 30_000
+
+export interface SessionFeatureCapabilities {
+    durableApprovals: boolean
+    queue: boolean
+    steer: boolean
+}
+
+interface SessionCapabilityCacheEntry {
+    result?: SessionFeatureCapabilities
+    retryAt?: number
+    request?: Promise<SessionFeatureCapabilities | null>
+}
+
+const durableApprovalsCapabilityCache = new Map<string, SessionCapabilityCacheEntry>()
+
+const durableApprovalsCapabilityKey = ({projectId, sessionId}: SessionScopedParams): string =>
+    JSON.stringify([projectId, sessionId])
+
+export function invalidateSessionDurableApprovalsCapability(
+    params?: Pick<SessionScopedParams, "projectId" | "sessionId">,
+): void {
+    if (!params) {
+        durableApprovalsCapabilityCache.clear()
+        return
+    }
+    durableApprovalsCapabilityCache.delete(durableApprovalsCapabilityKey(params))
+}
+
+const hasSessionCapability = (capabilities: SessionFeatureCapabilities): boolean =>
+    capabilities.durableApprovals || capabilities.queue || capabilities.steer
+
+const cachedSessionCapabilities = (key: string): SessionFeatureCapabilities | null => {
+    const cached = durableApprovalsCapabilityCache.get(key)
+    if (!cached?.result) return null
+    if (hasSessionCapability(cached.result) || Date.now() < (cached.retryAt ?? 0)) {
+        return cached.result
+    }
+    return null
+}
+
+export const fetchSessionCapabilities = async ({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<SessionFeatureCapabilities | null> => {
+    if (!projectId || !sessionId) return null
+
+    const key = durableApprovalsCapabilityKey({projectId, sessionId})
+    const cached = cachedSessionCapabilities(key)
+    if (cached) return cached
+
+    const existing = durableApprovalsCapabilityCache.get(key)
+    if (existing?.request) return existing.request
+
+    const entry: SessionCapabilityCacheEntry = {}
+    const request = (async () => {
+        let capabilities: SessionFeatureCapabilities | null = null
+        try {
+            const data = await callFern("[fetchSessionDurableApprovalsCapability]", () =>
+                getSessionsClient().fetchSessionStream(
+                    {session_id: sessionId},
+                    {
+                        ...projectScopedRequest(projectId, appId, abortSignal),
+                        timeoutInSeconds: SESSION_CAPABILITY_TIMEOUT_SECONDS,
+                        maxRetries: 0,
+                    },
+                ),
+            )
+            const validated = data
+                ? safeParseWithLogging(
+                      sessionStreamResponseSchema,
+                      data,
+                      "[fetchSessionDurableApprovalsCapability]",
+                  )
+                : null
+            capabilities = validated
+                ? {
+                      durableApprovals: validated.capabilities.durable_approvals,
+                      queue: validated.capabilities.queue,
+                      steer: validated.capabilities.steer,
+                  }
+                : null
+        } catch {
+            capabilities = null
+        }
+
+        if (durableApprovalsCapabilityCache.get(key) === entry) {
+            entry.result = capabilities ?? undefined
+            entry.retryAt =
+                !capabilities || hasSessionCapability(capabilities)
+                    ? undefined
+                    : Date.now() + SESSION_CAPABILITY_NEGATIVE_RETRY_MS
+            entry.request = undefined
+        }
+        return capabilities
+    })()
+    entry.request = request
+    durableApprovalsCapabilityCache.set(key, entry)
+    return request
 }
 
 export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {
@@ -171,13 +433,28 @@ export async function fetchInteraction({
 
 export interface RespondInteractionParams extends InteractionScopedParams {
     /** The answer payload (e.g. an approval decision). Shape is interaction-kind specific. */
-    answer: Record<string, unknown>
+    answer?: Record<string, unknown>
+    /** Atomic same-turn answers used by Approve all. */
+    answers?: {interactionId: string; answer: Record<string, unknown>}[]
+    /** The execution the approval belongs to. Durable mode serializes this against Stop. */
+    expectedExecutionId?: string
+    /** Stable retry identity. Reusing it with a different answer is a conflict. */
+    idempotencyKey?: string
+}
+
+export interface RespondInteractionResult {
+    interaction: SessionInteraction | null
+    /** True only when the durable continuation transaction was accepted with HTTP 202. */
+    accepted: boolean
+    command?: {id?: string; state?: string}
+    execution?: {id?: string; state?: string}
 }
 
 /** True for the backend's `409 Interaction is no longer pending` (someone already answered).
  * Fern stashes the HTTP status on the thrown `AgentaApiError` as `statusCode`. */
 export const isInteractionConflict = (error: unknown): boolean =>
-    (error as {statusCode?: number} | null)?.statusCode === 409
+    (error as {statusCode?: number; response?: {status?: number}} | null)?.statusCode === 409 ||
+    (error as {response?: {status?: number}} | null)?.response?.status === 409
 
 /** True for the backend's `404 No such file or folder`. */
 const isNotFound = (error: unknown): boolean =>
@@ -240,20 +517,50 @@ export async function respondInteraction({
     appId,
     abortSignal,
     answer,
-}: RespondInteractionParams): Promise<SessionInteraction | null> {
+    answers,
+    expectedExecutionId,
+    idempotencyKey,
+}: RespondInteractionParams): Promise<RespondInteractionResult | null> {
     if (!projectId || !interactionId) return null
 
-    const data = await getSessionsClient().respondInteraction(
-        {interaction_id: interactionId, answer},
-        projectScopedRequest(projectId, appId, abortSignal),
-    )
+    // Fern preserves the status through `withRawResponse`: 200 is the flag-off dispatcher and
+    // 202 is durable command acceptance. Both are server-owned continuations; callers must never
+    // also release the local AI SDK gate.
+    const request = {
+        interaction_id: interactionId,
+        ...(answers
+            ? {
+                  answers: answers.map((item) => ({
+                      interaction_id: item.interactionId,
+                      answer: item.answer,
+                  })),
+              }
+            : {answer}),
+        ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
+    }
+    const {data, rawResponse} = await getSessionsClient()
+        .respondInteraction(request, {
+            ...projectScopedRequest(projectId, appId, abortSignal),
+            headers: idempotencyKey ? {"Idempotency-Key": idempotencyKey} : undefined,
+        })
+        .withRawResponse()
 
+    const responseData = data as {
+        interaction?: unknown
+        command?: {id?: string; state?: string}
+        execution?: {id?: string; state?: string}
+    }
     const validated = safeParseWithLogging(
         sessionInteractionResponseSchema,
-        data,
+        responseData,
         "[respondInteraction]",
     )
-    return validated?.interaction ?? null
+    return {
+        interaction: validated?.interaction ?? null,
+        accepted: rawResponse.status === 202,
+        ...(responseData.command ? {command: responseData.command} : {}),
+        ...(responseData.execution ? {execution: responseData.execution} : {}),
+    }
 }
 
 /**
@@ -490,6 +797,9 @@ export async function querySessions({
     return page?.sessions ?? null
 }
 
+/** Where the name came from: a person typing one, or a program proposing one. */
+export type SessionNameSource = "manual" | "automatic"
+
 export interface SetSessionHeaderParams {
     sessionId: string
     projectId: string
@@ -497,6 +807,20 @@ export interface SetSessionHeaderParams {
     description?: string
     appId?: string
     abortSignal?: AbortSignal
+    /**
+     * Say it on every call rather than leaning on the default. `"manual"` is a person
+     * typing a name and is remembered as theirs. `"automatic"` is a name a program
+     * proposed, such as the auto-title from a first message, and the server refuses one
+     * that would replace a name a person controls.
+     */
+    nameSource?: SessionNameSource
+    /**
+     * Called only when the server REFUSED the write, never when it merely failed. The
+     * distinction matters to a caller that shows a name optimistically: a refusal means the
+     * server has a different name and the optimistic one is wrong, while a network failure
+     * means nobody knows yet and dropping it would lose a name for no reason.
+     */
+    onRefused?: () => void
 }
 
 /**
@@ -511,6 +835,8 @@ export async function setSessionHeader({
     description,
     appId,
     abortSignal,
+    nameSource,
+    onRefused,
 }: SetSessionHeaderParams): Promise<boolean> {
     if (!projectId || !sessionId) return false
 
@@ -518,12 +844,25 @@ export async function setSessionHeader({
     if (name !== undefined) body.name = name
     if (description !== undefined) body.description = description
 
-    const data = await callFern("[setSessionHeader]", () =>
-        getSessionsClient().setSessionStreamHeader(
-            {session_id: sessionId, body},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
+    // `name_source` rides in the query string because that is where the endpoint reads it:
+    // the agent's rename tool has it fixed in its own path, so a model cannot put it in a
+    // body.
+    const request = projectScopedRequest(projectId, appId, abortSignal)
+    if (nameSource) request.queryParams.name_source = nameSource
+
+    // A 409 is the documented answer when an automatic name would replace one a person
+    // controls. It is an expected outcome rather than a fault, so it is not logged as one.
+    let refused = false
+    const data = await callFern(
+        "[setSessionHeader]",
+        () => getSessionsClient().setSessionStreamHeader({session_id: sessionId, body}, request),
+        (error) => {
+            if (!isConflictError(error)) return false
+            refused = true
+            return true
+        },
     )
+    if (refused) onRefused?.()
     return data !== null
 }
 
@@ -552,6 +891,15 @@ export async function fetchSessionStream({
         "[fetchSessionStream]",
     )
     return validated?.stream ?? null
+}
+
+/** Resolve the approval owner before mutating either the server gate or the local transcript. */
+export async function fetchSessionDurableApprovalsCapability(
+    params: SessionScopedParams,
+): Promise<boolean> {
+    const capabilities = await fetchSessionCapabilities(params)
+    if (!capabilities) throw new Error("Session capabilities are unavailable. Please try again.")
+    return capabilities.durableApprovals
 }
 
 export interface CommandSessionStreamParams extends SessionScopedParams {
@@ -618,6 +966,81 @@ export async function killSession({
         ),
     )
     return data !== null
+}
+
+/** Stop keeps accepted, idle, stale, and failed outcomes distinct. */
+export interface CancelSessionStreamParams extends SessionScopedParams {
+    /** The server cancels this observed execution or nothing. */
+    expectedExecutionId?: string
+}
+
+export type CancelSessionOutcome =
+    | {status: "cancelled"; response: SessionStreamCommandResponse | null}
+    | {status: "idle"}
+    /** The server refused: another turn holds the session, or the Stop arrived too late. */
+    | {status: "stale"; message: string}
+    | {status: "failed"; message: string}
+
+const STALE_CANCEL_FALLBACK =
+    "That run had already finished. The session is running something else now."
+const FAILED_CANCEL_FALLBACK = "Could not stop the run. It may still be running."
+
+/** The response envelope's error message, when it is there. */
+const cancelErrorMessage = (error: unknown, fallback: string): string => {
+    const detail = (error as {body?: {detail?: unknown}} | null)?.body?.detail
+    if (typeof detail === "string") return detail
+    const message = (detail as {message?: unknown} | null)?.message
+    if (typeof message === "string") return message
+    return error instanceof Error && error.message ? error.message : fallback
+}
+
+/** Stop the current turn and preserve the server outcome for the caller. */
+export async function cancelSessionStream({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    expectedExecutionId,
+}: CancelSessionStreamParams): Promise<CancelSessionOutcome> {
+    if (!projectId || !sessionId) return {status: "failed", message: FAILED_CANCEL_FALLBACK}
+
+    try {
+        const data = await getSessionsClient().setSessionStream(
+            {
+                session_id: sessionId,
+                // Omission selects the server's arrival-time guard.
+                ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
+            },
+            projectScopedRequest(projectId, appId, abortSignal),
+        )
+        const response =
+            safeParseWithLogging(
+                sessionStreamCommandResponseSchema,
+                data,
+                "[cancelSessionStream]",
+            ) ?? null
+        if (!response || !response.cancelled_turn_ids) {
+            return {status: "failed", message: FAILED_CANCEL_FALLBACK}
+        }
+        if (response.cancelled_turn_ids.length === 0) return {status: "idle"}
+        return {
+            status: "cancelled",
+            response,
+        }
+    } catch (error) {
+        if (isAbortError(error)) throw error
+        if (isInteractionConflict(error)) {
+            return {
+                status: "stale",
+                message: cancelErrorMessage(error, STALE_CANCEL_FALLBACK),
+            }
+        }
+        console.error(
+            "[cancelSessionStream] failed:",
+            error instanceof Error ? error.message : String(error),
+        )
+        return {status: "failed", message: cancelErrorMessage(error, FAILED_CANCEL_FALLBACK)}
+    }
 }
 
 /**
@@ -936,4 +1359,118 @@ export async function readMountFile({
 
     const validated = safeParseWithLogging(mountFileContentResponseSchema, data, "[readMountFile]")
     return validated?.content ?? null
+}
+
+export interface CancelSessionExecutionParams extends SessionScopedParams {
+    /** Fence Stop to the execution the caller observed. */
+    expectedExecutionId?: string
+    /** Retry identity for this request. Two sends of the same key are one command. */
+    idempotencyKey?: string
+}
+
+export interface CancelSessionExecutionResult {
+    /** The durable command's id and DELIVERY state — never the execution's state. */
+    command: {id: string; state: string}
+    /** What to render: the execution being stopped, or nothing. */
+    execution: {id: string | null; state: "stopping" | "idle"}
+    /** True when the active API path accepted or completed the Stop. */
+    accepted: boolean
+    /** True when the API refused because another execution is running (409). */
+    conflict: boolean
+}
+
+export interface ResumeSessionContinuationParams extends SessionScopedParams {}
+
+/**
+ * Ask the API to redeliver an already-durable approval continuation before a direct invoke.
+ *
+ * This mutation fails open: continuation recovery is an additive capability and can never make
+ * an ordinary Send depend on a new route being available.
+ */
+export async function resumeSessionContinuation({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: ResumeSessionContinuationParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    try {
+        const data = await getSessionsClient().resumeSessionContinuation(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        )
+        const parsed = z.object({resumed: z.boolean()}).safeParse(data)
+        if (!parsed.success) {
+            console.warn("[resumeSessionContinuation] invalid response; continuing Send")
+            return false
+        }
+        return parsed.data.resumed
+    } catch (error) {
+        console.warn("[resumeSessionContinuation] preflight failed; continuing Send", error)
+        return false
+    }
+}
+
+/** Cancel current work through Fern while keeping the session warm. */
+export async function cancelSessionExecution({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    expectedExecutionId,
+    idempotencyKey,
+}: CancelSessionExecutionParams): Promise<CancelSessionExecutionResult | null> {
+    if (!projectId || !sessionId) return null
+
+    try {
+        const requestOptions = {
+            ...projectScopedRequest(projectId, appId, abortSignal),
+            ...(idempotencyKey ? {headers: {"Idempotency-Key": idempotencyKey}} : {}),
+        }
+        const {data, rawResponse} = await getSessionsClient()
+            .cancelSessionExecution(
+                {
+                    session_id: sessionId,
+                    body: expectedExecutionId ? {expected_execution_id: expectedExecutionId} : null,
+                },
+                requestOptions,
+            )
+            .withRawResponse()
+        const validated = safeParseWithLogging(
+            sessionCancelExecutionResponseSchema,
+            data,
+            "[cancelSessionExecution]",
+        )
+        if (!validated) return null
+        if (!("command" in validated)) {
+            return {
+                command: {id: "", state: "applied"},
+                execution: {id: validated.turn_id ?? null, state: "idle"},
+                accepted: true,
+                conflict: false,
+            }
+        }
+        return {
+            command: validated.command,
+            execution: {...validated.execution, id: validated.execution.id ?? null},
+            accepted: rawResponse.status === 202,
+            conflict: false,
+        }
+    } catch (error) {
+        if (isAbortError(error)) throw error
+        if ((error as {statusCode?: number} | null)?.statusCode === 409) {
+            return {
+                command: {id: "", state: "obsolete"},
+                execution: {id: null, state: "idle"},
+                accepted: false,
+                conflict: true,
+            }
+        }
+        console.error(
+            "[cancelSessionExecution] failed:",
+            error instanceof Error ? error.message : String(error),
+        )
+        return null
+    }
 }

@@ -1,0 +1,34 @@
+---
+// Section — the one wrapper for every full-width band on the site.
+//
+// It owns the page grid: the 1px hairline round each band (`--th-section-border`)
+// and the -1px overlap that makes stacked bands share one line. Nothing else may
+// draw that border by hand; when the grid changes, it changes here.
+//
+// tone:
+//   "grid"  (default) the paper hairline. Landing bands, CTA band, footer, nav.
+//   "dark"  the faint white hairline for bands that are dark in both themes
+//           (Reliability, Open source). A paper line between two dark bands
+//           reads as a bright seam.
+//   "flat"  no border. Framer draws the blog, author and pricing bodies as plain
+//           white bands with no side lines; only the chrome round them keeps
+//           the grid.
+//
+// `as` picks the element (section, article, footer, div). Every other attribute
+// (class, style, id, data-*) passes straight through to it.
+type Tone = "grid" | "dark" | "flat";
+
+interface Props extends astroHTML.JSX.HTMLAttributes {
+  as?: "section" | "article" | "footer" | "div" | "header";
+  tone?: Tone;
+}
+
+const { as: Tag = "section", tone = "grid", class: className, ...rest } = Astro.props;
+---
+
+<Tag
+  class:list={["ag-section", tone !== "grid" && `ag-section--${tone}`, className]}
+  {...rest}
+>
+  <slot />
+</Tag>

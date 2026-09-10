@@ -38,6 +38,7 @@ describe("SECTION_ID_TO_PANEL_KEY", () => {
             model: "model-harness",
             instructions: "instructions",
             tools: "tools",
+            subagents: "subagents",
             mcps: "mcp",
             skills: "skills",
             params: "advanced",
@@ -45,7 +46,47 @@ describe("SECTION_ID_TO_PANEL_KEY", () => {
     })
 })
 
+describe("panel keys", () => {
+    // The panel's Subagents accordion used to borrow the `tools` key, so adding a subagent lit
+    // the Integrations header too (and an integration lit Subagents).
+    it("routes a subagent change to Subagents, leaving Integrations alone", () => {
+        const changes = changesFor(
+            template({tools: [{type: "reference", slug: "hourly-news", name: "News"}]}),
+            template(),
+        )
+
+        expect(changes.panelKeys.has("subagents")).toBe(true)
+        expect(changes.panelKeys.has("tools")).toBe(false)
+    })
+
+    it("routes an integration change to Integrations, leaving Subagents alone", () => {
+        const changes = changesFor(
+            template({tools: [{function: {name: "send_email", parameters: {}}}]}),
+            template(),
+        )
+
+        expect(changes.panelKeys.has("tools")).toBe(true)
+        expect(changes.panelKeys.has("subagents")).toBe(false)
+    })
+})
+
 describe("changed paths — the strings the drawer hardcodes", () => {
+    it("assigns only the exact default path to Permissions, not hidden runner rules", () => {
+        const changes = changesFor(
+            template({
+                runner: {
+                    permissions: {default: "allow", rules: [{tool: "restricted", policy: "deny"}]},
+                },
+            }),
+            template(),
+        )
+        expect(
+            changes.sectionsByKey.get("permissions")?.scalarChanges?.map((change) => change.key),
+        ).toEqual(["runner.permissions.default"])
+        expect(
+            changes.sectionsByKey.get("advanced")?.scalarChanges?.map((change) => change.key),
+        ).toEqual(["runner.permissions.rules"])
+    })
     it("an approval grant to harness.permissions.allow lands on the Advanced section at that exact path", () => {
         const committed = template()
         const draft = template({harness: {kind: "claude", permissions: {allow: ["Terminal"]}}})
@@ -97,6 +138,10 @@ describe("changed paths — the strings the drawer hardcodes", () => {
         const changes = changesFor(draft, committed)
 
         expect(changes.changedPaths.has("runner.permissions.default")).toBe(true)
+        expect(changes.panelKeys).toEqual(new Set(["permissions"]))
+        expect(changes.sectionsByKey.get("permissions")?.scalarChanges?.map((c) => c.key)).toEqual([
+            "runner.permissions.default",
+        ])
         expect(changes.hasChangedUnder("runner")).toBe(true)
     })
 

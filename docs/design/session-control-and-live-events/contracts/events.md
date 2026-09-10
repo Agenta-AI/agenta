@@ -1,0 +1,179 @@
+# Session event contracts
+
+> **AGENT-GENERATED, low weight.**
+
+This file describes the shipped session event contracts. Milestone 1 shipped the disposable
+live-frame relay. Milestone 2 shipped the durable-event contract: replay with sequences and
+watermarks over `GET /sessions/{session_id}/events`, and browser fan-out to a second reader.
+
+## Shipped live-frame contract
+
+### Client behavior
+
+The initiating browser continues to render the invoke response. A second browser subscribes to the
+session event route only when the session advertises `shared_reader` and the run belongs to another
+browser. The global environment switch controls both the route and the advertised capability.
+
+The event route replays durable events after the client's `after` cursor, then sends a `ready`
+event carrying the replay watermark, then follows live frames and durable events as they are
+published. Live frames are unnamed SSE data events. The existing watch SSE continues to send
+low-frequency notices such as `records-changed`; clients use those notices to reload completed
+records.
+
+Each execution must start at `frame_index: 0`, and each later frame must increment the index by one.
+The client ignores duplicate and older indices. If the first index is above zero or a later index
+skips a value, the client clears and suppresses the preview tail and refreshes durable records. A
+reconnect also clears the disposable preview and refreshes durable records because Redis Pub/Sub has
+no replay.
+
+### Live-frame envelope
+
+Frames use the existing records ingest HTTP endpoint. The API validates the frame and publishes it
+to the dedicated live-frame Redis Stream.
+
+```text
+version: 1
+kind: frame
+session_id
+execution_id
+frame_or_event_id
+frame_index
+entity_id
+type
+payload
+created_at
+```
+
+- `session_id` reuses the current `sessionId`.
+- `execution_id` reuses the current `turnId`.
+- `frame_or_event_id` combines the execution ID and frame index.
+- `entity_id` reuses the message ID or tool-call ID.
+- `frame_index` starts at zero and increases by one within an execution.
+- `created_at` is the producer timestamp in UTC. It does not define order.
+
+### Live-frame payloads
+
+The envelope wraps the current invoke vocabulary. It does not rename the content protocol.
+
+| Family | Shipped types and fields |
+|---|---|
+| Text | `text-start`, `text-delta.delta`, `text-end`; all reuse `id` |
+| Reasoning | `reasoning-start`, `reasoning-delta.delta`, `reasoning-end`; all reuse `id` |
+| Tools | `tool-input-start`, `tool-input-available`, `tool-output-available`, `tool-output-error`, `tool-output-denied`; all reuse `toolCallId` and current input or output fields |
+
+Repeated tool input snapshots keep one `toolCallId`, so the reducer updates one preview.
+
+### Storage and retention
+
+The runner publishes frames asynchronously through a bounded 256-frame buffer. Publication errors
+and buffer overflow do not block the run. Frames reach the records ingest HTTP route, where the API
+appends frame relay envelopes to `streams:session-live-frames`. The stream has a 15-minute age limit
+and an approximate 100,000-entry count bound by default. Redis may temporarily retain more entries
+because both count and age trimming use `MAXLEN ~` and `MINID ~`. Concurrent sessions share the
+count bound because relay messages are disposable.
+
+The relay worker reads only the live relay stream. It discards expired envelopes, publishes accepted
+frames and durable events to the project-and-session Pub/Sub channel, then acknowledges and deletes
+them. The measured long case reached 3,161 frames and 201,056 SSE bytes in one turn. At the highest
+measured average rate, the default 100,000-entry trim threshold represents about 22 minutes for one
+active run, but the 15-minute age limit caps effective relay retention at 15 minutes.
+
+Only durable records enter `streams:records`. Publication preserves the existing approximate
+100,000-entry retention bound. After the records worker commits those records, it projects durable
+events and appends their relay envelopes to `streams:session-live-frames`. It then acknowledges and
+deletes the durable-record entries. The live relay never reads `streams:records`.
+
+### Authorization and reader limits
+
+Frame ingress verifies `RUN_SESSIONS` access and the caller's current owner claim for the supplied
+session and execution. The shared runner token alone cannot authorize a foreign frame. The API also
+enforces the serialized frame-size limit before publishing.
+
+The event route requires `VIEW_SESSIONS` access for the current project and revalidates access during
+the connection. Each reader has one bounded output queue. The API sends `relay-close` and ends a
+connection when the reader falls behind, authorization is revoked, or the relay fails. The response
+uses `Cache-Control: no-store` and disables proxy buffering.
+
+Logs contain identifiers and reason codes only. They do not contain message content, tool payloads,
+or tokens.
+
+## Durable-event contract
+
+### Sender on the shared path
+
+For `x-ag-session-response: shared`, invoke emits one transient `data-session-accepted` event with
+`{sessionId, turnId, executionId}`, and emits it only after the runner admits the turn. The same ID
+serves as the turn and the execution. The sender consumes invoke only for this acceptance, protocol
+lifecycle, and errors. It renders text, reasoning, and tool progress from the session event route.
+
+### Durable event envelope
+
+Temporary frames and durable records reuse the records ingest HTTP endpoint. The API appends frame
+relay envelopes directly, while the records worker projects durable events only after their records
+commit. Both paths call `_append_live_relay_message` to append relay envelopes to
+`streams:session-live-frames`, where `kind` distinguishes the two versioned shapes. Only durable
+records use the separate `streams:records` path.
+
+```text
+version
+kind: frame | event
+session_id
+execution_id
+frame_or_event_id
+entity_id
+type
+payload
+created_at
+
+when kind = frame:
+  frame_index
+
+when kind = event:
+  sequence
+  watermark
+```
+
+- `sequence` is the database-assigned per-session record cursor. It can skip values because every
+  record receives a sequence while the relay exposes only the typed events.
+- `watermark` is the session's latest committed record sequence when the event is published or
+  replayed. On a live event it is the highest sequence committed in the publishing batch. On the
+  replay's final `ready` event it is the session cursor after replay.
+
+Clients apply durable events whose `sequence` is greater than the last event they applied, and
+discard duplicate or older events. They do not wait for a contiguous durable sequence. After
+applying an event, they advance the event-deduplication cursor to `sequence` and track the greater
+of `sequence` and `watermark` separately as the reconnect cursor. A replay's final `ready` event can
+advance both cursors after every event through its watermark has been applied.
+
+### Durable event types
+
+The contract defines these event types and payloads:
+
+| Type | Typed payload |
+|---|---|
+| `execution.started` | `{started_at}` |
+| `execution.stopped` | `{stopped_at, reason, command_id}` |
+| `execution.failed` | `{failed_at, error: {code, message, retryable, details?}}` |
+| `execution.lost` | `{lost_at, reason, history_complete: false}` |
+| `message.completed` | `{message_id, role, content, finish_reason?}` |
+| `tool.completed` | `{tool_call_id, name, input, output?, error?, status}` |
+| `interaction.requested` | `{interaction_id, kind?}` |
+| `interaction.responded` | `{interaction_id, kind?}` |
+
+The envelope carries session, execution, entity, sequence, and creation fields, so payloads do not
+repeat them. The reducer ignores an unknown event type and continues from the next sequence.
+Interaction events carry no answer data. Readers use them to refresh records and the current
+interaction state.
+
+### Replay and live handoff
+
+The event endpoint subscribes to the wake-up source before its first history query. It queries
+Postgres after the supplied sequence, sends rows in order, and queries again when a notification
+arrives. Notifications carry no durable truth.
+
+Each replay is bounded by the current database watermark. Replayed events carry that watermark. The
+replay's final `ready` event also carries it, including when no typed event follows the supplied
+sequence.
+
+If a reader falls behind, the API closes the connection. The reader then reloads the durable
+snapshot and resumes from its durable sequence.

@@ -1,6 +1,10 @@
 import {describe, expect, it} from "vitest"
 
-import {AGENT_TEMPLATES, type AgentStarterTemplate} from "../../src/workflow/agentTemplates"
+import {
+    AGENT_TEMPLATES,
+    templateConnections,
+    type AgentStarterTemplate,
+} from "../../src/workflow/agentTemplates"
 import {
     detectAccounts,
     detectAccountsFromTemplate,
@@ -78,20 +82,21 @@ describe("detectAccountsFromText", () => {
 })
 
 describe("detectAccountsFromTemplate", () => {
-    const template = AGENT_TEMPLATES.find((entry) => entry.requiredIntegrations.length > 0)
+    // Slot-shaped or legacy, both read through templateConnections — so assert against that
+    // rather than a field a migrated template no longer carries.
+    const template = AGENT_TEMPLATES.find((entry) => templateConnections(entry).length > 0)
 
-    it("marks every declared integration required and carries its scope line", () => {
+    it("marks every declared slot required and carries its scope line", () => {
         expect(template).toBeDefined()
+        const slots = templateConnections(template as AgentStarterTemplate)
         const accounts = detectAccountsFromTemplate(template as AgentStarterTemplate)
-        expect(accounts).toHaveLength(
-            (template as AgentStarterTemplate).requiredIntegrations.length,
-        )
+        expect(accounts).toHaveLength(slots.length)
         for (const [index, account] of accounts.entries()) {
-            const declared = (template as AgentStarterTemplate).requiredIntegrations[index]
-            expect(account.required).toBe(true)
+            const primary = slots[index].primary
+            expect(account.required).toBe(slots[index].required)
             expect(account.origin).toBe("template")
-            expect(account.slug).toBe(declared.slug)
-            expect(account.why).toBe(declared.scope)
+            expect(account.slug).toBe(primary.slug)
+            expect(account.why).toBe(primary.scope)
         }
     })
 
@@ -106,9 +111,18 @@ describe("detectAccountsFromTemplate", () => {
 })
 
 describe("detectAccounts", () => {
+    // `connections` and `requiredIntegrations` are the migrated and legacy halves of the same
+    // thing, so a fixture must clear the one it is not exercising — spreading a real template and
+    // overriding only the legacy field left the real template's slots in place.
     const template: AgentStarterTemplate = {
         ...(AGENT_TEMPLATES[0] as AgentStarterTemplate),
-        requiredIntegrations: [{slug: "github", scope: "Read issues and comment", tools: []}],
+        connections: [
+            {
+                role: "Read issues and comment",
+                required: true,
+                primary: {slug: "github", scope: "Read issues and comment", tools: []},
+            },
+        ],
     }
 
     it("puts template accounts first and text matches after", () => {
@@ -138,7 +152,7 @@ describe("detectAccounts", () => {
     })
 
     it("handles a template that declares nothing", () => {
-        const bare = {...template, requiredIntegrations: []}
+        const bare = {...template, connections: [], requiredIntegrations: []}
         expect(slugs(detectAccounts({description: "notify Slack", template: bare}))).toEqual([
             "slack",
         ])

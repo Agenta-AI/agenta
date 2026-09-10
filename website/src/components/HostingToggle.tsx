@@ -80,13 +80,15 @@ export default function HostingToggle({
     background: "transparent",
     transition: "all 0.14s",
   };
+  // Colors resolve through the --ht-* vars defined in pricing.astro's global
+  // style block (light per the light-theme spec, dark = the old literals).
   const on: CSSProperties = {
     ...tabBase,
-    background: "rgba(255,255,255,0.08)",
-    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.14)",
-    color: "#F7F6F4",
+    background: "var(--ht-on-bg)",
+    boxShadow: "var(--ht-on-ring)",
+    color: "var(--ht-on-text)",
   };
-  const off: CSSProperties = { ...tabBase, color: "rgba(255,255,255,0.55)" };
+  const off: CSSProperties = { ...tabBase, color: "var(--ht-off-text)" };
 
   return (
     <div
@@ -100,8 +102,8 @@ export default function HostingToggle({
         gap: 10,
         padding: 5,
         borderRadius: 12,
-        background: "rgba(255,255,255,0.04)",
-        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.1)",
+        background: "var(--ht-bg)",
+        boxShadow: "var(--ht-ring)",
       }}
     >
       {options.map((option, index) => {
@@ -126,7 +128,7 @@ export default function HostingToggle({
                 className="hosting-tab-sub"
                 style={{
                   font: "var(--text-caption)",
-                  color: "rgba(255,255,255,0.5)",
+                  color: "var(--ht-sub-text)",
                 }}
               >
                 {option.sublabel}

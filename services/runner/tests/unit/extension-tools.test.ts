@@ -501,8 +501,10 @@ describe("readPiTurnTraceControl", () => {
     };
     writeFileSync(path, JSON.stringify(control), "utf-8");
 
+    // A control written without skillsDropped still parses; the list defaults to empty.
     assert.deepEqual(readPiTurnTraceControl(path), {
       ...control,
+      skillsDropped: [],
       turnId: undefined,
       sessionId: undefined,
       propagation: undefined,

@@ -40,7 +40,10 @@ function Mark({item, size}: {item: LogoMark; size: number}) {
                         alt={label}
                         width={size}
                         height={size}
-                        className="shrink-0 rounded-[3px] object-contain"
+                        // A brand mark is drawn for its own backdrop, so a dark glyph (GitHub's)
+                        // reads as blank on a dark card. Same ground the strip's badges already
+                        // give their logos, in both themes.
+                        className="shrink-0 rounded-[3px] bg-[var(--ag-colorWhite)] object-contain"
                     />
                 ) : (
                     // No mark to draw: a neutral tile keeps the run aligned and still names itself.

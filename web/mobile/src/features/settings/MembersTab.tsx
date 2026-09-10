@@ -7,11 +7,11 @@ import {
     removeFromWorkspace,
 } from "@agenta/entities/organization"
 import {MembersPage} from "@agenta/settings-ui"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import {useMutation, useQuery} from "@tanstack/react-query"
 
 import {Button} from "@/components/ui/button"
 import {Input} from "@/components/ui/input"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 import {
     Sheet,
     SheetContent,

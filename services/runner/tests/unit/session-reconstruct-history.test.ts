@@ -126,6 +126,63 @@ describe("reconstructHistoryIfNeeded", () => {
     assert.equal(fetchCalls, 0, "no query when the log is already known bad");
   });
 
+  it("replays a smart-truncated tool result", async () => {
+    recordsToReturn = [
+      {
+        record_source: "agent",
+        attributes: { type: "tool_call", id: "toolu_big", name: "Bash", input: {} },
+      },
+      {
+        record_source: "agent",
+        attributes: {
+          type: "tool_result",
+          id: "toolu_big",
+          output: "partial…[truncated]",
+          _truncated: { fields: ["output"], original_bytes: 80_000 },
+        },
+      },
+    ];
+    const req = { messages: [userTurn] } as never;
+    const out = await reconstructHistoryIfNeeded(req, "sess-1", auth);
+
+    assert.deepEqual(out?.messages, [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_call",
+            toolCallId: "toolu_big",
+            toolName: "Bash",
+            input: {},
+          },
+          {
+            type: "tool_result",
+            toolCallId: "toolu_big",
+            toolName: "Bash",
+            output: "partial…[truncated]",
+            isError: undefined,
+          },
+        ],
+      },
+      userTurn,
+    ]);
+  });
+
+  it("refuses reconstruction from a legacy whole-record truncation", async () => {
+    recordsToReturn = [
+      {
+        record_source: "agent",
+        attributes: { _truncated: true, _original_bytes: 80_000 },
+      },
+    ];
+    const req = { messages: [userTurn] } as never;
+
+    await assert.rejects(
+      () => reconstructHistoryIfNeeded(req, "sess-1", auth),
+      /truncated durable record/,
+    );
+  });
+
   it("prepends reconstructed prior turns to the inbound message when enabled", async () => {
     vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     recordsToReturn = [

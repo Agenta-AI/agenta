@@ -25,11 +25,13 @@ export const FIRST_RUN_COPY = {
     hideTemplates: "Don't show again",
     templatesHidden: "Templates hidden",
     showAgain: "show again",
-    /** Header over the description once the connect step has taken over the composer (#6043). */
-    buildingLabel: "Building",
-    editLabel: "Edit",
+    /** A template already says what is being built, so the hero names it; the subtitle is the
+     * template's own `description` one-liner. */
+    templateTitle: (name: string) => `Set up ${name}`,
     create: "Create agent",
     creating: "Creating agent",
+    /** Shown only once a template's prompt has been edited — one tap restores the original. */
+    resetPrompt: "Reset prompt",
 } as const
 
 /** Tap to fill the composer — see the note in [[FirstRunComposer]] on why they fill, not send. */

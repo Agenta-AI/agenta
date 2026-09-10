@@ -262,10 +262,9 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const commit = useCallback(
         (seedMessage: string, name?: string) => {
             if (!entityId || committing || realEntityId) return
-            if (CONNECT_STEP_MODE) {
-                setupStep.open({seedMessage, name})
-                return
-            }
+            // The step earns its interruption only when it has an account to ask about; with
+            // nothing detected it would block on a card that says "Nothing required."
+            if (CONNECT_STEP_MODE && setupStep.open({seedMessage, name})) return
             runCommit(seedMessage, name)
         },
         [entityId, committing, realEntityId, runCommit, setupStep.open],

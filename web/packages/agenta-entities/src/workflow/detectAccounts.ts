@@ -9,7 +9,12 @@
  * Pure and network-free, so a backend that plans the account list pre-commit can replace the
  * text half wholesale behind this same return type.
  */
-import {PROVIDERS, type AgentStarterTemplate} from "./agentTemplates"
+import {
+    PROVIDERS,
+    connectionNeedLabel,
+    templateConnections,
+    type AgentStarterTemplate,
+} from "./agentTemplates"
 
 export interface DetectedAccount {
     /** `PROVIDERS` key / Composio integration slug. */
@@ -21,6 +26,18 @@ export interface DetectedAccount {
     /** Where it came from. Decides gating; `"text"` is never required. */
     origin: "template" | "text"
     required: boolean
+    /**
+     * Slugs that satisfy this need instead — the playbook's "GitHub (or GitLab)". Connecting any
+     * one of them settles the row, so a GitLab user is never asked to connect GitHub.
+     */
+    alternatives?: string[]
+    /**
+     * The NEED's short name ("CRM", "Email") for a template slot — what a row is titled instead
+     * of a provider's name: a choice slot titled "HubSpot" misleads, and even a single-provider
+     * slot is really a need ("Email") answered by a provider (Gmail). Absent for text-detected
+     * accounts (the user named the provider themselves) and mixed-category choices.
+     */
+    needLabel?: string
 }
 
 /**
@@ -146,16 +163,35 @@ export function detectAccountsFromText(description: string): DetectedAccount[] {
 }
 
 /** A template's declared integrations — exact, and the only accounts allowed to gate create. */
+const toAccount = (
+    integration: {slug: string; scope: string},
+    required: boolean,
+): DetectedAccount => {
+    const provider = PROVIDERS[integration.slug]
+    return {
+        slug: integration.slug,
+        label: provider?.label ?? integration.slug,
+        logo: provider?.logo,
+        why: integration.scope,
+        origin: "template" as const,
+        required,
+    }
+}
+
+/**
+ * One row per connection the template needs — the slot's preferred provider, carrying the rest of
+ * its options as `alternatives`. One row per NEED rather than per provider: two rows joined by
+ * "or" read as two things to connect, which is the opposite of what a choice means.
+ */
 export function detectAccountsFromTemplate(template: AgentStarterTemplate): DetectedAccount[] {
-    return template.requiredIntegrations.map((integration) => {
-        const provider = PROVIDERS[integration.slug]
+    return templateConnections(template).map((slot) => {
+        // Single-provider slots too: the row is titled "Email", and Gmail is the answer
+        // inside it — the need is the template's, the provider is the means.
+        const needLabel = connectionNeedLabel([slot.primary.slug, ...(slot.alternatives ?? [])])
         return {
-            slug: integration.slug,
-            label: provider?.label ?? integration.slug,
-            logo: provider?.logo,
-            why: integration.scope,
-            origin: "template" as const,
-            required: true,
+            ...toAccount(slot.primary, slot.required),
+            ...(slot.alternatives?.length ? {alternatives: slot.alternatives} : {}),
+            ...(needLabel ? {needLabel} : {}),
         }
     })
 }

@@ -36,7 +36,10 @@ existing self-hosted Agenta deployment that predates the runner and store featur
    `docker compose logs runner`.
 
 4. The `AGENTA_RUNNER_INTERNAL_URL=http://runner:8765` value is included in the updated Compose
-   files by default. If you maintain a custom env file, add it there.
+   files by default. If you maintain a custom env file, add it there. Both the `services` and the
+   `api` service need it; the api uses it to deliver Stop. The `gh.local` and `gh.ssl` files set it
+   on the api from v0.115.3, so on an older copy of those files add it to the `api` service's
+   `environment` block.
 
 5. (Optional) Enable durable agent workspaces. Set the store credentials in your env file:
 

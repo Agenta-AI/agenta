@@ -30,7 +30,7 @@ import {connectionDisplayName} from "@agenta/shared/utils"
 import {ScrollSentinel} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, RadioGroup, RadioGroupItem, SearchInput, Spinner} from "@agenta/ui/ui"
-import {Check, Plugs} from "@phosphor-icons/react"
+import {ArrowLeft, Check, Plugs} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import ConnectDrawer from "../../../gatewayTool/drawers/ConnectDrawer"
@@ -237,14 +237,18 @@ function CatalogRow({
 function CategoryRail({
     active,
     onSelect,
+    className,
 }: {
     active: string | null
     onSelect: (category: CategorySelection | null) => void
+    className?: string
 }) {
     const {categories, isLoading} = useToolCatalogCategories()
     return (
         // min-h-0: without it the rail's own content sets its height and the list never scrolls.
-        <div className="flex min-h-0 w-44 shrink-0 flex-col gap-1 border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] p-3">
+        <div
+            className={`flex min-h-0 flex-col gap-1 p-3 sm:w-44 sm:shrink-0 sm:border-0 sm:border-r sm:border-solid sm:border-[var(--ag-colorBorderSecondary)] ${className ?? ""}`}
+        >
             <span className="shrink-0 px-2 text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                 Categories
             </span>
@@ -289,6 +293,9 @@ function IntegrationCatalogContent({
 }: Omit<AgentIntegrationDrawerProps, "open" | "onClose">) {
     const [query, setQuery] = useState("")
     const [category, setCategoryState] = useState<CategorySelection | null>(null)
+    // Phone: one pane at a time, as the skill drawer does. Apps are the point of the drawer, so
+    // they open; the category rail is a tap back.
+    const [mobileView, setMobileView] = useState<"categories" | "apps">("apps")
     const [connectTarget, setConnectTarget] = useState<CatalogIntegration | null>(null)
     // The integration a just-finished connect flow should land, once its connection shows up.
     const [pendingAdd, setPendingAdd] = useState<string | null>(null)
@@ -406,13 +413,27 @@ function IntegrationCatalogContent({
     return (
         <div className="flex min-h-0 flex-1">
             <CategoryRail
+                className={mobileView === "categories" ? "w-full" : "hidden sm:flex"}
                 active={category?.id ?? null}
                 onSelect={(next) => {
                     setCategoryState(next)
                     setCategory?.(next?.id ?? null)
+                    setMobileView("apps")
                 }}
             />
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+            <div
+                className={`min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 ${
+                    mobileView === "apps" ? "flex" : "hidden sm:flex"
+                }`}
+            >
+                <button
+                    type="button"
+                    onClick={() => setMobileView("categories")}
+                    className="flex shrink-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] sm:hidden"
+                >
+                    <ArrowLeft />
+                    {category?.name ?? "Categories"}
+                </button>
                 <SearchInput placeholder="Search apps..." value={query} onValueChange={setQuery} />
 
                 {connectedGroups.length > 0 ? (

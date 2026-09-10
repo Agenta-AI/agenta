@@ -284,6 +284,22 @@ class GitDAOInterface(ABC):
     ) -> List[Revision]:
         raise NotImplementedError
 
+    @abstractmethod
+    async def query_head_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        revision_query: RevisionQuery,
+        #
+        artifact_search: Optional[str] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[Revision]:
+        raise NotImplementedError
+
     ## .........................................................................
 
     @abstractmethod

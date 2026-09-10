@@ -316,7 +316,8 @@ export function EnhancedModal(props: EnhancedModalProps) {
                 className={cn("gap-0 p-0", className)}
                 style={{
                     width: modalWidth,
-                    maxWidth: modalWidth,
+                    // Viewport clamp: a fixed px maxWidth pushed the panel off both phone edges.
+                    maxWidth: "100%",
                     ...(maxHeight ? {maxHeight} : {}),
                     ...(zIndex != null ? {zIndex} : {}),
                     // Legacy root `style` and `styles.container` (antd's outer wrapper slot —

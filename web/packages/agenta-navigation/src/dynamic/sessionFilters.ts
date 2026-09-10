@@ -3,6 +3,8 @@ import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
+import {sidebarHasManualOrderAtom} from "../reorder"
+
 const SESSION_FILTERS_STORAGE_KEY = "agenta:sidebar:session-filters"
 // EXPANDED, not collapsed: groups now start folded, so the stored set is what the user opened.
 // A new key on purpose — reading the old collapsed set here would invert every saved choice.
@@ -140,5 +142,17 @@ export const sidebarSessionToggledGroupsAtomFamily = atomFamily((scopeId: string
                 : [...current, groupKey]
             set(toggledGroupsStorageAtom, {...storage, [scope]: next})
         },
+    ),
+)
+
+/**
+ * Does the filter menu's Reset have anything to do?
+ *
+ * Separate from `sidebarSessionFiltersDirtyAtomFamily`: that one also picks the empty-state copy.
+ */
+export const sidebarSessionMenuDirtyAtomFamily = atomFamily((scopeId: string) =>
+    atom(
+        (get) =>
+            get(sidebarSessionFiltersDirtyAtomFamily(scopeId)) || get(sidebarHasManualOrderAtom),
     ),
 )

@@ -20,6 +20,10 @@ vi.mock("@agenta/entities/gatewayTool", () => ({
     useToolIntegrationConnections: (slug: string) => ({
         connections: connectedSlugs.has(slug) ? [{id: slug}] : [],
     }),
+    // The card reads the whole workspace once so a row can see an ALTERNATIVE it cannot query.
+    useToolConnectionsQuery: () => ({
+        connections: [...connectedSlugs].map((slug) => ({integration_key: slug})),
+    }),
     useToolIntegrationDetail: () => ({integration: null, isLoading: false}),
     useToolsConnections: () => ({handleCreate: vi.fn(), invalidate: vi.fn()}),
 }))
@@ -45,17 +49,7 @@ let root: Root
 const render = (props: Partial<React.ComponentProps<typeof AgentSetupCard>> = {}) => {
     act(() => {
         root.render(
-            <AgentSetupCard
-                accounts={[]}
-                skippedSlugs={[]}
-                onSkip={vi.fn()}
-                onUndoSkip={vi.fn()}
-                onAddAccount={vi.fn()}
-                permission="ask"
-                onPermissionChange={vi.fn()}
-                onCreate={vi.fn()}
-                {...props}
-            />,
+            <AgentSetupCard accounts={[]} onAddAccount={vi.fn()} onCreate={vi.fn()} {...props} />,
         )
     })
 }
@@ -86,7 +80,8 @@ describe("AgentSetupCard gating", () => {
     it("disables create while a required account is unconnected", () => {
         render({accounts: [account("github", true)]})
         expect(createButton().disabled).toBe(true)
-        expect(container.textContent).toContain("Connect Github to create.")
+        // The rows and the disabled button carry the blocked state; no footnote nags a third time.
+        expect(container.textContent).not.toContain("to create")
     })
 
     it("enables create once the required account is connected", () => {
@@ -95,42 +90,34 @@ describe("AgentSetupCard gating", () => {
         expect(createButton().disabled).toBe(false)
     })
 
+    it("counts an already-connected ALTERNATIVE as satisfying the requirement", () => {
+        // The playbook's "GitHub (or GitLab)". A workspace on GitLab was still shown GitHub as
+        // blocking, because a row can only query its own provider — the card reads the whole
+        // workspace so the stand-in is seen.
+        connectedSlugs.add("gitlab")
+        render({accounts: [{...account("github", true), alternatives: ["gitlab"]}]})
+        expect(createButton().disabled).toBe(false)
+    })
+
+    it("still blocks when neither the provider nor its alternative is connected", () => {
+        render({accounts: [{...account("github", true), alternatives: ["gitlab"]}]})
+        expect(createButton().disabled).toBe(true)
+    })
+
     it("never disables create for a text-detected account", () => {
         render({accounts: [account("slack", false), account("gmail", false)]})
         expect(createButton().disabled).toBe(false)
     })
 
-    it("keeps create enabled with every suggested account skipped", () => {
-        render({accounts: [account("slack", false)], skippedSlugs: ["slack"]})
-        expect(createButton().disabled).toBe(false)
-        expect(container.textContent).toContain("Skipped accounts are asked for later.")
-    })
-
-    it("names both outstanding accounts when two are required", () => {
+    it("still disables create when two are required", () => {
         render({accounts: [account("github", true), account("slack", true)]})
-        expect(container.textContent).toContain("Connect Github and Slack to create.")
+        expect(createButton().disabled).toBe(true)
     })
 
-    it("offers Skip on a suggested account but not on a required one", () => {
+    it("offers no Skip button — leaving an optional account unconnected IS the skip", () => {
         render({accounts: [account("github", true), account("slack", false)]})
-        const labels = buttonLabels()
-        expect(labels.filter((label) => label === "Skip")).toHaveLength(1)
-    })
-
-    it("offers Undo instead of Connect on a skipped row", () => {
-        render({accounts: [account("slack", false)], skippedSlugs: ["slack"]})
-        expect(container.textContent).toContain("Skipped — the agent can ask later")
-        expect(buttonLabels().some((label) => label?.includes("Undo"))).toBe(true)
-    })
-
-    it("calls onSkip with the slug", () => {
-        const onSkip = vi.fn()
-        render({accounts: [account("slack", false)], onSkip})
-        const skip = [...container.querySelectorAll("button")].find(
-            (node) => node.textContent === "Skip",
-        )
-        act(() => skip?.dispatchEvent(new MouseEvent("click", {bubbles: true})))
-        expect(onSkip).toHaveBeenCalledWith("slack")
+        expect(buttonLabels().filter((label) => label === "Skip")).toHaveLength(0)
+        expect(createButton().disabled).toBe(true)
     })
 
     it("asks for accounts when nothing was detected, and still allows create", () => {

@@ -18,6 +18,8 @@ export interface AgentActionsMenuProps {
     onDelete?: () => void
     /** Custom-workflow "Configure" — only the desktop has that flow, so absent means no item. */
     onConfigure?: () => void
+    /** Which edge the menu hangs from. A trigger near the right edge wants `end`. */
+    align?: "start" | "end"
     className?: string
 }
 
@@ -32,6 +34,7 @@ export const AgentActionsMenu = ({
     onRename,
     onDelete,
     onConfigure,
+    align = "start",
     className,
 }: AgentActionsMenuProps) => {
     const actions = useAgentActions()
@@ -42,12 +45,13 @@ export const AgentActionsMenu = ({
                 <button
                     type="button"
                     aria-label="Agent actions"
-                    className={`flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText ${className ?? ""}`}
+                    // ::after hit extender: 28px is under the touch guideline.
+                    className={`relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary after:absolute after:-inset-1.5 after:content-[''] hover:bg-colorFillTertiary hover:text-colorText ${className ?? ""}`}
                 >
                     <DotsThreeVertical size={16} weight="bold" />
                 </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[180px]">
+            <DropdownMenuContent align={align} className="w-[180px]">
                 {onConfigure ? (
                     <DropdownMenuItem onSelect={onConfigure}>
                         <PencilSimple size={16} />

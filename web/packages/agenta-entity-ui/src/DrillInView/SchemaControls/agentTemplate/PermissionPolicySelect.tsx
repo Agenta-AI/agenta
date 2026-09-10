@@ -87,8 +87,10 @@ export function PermissionPolicySelect({
                             <span className="flex items-center gap-2.5 py-0.5">
                                 {option.icon}
                                 <span className="flex flex-col">
-                                    <span className="whitespace-nowrap">{option.title}</span>
-                                    <span className="text-xs leading-snug text-colorTextTertiary">
+                                    <span className="whitespace-nowrap max-sm:text-xs">
+                                        {option.title}
+                                    </span>
+                                    <span className="text-xs leading-snug text-colorTextTertiary max-sm:text-[11px]">
                                         {option.help}
                                     </span>
                                 </span>

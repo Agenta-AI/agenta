@@ -26,6 +26,19 @@ export interface KeepaliveConfig {
   enabled: boolean;
   ttlMs: number;
   approvalTtlMs: number;
+  /**
+   * The idle window for a session PARKED BY A USER STOP.
+   *
+   * Defaults to 600 s for both providers, matching the local approval window because both waits
+   * begin when a human is about to act. This deliberately differs from the ordinary 60 s local
+   * and 120 s Daytona idle windows. The trade-off is that a stopped Daytona sandbox can remain
+   * billed for up to ten minutes. Override with AGENTA_RUNNER_SESSION_STOPPED_TTL_MS.
+   *
+   * Optional so a hand-built config (every test fixture) keeps meaning what it always meant:
+   * omitted reads as "same as the idle window". `readKeepaliveConfig`, the only production
+   * source, always sets it.
+   */
+  stoppedTtlMs?: number;
   poolMax: number;
 }
 
@@ -34,6 +47,7 @@ export type KeepaliveProviderName = "local" | "daytona";
 const KEEPALIVE_ENV = "AGENTA_RUNNER_SESSION_KEEPALIVE";
 const TTL_ENV = "AGENTA_RUNNER_SESSION_TTL_MS";
 const APPROVAL_TTL_ENV = "AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS";
+const STOPPED_TTL_ENV = "AGENTA_RUNNER_SESSION_STOPPED_TTL_MS";
 const POOL_MAX_ENV = "AGENTA_RUNNER_SESSION_POOL_MAX";
 
 const DEFAULT_TTL_MS = 60_000;
@@ -46,6 +60,7 @@ const DEFAULT_TTL_MS = 60_000;
 // (never fails the turn), and an awaiting_approval entry keeps holding a pool slot — override
 // via AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS if warm slots are contended.
 const DEFAULT_APPROVAL_TTL_MS = 600_000;
+const DEFAULT_STOPPED_TTL_MS = 600_000;
 const DEFAULT_POOL_MAX = 8;
 const DAYTONA_TTL_ENV = "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS";
 const DAYTONA_POOL_MAX_ENV = "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM";
@@ -97,6 +112,9 @@ export function readKeepaliveConfig(
       // pool never sees an awaiting_approval park for Daytona today because parkedApproval is
       // only set by ACP gates.
       approvalTtlMs: ttlMs,
+      // A stopped Daytona session is deliberately held for the same human-response window as a
+      // local one, even though the sandbox remains billed. Zero remains a valid operator override.
+      stoppedTtlMs: nonNegativeIntEnv(STOPPED_TTL_ENV, DEFAULT_STOPPED_TTL_MS),
       // This budgets billed compute (idle warm sandboxes), deliberately separate from the local
       // pool's host-memory budget; Slice 4 adds the strict warm-slot accounting semantics.
       poolMax: positiveIntEnv(DAYTONA_POOL_MAX_ENV, DEFAULT_DAYTONA_POOL_MAX),
@@ -106,6 +124,8 @@ export function readKeepaliveConfig(
     enabled: boolEnv(KEEPALIVE_ENV, true),
     ttlMs: positiveIntEnv(TTL_ENV, DEFAULT_TTL_MS),
     approvalTtlMs: positiveIntEnv(APPROVAL_TTL_ENV, DEFAULT_APPROVAL_TTL_MS),
+    // A settled Stop gets the same ten-minute human-response window as a pending approval.
+    stoppedTtlMs: positiveIntEnv(STOPPED_TTL_ENV, DEFAULT_STOPPED_TTL_MS),
     poolMax: positiveIntEnv(POOL_MAX_ENV, DEFAULT_POOL_MAX),
   };
 }
@@ -291,6 +311,8 @@ function configShape(request: AgentRunRequest) {
           ),
         }
       : null,
+    sandboxCredentials:
+      request.sandboxCredentials?.map((credential) => ({ binding: credential.binding })) ?? null,
     agentsMd: request.agentsMd ?? null,
     systemPrompt: request.systemPrompt ?? null,
     appendSystemPrompt: request.appendSystemPrompt ?? null,
@@ -306,21 +328,22 @@ function configShape(request: AgentRunRequest) {
           // `?? []` matches the facet digest's normalization (`credentialShapes`): an omitted
           // array and an empty one are the same configuration, and the two identity views
           // must agree on that or a no-op request cold-evicts with a DISAGREE log.
-          credentials: server.connection?.credentials?.map((credential) => ({
-            binding: credential.binding,
-            usage: credential.usage,
-          })) ?? [],
+          credentials:
+            server.connection?.credentials?.map((credential) => ({
+              binding: credential.binding,
+              usage: credential.usage,
+            })) ?? [],
         },
       })) ?? null,
     // No `toolCallback.endpoint` (audit finding 5): every turn reads the INCOMING request's
     // callback (`run-turn.ts` builds each dispatch from it), nothing bakes the endpoint into
     // the environment, and hashing it evicted a warm session when the per-deployment gateway
     // URL moved. The endpoint's per-turn AUTHORIZATION was already excluded.
-    // No `gatewayGuidance` and no `gatewayPolicy`: both are DERIVED from the agent's gateway
-    // connections at resolve time. The guidance is spliced into the prompt at environment build
-    // (`buildRunPlan`) and its wording treats the integration names as examples, so a warm
-    // session serving a slightly stale list is honest — and hashing it would evict a warm
-    // session every time an integration is added, the exact cost this exclusion removes.
+    // No `platformInstructions`, legacy `gatewayGuidance`, or derived `gatewayPolicy`. Platform
+    // text is spliced at environment build and remains fixed while that environment is warm.
+    // Hashing it would restore the integration-change over-eviction that the separate guidance
+    // seam removed. The next ordinary environment build picks up changes.
+    // `turnContext` is delivered with each prompt and never configures the environment.
     permissions: request.permissions ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
     harnessFiles: request.harnessFiles ?? null,
@@ -504,15 +527,34 @@ export function approvalDecisionForToolCall(
   toolCallId: string,
 ): "allow" | "deny" | undefined {
   if (!toolCallId) return undefined;
-  for (const message of request.messages ?? []) {
-    const content = message?.content;
-    if (!Array.isArray(content)) continue;
-    for (const block of content) {
-      if (block?.type !== "tool_result" || block.toolCallId !== toolCallId) {
-        continue;
+  const messages = request.messages ?? [];
+  if (messages.length === 0) return undefined;
+
+  // A pure interaction reply carries its decision at the request tail. A fresh user turn can
+  // carry a rewritten `output-denied` tool part in its history; only the LAST assistant message
+  // is relevant there. Scanning the whole transcript lets an older denial bind to a newer gate
+  // that reused the id and incorrectly diverts the new user text into approval-resume.
+  let message: ChatMessage | undefined;
+  if (!tailIsFreshUserMessage(request)) {
+    message = messages[messages.length - 1];
+  } else {
+    for (let i = messages.length - 2; i >= 0; i--) {
+      if (messages[i]?.role === "assistant") {
+        message = messages[i];
+        break;
       }
-      const decision = approvalDecisionOf(block);
-      if (decision !== undefined) return decision;
+    }
+  }
+  if (message) {
+    const content = message?.content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block?.type !== "tool_result" || block.toolCallId !== toolCallId) {
+          continue;
+        }
+        const decision = approvalDecisionOf(block);
+        if (decision !== undefined) return decision;
+      }
     }
   }
   return undefined;
@@ -652,6 +694,10 @@ export function computeCredentialEpoch(
         usage: credential.usage,
       }),
     ),
+    sandboxCredentials: (request.sandboxCredentials ?? []).map((credential) => ({
+      binding: credential.binding,
+      value: credential.value,
+    })),
     mcpCredentials: (request.mcpServers ?? []).flatMap((server) =>
       (server.connection?.credentials ?? []).map((credential) => ({
         server: server.name,
@@ -666,6 +712,10 @@ export function computeCredentialEpoch(
   // locally by the provider SDK, so they are baked into the daemon environment at create.
   const directMaterial = canonicalJson({
     modelEnvironment: request.modelConnection?.environment ?? {},
+    sandboxCredentials: (request.sandboxCredentials ?? []).map((credential) => ({
+      binding: credential.binding,
+      value: credential.value,
+    })),
     localUseCredentials: (request.modelConnection?.credentials ?? [])
       .filter((credential) => credential.usage === "local_use")
       .map((credential) => ({

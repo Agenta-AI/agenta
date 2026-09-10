@@ -14,21 +14,34 @@
  */
 import {type ReactNode} from "react"
 
+import {CONFIG_REGION_BAR, ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {TriggerManagementSection, useAgentTriggers} from "./TriggerManagementSection"
 
-// A visual copy of the Configuration header bar's classes (AgentConfigHeader) — keep the two in
-// sync so the three region headers are indistinguishable. Colors come from the shared `--ag-*`
-// layer, never antd's runtime `--ant-*` vars: those don't exist on hosts without antd (/m), where
-// an undefined var drops the tint and the header loses its fill.
 const barClass = (sticky: boolean) =>
-    `h-[48px] flex items-center justify-between overflow-hidden ${
-        sticky ? "sticky top-0 z-[10]" : ""
-    } w-full border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-surface-section-header)]`
+    `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-header)]`
 const titleClass = "text-[13px] font-semibold text-colorText"
+
+/** A region header bar. `children` follow the {@link ConfigRowTrailing} convention. */
+export function AgentRegionHeaderBar({
+    title,
+    sticky = true,
+    children,
+}: {
+    title: ReactNode
+    sticky?: boolean
+    children?: ReactNode
+}) {
+    return (
+        <div className={barClass(sticky)}>
+            <span className={titleClass}>{title}</span>
+            {children}
+        </div>
+    )
+}
 // Region BODIES are the white sheet the Configuration region's field list already paints
 // (`ag-drill-in-field-list`). Without it they'd expose the raised panel tint behind collapsed
 // section headers, so Subscriptions/Schedules would not match collapsed Tools/Skills.
@@ -45,21 +58,23 @@ const sectionsBodyClass = "bg-[var(--ag-surface-section-content)] px-4"
 export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
     return (
         <>
-            <section className="flex w-full flex-col" aria-busy>
-                <div className={barClass(sticky)}>
-                    <span className={titleClass}>Triggers</span>
-                    <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
-                </div>
+            <section className="flex flex-col" aria-busy>
+                <AgentRegionHeaderBar title="Triggers" sticky={sticky}>
+                    <ConfigRowTrailing>
+                        <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
+                    </ConfigRowTrailing>
+                </AgentRegionHeaderBar>
                 <div className={`flex flex-col ${bodyClass}`}>
                     <SkeletonSectionRow title={112} value={44} withAdd divider />
                     <SkeletonSectionRow title={82} value={44} withAdd />
                 </div>
             </section>
-            <section className="flex w-full grow flex-col" aria-busy>
-                <div className={barClass(sticky)}>
-                    <span className={titleClass}>Files</span>
-                    <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
-                </div>
+            <section className="flex grow flex-col" aria-busy>
+                <AgentRegionHeaderBar title="Files" sticky={sticky}>
+                    <ConfigRowTrailing>
+                        <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
+                    </ConfigRowTrailing>
+                </AgentRegionHeaderBar>
                 <div className={`flex grow flex-col ${bodyClass}`}>
                     <SkeletonSectionRow title={86} value={90} divider />
                     <SkeletonSectionRow title={110} value={110} />
@@ -85,20 +100,22 @@ export function AgentOperationsSections({
      * chat session state this package can't reach. Absent → static placeholder. */
     storage?: ReactNode
     /** Right-side content of the Files header bar (file count + browse entry), slotted by the app
-     * layer for the same reason as `storage`. Matches the Triggers header's count slot. */
+     * layer for the same reason as `storage`. Follows the shared `ConfigRowTrailing` convention so
+     * its folder glyph lands on the panel's affordance axis. */
     storageHeader?: ReactNode
 }) {
     const {count: triggerCount} = useAgentTriggers(revisionId)
 
     return (
         <>
-            <section className="flex w-full flex-col">
-                <div className={barClass(sticky)}>
-                    <span className={titleClass}>Triggers</span>
-                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                        {countSummary(triggerCount, "trigger")}
-                    </span>
-                </div>
+            <section className="flex flex-col">
+                <AgentRegionHeaderBar title="Triggers" sticky={sticky}>
+                    <ConfigRowTrailing>
+                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                            {countSummary(triggerCount, "trigger")}
+                        </span>
+                    </ConfigRowTrailing>
+                </AgentRegionHeaderBar>
                 <div className={sectionsBodyClass}>
                     <TriggerManagementSection entityId={revisionId} disabled={disabled} />
                 </div>
@@ -106,11 +123,10 @@ export function AgentOperationsSections({
 
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
-            <section className="flex w-full grow flex-col">
-                <div className={barClass(sticky)}>
-                    <span className={titleClass}>Files</span>
+            <section className="flex grow flex-col">
+                <AgentRegionHeaderBar title="Files" sticky={sticky}>
                     {storageHeader}
-                </div>
+                </AgentRegionHeaderBar>
                 {/* Files never recolours on expand (unlike Triggers' sections) — it stays a white sheet. */}
                 <div className={`flex grow flex-col ${bodyClass}`}>
                     {storage ?? (

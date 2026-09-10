@@ -487,11 +487,14 @@ export {
     categorySlug,
     templateBuilderMessage,
     templateCategories,
+    templateConnections,
+    templatePrimaryProvider,
     templateProviderSlugs,
     templateToolCount,
 } from "./agentTemplates"
 export type {
     AgentStarterTemplate,
+    TemplateConnection,
     RequiredIntegration,
     TemplateExampleSession,
     TemplateTool,
@@ -507,14 +510,15 @@ export {
 export type {DetectedAccount} from "./detectAccounts"
 
 export {
-    DEFAULT_PERMISSION,
-    PERMISSION_OPTIONS,
     appendSetupPreamble,
     buildSetupPreamble,
     canCreateAgent,
+    isAccountSatisfied,
     outstandingRequired,
     setupStatus,
 } from "./agentSetup"
-export type {AgentPermission, AgentSetupSelection, AgentSetupStatus} from "./agentSetup"
+export type {AgentSetupSelection, AgentSetupStatus} from "./agentSetup"
 
 export {agentRosterSearchAtom, matchesAgentQuery} from "./state/agentRoster"
+
+export {commitAgentCredentialsAtom} from "./state/agentCredentials"

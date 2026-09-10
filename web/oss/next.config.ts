@@ -110,6 +110,8 @@ const COMMON_CONFIG: NextConfig = {
         "@agenta/playground-ui",
         "@agenta/annotation",
         "@agenta/annotation-ui",
+        "@agenta/skills",
+        "@agenta/skills-ui",
         ...(!isDevelopment
             ? [
                   "rc-util",

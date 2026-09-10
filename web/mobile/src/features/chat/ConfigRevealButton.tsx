@@ -1,4 +1,6 @@
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
+import {shortcutAria} from "@agenta/shared/utils"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 import {ChevronsRight} from "lucide-react"
@@ -13,11 +15,18 @@ export const ConfigRevealButton = () => {
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
 
     return (
-        <SimpleTooltip title="Show configuration">
+        <SimpleTooltip
+            title={
+                <span className="flex items-center gap-1.5">
+                    Show configuration <ShortcutKeys id="panel.config" tone="inverse" />
+                </span>
+            }
+        >
             <Button
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Show configuration"
+                aria-keyshortcuts={shortcutAria("panel.config")}
                 onClick={() => setConfigCollapsed(false)}
                 className="h-7 w-7 shrink-0 p-0"
             >

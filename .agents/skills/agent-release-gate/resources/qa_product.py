@@ -3118,6 +3118,68 @@ JOURNEYS = {
 }
 
 
+def _load_session_control_result(path: str) -> dict:
+    """Load and summarize a complete standalone session-control result."""
+    result_path = pathlib.Path(path).expanduser()
+    try:
+        payload = json.loads(result_path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(
+            f"Cannot read --session-control-results {result_path}: {exc}"
+        ) from exc
+
+    cells = payload.get("cells")
+    if not isinstance(cells, dict):
+        raise SystemExit(
+            f"Invalid session-control result {result_path}: expected a top-level cells object."
+        )
+
+    # Import the standalone driver's registry instead of copying its cell names here. A newly
+    # added session-control cell must become release-mandatory without a second list to update.
+    from session_control import CELLS as session_control_cells
+
+    missing = sorted(set(session_control_cells) - set(cells))
+    if missing:
+        raise SystemExit(
+            f"Incomplete session-control result {result_path}: missing cells: "
+            + ", ".join(missing)
+        )
+
+    statuses: dict[str, str] = {}
+    for name in session_control_cells:
+        entry = cells.get(name)
+        verdict = entry.get("verdict") if isinstance(entry, dict) else None
+        if (
+            not isinstance(verdict, dict)
+            or not isinstance(verdict.get("pass"), bool)
+            or not isinstance(verdict.get("skip"), bool)
+            or (verdict["pass"] and verdict["skip"])
+        ):
+            raise SystemExit(
+                f"Invalid session-control result {result_path}: cell {name!r} has no valid "
+                "PASS/FAIL/SKIP verdict."
+            )
+        statuses[name] = (
+            "SKIP" if verdict["skip"] else ("PASS" if verdict["pass"] else "FAIL")
+        )
+
+    failed = sorted(name for name, status in statuses.items() if status == "FAIL")
+    skipped = sorted(name for name, status in statuses.items() if status == "SKIP")
+    return {
+        "path": str(result_path),
+        "status": "FAIL" if failed else ("INCOMPLETE" if skipped else "PASS"),
+        "failed": failed,
+        "skipped": skipped,
+    }
+
+
+def _session_control_result_label(result: dict) -> str:
+    label = f"recorded {result['status']}"
+    if result["skipped"]:
+        label += "; SKIPPED, UNTESTED: " + ", ".join(result["skipped"])
+    return label
+
+
 def main() -> int:
     # Declared here, not beside the assignments below, because the flag help strings read these
     # module defaults and a `global` statement must precede every use of the name in a function.
@@ -3271,6 +3333,13 @@ def main() -> int:
         "--repo",
         help="repository the release diff is read from (default: the current directory)",
     )
+    p.add_argument(
+        "--session-control-results",
+        help=(
+            "results.json written by resources/session_control.py. Required when a path rule "
+            "makes that standalone driver mandatory; all of its cells must be recorded."
+        ),
+    )
     args = p.parse_args()
 
     resolve_credentials(args.env_file)
@@ -3368,6 +3437,16 @@ def main() -> int:
     external_cells = [
         cell for cell in triggered if cell not in CELLS and cell not in missing_cells
     ]
+    session_control_result = None
+    if "session_control.py" in external_cells:
+        if not args.session_control_results:
+            raise SystemExit(
+                "This release makes session_control.py mandatory. Run it separately, then pass "
+                "its results.json with --session-control-results."
+            )
+        session_control_result = _load_session_control_result(
+            args.session_control_results
+        )
     for cell in triggered:
         if cell in CELLS and cell not in cells:
             cells.append(cell)
@@ -3380,7 +3459,11 @@ def main() -> int:
                 else (
                     "MISSING — no such cell exists"
                     if cell in missing_cells
-                    else "run it separately"
+                    else (
+                        _session_control_result_label(session_control_result)
+                        if cell == "session_control.py" and session_control_result
+                        else "run it separately"
+                    )
                 )
             )
             print(f"  {cell} ({where})")
@@ -3479,9 +3562,19 @@ def main() -> int:
         table += "\n\nMandatory for this release, by path rule:\n\n"
         table += "| cell | run here | because this release changed |\n|---|---|---|\n"
         for cell, why in triggered.items():
-            here = "yes" if cell in CELLS else "no — run it separately"
+            if cell in CELLS:
+                here = "yes"
+            elif cell == "session_control.py" and session_control_result:
+                here = _session_control_result_label(session_control_result)
+            else:
+                here = "no — run it separately"
             table += f"| {cell} | {here} | {', '.join(why)} |\n"
-        if external_cells:
+        unrecorded_external_cells = [
+            cell
+            for cell in external_cells
+            if not (cell == "session_control.py" and session_control_result)
+        ]
+        if unrecorded_external_cells:
             table += (
                 "\nThis release is NOT green until every cell above marked "
                 "`run it separately` has a recorded result.\n"
@@ -3506,7 +3599,10 @@ def main() -> int:
         for cell in results.values()
         for journey in cell["journeys"].values()
     )
-    return 1 if failed else 0
+    standalone_failed = bool(
+        session_control_result and session_control_result["status"] != "PASS"
+    )
+    return 1 if failed or standalone_failed else 0
 
 
 if __name__ == "__main__":

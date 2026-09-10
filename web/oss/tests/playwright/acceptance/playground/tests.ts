@@ -2,15 +2,11 @@ import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {getKnownLatestRevisionId} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import {expect, pollLocatorState} from "@agenta/web-tests/utils"
 
+import {isSecretPropagationFailure} from "./assets/secretPropagation"
 import {RoleType, VariantFixtures} from "./assets/types"
 
 const SECRET_PROPAGATION_TIMEOUT_MS = 65_000
 const SECRET_PROPAGATION_POLL_MS = 5_000
-
-const isSecretPropagationFailure = (response: Record<string, any> | null): boolean => {
-    const raw = JSON.stringify(response ?? {}).toLowerCase()
-    return raw.includes("invalid-secrets") || raw.includes("no api key found for model")
-}
 
 const waitForSuccessfulRun = async (
     triggerRun: () => Promise<void>,
@@ -350,10 +346,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 }
 
                 // 1. Click on the save button
-                const commitButton = page
-                    .locator("button.ant-btn-primary")
-                    .filter({hasText: "Commit"})
-                    .first()
+                const commitButton = page.getByRole("button", {name: "Commit", exact: true})
                 const isCommitButtonDisabled = await commitButton.isDisabled()
 
                 if (!isCommitButtonDisabled) {
