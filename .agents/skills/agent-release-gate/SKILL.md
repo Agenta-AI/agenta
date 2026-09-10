@@ -237,6 +237,89 @@ A Daytona run additionally needs a Secrets-capable Daytona key on the runner; th
 session env files returns 403 on the Secrets endpoint, so check that before trusting a Daytona
 result.
 
+**`stop-approval` sends an `Idempotency-Key`, and it has to (fixed after the v0.117.0 run).** The
+cell answers an approval after a Stop and asserts the answer is refused with a 409. The durable
+approval path validates the `Idempotency-Key` header BEFORE it decides whether the execution is
+still continuable, so an answer without that header comes back 422 and can never reach the 409.
+A real browser always sends one, so nothing user-facing was ever affected — but for one release
+this read as a product FAIL on a stage where the product was fine, and clearing it cost a
+hand-run diagnostic. The cell now sends a stable key derived from the interaction id, a 422 there
+names the missing header in its own failure line, and two tests in `test_session_control.py` pin
+both halves. The general lesson is wider than this cell: when a gate asserts a specific status
+code on a durable endpoint, send the headers the browser sends, or the assertion measures the
+validation layer instead of the behavior.
+
+## Running the gate against a preview stage
+
+The cells were written on a dev box, where the operator's own Claude and Codex logins are mounted
+and the local sandbox is free. A cloud stage is neither of those things, and the mismatch does not
+announce itself as an environment problem — it arrives as a red cell that reads like a release
+regression. Three facts, all measured on the v0.117.0 preview stages, settle most of it.
+
+**Each stage runs exactly one kind of sandbox, and they are opposites.** oss.preview is
+local-sandbox-only by design, the OSS default posture, and refuses Daytona. Staging is the mirror
+image: it refuses the LOCAL sandbox with a 403 naming
+`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`. So no local-sandbox cell can run on staging at all, and
+no Daytona cell can run on oss.preview. For the hosted-subscription pair that means H1, which is
+local, can only run on oss.preview, and H2, which is Daytona, can only run on staging. The reverse
+pairing cannot be made to work by fixing anything.
+
+**Pre-flight Daytona with one cheap sandbox create before planning around it.** The organization's
+availability changes with its credit balance, and a suspended organization 403s at sandbox create,
+which looks nothing like the cell's subject. One probe cell answers the question for the whole run.
+
+**The managed provider keys on a stage may be out of credit.** Both stages' vault Anthropic and
+OpenAI keys were exhausted during the v0.117.0 run, so every managed-key cell was blocked on
+billing rather than on the product, and the Claude legs of several scripts could not run at all.
+The funded path on those stages was the custom OpenAI-compatible connection fronting OpenRouter.
+Check the vault before scheduling cells around it, and read an exhausted-key red as blocked
+coverage, never as a pass and never as a regression.
+
+**Overriding the cell shape without touching an assertion.** `qa_matrix_lib.agent_config` and
+`qa_commit_approval.py` default to Claude on the operator's mounted subscription on a local
+sandbox, which no stage can serve; left alone they die with `runtime_provided local run requires a
+mounted subscription`. Both now read the shape from the environment, the same way
+`matrix_gw1_gateway_tools.py` always has, so the client-tool cell (`matrix_l4_*`) and the
+commit-approval script run on any stage:
+
+```bash
+export AGENTA_QA_HARNESS=pi_core            # claude | pi_core | codex
+export AGENTA_QA_SANDBOX=daytona            # local | daytona
+export AGENTA_QA_CONNECTION_MODE=agenta     # agenta (vault) | self_managed (operator login)
+export AGENTA_QA_CONNECTION_SLUG=<vault slug>
+export AGENTA_QA_MODEL=<model id>
+export AGENTA_QA_PROVIDER=<provider>
+```
+
+Read the resulting passes for what they are. A green client-tool round trip on pi_core against a
+real provider proves that surface on that harness; it is not evidence about the claude harness,
+which no remote stage can currently run.
+
+**Eight session-control cells cannot run on a cloud stage at all.** The hook cells
+(`sandbox-gone`, `records-outage`, `restart-after-stop`, `runner-gone`, `runner-gone-late`,
+`post-stop-row`, `codex-child`, `stale-tail`) need `--project`, a docker-compose project on the
+same host as the runner. Plan them against the local stack from the start rather than discovering
+it mid-run.
+
+### Calling the runner's `/run` directly
+
+Most cells drive the product endpoint, which is the point. A few diagnostics post to the runner's
+own `/run`, and that contract moved in v0.117.0:
+
+- The runner requires a shared token, sent as an `X-Agenta-Runner-Token` header and matching the
+  stack's `AGENTA_RUNNER_TOKEN`. Without it the container refuses to start at all.
+- A top-level `credentialMode` is rejected outright with "Legacy top-level model credential fields
+  are not supported". The credential now rides a `modelConnection` object carrying `provider`,
+  `deployment`, `credentialMode` and `credentials`.
+- A single fresh user message is the last-message-only shape, so the runner tries to rebuild the
+  conversation from the durable record log and fails with "record log is unreadable". Send a short
+  multi-turn history instead. This bites direct callers only; the product endpoint carries the
+  transcript itself.
+- `gpt-5.4-mini` is refused by ChatGPT accounts ("not supported when using Codex with a ChatGPT
+  account"). Use `gpt-5.5` or `gpt-5.3-codex-spark` for subscription cells.
+- The runner's health endpoint advertises `pi_core` and `claude` only. `codex` dispatches and
+  answers normally; the list is a stale hardcoded constant. No cell should gate on it.
+
 ## When results lie
 
 The runtime **fails open**: a component can break, get logged, and the turn still succeeds with a
@@ -271,12 +354,17 @@ proves nothing about the durable working directory (LESSONS #16).
 - `resources/qa_probe.py` — a one-turn wire probe: `uv run resources/qa_probe.py` confirms the
   product path answers at all before running the full gate.
 - `resources/qa_commit_approval.py` — **[coached]** the mandatory pre-handoff commit-approval
-  round trip (see above). Self-contained; does not import `qa_product.py`.
+  round trip (see above). Self-contained; does not import `qa_product.py`. Its default shape is
+  Claude on the operator subscription on a local sandbox, which no preview stage can serve — the
+  `AGENTA_QA_*` variables under "Running the gate against a preview stage" move it.
 - `resources/qa_matrix_lib.py` — shared helpers (session/turn plumbing, workflow/revision REST
   calls, the multi-round approval loop) for the `matrix_w*.py` adversarial cells below. Import
   only, no CLI. It also holds the two cross-cutting invariants every cell should fold into its
   verdict — `check_no_blank_success_on_refusal` and `check_no_silent_turn` (see below). **If you
-  write a new cell, wire `check_no_silent_turn` into its PASS condition.**
+  write a new cell, wire `check_no_silent_turn` into its PASS condition.** `agent_config` reads
+  its model, provider, connection mode and slug, harness and sandbox from the `AGENTA_QA_*`
+  variables, so a cell that builds its config through it runs on a cloud stage unchanged; a cell
+  that hardcodes its own config dict does not, and every one of those is deliberate.
 - `resources/matrix_w3.py` — **[coached, with a narrow mechanism-blind sliver]** two sessions,
   disjoint edits; session B is given a stale `base_revision_id` and ZERO coaching on recovery.
   Two-tier pass: autonomous correct recovery passes outright; a model that diagnoses the 409
@@ -482,6 +570,9 @@ ever reaches the stream. An empty ledger FAILS a cell; missing evidence is not e
   the sandbox count, which is two today: a client-tool pause is deliberately not parkable
   (`"warm-hold": RESERVED, not built`, #5384), so every client-tool round trip currently costs a
   rebuild. If that number ever reads one, the warm hold landed and the docstring needs updating.
+  It builds its config through `agent_config`, so the `AGENTA_QA_*` variables point it at a
+  cloud stage; it passed on pi_core over Daytona on staging and over the local sandbox on
+  oss.preview during the v0.117.0 run, and two sandboxes per round trip is still what it records.
 - `resources/matrix_n1_session_context.py` — **MANDATORY. [journey, with two controls]** the
   per-turn session facts on the path the PRODUCT uses. Renames a session between two turns and
   asks the agent for the name, asks the agent for its own display name, and posts a forged
