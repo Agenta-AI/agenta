@@ -2,7 +2,7 @@
 
 ## Current phase
 
-2026-09-10: follow-up fixes for #6733 (picker renders behind the drawer) and #6734 (attach anchored on a stale revision) are in progress on `fix/custom-secret-attach-drawer`. See the plan's follow-up section.
+2026-09-10: follow-up fixes for #6733 (picker renders behind the drawer) and #6734 (attach anchored on a stale revision) are on PR #6743 (`fix/custom-secret-attach-drawer`, base `release/v0.116.0`). Both were verified live on an isolated EE dev stack built from the branch: the picker draws above the drawer on desktop and `/m`, an attach from a tab on an older revision lands on the head and keeps the head's edits, a head whose attachments changed refuses with a reload message, and the chat `request_secret` flow attaches, settles, and resumes. See the plan's follow-up section.
 
 Implementation and independent review are complete. Runtime, SDK, runner, shared entity, shared UI, desktop, and mobile paths are present in the isolated feature worktree. The real-application request, resume, and targeted recovery checks passed. The remaining runtime matrix is listed below.
 
