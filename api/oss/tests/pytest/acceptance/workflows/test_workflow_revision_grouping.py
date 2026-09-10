@@ -133,13 +133,13 @@ def _query(authed_api, **body):
     return response.json()
 
 
-class TestWorkflowRevisionsLatestPerWorkflow:
+class TestWorkflowRevisionsGrouping:
     def test_returns_one_revision_per_workflow(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = _query(
             authed_api,
             workflow_refs=[{"id": w["workflow_id"]} for w in mock_data["plain"]],
-            workflow_revision={"latest_per_artifact": True},
+            grouping={"by": "artifact", "get": "latest"},
         )
         # ----------------------------------------------------------------------
 
@@ -152,7 +152,7 @@ class TestWorkflowRevisionsLatestPerWorkflow:
         assert response.get("windowing") is None
         # ----------------------------------------------------------------------
 
-    def test_without_the_flag_every_revision_comes_back(self, authed_api, mock_data):
+    def test_without_grouping_every_revision_comes_back(self, authed_api, mock_data):
         # The behaviour this flag exists to avoid: no windowing means no LIMIT.
 
         # ACT ------------------------------------------------------------------
@@ -174,7 +174,7 @@ class TestWorkflowRevisionsLatestPerWorkflow:
         response = _query(
             authed_api,
             workflow_refs=[{"id": mock_data["deep"]["workflow_id"]}],
-            workflow_revision={"latest_per_artifact": True},
+            grouping={"by": "artifact", "get": "latest"},
         )
         # ----------------------------------------------------------------------
 
@@ -194,7 +194,7 @@ class TestWorkflowRevisionsLatestPerWorkflow:
         response = _query(
             authed_api,
             workflow_refs=[{"id": mock_data["multi"]["workflow_id"]}],
-            workflow_revision={"latest_per_artifact": True},
+            grouping={"by": "artifact", "get": "latest"},
         )
         # ----------------------------------------------------------------------
 
@@ -216,7 +216,7 @@ class TestWorkflowRevisionsLatestPerWorkflow:
         response = _query(
             authed_api,
             workflow_refs=[{"id": mock_data["v0"]["workflow_id"]}],
-            workflow_revision={"latest_per_artifact": True},
+            grouping={"by": "artifact", "get": "latest"},
         )
         # ----------------------------------------------------------------------
 
@@ -227,25 +227,40 @@ class TestWorkflowRevisionsLatestPerWorkflow:
         assert revision["flags"]["is_agent"] is True
         # ----------------------------------------------------------------------
 
-    def test_explicit_revision_refs_win(self, authed_api, mock_data):
-        # Naming exact revisions is a stronger statement than "the latest one" —
-        # collapsing here would silently drop revisions the caller asked for.
+    def test_rejects_explicit_revision_refs(self, authed_api, mock_data):
         revisions = mock_data["plain"][0]["revisions"]
 
-        # ACT ------------------------------------------------------------------
+        response = authed_api(
+            "POST",
+            "/workflows/revisions/query",
+            json={
+                "workflow_revision_refs": [{"id": revisions[0]["id"]}],
+                "grouping": {"by": "artifact", "get": "latest"},
+            },
+        )
+
+        assert response.status_code == 422
+
+    def test_rejects_grouping_without_get(self, authed_api, mock_data):
+        response = authed_api(
+            "POST",
+            "/workflows/revisions/query",
+            json={
+                "workflow_refs": [{"id": mock_data["plain"][0]["workflow_id"]}],
+                "grouping": {"by": "artifact"},
+            },
+        )
+
+        assert response.status_code == 422
+
+    def test_returns_latest_revision_per_variant(self, authed_api, mock_data):
         response = _query(
             authed_api,
-            workflow_revision_refs=[{"id": r["id"]} for r in revisions[:2]],
-            workflow_revision={"latest_per_artifact": True},
+            workflow_refs=[{"id": mock_data["multi"]["workflow_id"]}],
+            grouping={"by": "variant", "get": "latest"},
         )
-        # ----------------------------------------------------------------------
 
-        # ASSERT ---------------------------------------------------------------
         assert response["count"] == 2
-        assert {r["id"] for r in response["workflow_revisions"]} == {
-            r["id"] for r in revisions[:2]
-        }
-        # ----------------------------------------------------------------------
 
     def test_archived_head_falls_back_unless_included(self, authed_api, mock_data):
         workflow = mock_data["plain"][1]
@@ -259,7 +274,7 @@ class TestWorkflowRevisionsLatestPerWorkflow:
             response = _query(
                 authed_api,
                 workflow_refs=[{"id": workflow["workflow_id"]}],
-                workflow_revision={"latest_per_artifact": True},
+                grouping={"by": "artifact", "get": "latest"},
             )
             # ------------------------------------------------------------------
 
@@ -273,7 +288,7 @@ class TestWorkflowRevisionsLatestPerWorkflow:
                 authed_api,
                 include_archived=True,
                 workflow_refs=[{"id": workflow["workflow_id"]}],
-                workflow_revision={"latest_per_artifact": True},
+                grouping={"by": "artifact", "get": "latest"},
             )
             # ------------------------------------------------------------------
 

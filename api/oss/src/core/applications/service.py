@@ -1,4 +1,5 @@
 from typing import Optional, List, TYPE_CHECKING
+from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
@@ -806,6 +807,8 @@ class ApplicationsService:
         #
         include_archived: Optional[bool] = None,
         #
+        grouping: Optional[RevisionGrouping] = None,
+        #
         windowing: Optional[Windowing] = None,
     ) -> List[ApplicationRevision]:
         workflow_revision_query = (
@@ -828,6 +831,8 @@ class ApplicationsService:
             workflow_revision_refs=application_revision_refs,
             #
             include_archived=include_archived,
+            #
+            grouping=grouping,
             #
             windowing=windowing,
         )

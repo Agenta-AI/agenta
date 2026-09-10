@@ -1605,6 +1605,8 @@ class ApplicationsRouter:
             #
             include_archived=application_revision_query_request.include_archived,
             #
+            grouping=application_revision_query_request.grouping,
+            #
             windowing=application_revision_query_request.windowing,
         )
 
