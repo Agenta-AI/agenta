@@ -2000,7 +2000,7 @@ def _platform_label(channel: str) -> str:
 
 
 def _attribution_part(sender: Dict[str, Any], *, channel: str) -> Optional[dict]:
-    """ "From Sara Ahmed (@sara, Telegram id 8883745180):" -- the name when the
+    """ "From Test User (@testuser, Telegram id 1000001):" -- the name when the
     platform sent one, else the username, else the bare id. None when the
     event names no sender at all (an Agenta-internal event, for instance)."""
 
