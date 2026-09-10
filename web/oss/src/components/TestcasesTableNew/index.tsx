@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {isValidUUID} from "@agenta/shared/utils"
 import {useRowHeight} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -9,7 +10,6 @@ import TestcaseEditDrawer from "@/oss/components/SharedDrawers/TestcaseDrawer"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
-import {isValidUUID} from "@/oss/lib/helpers/validators"
 import type {testset as DeleteModalTestset} from "@/oss/lib/Types"
 import {
     currentRevisionIdAtom,
