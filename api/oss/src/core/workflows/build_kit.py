@@ -56,6 +56,11 @@ _BUILD_KIT_OP_PERMISSIONS = {
 # no skill text told the model when to use them, and both are due for their own rework.
 DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "discover_tools",
+    # Registry discovery: search + the self-config commit IS the agent-driven install.
+    "search_skills",
+    # Source sync: silent check; the apply is a write, so its approval card IS the user prompt.
+    "check_skill_updates",
+    "apply_skill_update",
     *_READ_CONFIG_OPS,
     "commit_revision",
     "test_run",

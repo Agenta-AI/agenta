@@ -392,6 +392,7 @@ export async function runTurn(
       harness: plan.harness,
       model: env.model,
       skills: plan.workspace.skillDirs.map((s) => s.name),
+      skillsDropped: plan.workspace.skillsDropped,
       traceparent: request.context?.propagation?.traceparent,
       baggage: request.context?.propagation?.baggage,
       endpoint: otlpTarget.endpoint,

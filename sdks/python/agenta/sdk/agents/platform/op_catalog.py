@@ -182,6 +182,10 @@ class PlatformOp(BaseModel):
     context_bindings: Dict[str, str] = Field(default_factory=dict)
     # Where the model's args land in the request body (a dotted deep-set path; absent = the root).
     args_into: Optional[str] = None
+    # Static server-fixed body fields, emitted as ``call.body``. The runner overlays these on the
+    # model's args, so the model can never override them (e.g. the hardwired ``apply`` flag that
+    # keeps check_skill_updates read-only).
+    static_body: Optional[Dict[str, Any]] = None
     # Catalog hint for the runner's ``allow_reads`` policy; no hint counts as a write.
     read_only: bool = False
     # Per-op execution budget for long-running server-side handlers. Emitted as `timeoutMs`.
@@ -305,6 +309,7 @@ class PlatformOp(BaseModel):
         return ToolCall(
             method=self.method,
             path=self.path,
+            body=dict(self.static_body) if self.static_body else None,
             context=dict(self.context_bindings) or None,
             args_into=self.args_into,
         )
@@ -529,6 +534,67 @@ _DISCOVER_TOOLS_INPUT_SCHEMA: Dict[str, Any] = {
 
 # Workflows query (read): list the project's workflow artifacts, so an agent building or improving
 # agents can find what already exists. Filters mirror ``WorkflowQueryRequest`` (all optional).
+_SEARCH_SKILLS_DESCRIPTION = (
+    "Search the project's skill registry (name and description match; empty search lists "
+    "everything). Answers with each skill's slug, name, description, head version and "
+    "file count, plus the Agenta built-ins in a separate `builtin` block. To give this "
+    "agent a skill from the results, append an `@ag.embed` entry to `skills` via "
+    "`commit_revision` — the exact entry shape is documented in the configuration "
+    "reference's skills section (reference by `workflow.slug` to follow the latest "
+    "version; `workflow_revision` with `version` to pin)."
+)
+_SEARCH_SKILLS_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "search": {
+            "type": "string",
+            "description": "Case-insensitive match on skill name and description.",
+        },
+    },
+}
+
+# Skill update sync (read + gated write): the check endpoint never writes; the apply is a
+# write, so under the default policy the approval card IS the user prompt — no extra UI.
+_CHECK_SKILL_UPDATES_DESCRIPTION = (
+    "Check one imported skill against its upstream source, without changing anything. "
+    "Reports `update_available` (newer upstream content), `up_to_date`, `detached` "
+    "(edited in Agenta — updates never overwrite it), `missing_in_source`, or "
+    "`invalid_in_source`. Skill workflow ids come from `search_skills`; only skills "
+    "with an import origin can be checked. Use this when the user asks about skill "
+    "updates, or before proposing `apply_skill_update`; summarize what changed before "
+    "applying."
+)
+_CHECK_SKILL_UPDATES_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "skill_id": {
+            "type": "string",
+            "description": "The skill's workflow id (a UUID from `search_skills`).",
+        },
+    },
+    "required": ["skill_id"],
+}
+
+_APPLY_SKILL_UPDATE_DESCRIPTION = (
+    "Commit the upstream version of one imported skill as a new revision. Run "
+    "`check_skill_updates` first and tell the user what changed — this call needs the "
+    "user's approval, and the approval is their yes to updating. Skills edited in "
+    "Agenta report `detached` and are never overwritten; a concurrent edit reports "
+    "`conflict` instead of clobbering. Agents referencing the skill by slug "
+    "(follow-latest) pick the new version up on their next run; pinned references "
+    "keep their version until repinned."
+)
+_APPLY_SKILL_UPDATE_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "skill_id": {
+            "type": "string",
+            "description": "The skill's workflow id (a UUID from `search_skills`).",
+        },
+    },
+    "required": ["skill_id"],
+}
+
 _QUERY_WORKFLOWS_DESCRIPTION = (
     "Query the project's workflow artifacts (agents, prompts) with optional filters and "
     "pagination. Use it to find existing workflows before creating or referencing one."
@@ -1570,6 +1636,30 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             path="/api/workflows/query",
             input_schema=_QUERY_WORKFLOWS_INPUT_SCHEMA,
             read_only=True,
+        ),
+        PlatformOp(
+            op="search_skills",
+            description=_SEARCH_SKILLS_DESCRIPTION,
+            method="POST",
+            path="/api/skills/query",
+            input_schema=_SEARCH_SKILLS_INPUT_SCHEMA,
+            read_only=True,
+        ),
+        PlatformOp(
+            op="check_skill_updates",
+            description=_CHECK_SKILL_UPDATES_DESCRIPTION,
+            method="POST",
+            path="/api/skills/{skill_id}/updates/check",
+            input_schema=_CHECK_SKILL_UPDATES_INPUT_SCHEMA,
+            read_only=True,
+        ),
+        PlatformOp(
+            op="apply_skill_update",
+            description=_APPLY_SKILL_UPDATE_DESCRIPTION,
+            method="POST",
+            path="/api/skills/{skill_id}/updates/apply",
+            input_schema=_APPLY_SKILL_UPDATE_INPUT_SCHEMA,
+            read_only=False,
         ),
         PlatformOp(
             op="query_spans",

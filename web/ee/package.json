@@ -33,6 +33,8 @@
         "@agenta/settings": "workspace:../packages/agenta-settings",
         "@agenta/settings-ui": "workspace:../packages/agenta-settings-ui",
         "@agenta/shared": "workspace:../packages/agenta-shared",
+        "@agenta/skills": "workspace:../packages/agenta-skills",
+        "@agenta/skills-ui": "workspace:../packages/agenta-skills-ui",
         "@agenta/ui": "workspace:../packages/agenta-ui",
         "@ant-design/colors": "^7.2.1",
         "@ant-design/cssinjs": "^2.1.0",

@@ -40,6 +40,8 @@
         "@agenta/sdk": "workspace:../packages/agenta-sdk",
         "@agenta/sessions": "workspace:../packages/agenta-sessions",
         "@agenta/sessions-ui": "workspace:../packages/agenta-sessions-ui",
+        "@agenta/skills": "workspace:../packages/agenta-skills",
+        "@agenta/skills-ui": "workspace:../packages/agenta-skills-ui",
         "@agenta/settings": "workspace:../packages/agenta-settings",
         "@agenta/settings-ui": "workspace:../packages/agenta-settings-ui",
         "@agenta/shared": "workspace:../packages/agenta-shared",

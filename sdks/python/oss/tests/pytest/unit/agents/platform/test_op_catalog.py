@@ -64,6 +64,9 @@ def test_catalog_ships_platform_builder_ops():
     assert set(PLATFORM_OPS) - {"read_config"} == {
         "discover_tools",
         "query_workflows",
+        "search_skills",
+        "check_skill_updates",
+        "apply_skill_update",
         "query_spans",
         "rename_session",
         "rename_agent",
@@ -442,6 +445,31 @@ async def test_platform_handlers_empty_flag_uses_default_on(connection, monkeypa
     )
 
     assert [spec.name for spec in resolution.tool_specs] == ["test_run"]
+
+
+async def test_check_skill_updates_is_read_only(connection):
+    # The read half of skill update sync: its own endpoint that never writes.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="check_skill_updates")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.call.method == "POST"
+    assert spec.call.path == "/api/skills/{skill_id}/updates/check"
+    assert spec.call.body is None
+    assert spec.read_only is True
+    assert set(spec.input_schema["properties"]) == {"skill_id"}
+    assert spec.input_schema["required"] == ["skill_id"]
+
+
+async def test_apply_skill_update_is_a_gated_write(connection):
+    # The write half: read_only=False means the approval card is the user prompt.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="apply_skill_update")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.call.path == "/api/skills/{skill_id}/updates/apply"
+    assert spec.read_only is False
+    assert set(spec.input_schema["properties"]) == {"skill_id"}
 
 
 async def test_query_spans_emits_project_scoped_read_call(connection):
