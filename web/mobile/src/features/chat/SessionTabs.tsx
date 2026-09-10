@@ -6,14 +6,15 @@ import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
-import {useAtom, useAtomValue} from "jotai"
-import {ChevronsLeft, ChevronsRight} from "lucide-react"
+import {useAtomValue} from "jotai"
+import {ChevronsLeft} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {ConfigRevealButton} from "./ConfigRevealButton"
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
@@ -53,7 +54,7 @@ export const SessionTabs = ({
     const menu = useSessionRowMenu(base)
     const startBlank = useStartBlankSession(base)
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
-    const [configCollapsed, setConfigCollapsed] = useAtom(configPanelCollapsedAtom)
+    const configCollapsed = useAtomValue(configPanelCollapsedAtom)
     const {open: filesOpen, openPane} = useSessionFilesPane(agentId ?? sessionId, sessionId)
     // Key leads with `session-stream`: a rename patches by key PREFIX, so a nested key never
     // matches and the title lags. The singular GET redirects onto the web app, so POST it.
@@ -107,27 +108,7 @@ export const SessionTabs = ({
                 // used to land.
                 onNew={agentId ? () => startBlank(agentId) : undefined}
                 leadingExtra={
-                    !chatMaximized && configCollapsed ? (
-                        <SimpleTooltip
-                            title={
-                                <span className="flex items-center gap-1.5">
-                                    Show configuration{" "}
-                                    <ShortcutKeys id="panel.config" tone="inverse" />
-                                </span>
-                            }
-                        >
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="Show configuration"
-                                aria-keyshortcuts={shortcutAria("panel.config")}
-                                onClick={() => setConfigCollapsed(false)}
-                                className="h-7 w-7 shrink-0 p-0"
-                            >
-                                <ChevronsRight size={14} />
-                            </Button>
-                        </SimpleTooltip>
-                    ) : undefined
+                    !chatMaximized && configCollapsed ? <ConfigRevealButton /> : undefined
                 }
                 extra={
                     chatMaximized ? undefined : (

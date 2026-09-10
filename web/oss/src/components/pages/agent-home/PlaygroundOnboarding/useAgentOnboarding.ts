@@ -11,7 +11,8 @@ import {
 } from "react"
 
 import {sessionStatusAtomFamily} from "@agenta/chat/state"
-import {createEphemeralAppFromTemplate} from "@agenta/entities/workflow"
+import {createEphemeralAppFromTemplate, type AgentSetupSelection} from "@agenta/entities/workflow"
+import {useAgentSetupStep} from "@agenta/entity-ui/onboarding"
 import {
     hasPendingHydrationAtomFamily,
     isAgentModeAtomFamily,
@@ -31,7 +32,7 @@ import {ONBOARDING_SESSION_DEFAULT, onboardingSessionAtom} from "@/oss/state/onb
 import {urlAtom} from "@/oss/state/url"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
-import {TEMPLATE_STRIP_MODE} from "../assets/constants"
+import {CONNECT_STEP_MODE, TEMPLATE_STRIP_MODE} from "../assets/constants"
 import {useCreateAgent} from "../hooks/useCreateAgent"
 
 import OnboardingConfigPanel from "./OnboardingConfigPanel"
@@ -192,8 +193,12 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     // ephemeral + an `onCommitted` callback (no redirect): swap the entity, flip to the live chat, and
     // reflect the app in the URL via `history.replaceState` (a real nav to the app route is a different
     // Next page → would remount; a reload then lands on the app playground).
-    const commit = useCallback(
-        (seedMessage: string, name?: string) => {
+    // The pre-create connect step (#6043). Inert when the flag is off: `commit` then goes straight
+    // to `runCommit` exactly as it did before.
+    const setupStep = useAgentSetupStep()
+
+    const runCommit = useCallback(
+        (seedMessage: string, name?: string, setup?: AgentSetupSelection) => {
             if (!entityId || committing || realEntityId) return
             setCommitting(true)
             // Surface the seed so the chat can render it as an optimistic user turn during commit.
@@ -206,6 +211,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                 // Create-agent is an explicit "go" → the chat sends the description as the first turn
                 // once the model is ready (no extra Start click), keeping the transition seamless.
                 autoSendSeed: true,
+                setup,
                 onCommitted: ({appId, revisionId}) => {
                     committed = true
                     // Adopt the founding conversation into the new app's chat scope, in the SAME
@@ -251,6 +257,40 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
         ],
     )
 
+    // "Create agent" now opens the connect step rather than committing: the accounts this agent
+    // will need get connected while it is still a draft, instead of being asked for mid-run.
+    const commit = useCallback(
+        (seedMessage: string, name?: string) => {
+            if (!entityId || committing || realEntityId) return
+            // The step earns its interruption only when it has an account to ask about; with
+            // nothing detected it would block on a card that says "Nothing required."
+            if (CONNECT_STEP_MODE && setupStep.open({seedMessage, name})) return
+            runCommit(seedMessage, name)
+        },
+        [entityId, committing, realEntityId, runCommit, setupStep.open],
+    )
+
+    // The draft is what the composer said when the step OPENED; the composer is still editable
+    // behind the card, so a surface that can read it passes what it says now.
+    const commitWithSetup = useCallback(
+        (selection: AgentSetupSelection, draftOverride?: {seedMessage: string; name?: string}) => {
+            const draft = setupStep.draft
+            if (!draft) return
+            runCommit(
+                draftOverride?.seedMessage ?? draft.seedMessage,
+                draftOverride ? draftOverride.name : draft.name,
+                selection,
+            )
+        },
+        [setupStep.draft, runCommit],
+    )
+
+    // The step belongs to ONE pre-commit draft: once the agent is real, close it so a failed-then-
+    // retried commit can't leave the card docked over a live chat.
+    useEffect(() => {
+        if (realEntityId && setupStep.draft) setupStep.close()
+    }, [realEntityId, setupStep.draft, setupStep.close])
+
     const contextValue = useMemo<OnboardingContextValue | null>(
         () =>
             active
@@ -260,6 +300,8 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                       committing,
                       committingSeed,
                       commit,
+                      setup: CONNECT_STEP_MODE ? setupStep : null,
+                      commitWithSetup,
                       browseAll,
                       setBrowseAll,
                       chromeRevealed,
@@ -273,6 +315,8 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
             committing,
             committingSeed,
             commit,
+            setupStep,
+            commitWithSetup,
             browseAll,
             chromeRevealed,
             firstRunSettled,

@@ -13,7 +13,6 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useMotionPresets} from "@/lib/motion/presets"
 
 import {NewAgentAction} from "../agents/NewAgentAction"
-import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
@@ -45,7 +44,6 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     const base = `/w/${workspaceId}/p/${projectId}`
     const router = useRouter()
     const sessionMenu = useSessionRowMenu(base)
-    const newAgent = useNewAgentAction(base)
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
     const presets = useMotionPresets()
@@ -97,7 +95,11 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                 animate="animate"
                 exit="exit"
             >
-                {surface === "loading" ? <FirstRunLoading /> : <FirstRunScreen base={base} />}
+                {surface === "loading" ? (
+                    <FirstRunLoading />
+                ) : (
+                    <FirstRunScreen base={base} workspaceId={workspaceId} projectId={projectId} />
+                )}
             </motion.div>
         </AnimatePresence>
     )
@@ -113,12 +115,8 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             title="What do you want to do?"
             action={
                 <NewAgentAction
-                    create={() => void newAgent.create()}
-                    createFromTemplate={newAgent.createFromTemplate}
                     base={base}
                     align="end"
-                    creating={newAgent.creating}
-                    error={newAgent.error}
                     className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
                 />
             }

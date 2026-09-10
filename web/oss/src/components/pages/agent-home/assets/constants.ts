@@ -33,6 +33,15 @@ export const PLAYGROUND_NATIVE_ONBOARDING =
 export const TEMPLATE_STRIP_MODE =
     (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_STRIP") || "").toLowerCase() !== "false"
 
+/**
+ * Pre-create connect step (`NEXT_PUBLIC_AGENT_CONNECT_STEP`). On by default: describing an agent
+ * or picking a template opens the setup card — the accounts it will need, connected before it is
+ * created — instead of creating immediately (#6043). Set to "false" to restore instant create on
+ * every path, so the step can be A/B'd against it.
+ */
+export const CONNECT_STEP_MODE =
+    (getEnv("NEXT_PUBLIC_AGENT_CONNECT_STEP") || "").toLowerCase() !== "false"
+
 /** Browse-surface layout (`NEXT_PUBLIC_AGENT_BROWSE_RAIL`). OFF by default: sessions, agents and
  * the templates gallery use the one-row toolbar (#5833/#5846). Set to "true" for the filter rail.
  * Mobile always renders the rail — it is the phone's whole viewport, not a second sidebar. */
@@ -55,6 +64,13 @@ export const HERO = {
     placeholder: STRIP_COPY.describeAgentPlaceholder,
 } as const
 
+/** A template already says what is being built and why, so the page asks the one thing still
+ * open — what it needs connected — instead of repeating the question the pick answered. */
+export const TEMPLATE_HERO = {
+    title: (name: string) => `Set up ${name}`,
+    subtitle: "Connect what it needs, then we'll build it and open the playground.",
+} as const
+
 export const COMPOSER = {
     tabUi: "Build in the UI",
     tabIde: "Continue in IDE",
@@ -69,13 +85,6 @@ export const COMPOSER = {
 export const TEMPLATES_SECTION = {
     title: "Or start from a template",
     browseAll: "Browse all",
-} as const
-
-export const TEMPLATES_GALLERY = {
-    title: "Templates",
-    subtitle:
-        "Start from a proven agent — review what it does, connect what it needs, and open the playground.",
-    searchPlaceholder: "Search templates…",
 } as const
 
 /** First-run tutorial video config. `null` hides the column (composer returns to full width). */

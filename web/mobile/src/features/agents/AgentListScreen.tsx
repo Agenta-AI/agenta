@@ -23,7 +23,6 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {NewAgentAction} from "./NewAgentAction"
-import {useNewAgentAction} from "./useNewAgentAction"
 
 /**
  * The full agent roster — where the nav's Agents entry lands.
@@ -47,7 +46,6 @@ export const AgentListScreen = ({
     useBindProjectContext(projectId)
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
-    const newAgent = useNewAgentAction(base)
     const query = useAtomValue(agentWorkflowsListQueryStateAtom)
     const [search, setSearch] = useAtom(agentRosterSearchAtom)
     const waitingByAgent = useWaitingByAgent()
@@ -105,11 +103,7 @@ export const AgentListScreen = ({
                     className="min-w-0 grow sm:max-w-80"
                 />
                 <NewAgentAction
-                    create={() => void newAgent.create()}
-                    createFromTemplate={newAgent.createFromTemplate}
                     base={base}
-                    creating={newAgent.creating}
-                    error={newAgent.error}
                     align="end"
                     className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
                 />
@@ -122,7 +116,7 @@ export const AgentListScreen = ({
             agents={agents}
             isLoading={query.isPending}
             waitingByAgent={waitingByAgent}
-            onCreate={() => void newAgent.create()}
+            onCreate={() => void router.push(`${base}/agents/new`)}
             onOpenOverview={(agent) => void router.push(`${base}/agents/${agent.id}`)}
             onRename={(agent) => agentActions.rename({id: agent.id, name: agent.name})}
             onArchive={(agent) => agentActions.remove({id: agent.id, name: agent.name})}

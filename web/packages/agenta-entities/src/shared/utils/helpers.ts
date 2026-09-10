@@ -4,6 +4,7 @@
  * Helper functions for cache management, molecule composition, and strict typing.
  */
 
+import {generateId} from "@agenta/shared/utils"
 import {atom} from "jotai"
 import type {Atom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -352,10 +353,11 @@ export function isServerId(id: string): boolean {
 }
 
 /**
- * Generate a local ID with optional prefix.
+ * Generate a local ID with optional prefix. Crypto-backed: these ids reach surfaces CodeQL
+ * treats as security contexts (js/insecure-randomness), and `Math.random` is not fit for that.
  */
 export function generateLocalId(prefix = "local"): string {
-    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+    return `${prefix}-${Date.now()}-${generateId().replace(/-/g, "").slice(0, 7)}`
 }
 
 // ============================================================================

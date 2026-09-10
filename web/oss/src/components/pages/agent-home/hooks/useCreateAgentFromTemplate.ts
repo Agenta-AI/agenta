@@ -1,6 +1,10 @@
 import {useCallback, useState} from "react"
 
-import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {
+    templateBuilderMessage,
+    type AgentSetupSelection,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
@@ -23,7 +27,7 @@ export function useCreateAgentFromTemplate(surface: "gallery" | "template_detail
     const [pendingKey, setPendingKey] = useState<string | null>(null)
 
     const createFromTemplate = useCallback(
-        async (template: AgentStarterTemplate) => {
+        async (template: AgentStarterTemplate, setup?: AgentSetupSelection) => {
             if (pendingKey) return
             setPendingKey(template.key)
             captureFirstAgentIntent(posthog, {
@@ -41,6 +45,7 @@ export function useCreateAgentFromTemplate(surface: "gallery" | "template_detail
                 name: template.name,
                 seedMessage: templateBuilderMessage(template),
                 autoSendSeed: true,
+                setup,
             })
             if (!ok) setPendingKey(null)
         },
