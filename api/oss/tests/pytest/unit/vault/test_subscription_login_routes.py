@@ -254,7 +254,7 @@ class TestCreateAndRead:
         # The vault routes exclude nulls, so a redacted login is an absent key.
         assert "login" not in read["data"]
         assert read["data"]["login_state"] == "ready"
-        assert read["data"]["model_keys"][0] == "chatgpt/gpt-5.6-sol"
+        assert read["data"]["model_keys"][0] == "chatgpt/gpt-6-astra"
         assert read["value_status"]["configured"] is True
         assert LOGIN["access"] not in harness.client.get("/secrets/").text
 
