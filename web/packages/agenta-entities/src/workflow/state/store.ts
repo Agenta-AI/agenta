@@ -438,6 +438,8 @@ export interface WorkflowListRef {
     deleted_at: string | null
     created_at: string | null
     updated_at: string | null
+    /** Creator user id — the "Created by" column and facet on the agents roster. */
+    created_by_id: string | null
 }
 
 /**
@@ -461,6 +463,7 @@ export function toWorkflowListRef(w: Workflow): WorkflowListRef {
         deleted_at: w.deleted_at ?? null,
         created_at: w.created_at ?? null,
         updated_at: w.updated_at ?? null,
+        created_by_id: w.created_by_id ?? null,
     }
 }
 
@@ -2867,6 +2870,7 @@ export function seedCreatedWorkflowCache(
         deleted_at: revision.deleted_at ?? null,
         created_at: revision.created_at ?? null,
         updated_at: revision.updated_at ?? null,
+        created_by_id: revision.created_by_id ?? null,
     }
 
     store.set(workflowLocalServerDataAtomFamily(revision.id), revision)
