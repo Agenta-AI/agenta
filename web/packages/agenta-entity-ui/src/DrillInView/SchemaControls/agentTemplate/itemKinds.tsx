@@ -7,7 +7,6 @@ import type {ComponentType, ReactNode} from "react"
 
 import {GraduationCap, Plugs, Wrench} from "@phosphor-icons/react"
 
-import type {ConfigItemView} from "../ConfigItemDrawer"
 import {McpServerFormView} from "../McpServerFormView"
 import {SkillFormView} from "../SkillFormView"
 import {skillDraftError} from "../skillName"
@@ -55,14 +54,10 @@ export interface ItemKindDef {
     drawerWidth?: (item: Record<string, unknown>) => number | undefined
     /** Full-bleed body, for a Form that lays out its own master/detail. Per ITEM, as above. */
     formFlush?: (item: Record<string, unknown>) => boolean
-    /** Default Form/JSON view when opening an existing item. */
-    editView: (item: unknown) => ConfigItemView
-    /** Items with no structured form open JSON-only (no Form/JSON toggle). */
+    /** Items with no structured form show their raw JSON instead. */
     jsonOnly: (item: Record<string, unknown>) => boolean
     /** The item's form already states its identity, so the drawer drops its header chrome. */
     statesOwnIdentity?: (item: Record<string, unknown>) => boolean
-    /** Hide the Form/JSON toggle for an item whose raw shape is an internal detail. */
-    formOnly?: (item: Record<string, unknown>) => boolean
     /** Read-only items (e.g. static `__ag__*` skills) — viewable but not editable. */
     isReadOnly: (item: unknown) => boolean
     /** Seed for a fresh "create" draft. */
@@ -93,15 +88,13 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         // structured Form. Bare builtin/provider tools (a naked `type`) stay JSON-only, and so
         // does an integration entry: it is edited in the permission drawer, so a reader who does
         // reach it here (a diff row, a raw inspection) gets the JSON rather than an empty form.
-        editView: (item) => {
-            const entry = parseGatewayEntry(item)
-            if (entry?.kind === "connection") return "json"
-            return isFunctionTool(item) || isReferenceTool(item) || entry ? "form" : "json"
+        jsonOnly: (draft) => {
+            const entry = parseGatewayEntry(draft)
+            if (entry?.kind === "connection") return true
+            return !(isFunctionTool(draft) || isReferenceTool(draft) || entry)
         },
-        jsonOnly: (draft) => ITEM_KINDS.tool.editView(draft) === "json",
         // A subagent's detail states its own identity and hides the raw entry.
         statesOwnIdentity: (draft) => isReferenceTool(draft),
-        formOnly: (draft) => isReferenceTool(draft),
         isReadOnly: () => false,
         // Unused for tools: creation seeds from the picker (buildInlineFunctionTool), not this.
         createSeed: () => ({}),
@@ -120,7 +113,6 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         describe: describeMcp,
         FormView: McpServerFormView,
         drawerTitle: (draft) => String(draft.name ?? "").trim() || "New MCP server",
-        editView: () => "form",
         jsonOnly: () => false,
         isReadOnly: () => false,
         createSeed: () => ({
@@ -171,7 +163,6 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
             isEmbedRefSkill(draft)
                 ? "Skill reference"
                 : String(draft.name ?? "").trim() || "New skill",
-        editView: (item) => (isEmbedRefSkill(item) ? "json" : "form"),
         jsonOnly: (draft) => isEmbedRefSkill(draft),
         isReadOnly: (item) => isStaticSkill(item),
         createSeed: () => ({name: "", description: "", body: ""}),

@@ -115,6 +115,8 @@ export type {
     DrillInUIComponents,
     DrillInUIProviderProps,
     GatewayToolsBridge,
+    SkillsBridge,
+    SkillsPickerHostProps,
     WorkflowReferenceBridge,
     WorkflowReferenceUI,
     WorkflowReferenceType,
@@ -125,6 +127,9 @@ export type {
 
 // The workflow-as-tool reference bridge every host feeds into its own DrillInUIProvider.
 export {useWorkflowReferenceBridge} from "./bridges/useWorkflowReferenceBridge"
+
+// The gateway-tools bridge, mounted inside a DrillInUIProvider by every host that has tools.
+export {GatewayToolsBridgeProvider} from "./bridges/GatewayToolsBridgeProvider"
 
 // Core Types
 export type {
@@ -370,6 +375,7 @@ export type {
 export {
     AgentOperationsSections,
     AgentOperationsSkeleton,
+    AgentRegionHeaderBar,
 } from "./SchemaControls/AgentOperationsSections"
 
 // Triggers section internals — surfaced so the Storybook component inventory can render
@@ -435,6 +441,8 @@ export {
     ToolManagementList,
     selectSubagentTools,
 } from "./SchemaControls/agentTemplate/ToolManagementList"
+export {CatalogListRow} from "./SchemaControls/agentTemplate/CatalogListRow"
+export type {CatalogListRowProps} from "./SchemaControls/agentTemplate/CatalogListRow"
 export {AddSubagentDrawer} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
 export type {
     SubagentOption,
@@ -448,6 +456,8 @@ export {SkillFormView} from "./SchemaControls/SkillFormView"
 export type {SkillFormViewProps} from "./SchemaControls/SkillFormView"
 export {SkillUploadZone} from "./SchemaControls/SkillUploadZone"
 export type {SkillUploadZoneProps} from "./SchemaControls/SkillUploadZone"
+export {scanSkillFromDataTransfer, scanSkillFromFileList} from "./SchemaControls/skillUpload"
+export type {ParsedSkill, SkillScanCandidate, SkillUploadScan} from "./SchemaControls/skillUpload"
 
 // Agent config panel — presentational siblings of the AgentTemplateControl container (the
 // control itself stays code-split behind SchemaPropertyRenderer's lazy import). Prop-driven,
@@ -467,4 +477,4 @@ export type {
 
 // The panel's instructions file row, reused read-only by surfaces that show an agent's brief
 // without editing it (the agent overview).
-export {InstructionsFileRow} from "./SchemaControls/agentTemplate/ItemRow"
+export {InstructionsFileRow, ItemRow} from "./SchemaControls/agentTemplate/ItemRow"

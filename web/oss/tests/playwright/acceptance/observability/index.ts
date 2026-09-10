@@ -254,7 +254,7 @@ const observabilityTests = () => {
             )
 
             // Use the search input to filter by content
-            const searchInput = page.getByRole("searchbox").first()
+            const searchInput = page.getByLabel("Search observability data")
             await expect(searchInput).toBeVisible({timeout: 10000})
 
             // Typing a search term narrows the table; press Enter to apply
@@ -302,6 +302,11 @@ const observabilityTests = () => {
                 // Click the first data row to open the trace drawer. The virtual table body
                 // does not expose stable cell tags, but the row click handler is the behavior
                 // users rely on.
+                const selectedSpanName = await getFirstTraceRow(page)
+                    .locator("span[title]")
+                    .first()
+                    .getAttribute("title")
+                expect(selectedSpanName).toBeTruthy()
                 await clickFirstTraceRow(page)
 
                 // TraceDrawer renders through EnhancedDrawer, a facade over the @agenta/ui
@@ -315,10 +320,12 @@ const observabilityTests = () => {
                 const treeSearchInput = drawer.getByPlaceholder("Search in tree")
                 await expect(treeSearchInput).toBeVisible({timeout: 10000})
 
-                // Each span in the tree renders a span-type glyph (AvatarTreeContent, a plain div
-                // since the antd Avatar was dropped). At least one confirms the tree has nodes.
-                const spanAvatar = drawer.getByTestId("span-type-avatar").first()
-                await expect(spanAvatar).toBeVisible({timeout: 10000})
+                await expect(
+                    drawer
+                        .getByTestId("trace-tree")
+                        .getByText(selectedSpanName!, {exact: true})
+                        .first(),
+                ).toBeVisible({timeout: 10000})
             },
         )
     })
@@ -336,14 +343,10 @@ const observabilityTests = () => {
                 testProviderHelpers,
             )
 
-            // The three trace-type tabs are AntD Radio.Buttons: Root | LLM | All
-            // The projection control is the shared `Segmented` (role=radiogroup of role=radio
-            // buttons), not an antd Radio.Group — so no `.ant-radio-button-wrapper` and no
-            // `-checked` class; selection is `aria-checked`.
-            const tabs = page.getByRole("radiogroup", {name: "Trace projection"})
-            const rootTab = tabs.getByRole("radio", {name: "Root", exact: true})
-            const llmTab = tabs.getByRole("radio", {name: "LLM", exact: true})
-            const allTab = tabs.getByRole("radio", {name: "All", exact: true})
+            const traceProjection = page.getByRole("radiogroup", {name: "Trace projection"})
+            const rootTab = traceProjection.getByRole("radio", {name: "Root", exact: true})
+            const llmTab = traceProjection.getByRole("radio", {name: "LLM", exact: true})
+            const allTab = traceProjection.getByRole("radio", {name: "All", exact: true})
 
             await expect(rootTab).toBeVisible({timeout: 10000})
 

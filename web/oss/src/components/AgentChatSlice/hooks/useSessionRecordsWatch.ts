@@ -1,4 +1,9 @@
+import {useRef} from "react"
+
+import {shouldRefreshLegacyObserverLiveness} from "@agenta/chat/model"
+import {invalidateSessionDurableApprovalsCapability} from "@agenta/entities/session"
 import {useWatchEventSource} from "@agenta/sessions/watch"
+import {useQueryClient} from "@tanstack/react-query"
 
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {refreshSession} from "@/oss/lib/helpers/auth/refreshSession"
@@ -22,6 +27,7 @@ export const useSessionRecordsWatch = ({
     onReady,
     onRecordsChanged,
     onInteractionChanged,
+    sharedReaderAdvertised,
 }: {
     sessionId: string
     projectId?: string | null
@@ -30,17 +36,50 @@ export const useSessionRecordsWatch = ({
      * `onRecordsChanged` so it can skip a log the caller has just read (#6296). */
     onReady: () => void
     onRecordsChanged: () => void
-    onInteractionChanged: () => void
+    onInteractionChanged: (event: MessageEvent<string>) => void
+    sharedReaderAdvertised: boolean
 }): void => {
+    const queryClient = useQueryClient()
+    const lastLivenessRefreshAtRef = useRef(0)
     const url = sessionId && projectId ? sessionWatchUrl(sessionId, projectId) : null
+    const refreshLiveness = () => {
+        lastLivenessRefreshAtRef.current = Date.now()
+        void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+    }
+    const refreshLegacyObserverLiveness = () => {
+        const now = Date.now()
+        if (
+            !shouldRefreshLegacyObserverLiveness({
+                sharedReaderAdvertised,
+                lastRefreshAt: lastLivenessRefreshAtRef.current,
+                now,
+            })
+        )
+            return
+        refreshLiveness()
+    }
     useWatchEventSource({
         url,
         enabled,
         refreshSession,
         on: {
-            ready: onReady,
-            "records-changed": onRecordsChanged,
+            ready: () => {
+                if (projectId) {
+                    invalidateSessionDurableApprovalsCapability({projectId, sessionId})
+                }
+                onReady()
+            },
+            "records-changed": () => {
+                onRecordsChanged()
+                refreshLegacyObserverLiveness()
+            },
             interaction: onInteractionChanged,
+            // A session that ends without this tab running it — a Stop from elsewhere, or the
+            // execution watchdog settling a turn whose runner went silent. The records arrive
+            // on their own event; this is the half that stops the session still LOOKING alive,
+            // which otherwise waits out the 15s liveness poll. Mobile already does this
+            // (web/mobile/src/features/chat/useSessionWatch.ts).
+            lifecycle: refreshLiveness,
         },
     })
 }

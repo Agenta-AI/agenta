@@ -42,6 +42,7 @@ import {
   daytonaOpaqueSecretsEnabled,
   type DaytonaSecretPlan,
 } from "./daytona-secret-plan.ts";
+import { materializeSandboxCredentials } from "./sandbox-credentials.ts";
 
 type Log = (message: string) => void;
 
@@ -106,6 +107,7 @@ export const LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE =
 export interface RunPlanCredentials {
   /** Final plaintext model environment, after validating modelConnection. */
   modelEnvironment: Record<string, string>;
+  sandboxEnvironment: Record<string, string>;
   /**
    * Process-local opaque credential plan. Present for every Daytona run unless credential
    * hiding was switched off with AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS, and present even with
@@ -151,6 +153,8 @@ export interface RunPlanWorkspace {
   toolMcpDir: string;
   usageOutPath?: string;
   skillDirs: MaterializedSkill[];
+  /** "name: reason" per skill that did NOT materialize — stamped as `ag.meta.skills.dropped`. */
+  skillsDropped: string[];
   /** Removes the per-run skills temp root. The engine runs it in its `finally` so it never leaks. */
   skillsCleanup: () => void;
   sourcePiAgentDir: string;
@@ -172,6 +176,12 @@ export interface RunPlanTools {
   executableToolSpecs: ResolvedToolSpec[];
   /** True when the permission policy needs the extension to intercept Pi builtin calls. */
   builtinGatingActive: boolean;
+  /**
+   * The run's permission posture. `allow` is the only posture under which the runner executes
+   * owner-authored startup code (`agent-files/.tools/setup.sh`) unattended; see
+   * `agent-tools-setup.ts`.
+   */
+  permissionDefault: PermissionPlan["default"];
   useToolRelay: boolean;
   /**
    * How a parked client tool disposes of the turn and the in-sandbox shim's blocking call (closed
@@ -428,6 +438,15 @@ export function buildRunPlan(
       error: `Unrecognized harness ${JSON.stringify(request.harness)}: not a string.`,
     };
   }
+  if (
+    request.platformInstructions !== undefined &&
+    typeof request.platformInstructions !== "string"
+  ) {
+    return {
+      ok: false,
+      error: "platformInstructions must be a string when provided.",
+    };
+  }
   const harness = request.harness || "pi_core";
   const sandboxId = request.sandbox || defaultProvider || "local";
 
@@ -532,6 +551,8 @@ export function buildRunPlan(
 
   const materializedModel = materializeModelEnvironment(request);
   if (!materializedModel.ok) return materializedModel;
+  const materializedSandbox = materializeSandboxCredentials(request);
+  if (!materializedSandbox.ok) return materializedSandbox;
   // Daytona opaque-credential delivery is ON by default and switched off only by
   // AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS. Switched OFF: no secret plan is built at all, so
   // behavior is identical to the pre-feature runner — the full materialized environment reaches
@@ -677,33 +698,37 @@ export function buildRunPlan(
   // Skills materialize once from the resolved inline packages. Pi/Agenta consume the dirs
   // through Pi's agent-dir user scope; Claude consumes the same packages from the project-local
   // `.claude/skills` tree that `prepareWorkspace` writes below.
-  const { skills: skillDirs, cleanup: skillsCleanup } = resolveSkillDirs(
-    request.skills,
-    log,
-  );
+  const {
+    skills: skillDirs,
+    dropped: skillsDropped,
+    cleanup: skillsCleanup,
+  } = resolveSkillDirs(request.skills, log);
   if (skillDirs.length > 0)
     log(`skills: ${skillDirs.map((s) => s.name).join(", ")}`);
 
   const systemPrompt = isPi
     ? request.systemPrompt?.trim() || undefined
     : undefined;
-  // The gateway guidance is spliced HERE, at environment build time, guidance first and the
-  // author's text after it (the platform half leads, matching the old composed order). It is
-  // excluded from the session fingerprint on purpose, so this is the only moment the names
-  // list can change: a warm session keeps the text it was built with (the wording says the
-  // list may be stale), and the next cold or reopened session picks up the current names.
-  const guidance = request.gatewayGuidance?.text?.trim() || undefined;
-  const spliceGuidance = (
-    carrier: "appendSystemPrompt" | "agentsMd",
+  // SDK-owned platform instructions are spliced HERE, at environment build time, before the
+  // author's text. The runner owns the harness delivery choice: Pi uses its append-system prompt;
+  // Claude and Codex use their rendered instructions file. Keep accepting the old carrier-bearing
+  // field during the rolling deployment, but prefer the new field so a mixed request cannot
+  // duplicate guidance. Both inputs remain outside session identity to preserve today's warm
+  // behavior: generated guidance changes take effect on the next ordinary environment build.
+  const platformInstructions =
+    request.platformInstructions !== undefined
+      ? request.platformInstructions.trim() || undefined
+      : request.gatewayGuidance?.text?.trim() || undefined;
+  const splicePlatformInstructions = (
     authored: string | undefined,
-  ): string | undefined => {
-    if (!guidance || request.gatewayGuidance?.carrier !== carrier)
-      return authored;
-    return authored ? `${guidance}\n\n${authored}` : guidance;
-  };
+  ): string | undefined =>
+    platformInstructions
+      ? authored
+        ? `${platformInstructions}\n\n${authored}`
+        : platformInstructions
+      : authored;
   const appendSystemPrompt = isPi
-    ? spliceGuidance(
-        "appendSystemPrompt",
+    ? splicePlatformInstructions(
         request.appendSystemPrompt?.trim() || undefined,
       )
     : undefined;
@@ -746,6 +771,7 @@ export function buildRunPlan(
       isDaytona,
       credentials: {
         modelEnvironment,
+        sandboxEnvironment: materializedSandbox.environment,
         daytonaSecretPlan,
         harnessApiKeyVar,
         // Consult the FULL materialized environment: on a Daytona Secrets run the opaque key is
@@ -765,6 +791,7 @@ export function buildRunPlan(
           ? join(telemetryDir, ".agenta-usage.json")
           : undefined,
         skillDirs,
+        skillsDropped,
         skillsCleanup,
         sourcePiAgentDir:
           process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"),
@@ -777,6 +804,7 @@ export function buildRunPlan(
         toolSpecs,
         executableToolSpecs: executableToolSpecsForRun,
         builtinGatingActive,
+        permissionDefault: permissionPlan.default,
         // The relay carries tool EXECUTION only (permission gates ride the extension's
         // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.
         useToolRelay: toolSpecs.length > 0,
@@ -787,10 +815,9 @@ export function buildRunPlan(
       prompt: {
         text: prompt,
         turnText: buildTurnText(request, log),
-        agentsMd: spliceGuidance(
-          "agentsMd",
-          request.agentsMd?.trim() || undefined,
-        ),
+        agentsMd: isPi
+          ? request.agentsMd?.trim() || undefined
+          : splicePlatformInstructions(request.agentsMd?.trim() || undefined),
         systemPrompt,
         appendSystemPrompt,
         hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),

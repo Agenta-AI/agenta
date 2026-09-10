@@ -10,3 +10,9 @@ export {useRunAllShortcut, type UseRunAllShortcutParams} from "./useRunAllShortc
 export {useReducerAtom} from "./useReducerAtom"
 export {useModifierKey} from "./useModifierKey"
 export {useAltKey} from "./useAltKey"
+export {
+    desktopEscapeHref,
+    useClassicModeCookieSync,
+    useClassicModeRedirect,
+    writeClassicModeCookie,
+} from "./useClassicModeGate"

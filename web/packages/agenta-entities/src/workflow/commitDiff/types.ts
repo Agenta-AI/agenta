@@ -9,7 +9,14 @@ import type {ExtendedDiffLine} from "@agenta/ui/diff"
 
 export type ChangeKind = "added" | "removed" | "edited" | "changed"
 
-export type SectionId = "tools" | "instructions" | "model" | "params" | "mcps" | "skills"
+export type SectionId =
+    | "tools"
+    | "subagents"
+    | "instructions"
+    | "model"
+    | "params"
+    | "mcps"
+    | "skills"
 
 export interface ChangeTag {
     kind: ChangeKind
@@ -37,13 +44,22 @@ export interface ChangeItem {
     fieldChanges?: ToolFieldChange[]
     /** description before/after for an edited tool. */
     descriptionDiff?: {before: string; after: string}
+    /** Prose diff of the entry's own body — a skill's SKILL.md, rendered like Instructions. */
+    textDiff?: TextDiff
 }
 
 /** A scalar before→after change (model, temperature, …). */
 export interface ScalarChange {
+    /** Storage path (`runner.permissions.default`) — identity, and the detail/JSON view. */
     key: string
+    /** What to call it on screen ("Tool permissions"). Falls back to a humanized path. */
+    label: string
+    /** Stored values — identity for consumers that recall what a property was committed as. */
     before: string | undefined
     after: string | undefined
+    /** Display forms of the same values ("Allow all", "On"). Absent = show the stored value. */
+    beforeLabel?: string
+    afterLabel?: string
     kind: ChangeKind
 }
 
@@ -59,6 +75,8 @@ export interface TextDiff {
 export interface ChangeSection {
     id: SectionId
     title: string
+    /** Singular noun for the commit message ("integration"). Defaults to a section-wide fallback. */
+    noun?: string
     tags: ChangeTag[]
     /** Total change count in this section — drives caps / collapse defaults. */
     totalCount: number
@@ -86,9 +104,17 @@ export interface NormalizedTool {
     fingerprint: string
     /** A function-call tool (`function.name`); only these get field-level diffs. */
     isFunction: boolean
+    /** A `gateway_connection`'s authored policy: the integration default plus per-tool overrides. */
+    policy?: {default: string; tools: Record<string, string>}
+    /** The entry as authored, so a field no other check inspects can still be named. */
+    raw?: Record<string, unknown>
+    /** A `{type:"reference"}` entry — another agent, sectioned apart from the real tools. */
+    isSubagent?: boolean
 }
 
 export interface AgentConfigView {
+    /** An agent template, not a prompt variant — the two name the same sections differently. */
+    isAgentTemplate: boolean
     instructions: string
     tools: NormalizedTool[]
     model: string | undefined
@@ -102,4 +128,6 @@ export interface AgentConfigView {
     harness: Record<string, unknown> | undefined
     runner: Record<string, unknown> | undefined
     sandbox: Record<string, unknown> | undefined
+    /** Template keys no section claims, so an untaught key still reports as a change. */
+    extra: Record<string, unknown>
 }

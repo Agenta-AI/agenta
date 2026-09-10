@@ -807,6 +807,8 @@ export interface CreateWorkflowPayload {
     /** Commit message for the initial revision */
     message?: string | null
     data?: WorkflowData | null
+    /** Overrides the URI-inferred flags on the v1 commit (e.g. `{is_skill: true}`). */
+    revisionFlags?: Record<string, boolean> | null
 }
 
 /**
@@ -922,7 +924,7 @@ export async function createWorkflow(
         )
 
         // Step 4: Commit actual data revision (v1) with full parameters
-        const revisionFlags = inferRevisionFlagsFromUri(payload.data?.uri)
+        const revisionFlags = payload.revisionFlags ?? inferRevisionFlagsFromUri(payload.data?.uri)
         const commitResponse = await axios.post(
             `${getAgentaApiUrl()}/workflows/revisions/commit`,
             {

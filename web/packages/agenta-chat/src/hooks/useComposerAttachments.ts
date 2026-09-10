@@ -14,7 +14,8 @@ import {attachmentsBySession} from "../state/sessionEphemera"
 
 import {removeUploadFile, useAttachmentUploads} from "./useAttachmentUploads"
 
-type StagedFile = UploadFile<SessionAttachmentResponse>
+export type ComposerAttachment = UploadFile<SessionAttachmentResponse>
+type StagedFile = ComposerAttachment
 
 /** Convert settled upload-tray entries into reference `file` parts via the neutral builder. */
 export const stagedFilesToParts = (files: StagedFile[], sessionId: string) =>
@@ -289,12 +290,12 @@ export const useComposerAttachments = ({
      * than through `addFiles`, which would re-upload them as second attachments. Idempotent:
      * anything already back in the tray is left where it is.
      */
-    const restoreAttachments = (restored: StagedFile[]) => {
+    const restoreAttachments = useCallback((restored: StagedFile[]) => {
         setFiles((prev) => [
             ...restored.filter((file) => !prev.some((row) => row.uid === file.uid)),
             ...prev,
         ])
-    }
+    }, [])
 
     return {
         uploadsEnabled,

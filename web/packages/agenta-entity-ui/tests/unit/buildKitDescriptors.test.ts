@@ -36,6 +36,9 @@ describe("describeBuildKitEmbed", () => {
         expect(describeBuildKitEmbed("__ag__request_input", "Request input").name).toBe(
             "Ask you a question",
         )
+        expect(describeBuildKitEmbed("__ag__request_secret", "Request secret").name).toBe(
+            "Ask you for a secret",
+        )
     })
 
     it("falls back to the wire name, then a humanized slug, for an embed it does not know", () => {

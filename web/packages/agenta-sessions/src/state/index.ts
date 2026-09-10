@@ -8,11 +8,38 @@ export {
     sessionFiltersActiveExceptAgentAtom,
     resetSessionFiltersAtom,
     applySessionScopeAtom,
+    sessionRouteModes,
+    sessionScopeFromRouteQuery,
+    type SessionRouteMode,
+    type SessionRouteQuery,
     type SessionScope,
     type SessionStatusFilter,
 } from "./filters"
 export {pinnedSessionIdsAtom, isSessionPinnedAtom, toggleSessionPinAtom} from "./pins"
-export {sessionTabOrderAtomFamily, setSessionTabOrderAtom, applySessionTabOrder} from "./tabOrder"
+export {
+    sessionTabScope,
+    MAX_OPEN_SESSION_TABS,
+    openSessionTabsAtomFamily,
+    seedSessionTabsAtom,
+    openSessionTabAtom,
+    closeSessionTabsAtom,
+    openSessionTabRows,
+    closedSessionTabs,
+    nearestSurvivingTab,
+    sessionTabCloseTargets,
+    renderedSessionTabsAtomFamily,
+    setRenderedSessionTabsAtom,
+    useOpenSessionTabs,
+    usePublishRenderedSessionTabs,
+    useCloseSessionTabs,
+    type SessionTabCloseTargets,
+} from "./openTabs"
+export {
+    sessionTabOrderAtomFamily,
+    setSessionTabOrderAtom,
+    applySessionTabOrder,
+    useSessionTabOrderSeed,
+} from "./tabOrder"
 export {
     sessionListRequestFilters,
     sessionListIdGroupLimit,

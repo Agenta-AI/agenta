@@ -9,7 +9,11 @@ from unittest.mock import patch
 import httpx
 import pytest
 
-from oss.src.core.sessions.streams.runner_client import kill_runner_sandbox
+from oss.src.core.sessions.streams.runner_client import (
+    RunnerCancelResult,
+    cancel_runner_execution,
+    kill_runner_sandbox,
+)
 
 
 class _FakeRunnerEnv:
@@ -120,3 +124,44 @@ async def test_returns_false_on_transport_error_never_raises():
         result = await kill_runner_sandbox(project_id="proj-1", session_id="sess-1")
 
     assert result is False
+
+
+@pytest.mark.asyncio
+async def test_cancel_accepts_non_object_json_without_crashing():
+    class _FakeResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return ["accepted"]
+
+    class _FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def post(self, *args, **kwargs):
+            return _FakeResponse()
+
+    with (
+        patch("oss.src.core.sessions.streams.runner_client.env") as mock_env,
+        patch(
+            "oss.src.core.sessions.streams.runner_client.httpx.AsyncClient",
+            return_value=_FakeClient(),
+        ),
+    ):
+        mock_env.runner = _FakeRunnerEnv(
+            internal_url="http://runner:8765", token="shared-secret"
+        )
+        result = await cancel_runner_execution(
+            command_id="command-1",
+            project_id="project-1",
+            session_id="session-1",
+            target_turn_id="turn-1",
+            created_at="2026-09-04T00:00:00Z",
+        )
+
+    assert result.status == RunnerCancelResult.accepted
+    assert result.replica_id is None

@@ -2,15 +2,11 @@ import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {getKnownLatestRevisionId} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import {expect, pollLocatorState} from "@agenta/web-tests/utils"
 
+import {isSecretPropagationFailure} from "./assets/secretPropagation"
 import {RoleType, VariantFixtures} from "./assets/types"
 
 const SECRET_PROPAGATION_TIMEOUT_MS = 65_000
 const SECRET_PROPAGATION_POLL_MS = 5_000
-
-const isSecretPropagationFailure = (response: Record<string, any> | null): boolean => {
-    const raw = JSON.stringify(response ?? {}).toLowerCase()
-    return raw.includes("invalid-secrets") || raw.includes("no api key found for model")
-}
 
 const waitForSuccessfulRun = async (
     triggerRun: () => Promise<void>,
@@ -349,12 +345,9 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                     throw new Error("variantName must be provided when type is 'variant'")
                 }
 
-                // 1. Click on the save button. Located by role, not `.ant-btn-primary`: the
-                // button renders through EnhancedButton, now a facade over the Radix
-                // @agenta/ui Button, which emits no antd classes.
-                const commitButton = page.getByRole("button", {name: "Commit"}).first()
-                // Assert visibility first — `isDisabled()` on a locator that matches nothing
-                // hangs until the test timeout instead of reporting what is missing.
+                // 1. Click on the save button
+                const commitButton = page.getByRole("button", {name: "Commit", exact: true})
+                // `isDisabled()` on a missing locator hangs to the timeout, so assert it first.
                 await expect(commitButton).toBeVisible({timeout: 15000})
                 const isCommitButtonDisabled = await commitButton.isDisabled()
 

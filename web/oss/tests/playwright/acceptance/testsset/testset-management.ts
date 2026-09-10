@@ -209,12 +209,7 @@ const testsetTests = () => {
                     })
 
                     // Click a data row cell to open the TestcaseEditDrawer
-                    // `.avt-cell`, the table package's stable hook — `.ant-table-cell` matches
-                    // nothing since the antd Table branch was removed (AVT in tableDom.ts).
-                    const cell = page
-                        .locator(".avt-cell, .ant-table-cell")
-                        .filter({hasText: "original value"})
-                        .first()
+                    const cell = page.getByRole("cell", {name: "original value", exact: true})
                     await expect(cell).toBeVisible({timeout: 10000})
                     await cell.click()
 
@@ -310,14 +305,9 @@ const testsetTests = () => {
                     await expect(page.locator("th").filter({hasText: "input"}).first()).toBeVisible(
                         {timeout: 10000},
                     )
-                    // `.avt-body` is the table package's stable hook; `.ant-table-tbody` matches
-                    // nothing since the antd Table branch was removed (see AVT in tableDom.ts).
-                    await expect(page.locator(".avt-body, .ant-table-tbody")).toContainText(
-                        "existing row",
-                        {
-                            timeout: 10000,
-                        },
-                    )
+                    await expect(
+                        page.getByRole("row").filter({hasText: "existing row"}).first(),
+                    ).toBeVisible({timeout: 10000})
 
                     // Add a new row (auto-opens the edit drawer for the new row)
                     await page.getByRole("button", {name: "Add row"}).click()
@@ -346,11 +336,9 @@ const testsetTests = () => {
                         page.locator("[data-row-key]").filter({hasText: "new-row-value"}).first(),
                     ).toBeVisible({timeout: 5000})
 
-                    // Add a new column — a PlusOutlined button in the table header. The icon is
-                    // still antd (`anticon-plus`), but the header is the virtual table's
-                    // `.avt-thead`; `.ant-table-thead` no longer matches.
                     await page
-                        .locator(".avt-thead .anticon-plus, .ant-table-thead .anticon-plus")
+                        .getByRole("columnheader")
+                        .getByRole("button", {name: "plus", exact: true})
                         .click()
 
                     const addColumnModal = page

@@ -6,18 +6,22 @@ import {
     useMemo,
     useRef,
     useState,
-    useSyncExternalStore,
     type CSSProperties,
 } from "react"
 
 import {
     chatPanelMaximizedAtom,
     configPanelCollapsedAtom,
+    FILES_PANE_MAX,
+    FILES_PANE_MIN,
+    filesPaneWidthAtom,
     sessionStatusAtomFamily,
+    useCanPanesCoexist,
 } from "@agenta/chat/state"
 import {commandSessionStream} from "@agenta/entities/session"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
+import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
 import {workflowRevisionDrawerOpenAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {currentSessionParamForScope, writeSessionParamForScope} from "@agenta/sessions/link"
 import {
@@ -45,12 +49,6 @@ import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import ShowConfigPanelButton from "./components/ShowConfigPanelButton"
 import {useSessionActions} from "./hooks/useSessionActions"
 import {useReconcileServerSessions} from "./state/projectSessions"
-import {
-    FILES_PANE_MAX,
-    FILES_PANE_MIN,
-    filesPaneWidthAtom,
-    PANES_COEXIST_MIN_WINDOW,
-} from "./state/rightPanel"
 import {isDrawerScopeKey, useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -84,22 +82,6 @@ const SessionRail = lazy(() => import("./components/SessionRail"))
 const RAIL_WIDTH = 300
 const RAIL_MIN_WIDTH = 240
 const RAIL_MAX_WIDTH = 480
-
-// Media-query subscription for the coexistence threshold (window width, not container width, on
-// purpose: the rule assumes the nav sidebar at its default width, per the threshold's derivation).
-const coexistMediaQuery = () => window.matchMedia(`(min-width: ${PANES_COEXIST_MIN_WINDOW}px)`)
-const subscribeCoexist = (onChange: () => void) => {
-    const mql = coexistMediaQuery()
-    mql.addEventListener("change", onChange)
-    return () => mql.removeEventListener("change", onChange)
-}
-/** True when the window fits config pane + transcript + Files pane together at fair widths. */
-const useCanPanesCoexist = () =>
-    useSyncExternalStore(
-        subscribeCoexist,
-        () => coexistMediaQuery().matches,
-        () => false,
-    )
 
 /**
  * AgentChatPanel — the agent-generation surface hosted INSIDE the playground (the third
@@ -328,7 +310,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // keeps room. Wide windows skip the eviction and let both stay open. Transition-edge effects
     // (prev refs), not state syncs — each watches only the flip that should evict the other, so
     // they can't ping-pong.
-    const canPanesCoexist = useCanPanesCoexist()
+    const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
     const prevFilesOpenRef = useRef(filesPane.open)
     useEffect(() => {
         if (filesPane.open && !prevFilesOpenRef.current && !canPanesCoexist)

@@ -359,7 +359,7 @@ function ConnectionSwitcher<I, T, C>({
                     {connections.length} accounts
                 </span>
             </div>
-            <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]">
+            <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr))]">
                 {connections.map((c) => {
                     const id = props.connection.id(c)
                     const name = props.connection.name(c)?.trim()
@@ -686,12 +686,17 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
         setCategoryState(null)
         setCategory?.(null)
     }
+    // Phone: one pane at a time. The apps grid opens and the rail is a tap back, since browsing
+    // apps is what this page is for — side by side, the 150px rail left the grid a sliver.
+    const [mobileView, setMobileView] = useState<"rail" | "content">("content")
     const pickAll = () => {
+        setMobileView("content")
         setSelected(null)
         clearCategory()
         clearSearch()
     }
     const pickCategory = (cat: {id: string; name: string}) => {
+        setMobileView("content")
         setSelected(null)
         setCategoryState(cat)
         setCategory?.(cat.id)
@@ -701,6 +706,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
     // leaving the category active would filter the browse query behind the detail view and, on
     // Back, restore a stale category the user didn't re-pick.
     const pickConn = (id: string) => {
+        setMobileView("content")
         setSelected({kind: "conn", id})
         clearCategory()
         clearSearch()
@@ -713,9 +719,9 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
         <div className={`flex h-full min-h-[260px] ${fullBleedRail ? "" : "gap-3"}`}>
             {railPresent && (
                 <div
-                    className={`ag-drawer-rail flex min-h-0 w-[220px] shrink-0 flex-col ${
+                    className={`ag-drawer-rail min-h-0 flex-col sm:flex sm:w-[220px] sm:shrink-0 ${
                         fullBleedRail ? "py-4 pl-3 pr-1" : "py-1"
-                    }`}
+                    } ${mobileView === "rail" ? "flex w-full" : "hidden"}`}
                 >
                     {hasConnections && (
                         // Connections stay pinned at the top — the category list below scrolls on its
@@ -799,16 +805,23 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
             )}
 
             <div
-                className={`flex min-h-0 min-w-0 flex-1 flex-col ${
-                    fullBleedRail ? "py-4 pr-6" : ""
-                } ${
+                className={`min-h-0 min-w-0 flex-1 flex-col ${fullBleedRail ? "py-4 pr-6" : ""} ${
                     railPresent
-                        ? `border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] ${
-                              fullBleedRail ? "pl-5" : "pl-3"
+                        ? `border-0 border-solid border-[var(--ag-colorBorderSecondary)] sm:border-l ${
+                              fullBleedRail ? "sm:pl-5" : "sm:pl-3"
                           }`
                         : ""
-                }`}
+                } ${!railPresent || mobileView === "content" ? "flex" : "hidden sm:flex"}`}
             >
+                {railPresent && !selected ? (
+                    <button
+                        type="button"
+                        onClick={() => setMobileView("rail")}
+                        className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)] sm:hidden"
+                    >
+                        <ArrowLeft size={13} /> {hasConnections ? "Connections" : "Categories"}
+                    </button>
+                ) : null}
                 {selected ? (
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                         <button
@@ -935,7 +948,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                         </div>
                         <div
                             ref={setGridEl}
-                            className="grid min-h-0 flex-1 auto-rows-min gap-2 overflow-y-auto [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
+                            className="grid min-h-0 flex-1 auto-rows-min gap-2 overflow-y-auto [grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr))]"
                         >
                             {isLoading && integrations.length === 0 ? (
                                 <CatalogGridSkeleton />

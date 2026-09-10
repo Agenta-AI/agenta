@@ -88,3 +88,22 @@ export function refineLifecycleWithSandbox(
     if (sandbox.alive === true) return sandbox.warm ? "warm" : "cold"
     return lifecycle
 }
+
+/** What a liveness-driven `refetchInterval` may return: a period in ms, or `false` to stop. */
+export type LivenessPollInterval = number | false
+
+/** Fast cadence: something is executing right now, so the view changes on its own. */
+const RUNNING_POLL_MS = 15_000
+/** Slow cadence: nothing runs, but a warm session can be resumed from another device. */
+const RESUMABLE_POLL_MS = 60_000
+
+/** Poll `is_running` quickly; `is_alive` alone means warm and uses the slow cadence. */
+export function livenessPollInterval(
+    rows: readonly (SessionStream | null | undefined)[] | null | undefined,
+    options?: {idle?: LivenessPollInterval},
+): LivenessPollInterval {
+    const list = rows ?? []
+    if (list.some((row) => row?.flags?.is_running)) return RUNNING_POLL_MS
+    if (list.some((row) => row?.flags?.is_alive)) return RESUMABLE_POLL_MS
+    return options?.idle ?? false
+}

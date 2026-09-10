@@ -35,6 +35,8 @@ export interface NewAgentButtonProps {
     label?: string
     /** A create is in flight — the trigger reports it rather than accepting a second click. */
     loading?: boolean
+    /** On the trigger — a phone toolbar sizes it down from here. */
+    className?: string
 }
 
 /** Enough to recognise the shape of what's on offer; the rest is one click away. */
@@ -55,13 +57,19 @@ export const NewAgentButton = ({
     totalTemplates,
     label = "New agent",
     loading = false,
+    className,
 }: NewAgentButtonProps) => {
     const suggested = onPickTemplate ? templates.slice(0, SUGGESTED) : []
 
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild disabled={loading}>
-                <EnhancedButton type="primary" loading={loading} icon={<PlusIcon size={14} />}>
+                <EnhancedButton
+                    type="primary"
+                    loading={loading}
+                    icon={<PlusIcon size={14} />}
+                    className={className}
+                >
                     {label}
                 </EnhancedButton>
             </DropdownMenuTrigger>

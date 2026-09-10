@@ -109,6 +109,9 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                     sessionId: target.sessionId,
                     projectId,
                     name,
+                    // A person typed this one, so the server remembers it as theirs and
+                    // refuses an agent rename over it.
+                    nameSource: "manual",
                 })
                 if (!ok) return false
             }
@@ -250,10 +253,20 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
         [pinnedSet, sharePathFor],
     )
 
+    /**
+     * Routes a menu key to its verb.
+     *
+     * "rename" is the one key this hook cannot finish on its own: the edit happens IN the row, and
+     * only the surface knows which row that is. So it travels back out as `onRename`, the same way
+     * "open" does. A surface that renders the "rename" entry MUST supply it, or hand the key to a
+     * component that starts the edit itself (`SessionsListView`, `SessionRowActions`) — otherwise
+     * the entry is dead. It was dead on the chat tab strip and the card lists until now.
+     */
     const onMenuClick = useCallback(
-        (target: SessionActionTarget, options?: {onOpen?: () => void}) =>
+        (target: SessionActionTarget, options?: {onOpen?: () => void; onRename?: () => void}) =>
             ({key}: {key: string}) => {
                 if (key === "open") options?.onOpen?.()
+                if (key === "rename") options?.onRename?.()
                 if (key === "pin") togglePin(target.sessionId)
                 if (key === "copy-link") void copyShareLink(target)
                 if (key === "archive") void setArchived(target)

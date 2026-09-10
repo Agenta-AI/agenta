@@ -1,4 +1,5 @@
 import type {SessionInteractionRowState, SessionRecord} from "@agenta/entities/session"
+import type {UIMessage} from "ai"
 import {atom} from "jotai"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -12,6 +13,7 @@ let interactionRowStates = new Map<string, SessionInteractionRowState>()
 vi.mock("@agenta/entities/session", () => ({
     fetchSessionRecordsAtom: atom(null, async () => fetchResult),
     fetchSessionInteractionStatesAtom: atom(null, async () => interactionRowStates),
+    revalidateSessionInteractionsAtom: atom(null, async () => undefined),
 }))
 
 const {loadSessionMessages} = await import("../../../src/assets/loadSession")
@@ -20,12 +22,38 @@ const record = (id: string, payload: Record<string, unknown>, sender = "agent"):
     id,
     session_id: "session-1",
     project_id: "project-1",
+    sequence: null,
     event_index: null,
     sender,
     session_update: String(payload.type),
     payload,
+    turn_id: null,
     created_at: null,
 })
+
+const approvalRecords = (): SessionRecord[] => [
+    record("r-call", {type: "tool_call", id: "call-1", name: "bash", input: {command: "ls"}}),
+    record("r-gate", {
+        type: "interaction_request",
+        id: "approval-1",
+        kind: "user_approval",
+        payload: {toolCallId: "call-1"},
+    }),
+    record("r-paused", {type: "done", stopReason: "paused"}),
+]
+
+const approvalRow = (status: "pending" | "responded" | "resolved") =>
+    new Map([
+        [
+            "approval-1",
+            {
+                token: "approval-1",
+                status,
+                kind: "user_approval" as const,
+                toolCallId: "call-1",
+            },
+        ],
+    ])
 
 describe("loadSessionMessages", () => {
     beforeEach(() => {
@@ -52,6 +80,20 @@ describe("loadSessionMessages", () => {
         expect(transcript?.messages[0]).toMatchObject({parts: [{type: "text", text: "hi"}]})
     })
 
+    it.each(["responded", "resolved"] as const)(
+        "retires a replayed gate whose interaction row is %s",
+        async (status) => {
+            fetchResult = {records: approvalRecords()}
+            interactionRowStates = approvalRow(status)
+
+            const transcript = await loadSessionMessages("session-1")
+
+            expect(transcript?.messages.flatMap((message) => message.parts)).not.toEqual(
+                expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
+            )
+        },
+    )
+
     // The adoption watermark: records, not messages — a turn that grows in place keeps its
     // message count (issue #5530), so only this number sees the log move.
     it("reports how many records the transcript was built from", async () => {
@@ -67,6 +109,21 @@ describe("loadSessionMessages", () => {
         expect(transcript?.recordCount).toBe(3)
     })
 
+    it("keeps a sparse sequence cursor distinct from the retained row count", async () => {
+        fetchResult = {
+            records: [
+                {...record("r1", {type: "message", text: "hi"}), sequence: 3},
+                {...record("r2", {type: "thought", text: "work"}), sequence: 6},
+                {...record("r3", {type: "done"}), sequence: 9},
+            ],
+        }
+
+        const transcript = await loadSessionMessages("session-1")
+
+        expect(transcript?.recordCount).toBe(3)
+        expect(transcript?.sequenceCursor).toBe(9)
+    })
+
     it("delivers a refreshed transcript via onRefreshed once the background revalidation resolves", async () => {
         const fresh = [record("r3", {type: "message", text: "fresh"}), record("r4", {type: "done"})]
         fetchResult = {
@@ -75,10 +132,9 @@ describe("loadSessionMessages", () => {
         }
         const onRefreshed = vi.fn()
         await loadSessionMessages("session-1", onRefreshed)
-        // `refreshed` resolves asynchronously after the function returns — flush microtasks.
-        await Promise.resolve()
-        await Promise.resolve()
-        expect(onRefreshed).toHaveBeenCalledTimes(1)
+        // `refreshed` resolves asynchronously after the function returns and refreshes the row
+        // join before delivery.
+        await vi.waitFor(() => expect(onRefreshed).toHaveBeenCalledTimes(1))
         const delivered = onRefreshed.mock.calls[0][0] as {
             messages: {parts: unknown}[]
             recordCount: number
@@ -86,6 +142,31 @@ describe("loadSessionMessages", () => {
         expect(delivered.messages[0]).toMatchObject({parts: [{type: "text", text: "fresh"}]})
         // The refreshed delivery carries the FRESH log's count, not the stale one's.
         expect(delivered.recordCount).toBe(2)
+    })
+
+    it("joins refreshed records with refreshed interaction rows", async () => {
+        let resolveRecords: ((records: SessionRecord[]) => void) | undefined
+        fetchResult = {
+            records: approvalRecords(),
+            refreshed: new Promise((resolve) => {
+                resolveRecords = resolve
+            }),
+        }
+        interactionRowStates = approvalRow("pending")
+        const onRefreshed = vi.fn()
+        const initial = await loadSessionMessages("session-1", onRefreshed)
+        expect(initial?.messages.flatMap((message) => message.parts)).toEqual(
+            expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
+        )
+
+        interactionRowStates = approvalRow("responded")
+        resolveRecords?.(approvalRecords())
+        await vi.waitFor(() => expect(onRefreshed).toHaveBeenCalledOnce())
+
+        const refreshed = onRefreshed.mock.calls[0][0]
+        expect(refreshed.messages.flatMap((message: UIMessage) => message.parts)).not.toEqual(
+            expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
+        )
     })
 
     // The chain outlives the call, so the function's own try/catch never sees a rejection here.

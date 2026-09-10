@@ -19,6 +19,7 @@ import {SessionAgentName} from "./SessionAgentName"
 import {SessionAutomationKind} from "./SessionAutomationKind"
 import {SessionPinButton} from "./SessionPinButton"
 import {SessionStatusIcon} from "./SessionStatusIcon"
+import {useDeferredMenuSelect, type MenuSelect} from "./useDeferredMenuSelect"
 import type {InlineRename} from "./useInlineRename"
 
 export interface SessionRowProps {
@@ -34,7 +35,8 @@ export interface SessionRowProps {
     renderAgent?: (agentId: string | null) => ReactNode
     /** The app's verbs for this row, in the neutral shape. No items → no kebab. */
     menuItems?: SessionMenuEntry[]
-    onMenuSelect?: (key: string) => void
+    /** Runs the verb; a returned function is deferred until the menu closes. */
+    onMenuSelect?: MenuSelect
     /**
      * The row's rename-in-place state, owned by the caller so the kebab and the right-click menu
      * that wraps the row drive the same edit. Absent, the title is never editable.
@@ -56,9 +58,13 @@ const SessionRowImpl = ({
     onTogglePin,
 }: SessionRowProps) => {
     const openable = Boolean(row.agentId && onOpen)
+    const menuHasPin = Boolean(menuItems?.some((entry) => "key" in entry && entry.key === "pin"))
     const handleOpen = () => {
         if (openable) onOpen?.()
     }
+    // The kebab honours the same close handoff the right-click menu does, so "Rename" opens the
+    // editor from either one.
+    const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect(onMenuSelect)
 
     return (
         // A plain container, not an ARIA button: descendants of a button role are
@@ -155,11 +161,14 @@ const SessionRowImpl = ({
                     {row.activityAt ? timeAgo(Date.parse(row.activityAt)) : "—"}
                 </span>
 
+                {/* Phone-hidden because the "..." menu carries Pin/Unpin, but only where it
+                    actually does: `menuItems` is optional and need not include that entry. */}
                 {onTogglePin ? (
                     <SessionPinButton
                         pinned={row.isPinned}
                         onToggle={() => onTogglePin(row.id)}
                         revealOnHover={revealActionsOnHover}
+                        className={menuHasPin ? "hidden sm:block" : undefined}
                     />
                 ) : null}
 
@@ -170,7 +179,8 @@ const SessionRowImpl = ({
                                 variant="ghost"
                                 size="icon-sm"
                                 aria-label="Session actions"
-                                className="shrink-0"
+                                // The pin's hit extender: 24px is under the touch guideline.
+                                className="relative shrink-0 after:absolute after:inset-[-10px] after:content-[''] [@media(hover:hover)]:after:inset-[-4px]"
                                 onClick={(event) => event.stopPropagation()}
                             >
                                 <DotsThreeIcon size={14} />
@@ -179,6 +189,7 @@ const SessionRowImpl = ({
                         <DropdownMenuContent
                             align="end"
                             onClick={(event) => event.stopPropagation()}
+                            onCloseAutoFocus={handleCloseAutoFocus}
                         >
                             {menuItems.map((entry, index) =>
                                 isMenuDivider(entry) ? (
@@ -190,7 +201,7 @@ const SessionRowImpl = ({
                                         variant={entry.danger ? "destructive" : "default"}
                                         onSelect={(event) => {
                                             event.stopPropagation()
-                                            onMenuSelect?.(entry.key)
+                                            handleSelect(entry.key)
                                         }}
                                     >
                                         {entry.icon ? (

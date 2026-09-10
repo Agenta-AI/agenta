@@ -7,7 +7,13 @@ import {
     getMessageTraceId,
     getMessageUsage,
 } from "@agenta/chat/assets"
-import {attachmentIdForPart, filePartName, isViewable} from "@agenta/chat/assets"
+import {
+    attachmentIdForPart,
+    filePartName,
+    isPendingSendFailed,
+    isViewable,
+    PENDING_SEND_FAILED_NOTE,
+} from "@agenta/chat/assets"
 import {
     ClientToolPart,
     isClientToolPart,
@@ -20,7 +26,7 @@ import {
     StartupActivity,
     TurnFooter,
 } from "@agenta/chat/components"
-import {isToolPart, toolIdentity} from "@agenta/chat/model"
+import {isToolPart, SESSION_TURN_IN_USE_CODE, toolIdentity} from "@agenta/chat/model"
 import {
     errorKey,
     expandedValueAtomFamily,
@@ -154,10 +160,18 @@ const STARTER_CREDIT_CODES = new Set([
 
 /** Transient failure classes where the honest advice is simply to run the turn again. */
 const RETRYABLE_CODES = new Set([
+    "continuation_resumed",
     "credential_delivery_failed",
     "starter_credits_unavailable",
     "rate_limited",
+    // The run never produced an outcome of its own and was closed for it — by the runner when
+    // a turn would not unwind, or by the platform's execution watchdog when the runner itself
+    // was gone. Nothing is wrong with the request, so sending it again is the whole fix.
+    "execution_lost",
 ])
+
+// An admission refusal means the message was not sent, not that an agent run failed.
+const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE])
 
 /** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
 const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4
@@ -189,13 +203,17 @@ export const RunErrorBody = ({
     const expanded = stored ?? false
     const big = isBigError(text)
     const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
-    const offerRetry = !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
+    const notSent = !!code && NOT_SENT_CODES.has(code)
+    const offerRetry =
+        !notSent && !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
 
     return (
         <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <span className="text-xs font-medium text-colorError">The agent run failed</span>
+                <span className="text-xs font-medium text-colorError">
+                    {notSent ? "Message not sent" : "The agent run failed"}
+                </span>
                 {big && expanded ? (
                     <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
                         {text}
@@ -625,6 +643,18 @@ const AgentMessage = ({
         defaultBody
     )
 
+    // A send the server refused after the composer had already cleared. The row keeps the text so
+    // it is not lost; this says why it is sitting there with no answer coming.
+    const pendingSendFailure = isPendingSendFailed(message) ? (
+        <div
+            data-pending-send-failed="true"
+            role="status"
+            className="mt-1 text-[11px] leading-4 opacity-80"
+        >
+            {PENDING_SEND_FAILED_NOTE}
+        </div>
+    ) : null
+
     // Partial output then failure: show the content AND the error. Answer-less failure: the
     // whole bubble is the error. Otherwise: just the content.
     const body =
@@ -635,6 +665,11 @@ const AgentMessage = ({
             </div>
         ) : isError ? (
             errorBody
+        ) : pendingSendFailure ? (
+            <div className="flex min-w-0 max-w-full flex-col">
+                {contentBody}
+                {pendingSendFailure}
+            </div>
         ) : (
             contentBody
         )
@@ -705,7 +740,9 @@ const AgentMessage = ({
                         : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
-                content={hasBubbleContent ? body : null}
+                // A refused file-only send has no words to paint, but its failure still has to be
+                // said, or the cards sit there looking like an upload that worked.
+                content={hasBubbleContent ? body : pendingSendFailure}
                 header={attachments}
             />
             <div

@@ -1,5 +1,7 @@
 ---
 import Site from "../layouts/Site.astro";
+import Section from "../components/Section.astro";
+import Badge from "../components/Badge.astro";
 import { API_EXAMPLE, WHEN_TO_USE } from "../lib/siteSummary";
 
 // Same-origin API entry point. The full reference lives on docs.agenta.ai and
@@ -30,14 +32,11 @@ const bases = [
   description="The Agenta REST API: base URLs, authentication, an example request, and the OpenAPI specification. Build, run, evaluate, and trace agents programmatically."
   showCta={false}
 >
-  <section
+  <Section tone="flat"
     style="background:var(--ag-d-bg-1);border-bottom:1px solid var(--ag-d-border-subtle);"
   >
     <div style="max-width:860px;margin:0 auto;padding:96px 32px 80px;">
-      <span
-        style="display:inline-flex;align-items:center;height:24px;padding:0 13px;border-radius:999px;background:var(--ag-d-fill);box-shadow:0 0 0 1px var(--ag-d-border);font:var(--text-caption);letter-spacing:0.06em;color:var(--ag-d-text-mut);margin-bottom:24px;"
-        >API</span
-      >
+      <Badge variant="dark" style="margin-bottom:24px;">API</Badge>
       <h1
         class="ag-h1"
         style="margin:0 0 16px;font:var(--text-display-lg);color:var(--ag-d-text-hi);text-wrap:pretty;"
@@ -52,9 +51,9 @@ const bases = [
         published at <a href="/openapi.json" style={link}>/openapi.json</a>.
       </p>
     </div>
-  </section>
+  </Section>
 
-  <section style="background:var(--ag-d-bg-0);padding:64px 32px 96px;">
+  <Section tone="flat" style="background:var(--ag-d-bg-0);padding:64px 32px 96px;">
     <div
       style="max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:32px;"
     >
@@ -123,5 +122,5 @@ const bases = [
         </p>
       </div>
     </div>
-  </section>
+  </Section>
 </Site>

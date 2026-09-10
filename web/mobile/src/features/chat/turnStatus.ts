@@ -1,3 +1,8 @@
+import {deriveRemoteTurnPresentation, type SessionRunStatus} from "@agenta/chat/model"
+
+/** Mobile presentation for a remote/shared-path run. */
+export const deriveMobileRemoteTurnPresentation = deriveRemoteTurnPresentation
+
 /**
  * Should the trailing status line show the working pulse?
  *
@@ -10,3 +15,11 @@ export const showTrailingWorkingPulse = (
     streaming: boolean,
     turns: {isUser: boolean; isStreamingTurn: boolean}[],
 ): boolean => streaming && !turns.some((turn) => !turn.isUser && turn.isStreamingTurn)
+
+export const showRunningElsewhere = ({
+    running,
+    localStatus,
+}: {
+    running: boolean
+    localStatus: SessionRunStatus
+}): boolean => running && localStatus !== "running" && localStatus !== "awaiting"
