@@ -263,6 +263,82 @@ describe("session rail paging past the server's limit", () => {
         unsubscribe()
     })
 
+    it("keeps walking when a row in a full page fails validation", async () => {
+        const {MAIN_SIDEBAR_SCOPE_ID} = await import("../../src/constants")
+        const {sidebarSessionPagingAtomFamily} = await import("../../src/dynamic/sessionsSource")
+        const scope = MAIN_SIDEBAR_SCOPE_ID
+
+        const serve = project(1_000)
+        queryInteractions.mockResolvedValue([])
+        querySessions.mockImplementation(async (args: PageRequest) => {
+            const page = await serve(args)
+            return page ? page.sessions : null
+        })
+        // `parseSessionsQueryResponse` drops a row the frontend schema does not know yet and
+        // leaves `count` alone, so a full page can arrive one row short. Reading the survivors
+        // rather than `count` would take that for the end of the list.
+        querySessionsFlatPage.mockImplementation(async (args: PageRequest) => {
+            const page = await serve(args)
+            if (!page || page.sessions.length < args.limit) return page
+            return {...page, sessions: page.sessions.slice(0, -1)}
+        })
+
+        const store = newStore()
+        const unsubscribe = store.sub(sidebarSessionPagingAtomFamily(scope), () => {})
+        store.get(sidebarSessionPagingAtomFamily(scope))
+        await settle()
+
+        await pageTo(store, scope, 5)
+
+        const cursors = querySessionsFlatPage.mock.calls
+            .map(([args]) => (args as PageRequest).next)
+            .filter(Boolean)
+        expect(cursors.length).toBeGreaterThan(0)
+        const deepest = Math.max(...cursors.map((next) => Number(next!.replace("row-", ""))))
+        // One dropped row per page must not end the walk after the first page.
+        expect(deepest).toBe(MAIN_PAGE_SIZE * 5 - 1)
+        unsubscribe()
+    })
+
+    it("fails the tail query when a request mid-walk fails", async () => {
+        const {MAIN_SIDEBAR_SCOPE_ID} = await import("../../src/constants")
+        const {loadMoreSidebarSessionsAtomFamily, sidebarSessionPagingAtomFamily} =
+            await import("../../src/dynamic/sessionsSource")
+        const scope = MAIN_SIDEBAR_SCOPE_ID
+
+        const serve = project(1_000)
+        queryInteractions.mockResolvedValue([])
+        querySessions.mockImplementation(async (args: PageRequest) => {
+            const page = await serve(args)
+            return page ? page.sessions : null
+        })
+
+        querySessionsFlatPage.mockImplementation(serve)
+
+        const store = newStore()
+        const unsubscribe = store.sub(sidebarSessionPagingAtomFamily(scope), () => {})
+        store.get(sidebarSessionPagingAtomFamily(scope))
+        await settle()
+
+        await pageTo(store, scope, 2)
+        expect(store.get(sidebarSessionPagingAtomFamily(scope)).isError).toBe(false)
+
+        // From here every request past the walk's second page answers with nothing. Keyed on the
+        // cursor rather than a call counter so it fails at the same depth on every read.
+        // Returning the pages read so far as a success would store a truncated list that React
+        // Query treats as complete and never retries.
+        const failFrom = `row-${MAIN_PAGE_SIZE * 3 - 1}`
+        querySessionsFlatPage.mockImplementation(async (args: PageRequest) =>
+            args.next === failFrom ? null : serve(args),
+        )
+
+        store.set(loadMoreSidebarSessionsAtomFamily(scope))
+        await settle()
+
+        expect(store.get(sidebarSessionPagingAtomFamily(scope)).isError).toBe(true)
+        unsubscribe()
+    })
+
     it("drops the page count and the frozen boundary when the project changes", async () => {
         const {MAIN_SIDEBAR_SCOPE_ID} = await import("../../src/constants")
         const {projectIdAtom} = await import("@agenta/shared/state")
