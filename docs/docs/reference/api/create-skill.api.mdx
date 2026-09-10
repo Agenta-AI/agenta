@@ -1,0 +1,72 @@
+---
+id: create-skill
+title: "Create Skill"
+description: "Create a registry skill."
+sidebar_label: "Create Skill"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVsGO2zYQ/RViTi2q2ptFTzrVTQPESIsYttMebCMYS2OZWYpkSMq7qqF/L4aUbXmdpMX2Wl8skTOPM+/NDHWEgJWHfAWLB6mUh00GJfnCSRuk0ZDDa0cYSKBwVEkfXCs8W47Weq2XexKe3IGcMI/ai7AnIfUBnUQdfB7fLbbKYCkOqGSJgbzACqX2gXfXOh67pNoqPqUwOjgsQhZdfTAOKxJeNZWQXlSkyWGgUnxXSm8VtkJjTX6ta2xFYZSSJX2fCdRl8mdssVNYefGD2DZSBanFh/lUoGN0rC2VwmixNWG/1uyCLsgdFuGMcXglHB2kl0aPIANjOQJp9LSEHIrIzcd4DmTg6HNDPvxiyhbyI3AypAM/orVKFtFx/Mkzr0fwxZ5q5CfrGDZI8nE9orFTWUr2QDUbGATXUAahtQQ5mO0nKgJkEGRQvBDphK67teDgpKOStU5HbJ65JaXnKQnoGOTixMfGBW+N9inS+7s7/ruul0VTFOT9rlFi3htD9lIuHo172Cnz+FGW0VW373eQr46n7HxwUlfQZecV3XD+g9T+7CHEtIQuA66ll0It2DeSkAriP0Q17yFiVF9Q64vC9Gx2UZqf7u9vyf8jNRkDv3HOuJczX1JAGctQBqr9rYEyxdXuv2BB6kAVOeg2l4zROWwHCf9mUoDMc+2jVNd4F9PfyXusCM5gXzeNZIgl73YZSG2bSMhpexoXugyK8DSAuVHjNXP5FP6xv5ibFH5vN1D+IlFS6OtU/Jok+FZ5vF0uZzeAqT5qCnvDQ8oazy4Wwx5yGMfe92PIIE1uHzVrnOJNtDIKll73IVifj8fUjAplmnKEFemAI5TJcMMYReNkaCPIZDZ9R+1bwpIc5KvN0GDBdZYq59rszDZa+Y44f57pkMOkCXvj5F+pHFg1Dil5cYJcwfPLxH3zhLVVNJygXdR6Z4ZST2IKYjKbwvOb7mqL2waLWCWneOI2ZM/IuXACGVAdmwYCYf3zeYc1ZqbTMXejV6M7XmJhatSDI/q7dtHfJ1fhDe6T/+/kqzu5rx/uzLFVKOPsiCId+6rvbzwPGXAr7rkj8hUcj1v09MGpruPlzw05LuRNBpGuLRfMimfV/lTSR3ig9jQIdPgxThQ2V00q4WcDlnspeUyKgmz4pu1m0LSz94slZLDtPyVqU7KPw0eeNPgIOcSPEfaOPRXXjqBQVw3PxBwSJv/+BrNybbk=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create Skill"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/skills/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Create a registry skill.
+
+The server owns the invariants: the payload validates against the
+SkillTemplate contract, the storage slug is generated (display names
+may collide), and the skill flags + builtin URI are stamped on both
+the artifact and the v1 revision.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./create-skill.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./create-skill.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

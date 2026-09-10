@@ -38,6 +38,7 @@ from oss.src.core.git.dtos import (
     RevisionCreate,
     RevisionEdit,
     RevisionQuery,
+    RevisionGrouping,
     RevisionCommit,
 )
 
@@ -1363,6 +1364,7 @@ class GitDAO(GitDAOInterface):
         project_id: UUID,
         #
         revision_query: RevisionQuery,
+        grouping: Optional[RevisionGrouping] = None,
         #
         artifact_refs: Optional[List[Reference]] = None,
         variant_refs: Optional[List[Reference]] = None,
@@ -1375,15 +1377,8 @@ class GitDAO(GitDAOInterface):
         windowing: Optional[Windowing] = None,
     ) -> List[Revision]:
         async with self.engine.session() as session:
-            stmt = (
-                select(self.RevisionDBE)
-                .options(
-                    selectinload(self.RevisionDBE.artifact),  # type: ignore
-                    selectinload(self.RevisionDBE.variant),  # type: ignore
-                )
-                .filter(
-                    self.RevisionDBE.project_id == project_id,  # type: ignore
-                )
+            stmt = select(self.RevisionDBE).filter(
+                self.RevisionDBE.project_id == project_id,  # type: ignore
             )
 
             if artifact_refs:
@@ -1526,7 +1521,38 @@ class GitDAO(GitDAOInterface):
                     self.RevisionDBE.deleted_at.is_(None),  # type: ignore
                 )
 
-            if windowing:
+            if grouping:
+                # Seed rows carry version 0 but no committed content. A first real commit can
+                # also be version 0, so only exclude rows whose content fields are all empty.
+                stmt = stmt.filter(
+                    or_(
+                        self.RevisionDBE.version.is_(None),  # type: ignore
+                        self.RevisionDBE.version != "0",  # type: ignore
+                        self.RevisionDBE.data.isnot(None),  # type: ignore
+                        self.RevisionDBE.flags.isnot(None),  # type: ignore
+                        self.RevisionDBE.tags.isnot(None),  # type: ignore
+                        self.RevisionDBE.meta.isnot(None),  # type: ignore
+                    )
+                )
+
+                group_column = (
+                    self.RevisionDBE.artifact_id
+                    if grouping.by == "artifact"
+                    else self.RevisionDBE.variant_id
+                )
+                selected_ids = (
+                    stmt.with_only_columns(self.RevisionDBE.id)
+                    .distinct(group_column)
+                    .order_by(group_column, self.RevisionDBE.id.desc())
+                    .subquery()
+                )
+                stmt = (
+                    select(self.RevisionDBE)
+                    .filter(self.RevisionDBE.id.in_(select(selected_ids.c.id)))
+                    .order_by(self.RevisionDBE.id.desc())
+                )
+
+            elif windowing:
                 stmt = apply_windowing(
                     stmt=stmt,
                     DBE=self.RevisionDBE,
@@ -1534,6 +1560,11 @@ class GitDAO(GitDAOInterface):
                     order="descending",  # jobs-style
                     windowing=windowing,
                 )
+
+            stmt = stmt.options(
+                selectinload(self.RevisionDBE.artifact),  # type: ignore
+                selectinload(self.RevisionDBE.variant),  # type: ignore
+            )
 
             result = await session.execute(stmt)
 

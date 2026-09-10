@@ -2,7 +2,7 @@ from inspect import isawaitable
 from typing import Any, Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Request, status, HTTPException, Depends
+from fastapi import APIRouter, Body, Request, status, HTTPException, Depends
 
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -90,7 +90,6 @@ from oss.src.apis.fastapi.workflows.utils import (
     parse_workflow_variant_query_request_from_body,
     merge_workflow_variant_query_requests,
     parse_workflow_revision_query_request_from_params,
-    parse_workflow_revision_query_request_from_body,
     merge_workflow_revision_query_requests,
 )
 from oss.src.apis.fastapi.environments.utils import (
@@ -1542,21 +1541,8 @@ class WorkflowsRouter:
         query_request_params: Optional[WorkflowRevisionQueryRequest] = Depends(
             parse_workflow_revision_query_request_from_params
         ),
+        query_request_body: Optional[WorkflowRevisionQueryRequest] = Body(None),
     ) -> WorkflowRevisionsResponse:
-        body_json = None
-        query_request_body = None
-
-        try:
-            body_json = await request.json()
-
-            if body_json:
-                query_request_body = parse_workflow_revision_query_request_from_body(
-                    **body_json
-                )
-
-        except Exception:  # pylint: disable=bare-except
-            pass
-
         workflow_revision_query_request = merge_workflow_revision_query_requests(
             query_request_params, query_request_body
         )
@@ -1579,14 +1565,20 @@ class WorkflowsRouter:
             #
             include_archived=workflow_revision_query_request.include_archived,
             #
+            grouping=workflow_revision_query_request.grouping,
+            #
             windowing=workflow_revision_query_request.windowing,
         )
 
-        next_windowing = compute_next_windowing(
-            entities=workflow_revisions,
-            attribute="id",
-            windowing=workflow_revision_query_request.windowing,
-            order="descending",
+        next_windowing = (
+            None
+            if workflow_revision_query_request.grouping
+            else compute_next_windowing(
+                entities=workflow_revisions,
+                attribute="id",
+                windowing=workflow_revision_query_request.windowing,
+                order="descending",
+            )
         )
 
         await publish_revision_event(
