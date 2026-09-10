@@ -10,10 +10,12 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const querySessions = vi.fn()
+const querySessionsFlatPage = vi.fn()
 const queryInteractions = vi.fn()
 
 vi.mock("@agenta/entities/session", () => ({
     querySessions: (...args: unknown[]) => querySessions(...args),
+    querySessionsFlatPage: (...args: unknown[]) => querySessionsFlatPage(...args),
     queryInteractions: (...args: unknown[]) => queryInteractions(...args),
     livenessPollInterval: () => false,
 }))
@@ -90,6 +92,13 @@ const sessionRow = (id: string) => ({
     flags: {is_alive: true, is_running: false},
 })
 
+/** The tail walks the cursor, so its stub answers with the page envelope, not a bare list. */
+const servePage = (pool: string[]) => async (args: {sessionIds?: string[]; limit: number}) => {
+    const ids = args.sessionIds ?? pool
+    const sessions = ids.slice(0, args.limit).map(sessionRow)
+    return {count: sessions.length, sessions, windowing: {limit: args.limit}}
+}
+
 const settle = async (ticks = 12) => {
     for (let index = 0; index < ticks; index++)
         await new Promise((resolve) => setTimeout(resolve, 0))
@@ -105,6 +114,7 @@ const newStore = () => {
 describe("Awaiting input sidebar filter and the paging tail", () => {
     beforeEach(() => {
         querySessions.mockReset()
+        querySessionsFlatPage.mockReset()
         queryInteractions.mockReset()
     })
 
@@ -121,6 +131,7 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
         querySessions.mockImplementation(async (args: {sessionIds?: string[]}) =>
             (args.sessionIds ?? waitingIds).slice(0, PAGE_SIZE).map(sessionRow),
         )
+        querySessionsFlatPage.mockImplementation(servePage(waitingIds))
 
         const {store} = newStore()
         const scope = MAIN_SIDEBAR_SCOPE_ID
@@ -135,11 +146,10 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
         expect(headCalls[0].sessionIds).toEqual([...waitingIds].sort())
         expect(store.get(sidebarSessionPagingAtomFamily(scope)).hasMore).toBe(true)
 
-        querySessions.mockClear()
         store.set(loadMoreSidebarSessionsAtomFamily(scope))
         await settle()
 
-        const tailCalls = querySessions.mock.calls.map(([args]) => args)
+        const tailCalls = querySessionsFlatPage.mock.calls.map(([args]) => args)
         expect(tailCalls.length).toBeGreaterThan(0)
         const tail = tailCalls[tailCalls.length - 1]
         expect(tail.sessionIds).toEqual([...waitingIds].sort())
@@ -165,6 +175,7 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
         querySessions.mockImplementation(async (args: {sessionIds?: string[]}) =>
             (args.sessionIds ?? sorted).slice(0, PAGE_SIZE).map(sessionRow),
         )
+        querySessionsFlatPage.mockImplementation(servePage(sorted))
 
         const {store, queryClient} = newStore()
         const scope = MAIN_SIDEBAR_SCOPE_ID
@@ -176,7 +187,9 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
         store.set(loadMoreSidebarSessionsAtomFamily(scope))
         await settle()
 
-        const before = querySessions.mock.calls.length
+        const requests = () =>
+            querySessions.mock.calls.length + querySessionsFlatPage.mock.calls.length
+        const before = requests()
         expect(before).toBeGreaterThan(0)
 
         await queryClient.refetchQueries({queryKey: ["sidebar-sessions-waiting"]})
@@ -184,8 +197,8 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
 
         expect(queryInteractions.mock.calls.length).toBeGreaterThan(1)
         // The reordered poll must not re-key either session query. Without the sort both the head
-        // and the tail refetch, and the tail asks for up to twelve pages.
-        expect(querySessions.mock.calls.length).toBe(before)
+        // and the tail refetch, and the tail walks every page again.
+        expect(requests()).toBe(before)
 
         unsubscribe()
     })
@@ -199,6 +212,7 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
         const allIds = Array.from({length: 60}, (_, index) => `s${index}`)
         queryInteractions.mockResolvedValue([])
         querySessions.mockImplementation(async () => allIds.slice(0, PAGE_SIZE).map(sessionRow))
+        querySessionsFlatPage.mockImplementation(servePage(allIds))
 
         const {store} = newStore()
         const scope = MAIN_SIDEBAR_SCOPE_ID
@@ -210,11 +224,10 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
 
         expect(store.get(sidebarSessionPagingAtomFamily(scope)).hasMore).toBe(true)
 
-        querySessions.mockClear()
         store.set(loadMoreSidebarSessionsAtomFamily(scope))
         await settle()
 
-        const tailCalls = querySessions.mock.calls.map(([args]) => args)
+        const tailCalls = querySessionsFlatPage.mock.calls.map(([args]) => args)
         expect(tailCalls.length).toBeGreaterThan(0)
         expect(tailCalls[tailCalls.length - 1].sessionIds).toBeUndefined()
 
@@ -231,6 +244,7 @@ describe("Awaiting input sidebar filter and the paging tail", () => {
         querySessions.mockImplementation(async (args: {sessionIds?: string[]}) =>
             (args.sessionIds ?? []).map(sessionRow),
         )
+        querySessionsFlatPage.mockImplementation(servePage(waitingIds))
 
         const {store} = newStore()
         const scope = MAIN_SIDEBAR_SCOPE_ID
