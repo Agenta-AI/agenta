@@ -43,8 +43,10 @@ export const AutomationRunList = ({
 }) => {
     const groups = useMemo(() => runGroups(runs, grouping), [grouping, runs])
 
+    // `ag-scroll-quiet`: the bar stays invisible until the pointer is in the column. A permanent
+    // one sat over the times and clipped them to "17:0".
     return (
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="ag-scroll-quiet min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {isLoading ? (
                 <AutomationRunListSkeleton />
             ) : error ? (
