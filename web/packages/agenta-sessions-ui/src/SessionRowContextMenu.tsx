@@ -9,11 +9,14 @@ import {
 } from "@agenta/ui/ui"
 
 import {isMenuDivider, type SessionMenuEntry} from "./menu"
+import {useDeferredMenuSelect, type MenuSelect} from "./useDeferredMenuSelect"
 
 export interface SessionRowContextMenuProps {
     /** The row's verbs. Empty or absent renders the row bare — no menu, no wrapper. */
     entries?: SessionMenuEntry[]
-    onSelect?: (key: string) => void
+    /** Runs the verb. Return a function to defer it until the menu closes — see
+     * `useDeferredMenuSelect`, which the row kebab shares. */
+    onSelect?: MenuSelect
     /** The row itself; it becomes the trigger, so it must forward a ref (`asChild`). */
     children: ReactElement
 }
@@ -29,12 +32,14 @@ export const SessionRowContextMenu = ({
     onSelect,
     children,
 }: SessionRowContextMenuProps) => {
+    const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect(onSelect)
+
     if (!entries || entries.length === 0) return children
 
     return (
         <ContextMenu>
             <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-            <ContextMenuContent>
+            <ContextMenuContent onCloseAutoFocus={handleCloseAutoFocus}>
                 {entries.map((entry, index) =>
                     isMenuDivider(entry) ? (
                         <ContextMenuSeparator key={`divider-${index}`} />
@@ -43,7 +48,7 @@ export const SessionRowContextMenu = ({
                             key={entry.key}
                             disabled={entry.disabled}
                             variant={entry.danger ? "destructive" : undefined}
-                            onSelect={() => onSelect?.(entry.key)}
+                            onSelect={() => handleSelect(entry.key)}
                         >
                             {entry.icon ? (
                                 <span className="flex shrink-0 items-center">{entry.icon}</span>

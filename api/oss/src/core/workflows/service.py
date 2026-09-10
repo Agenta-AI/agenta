@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Optional, List, Union, TYPE_CHECKING
+from typing import Any, Awaitable, Callable, Dict, Optional, List, Union, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import httpx
@@ -277,6 +277,44 @@ class WorkflowsService:
         self.embeds_service = embeds_service
         self.static_catalog = static_catalog
         self._watch = watch_publisher
+        self._session_continuation_resumer: Optional[
+            Callable[..., Awaitable[Optional[str]]]
+        ] = None
+        # Reads the session row's name and whether the session already has a turn. Injected
+        # rather than constructed here for the same reason the continuation resumer is: this
+        # service owns workflows, and the sessions services live above it.
+        self._session_context_resolver: Optional[
+            Callable[..., Awaitable[tuple[Optional[str], bool]]]
+        ] = None
+
+    def set_session_continuation_resumer(
+        self, callback: Callable[..., Awaitable[Optional[str]]]
+    ) -> None:
+        self._session_continuation_resumer = callback
+
+    def set_session_context_resolver(
+        self, callback: Callable[..., Awaitable[tuple[Optional[str], bool]]]
+    ) -> None:
+        self._session_context_resolver = callback
+
+    async def _resume_pending_session_continuation(
+        self, *, project_id: UUID, request: WorkflowServiceRequest
+    ) -> bool:
+        session_id = request.session_id
+        meta = request.meta or {}
+        if (
+            not env.agenta.sessions.durable_approvals
+            or not session_id
+            or meta.get("control_command_id")
+            or self._session_continuation_resumer is None
+        ):
+            return False
+        return bool(
+            await self._session_continuation_resumer(
+                project_id=project_id,
+                session_id=session_id,
+            )
+        )
 
     @staticmethod
     def _artifact_cache_key(artifact_id: UUID) -> str:
@@ -727,15 +765,21 @@ class WorkflowsService:
         credentials: str,
         payload: dict,
         run_id: str,
+        strict_first_record: bool = False,
     ) -> WorkflowServiceDetachedResponse:
         """Stream the service ``/invoke`` and return on the FIRST record (the started handshake).
 
-        The runner emits NDJSON ``{"kind": "event"|"result", ...}`` records the moment each is
-        built; the first one means the run is accepted and owned (the alive-held handshake). We
-        return then and close the connection — the runner owns the run (alive watchdog) and
-        persists independently (producer-driven ingest), so draining to completion is unnecessary.
-        The read timeout is generous (sandbox cold-start can take seconds); we are NOT awaiting
-        the whole run, so it is not the batch 60s-whole-run budget.
+        The deployed workflow service emits one NDJSON record the moment each is built; the first
+        one means the run is accepted and owned (the alive-held handshake). We return then and
+        close the connection — the runner owns the run (alive watchdog) and persists independently
+        (producer-driven ingest), so draining to completion is unnecessary. The read timeout is
+        generous (sandbox cold-start can take seconds); we are NOT awaiting the whole run, so it
+        is not the batch 60s-whole-run budget.
+
+        ``strict_first_record`` (a durable control command) surfaces an explicit failure frame
+        instead of reporting it as a start. It does NOT require a particular record shape: see
+        ``_detached_start_failure`` for why the two producers on this stream disagree about the
+        vocabulary, and why anything unrecognised is a start.
         """
         headers = inject(
             {
@@ -777,8 +821,22 @@ class WorkflowsService:
                     # exiting the context closes the connection (run keeps going on the runner).
                     try:
                         record = json.loads(line)
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as error:
+                        if strict_first_record:
+                            raise WorkflowDetachedStartFailed(
+                                "Workflow service emitted malformed NDJSON before detached start."
+                            ) from error
                         record = None
+                    if strict_first_record and not isinstance(record, dict):
+                        raise WorkflowDetachedStartFailed(
+                            "Workflow service emitted a non-object record before detached start."
+                        )
+                    if strict_first_record and isinstance(record, dict):
+                        failure = WorkflowsService._detached_start_failure(record)
+                        if failure is not None:
+                            raise WorkflowDetachedStartFailed(
+                                f"Workflow service rejected detached start: {failure}"
+                            )
                     record_run_id = (
                         record.get("run_id") if isinstance(record, dict) else None
                     )
@@ -793,6 +851,48 @@ class WorkflowsService:
         raise WorkflowDetachedStartFailed(
             "Workflow service closed the stream before emitting a started record."
         )
+
+    @staticmethod
+    def _detached_start_failure(record: dict) -> Optional[str]:
+        """Read an explicit failure out of the FIRST record, in either wire vocabulary.
+
+        Two producers can answer this stream and they do not share a vocabulary.
+
+        * The deployed workflow SERVICE is the ordinary case. It streams agenta event frames,
+          ``{"type": ..., "data": {...}}``, and its failure frame is ``{"type": "error"}``. There
+          is no ``kind`` anywhere on that wire.
+        * The agent RUNNER's own NDJSON, ``{"kind": "event"|"result"}``, reaches this parser only
+          where a deployment forwards the runner stream verbatim. Its failure is a terminal
+          ``{"kind": "result", "result": {"ok": false}}``.
+
+        Everything else is the started handshake. Rejecting an unrecognised record instead is what
+        made EVERY durable continuation report `unreachable` while the runner was in fact already
+        running the turn: the service's first frame carries ``type``, never ``kind``.
+
+        A runner that refuses a continuation outright never reaches here at all. The SDK turns its
+        ``ok: false`` result into an exception inside the already-committed ASGI response, so the
+        service closes the stream having written nothing, and the caller raises the
+        "closed the stream" failure above.
+        """
+        if record.get("kind") == "result":
+            result = record.get("result")
+            if isinstance(result, dict) and result.get("ok") is True:
+                return None
+            detail = (
+                result.get("error")
+                if isinstance(result, dict)
+                else "malformed result record"
+            )
+            return str(detail or "the runner rejected the run")
+
+        if record.get("type") == "error":
+            data = record.get("data")
+            message = data.get("message") if isinstance(data, dict) else None
+            code = data.get("code") if isinstance(data, dict) else None
+            detail = str(message or "the service reported an error")
+            return f"{detail} ({code})" if code else detail
+
+        return None
 
     @staticmethod
     def _coerce_invoke_response(
@@ -991,6 +1091,8 @@ class WorkflowsService:
         workflow_create: WorkflowCreate,
         #
         workflow_id: Optional[UUID] = None,
+        #
+        platform_meta: bool = False,
     ) -> Optional[Workflow]:
         self._reject_static_slug(workflow_create.slug)
 
@@ -1011,6 +1113,8 @@ class WorkflowsService:
             artifact_create=artifact_create,
             #
             artifact_id=workflow_id,
+            #
+            platform_meta=platform_meta,
         )
 
         if not artifact:
@@ -1071,6 +1175,8 @@ class WorkflowsService:
         user_id: UUID,
         #
         workflow_edit: WorkflowEdit,
+        #
+        platform_meta: bool = False,
     ) -> Optional[Workflow]:
         current_artifact = await self.workflows_dao.fetch_artifact(
             project_id=project_id,
@@ -1100,6 +1206,8 @@ class WorkflowsService:
             user_id=user_id,
             #
             artifact_edit=artifact_edit,
+            #
+            platform_meta=platform_meta,
         )
 
         if not artifact:
@@ -2094,6 +2202,79 @@ class WorkflowsService:
 
         return _workflow_revisions
 
+    async def query_workflow_head_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        workflow_revision_query: Optional[WorkflowRevisionQuery] = None,
+        #
+        artifact_search: Optional[str] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[WorkflowRevision]:
+        """Head (latest) revision per variant, revision-flag-filtered in SQL —
+        the correct-pagination path for revision-derived listings (skills)."""
+        _revision_query = (
+            RevisionQuery(
+                **workflow_revision_query.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude={"flags"},
+                ),
+                flags=self._drop_default_server_owned_query_flags(
+                    self._dump_flags(
+                        self._revision_query_flags_from_any(
+                            workflow_revision_query.flags,
+                        )
+                    )
+                )
+                or None,
+            )
+            if workflow_revision_query
+            else RevisionQuery()
+        )
+
+        revisions = await self.workflows_dao.query_head_revisions(
+            project_id=project_id,
+            #
+            revision_query=_revision_query,
+            #
+            artifact_search=artifact_search,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        _workflow_revisions = []
+
+        workflows_by_id: Dict[UUID, Optional[Workflow]] = {}
+        for revision in revisions:
+            if revision.artifact_id not in workflows_by_id:
+                workflows_by_id[revision.artifact_id] = await self.fetch_workflow(
+                    project_id=project_id,
+                    #
+                    workflow_ref=Reference(id=revision.artifact_id),
+                    #
+                    include_archived=include_archived,
+                )
+
+        for revision in revisions:
+            workflow_revision = await self._normalize_revision_for_read(
+                project_id=project_id,
+                revision=WorkflowRevision(
+                    **revision.model_dump(mode="json"),
+                ),
+                include_archived=include_archived,
+                workflow=workflows_by_id[revision.artifact_id],
+            )
+            _workflow_revisions.append(workflow_revision)
+
+        return _workflow_revisions
+
     async def read_workflow_revision_config(
         self,
         *,
@@ -2145,6 +2326,8 @@ class WorkflowsService:
         user_id: UUID,
         #
         workflow_revision_commit: WorkflowRevisionCommit,
+        #
+        platform_meta: bool = False,
         #
         scope_policy=None,
         agent_context: bool = False,
@@ -2231,6 +2414,7 @@ class WorkflowsService:
                     if answers_no_change
                     else None
                 ),
+                platform_meta=platform_meta,
             )
         except RevisionConflict as e:
             raise RevisionConflictError(
@@ -2391,6 +2575,8 @@ class WorkflowsService:
         expected_head_revision_id: Optional[UUID] = None,
         #
         no_change_check=None,
+        #
+        platform_meta: bool = False,
     ) -> Optional[WorkflowRevision]:
         self._reject_static_slug(workflow_revision_commit.slug)
 
@@ -2431,6 +2617,7 @@ class WorkflowsService:
             expected_head_revision_id=expected_head_revision_id,
             #
             no_change_check=no_change_check,
+            platform_meta=platform_meta,
         )
 
         if not revision:
@@ -2860,7 +3047,125 @@ class WorkflowsService:
         revision_data = self._get_revision_data(request=request)
         service_url = self._get_service_url(revision_data=revision_data)
 
+        await self._stamp_session_context(
+            project_id=project_id,
+            request=request,
+            revision_data=revision_data,
+        )
+
         return credentials, service_url
+
+    async def _stamp_session_context(
+        self,
+        *,
+        project_id: UUID,
+        request: WorkflowServiceRequest,
+        revision_data: Optional[WorkflowRevisionData],
+    ) -> None:
+        """Put the agent's name, the session's name, and the first-turn flag on ``request.meta``.
+
+        The platform prompt tells the agent to rename itself only while its name is a placeholder
+        and to name the session once at the start. It could follow neither rule, because the run
+        carried none of the three facts.
+
+        This stamp does NOT cover playground traffic, and never did. The playground posts a turn
+        straight to the agent service at ``{origin}/services/agent/v0/invoke``, which traefik
+        routes past the API, so this prelude never runs for a UI turn (issue #6661). What it
+        covers is the runs the API itself proxies: a HITL resume and a trigger fire, through
+        ``invoke_workflow`` and ``invoke_workflow_detached``.
+
+        The current agent service no longer reads this blob. It resolves the same three facts
+        itself, in ``agenta.sdk.agents.platform.session_context``, because a service cannot tell
+        this stamp apart from a forged copy in its own request body. The stamp remains the wire
+        contract for a workflow service built on an SDK that predates that resolution, so a
+        rolling deploy keeps working; the drop below still applies on every API path.
+
+        Server-owned. A caller-supplied ``session_context`` is dropped first and replaced by
+        what the server reads, never merged: it names the agent to itself, and a client must
+        not be able to tell the agent it is already named. The drop happens before any read,
+        so a read that fails leaves the key absent rather than leaving the client's version
+        in place.
+
+        Every fact is optional and ``None`` means UNKNOWN, not "no". Only a run with no
+        session id asserts ``first_turn`` as a fact: that run opens a fresh session, so it is
+        the first turn and the session has no name yet. A run that carries a session id but
+        has no resolver installed knows nothing about that session, and says so.
+
+        Gated to agent runs by the revision URI, so an evaluation batch over an LLM workflow
+        pays nothing. Failures are swallowed: this shapes prompt text, and a session row that
+        cannot be read must degrade to today's prompt rather than fail the run.
+        """
+        if request.meta:
+            request.meta.pop("session_context", None)
+        if revision_data is None:
+            return
+        _, _, key, _ = (
+            parse_uri(revision_data.uri) if revision_data.uri else (None,) * 4
+        )
+        if key != "agent":
+            return
+
+        session_name: Optional[str] = None
+        first_turn: Optional[bool] = None
+        session_id = request.session_id
+        try:
+            agent_name = await self._resolve_agent_name(
+                project_id=project_id,
+                request=request,
+            )
+            if session_id is None:
+                # No session id: this run opens a fresh session. First turn, no name.
+                first_turn = True
+            elif self._session_context_resolver is not None:
+                session_name, first_turn = await self._session_context_resolver(
+                    project_id=project_id,
+                    session_id=session_id,
+                )
+            # A session id with no resolver installed: both facts stay unknown. Claiming
+            # "unnamed, first turn" here would tell an already named session to name itself.
+        # Prompt text, never a run-breaking read: degrade to today's prompt.
+        except Exception as e:  # noqa: BLE001
+            log.warning(
+                "[WORKFLOWS] session context unavailable for "
+                f"session={request.session_id}: {e}"
+            )
+            return
+
+        request.meta = {
+            **(request.meta or {}),
+            "session_context": {
+                "agent_name": agent_name,
+                "session_name": session_name,
+                "first_turn": first_turn,
+            },
+        }
+
+    async def _resolve_agent_name(
+        self,
+        *,
+        project_id: UUID,
+        request: WorkflowServiceRequest,
+    ) -> Optional[str]:
+        """The workflow artifact's display name. That is what `rename_agent` renames.
+
+        `rename_agent` targets the artifact (`PUT /api/workflows/{workflow_id}` bound to
+        `$ctx.workflow.artifact.id`), so the artifact's name is the agent's name, not the
+        revision's. No new query in the steady state: `fetch_workflow` serves the artifact from
+        the same 60-second cache the read path already fills.
+        """
+        reference = (request.references or {}).get("workflow")
+        artifact_id = (
+            reference.get("id")
+            if isinstance(reference, dict)
+            else getattr(reference, "id", None)
+        )
+        if not artifact_id:
+            return None
+        workflow = await self.fetch_workflow(
+            project_id=project_id,
+            workflow_ref=Reference(id=artifact_id),
+        )
+        return workflow.name if workflow else None
 
     async def invoke_workflow(
         self,
@@ -2875,6 +3180,19 @@ class WorkflowsService:
         WorkflowServiceBatchResponse,
         WorkflowServiceStreamResponse,
     ]:
+        if await self._resume_pending_session_continuation(
+            project_id=project_id, request=request
+        ):
+            return WorkflowServiceBatchResponse(
+                status=WorkflowServiceStatus(
+                    type="https://agenta.ai/docs/errors#continuation-resumed",
+                    code=409,
+                    message=(
+                        "A durable approval continuation already owns this session; "
+                        "it was redelivered instead of starting a competing turn."
+                    ),
+                )
+            )
         credentials, service_url = await self._prepare_invoke(
             project_id=project_id,
             user_id=user_id,
@@ -2913,6 +3231,7 @@ class WorkflowsService:
         request: WorkflowServiceRequest,
         #
         run_id: Optional[str] = None,
+        control_command_id: Optional[UUID] = None,
     ) -> WorkflowServiceDetachedResponse:
         """Fire-and-forget invoke: stream the service and return on the started handshake.
 
@@ -2930,6 +3249,8 @@ class WorkflowsService:
         meta = dict(request.meta or {})
         meta["run_id"] = run_id
         meta["project_id"] = str(project_id)
+        if control_command_id is not None:
+            meta["control_command_id"] = str(control_command_id)
         request.meta = meta
 
         credentials, service_url = await self._prepare_invoke(
@@ -2949,6 +3270,7 @@ class WorkflowsService:
                 exclude_none=True,
             ),
             run_id=run_id,
+            strict_first_record=bool(meta.get("control_command_id")),
         )
 
     async def inspect_workflow(
@@ -3164,6 +3486,8 @@ class SimpleWorkflowsService:
         #
         simple_workflow_create: SimpleWorkflowCreate,
         #
+        platform_meta: bool = False,
+        #
         workflow_id: Optional[UUID] = None,
     ) -> Optional[SimpleWorkflow]:
         simple_workflow_flags = SimpleWorkflowFlags(
@@ -3192,6 +3516,7 @@ class SimpleWorkflowsService:
             workflow_create=workflow_create,
             #
             workflow_id=workflow_id,
+            platform_meta=platform_meta,
         )
 
         if workflow is None:
@@ -3250,6 +3575,7 @@ class SimpleWorkflowsService:
             project_id=project_id,
             user_id=user_id,
             workflow_revision_commit=workflow_revision_commit,
+            platform_meta=platform_meta,
         )
 
         if workflow_revision is None:
@@ -3277,6 +3603,7 @@ class SimpleWorkflowsService:
             project_id=project_id,
             user_id=user_id,
             workflow_revision_commit=workflow_revision_commit,
+            platform_meta=platform_meta,
         )
 
         if workflow_revision is None:

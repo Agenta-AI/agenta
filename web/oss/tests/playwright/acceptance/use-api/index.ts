@@ -107,6 +107,32 @@ const deployFirstVariantToDevelopment = async (
     })
 }
 
+// Reports whether the element keeps the same bounding box across two frames.
+const hasStableBoxAcrossFrames = (element: Element): Promise<boolean> =>
+    new Promise((resolve) => {
+        const first = element.getBoundingClientRect()
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const second = element.getBoundingClientRect()
+                resolve(
+                    first.x === second.x &&
+                        first.y === second.y &&
+                        first.width === second.width &&
+                        first.height === second.height,
+                )
+            })
+        })
+    })
+
+// Waits out the drawer slide-in; a click during it fails "element is not stable".
+const waitForDrawerAnimationToSettle = async (drawer: any) => {
+    await expect
+        .poll(() => pollLocatorState(() => drawer.evaluate(hasStableBoxAcrossFrames)), {
+            timeout: 10000,
+        })
+        .toBe(true)
+}
+
 /**
  * Opens the "How to use API" drawer from the Variants tab.
  * Uses the data-tour attribute so we target exactly this button even if other
@@ -124,13 +150,12 @@ const openVariantUseApiDrawer = async (page: any) => {
     // so select the first row explicitly when nothing is checked.
     // Scoped to the registry table's BODY rows: the header select-all and any checkbox
     // outside the table must neither satisfy the check nor receive the click.
-    const checkedRow = page.locator(".ant-table-tbody .ant-checkbox-checked").first()
-    if (!(await checkedRow.isVisible().catch(() => false))) {
-        const firstRowCheckbox = page.locator(".ant-table-tbody .ant-checkbox-input").first()
-        await expect(firstRowCheckbox).toBeVisible({timeout: 15000})
+    const firstRowCheckbox = page.getByRole("checkbox", {name: /^Select row /}).first()
+    await expect(firstRowCheckbox).toBeVisible({timeout: 15000})
+    if (!(await firstRowCheckbox.isChecked())) {
         await firstRowCheckbox.click()
     }
-    await expect(checkedRow).toBeVisible({timeout: 15000})
+    await expect(firstRowCheckbox).toBeChecked({timeout: 15000})
     const useApiButton = page.locator('[data-tour="api-code-button"]')
     await expect(useApiButton).toBeVisible({timeout: 15000})
     await expect(useApiButton).toBeEnabled({timeout: 5000})
@@ -143,6 +168,7 @@ const openVariantUseApiDrawer = async (page: any) => {
         hasText: "How to use API",
     })
     await expect(drawer).toBeVisible({timeout: 20000})
+    await waitForDrawerAnimationToSettle(drawer)
     return drawer
 }
 
@@ -164,6 +190,7 @@ const openDeploymentUseApiDrawer = async (page: any) => {
         hasText: "How to use API",
     })
     await expect(drawer).toBeVisible({timeout: 20000})
+    await waitForDrawerAnimationToSettle(drawer)
     return drawer
 }
 

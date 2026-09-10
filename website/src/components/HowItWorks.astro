@@ -1,14 +1,146 @@
 ---
+import Section from "./Section.astro";
 import HowItWorks from "./HowItWorks.tsx";
 ---
 
 {/* padding:0 lets the desktop 500vh scroll layout own its spacing; the
     .ag-secpad media query restores vertical padding at <=860px, where the
     island renders the static two-panel fallback. */}
-<section
+<Section
   data-screen-label="How it works"
-  class="ag-secpad"
-  style="background:var(--ag-d-bg-1);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:0;"
+  class="ag-secpad ag-hiw"
+  style="background:var(--th-tint);padding:0;"
 >
   <HowItWorks client:visible />
-</section>
+</Section>
+
+<style is:global>
+  /* HowItWorks island theme vars. Light values follow the light-theme spec's
+     "How it works" recipes (white cards on the tinted panel); dark values are
+     the island's original literals, verbatim. */
+  .ag-hiw {
+    /* header pill + heading */
+    --hiw-h2: var(--text-heading);
+    --hiw-sub: var(--ink-600);
+    /* beat list */
+    --hiw-beat-border: rgba(36, 36, 36, 0.12);
+    --hiw-beat-on: var(--ink-900);
+    --hiw-beat-off: var(--ink-300);
+    --hiw-beat-body: var(--ink-600);
+    --hiw-chev: var(--ink-600);
+    /* chat card shell */
+    --hiw-card-bg: #ffffff;
+    --hiw-card-shadow: var(--shadow-ring);
+    /* message text + timestamps */
+    --hiw-ts: var(--ink-300);
+    --hiw-ts-you: var(--ink-500);
+    --hiw-meta: var(--ink-300);
+    --hiw-thought: var(--ink-500);
+    --hiw-block-rule: var(--paper-150);
+    --hiw-bub-bg: var(--paper-100);
+    --hiw-bub-ring: var(--paper-150);
+    --hiw-bub-text: var(--ink-900);
+    --hiw-body: var(--app-text-body);
+    --hiw-body-hi: var(--app-text-heading);
+    --hiw-code-bg: var(--paper-150);
+    --hiw-code-text: var(--ink-900);
+    /* tool rows */
+    --hiw-tool-bg: var(--paper-50);
+    --hiw-tool-ring: var(--paper-200);
+    --hiw-tool-label: var(--ink-600);
+    --hiw-tool-meta: var(--ink-300);
+    /* scheduled card */
+    --hiw-sched-bg: var(--paper-50);
+    --hiw-sched-ring: var(--paper-150);
+    --hiw-sched-title: var(--ink-900);
+    --hiw-sched-meta: var(--ink-500);
+    /* run divider */
+    --hiw-div-line: var(--paper-150);
+    --hiw-div-text: var(--ink-500);
+    /* flagged chip (light spec: ink-900 pill with yellow text) */
+    --hiw-flag-bg: var(--ink-900);
+    --hiw-flag-shadow: none;
+    --hiw-flag-text: var(--yellow-400);
+    /* files drawer */
+    --hiw-files-border: var(--divider-app);
+    --hiw-files-bg: var(--paper-50);
+    --hiw-files-hdr-border: var(--divider-app);
+    --hiw-files-ico: var(--ink-500);
+    --hiw-files-title: var(--ink-600);
+    --hiw-files-count: var(--ink-300);
+    --hiw-file-hot-bg: rgba(242, 242, 92, 0.22);
+    --hiw-file-hot-ring: rgba(36, 36, 36, 0.08);
+    --hiw-file-ico: var(--ink-300);
+    --hiw-file-ico-hot: var(--yellow-500);
+    --hiw-file-name: var(--ink-600);
+    --hiw-file-name-hot: var(--ink-900);
+    --hiw-file-meta: var(--ink-300);
+    --hiw-file-meta-hot: var(--ink-500);
+    /* composer */
+    --hiw-comp-bg: var(--paper-50);
+    --hiw-comp-ring: var(--paper-200);
+    --hiw-comp-ph: var(--ink-300);
+    --hiw-comp-ico: var(--ink-500);
+    --hiw-comp-hint: var(--ink-300);
+    --hiw-send-bg: var(--paper-150);
+    --hiw-send-arrow: var(--ink-600);
+  }
+  [data-theme="dark"] .ag-hiw {
+    --hiw-h2: #ffffff;
+    --hiw-sub: var(--text-on-dark-muted);
+    --hiw-beat-border: rgba(255, 255, 255, 0.12);
+    --hiw-beat-on: #f7f6f4;
+    --hiw-beat-off: rgba(255, 255, 255, 0.55);
+    --hiw-beat-body: rgba(255, 255, 255, 0.55);
+    --hiw-chev: rgba(255, 255, 255, 0.6);
+    --hiw-card-bg: #161519;
+    --hiw-card-shadow:
+      0 24px 70px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+    --hiw-ts: rgba(255, 255, 255, 0.35);
+    --hiw-ts-you: rgba(255, 255, 255, 0.55);
+    --hiw-meta: rgba(255, 255, 255, 0.32);
+    --hiw-thought: rgba(255, 255, 255, 0.4);
+    --hiw-block-rule: rgba(255, 255, 255, 0.06);
+    --hiw-bub-bg: rgba(255, 255, 255, 0.06);
+    --hiw-bub-ring: rgba(255, 255, 255, 0.07);
+    --hiw-bub-text: #f0eff2;
+    --hiw-body: rgba(255, 255, 255, 0.82);
+    --hiw-body-hi: #ffffff;
+    --hiw-code-bg: rgba(255, 255, 255, 0.06);
+    --hiw-code-text: #f0eff2;
+    --hiw-tool-bg: rgba(255, 255, 255, 0.03);
+    --hiw-tool-ring: rgba(255, 255, 255, 0.07);
+    --hiw-tool-label: rgba(255, 255, 255, 0.78);
+    --hiw-tool-meta: rgba(255, 255, 255, 0.38);
+    --hiw-sched-bg: rgba(255, 255, 255, 0.025);
+    --hiw-sched-ring: rgba(255, 255, 255, 0.09);
+    --hiw-sched-title: #ffffff;
+    --hiw-sched-meta: rgba(255, 255, 255, 0.45);
+    --hiw-div-line: rgba(255, 255, 255, 0.07);
+    --hiw-div-text: rgba(255, 255, 255, 0.4);
+    --hiw-flag-bg: rgba(217, 119, 87, 0.14);
+    --hiw-flag-shadow: inset 0 0 0 1px rgba(217, 119, 87, 0.3);
+    --hiw-flag-text: #f7f6f4;
+    --hiw-files-border: rgba(255, 255, 255, 0.07);
+    --hiw-files-bg: rgba(0, 0, 0, 0.25);
+    --hiw-files-hdr-border: rgba(255, 255, 255, 0.06);
+    --hiw-files-ico: rgba(255, 255, 255, 0.5);
+    --hiw-files-title: rgba(255, 255, 255, 0.55);
+    --hiw-files-count: rgba(255, 255, 255, 0.3);
+    --hiw-file-hot-bg: rgba(242, 242, 92, 0.06);
+    --hiw-file-hot-ring: rgba(242, 242, 92, 0.2);
+    --hiw-file-ico: rgba(255, 255, 255, 0.4);
+    --hiw-file-ico-hot: var(--yellow-400);
+    --hiw-file-name: rgba(255, 255, 255, 0.62);
+    --hiw-file-name-hot: #ffffff;
+    --hiw-file-meta: rgba(255, 255, 255, 0.3);
+    --hiw-file-meta-hot: rgba(242, 242, 92, 0.85);
+    --hiw-comp-bg: rgba(255, 255, 255, 0.025);
+    --hiw-comp-ring: rgba(255, 255, 255, 0.09);
+    --hiw-comp-ph: rgba(255, 255, 255, 0.35);
+    --hiw-comp-ico: rgba(255, 255, 255, 0.4);
+    --hiw-comp-hint: rgba(255, 255, 255, 0.3);
+    --hiw-send-bg: rgba(255, 255, 255, 0.1);
+    --hiw-send-arrow: rgba(255, 255, 255, 0.75);
+  }
+</style>

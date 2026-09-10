@@ -132,6 +132,7 @@ const themeAwareColors = {
     colorBgContainerDisabled: v("colorBgContainerDisabled"),
     colorInfoBg: v("colorInfoBg"),
     controlItemBgActive: v("controlItemBgActive"),
+    controlItemBgHover: v("controlItemBgHover"),
     colorWhite: v("colorWhite"),
 }
 
@@ -159,6 +160,7 @@ export const createConfig = (content: string[] = []): Config => {
             "../packages/agenta-navigation-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-auth-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-chat/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-skills-ui/src/**/*.{js,ts,jsx,tsx}",
             // Streamdown ships class-based typography; Tailwind only generates what it scans.
             // Resolved from the workspace store, so the glob works from both oss and ee.
             "../node_modules/.pnpm/streamdown@*/node_modules/streamdown/dist/*.js",

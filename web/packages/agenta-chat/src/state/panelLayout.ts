@@ -1,3 +1,5 @@
+import {useSyncExternalStore} from "react"
+
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -78,3 +80,56 @@ export const configPanelCollapsedAtom = atom(
         set(configPanelCollapsedPreferenceAtom, collapsed)
     },
 )
+
+/** Persisted width of the pane docked beside the chat (the desktop Inspector, /m's config rail). */
+export const rightPanelWidthAtom = atomWithStorage<number>(
+    "agenta:agent-chat:right-panel-width",
+    460,
+)
+
+/** Pane min (keeps tool-I/O JSON readable) and the chat floor it must never squeeze below. */
+export const RIGHT_PANEL_MIN = 360
+export const RIGHT_PANEL_MAX = 900
+export const CHAT_MIN = 460
+
+/** The Files pane keeps its own width + bounds — tree plus preview needs more room than a dock. */
+export const filesPaneWidthAtom = atomWithStorage<number>("agenta:agent-chat:files-pane-width", 620)
+export const FILES_PANE_MIN = 420
+export const FILES_PANE_MAX = 1600
+
+/** The agent config pane's fixed width in the desktop MainLayout; kept in sync there. */
+export const AGENT_CONFIG_WIDTH = 440
+
+/** Divider hairlines + panel edge paddings between the four regions. */
+const SEAM_SLACK = 25
+
+/**
+ * Window width at which the config pane, the transcript and the Files pane all fit at fair
+ * widths. Below it the two side panes are mutually exclusive, so the transcript never falls under
+ * CHAT_MIN; at or above it they may stay open together.
+ *
+ * Takes the nav sidebar width rather than importing it, so `@agenta/chat` keeps no dependency on
+ * `@agenta/navigation`. Both hosts pass SIDEBAR_DEFAULT_WIDTH — they dock the same sidebar.
+ */
+export const panesCoexistMinWindow = (sidebarWidth: number): number =>
+    sidebarWidth + AGENT_CONFIG_WIDTH + CHAT_MIN + FILES_PANE_MIN + SEAM_SLACK
+
+/**
+ * True when the window fits all three regions at once.
+ *
+ * Window width, not container width, on purpose: the threshold is derived assuming the nav
+ * sidebar at its default width.
+ */
+export const useCanPanesCoexist = (sidebarWidth: number): boolean => {
+    const query = `(min-width: ${panesCoexistMinWindow(sidebarWidth)}px)`
+    return useSyncExternalStore(
+        (onChange) => {
+            if (typeof window === "undefined" || !window.matchMedia) return () => undefined
+            const list = window.matchMedia(query)
+            list.addEventListener("change", onChange)
+            return () => list.removeEventListener("change", onChange)
+        },
+        () => window.matchMedia(query).matches,
+        () => false,
+    )
+}

@@ -16,6 +16,29 @@ from oss.src.core.sessions.types import (
 )
 
 
+class SessionNameSource(str, Enum):
+    """Where a session's name came from: a person, or a program.
+
+    It governs the name only, never the description, and it is not caller identity — both
+    kinds of request run under the same user credential. ``manual`` is a person typing a
+    name. ``automatic`` is a program proposing one: the agent's own ``rename_session``, or
+    the browser's auto-title from a first message.
+
+    It travels as a query parameter, never in the body, so a model cannot claim a person
+    chose its name: the ``rename_session`` catalog entry fixes ``name_source=automatic``
+    inside its own path and the model only ever fills the body.
+
+    ``manual`` is the default, which is a real trade rather than a free win. An unmarked
+    caller (a script, a service running an older SDK during a rolling deploy) is read as a
+    person, so an automatic name it writes is remembered as person-chosen and the next
+    agent rename of that session is refused until a person renames it. That is the
+    recoverable direction. The other default loses a person's name instead.
+    """
+
+    manual = "manual"
+    automatic = "automatic"
+
+
 class SessionStreamFlags(BaseModel):
     """The nest as primitive bools (alive ⊇ running ⊇ attached).
 
@@ -34,13 +57,26 @@ class SessionStreamQueryFlags(BaseModel):
     is_attached: Optional[bool] = None
 
 
+class SessionCapabilities(BaseModel):
+    shared_reader: bool = Field(
+        default=False,
+        description="Deployment-wide shared-reader switch; version one has no project allowlist.",
+    )
+
+
 class SessionStream(Identifier, Header, Lifecycle):
     project_id: UUID
     session_id: str
     flags: SessionStreamFlags = SessionStreamFlags()
+    capabilities: SessionCapabilities = SessionCapabilities()
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
+    # When `turn_id` started. Stamped only when the id changes, so repeated heartbeats never
+    # move it. The stale-Stop guard compares a cancel request's arrival time against this.
+    turn_started_at: Optional[datetime] = None
+    # The execution an accepted Stop is waiting on. Null when nothing is stopping.
+    stopping_turn_id: Optional[str] = None
     # What this session runs. Filled once, from the first beat that knows — turn appends
     # are fire-and-forget, so a session whose only reference carrier was a dropped append
     # is unopenable forever.
@@ -63,6 +99,9 @@ class SessionStreamQueryResult(BaseModel):
 
 class SessionStreamCreate(Header):
     session_id: str
+    # Who chose `name`. Typed here and encoded by the mapper, so the core never handles the
+    # storage representation.
+    name_source: Optional[SessionNameSource] = None
     flags: Optional[SessionStreamFlags] = None
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
@@ -75,6 +114,10 @@ class SessionStreamEdit(Header):
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
+    # Internal heartbeat fence. When present, the DAO updates only this still-current,
+    # non-terminal execution generation. Excluded from serialization because it is a write
+    # precondition, not stream state.
+    expected_turn_id: Optional[str] = Field(default=None, exclude=True)
 
 
 class SessionStreamHeaderEdit(Header):
@@ -92,15 +135,44 @@ class SessionStreamHeaderEdit(Header):
     ``rename_session`` schema already rejects both; this closes the direct-API hole.
     """
 
-    @field_validator("name")
+    #: The exact name this edit replaces, sent by an automatic caller whose new name a
+    #: person asked for. It is a precondition, not a permission: the write lands only while
+    #: the stored name still equals it, so a call that was decided before a later rename is
+    #: refused rather than applied. That is the whole failure this guard exists for, and a
+    #: bare "yes, overwrite" flag cannot express it, because a stale call would carry the
+    #: flag just as truthfully as a fresh one.
+    #:
+    #: Body-carried on purpose, unlike `name_source`: this one IS the model's own claim.
+    #: The claim it makes is checkable, which is why it is safe to let the model make it.
+    replacing_name: Optional[str] = None
+
+    #: The name revision `replacing_name` was read at, from the same refusal. The two are
+    #: checked together and neither is redundant. The name is what a person recognizes and
+    #: cannot be guessed; the revision is what makes the authorization single-use, so a
+    #: person restoring an earlier name does not revive a request that already ran against
+    #: it. A revision alone would be guessable, since it counts from one.
+    replacing_revision: Optional[int] = None
+
+    @field_validator("name", "replacing_name")
     @classmethod
-    def _non_empty_name_must_not_be_blank(cls, value: Optional[str]) -> Optional[str]:
-        if value and not value.strip():
+    def _trim_a_name(cls, value: Optional[str]) -> Optional[str]:
+        """Trim, and refuse a name that is only whitespace.
+
+        Storing ``"   "`` clears the visible title while the row still holds a value, a
+        state no caller ever means, so a non-empty name must carry a non-whitespace
+        character. An empty string stays empty: that is the chat rail's explicit
+        clear-title action. Trimming rather than merely validating is what makes
+        ``replacing_name`` comparable to the stored name by exact equality.
+        """
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if value and not trimmed:
             raise ValueError(
                 "name must contain a non-whitespace character"
                 " (send an empty string to clear the title)"
             )
-        return value
+        return trimmed
 
 
 class SessionStreamQuery(BaseModel):
@@ -143,6 +215,45 @@ class SessionStreamCommandRequest(BaseModel):
     data: Optional[WorkflowServiceRequestData] = None
     force: bool = False
     detached: bool = False  # fire-and-forget mode
+    # A stale-request guard for cancel mode only; send, steer, and attach ignore it.
+    expected_execution_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional stale-request guard honored only in cancel mode; ignored for send, "
+            "steer, and attach."
+        ),
+    )
+
+    @field_validator("expected_execution_id")
+    @classmethod
+    def _blank_expected_execution_id_means_absent(
+        cls, value: Optional[str]
+    ) -> Optional[str]:
+        if value is None:
+            return None
+        return value.strip() or None
+
+    # Cancel guard (RFC D-010). Public name; internally this IS a turn id — the coordination
+    # plane's word for one execution of a session. The RFC calls it an execution id, so the
+    # public DTO keeps that name and the service maps it onto `turn_id` at the boundary.
+    # Optional by decision: external callers may cancel blind. When present, cancel touches
+    # that turn or nothing.
+    expected_execution_id: Optional[str] = None
+
+    @field_validator("expected_execution_id")
+    @classmethod
+    def _blank_expected_execution_id_means_absent(
+        cls, value: Optional[str]
+    ) -> Optional[str]:
+        """A whitespace-only guard is a client bug, not a request to cancel a turn named "".
+
+        Reading it as "no guard" is the safe failure: the caller falls back to the arrival-time
+        check instead of matching a turn id nothing can hold.
+        """
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
 
 
 class SessionStreamCommandResponse(BaseModel):
@@ -151,6 +262,9 @@ class SessionStreamCommandResponse(BaseModel):
     turn_id: Optional[str] = None
     watcher_id: Optional[str] = None
     detached: bool = False
+    # Cancel only: every turn this cancel tombstoned. Usually one. It is a list because
+    # `alive` and `running` can be held by different turns during a handover, and both die.
+    cancelled_turn_ids: List[str] = Field(default_factory=list)
 
 
 class SessionHeartbeatRequest(BaseModel):
@@ -169,6 +283,14 @@ class SessionHeartbeatRequest(BaseModel):
     is_running: bool = True
     name: Optional[str] = None
     references: Optional[List[SessionReference]] = None
+    # The INVERSE beat, sent once per session as a runner shuts down: hand the affinity key
+    # back instead of renewing it. `claim_owner` never steals, so a replica that dies still
+    # holding `owner:session:<id>` locks the session out of every other replica for the rest
+    # of OWNER_TTL_SECONDS — a local-provider session then refuses every message until the
+    # lease expires. The release is conditional on still being the owner, so it can never
+    # take a session from a live replica. Everything else about the beat is skipped: a
+    # departing runner asserts no liveness and no turn.
+    release_owner: bool = False
 
 
 class SessionLiveness(BaseModel):

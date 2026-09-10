@@ -140,7 +140,9 @@ function SubagentRow({
                 label={option.name}
                 onExpandedChange={setExpanded}
             />
-            <span className="mt-1.5 flex min-w-0 items-center gap-2">
+            {/* Model and connected apps are desktop-only: on a phone they crowded out the name
+                and description the row is picked by. */}
+            <span className="mt-1.5 hidden min-w-0 items-center gap-2 sm:flex">
                 {option.model ? (
                     <ModelChip model={option.model} provider={option.provider} />
                 ) : null}
@@ -151,7 +153,8 @@ function SubagentRow({
                     max={5}
                     label={`Apps connected to ${option.name}`}
                     empty={
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                        // One line: the model slug beside it truncates, this wrapped to three.
+                        <span className="shrink-0 whitespace-nowrap text-xs text-[var(--ag-colorTextTertiary)]">
                             No connected apps
                         </span>
                     }
@@ -240,13 +243,10 @@ export function AddSubagentDrawer({
             width={INTEGRATION_DRAWER_WIDTH}
             destroyOnClose
             title={
-                <div className="flex flex-col gap-0.5">
-                    <div className="flex items-center gap-2">
-                        <Robot size={16} />
-                        <span className="text-sm font-medium">Add subagents</span>
-                    </div>
-                    <span className="text-xs font-normal text-[var(--ag-colorTextSecondary)]">
-                        Pick the agents this agent can call.
+                <div className="flex min-w-0 items-center gap-2">
+                    <span className="shrink-0 text-sm font-medium">Add subagents</span>
+                    <span className="min-w-0 truncate text-xs font-normal text-[var(--ag-colorTextSecondary)]">
+                        · Pick the agents this agent can call.
                     </span>
                 </div>
             }

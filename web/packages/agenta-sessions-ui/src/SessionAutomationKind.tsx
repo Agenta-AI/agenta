@@ -8,7 +8,13 @@ export const SessionAutomationKind = ({
     kind: SessionAutomationVm["kind"]
     className?: string
 }) => (
-    <span className={clsx("shrink-0 text-xs text-colorTextTertiary", className)}>
+    // Capped below `sm`: unshrinkable, it starved the title beside it down to ~10px.
+    <span
+        className={clsx(
+            "max-w-[45%] shrink-0 truncate text-xs text-colorTextTertiary sm:max-w-none",
+            className,
+        )}
+    >
         {sessionAutomationKindLabel(kind)}
     </span>
 )

@@ -104,7 +104,7 @@ because it is the seam between the two lives of a tool:
 
 The resolved specs are also defined in `tools/models.py` (`CallbackToolSpec`, `CodeToolSpec`,
 `ClientToolSpec`), and the matching TypeScript shape is `ResolvedToolSpec` in
-`services/agent/src/protocol.ts`. A run bundles them as a `ResolvedToolSet`: the list of specs
+`services/runner/src/protocol.ts`. A run bundles them as a `ResolvedToolSet`: the list of specs
 and one `ToolCallback` (the endpoint callback tools post back to).
 
 ## How tools get resolved (the service side)
@@ -189,13 +189,13 @@ is runner authorization policy, not a harness tool specification.
 
 The runner has to hand resolved tools to a harness, and harnesses do not accept tools the same
 way. The runner branches on a capability, `mcpTools`, not on the harness name (the branch is
-`buildSessionMcpServers` in `services/agent/src/engines/sandbox_agent/mcp.ts`). A harness that
+`buildSessionMcpServers` in `services/runner/src/engines/sandbox_agent/mcp.ts`). A harness that
 reports it can take tools over MCP gets them that way; a harness that cannot gets them
 natively. Today that splits cleanly into two paths.
 
 - **Pi takes native tools.** Pi has an extension API, so the runner registers each resolved
   spec as a Pi tool directly. The bundled Pi extension
-  (`services/agent/src/extensions/agenta.ts`) reads the public specs from
+  (`services/runner/src/extensions/agenta.ts`) reads the public specs from
   `AGENTA_TOOL_PUBLIC_SPECS` and registers them from inside Pi, then Pi runs the tool body the
   runner gives it. Pi gets no MCP server at all here: `buildSessionMcpServers` returns an empty
   list for Pi, so neither the synthetic `agenta-tools` server nor any user MCP server is
@@ -225,7 +225,7 @@ natively. Today that splits cleanly into two paths.
   [runner-to-MCP interface page](../interfaces/cross-service/runner-to-mcp-server.md).
 
 Both paths funnel execution through one function, `runResolvedTool` in
-`services/agent/src/tools/dispatch.ts`. It is the single place that branches on `kind`, so how
+`services/runner/src/tools/dispatch.ts`. It is the single place that branches on `kind`, so how
 a tool type executes is defined once, not three times.
 
 ## Execution, type by type
@@ -237,7 +237,7 @@ picks the tool and supplies the arguments, who actually runs it, and where?
 
 Execution is a callback. The harness selects the tool and supplies arguments, but the runner
 does not run the integration. The tool body POSTs the call to Agenta's `POST /tools/call`
-(`services/agent/src/tools/callback.ts`, `callAgentaTool`), sending the `call_ref` slug and
+(`services/runner/src/tools/callback.ts`, `callAgentaTool`), sending the `call_ref` slug and
 the model's arguments in an OpenAI-style envelope. The API re-resolves the connection, runs the
 Composio action through the provider adapter (`execute_tool` in `core/tools/service.py`), and
 returns the result, which the runner hands back to the model verbatim.
@@ -317,7 +317,7 @@ new endpoint and no hidden logic. It resolves to a `CallbackToolSpec` carrying a
 descriptor (`{method, path, body?, context?, args_into?}`) instead of a `call_ref`, so the runner
 calls the endpoint directly with the run's caller credential. There is no `/tools/call` hop. The
 SSRF guard binds the call to the run's own Agenta origin and confines it to the API mount
-(`directCallUrl` in `services/agent/src/tools/direct.ts`); the same dispatch handles the Daytona
+(`directCallUrl` in `services/runner/src/tools/direct.ts`); the same dispatch handles the Daytona
 relay path. The runner needs no platform-specific code — it dispatches any `call` opaquely (the
 branch already exists for reference tools).
 
@@ -333,7 +333,7 @@ direct call.
 ### Code tools: the runner runs them locally
 
 Execution is a local subprocess inside the runner. `runCodeTool`
-(`services/agent/src/tools/code.ts`) writes the snippet to a temp file, spawns `python3` or
+(`services/runner/src/tools/code.ts`) writes the snippet to a temp file, spawns `python3` or
 `node`, passes the model's arguments as JSON on stdin, and reads the JSON result from stdout.
 There is no callback. The code runs where the harness runs.
 
@@ -347,7 +347,7 @@ Node as `main(inputs)`. A non-zero exit or a timeout becomes a tool error so the
 continues rather than crashing the run.
 
 The production image ships the interpreters: the runner Dockerfile installs `python3`
-(`services/agent/docker/Dockerfile`), and `node` is already present. An earlier missing
+(`services/runner/docker/Dockerfile.gh`), and `node` is already present. An earlier missing
 `python3` made Python code tools fail with `spawn python3 ENOENT`; that is fixed. One real
 constraint remains: the child only has the interpreter and the tool's own secrets, with no
 package-install step and no `NODE_PATH` to the runner's modules. So a code tool is limited to
@@ -395,7 +395,7 @@ member of `RenderHint` that asks the frontend to draw the connect widget.
 ### Built-in tools: the harness runs them natively, gated through the same relay
 
 Execution is the harness's own. A built-in tool is just a name. The runner adds it to the
-session's allowlist and Pi runs its own implementation of `read`, `write`, `web_search`, and so
+session's allowlist and Pi runs its own implementation of `read`, `write`, `bash`, and so
 on. Nothing is resolved and nothing is delivered. Note that built-ins are a Pi concept here;
 they are not delivered to non-Pi harnesses over ACP, which bring their own native tool set.
 
@@ -425,16 +425,19 @@ parity test pins that copy against the same fixture.
 
 Because activation is unconditional, the seven names are reserved. Pi registers custom tools in
 the same registry as its builtins, so a custom tool named `read` would replace the builtin `read`
-silently. `ToolResolver` refuses such a config with `ReservedToolNameError`, and the extension
-skips a colliding spec rather than registering it.
+silently. The SDK's `ToolResolver` refuses such a declared custom tool with
+`ReservedToolNameError`, and the extension skips a colliding spec rather than registering it. The
+runner also folds colliding names into the built-in identity when matching permissions on an
+unvalidated `/run` payload, so the same defense applies at the execution boundary.
 
 The wire's `tools` field is deprecated. A current runner ignores it. The SDK still fills it with
 all seven names so a runner from before this change — which read it as a grant list — activates
 the same set.
 
-Being active is not the same as being allowed to run. Under the default permission mode
-`allow_reads`, a default agent runs the read-only builtins (`read`, `grep`, `find`, `ls`) without
-asking and raises an approval on every `bash`, `edit` and `write` call. To change that, write a
+Being active is not the same as being allowed to run. New agents start with `allow`; without
+native rules, Pi's built-in approval interception is disabled. Under `allow_reads`, the
+unchanged fallback for omitted request values, read-only builtins (`read`, `grep`, `find`, `ls`)
+run without asking and `bash`, `edit` and `write` ask for approval. To change that, write a
 rule into `harness.permissions.allow`, `.ask` or `.deny`; for these seven names the runner matches
 the rule case-insensitively.
 
@@ -464,8 +467,9 @@ nothing (inherit). A run request also carries an agent-wide policy,
 `permissions: {default: "allow"|"ask"|"deny"|"allow_reads", rules?}`. One shared decision
 module in the runner, `services/runner/src/permission-plan.ts`, resolves a tool's effective
 permission: the tool's own explicit setting wins; failing that, an authored rule match; failing
-that, the policy mode. Under `allow_reads` (the default), a tool's read-only hint decides: reads
-run, everything else asks.
+that, the policy mode. Under `allow_reads`, a tool's read-only hint decides: reads
+run, everything else asks. See [creation defaults and shared settings](agent-configuration.md#layer-1-the-frontend-playground-form)
+for the distinction between new-agent defaults and omitted request values.
 
 Two gates consult this same decision:
 
@@ -535,7 +539,7 @@ Each catalog entry (`PlatformOp`, a typed model validated at import) maps an `op
 | `input_schema` / `input_schema_ref` | The request input schema — inline JSON Schema, or a `CATALOG_TYPES` key (expanded via `x-ag-type-ref`). Exactly one. |
 | `context_bindings` | Self-targeting fields: an endpoint body path → a `$ctx.<key>` run-context token. Stripped from the model schema; emitted as `call.context` (endpoint mode) or spec-level `contextBindings` (handler mode). |
 | `timeout_ms` | Optional per-op execution budget, emitted as `timeoutMs` on the resolved spec. Used by long-running handler ops (`test_run` sets 120s). |
-| `read_only` | A bool hint, not a gate value. Under the `allow_reads` policy default it decides the op's effective permission: `true` runs without asking, anything else asks. The tool's own explicit `permission` (`allow`/`ask`/`deny`) always overrides this hint. |
+| `read_only` | A bool hint, not a gate value. Under the `allow_reads` policy mode it decides the op's effective permission: `true` runs without asking, anything else asks. The tool's own explicit `permission` (`allow`/`ask`/`deny`) always overrides this hint. |
 
 Each op has a stable reserved id, `tools.agenta.<op>`. The catalog holds every exposable op
 (discovery, workflow reads/writes, tracing reads, and the trigger/schedule/subscription
@@ -546,14 +550,23 @@ once per project and merges it as an overlay onto any agent-typed entity; it is 
 but not embeddable/committable, and the legacy per-application `additional_context` rider
 remains one release as a fallback. It embeds an explicit default subset,
 `DEFAULT_BUILD_KIT_OPS` in `api/oss/src/core/workflows/build_kit.py`: `discover_tools`,
-`commit_revision`, `annotate_trace`, `query_spans`, `test_run`, `rename_session`,
+`commit_revision`, `test_run`, `rename_session`,
 `rename_agent`, `discover_triggers`, `create_schedule`, `create_subscription`,
-`list_schedules`, `list_deliveries`, `test_subscription`, `remove_schedule`, and
-`remove_subscription` (15 ops — 16 with `read_config`, which joins the kit whenever ordered
-operations put it in the catalog — plus the `request_connection` client tool and the
-build-an-agent playbook skill). The overlay emits `permission: "allow"` for the two rename
-ops so the self-scoped, reversible label writes never raise an approval card. Every other catalog op (the pause/resume
-lifecycle, `query_workflows`, `list_connections`, `list_subscriptions`) stays a catalog
+`list_schedules`, `list_deliveries`, `test_subscription`, `list_subscriptions`, `remove_schedule`, and
+`remove_subscription` (14 ops, or 15 with `read_config`, which joins the kit only when it
+exists in the catalog). The existing `request_connection`, `request_input`, and `request_secret` client-tool
+embeds, build-an-agent playbook skill, and runtime sandbox overlay are unchanged.
+Every included platform op has an explicit permission in `_BUILD_KIT_OP_PERMISSIONS`:
+
+| Permission | Build-kit operations |
+| --- | --- |
+| `allow` | `discover_tools`, `read_config` (when included), `commit_revision`, `test_run`, `rename_session`, `rename_agent`, `discover_triggers`, `list_schedules`, `list_deliveries`, `test_subscription`, `list_subscriptions` |
+| `ask` | `create_schedule`, `create_subscription`, `remove_schedule`, `remove_subscription` |
+
+These explicit policies take precedence over the runner fallback. `annotate_trace` and
+`query_spans` are not in the kit and receive no kit permission override.
+Every other catalog op (the pause/resume
+lifecycle, `query_workflows`, `list_connections`) stays a catalog
 opt-in: an author adds `{type:"platform", op}` explicitly. The rationale for the cut list
 lives in the [build-kit-tools-cleanup workspace](../projects/build-kit-tools-cleanup/research.md).
 
@@ -563,11 +576,11 @@ A few ops worth naming:
 | --- | --- | --- | --- |
 | `discover_tools` | `POST /api/tools/discover` | read (auto-allow) | Tool discovery; turns plain-language use cases into Agenta-shaped tools (see below). Renamed from `find_capabilities` (hard migrate, no alias). |
 | `discover_triggers` | `POST /api/triggers/discover` | read (auto-allow) | Trigger discovery. Renamed from `find_triggers` (hard migrate, no alias). |
-| `query_spans` | `POST /api/spans/query` | read (auto-allow) | Read spans from past runs, so the builder can verify its own work. The op schema mirrors `SpansQueryRequest`; a drift contract test pins the two together. |
-| `commit_revision` | handler `tools.agenta.commit_revision` via `POST /tools/call` | mutating (approval) | "Update yourself": binds `workflow_revision.workflow_variant_id` ← `$ctx.workflow.variant.id`, so the agent can only ever commit a revision to its own variant. The handler hard-applies the agent scope policy (no writes to `harness.kind`, `harness.permissions`, `runner.permissions`, `sandbox.kind`, `sandbox.permissions`) and refuses full-data commits. Enforcement design: `docs/design/agent-config-editing/contracts/read-config.md` §11.2. |
+| `query_spans` | `POST /api/spans/query` | read (catalog opt-in, not in build kit) | Read spans from past runs, so the builder can verify its own work. The op schema mirrors `SpansQueryRequest`; a drift contract test pins the two together. |
+| `commit_revision` | handler `tools.agenta.commit_revision` via `POST /tools/call` | mutating (`allow` in build kit) | "Update yourself": binds `workflow_revision.workflow_variant_id` ← `$ctx.workflow.variant.id`, so the agent can only ever commit a revision to its own variant. The handler hard-applies the agent scope policy (no writes to `harness.kind`, `harness.permissions`, `runner.permissions`, `sandbox.kind`, `sandbox.permissions`) and refuses full-data commits. Enforcement design: `docs/design/agent-config-editing/contracts/read-config.md` §11.2. |
 | `read_config` | handler `tools.agenta.read_config` via `POST /tools/call` | read (auto-allow) | Read the agent's own stored configuration, whole or a named part, so an edit can anchor on real current text. Binds the variant id and draft state from run context. In the catalog by default; setting `AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED` falsy takes the deployment back to the legacy surface and removes it. Contract: `docs/design/agent-config-editing/contracts/read-config.md`. |
-| `test_run` | handler `tools.agenta.test_run` | mutating (approval) | Run the agent's own variant once and return a digest + verdict. Handler mode, flag-gated off, not in the overlay yet (see below). |
-| `rename_session` | `POST /api/sessions/streams/header?session_id={session_id}` | mutating (auto-allow via overlay) | Name and describe the session the agent is running in. The session id is bound from `$ctx.session.id` (runner-filled) and stripped from the model schema, so the agent can only rename its own session. The `name` schema requires a non-whitespace character, so the tool cannot blank a title. In the default build kit. Design: `docs/design/agent-self-naming-tools/`. |
+| `test_run` | handler `tools.agenta.test_run` | mutating (`allow` in build kit) | Run the agent's own variant once and return a digest + verdict. Included in the overlay. |
+| `rename_session` | `POST /api/sessions/streams/header?session_id={session_id}&name_source=automatic` | mutating (auto-allow via overlay) | Name and describe the session the agent is running in. The session id is bound from `$ctx.session.id` (runner-filled) and stripped from the model schema, so the agent can only rename its own session. The `name` schema requires a non-whitespace character, so the tool cannot blank a title. `name_source=automatic` is fixed in the catalog path, never in the body, so a model cannot claim a person chose the name: the endpoint answers 409 (`session_name_is_manual`) when this call would replace a name a person controls, and `details.current_name` carries the name for the agent to adopt. `replacing_name` in the body is the way past it, for a rename the person asked for. It is a precondition rather than a permission: the write lands only while the stored name still equals it, so a call decided before a later rename is refused (`session_name_changed`) instead of applied. In the default build kit. Design: `docs/design/agent-self-naming-tools/`. |
 | `rename_agent` | `PUT /api/workflows/{workflow_id}` | mutating (auto-allow via overlay) | Name and describe the agent itself. The artifact id is bound twice from `$ctx.workflow.artifact.id` (path and body) and stripped from the model schema; the body carries only `{workflow: {name, description, id}}`, never flags. In the default build kit. Design: `docs/design/agent-self-naming-tools/`. |
 
 This mirrors the evaluators catalog pattern (`api/oss/src/resources/evaluators/evaluators.py`,
@@ -679,18 +692,18 @@ never drift from the files that exist. The canonical playbook format lives in th
 | Discovery endpoint + reserved-handler dispatch | `api/oss/src/apis/fastapi/tools/router.py` (`/tools/discover`, `_call_reserved_agenta_tool`) |
 | Server-side platform-op handlers (reserved-ref registry, `test_run`) | `api/oss/src/core/tools/platform_handlers.py` |
 | Build-kit overlay defaults (`DEFAULT_BUILD_KIT_OPS` + skill/tool embeds) | `api/oss/src/apis/fastapi/applications/overlay.py` |
-| Wire contract | `services/agent/src/protocol.ts`, `sdks/python/agenta/sdk/agents/utils/wire.py` |
-| Tool-delivery fork (branch on `mcpTools`) | `services/agent/src/engines/sandbox_agent/mcp.ts` |
-| Runtime dispatch (branch on `kind`) | `services/agent/src/tools/dispatch.ts` |
-| Callback transport | `services/agent/src/tools/callback.ts` |
-| Code execution | `services/agent/src/tools/code.ts` |
+| Wire contract | `services/runner/src/protocol.ts`, `sdks/python/agenta/sdk/agents/utils/wire.py` |
+| Tool-delivery fork (branch on `mcpTools`) | `services/runner/src/engines/sandbox_agent/mcp.ts` |
+| Runtime dispatch (branch on `kind`) | `services/runner/src/tools/dispatch.ts` |
+| Callback transport | `services/runner/src/tools/callback.ts` |
+| Code execution | `services/runner/src/tools/code.ts` |
 | Daytona/non-Pi relay (runner-side loop) | `services/runner/src/tools/relay.ts` |
 | In-sandbox relay writer + wire protocol | `services/runner/src/tools/relay-client.ts`, `relay-protocol.ts` |
 | Relay wake sources (local `fs.watch`, Daytona watch exec) | `services/runner/src/tools/relay-watch.ts` |
-| Pi native delivery | `services/agent/src/extensions/agenta.ts` |
+| Pi native delivery | `services/runner/src/extensions/agenta.ts` |
 | `agenta-tools` channel for non-Pi harnesses (local loopback HTTP) | `services/runner/src/tools/mcp-bridge.ts`, `services/runner/src/tools/tool-mcp-http.ts` |
 | `agenta-tools` channel on Daytona (in-sandbox stdio shim: entrypoint, env contract, upload) | `services/runner/src/tools/tool-mcp-stdio.ts`, `services/runner/src/tools/tool-mcp-env.ts`, `services/runner/src/engines/sandbox_agent/tool-mcp-assets.ts` |
-| Capability probe | `services/agent/src/engines/sandbox_agent/capabilities.ts` |
+| Capability probe | `services/runner/src/engines/sandbox_agent/capabilities.ts` |
 | Permission decision (shared by both gates) | `services/runner/src/permission-plan.ts` |
 | ACP responder (`ApprovalResponder`) | `services/runner/src/responder.ts` |
 | Tool relay enforcement | `services/runner/src/tools/relay.ts` |
@@ -728,7 +741,8 @@ never drift from the files that exist. The canonical playbook format lives in th
   `tools.agenta.find_capabilities` dispatch is deleted; the reserved namespace now serves the
   handler registry. Trigger discovery is its own read op, `discover_triggers`.
 - **Platform tools are SDK-resolved from a catalog of ~20 ops**; the playground build-kit
-  overlay embeds an explicit 12-op default (`DEFAULT_BUILD_KIT_OPS`), and the rest stay
+  overlay embeds the [explicit default subset and policies](#platform-tools-existing-agenta-endpoints)
+  (`DEFAULT_BUILD_KIT_OPS`), and the rest stay
   catalog opt-ins. More ops are a data add to the catalog. The reference tool still executes
   through the `/tools/call` `workflow.*` route; moving it to a direct `call` and removing that
   route is a later phase.

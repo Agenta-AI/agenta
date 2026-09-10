@@ -16,7 +16,7 @@
  * Escape here does NOT settle, unlike `ApprovalCard` and `ConnectionDock`. This card owns a text
  * field, and Escape-to-back-out-of-typing is the stronger expectation; dismissing is the header ✕.
  */
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     buildAcceptResult,
@@ -119,11 +119,27 @@ const ElicitationCard = ({
     // One settle per card. `meta.settled` only flips after the host's durable write resolves, so the
     // buttons stay live in between without this latch.
     const settledRef = useRef(false)
+    const [submissionError, setSubmissionError] = useState<string | null>(null)
     const settle = useCallback(
         (output: Record<string, unknown>) => {
             if (settledRef.current) return
             settledRef.current = true
-            onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output})
+            setSubmissionError(null)
+            const failed = (error: unknown) => {
+                settledRef.current = false
+                setSubmissionError(
+                    error instanceof Error
+                        ? error.message
+                        : "Could not submit your answer. Try again.",
+                )
+            }
+            try {
+                void Promise.resolve(
+                    onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output}),
+                ).catch(failed)
+            } catch (error) {
+                failed(error)
+            }
         },
         [onOutput, meta.toolName, meta.toolCallId],
     )
@@ -146,6 +162,7 @@ const ElicitationCard = ({
             active={active}
             shortcutsEnabled={shortcutsEnabled}
             settle={settle}
+            submissionError={submissionError}
         />
     )
 }
@@ -206,6 +223,7 @@ const LiveCard = ({
     active,
     shortcutsEnabled,
     settle,
+    submissionError,
 }: {
     payload: ElicitationRequestPayload
     meta: ClientToolMeta
@@ -214,6 +232,7 @@ const LiveCard = ({
     active: boolean
     shortcutsEnabled: boolean
     settle: (output: Record<string, unknown>) => void
+    submissionError?: string | null
 }) => {
     const cardRef = useRef<HTMLDivElement>(null)
     const form = useMemo(() => buildElicitationSteps(payload), [payload])
@@ -248,6 +267,17 @@ const LiveCard = ({
         },
         [stepper, settle],
     )
+
+    const decline = useCallback(
+        () => settleAnd(toOutput(buildDeclineResult("Declined the request."))),
+        [settleAnd],
+    )
+
+    // A skip with no next step and no review to land on must settle, or the run parks forever.
+    const skipStep = useCallback(() => {
+        if (!isReview && !stepper.canGoForward) return decline()
+        stepper.skip()
+    }, [isReview, stepper, decline])
 
     const multi = isMultiSelect(step)
 
@@ -314,7 +344,7 @@ const LiveCard = ({
         }
         if (mod && (event.key === "Backspace" || event.key === "Delete")) {
             event.preventDefault()
-            stepper.skip()
+            skipStep()
             return
         }
         if (mod) return
@@ -462,7 +492,8 @@ const LiveCard = ({
                     <ReviewList stepper={stepper} />
                 ) : step ? (
                     <>
-                        <span className="text-[13px] font-medium leading-tight line-clamp-2">
+                        {/* Capped and scrollable, not clamped: nothing shifts, nothing is lost. */}
+                        <span className="block max-h-20 overflow-y-auto text-sm font-medium leading-snug sm:max-h-[34px] sm:text-[13px] sm:leading-tight">
                             {stepper.isMultiStep ? (
                                 <span className="text-colorText">{stepper.position}. </span>
                             ) : null}
@@ -495,21 +526,19 @@ const LiveCard = ({
                 <Button
                     variant="ghost"
                     className={touchCls}
-                    onClick={() =>
-                        isReview
-                            ? settleAnd(toOutput(buildDeclineResult("Declined the request.")))
-                            : stepper.skip()
-                    }
+                    onClick={isReview ? decline : skipStep}
                 >
                     {isReview ? "Decline" : "Skip"}
                 </Button>
                 <span
                     aria-live="polite"
                     className={`mr-auto truncate text-xs ${
-                        stepper.error ? "text-colorError" : "text-colorTextTertiary"
+                        submissionError || stepper.error
+                            ? "text-colorError"
+                            : "text-colorTextTertiary"
                     }`}
                 >
-                    {stepper.error ?? stepper.hold ?? ""}
+                    {submissionError ?? stepper.error ?? stepper.hold ?? ""}
                 </span>
             </div>
         </div>

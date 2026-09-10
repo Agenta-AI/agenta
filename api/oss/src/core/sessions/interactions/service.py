@@ -1,5 +1,5 @@
-from typing import List, Optional
-from uuid import UUID
+from typing import Any, Dict, List, Optional
+from uuid import NAMESPACE_DNS, UUID, uuid5
 
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
@@ -11,12 +11,40 @@ from oss.src.core.sessions.interactions.interfaces import (
     SessionInteractionsDAOInterface,
 )
 from oss.src.core.sessions.interactions.types import InteractionNotFound
+from oss.src.core.sessions.records.dtos import SessionRecordEvent
+from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.shared.dtos import Windowing
 from oss.src.dbs.redis.sessions.contract import (
     WATCH_INTERACTION_PENDING,
     WATCH_INTERACTION_RESOLVED,
 )
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
+from oss.src.utils.logging import get_module_logger
+
+
+_RECORD_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "records")
+log = get_module_logger(__name__)
+
+
+def _watch_interaction_state(interaction: SessionInteraction) -> Dict[str, Any]:
+    data: Dict[str, Any] = {}
+    if interaction.data is not None:
+        if (
+            interaction.data.request is not None
+            and interaction.data.request.tool_call_id is not None
+        ):
+            data["request"] = {"tool_call_id": interaction.data.request.tool_call_id}
+        if interaction.data.resolution is not None:
+            data["resolution"] = interaction.data.resolution
+    return {
+        "id": str(interaction.id) if interaction.id is not None else None,
+        "session_id": interaction.session_id,
+        "turn_id": interaction.turn_id,
+        "token": interaction.token,
+        "kind": interaction.kind.value,
+        "status": interaction.status.value if interaction.status is not None else None,
+        "data": data or None,
+    }
 
 
 class SessionInteractionsService:
@@ -25,12 +53,19 @@ class SessionInteractionsService:
         *,
         interactions_dao: SessionInteractionsDAOInterface,
         watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
+        records_service: Optional[RecordsService] = None,
     ) -> None:
         self.interactions_dao = interactions_dao
         self._watch = watch_publisher
+        self._records = records_service
 
     async def _publish_interaction(
-        self, *, project_id: UUID, session_id: str, status: str
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        status: str,
+        interactions: Optional[List[SessionInteraction]] = None,
     ) -> None:
         # Fire-and-forget relay notification; the publisher never raises.
         if self._watch is not None:
@@ -38,6 +73,14 @@ class SessionInteractionsService:
                 project_id=str(project_id),
                 session_id=session_id,
                 status=status,
+                interactions=(
+                    [
+                        _watch_interaction_state(interaction)
+                        for interaction in interactions
+                    ]
+                    if interactions is not None
+                    else None
+                ),
             )
 
     async def create_interaction(
@@ -57,6 +100,7 @@ class SessionInteractionsService:
             project_id=project_id,
             session_id=interaction.session_id,
             status=WATCH_INTERACTION_PENDING,
+            interactions=[created],
         )
         return created
 
@@ -66,32 +110,58 @@ class SessionInteractionsService:
         project_id: UUID,
         #
         interaction_id: UUID,
+        transaction: Optional[Any] = None,
+        for_update: bool = False,
     ) -> SessionInteraction:
         result = await self.interactions_dao.fetch_interaction(
             project_id=project_id,
             interaction_id=interaction_id,
+            transaction=transaction,
+            for_update=for_update,
         )
         if result is None:
             raise InteractionNotFound(f"Interaction {interaction_id} not found")
         return result
 
+    async def fetch_turn_interactions(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        transaction: Optional[Any] = None,
+        for_update: bool = False,
+    ) -> List[SessionInteraction]:
+        return await self.interactions_dao.fetch_turn_interactions(
+            project_id=project_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            transaction=transaction,
+            for_update=for_update,
+        )
+
     async def transition_interaction(
         self,
         *,
         transition: SessionInteractionTransition,
+        transaction: Optional[Any] = None,
+        publish: bool = True,
     ) -> Optional[SessionInteraction]:
         result = await self.interactions_dao.transition_interaction(
             transition=transition,
+            transaction=transaction,
         )
         if result is None:
             raise InteractionNotFound(
                 f"Interaction with token {transition.token!r} not found or already terminal"
             )
-        await self._publish_interaction(
-            project_id=transition.project_id,
-            session_id=transition.session_id,
-            status=WATCH_INTERACTION_RESOLVED,
-        )
+        if publish:
+            await self._publish_interaction(
+                project_id=transition.project_id,
+                session_id=transition.session_id,
+                status=WATCH_INTERACTION_RESOLVED,
+                interactions=[result],
+            )
         return result
 
     async def cancel_session_pending(
@@ -102,6 +172,9 @@ class SessionInteractionsService:
         except_turn_id: Optional[str] = None,
         except_tokens: Optional[List[str]] = None,
         only_turn_id: Optional[str] = None,
+        command_id: Optional[UUID] = None,
+        transaction: Optional[Any] = None,
+        publish: bool = True,
     ) -> int:
         cancelled = await self.interactions_dao.cancel_session_pending(
             project_id=project_id,
@@ -109,14 +182,72 @@ class SessionInteractionsService:
             except_turn_id=except_turn_id,
             except_tokens=except_tokens,
             only_turn_id=only_turn_id,
+            transaction=transaction,
         )
-        if cancelled:
-            await self._publish_interaction(
-                project_id=project_id,
-                session_id=session_id,
-                status=WATCH_INTERACTION_RESOLVED,
+        if cancelled and command_id is not None and self._records is not None:
+            try:
+                await self._records.append_many(
+                    events=[
+                        SessionRecordEvent(
+                            project_id=project_id,
+                            session_id=interaction.session_id,
+                            record_id=uuid5(
+                                _RECORD_NAMESPACE,
+                                f"{interaction.session_id}:{interaction.token}:"
+                                f"interaction_response:{interaction.turn_id or ''}",
+                            ),
+                            record_type="interaction_response",
+                            record_source="agent",
+                            attributes={
+                                "type": "interaction_response",
+                                "id": interaction.token,
+                                "kind": interaction.kind.value,
+                                "payload": {
+                                    "outcome": "cancelled",
+                                    "turnId": interaction.turn_id,
+                                    "commandId": str(command_id),
+                                },
+                            },
+                            turn_id=interaction.turn_id,
+                        )
+                        for interaction in cancelled
+                    ]
+                )
+            except Exception:
+                log.warning(
+                    "Failed to append cancellation records for session=%s command=%s",
+                    session_id,
+                    command_id,
+                    exc_info=True,
+                )
+        if cancelled and publish:
+            await self.publish_session_pending_cancelled(
+                project_id=project_id, session_id=session_id
             )
-        return cancelled
+        return len(cancelled)
+
+    async def publish_session_pending_cancelled(
+        self, *, project_id: UUID, session_id: str
+    ) -> None:
+        await self._publish_interaction(
+            project_id=project_id,
+            session_id=session_id,
+            status=WATCH_INTERACTION_RESOLVED,
+        )
+
+    async def publish_interaction_responded(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        interactions: List[SessionInteraction],
+    ) -> None:
+        await self._publish_interaction(
+            project_id=project_id,
+            session_id=session_id,
+            status=WATCH_INTERACTION_RESOLVED,
+            interactions=interactions,
+        )
 
     async def query_interactions(
         self,

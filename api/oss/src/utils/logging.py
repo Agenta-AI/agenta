@@ -208,6 +208,14 @@ class MultiLogger:
     def error(self, *a, **k):
         self._log("error", *a, **k)
 
+    def exception(self, *a, **k):
+        # Mirror stdlib `Logger.exception`: log at error level with the active
+        # traceback. Without this method a caller reaching for `log.exception(...)`
+        # -- the natural thing to write inside an `except` block -- would raise
+        # AttributeError from inside the handler and take the caller down with it.
+        k.setdefault("exc_info", True)
+        self._log("error", *a, **k)
+
     def critical(self, *a, **k):
         self._log("critical", *a, **k)
 

@@ -3,8 +3,8 @@ import {useState} from "react"
 import type {SidebarScope} from "@agenta/navigation"
 import {sidebarOpenGroupsAtomFamily} from "@agenta/navigation"
 import {SidebarShell} from "@agenta/navigation-ui"
+import {ListIcon} from "@phosphor-icons/react"
 import {atom} from "jotai"
-import {Menu} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@/components/ui/sheet"
@@ -46,7 +46,7 @@ export const NavDrawer = ({
                     aria-label="Open navigation"
                     className="text-muted-foreground relative flex size-8 shrink-0 items-center justify-center after:absolute after:-inset-1.5 after:content-[''] lg:hidden"
                 >
-                    <Menu size={20} />
+                    <ListIcon size={20} />
                 </button>
             </SheetTrigger>
             <SheetContent side="left" showCloseButton={false} className="w-[236px] gap-0 p-0">
