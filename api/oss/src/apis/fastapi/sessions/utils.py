@@ -15,6 +15,7 @@ from oss.src.core.shared.dtos import Windowing
 from oss.src.dbs.postgres.sessions.streams.mappings import (
     SESSION_RESERVED_TAG_NAMESPACE,
 )
+from oss.src.utils.env import env
 
 SessionStreamT = TypeVar("SessionStreamT", bound=SessionStream)
 
@@ -266,4 +267,11 @@ def sanitize_session_stream(
 ) -> Optional[SessionStreamT]:
     if stream is None:
         return None
-    return stream.model_copy(update={"tags": sanitize_session_tags(stream.tags)})
+    return stream.model_copy(
+        update={
+            "tags": sanitize_session_tags(stream.tags),
+            "capabilities": stream.capabilities.model_copy(
+                update={"shared_reader": env.sessions.shared_reader}
+            ),
+        }
+    )

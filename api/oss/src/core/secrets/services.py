@@ -29,6 +29,7 @@ from oss.src.core.secrets.dtos import (
 from oss.src.core.secrets.managed import (
     ManagedSecretReadOnlyError,
     SecretManagementDTO,
+    SecretManager,
 )
 
 
@@ -191,6 +192,40 @@ def _resolve_update(
     stored_secret_dto: SecretResponseDTO,
     requested_update: UpdateSecretDTO,
 ) -> UpdateSecretDTO:
+    """Resolve a CALLER update: a managed row is read-only, every other row merges."""
+    if stored_secret_dto.management is not None:
+        raise ManagedSecretReadOnlyError()
+
+    return _merge_update(stored_secret_dto, requested_update)
+
+
+def _resolve_managed_update(manager: SecretManager):
+    """Resolve an update issued by a managed row's OWN manager.
+
+    The read-only rule exists so a caller cannot edit a row the platform owns. It must not
+    stop the owning manager itself from repairing that row: a seeded value can go stale
+    (the funded model of a starter-credits connection, say), and only the manager knows
+    the current one. The merge below is the same one every other update runs.
+    """
+
+    def resolve(
+        stored_secret_dto: SecretResponseDTO,
+        requested_update: UpdateSecretDTO,
+    ) -> UpdateSecretDTO:
+        management = stored_secret_dto.management
+
+        if management is None or management.manager != manager:
+            raise ManagedSecretReadOnlyError()
+
+        return _merge_update(stored_secret_dto, requested_update)
+
+    return resolve
+
+
+def _merge_update(
+    stored_secret_dto: SecretResponseDTO,
+    requested_update: UpdateSecretDTO,
+) -> UpdateSecretDTO:
     """Fill this update's omitted credential from the row UNDER THE WRITE LOCK.
 
     Called by the DAO inside the locked transaction rather than by the service before it,
@@ -202,9 +237,6 @@ def _resolve_update(
     another kind's or another provider's credential — and that decision reads the same
     stored row, so it belongs under the same lock.
     """
-    if stored_secret_dto.management is not None:
-        raise ManagedSecretReadOnlyError()
-
     resolved_update = requested_update.model_copy(deep=True)
     if resolved_update.secret is None:
         return UpdateSecretDTO.model_validate(resolved_update.model_dump(mode="python"))
@@ -230,6 +262,10 @@ def _resolve_update(
             stored_data=stored_secret_dto.data,
             update_data=resolved_update.secret.data,
         )
+        _carry_over_custom_secret_metadata(
+            stored_data=stored_secret_dto.data,
+            update_data=resolved_update.secret.data,
+        )
         # The payload was validated before the carry-over filled it in, so what the
         # validators actually saw was a value-less shape. Re-validate the merged result:
         # nothing reaches the row that a create of the same shape would have refused.
@@ -240,6 +276,15 @@ def _resolve_update(
         _require_explicit_value(secret=resolved_update.secret)
 
     return UpdateSecretDTO.model_validate(resolved_update.model_dump(mode="python"))
+
+
+def _carry_over_custom_secret_metadata(*, stored_data: Any, update_data: Any) -> None:
+    stored = getattr(stored_data, "secret", None)
+    requested = getattr(update_data, "secret", None)
+    if stored is None or requested is None:
+        return
+    if "default_env_var" not in requested.model_fields_set:
+        requested.default_env_var = stored.default_env_var
 
 
 def _authorize_delete(stored_secret_dto: SecretResponseDTO) -> None:
@@ -473,6 +518,44 @@ class VaultService:
         if project_id is not None:
             await invalidate_cache(project_id=str(project_id))
         return secret_dto
+
+    async def update_managed_secret(
+        self,
+        *,
+        secret_id: UUID,
+        update_secret_dto: UpdateSecretDTO,
+        manager: SecretManager,
+        project_id: UUID | None = None,
+        organization_id: UUID | None = None,
+    ):
+        """Rewrite a managed row on behalf of the manager that owns it.
+
+        Refuses any row another manager owns, and any unmanaged row: this path exists to
+        repair what the platform seeded, never to edit what a user saved.
+        """
+        with set_data_encryption_key(
+            data_encryption_key=self._data_encryption_key,
+        ):
+            secret_dto = await self.secrets_dao.update(
+                secret_id=secret_id,
+                update_secret_dto=update_secret_dto,
+                project_id=project_id,
+                organization_id=organization_id,
+                resolve_update=_resolve_managed_update(manager),
+            )
+
+        if project_id is not None:
+            await invalidate_cache(project_id=str(project_id))
+        return secret_dto
+
+    async def invalidate_secrets_cache(self, project_id: UUID) -> None:
+        """Drop this project's cached secrets list.
+
+        The vault owns list-cache invalidation so every writer goes through one path. A
+        reader that finds the cached list disagrees with the stored row needs the same door,
+        rather than reaching for the cache helper itself.
+        """
+        await invalidate_cache(project_id=str(project_id))
 
     async def delete_secret(
         self,

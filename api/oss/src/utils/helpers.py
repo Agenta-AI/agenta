@@ -1,5 +1,6 @@
 from typing import List, Dict
 from uuid import UUID
+import os
 import sys
 import unicodedata
 import re
@@ -141,7 +142,7 @@ def warn_deprecated_env_vars():
     messages = []
 
     for old_var, new_var in deprecated_env_map.items():
-        if getattr(env, old_var, None) is not None:
+        if os.getenv(old_var) is not None:
             if new_var is not None:
                 messages.append(
                     f"Environment variable '{old_var}' is deprecated and will be removed in the next release. "

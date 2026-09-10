@@ -1,14 +1,9 @@
-"""Agenta-shipped agent content: the platform skills and the cross-harness gateway guidance.
+"""Agenta-shipped platform skills.
 
-Two things live here:
-
-- The **platform skills** (getting started, build-an-agent) as concrete inline packages. The
-  canonical skill content is defined here (the SDK, the lowest layer); the server-side
-  ``StaticWorkflowCatalog`` imports the same constants so the embed path and the catalog stay
-  one source of truth.
-- The **gateway guidance** (:func:`gateway_guidance` / :func:`compose_gateway_guidance`),
-  which is cross-harness: every harness gets the same two derived gateway tools, so every
-  harness gets their instructions, and all adapters import it from here.
+The platform skills (getting started, build-an-agent) live here as concrete inline packages.
+The canonical skill content is defined here (the SDK, the lowest layer); the server-side
+``StaticWorkflowCatalog`` imports the same constants so the embed path and the catalog stay
+one source of truth.
 
 The ``pi_agenta`` harness (Pi plus a forced Agenta overlay: a preamble, a persona, forced
 skills) was an experiment and was removed on 2026-08-29; the overlay constants and helpers
@@ -17,16 +12,13 @@ went with it.
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
-
 from ..flags import ordered_operations_enabled
-from typing import TYPE_CHECKING
 
 from ..skills import SkillFile, SkillTemplate
-
-if TYPE_CHECKING:  # circular at runtime: dtos imports skills, adapters import dtos
-    from ..dtos import GatewayGuidance
-from .agent_templates import build_agent_template_skill_files
+from .agent_templates import (
+    AGENT_TEMPLATE_ENTRIES,
+    build_agent_template_skill_files,
+)
 
 # Read once, at import, exactly like the op catalog builds its tool descriptions. The skill
 # TEACHES the commit surface the catalog ADVERTISES, and one deployment must show one shape:
@@ -42,35 +34,28 @@ _ORDERED = ordered_operations_enabled()
 GETTING_STARTED_WITH_AGENTA_SLUG = "__ag__getting_started_with_agenta"
 BUILD_AN_AGENT_SLUG = "__ag__build_an_agent"
 
-# Canonical SKILL.md body for the platform "getting started" skill. Single source of the body
-# text: the server-side StaticWorkflowCatalog imports this constant rather than redeclaring it.
+# RETIRED on 2026-09-07. Two of the four conventions this skill carried moved into the platform
+# prompt (`platform_instructions.py`), which every harness reads first: state assumptions, and
+# keep answers short. The other two were dropped on purpose. Greeting the user once is covered by
+# the prompt's "lead with the answer" rule, which leaves no room for an opening greeting. The
+# skill-relative path convention is not in the prompt because Pi supplies it itself. No default template
+# embeds the slug any more (`build_agent_v0_default()` is called without a skill slug), but
+# revisions saved before that still reference `__ag__getting_started_with_agenta`, and an
+# embed the catalog cannot resolve fails the run. So the slug stays resolvable and serves this
+# one-line stub. Delete the constant, the catalog entry, and this comment once a data migration
+# has dropped the embed from stored revisions.
 _GETTING_STARTED_BODY = (
     "# Getting started with Agenta agents\n"
     "\n"
-    "This skill orients an agent running on the Agenta platform.\n"
-    "\n"
-    "## When to use it\n"
-    "\n"
-    "Use it at the start of a task to recall how Agenta agents are expected to behave: be "
-    "concise, ask for missing inputs, and prefer the tools and skills the agent was given over "
-    "guessing.\n"
-    "\n"
-    "## Conventions\n"
-    "\n"
-    "- Greet the user once, then get to work.\n"
-    "- State assumptions briefly when a request is ambiguous.\n"
-    "- When a skill or tool references a relative path, resolve it against the skill directory "
-    "(the parent of SKILL.md) before running it.\n"
-    "- Keep answers short unless the user asks for depth.\n"
+    "This skill is retired. The platform instructions you already read cover how an Agenta "
+    "agent behaves. There is nothing more to do here.\n"
 )
 
-# The platform default skill as a concrete inline package. This is the canonical content; the
-# server-side catalogue serves the same SkillTemplate for the reserved slug above.
 GETTING_STARTED_WITH_AGENTA_SKILL = SkillTemplate(
     name="agenta-getting-started",
     description=(
-        "Getting started on the Agenta platform: how an Agenta agent should behave, ask for "
-        "missing inputs, and use its tools and skills. Use at the start of a task."
+        "Retired. The platform instructions cover how an Agenta agent behaves; this skill "
+        "adds nothing and you do not need to read it."
     ),
     body=_GETTING_STARTED_BODY,
 )
@@ -96,7 +81,7 @@ below is addressed as `["parameters", "agent", ...]`. The portable definition �
 `llm`, `tools`, `mcps`, `skills` — is flat on it; the execution parts — `harness`, `runner`,
 `sandbox` — are nested sub-objects. The commit checks your target, NOT the value you write into
 it: a misplaced or misspelled field inside an entry commits fine and only bites when the agent
-next runs. Get the shape right from this reference, and verify with `test_run` after every commit.
+next runs. Get the shape right from this reference before you commit.
 """
 
 _CONFIG_SCHEMA_INTRO_LEGACY = """\
@@ -110,7 +95,7 @@ you need to check the shape.
 `instructions`, `llm`, `tools`, `mcps`, `skills` — is flat on it; the execution parts —
 `harness`, `runner`, `sandbox` — are nested sub-objects. The commit does NOT validate this shape:
 a misplaced or misspelled field commits fine and only bites when the agent next runs. Get the
-shape right from this reference, and verify with `test_run` after every commit.
+shape right from this reference before you commit.
 """
 
 _CONFIG_SCHEMA_FIELDS = """\
@@ -125,7 +110,7 @@ _CONFIG_SCHEMA_FIELDS = """\
   "mcps": [],
   "skills": [],
   "harness": { "kind": "pi_core" },
-  "runner": { "kind": "sidecar", "permissions": { "default": "allow_reads" } },
+  "runner": { "kind": "sidecar", "permissions": { "default": "allow" } },
   "sandbox": { "kind": "local" }
 }
 ```
@@ -273,8 +258,9 @@ the run:
   built-ins on every harness. `default_mode` applies to Claude only. Pi harnesses read prompt
   overrides (`system` / `append_system`) from `extras`.
 - `runner` — `{ "kind": "sidecar", "permissions": { "default": "allow"|"ask"|"deny"|
-  "allow_reads" }, "extras": {...} }`. `allow_reads` (the default) runs read-hinted tools and
-  asks for everything else.
+  "allow_reads" }, "extras": {...} }`. The standard creation template sets
+  `runner.permissions.default` to `allow`. Omitting the field applies `allow_reads`, which runs
+  read-hinted tools and asks for everything else.
 - `sandbox` — `{ "kind": "local" | "daytona", "permissions": {...}, "extras": {...} }`.
   `permissions` (optional) is the security boundary: `{ "network": { "mode": "on"|"off"|
   "allowlist", "allowlist": ["<CIDR>"] }, "filesystem": "on"|"readonly"|"off", "enforcement":
@@ -359,9 +345,9 @@ for almost every refusal, which means correct the call rather than repeat it.
   your run and are not part of your configuration. Remove them and commit again.
 
 The second group commits fine and bites later, at a different spot, because the commit checks
-your target and not the value you wrote into it. Your two detectors are `test_run` (read the
-`resolved` block and the executed tool list, not just the status) and a skill that fails to load
-on the next run.
+your target and not the value you wrote into it. Check each of these before you commit. They
+show up as a skill that fails to load on the next run, or in the `resolved` block of a
+`test_run` the person asked for.
 
 - `slug` or `content` as top-level fields on a skill entry. The skill's Markdown goes in `body`;
   a bundled file's text goes in that file's `content` inside `files`. Bites at RUN time: skill
@@ -372,7 +358,7 @@ on the next run.
   only. Bites at RUN time: the run's Model & Harness never resolves and the agent never runs.
 - A raw model id on the `claude` harness (Claude selects by alias) or an alias like `sonnet` on a
   `pi_core` harness (Pi selects by provider/id). Bites silently: the run falls back to
-  a default model with no error. Only `test_run`'s `resolved` block shows the fallback.
+  a default model with no error. Only the `resolved` block of a `test_run` shows the fallback.
 - Naming an `@ag.embed` entry with a selector. An embed has no key, so no operation can address
   it. Leave those entries where they are.
 
@@ -543,9 +529,9 @@ _CONFIG_SCHEMA_COMMIT_LEGACY = """\
 ## Mistakes that break your agent
 
 The commit accepts whatever you send — none of these return a validation error. Each one commits
-fine and then bites later, at a different spot. Your two detectors are `test_run` (read the
-`resolved` block and the executed tool list, not just the status) and a skill that fails to load
-on the next run.
+fine and then bites later, at a different spot. Check each of these before you commit. They
+show up as a skill that fails to load on the next run, or in the `resolved` block of a
+`test_run` the person asked for.
 
 - `slug` or `content` as top-level fields on a skill entry. The skill's Markdown goes in `body`;
   a bundled file's text goes in that file's `content` inside `files`. Bites at RUN time: skill
@@ -556,7 +542,7 @@ on the next run.
   only. Bites at RUN time: the run's Model & Harness never resolves and the agent never runs.
 - A raw model id on the `claude` harness (Claude selects by alias) or an alias like `sonnet` on a
   `pi_core` harness (Pi selects by provider/id). Bites silently: the run falls back
-  to a default model with no error. Only `test_run`'s `resolved` block shows the fallback.
+  to a default model with no error. Only the `resolved` block of a `test_run` shows the fallback.
 - Sending a short `tools`/`skills`/`mcps` list. Bites on the NEXT run: lists replace wholesale,
   so every entry you left out is gone.
 - Rebuilding the whole `parameters.agent` object instead of a narrow delta. Prefer a `delta.set`
@@ -833,181 +819,127 @@ Don't forget:
 """
 
 
-# SKILL.md, assembled from a common spine plus the three passages that describe HOW a commit is
-# made. Those three follow the deployment's commit surface (see `_ORDERED` above); everything
-# else — the decision table, discovery, triggers, verification, the footguns — is the same either
-# way, and lives in one copy so it cannot drift between the two arms.
+# SKILL.md, assembled from a common spine plus the passages that describe HOW a commit is made.
+# Those follow the deployment's commit surface (see `_ORDERED` above); everything else is the
+# same either way and lives in one copy so it cannot drift between the two arms.
+#
+# WHAT THIS SKILL IS FOR, AND WHAT IT IS NOT. The platform prompt (`platform_instructions.py`)
+# owns behavior: decide and proceed, the three ask gates, show a sample before building an
+# automation, run `test_run` only when the person asks. This skill owns the MECHANICS of a
+# configuration change and nothing else. A sentence here that restates or contradicts the
+# platform prompt is a bug: models pick between two wordings of one rule unpredictably.
+#
+# WHY THE TEMPLATE LIST IS INLINE. The skill used to send the model to a 28-row index file on
+# every ask. The names are short, so they ride here; the model reads a playbook file only when
+# the ask clearly matches one.
 _BUILD_HEAD = """\
-# Build an Agenta agent
+# Configure this Agenta agent
 
-You turn a plain-language request into a working, verified Agenta agent. You are configuring
-yourself: the committed template you edit is the agent that will keep running. Optimize for the
-fewest calls and the least time. A simple no-tool ask is two actions: write better
-`instructions.agents_md`, then call `commit_revision`.
+Read this when the request is a change to you: new instructions, a skill, an integration, a
+trigger, or a first setup. Do not read it for a task. The platform instructions say how to tell
+the two apart. A fresh agent, with its default name and default instructions, still decides by
+intent: "Summarize my inbox" is a task on the first turn as much as on the hundredth. The
+request is a change to you only when the person describes a role, a recurring job, or an
+integration to connect.
 
-Before anything else, check `references/agent-templates/index.md` for a playbook matching the
-ask. When one matches, read it and follow it: a playbook layers this use case onto the loop
-below and never replaces its approval stops. When none matches, follow the generic loop below.
+## What you can change
 
-## When to use
+Four things under `parameters.agent`:
 
-Use this when the user asks you to build, set up, configure, or automate an agent.
-
-## The shape of your config
-
-You decide four things under `parameters.agent`:
-
-- `instructions.agents_md`: who you are and what you do.
-- `tools`: integration actions and platform ops you can call.
+- `instructions.agents_md`: who you are and what you do, with a `## Memory` section at the end.
 - `skills`: reusable know-how packaged as skill templates.
-- A trigger: either a schedule or an event subscription, only when the user asked for one.
+- `tools`: whole integrations, one `gateway_connection` entry each.
+- A trigger: a schedule or an event subscription, when the person asks for one or the job
+  clearly repeats.
+
+Everything else stays as it is unless the person asks to change it.
 """
 
 _BUILD_SHAPE_ORDERED = """\
-
-Everything else is fixed unless the user explicitly asks to change it. Configure yourself with
-`commit_revision` by changing `parameters.agent` fields; do not create a separate app.
-
-Editing files in your workspace does not change your configuration. That copy is rebuilt, and
-the edits are lost. Change your instructions and configuration only through `commit_revision`.
-
-Every commit is the same loop: `read_config` the part you are about to change, then
-`commit_revision` with the `base_revision_id` that read returned and a list of `delta.operations`.
-Each operation changes one field or one list entry, and leaves everything else alone.
-
-Read `references/config-schema.md` before your first `commit_revision`. It gives:
-
-- the exact shape of every field,
-- the tool-entry types,
-- the skill-entry shape,
-- the operations a commit is made of, with a worked example of each,
-- the mistakes that break your agent.
+Change your configuration only with `commit_revision`. Every change is the same two calls:
+`read_config` the part you are about to change, then `commit_revision` with the
+`base_revision_id` that read returned and a list of `delta.operations`. Each operation changes
+one field or one list entry and leaves everything else alone. Read
+`references/config-schema.md` before your first commit: it gives the exact shape of every
+field, the operations, worked examples, and the mistakes that break an agent.
 """
 
 _BUILD_SHAPE_LEGACY = """\
-
-Everything else is fixed unless the user explicitly asks to change it. Configure yourself with
-`commit_revision` by setting `parameters.agent` fields; do not create a separate app.
-
-Editing files in your workspace does not change your configuration. That copy is rebuilt, and
-the edits are lost. Change your instructions and configuration only through `commit_revision`.
-
-Read `references/config-schema.md` before your first `commit_revision`. It gives:
-
-- the exact shape of every field,
-- the tool-entry types,
-- the skill-entry shape,
-- the delta merge semantics,
-- the mistakes that break your agent.
+Change your configuration only with `commit_revision`, by setting `parameters.agent` fields.
+Read `references/config-schema.md` before your first commit: it gives the exact shape of every
+field, the delta merge semantics, worked examples, and the mistakes that break an agent.
 """
 
-_BUILD_TABLE_AND_LOOP = """\
+# The template names are rendered from the entries at import, so the list can never drift from
+# the playbook files that exist.
+_BUILD_TEMPLATES = """\
 
-Read `references/trigger-inputs.md` before you write a schedule or subscription's
-`inputs_fields`.
+## Templates
 
-## Decision table
-
-| The ask... | Needs | What to add |
-|---|---|---|
-| transform text the user pastes, such as summarize, rewrite, classify | nothing extra | `instructions.agents_md` only |
-| apply reusable know-how, such as a style guide or review rubric | a skill | one `skills` entry |
-| read or write in an outside tool, such as GitHub or Slack | a connected integration | `discover_tools`, then ONE `gateway_connection` entry on `tools` |
-| run on a clock | a schedule | `create_schedule` after committing |
-| react to an outside event | a subscription | `discover_triggers`, then `create_subscription` |
-
-Do not discover tools or triggers for an ask that does not need them.
-
-## The loop
-
-1. Clarify the ask. Get the missing timezone, channel, repo, account, output style, and success
-   criteria. Do not guess concrete destinations. When you need typed values the user must
-   confirm — which actions to enable, non-secret settings such as a subdomain or workspace,
-   schedule details — ask with `request_input` (renders an inline form) instead of prose.
-   Propose a `default` for every field you can — the form prefills, and the user accepts
-   everything in one click when your proposals are right. Enum options are suggestions (the
-   form has a built-in "Other…" escape hatch), so keep them short and likely. Use
-   `{type: "array", items: {type: "string", enum: [...]}}` for a multi-pick question, and
-   `oneOf: [{const, title, description}]` when options need a sentence of explanation.
-   For a form with several questions, set `"x-ag-stepper": true` on requestedSchema —
-   it presents one question at a time with a final review step.
-   Never request secrets through it; credentials go through `request_connection`.
-2. Decide from the table. Most agents need only instructions. If the ask needs outside actions,
-   call `discover_tools` with one short fragment per capability, such as "list github issues" or
-   "post a slack message".
-3. Read discovery as a search result, not an oracle. It is a high-recall keyword match over the
-   live catalog, so check three things before wiring anything:
-   - Per-integration connection state is authoritative, not the headline match. The primary match
-     can be the wrong integration while reporting ready, and the tool you wanted can sit in
-     `alternatives` with `needs_auth`. Trust the per-integration connection block, not the top
-     `ready` line.
-   - Right integration is not enough — read the matched event's description. A fragment like "new
-     github issue" can match a `..._ARTIFACT_CREATED` event on the shared word "created" with a
-     ready connection. Confirm the matched action or event actually does what the user asked.
-   - When picking a SUBSCRIPTION EVENT, if nothing in the match or its alternatives plausibly
-     corresponds, stop and tell the user the integration does not support it yet; never wire the
-     closest keyword hit. For TOOLS you enable the whole integration, so you are choosing the
-     integration, not the action — the run picks the action through `search_tools`.
-4. If a needed connection is not ready, call `request_connection` for that integration and stop.
-   Give the user the connection request and wait for them. Re-run `discover_tools` after they
-   connect; do not silently create, fake, or skip connections.
+There are playbooks for common agents, one file each under `references/agent-templates/`,
+named here with their file names: {names}. If the ask clearly matches one of these, read that
+file and follow it. Otherwise skip them.
 """
 
-_BUILD_STEP5_ORDERED = """\
-5. Configure yourself. `read_config` the parts you are about to change, then `commit_revision`
-   with that `base_revision_id`: `add_item` ONE `gateway_connection` entry per integration you
-   need — provider, integration, the REAL ready slug, and a permissions policy — onto `tools`,
-   and `set` `instructions.agents_md`. This is an approval stop. If the
-   commit is denied or fails, earlier connections or triggers are not undone.
+_BUILD_LOOP_ORDERED = """\
+
+## How a change goes
+
+1. `read_config` the part you are about to change. The answer carries `base_revision_id`.
+2. If the change needs an outside app, call `discover_tools` with one short fragment per
+   capability, such as "list github issues" or "post a slack message". Read the
+   per-integration connection state, not the headline match. If the integration is not
+   connected, call `request_connection` for it and stop until the person has connected it;
+   then run `discover_tools` again and take the real slug it reports as ready. Never invent a
+   slug: a guess commits fine and fails at run time.
+3. `commit_revision` with that `base_revision_id`. `add_item` ONE `gateway_connection` entry
+   per integration onto `tools`, with the real slug and the policy
+   `{ "default": "allow", "tools": {} }`. `set` `instructions.agents_md`. This is an approval
+   stop. If the commit is refused, read `next_step` and correct the call; earlier connections
+   and triggers are not undone.
+4. Add a trigger only when the person asked for one or the job clearly repeats. Read
+   `references/trigger-inputs.md` first. For a schedule, cron is UTC, five fields, one-minute
+   floor; convert the person's timezone yourself, then `create_schedule`. For an event,
+   `discover_triggers`, check that the returned event description really fits the ask (the
+   match is keyword search), then `create_subscription`. Both are approval stops. A trigger
+   pins the revision it was created on: after a later commit, re-point it.
+5. Say what changed in two or three sentences, offer a test, and stop. Run `test_run` only if
+   the person asks. When you do, read `verdict`, `tools`, and `approvals`, not the status
+   code, and read the real side effect back before you call it verified.
+
+Do not ask for details you can look up or default. When you need a value only the person has,
+such as a repo, a channel, or a timezone, ask once with `request_input`, with a proposed
+default in every field you can guess.
 """
 
-_BUILD_STEP5_LEGACY = """\
-5. Configure yourself. Put the chosen `capability.tool` entries and needed alternatives in
-   `tools`, write `instructions.agents_md`, and call `commit_revision`. This is an approval stop.
-   If the commit is denied or fails, earlier connections or triggers are not undone.
+_BUILD_LOOP_LEGACY = """\
+
+## How a change goes
+
+1. If the change needs an outside app, call `discover_tools` with one short fragment per
+   capability. Read the per-integration connection state, not the headline match. If the
+   integration is not connected, call `request_connection` and stop until the person has
+   connected it; then run `discover_tools` again and take the real slug. Never invent a slug.
+2. `commit_revision` with the chosen `gateway_connection` entries in `tools` and the new
+   `instructions.agents_md`. This is an approval stop. A refused commit does not undo earlier
+   connections or triggers.
+3. Add a trigger only when the person asked for one or the job clearly repeats. Read
+   `references/trigger-inputs.md` first. Cron is UTC, five fields; convert the person's
+   timezone. For an event, `discover_triggers`, check the event fits, then
+   `create_subscription`. A trigger pins the revision it was created on: after a later commit,
+   re-point it.
+4. Say what changed in two or three sentences, offer a test, and stop. Run `test_run` only if
+   the person asks.
+
+Do not ask for details you can look up or default. When you need a value only the person has,
+ask once with `request_input`, with a proposed default in every field you can guess.
 """
 
 # NOTE for a future audit: this block deliberately CONTAINS a banned provider action name
 # (`LIST_REPOSITORY_ISSUES`) as a named counter-example. A grep for banned action names in
 # the build-kit text will hit it and read as a regression; it is the fix. Check the role a
 # match plays before deleting it — removing this one deletes the warning, not the mistake.
-_BUILD_LOOP_TAIL = """\
-6. Verify with `test_run`. First warn the user that this is a real run: external write tools may
-   perform their action if approved. Then call `test_run` with `inputs.messages` as a blunt
-   instruction-framed test message and `expectations.terminal_tool` set to the final tool that
-   proves success. Read `verdict`, `verdict_reason`, `tools`, `approvals`, and `resolved`; a 200
-   response is not proof. The four verdicts:
-   - `pass` — the terminal tool ran and returned; done.
-   - `incomplete` — the run stopped short (did the early reads, then wandered or stopped before the
-     terminal action). Rewrite `instructions.agents_md` as a blunter numbered procedure, call
-     `commit_revision`, and run `test_run` again.
-   - `unconfirmed` — the terminal tool's completion could not be proven: it was dispatched but
-     never returned a result (the stalled-approval signature), or no `expectations.terminal_tool`
-     was set. A tool NAME appearing in the executed list is not proof it completed. If `approvals`
-     is non-empty this is an approval stop: report the waiting gate and wait for the user.
-   - `failed` — a tool errored or the run failed outright; read `verdict_reason` and fix.
-
-   For an EXTERNAL WRITE, even a returned result is only truly confirmed by reading the side effect
-   back (fetch the channel history, re-read the issue). Use `query_spans` to read back SCHEDULED
-   run spans after a schedule or subscription fires.
-7. Add a trigger only if asked. For schedules, cron is UTC, five fields, with a one-minute floor;
-   convert the user's timezone yourself, then stop for approval before `create_schedule`: say what
-   you are about to create and wait for the gate. After approval, call `create_schedule`, then
-   confirm with `list_schedules`. For events, call `discover_triggers` and check that the returned
-   integration and event description actually fit the ask — matching is keyword search, not
-   semantic. A no-match still lists the closest events as alternatives, and a bare integration
-   name ("slack") browses its closest events — both capped by `limit_alternatives` (default 3),
-   so raise it before concluding an event does not exist. If the integration you asked about
-   never appears at all, the provider has no trigger for it: say so instead of wiring the
-   closest keyword hit. Then ensure the integration is connected, and stop for approval before
-   `create_subscription`: say what you are about to create and wait for the gate. After
-   approval, call `create_subscription`, and confirm with `list_deliveries`. `test_subscription` waits for a real event, so warn the user before using it
-   in a chat turn. Use `remove_schedule` or `remove_subscription` only when cleaning up a wrong
-   trigger. Shape the run's inputs with `inputs_fields` (see `references/trigger-inputs.md`).
-   Triggers do NOT follow a new revision: after any later `commit_revision`, existing schedules and
-   subscriptions still point at the old revision, so re-point them to the new one.
-8. Report short: what you became, what is connected, what is scheduled, what you verified, and
-   what still needs the human.
+_BUILD_INSTRUCTIONS_WRITING = """\
 
 ## Writing instructions for multi-tool and scheduled agents
 
@@ -1028,7 +960,10 @@ and naming `LIST_REPOSITORY_ISSUES` as if it were callable sends the run looking
 does not exist.
 
 - Pin concrete ids, such as channel id and repo, instead of telling the agent to re-resolve them.
-- You no longer choose actions when wiring: the whole integration is enabled. Steer the RUN instead — tell it in `agents_md` to search for the narrowest tool (a `FIND_*` or `GET_A_*` over a `LIST_ALL_*`), and `deny` list-dump actions you never want run in the entry's `policy.permissions.tools`.
+- You no longer choose actions when wiring: an integration is added whole, with every action
+  allowed. Steer the RUN instead. Tell it in `agents_md` to search for the narrowest tool, a
+  `FIND_*` or `GET_A_*` over a `LIST_ALL_*`. Add a `deny` entry under
+  `policy.permissions.tools` only when the person asks you to restrict the integration.
 - Make the final numbered step the terminal side effect, such as the post or write.
 - Say "finish by doing step N" so the run does not stop after the early read steps.
 - Write the persona as an explicit imperative — who the agent is and what it does, stated as a
@@ -1045,13 +980,17 @@ _BUILD_TOOLS_AND_FAILURES_ORDERED = """\
 ## Prefer wired tools
 
 Prefer your wired tools (`read_config`, `discover_tools`, `request_input`, `request_connection`,
-`commit_revision`, `test_run`, `query_spans`, `create_schedule`, `list_schedules`,
+`request_secret`, `commit_revision`, `test_run`, `create_schedule`, `list_schedules`,
 `discover_triggers`, `create_subscription`, `test_subscription`, `list_deliveries`,
 `remove_schedule`, `remove_subscription`) over harness builtins. Touch Terminal, RemoteTrigger,
 File tools, or raw HTTP only when your wired tools cannot do the job, and say so when you do.
 
 ## When something fails
 
+- The platform rule "do not repeat a refused action" bans resending the SAME call, so a refusal
+  that names a fix, a `next_step` or a stale `base_revision_id`, is corrected once and sent
+  again. A policy refusal, such as a denied approval, is reported to the person and never
+  retried.
 - A denied or failed `commit_revision` does not undo earlier connections or triggers; they still
   exist. Do not redo them.
 - A refused commit says what to do next in `next_step`. `retryable` only says whether the SAME
@@ -1061,22 +1000,21 @@ File tools, or raw HTTP only when your wired tools cannot do the job, and say so
   new `base_revision_id`.
 - The commit checks your targets, not your values: a wrong shape inside an entry commits fine and
   surfaces at run time — a skill fails to load, the model silently falls back, a tool goes missing.
-  So verify with `test_run` after every commit: read `resolved` and the executed tool list, and
-  when something is off, check the shape against `references/config-schema.md` and commit the fix;
-  do not start over.
+  Check the shape against `references/config-schema.md` before you commit, and when a run
+  misbehaves after a commit, check it again and commit the fix; do not start over.
 - After any commit, existing schedules and subscriptions still point at the previous revision.
   Re-point them so they run the new config.
-- If `test_run`'s `resolved` harness or model differs from what you committed, the config silently
-  fell back (usually a harness/model/provider mismatch). Fix it against `references/config-schema.md`
-  and re-test.
+- If a `test_run` the person asked for shows a `resolved` harness or model that differs from what
+  you committed, the config silently fell back (usually a harness/model/provider mismatch). Fix it
+  against `references/config-schema.md`.
 """
 
 _BUILD_TOOLS_AND_FAILURES_LEGACY = """\
 
 ## Prefer wired tools
 
-Prefer your wired tools (`discover_tools`, `request_input`, `request_connection`, `commit_revision`,
-`test_run`, `query_spans`, `create_schedule`, `list_schedules`, `discover_triggers`,
+Prefer your wired tools (`discover_tools`, `request_input`, `request_connection`, `request_secret`,
+`commit_revision`, `test_run`, `create_schedule`, `list_schedules`, `discover_triggers`,
 `create_subscription`, `test_subscription`, `list_deliveries`, `remove_schedule`,
 `remove_subscription`) over harness builtins. Touch Terminal, RemoteTrigger, File tools, or raw
 HTTP only when your wired tools cannot do the job, and say so when you do.
@@ -1086,23 +1024,22 @@ HTTP only when your wired tools cannot do the job, and say so when you do.
 - A denied or failed `commit_revision` does not undo earlier connections or triggers; they still
   exist. Do not redo them.
 - The commit does not validate your config: a wrong shape commits fine and surfaces at run time —
-  a skill fails to load, the model silently falls back, a tool goes missing. So verify with
-  `test_run` after every commit: read `resolved` and the executed tool list, and when something
-  is off, check the shape against `references/config-schema.md` and re-commit the fix; do not
-  start over.
+  a skill fails to load, the model silently falls back, a tool goes missing. Check the shape
+  against `references/config-schema.md` before you commit, and when a run misbehaves after a
+  commit, check it again and re-commit the fix; do not start over.
 - After any commit, existing schedules and subscriptions still point at the previous revision.
   Re-point them so they run the new config.
-- If `test_run`'s `resolved` harness or model differs from what you committed, the config silently
-  fell back (usually a harness/model/provider mismatch). Fix it against `references/config-schema.md`
-  and re-test.
+- If a `test_run` the person asked for shows a `resolved` harness or model that differs from what
+  you committed, the config silently fell back (usually a harness/model/provider mismatch). Fix it
+  against `references/config-schema.md`.
 """
 
 _BUILD_FOOTGUNS = """\
 
 ## Footguns
 
-- Empty output is not enough to fail a run; read the `test_run` verdict, tools, approvals,
-  and verdict_reason before judging.
+- When you do run `test_run`, empty output is not enough to fail it; read the verdict, tools,
+  approvals, and verdict_reason before judging.
 - Never surface raw provider slugs such as `provider_action` to the user; speak in Agenta terms.
 - Re-run discovery after the user connects an integration so the committed tool gets the concrete
   connection id.
@@ -1113,9 +1050,13 @@ _BUILD_FOOTGUNS = """\
 _BUILD_AN_AGENT_BODY = (
     _BUILD_HEAD
     + (_BUILD_SHAPE_ORDERED if _ORDERED else _BUILD_SHAPE_LEGACY)
-    + _BUILD_TABLE_AND_LOOP
-    + (_BUILD_STEP5_ORDERED if _ORDERED else _BUILD_STEP5_LEGACY)
-    + _BUILD_LOOP_TAIL
+    + _BUILD_TEMPLATES.format(
+        names=", ".join(
+            f"{entry.name} (`{entry.key}.md`)" for entry in AGENT_TEMPLATE_ENTRIES
+        )
+    )
+    + (_BUILD_LOOP_ORDERED if _ORDERED else _BUILD_LOOP_LEGACY)
+    + _BUILD_INSTRUCTIONS_WRITING
     + (
         _BUILD_TOOLS_AND_FAILURES_ORDERED
         if _ORDERED
@@ -1127,10 +1068,11 @@ _BUILD_AN_AGENT_BODY = (
 BUILD_AN_AGENT_SKILL = SkillTemplate(
     name="build-an-agent",
     description=(
-        "Build or configure an Agenta agent end to end. ALWAYS read this skill at the start "
-        "of the conversation, before your first reply, to load context on what you are and "
-        "how you configure yourself. Then follow it when the user asks to set up, automate, "
-        "connect tools for, schedule, or subscribe an agent."
+        "How to change this agent's own configuration: instructions, memory, skills, "
+        "integrations, and triggers. Read it when the request is a change to you rather "
+        "than a task: a role, a recurring job, or an integration to connect. A default "
+        "name and default instructions do not make a request a change. Do not read it "
+        "for a task."
     ),
     body=_BUILD_AN_AGENT_BODY,
     files=[
@@ -1142,69 +1084,3 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
         *build_agent_template_skill_files(),
     ],
 )
-
-
-def _join(*parts: Optional[str]) -> Optional[str]:
-    """Join the non-empty parts with a blank line, or ``None`` when nothing remains."""
-    kept = [part.strip() for part in parts if part and part.strip()]
-    if not kept:
-        return None
-    return "\n\n".join(kept)
-
-
-def gateway_guidance(integration_names: Sequence[str]) -> Optional[str]:
-    """The runtime instruction section for the two derived gateway tools.
-
-    Built only when the agent has at least one ``gateway_connection`` entry, and never stored
-    in the agent revision: the tools are derived at resolve time, so their instructions are
-    too. It names the configured integrations and the runtime rules from
-    ``runtime-tools.md``, "Prompt guidance". Capability grouping is deferred; V1 lists the
-    integration names and invents no second classification.
-    """
-    if not integration_names:
-        return None
-    integrations = ", ".join(sorted(integration_names))
-    return f"""\
-## Connected integrations
-
-You can reach your integrations with two tools: `search_tools` and `run_tool`.
-For instance, some of the integrations you have: {integrations}. Others may exist, and this
-list can go stale — `search_tools` is the source of truth for what is connected right now.
-
-- Search once per task, with a concrete description of what you want to do. Never repeat an
-  equivalent query — a second search that means the same thing returns the same results.
-- A search returns at most 5 results. That is a cap, not the whole catalog — if none fit,
-  narrow the description rather than concluding no such tool exists.
-- "No configured tool matched this request." is not a failure. Refine the query ONCE and
-  search again — that is what the message asks for — then report if it still finds nothing.
-- "Tool search is temporarily unavailable." is a temporary failure: retry it once and no more.
-- Use only an integration and a tool key that a search result returned. Never invent one.
-  Pass the BARE tool key, not a prefixed provider action id such as `GMAIL_FETCH_EMAILS`.
-- Copy the arguments from the input schema the search result returned.
-- Stop searching once a result is usable, and run it.
-- A run may pause for the user's approval or be refused outright: that is this agent's
-  permission policy, not a bug. A refusal will not succeed on a retry or with reshaped
-  arguments — report it instead of looping."""
-
-
-def gateway_guidance_field(
-    integration_names: Sequence[str],
-    carrier: str,
-) -> Optional["GatewayGuidance"]:
-    """The ``gatewayGuidance`` wire field, or ``None`` when the agent has no connection.
-
-    Every harness carries the guidance, not only one: each gets the same two derived tools,
-    so guidance on one prompt surface alone would leave the others holding two tools and no
-    instructions for using them. ``carrier`` stays the adapter's choice (the instructions
-    file for the file-based harnesses, ``append_system`` for Pi, whose AGENTS.md is purely
-    authored) — but the SPLICING now happens in the runner, at environment build time, so the
-    integration names stay out of the session fingerprint and adding an integration no longer
-    evicts a warm session. The names read as examples, so a list that goes stale mid-session
-    stays honest until the next cold or reopened session refreshes it.
-    """
-    text = gateway_guidance(integration_names)
-    if not text:
-        return None
-    from ..dtos import GatewayGuidance
-
-    return GatewayGuidance(text=text, carrier=carrier)

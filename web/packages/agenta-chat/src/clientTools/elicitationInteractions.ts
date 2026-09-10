@@ -7,7 +7,7 @@
  * force-settled `DEFERRED_NOT_EXECUTED` and re-asked next turn — see `ConnectToolWidget`), so the
  * question dock shows one card and any straggler simply waits behind it.
  */
-import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
+import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground/agent-chat"
 import {CLIENT_TOOL_DESCRIPTORS, canonicalClientToolName} from "@agenta/shared/clientTools"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import type {ToolUIPart, UIMessage} from "ai"

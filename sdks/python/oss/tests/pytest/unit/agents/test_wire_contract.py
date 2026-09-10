@@ -45,7 +45,9 @@ from agenta.sdk.agents import (
     ToolResolver,
     TraceContext,
 )
-from agenta.sdk.agents.adapters.agenta_builtins import gateway_guidance_field
+from agenta.sdk.agents.platform_instructions import compose_platform_instructions
+from agenta.sdk.agents.connections import EnvironmentCredentialBinding
+from agenta.sdk.agents.dtos import ResolvedSandboxCredential
 from agenta.sdk.agents.platform.gateway import _derived_tool_specs
 from agenta.sdk.agents.tools import (
     CompiledTool,
@@ -83,6 +85,7 @@ KNOWN_REQUEST_KEYS = {
     "harnessMode",
     "modelCapabilities",
     "modelConnection",
+    "sandboxCredentials",
     "messages",
     "context",
     "telemetry",
@@ -93,14 +96,17 @@ KNOWN_REQUEST_KEYS = {
     "toolCallback",
     "permissions",
     "gatewayPolicy",
-    "gatewayGuidance",
+    "platformInstructions",
+    "turnContext",
     "systemPrompt",
     "appendSystemPrompt",
     "skills",
     "sandboxPermission",
     "harnessFiles",
     "turnId",
+    "detached",
     "projectId",
+    "controlCommandId",
     "effectiveParameters",
 }
 
@@ -191,6 +197,7 @@ def _pi_payload():
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
+        turn_context='## This session\n\nThis session is named "Q3 notes".',
         trace=TraceContext(
             traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
             endpoint="https://otlp.example/v1/traces",
@@ -284,6 +291,12 @@ def _codex_payload():
             ],
             endpoint=Endpoint(base_url="https://api.openai.com/v1"),
         ),
+        sandbox_credentials=[
+            ResolvedSandboxCredential(
+                binding=EnvironmentCredentialBinding(name="GITHUB_TOKEN"),
+                value="github-secret",
+            )
+        ],
     )
     return request_to_wire(
         harness=HarnessKind.CODEX,
@@ -325,8 +338,8 @@ def _gateway_connection_payload():
         tool_callback=_CALLBACK,
         # Straight from the same producer path the adapters use, so the golden pins the
         # separate-field form (the guidance is spliced runner-side at environment build).
-        gateway_guidance=gateway_guidance_field(
-            list(gateway_policy.integrations), "appendSystemPrompt"
+        platform_instructions=compose_platform_instructions(
+            list(gateway_policy.integrations)
         ),
     )
     return request_to_wire(
@@ -606,6 +619,27 @@ def test_request_to_wire_omits_turn_id_when_none():
     assert "turnId" not in payload
 
 
+def test_request_to_wire_carries_detached_only_for_a_session():
+    detached = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5"),
+        messages=[],
+        session_id="sess-1",
+        detached=True,
+    )
+    ad_hoc = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5"),
+        messages=[],
+        detached=True,
+    )
+
+    assert detached["detached"] is True
+    assert "detached" not in ad_hoc
+
+
 def test_request_to_wire_carries_project_id_when_set():
     payload = request_to_wire(
         harness=HarnessKind.PI,
@@ -750,6 +784,36 @@ def test_effective_parameters_preserve_tool_input_schema_properties():
         effective_parameters={"agent": {"tools": [tool]}},
     )
     assert payload["effectiveParameters"]["agent"]["tools"][0] == tool
+
+
+def test_effective_parameters_preserve_builder_sized_configuration():
+    # The normal playground builder measured 147,209 bytes with 18 tools. Dropping
+    # that config silently resumes against the saved agent, which has no builder tools.
+    parameters = {
+        "agent": {
+            "instructions": {"agents_md": "Build and update the current agent."},
+            "tools": [
+                {
+                    "name": "commit_revision"
+                    if index == 0
+                    else f"builder_tool_{index}",
+                    "description": "Builder operation schema documentation. " * 210,
+                    "inputSchema": {"type": "object", "properties": {}},
+                }
+                for index in range(18)
+            ],
+        }
+    }
+    assert 147_209 <= len(json.dumps(parameters).encode("utf-8")) <= 160_000
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="Configure this agent")],
+        session_id="sess-builder",
+        effective_parameters=parameters,
+    )
+    assert payload["effectiveParameters"] == parameters
 
 
 def test_effective_parameters_over_the_cap_are_dropped_whole():
@@ -1023,6 +1087,28 @@ def test_known_request_keys_match_the_wire_schema():
         field.alias or name for name, field in WireRunRequest.model_fields.items()
     }
     assert declared == KNOWN_REQUEST_KEYS
+
+
+def test_request_to_wire_carries_durable_continuation_coordination_ids():
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5.5"),
+        messages=[Message(role="user", content="approved")],
+        session_id="session-1",
+        turn_id="turn-continuation-1",
+        project_id="project-1",
+        control_command_id="command-1",
+    )
+
+    assert payload["sessionId"] == "session-1"
+    assert payload["turnId"] == "turn-continuation-1"
+    assert payload["projectId"] == "project-1"
+    assert payload["controlCommandId"] == "command-1"
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+    parsed = WireRunRequest.model_validate(payload)
+    assert parsed.control_command_id == "command-1"
 
 
 def test_named_connection_choice_is_a_declared_schema_field():
@@ -1510,3 +1596,30 @@ def test_result_from_wire_redacts_seeded_credential_from_output_events_and_error
         with pytest.raises(RuntimeError) as exc:
             result_from_wire({"ok": False, "error": f"provider rejected {marker}"})
         assert marker not in str(exc.value)
+
+
+def test_request_to_wire_omits_turn_context_when_unset():
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "turnContext" not in payload
+    assert "sessionContext" not in payload
+
+
+def test_request_to_wire_carries_only_rendered_turn_context():
+    context = '## This session\n\nThis session is named "Q3 notes".'
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id="sess_abc",
+        turn_context=context,
+    )
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["turnContext"] == context
+    assert "sessionContext" not in payload
+    assert payload["messages"] == [{"role": "user", "content": "hi"}]

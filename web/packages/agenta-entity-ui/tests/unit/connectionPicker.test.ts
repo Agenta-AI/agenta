@@ -121,6 +121,259 @@ describe("effectiveHarnesses", () => {
     })
 })
 
+/**
+ * #6692: an OpenAI-compatible (`custom`) connection appeared under BOTH Pi and Claude Code, and
+ * picking the Claude Code entry committed a revision the server refuses.
+ *
+ * `custom` is an endpoint address, not a protocol declaration, and Claude Code publishes it among
+ * its deployments for its own Anthropic gateway. So consuming the surface was never enough. Each
+ * MODEL is admitted on the family its own id names, after its connection's storage namespace is
+ * stripped, and falls back to `openai` when it names none. An admitted route carries the provider
+ * the SDK needs to resolve it.
+ *
+ * A saved harness policy skips the family check. It is the one place a user can state what the
+ * record cannot, and the only route left for a gateway whose ids name nothing.
+ */
+describe("an OpenAI-compatible connection under a harness that cannot reach openai", () => {
+    // Matched to GET /workflows/catalog/harnesses/ as served on oss.preview: Pi reaches nine
+    // families over direct and custom, Claude Code reaches anthropic alone over four surfaces.
+    const SHIPPED: HarnessCapabilitiesMap = {
+        pi_core: {
+            ...CAPABILITIES.pi_core,
+            providers: [
+                "openai",
+                "anthropic",
+                "gemini",
+                "mistral",
+                "groq",
+                "minimax",
+                "together_ai",
+                "openrouter",
+                "openai-codex",
+            ],
+            deployments: ["direct", "custom"],
+        },
+        claude: {...CAPABILITIES.claude, deployments: ["direct", "custom", "bedrock", "vertex_ai"]},
+    }
+
+    /** The (harness, model, provider) tuples the picker would offer, in order. */
+    const routes = (connection: ProviderConnection, capabilities = SHIPPED, ids = HARNESS_IDS) =>
+        buildAgentModelCandidates({
+            connections: [connection],
+            capabilities: capabilities as never,
+            harnessIds: ids,
+            subscriptionPairs: [],
+        }).map((candidate) => [candidate.harness, candidate.modelId, candidate.provider])
+
+    it("offers the reported connection under Pi only", () => {
+        // The live oss.preview record, with the namespacing the API applies.
+        const qaCustom = custom(
+            "1",
+            "custom",
+            ["qa-custom/custom/openai/gpt-4o-mini", "qa-custom/custom/deepseek/deepseek-v4-flash"],
+            {name: "qa-custom", slug: "qa-custom"},
+        )
+
+        expect(routes(qaCustom)).toEqual([
+            ["pi_core", "qa-custom/custom/openai/gpt-4o-mini", null],
+            ["pi_core", "qa-custom/custom/deepseek/deepseek-v4-flash", null],
+        ])
+    })
+
+    it("gives an Anthropic route only the models that name anthropic", () => {
+        // A mixed gateway. Claude Code gets the anthropic model and nothing else. Pi keeps all
+        // three: OpenAI-compatible is a wire format, not a vendor. Order follows the saved list.
+        const mixed = custom(
+            "2",
+            "custom",
+            [
+                "gw/custom/openai/gpt-4o-mini",
+                "gw/custom/anthropic/claude-fable-5",
+                "gw/custom/some-opaque-id",
+            ],
+            {name: "gw", slug: "gw"},
+        )
+
+        expect(routes(mixed)).toEqual([
+            ["pi_core", "gw/custom/openai/gpt-4o-mini", null],
+            ["pi_core", "gw/custom/anthropic/claude-fable-5", null],
+            ["pi_core", "gw/custom/some-opaque-id", null],
+            ["claude", "gw/custom/anthropic/claude-fable-5", "anthropic"],
+        ])
+    })
+
+    it("keeps another vendor's models on the OpenAI-compatible route", () => {
+        // An OpenAI-compatible endpoint commonly serves many vendors, and the runner drives them
+        // with openai-completions. Dropping these would remove a route that runs today.
+        const gateway = custom(
+            "9",
+            "custom",
+            ["gw/custom/mistral/mistral-small-latest", "gw/custom/gemini/gemini-3-flash"],
+            {name: "gw", slug: "gw"},
+        )
+
+        expect(routes(gateway)).toEqual([
+            ["pi_core", "gw/custom/mistral/mistral-small-latest", null],
+            ["pi_core", "gw/custom/gemini/gemini-3-flash", null],
+        ])
+    })
+
+    it("strips the stored namespace even when it is not the record's stable slug", () => {
+        // The API namespaces a key with the header NAME; the record's own slug is a different,
+        // suffixed string. Matching on the identity would leave the name in the model id.
+        const named = custom("10", "custom", ["anthropic/custom/openai/gpt-4o-mini"], {
+            name: "anthropic",
+            slug: "anthropic-01a082ad18dd",
+        })
+
+        expect(routes(named)).toEqual([["pi_core", "anthropic/custom/openai/gpt-4o-mini", null]])
+    })
+
+    it("reads the model past its own connection's namespace", () => {
+        // The first token is the CONNECTION name and means nothing about the model. A connection
+        // named "openai" holding an anthropic model must still reach Claude Code.
+        const named = custom("3", "custom", ["openai/custom/anthropic/claude-fable-5"], {
+            name: "openai",
+            slug: "openai",
+        })
+
+        expect(routes(named)).toEqual([
+            ["pi_core", "openai/custom/anthropic/claude-fable-5", null],
+            ["claude", "openai/custom/anthropic/claude-fable-5", "anthropic"],
+        ])
+    })
+
+    it("does not let a connection's name lend a model its family", () => {
+        const named = custom("4", "custom", ["anthropic/custom/openai/gpt-4o-mini"], {
+            name: "anthropic",
+            slug: "anthropic",
+        })
+
+        expect(routes(named)).toEqual([["pi_core", "anthropic/custom/openai/gpt-4o-mini", null]])
+    })
+
+    it("finds the model in a key whose namespace contains a slash", () => {
+        // A connection name is free text. Counting segments would leave "team/custom/anthropic" in
+        // the model id and hide the Claude route, so the saved model slugs decide instead.
+        const named = custom("11", "custom", ["openai/team/custom/anthropic/claude-fable-5"], {
+            name: "openai/team",
+            slug: "openai-team-01a082ad",
+            models: ["anthropic/claude-fable-5"],
+        })
+
+        expect(routes(named)).toEqual([
+            ["pi_core", "openai/team/custom/anthropic/claude-fable-5", null],
+            ["claude", "openai/team/custom/anthropic/claude-fable-5", "anthropic"],
+        ])
+    })
+
+    it("does not lend a slashed connection name its family either", () => {
+        const named = custom("12", "custom", ["anthropic/team/custom/openai/gpt-4o-mini"], {
+            name: "anthropic/team",
+            slug: "anthropic-team-01a082ad",
+            models: ["openai/gpt-4o-mini"],
+        })
+
+        expect(routes(named)).toEqual([
+            ["pi_core", "anthropic/team/custom/openai/gpt-4o-mini", null],
+        ])
+    })
+
+    it("keeps another vendor's real id on the OpenAI-compatible route", () => {
+        // OpenRouter spells Mistral as "mistralai/...", which the catalog's family vocabulary does
+        // not carry. It reads as no family, and the OpenAI-compatible route takes it regardless.
+        const gw = custom("5b", "custom", ["gw/custom/mistralai/mistral-small-2603"], {
+            name: "gw",
+            slug: "gw",
+        })
+
+        expect(routes(gw)).toEqual([["pi_core", "gw/custom/mistralai/mistral-small-2603", null]])
+    })
+
+    it("picks the longest saved slug, whichever order the list is in", () => {
+        // Two slugs where one ends with the other. Matching the shorter one would strip "anthropic/"
+        // off the longer key along with the namespace, and the family would be read as none.
+        const overlapping = (models: string[]) =>
+            custom("14", "custom", ["gw/custom/sonnet", "gw/custom/anthropic/sonnet"], {
+                name: "gw",
+                slug: "gw",
+                models,
+            })
+
+        for (const order of [
+            ["sonnet", "anthropic/sonnet"],
+            ["anthropic/sonnet", "sonnet"],
+        ]) {
+            expect(routes(overlapping(order))).toEqual([
+                ["pi_core", "gw/custom/sonnet", null],
+                ["pi_core", "gw/custom/anthropic/sonnet", null],
+                ["claude", "gw/custom/anthropic/sonnet", "anthropic"],
+            ])
+        }
+    })
+
+    it("takes a saved harness policy at its word, and writes the provider it needs", () => {
+        // The user's tick is a statement about the ENDPOINT, which the record cannot carry, so it
+        // skips the family check. A LiteLLM gateway serves OpenAI-named models over the Anthropic
+        // Messages endpoint for Claude Code, so the model's vendor is not evidence against it.
+        // The written `anthropic` is what makes the SDK resolve the pair Claude Code accepts.
+        const gateway = custom(
+            "5",
+            "custom",
+            ["bare-gw/custom/sonnet", "bare-gw/custom/openai/gpt-4o-mini"],
+            {name: "bare-gw", slug: "bare-gw", harnesses: ["claude"]},
+        )
+
+        expect(routes(gateway)).toEqual([
+            ["claude", "bare-gw/custom/sonnet", "anthropic"],
+            ["claude", "bare-gw/custom/openai/gpt-4o-mini", "anthropic"],
+        ])
+    })
+
+    it("reads an empty saved policy as no harness, not as an absent policy", () => {
+        const none = custom("6", "custom", ["off/custom/openai/gpt-4o-mini"], {
+            name: "off",
+            slug: "off",
+            harnesses: [],
+        })
+
+        expect(routes(none)).toEqual([])
+    })
+
+    it("never lets a saved policy beat the hard technical limit", () => {
+        // Codex reaches openai but consumes `direct` only, so it cannot speak to a custom endpoint
+        // at all. That is a capability, and a tick does not change it.
+        const withCodex: HarnessCapabilitiesMap = {
+            ...SHIPPED,
+            codex: {
+                providers: ["openai"],
+                deployments: ["direct"],
+                connection_modes: ["agenta", "self_managed"],
+                model_selection: "provider/id",
+                models: {openai: ["gpt-5.5"]},
+            },
+        }
+        const ticked = custom("7", "custom", ["qa/custom/openai/gpt-4o-mini"], {
+            name: "qa",
+            slug: "qa",
+            harnesses: ["codex"],
+        })
+
+        expect(routes(ticked, withCodex, [...HARNESS_IDS, "codex"])).toEqual([])
+    })
+
+    it("leaves a deployment surface that names no family to the deployment list", () => {
+        // Not a blanket rule for credential sets. Bedrock is not the OpenAI-compatible surface, so
+        // the deployment list decides alone: Pi does not consume it, Claude Code does.
+        const bedrock = custom("8", "bedrock", ["claude-3-sonnet-20240229-v1:0"], {
+            name: "aws",
+            slug: "aws",
+        })
+
+        expect(effectiveHarnesses(bedrock, SHIPPED, HARNESS_IDS)).toEqual(["claude"])
+    })
+})
+
 describe("connectionModelIds", () => {
     it("uses the saved list when the connection has one", () => {
         const connection = standard("1", "openai", {models: ["gpt-5.4"]})

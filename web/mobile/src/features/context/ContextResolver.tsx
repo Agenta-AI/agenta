@@ -3,7 +3,6 @@ import {useEffect, useMemo, useState} from "react"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {
     fetchProjects,
@@ -100,10 +99,5 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
         body = <p className="text-muted-foreground grow p-6 text-center text-xs">Loading…</p>
     }
 
-    return (
-        <>
-            <PageTitle />
-            <ScreenScaffold>{body}</ScreenScaffold>
-        </>
-    )
+    return <ScreenScaffold>{body}</ScreenScaffold>
 }

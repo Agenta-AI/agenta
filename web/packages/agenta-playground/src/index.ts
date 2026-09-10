@@ -90,7 +90,13 @@ export {RECORD_ANSWER_TIMEOUT_MS, recordAnswerThenRelease} from "./state"
 // Render-hint map for interaction kinds (sibling `data-render` parts → toolCallId lookup).
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./state"
 // Queued-message release gate for the agent chat composer (HITL-safe, one-by-one).
-export {canReleaseQueuedMessage, isHitlPending, messageHasPendingHitl} from "./state"
+export {
+    approvalContinuationSettled,
+    canReleaseQueuedMessage,
+    hasRunningApprovalContinuation,
+    isHitlPending,
+    messageHasPendingHitl,
+} from "./state"
 // Per-turn request capture + correlation helpers (Turn Inspector Context/Raw tabs).
 export {
     appendCapped,

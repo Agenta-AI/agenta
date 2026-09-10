@@ -1,32 +1,55 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState} from "react"
 
 import {
     buildRequestWithinDeadline,
     getMessageTraceId,
+    latestTurnId,
+    prepareAfterContinuationPreflight,
+    resolveStopExecution,
     startupLabelFromDataPart,
+    submitApprovalForCapability,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
-import {useSessionChat} from "@agenta/chat/hooks"
-import {ignoreStreamRejection, parseAgentRunError} from "@agenta/chat/model"
+import {useFileActivityDetector, useSessionChat} from "@agenta/chat/hooks"
 import {
+    classifyAgentRunError,
+    ignoreStreamRejection,
+    createUserStoppedState,
+    isSessionTurnStopping,
+    reduceUserStoppedState,
+    type RunErrorMetadata,
+    withoutSharedSenderAcceptanceMessages,
+} from "@agenta/chat/model"
+import {
+    acceptedRunBySession,
     clearTurnClockAtom,
     stampMessagesCreatedAtAtom,
     startTurnClockAtom,
+    turnDeliverySourceBySession,
+    type TurnDeliverySource,
 } from "@agenta/chat/state"
 import {expandedKeysForMessages, pruneExpandedAtom} from "@agenta/chat/state"
 import {
+    clearSessionTurnId,
+    getSessionTurnId,
     isChatBusy,
     persistSessionMessagesAtom,
     sessionMessagesAtom,
     sessionRecordCountsReadAtom,
     setSessionStatusAtom,
+    setSessionTurnId,
+    setAcceptedSessionTurnId,
     type SessionChatHooks,
 } from "@agenta/chat/state"
 import {
-    commandSessionStream,
+    cancelSessionExecution,
     invalidateSessionListQueries,
     killSession,
     recordInteractionAnswerAtom,
+    respondInteractionAnswerAtom,
+    respondInteractionAnswersAtom,
+    resumeSessionContinuationAtom,
+    sessionDurableApprovalsCapabilityAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
 } from "@agenta/entities/session"
@@ -37,13 +60,14 @@ import {
     approvalResolution,
     buildAgentRequest,
     buildTurnCapture,
+    isHitlPending,
     isResumeSend,
     playgroundController,
-    recordAnswerThenRelease,
     type LiveAgentInteraction,
 } from "@agenta/playground"
 import {agentSelfCommitSignalAtom} from "@agenta/shared/state"
 import {generateId} from "@agenta/shared/utils"
+import {message} from "@agenta/ui/app-message"
 import {useChat} from "@ai-sdk/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {type UIMessage} from "ai"
@@ -52,12 +76,12 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {doesAgentChatStopKillSession} from "../assets/constants"
+import {isStoppingPhase, reduceStopPhase} from "../assets/stopState"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {useChatScopeKey} from "../state/scope"
 import {openSessionIdsAtomFamily} from "../state/sessions"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
 
-import {useFileActivityDetector} from "./useFileActivityDetector"
 import {type ScrollIntent} from "./useScrollIntent"
 import {useSessionHydration} from "./useSessionHydration"
 import {useToolCacheInvalidation} from "./useToolCacheInvalidation"
@@ -104,17 +128,33 @@ export const useAgentChatSession = ({
     const recordWatermarkRef = useRef<number | undefined>(
         store.get(sessionRecordCountsReadAtom)[sessionId],
     )
+    // Durable sequence coverage is connection-local and must never be stored as a row count.
+    const sequenceWatermarkRef = useRef<number | undefined>(undefined)
     // Whether the LAST assistant turn was user-stopped. You can only cancel the in-flight (last) turn,
     // so this is a single boolean gated on position at render time — independent of message ids (which
     // can be missing/duplicated in restore/error paths and would otherwise smear the tag onto every
     // turn). Cleared on the next send/resend.
-    const [stopped, setStopped] = useState(false)
+    const [userStoppedState, dispatchStopped] = useReducer(
+        reduceUserStoppedState,
+        initialMessages,
+        createUserStoppedState,
+    )
+    const stopped = userStoppedState.stopped
+    const setStopped = useCallback(
+        (next: boolean) => dispatchStopped({type: next ? "user-stop" : "reset"}),
+        [],
+    )
+    const [stopPhase, dispatchStop] = useReducer(reduceStopPhase, "idle")
 
     const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
+    const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
+    const respondInteractionAnswers = useSetAtom(respondInteractionAnswersAtom)
+    const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
+    const supportsDurableApprovals = useSetAtom(sessionDurableApprovalsCapabilityAtom)
     const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     // `null` means "no live gate" — voided by a stop, or spent once a resume really went out;
@@ -123,26 +163,104 @@ export const useAgentChatSession = ({
     // Whether this mount is still on screen. The chat outlives it, so its callbacks need to tell
     // "still mine to report" from "running on in the background".
     const mountedRef = useRef(false)
+    const messagesRef = useRef(initialMessages)
     const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
+    // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
+    // `onData` and never the transcript — this is the only place the answer survives. A stream that
+    // dies after it is a lost connection, not a lost turn; one that dies before it may be a send
+    // that never started, and that failure has to stay on screen and in the cache.
+    const turnAcceptedRef = useRef(acceptedRunBySession.has(sessionId))
+    const acceptedExecutionIdRef = useRef<string | null>(
+        acceptedRunBySession.get(sessionId) ?? null,
+    )
+    const [acceptedRunPending, setAcceptedRunPending] = useState(() =>
+        acceptedRunBySession.has(sessionId),
+    )
+    const [turnDeliverySource, setTurnDeliverySource] = useState<TurnDeliverySource | null>(
+        () => turnDeliverySourceBySession.get(sessionId) ?? null,
+    )
+    const entityIdRef = useRef(entityId)
+    // Synced after commit, never during render: an interrupted render must not leak an
+    // uncommitted revision into the request builder.
+    useLayoutEffect(() => {
+        entityIdRef.current = entityId
+    }, [entityId])
+    const adoptRevision = useCallback(
+        (next: string) => {
+            entityIdRef.current = next
+            if (next !== entityId) {
+                switchEntity({currentEntityId: entityId, newEntityId: next})
+            }
+        },
+        [entityId, switchEntity],
+    )
+    const settleSharedTurn = useCallback(
+        (executionId?: string) => {
+            const acceptedExecutionId = acceptedExecutionIdRef.current
+            if (executionId && acceptedExecutionId && acceptedExecutionId !== executionId) return
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
+            turnDeliverySourceBySession.delete(sessionId)
+            setTurnDeliverySource(null)
+        },
+        [sessionId],
+    )
+    const sharedSenderReadyRef = useRef(false)
+    const setSharedSenderReady = useCallback((ready: boolean) => {
+        sharedSenderReadyRef.current = ready
+    }, [])
+    const retryContinuation = useCallback(
+        () => resumeSessionContinuation(sessionId),
+        [resumeSessionContinuation, sessionId],
+    )
 
     // Rebuilt every render and bound to the chat on every commit (below), so they always see the live
     // values — `entityId` included, which is why a run follows a revision switch or a self-commit
     // instead of sticking to the revision this session first mounted on.
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
-            // Bounded: retries while the invocation URL is still loading and rejects if the build
-            // hangs, so a failed send surfaces as an error bubble instead of an eternal spinner
-            // (#6042). The helper owns the not-ready / timed-out errors.
-            const req = await buildRequestWithinDeadline(() =>
-                buildAgentRequest(entityId, messages, {
-                    sessionId: id ?? sessionId,
-                }),
+            return prepareAfterContinuationPreflight(
+                resumeSessionContinuation,
+                id ?? sessionId,
+                async () => {
+                    clearSessionTurnId(sessionId)
+                    turnAcceptedRef.current = false
+                    acceptedExecutionIdRef.current = null
+                    acceptedRunBySession.delete(sessionId)
+                    setAcceptedRunPending(false)
+                    const sharedResponse = sharedSenderReadyRef.current
+                    const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
+                    turnDeliverySourceBySession.set(sessionId, deliverySource)
+                    setTurnDeliverySource(deliverySource)
+                    // Bounded: retries while the invocation URL is still loading and rejects if
+                    // the build hangs, so a failed send surfaces as an error bubble instead of an
+                    // eternal spinner (#6042).
+                    const req = await buildRequestWithinDeadline(() =>
+                        buildAgentRequest(entityIdRef.current, messages, {
+                            sessionId: id ?? sessionId,
+                            sharedResponse,
+                            secretSetup: true,
+                        }),
+                    )
+                    captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
+                    return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
+                },
             )
-            captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
-            return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
         },
         // ── #6047 startup states: capture the runner's observed startup boundary as it streams ──
         onData: (part) => {
+            if (part.type === "data-session-accepted") {
+                turnAcceptedRef.current = true
+                const data = part.data as {executionId?: unknown} | undefined
+                acceptedExecutionIdRef.current =
+                    typeof data?.executionId === "string" ? data.executionId : null
+                if (acceptedExecutionIdRef.current) {
+                    setAcceptedSessionTurnId(sessionId, acceptedExecutionIdRef.current)
+                }
+                acceptedRunBySession.set(sessionId, acceptedExecutionIdRef.current)
+                setAcceptedRunPending(true)
+            }
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
         },
@@ -166,7 +284,21 @@ export const useAgentChatSession = ({
         // `is_running: true` outlived the answer by up to 15s (#5844). Safe to refetch immediately —
         // the runner awaits its `is_running: false` heartbeat BEFORE closing this stream
         // (services/runner/src/server.ts `aliveWatchdog.release()`), so the flag is already cleared.
-        onFinish: ({message}) => {
+        onFinish: ({
+            message,
+            messages: finishedMessages,
+            finishReason,
+            isAbort,
+            isDisconnect,
+            isError,
+        }) => {
+            // A clean shared invoke close is terminal; a disconnect still waits for the durable event.
+            if (!isAbort && !isDisconnect && !isError) settleSharedTurn()
+            dispatchStopped({
+                type: "stream-terminal",
+                messages: finishedMessages,
+                finishReason,
+            })
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
@@ -181,13 +313,10 @@ export const useAgentChatSession = ({
             if (!mountedRef.current) setSessionStatus({id: sessionId, status: "idle"})
         },
         onError: () => {
-            // Clear the marker but do NOT void the resume. A gateway approval is answered while the
-            // stream is still open, so the SDK skips its own dispatch and only re-evaluates when the
-            // stream ends — often by erroring, right here. `null` made that last evaluation return
-            // false and stranded the answer; `undefined` lets the tail heuristics decide.
-            // Adoption is unaffected: the hydration guard reads this ref as a boolean.
-            // The registry logs the error for the dev overlay (F-033) before calling this.
-            liveGateInteractionRef.current = undefined
+            // Preserve null after resume/Stop; only a live marker may fall back to tail detection.
+            if (liveGateInteractionRef.current !== null) {
+                liveGateInteractionRef.current = undefined
+            }
         },
     }
 
@@ -206,14 +335,15 @@ export const useAgentChatSession = ({
 
     const {
         messages,
-        sendMessage,
+        sendMessage: sendChatMessage,
         status,
         stop,
-        regenerate,
+        regenerate: regenerateChatMessage,
         setMessages,
         addToolApprovalResponse,
         addToolOutput,
         error,
+        clearError,
     } = useChat({
         chat,
         // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
@@ -221,36 +351,87 @@ export const useAgentChatSession = ({
         experimental_throttle: 50,
     })
 
-    const busy = isChatBusy(status)
+    const sendMessageWithFreshGuard: typeof sendChatMessage = useCallback(
+        (...args: Parameters<typeof sendChatMessage>) => {
+            clearSessionTurnId(sessionId)
+            return sendChatMessage(...args)
+        },
+        [sendChatMessage, sessionId],
+    )
+    const regenerateWithFreshGuard: typeof regenerateChatMessage = useCallback(
+        (...args: Parameters<typeof regenerateChatMessage>) => {
+            clearSessionTurnId(sessionId)
+            return regenerateChatMessage(...args)
+        },
+        [regenerateChatMessage, sessionId],
+    )
+    const lastMessage = messages[messages.length - 1]
+    const serverErrorProvenance =
+        lastMessage?.role === "assistant" &&
+        lastMessage.parts.some((part) => part.type === "data-agent-error")
+    const errorBoundary = useMemo(
+        () =>
+            error
+                ? classifyAgentRunError(error, turnAcceptedRef.current, serverErrorProvenance)
+                : {},
+        [error, serverErrorProvenance],
+    )
 
+    const busy = isChatBusy(status)
     // `messages`/`busy` change every token; consumers that must stay referentially stable
     // (`handleRewind`, the hydration/SWR adoption guards) read them through refs instead.
-    const messagesRef = useRef(messages)
     messagesRef.current = messages
-    const busyRef = useRef(busy)
-    busyRef.current = busy
+    const busyRef = useRef(busy || acceptedRunPending)
+    busyRef.current = busy || acceptedRunPending
+    // Accepted shared turns receive their content through durable hydration.
+    const localRenderBusyRef = useRef(busy && !acceptedRunPending)
+    localRenderBusyRef.current = busy && !acceptedRunPending
+
+    useEffect(() => {
+        dispatchStopped({type: "transcript", messages})
+    }, [messages])
 
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
-    // throttle-revalidate the drives) as the turn streams, not just at onFinish.
+    // throttle-revalidate the drives) as the turn streams, not just at onFinish. Desktop drives its
+    // own session hook rather than `useAgentConversation`, so it calls the shared detector itself.
     useFileActivityDetector({sessionId, messages})
 
     // Server-side platform ops (create_schedule, …) stale the client cache with no other signal.
     useToolCacheInvalidation({sessionId, messages})
 
-    const {isHydrating, hydratedEmpty, runningElsewhere} = useSessionHydration({
+    const {
+        isHydrating,
+        hydratedEmpty,
+        runningElsewhere,
+        stopStateLoading,
+        sessionTurnId,
+        stoppingTurnId,
+        sharedReaderAdvertised,
+        refreshFromRecords,
+        revalidate,
+    } = useSessionHydration({
         sessionId,
         initialMessages,
         messagesRef,
-        busyRef,
+        busyRef: localRenderBusyRef,
         seenIdsRef,
         restoredIdsRef,
         recordWatermarkRef,
+        sequenceWatermarkRef,
         busy,
         setMessages,
         persistMessages,
+        clearRunError: clearError,
         intent,
         pendingResumeRef: liveGateInteractionRef,
     })
+    const stopping =
+        isStoppingPhase(stopPhase) ||
+        isSessionTurnStopping({
+            currentTurnId: sessionTurnId ?? latestTurnId(messages),
+            stoppingTurnId,
+        }) ||
+        (stopStateLoading && isHitlPending(messages))
 
     // A decision made in THIS mount marks the resume as live — a restored approval-requested tail
     // the user answers after a reload genuinely auto-resumes, so the queue's pre-resume hold applies.
@@ -258,26 +439,69 @@ export const useAgentChatSession = ({
         liveGateInteractionRef.current = interaction
     }, [])
 
-    /**
-     * Answer an approval: record the decision on the row the runner parked, THEN flip the part.
-     *
-     * Ordered, not raced. This hook dispatches no resume of its own — the park stream ends with a
-     * clean finish, so the SDK's `sendAutomaticallyWhen` sends it — but the flip is what lets the
-     * SDK dispatch, and that resume's stale sweep cancels rows still `pending`, this one included.
-     * Released early, the sweep reached the API first and cancelled the row being answered.
-     */
+    /** Choose the durable dispatcher only when the server advertises it. */
     const answerApproval = useCallback(
-        (approvalId: string, approved: boolean) =>
-            recordAnswerThenRelease({
-                record: () =>
+        async (approvalId: string, approved: boolean) => {
+            return submitApprovalForCapability({
+                durableApprovals: supportsDurableApprovals(sessionId),
+                submitDurable: () =>
+                    respondInteractionAnswer({
+                        sessionId,
+                        toolCallId: approvalId,
+                        approved,
+                    }),
+                retireDurable: () => {
+                    // A lost HTTP response may still follow a committed continuation.
+                    liveGateInteractionRef.current = null
+                },
+                recordLegacy: () =>
                     recordInteractionAnswer({
                         sessionId,
                         toolCallId: approvalId,
                         resolution: approvalResolution(approvalId, approved),
                     }),
-                release: () => addToolApprovalResponse({id: approvalId, approved}),
-            }),
-        [addToolApprovalResponse, recordInteractionAnswer, sessionId],
+                releaseLegacy: () => addToolApprovalResponse({id: approvalId, approved}),
+            })
+        },
+        [
+            addToolApprovalResponse,
+            recordInteractionAnswer,
+            respondInteractionAnswer,
+            sessionId,
+            supportsDurableApprovals,
+        ],
+    )
+
+    const answerApprovals = useCallback(
+        async (toolCallIds: string[], approved: boolean) => {
+            return submitApprovalForCapability({
+                durableApprovals: supportsDurableApprovals(sessionId),
+                submitDurable: () => respondInteractionAnswers({sessionId, toolCallIds, approved}),
+                retireDurable: () => {
+                    liveGateInteractionRef.current = null
+                },
+                recordLegacy: () =>
+                    Promise.all(
+                        toolCallIds.map((approvalId) =>
+                            recordInteractionAnswer({
+                                sessionId,
+                                toolCallId: approvalId,
+                                resolution: approvalResolution(approvalId, approved),
+                            }),
+                        ),
+                    ).then(() => undefined),
+                releaseLegacy: () => {
+                    for (const id of toolCallIds) addToolApprovalResponse({id, approved})
+                },
+            })
+        },
+        [
+            addToolApprovalResponse,
+            recordInteractionAnswer,
+            respondInteractionAnswers,
+            sessionId,
+            supportsDurableApprovals,
+        ],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
@@ -289,30 +513,30 @@ export const useAgentChatSession = ({
         if (isResumeSend({from, to: status})) liveGateInteractionRef.current = null
     }, [status])
 
-    // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
-    // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
-    // last turn and the resume predicate auto-resends. `tool` is only the typed-tools key — matching
-    // is by id — so a cast onto the untyped UIMessage tool map is safe.
-    const handleClientToolOutput = useCallback<ClientToolOutputHandler>(
-        ({toolName, toolCallId, output, errorText}) => {
-            // Set synchronously: it holds off transcript adoption for the whole ordered window.
+    // Durable gates resume on the server; legacy gates still release the local SDK.
+    const handleClientToolOutput = useCallback(
+        async ({
+            toolName,
+            toolCallId,
+            output,
+            errorText,
+        }: Parameters<ClientToolOutputHandler>[0]) => {
             liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
-            // Ordered, not raced — the resume starts a turn whose sweep cancels every `pending`
-            // row, so the answer has to be durable first. Capped inside the helper.
-            void recordAnswerThenRelease({
-                record: () =>
-                    recordInteractionAnswer({
-                        sessionId,
-                        toolCallId,
-                        resolution: {
-                            tool_call_id: toolCallId,
-                            tool_name: toolName,
-                            ...(errorText !== undefined
-                                ? {outcome: "error", error: errorText}
-                                : {outcome: "completed", output: output ?? {}}),
-                        },
-                    }),
-                release: () => {
+            const resolution = {
+                tool_call_id: toolCallId,
+                tool_name: toolName,
+                ...(errorText !== undefined
+                    ? {outcome: "error", error: errorText}
+                    : {outcome: "completed", output: output ?? {}}),
+            }
+            const outcome = await submitApprovalForCapability({
+                durableApprovals: supportsDurableApprovals(sessionId),
+                submitDurable: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
+                retireDurable: () => {
+                    liveGateInteractionRef.current = null
+                },
+                recordLegacy: () => recordInteractionAnswer({sessionId, toolCallId, resolution}),
+                releaseLegacy: () => {
                     if (errorText !== undefined) {
                         addToolOutput({
                             state: "output-error",
@@ -329,8 +553,15 @@ export const useAgentChatSession = ({
                     }
                 },
             })
+            return outcome
         },
-        [addToolOutput, recordInteractionAnswer, sessionId],
+        [
+            addToolOutput,
+            recordInteractionAnswer,
+            respondInteractionAnswer,
+            sessionId,
+            supportsDurableApprovals,
+        ],
     )
 
     // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this
@@ -339,30 +570,32 @@ export const useAgentChatSession = ({
     // response, tool output, stream finish) — never on mount — so this resume can't fire and
     // must not hold the queue. Short-circuits cheap on the streaming hot path: any live send
     // makes the tail non-restored.
-    const lastMessage = messages[messages.length - 1]
     const resumeOrphaned =
         !liveGateInteractionRef.current &&
         !!lastMessage &&
         restoredIdsRef.current.has(lastMessage.id) &&
         agentShouldResumeAfterApproval({messages})
 
-    // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
-    // it renders as a red error bubble with the real reason (and persists with the session via the
-    // effect below), instead of a transient top banner + a generic "no response". FE-only — it
-    // uses the error useChat already has; the backend doesn't need to attach it to the trace.
+    // Cache only the newest turn id observed by this page for guarded Stop.
     useEffect(() => {
-        if (!error) return
-        const parsed = parseAgentRunError(error)
+        const turnId = latestTurnId(messages)
+        if (turnId) setSessionTurnId(sessionId, turnId)
+    }, [messages, sessionId])
+
+    // Run failures become conversation content; an accepted transport loss stays connection state.
+    useEffect(() => {
+        const parsed = errorBoundary.runError
+        if (!parsed) return
+        const stamp: RunErrorMetadata = {runError: parsed}
         setMessages((prev) => {
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
-            const existing = (last?.metadata as {runError?: {message?: string}} | undefined)
-                ?.runError
+            const existing = (last?.metadata as RunErrorMetadata | undefined)?.runError
             if (last?.role === "assistant") {
                 if (existing?.message === parsed.message) return prev // already stamped
                 const next = [...prev]
                 next[next.length - 1] = {
                     ...last,
-                    metadata: {...(last.metadata as object | undefined), runError: parsed},
+                    metadata: {...(last.metadata as object | undefined), ...stamp},
                 }
                 return next
             }
@@ -373,11 +606,11 @@ export const useAgentChatSession = ({
                     id: `run-error-${generateId()}`,
                     role: "assistant",
                     parts: [],
-                    metadata: {runError: parsed},
+                    metadata: stamp,
                 } as (typeof prev)[number],
             ]
         })
-    }, [error, setMessages])
+    }, [errorBoundary.runError, setMessages])
 
     // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
     // records the runner logged for it — so drop the watermark and let the next open re-sync from
@@ -385,13 +618,20 @@ export const useAgentChatSession = ({
     // flips to "submitted", effects run in declaration order, so clearing here is what stops the
     // persist below from filing a locally-extended transcript under a server watermark.
     useEffect(() => {
-        if (isChatBusy(status)) recordWatermarkRef.current = undefined
+        if (isChatBusy(status)) {
+            recordWatermarkRef.current = undefined
+            sequenceWatermarkRef.current = undefined
+        }
     }, [status])
 
     // Persist the conversation whenever its stream settles (skip mid-stream).
     useEffect(() => {
         if (status === "streaming") return
-        persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
+        persistMessages({
+            id: sessionId,
+            messages: withoutSharedSenderAcceptanceMessages(messages),
+            recordCount: recordWatermarkRef.current,
+        })
     }, [messages, status, sessionId, persistMessages])
 
     // ── #6047 startup states: one label per in-flight turn ──
@@ -441,69 +681,212 @@ export const useAgentChatSession = ({
     // config. Deduped by revision id so a re-render (token stream) doesn't re-invalidate.
     const committedRevisionsSeenRef = useRef<Set<string>>(new Set())
     const setAgentCommitSignal = useSetAtom(agentSelfCommitSignalAtom)
+    const onCommittedRevision = useCallback(
+        (data?: {revisionId?: string; version?: string}) => {
+            const key = data?.revisionId ?? JSON.stringify(data ?? {}) ?? "committed"
+            if (committedRevisionsSeenRef.current.has(key)) return
+            committedRevisionsSeenRef.current.add(key)
+            invalidateAgentCommittedRevisionCache()
+            if (data?.revisionId && data.revisionId !== entityId) {
+                const prevParameters = store.get(workflowMolecule.selectors.configuration(entityId))
+                setAgentCommitSignal({
+                    revisionId: data.revisionId,
+                    version: data.version,
+                    prevParameters: prevParameters ?? null,
+                    at: Date.now(),
+                })
+                switchEntity({currentEntityId: entityId, newEntityId: data.revisionId})
+            }
+        },
+        [entityId, switchEntity, store, setAgentCommitSignal],
+    )
     useEffect(() => {
         for (const message of messages) {
             for (const part of message.parts) {
                 if ((part as {type?: string}).type !== "data-committed-revision") continue
-                const data = (part as {data?: {revisionId?: string; version?: string}}).data
-                // A stable key per commit: prefer the revision id, fall back to the whole payload.
-                const key = data?.revisionId ?? JSON.stringify(data ?? {}) ?? "committed"
-                if (committedRevisionsSeenRef.current.has(key)) continue
-                committedRevisionsSeenRef.current.add(key)
-                invalidateAgentCommittedRevisionCache()
-                if (data?.revisionId && data.revisionId !== entityId) {
-                    // Capture the OUTGOING revision's parameters before switching, so the config
-                    // panel can show what the agent changed (per-section indicators + summary).
-                    const prevParameters = store.get(
-                        workflowMolecule.selectors.configuration(entityId),
-                    )
-                    setAgentCommitSignal({
-                        revisionId: data.revisionId,
-                        version: data.version,
-                        prevParameters: prevParameters ?? null,
-                        at: Date.now(),
-                    })
-                    switchEntity({currentEntityId: entityId, newEntityId: data.revisionId})
-                }
+                onCommittedRevision((part as {data?: {revisionId?: string; version?: string}}).data)
             }
         }
-    }, [messages, entityId, switchEntity, store, setAgentCommitSignal])
-
-    // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
-    const markStopped = useCallback(() => {
-        const last = messages[messages.length - 1]
-        if (last && last.role === "assistant") setStopped(true)
-    }, [messages])
+    }, [messages, onCommittedRevision])
 
     const projectId = useAtomValue(projectIdAtom)
+    const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
+    const retryStopRef = useRef(false)
+    const abortAfterAcceptedRef = useRef(false)
+    const stopResolutionRef = useRef<AbortController | null>(null)
+    const stopAttemptRef = useRef(0)
+
+    useEffect(() => {
+        stopAttemptRef.current += 1
+        dispatchStop({type: "reset"})
+        retryStopRef.current = false
+        abortAfterAcceptedRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        return () => {
+            stopResolutionRef.current?.abort()
+        }
+    }, [sessionId])
 
     const handleStop = useCallback(() => {
-        markStopped()
-        // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
-        // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
+        if (stopping) return
+        // Fence delayed approval release even when cancellation cannot be requested yet.
         liveGateInteractionRef.current = null
-        stop() // abort the client stream immediately
-        if (!projectId || !sessionId) return
+        const wasParked = !busyRef.current && isHitlPending(messagesRef.current)
+        const stopAttempt = ++stopAttemptRef.current
+        dispatchStop({type: "request"})
+        if (!projectId || !sessionId) {
+            dispatchStop({type: "failed"})
+            message.warning("Could not stop the run. It may still be running.")
+            return
+        }
         // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.
         if (doesAgentChatStopKillSession()) {
             killSession({sessionId, projectId})
                 .then((ok) => {
+                    if (stopAttemptRef.current !== stopAttempt) return
                     if (ok) {
+                        dispatchStop(
+                            wasParked ? {type: "cancelled", parked: true} : {type: "accepted"},
+                        )
                         queryClient.invalidateQueries({queryKey: ["session-liveness"]})
-                        // Refresh an open Inspector's Runtime lens so its Lifecycle/State reflect the
-                        // kill immediately (mirrors the panel's own Kill button).
+                        // Refresh an open Inspector so it reflects the kill immediately.
                         void invalidateSessionInspector(queryClient, sessionId)
+                    } else {
+                        dispatchStop({type: "failed"})
+                        message.warning("Could not stop the run. It may still be running.")
                     }
                 })
-                .catch(() => {})
+                .catch((error: unknown) => {
+                    if (stopAttemptRef.current !== stopAttempt) return
+                    dispatchStop({type: "failed"})
+                    message.warning(
+                        error instanceof Error
+                            ? error.message
+                            : "Could not stop the run. It may still be running.",
+                    )
+                })
             return
         }
-        // Default Stop: cooperatively cancel the CURRENT TURN. The control-plane `cancel` command
-        // (no inputs, no force) drops the alive lock; the runner closes the turn as interrupted and
-        // the session STAYS OPEN so a follow-up prompt resumes it — instead of the old behaviour where
-        // the client stream aborted but the runner kept running and billing.
-        commandSessionStream({sessionId, projectId}).catch(() => {})
-    }, [markStopped, stop, projectId, sessionId, queryClient])
+        // Keep the stream attached until a terminal event confirms accepted cancellation.
+        const isRetry = retryStopRef.current
+        const expectedExecutionId = isRetry
+            ? expectedStopExecutionIdRef.current
+            : getSessionTurnId(sessionId)
+        retryStopRef.current = false
+        abortAfterAcceptedRef.current = isRetry
+        const cancel = async () => {
+            let resolvedExecutionId = expectedExecutionId
+            if (!isRetry && !resolvedExecutionId && busyRef.current) {
+                const controller = new AbortController()
+                stopResolutionRef.current?.abort()
+                stopResolutionRef.current = controller
+                const resolution = await resolveStopExecution({
+                    readExecutionId: () => getSessionTurnId(sessionId),
+                    isRunActive: () => busyRef.current,
+                    signal: controller.signal,
+                })
+                if (stopResolutionRef.current === controller) stopResolutionRef.current = null
+                if (resolution.status !== "resolved") return {resolution} as const
+                resolvedExecutionId = resolution.executionId
+            }
+            expectedStopExecutionIdRef.current = resolvedExecutionId
+            const outcome = await cancelSessionExecution({
+                sessionId,
+                projectId,
+                expectedExecutionId: resolvedExecutionId,
+            })
+            return {outcome} as const
+        }
+        void cancel()
+            .then((result) => {
+                if (stopAttemptRef.current !== stopAttempt) return
+                if ("resolution" in result && result.resolution) {
+                    if (result.resolution.status === "settled") {
+                        dispatchStop({type: "terminal"})
+                    } else if (result.resolution.status === "timed_out") {
+                        dispatchStop({type: "failed"})
+                        message.warning("Could not identify the run to stop. Please try again.")
+                    }
+                    return
+                }
+                const {outcome} = result
+                void invalidateSessionInspector(queryClient, sessionId)
+                if (outcome?.accepted) {
+                    dispatchStop({type: "cancelled", parked: wasParked})
+                    const legacyStopSettled = outcome.execution.state === "idle"
+                    if (legacyStopSettled || abortAfterAcceptedRef.current) {
+                        stop()
+                        dispatchStop({type: "terminal"})
+                    }
+                    queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+                    return
+                }
+                if (outcome && !outcome.conflict && outcome.execution.state === "idle") {
+                    abortAfterAcceptedRef.current = false
+                    expectedStopExecutionIdRef.current = undefined
+                    dispatchStop({type: "already_idle"})
+                    queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+                    return
+                }
+                if (outcome?.conflict) {
+                    retryStopRef.current = false
+                    expectedStopExecutionIdRef.current = undefined
+                } else if (abortAfterAcceptedRef.current) {
+                    retryStopRef.current = true
+                }
+                abortAfterAcceptedRef.current = false
+                dispatchStop({type: "failed"})
+                message.warning(
+                    outcome?.conflict
+                        ? "That run had already finished. The session is running something else now."
+                        : "Could not stop the run. It may still be running.",
+                )
+                queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+            })
+            .catch((error: unknown) => {
+                if (stopAttemptRef.current !== stopAttempt) return
+                stopResolutionRef.current = null
+                if (abortAfterAcceptedRef.current) retryStopRef.current = true
+                abortAfterAcceptedRef.current = false
+                dispatchStop({type: "failed"})
+                message.warning(
+                    error instanceof Error
+                        ? error.message
+                        : "Could not stop the run. It may still be running.",
+                )
+            })
+    }, [stopping, projectId, sessionId, queryClient, stop])
+
+    useEffect(() => {
+        if (stopPhase !== "accepted") return
+        const timer = setTimeout(() => {
+            retryStopRef.current = true
+            abortAfterAcceptedRef.current = false
+            dispatchStop({type: "timeout"})
+        }, 30_000)
+        return () => clearTimeout(timer)
+    }, [stopPhase])
+
+    const previousBusyRef = useRef(busy)
+    useEffect(() => {
+        const wasBusy = previousBusyRef.current
+        previousBusyRef.current = busy
+        if (wasBusy && !busy) {
+            retryStopRef.current = false
+            dispatchStop({type: "terminal"})
+        }
+        if (!wasBusy && busy) dispatchStop({type: "reset"})
+    }, [busy])
+
+    useEffect(() => {
+        if (stopPhase !== "stopped") return
+        const last = messagesRef.current[messagesRef.current.length - 1]
+        if (last?.role === "assistant") setStopped(true)
+        retryStopRef.current = false
+        abortAfterAcceptedRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        dispatchStop({type: "reset"})
+    }, [stopPhase])
 
     // ── D9 teardown: `useSessionChat` releases the claim; this tracks what it does not own ──
     // The startup clock only goes with the session when the session itself is gone — clearing it
@@ -535,9 +918,13 @@ export const useAgentChatSession = ({
         messages,
         status,
         busy,
-        error,
-        sendMessage,
-        regenerate,
+        error: errorBoundary.runError,
+        connectionWarning: errorBoundary.connectionWarning,
+        acceptedRunPending,
+        turnDeliverySource,
+        settleSharedTurn,
+        sendMessage: sendMessageWithFreshGuard,
+        regenerate: regenerateWithFreshGuard,
         setMessages,
         addToolApprovalResponse,
         messagesRef,
@@ -545,12 +932,21 @@ export const useAgentChatSession = ({
         isHydrating,
         hydratedEmpty,
         runningElsewhere,
+        sharedReaderAdvertised,
+        refreshFromRecords,
+        onCommittedRevision,
+        setSharedSenderReady,
+        revalidate,
         stopped,
+        stopping,
         setStopped,
         handleStop,
         handleClientToolOutput,
+        adoptRevision,
         markLiveGate,
         answerApproval,
+        answerApprovals,
+        retryContinuation,
         resumeOrphaned,
         isSeen,
     }

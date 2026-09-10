@@ -136,6 +136,8 @@ class WorkflowInvokeRequestFlags(BaseModel):
     trim: Optional[bool] = None
     force: Optional[bool] = None
     resolve: Optional[bool] = None
+    # A shared-event sender may close invoke after acceptance without owning the turn lifetime.
+    detached: Optional[bool] = None
 
 
 class WorkflowRevisionData(BaseModel):
@@ -284,6 +286,7 @@ WorkflowServiceBaseRequest = WorkflowBaseRequest
 
 class WorkflowInvokeRequest(WorkflowBaseRequest):
     data: Optional[WorkflowRequestData] = None
+    on_busy: Optional[Literal["reject", "queue", "steer"]] = None
 
 
 # back-compat alias

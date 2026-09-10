@@ -16,6 +16,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.redis.shared.engine import get_cache_engine
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
+    UpdateSecretDTO,
     CustomModelSettingsDTO,
     CustomProviderDTO,
     CustomProviderSettingsDTO,
@@ -167,6 +168,14 @@ async def seed_starter_credits_bridge(
         project_id=project.id,
     )
     if row is not None:
+        await reconcile_starter_credits_model(
+            client=client,
+            config=config,
+            vault_service=vault_service,
+            project_id=project.id,
+            organization_id=organization_id,
+            row=row,
+        )
         return
 
     if not await _mint_policy_allows(organization_email, policy):
@@ -186,6 +195,254 @@ async def seed_starter_credits_bridge(
         if not seeded:
             # The consumed velocity slot funded no mint; hand it back best-effort.
             await _release_velocity_slots(organization_email, policy)
+
+
+# One reconcile at a time per project. Reads are concurrent (the picker and the runtime
+# resolver both list secrets), and without this a burst would send the same repair several
+# times. It is an in-flight set, not a memo: a repair that failed must be retried by the
+# next read, and a row already on the funded model costs a list scan either way.
+_reconciling_projects: set[str] = set()
+
+# How long a project waits after ONE repair attempt before a read makes another. A retry is
+# what recovers a transient proxy failure, but nothing else bounds how often a project can
+# be repaired, and two cases would otherwise write on every secrets list: a row that cannot
+# be repaired at all (a deleted proxy key, say), and two API replicas configured with
+# different model ids, each repairing the row back to its own. A healthy project never
+# reaches this: its row matches and the check above returns first.
+_RECONCILE_RETRY_COOLDOWN_SECONDS = 300.0
+
+_reconcile_cooldowns: dict[str, float] = {}
+
+
+async def reconcile_starter_credits_on_read(
+    *,
+    project_id: UUID,
+    secrets: list,
+) -> Optional[SecretResponseDTO]:
+    """Repair a stale starter-credits row as it is read, and return the repaired row.
+
+    Seeding runs once, at signup, so nothing else ever revisits a row that was written
+    before the funded model was cut over. This is the path that reaches those rows: the
+    picker and the runtime resolver both list a project's secrets, so the first read after
+    a cutover repairs the row and every read after it is a list scan that finds nothing to
+    do. Returns the current row when the caller's snapshot was stale, and None when there
+    was nothing to correct or nothing better to hand back.
+
+    Never raises. A read must not fail because a repair could not run — the caller would
+    lose its whole secrets list over a connection that is at worst as broken as it already
+    was.
+    """
+    config = env.starter_credits_bridge
+    if not config.armed:
+        return None
+
+    row = _find_starter_credits_row(secrets)
+    if row is None or _stored_model_slugs(row) == [config.model_id]:
+        # The whole cost of a healthy project: a scan of the list already in hand.
+        return None
+
+    key = str(project_id)
+    vault_service = _vault_service()
+    if _may_repair(key):
+        _reconciling_projects.add(key)
+        try:
+            await reconcile_starter_credits_model(
+                client=_proxy_client(config),
+                config=config,
+                vault_service=vault_service,
+                project_id=project_id,
+                # The read knows the project, not the organization. The project id already
+                # identifies the row, and resolving the organization would cost a query on
+                # a path that runs on every secrets list.
+                organization_id=None,
+                row=row,
+            )
+        except Exception:
+            log.warning(
+                "[starter_credits_bridge] could not reconcile on read; the read stands",
+                project_id=key,
+                exc_info=True,
+            )
+        finally:
+            # Armed on every attempt, not only a failed one: a repeated repair means
+            # something is wrong (a row that will not stay repaired), and that must not run
+            # per read.
+            _hold_off(key)
+            _reconciling_projects.discard(key)
+
+    # Read the row back whether or not THIS request repaired it. Skipping the repair does
+    # not mean the caller's snapshot is right: a concurrent request may have repaired the
+    # row already, and reads are served from a cached list, so a snapshot taken before that
+    # repair can still be published after it. Answering from the row itself is what keeps a
+    # reader that skipped the repair from serving the stale model anyway.
+    try:
+        fresh = await vault_service.get_secret_by_slug(
+            STARTER_CREDITS_SLUG,
+            project_id=project_id,
+        )
+        if fresh is None or _stored_model_slugs(fresh) != [config.model_id]:
+            # Still stale, so there is nothing better to hand back than what the caller has.
+            return None
+
+        # The caller's list was stale while the row was not, so the cached list it came from
+        # is stale too. Drop it, or every read pays for this re-read until the entry expires.
+        # Through the vault, which owns list-cache invalidation, and never the cache helper.
+        await vault_service.invalidate_secrets_cache(project_id)
+    except Exception:
+        # Inside the guard like everything else: the re-read and the cache drop both reach
+        # the database, and neither may take the caller's secrets list down with it.
+        log.warning(
+            "[starter_credits_bridge] could not read the row back; the read stands",
+            project_id=key,
+            exc_info=True,
+        )
+        return None
+
+    return fresh
+
+
+def _may_repair(project_id: str) -> bool:
+    """Whether this request should attempt the repair, rather than let another one do it."""
+    if project_id in _reconciling_projects:
+        return False
+
+    cooling_until = _reconcile_cooldowns.get(project_id)
+
+    return cooling_until is None or _monotonic() >= cooling_until
+
+
+def _hold_off(project_id: str) -> None:
+    """Stop reads repairing this project again for a while."""
+    _reconcile_cooldowns[project_id] = _monotonic() + _RECONCILE_RETRY_COOLDOWN_SECONDS
+
+
+def _find_starter_credits_row(secrets: list) -> Optional[SecretResponseDTO]:
+    """The seeded row inside an already-fetched list, or None. No query of its own."""
+    for secret in secrets or []:
+        if getattr(secret, "slug", None) != STARTER_CREDITS_SLUG:
+            continue
+        management = getattr(secret, "management", None)
+        # Only a row the bridge owns. A user is free to delete the seeded connection and
+        # save their own under the same slug, and that one is theirs to point anywhere.
+        if (
+            management is not None
+            and management.manager == SecretManager.STARTER_CREDITS_BRIDGE
+        ):
+            return secret
+    return None
+
+
+async def reconcile_starter_credits_model(
+    *,
+    client: StarterCreditsProxyClient,
+    config: StarterCreditsBridgeConfig,
+    vault_service: VaultService,
+    project_id: UUID,
+    organization_id: Optional[str],
+    row: SecretResponseDTO,
+) -> bool:
+    """Re-point an already-seeded row at the model the proxy funds today.
+
+    The row freezes the funded model at creation time, but the proxy serves exactly one
+    model and that model gets cut over. A row left on the old id resolves every run to a
+    model the proxy refuses, so a project seeded before a cutover fails on every turn with
+    HTTP 400 "Invalid model name passed in model=<old id>".
+
+    Rewrites the stored list and re-points the minted key's allow-list. It never mints: the
+    grant invariant is one key per organization. Returns whether the row was changed.
+    """
+    stored_models = _stored_model_slugs(row)
+    if stored_models == [config.model_id]:
+        return False
+
+    # The proxy first: a key still restricted to the old id would refuse the new one, so
+    # widening it before the row changes keeps the two consistent for as long as possible.
+    # A failure here is logged, not raised — the row must still move, and a key pointing at
+    # a model the proxy no longer serves is already unusable.
+    virtual_key = _stored_virtual_key(row)
+    if not virtual_key:
+        # A row with no credential cannot run whatever model it names, so re-pointing it
+        # would fix nothing. Bail rather than write: the read path retries a row it still
+        # sees as stale, and rewriting one that stays broken would retry on every read.
+        log.warning(
+            "[starter_credits_bridge] the seeded row carries no key; nothing to repair",
+            organization_id=organization_id,
+            project_id=str(project_id),
+        )
+        return False
+
+    try:
+        await client.update_key_models(
+            key=virtual_key,
+            models=[config.model_id],
+        )
+    except Exception:
+        # Do NOT write the row. A row on the new model whose key still allows only the old
+        # one is just as broken, and it would read as current forever, so nothing would try
+        # again. Leaving it stale is what keeps the next read retrying the whole repair.
+        log.warning(
+            "[starter_credits_bridge] could not re-point the key's models; "
+            "leaving the row stale so the next read retries",
+            organization_id=organization_id,
+            project_id=str(project_id),
+            exc_info=True,
+        )
+        return False
+
+    await vault_service.update_managed_secret(
+        secret_id=row.id,
+        project_id=project_id,
+        update_secret_dto=_model_update(row=row, config=config),
+        manager=SecretManager.STARTER_CREDITS_BRIDGE,
+    )
+
+    log.info(
+        "[starter_credits_bridge] reconciled a stale funded model",
+        organization_id=organization_id,
+        project_id=str(project_id),
+        secret_id=str(row.id),
+        stored_models=stored_models,
+        funded_model=config.model_id,
+    )
+    return True
+
+
+def _stored_model_slugs(row: SecretResponseDTO) -> list[str]:
+    """The model ids the row offers, in stored order."""
+    models = getattr(getattr(row, "data", None), "models", None) or []
+    slugs = [getattr(model, "slug", None) for model in models]
+    return [str(slug) for slug in slugs if slug]
+
+
+def _stored_virtual_key(row: SecretResponseDTO) -> Optional[str]:
+    """The minted key the row carries, or None when the read gave a value-less shape."""
+    key = getattr(getattr(getattr(row, "data", None), "provider", None), "key", None)
+    return key if isinstance(key, str) and key else None
+
+
+def _model_update(
+    *,
+    row: SecretResponseDTO,
+    config: StarterCreditsBridgeConfig,
+) -> UpdateSecretDTO:
+    """The narrowest update that re-points the row: its models, and nothing else.
+
+    Built from the STORED payload so the routing URL and every other saved field survive
+    verbatim. ``model_keys`` is dropped rather than carried, because it is derived from the
+    model list and a carried copy would keep publishing the old namespaced key.
+    """
+    data = row.data.model_dump(mode="json", exclude_none=True)
+    data["models"] = [{"slug": config.model_id}]
+    data.pop("model_keys", None)
+
+    return UpdateSecretDTO.model_validate(
+        {
+            "secret": {
+                "kind": SecretKind.CUSTOM_PROVIDER.value,
+                "data": data,
+            }
+        }
+    )
 
 
 async def _provision(

@@ -3,6 +3,7 @@ import {useMemo, useRef, useState} from "react"
 import {
     buildTurnViewModels,
     createExecutedToolIdentityCache,
+    createTurnViewModelCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
 import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
@@ -22,7 +23,6 @@ import {LiveConversation} from "./LiveConversation"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {SessionWorkspace} from "./SessionWorkspace"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
-import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useAgentEntity} from "./useAgentEntity"
@@ -74,12 +74,16 @@ export const ChatScreen = ({
     const lastEntityIdRef = useRef<string | null>(null)
     if (entityId) lastEntityIdRef.current = entityId
     const heldEntityId = entityId ?? lastEntityIdRef.current
+    // Held for the same gap: a blink to null re-scopes the files pane and the tab rail (#6542, #6544).
+    const lastAgentIdRef = useRef<string | null>(null)
+    if (resolvedAgentId) lastAgentIdRef.current = resolvedAgentId
+    const heldAgentId = resolvedAgentId ?? lastAgentIdRef.current
     // Only a FIRST load has nothing to hold — that is the one time a spinner is honest.
     const showLoading = resolving && !heldEntityId
     const liveness = useLivenessPoll(projectId)
-    const running = Boolean(
-        liveness.data?.find((s) => s.session_id === sessionId)?.flags?.is_running,
-    )
+    const liveStream = liveness.data?.find((s) => s.session_id === sessionId)
+    const running = Boolean(liveStream?.flags?.is_running)
+    const sharedReader = Boolean(liveStream?.capabilities?.shared_reader)
     // The conversation is ALWAYS mounted — the mode only decides what sits beside it (and, on a
     // narrow frame, which of the two is on screen). Unmounting it on a mode flip would drop a
     // streaming turn.
@@ -99,7 +103,11 @@ export const ChatScreen = ({
             projectId={projectId}
             workspaceId={workspaceId}
             running={running}
-            agentId={resolvedAgentId}
+            stopStateLoading={liveness.isLoading}
+            sessionTurnId={liveStream?.turn_id}
+            stoppingTurnId={liveStream?.stopping_turn_id}
+            sharedReader={sharedReader}
+            agentId={heldAgentId}
         />
     ) : (
         <ReplayScreen
@@ -108,7 +116,7 @@ export const ChatScreen = ({
             projectId={projectId}
             workspaceId={workspaceId}
             running={running}
-            agentId={resolvedAgentId}
+            agentId={heldAgentId}
         />
     )
 
@@ -117,7 +125,7 @@ export const ChatScreen = ({
             // Held, not raw: the config pane keys off this, and letting it blink to null mid-switch
             // is what unmounted the pane.
             entityId={heldEntityId}
-            agentId={resolvedAgentId}
+            agentId={heldAgentId}
             sessionId={sessionId}
             workspaceId={workspaceId}
             projectId={projectId}
@@ -147,10 +155,15 @@ const ReplayScreen = ({
     // Tightened records cadence only while this foregrounded screen shows a running or pending
     // turn; derived from the previous render's messages, so it settles one render behind.
     const [pollMs, setPollMs] = useState(0)
-    const {messages, state, refresh} = useSessionTranscript(sessionId, pollMs)
+    const {messages, state, refresh, interactionChanged} = useSessionTranscript(sessionId, pollMs)
     // Live relay (M3): push-invalidate through the same tick body; while it is open the
     // poll below is only a safety net.
-    const watch = useSessionWatch({sessionId, projectId, onRecordsChanged: refresh})
+    const watch = useSessionWatch({
+        sessionId,
+        projectId,
+        onRecordsChanged: refresh,
+        onInteractionChanged: interactionChanged,
+    })
     const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
     const pendingCount = pendingApprovals.length
     const pendingApprovalIds = useMemo(
@@ -166,10 +179,16 @@ const ReplayScreen = ({
     // One identity cache per session — the dep does that, and must, since the screen is no longer
     // remounted per session.
 
+    // Both factories take no argument, so the linter reads `sessionId` as unused. It is the point:
+    // the dep is what discards the previous session's cache on a screen that never remounts.
+
     const executedFor = useMemo(() => createExecutedToolIdentityCache(), [sessionId])
+    // Without this every view model is a fresh object per poll, so TurnRow's memo never hits.
+
+    const turnCache = useMemo(() => createTurnViewModelCache(), [sessionId])
     const turns = useMemo(
-        () => buildTurnViewModels(messages, {busy: false, executedFor}),
-        [messages, executedFor],
+        () => buildTurnViewModels(messages, {busy: false, executedFor, cache: turnCache}),
+        [messages, executedFor, turnCache],
     )
     // Keyed on `turns` (new array per poll) so streamed growth also re-pins.
     const autoScroll = useTranscriptAutoScroll(turns)
@@ -220,7 +239,6 @@ const ReplayScreen = ({
                                 <StatusTag tone="running" dot>
                                     running
                                 </StatusTag>
-                                <StopButton sessionId={sessionId} projectId={projectId} />
                             </ContentRail>
                         </div>
                     ) : null}

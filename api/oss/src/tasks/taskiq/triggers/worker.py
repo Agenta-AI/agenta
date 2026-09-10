@@ -105,10 +105,21 @@ class TriggersWorker:
                 )
                 return
 
-            resolved_project_id = UUID(project_id)
+            try:
+                resolved_project_id = UUID(project_id)
+                resolved_schedule_id = UUID(str(queued_schedule_id))
+            except ValueError:
+                log.warning(
+                    "[TASK] triggers.dispatch_schedule Malformed UUID "
+                    "project_id=%s schedule_id=%s — skipping",
+                    project_id,
+                    queued_schedule_id,
+                )
+                return
+
             entity = await self.triggers_dao.fetch_schedule(
                 project_id=resolved_project_id,
-                schedule_id=UUID(str(queued_schedule_id)),
+                schedule_id=resolved_schedule_id,
             )
             if entity is None or not entity.flags.is_active:
                 log.info(

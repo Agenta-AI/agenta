@@ -98,7 +98,7 @@ export function CreateSecretDrawer({
             }
             styles={{body: {padding: 16}, footer: FOOTER_STYLE}}
         >
-            <SecretForm controller={controller} />
+            <SecretForm controller={controller} popupZIndex={zIndex + 1} />
         </EnhancedDrawer>
     )
 }

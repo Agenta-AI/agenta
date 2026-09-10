@@ -24,7 +24,6 @@ import {useRouter} from "next/router"
 
 import InlineRenameInput from "./InlineRenameInput"
 import {isMenuDivider} from "./menu"
-import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {useInlineRename} from "./useInlineRename"
 import type {SessionRowChrome} from "./useSessionRowChrome"
 
@@ -38,6 +37,11 @@ export interface SessionRowTarget {
 
 const RENAME = "rename"
 
+// [font-family:inherit]: preflight is off, so a bare <button> renders Arial, not Inter.
+// Themed focus ring, not the UA blue: Radix returns focus to the trigger on close.
+const KEBAB_CLASS =
+    "flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 outline-none transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
+
 /**
  * Per-row session verbs in the nav rail — rename, pin, archive, delete.
  *
@@ -46,9 +50,8 @@ const RENAME = "rename"
  * shared modal, because a rail row is already the thing you are naming. Every other surface keeps
  * the modal — this intercepts the action here instead of changing the shared verb.
  *
- * Two ways into the menu: long-press (Radix ContextMenu opens on a 700ms touch hold) and a kebab.
- * The kebab hides until hover ON A POINTER DEVICE only — `hover` never fires on touch, so
- * `pointer-coarse` keeps it visible there.
+ * The kebab is the only way in; no right-click menu, so a rail row keeps the browser's own.
+ * It shows on hover on a pointer device, and stays visible on touch (`pointer-coarse`).
  */
 const SessionRowActions = ({
     session,
@@ -63,6 +66,12 @@ const SessionRowActions = ({
     const {menuItems, onMenuClick, renameSession} = chrome
     const router = useRouter()
     const [open, setOpen] = useState(false)
+    // Radix's menu costs a Popper and a Presence per row; mount it on first use, not on mount.
+    const [armed, setArmed] = useState(false)
+    const arm = useCallback(() => {
+        setArmed(true)
+        setOpen(true)
+    }, [])
     // Navigation is held for one double-click window so a rename doesn't also open the session.
     const navTimerRef = useRef<number | null>(null)
     const inputRef = useRef<HTMLInputElement | null>(null)
@@ -176,40 +185,32 @@ const SessionRowActions = ({
         )
 
     return (
-        <SessionRowContextMenu entries={entries} onSelect={onSelect}>
+        <span
+            className="group/row flex w-full min-w-0 items-center"
+            onDoubleClick={(event) => {
+                event.preventDefault()
+                cancelPendingNav()
+                // Archived rows cannot be renamed — the menu drops the verb, so the
+                // double-click shortcut into it has to go too.
+                if (!session.archived) rename.start()
+            }}
+        >
+            {/* font-normal overrides NavMenu's selected-row `font-medium`, this rail only. */}
+            <span className="min-w-0 flex-1 truncate font-normal">{linkWithHeldNavigation}</span>
             <span
-                className="group/row flex w-full min-w-0 items-center"
-                onDoubleClick={(event) => {
-                    event.preventDefault()
-                    cancelPendingNav()
-                    // Archived rows cannot be renamed — the menu drops the verb, so the
-                    // double-click shortcut into it has to go too.
-                    if (!session.archived) rename.start()
-                }}
+                // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
+                // right edge. Only session rows are wrapped, so no other nav row shifts.
+                className="relative z-[1] -mr-2 flex h-5 w-7 shrink-0 items-center justify-center"
+                onClick={swallow}
             >
-                {/* font-normal: the selected row's `font-medium` is a NavMenu-wide style, and
-                    overriding it here keeps every other rail untouched. */}
-                <span className="min-w-0 flex-1 truncate font-normal">
-                    {linkWithHeldNavigation}
-                </span>
-                <span
-                    // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
-                    // right edge. Only session rows are wrapped, so no other nav row shifts.
-                    className="relative z-[1] -mr-2 flex h-5 w-7 shrink-0 items-center justify-center"
-                    onClick={swallow}
-                >
+                {armed ? (
                     <DropdownMenu open={open} onOpenChange={setOpen}>
                         <DropdownMenuTrigger asChild>
                             <button
                                 type="button"
                                 aria-label={`Actions for ${session.name || "Untitled session"}`}
                                 data-open={open || undefined}
-                                // [font-family:inherit]: preflight is off, so a bare <button>
-                                // renders Arial while the rows around it render Inter.
-                                // Themed focus ring, not the UA blue: Radix returns focus to the
-                                // trigger on close, so `:focus-visible` matches and painted a stray
-                                // blue box over the row. `outline-none` drops the default.
-                                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 outline-none transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
+                                className={KEBAB_CLASS}
                             >
                                 <DotsThreeVerticalIcon size={16} weight="bold" />
                             </button>
@@ -236,9 +237,27 @@ const SessionRowActions = ({
                             )}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                </span>
+                ) : (
+                    <button
+                        type="button"
+                        aria-label={`Actions for ${session.name || "Untitled session"}`}
+                        aria-haspopup="menu"
+                        aria-expanded={false}
+                        className={KEBAB_CLASS}
+                        onPointerDown={(event) => {
+                            // Radix's trigger opens on pointer-down; the first press matches it.
+                            if (event.button !== 0 || event.ctrlKey) return
+                            arm()
+                        }}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") arm()
+                        }}
+                    >
+                        <DotsThreeVerticalIcon size={16} weight="bold" />
+                    </button>
+                )}
             </span>
-        </SessionRowContextMenu>
+        </span>
     )
 }
 

@@ -17,6 +17,7 @@ export {type SessionMenuEntry, isMenuDivider} from "./menu"
 export {SessionRowContextMenu, type SessionRowContextMenuProps} from "./SessionRowContextMenu"
 export {
     isSessionAutomationAction,
+    mergeSessionMenuEntries,
     OPEN_SESSION_AUTOMATION_ACTION,
     sessionAutomationMenuEntries,
     VIEW_SESSION_DELIVERY_ACTION,
@@ -48,7 +49,12 @@ export {SessionListPanel, type SessionListPanelProps} from "./SessionListPanel"
 export {SessionTab, type SessionTabProps} from "./SessionTab"
 export {SessionTabStrip, type SessionTabStripProps} from "./SessionTabStrip"
 export {SessionTabDragItem, type SessionTabDragItemProps} from "./SessionTabDragItem"
-export {SessionTabRail, type SessionTabRailProps} from "./SessionTabRail"
+export {
+    SessionTabRail,
+    useRequestSessionTabRename,
+    type SessionTabRailProps,
+} from "./SessionTabRail"
+export {withShortcutKey} from "./menuShortcut"
 export {
     useSessionActions,
     type SessionActionTarget,
@@ -62,4 +68,5 @@ export {
 export {default as SessionRowActions, type SessionRowTarget} from "./SessionRowActions"
 export {default as InlineRenameInput} from "./InlineRenameInput"
 export {useInlineRename, type InlineRename} from "./useInlineRename"
+export {useDeferredMenuSelect, type MenuSelect} from "./useDeferredMenuSelect"
 export {useSessionRowChrome, type SessionRowChrome} from "./useSessionRowChrome"

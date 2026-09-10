@@ -37,7 +37,7 @@
  * would swallow the violation and log it as an ordinary mount failure — which is exactly what the
  * external review caught in revision 1 of the contract.
  */
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 
 import { apiBase } from "../apiBase.ts";
 import {
@@ -58,10 +58,16 @@ import {
 import { conciseError } from "../engines/sandbox_agent/errors.ts";
 import { mountStorage } from "../engines/sandbox_agent/mount.ts";
 import {
+  agentToolsLocalDir,
+  localAgentToolsExec,
+  relinkAgentTools,
+} from "../engines/sandbox_agent/agent-tools-setup.ts";
+import {
   uploadSystemPromptToSandbox,
   writeSystemPromptLocal,
 } from "../engines/sandbox_agent/pi-assets.ts";
 import { containsTransportEndpointDisconnected } from "../engines/sandbox_agent/runtime-policy.ts";
+import { throwIfAcquireAborted } from "./acquire-abort.ts";
 import { rethrowIfInvariant, type AcquireContext } from "./acquire-context.ts";
 
 /** The Pi agent directory inside a Daytona sandbox. Injected so this unit stays import-light. */
@@ -70,13 +76,19 @@ export interface MountDeps {
   signMount: (
     sessionId: string,
     opts: { apiBase: string; authorization: string; log: (m: string) => void },
-  ) => Promise<import("../engines/sandbox_agent/mount.ts").MountCredentials | null>;
+  ) => Promise<
+    import("../engines/sandbox_agent/mount.ts").MountCredentials | null
+  >;
   signAgentMount: (
     artifactId: string,
     opts: { apiBase: string; authorization: string; log: (m: string) => void },
-  ) => Promise<import("../engines/sandbox_agent/mount.ts").MountCredentials | null>;
+  ) => Promise<
+    import("../engines/sandbox_agent/mount.ts").MountCredentials | null
+  >;
   /** The remote Pi directory constant, passed in rather than imported. */
   daytonaPiDir: string;
+  /** The turn signal that must preempt a mount during environment acquisition. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -203,10 +215,11 @@ export async function mountLocalDurableCwd(
   const mounted = await (deps.mountStorage ?? mountStorage)(
     plan.workspace.cwd,
     creds,
-    { log: ctx.log },
+    { log: ctx.log, signal: deps.signal },
   );
   if (mounted) {
     ctx.commitLocalMount("cwd", plan.workspace.cwd, creds);
+    throwIfAcquireAborted(deps.signal);
     // Session-local links belong to the mount's lifecycle, not to first acquire: this mount is
     // object storage, which has no symlinks, so a remount hands back a 0-byte file where the link
     // was. Re-materialize the subscription Codex login link here, AFTER the mount is live
@@ -218,8 +231,23 @@ export async function mountLocalDurableCwd(
         );
       });
     }
+    // Same rule for the agent's tools link (`<cwd>/.tools` -> local disk): a remount hands back
+    // a 0-byte file where it was, while the executables it pointed at still exist. Relink only;
+    // never re-run the owner's setup script from a recovery path. First acquire ("initial") has
+    // nothing to relink yet: the restore step creates the link after the agent mount.
+    if (reason !== "initial") {
+      const localDir = agentToolsLocalDir(plan.workspace.cwd, false);
+      if (existsSync(localDir)) {
+        await relinkAgentTools(
+          { cwd: plan.workspace.cwd, localDir },
+          localAgentToolsExec,
+          { log: ctx.log },
+        );
+      }
+    }
     return true;
   }
+  throwIfAcquireAborted(deps.signal);
   // A false result means mountStorage stopped the attempt and CONFIRMED the path detached.
   ctx.markCwdDetachConfirmed();
   return false;
@@ -240,6 +268,7 @@ export async function mountLocalAgentCwd(
     if (
       !(await (deps.mountStorage ?? mountStorage)(mountPath, creds, {
         log: ctx.log,
+        signal: deps.signal,
       }))
     ) {
       // false means mountStorage confirmed detach is safe. This path is a sibling of the session
@@ -248,6 +277,7 @@ export async function mountLocalAgentCwd(
       return false;
     }
     ctx.commitLocalMount("agent", mountPath, creds);
+    throwIfAcquireAborted(deps.signal);
     await seedAgentReadme(mountPath, { log: ctx.log });
     await linkAgentFiles(plan.workspace.cwd, mountPath, { log: ctx.log });
     await activateAgentMountGuidance(ctx, deps);
@@ -367,7 +397,9 @@ export function remountLocalCwdAfterRuntimeEnotconn(
   );
   ctx.setRuntimeRemount(
     (async () => {
-      const cwdOk = cwdEligible ? await reSignAndRemountLocalCwd(ctx, deps) : true;
+      const cwdOk = cwdEligible
+        ? await reSignAndRemountLocalCwd(ctx, deps)
+        : true;
       const agentOk = agentEligible
         ? await reSignAndRemountLocalAgentMount(ctx, deps)
         : true;

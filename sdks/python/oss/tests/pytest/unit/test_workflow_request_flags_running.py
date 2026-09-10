@@ -51,7 +51,7 @@ def test_invoke_request_flags_dict_parses_via_accessor():
 
 # `format` is HTTP-only, not a running-level flag (see test_workflow_format_routing.py)
 def test_format_is_not_a_request_flag():
-    """format is http-only; the command flags are stream/trim/force/resolve."""
+    """format is HTTP-only; detached is a running-level command flag."""
     from agenta.sdk.models.workflows import WorkflowInvokeRequestFlags
 
     assert "format" not in WorkflowInvokeRequestFlags.model_fields
@@ -60,4 +60,5 @@ def test_format_is_not_a_request_flag():
         "trim",
         "force",
         "resolve",
+        "detached",
     }

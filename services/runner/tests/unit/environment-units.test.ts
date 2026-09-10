@@ -18,6 +18,7 @@ import {
   type AcquireStage,
 } from "../../src/environment/timing.ts";
 import * as workspaceManager from "../../src/environment/workspace-manager.ts";
+import { openSession as openHarnessSession } from "../../src/environment/harness-session-lifecycle.ts";
 
 const SRC = (rel: string) =>
   readFileSync(
@@ -490,6 +491,115 @@ describe("harness-session unit: the seam", () => {
     assert.ok(
       source.includes("It does NOT prove the adapter replayed the turns"),
     );
+  });
+
+  it("does not verify a load that accepted the id but emitted no prior messages", async () => {
+    const result = await openHarnessSession({
+      sandbox: {
+        resumeSession: async () => ({ id: "local", agentSessionId: "native-1" }),
+        createSession: async () => ({ id: "must-not-create" }),
+      },
+      persist: {
+        updateSession: async () => {},
+        listEvents: async () => ({ items: [] }),
+      },
+      acpAgent: "pi",
+      harness: "pi_core",
+      cwd: "/tmp/session",
+      sessionInit: {},
+      priorAgentSessionId: "native-1",
+      nativeHistoryDurable: false,
+      localSessionId: "session-1:pi_core",
+      continuitySessionKey: "session-1",
+      log: () => {},
+      timingLog: () => {},
+    });
+
+    assert.equal(result.mode, "load");
+    assert.equal(result.loadedFromContinuity, true);
+    assert.equal(result.nativeHistoryVerified, false);
+  });
+
+  it("verifies a load only after observing native prior-message events", async () => {
+    let reads = 0;
+    const result = await openHarnessSession({
+      sandbox: {
+        resumeSession: async () => ({ id: "local", agentSessionId: "native-1" }),
+        createSession: async () => ({ id: "must-not-create" }),
+      },
+      persist: {
+        updateSession: async () => {},
+        listEvents: async () => {
+          reads += 1;
+          return {
+            items:
+              reads === 1
+                ? []
+                : [
+                    {
+                      sender: "agent",
+                      payload: {
+                        method: "session/update",
+                        params: {
+                          update: { sessionUpdate: "user_message_chunk" },
+                        },
+                      },
+                    },
+                  ],
+          };
+        },
+      },
+      acpAgent: "pi",
+      harness: "pi_core",
+      cwd: "/tmp/session",
+      sessionInit: {},
+      priorAgentSessionId: "native-1",
+      nativeHistoryDurable: true,
+      localSessionId: "session-1:pi_core",
+      continuitySessionKey: "session-1",
+      log: () => {},
+      timingLog: () => {},
+    });
+
+    assert.equal(result.mode, "load");
+    assert.equal(result.loadedFromContinuity, true);
+    assert.equal(result.nativeHistoryVerified, true);
+  });
+
+  it("does not treat prior prompt events as proof for the current load", async () => {
+    const priorEvent = {
+      sender: "agent",
+      payload: {
+        method: "session/update",
+        params: {
+          update: { sessionUpdate: "user_message_chunk" },
+        },
+      },
+    };
+    const result = await openHarnessSession({
+      sandbox: {
+        resumeSession: async () => ({ id: "local", agentSessionId: "native-1" }),
+        createSession: async () => ({ id: "must-not-create" }),
+      },
+      persist: {
+        updateSession: async () => {},
+        listEvents: async () => ({ items: [priorEvent] }),
+      },
+      acpAgent: "pi",
+      harness: "pi_core",
+      cwd: "/tmp/session",
+      sessionInit: {},
+      priorAgentSessionId: "native-1",
+      nativeHistoryDurable: true,
+      localSessionId: "session-1:pi_core",
+      continuitySessionKey: "session-1",
+      log: () => {},
+      timingLog: () => {},
+    });
+
+    assert.equal(result.mode, "load");
+    assert.equal(result.loadedFromContinuity, true);
+    assert.equal(result.nativeHistoryVerified, false);
   });
 
   it("the composer delegates both stages", () => {

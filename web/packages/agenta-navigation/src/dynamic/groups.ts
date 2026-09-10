@@ -1,4 +1,9 @@
-import type {SidebarEntityGroup, SidebarEntityRef, SidebarEntitySource} from "./types"
+import type {
+    SidebarEntityGroup,
+    SidebarEntityRef,
+    SidebarEntityReorder,
+    SidebarEntitySource,
+} from "./types"
 
 /**
  * Folds an entity's heading descriptor onto its source.
@@ -9,7 +14,12 @@ import type {SidebarEntityGroup, SidebarEntityRef, SidebarEntitySource} from "./
 export const withEntityGroups = (
     source: SidebarEntitySource,
     groups:
-        | {groups: SidebarEntityGroup[]; collapsedKeys: string[]; emptyLabel?: string}
+        | {
+              groups: SidebarEntityGroup[]
+              collapsedKeys: string[]
+              emptyLabel?: string
+              reorder?: SidebarEntityReorder
+          }
         | undefined
         | null,
 ): SidebarEntitySource => (groups && source.status === "ready" ? {...source, ...groups} : source)
