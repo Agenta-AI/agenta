@@ -318,6 +318,9 @@ const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
         const {agentIds, flags, includeArchived, origin, excludeOrigin, oldest} =
             requestFilters(filters)
         const boundary = get(sidebarSessionBoundaryAtomFamily(scopeId))
+        const waiting = filters.status === "waiting"
+        const waitingQuery = get(sidebarWaitingIdsQueryAtomFamily(scopeId))
+        const waitingIds = waitingQuery.data ?? null
         return {
             // `projectId` stays at index 1: `keepPreviousDataWithinProject` reads that slot to
             // tell a facet change from a project switch.
@@ -331,6 +334,7 @@ const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
                 filters.type,
                 boundary ?? null,
                 pages,
+                waiting ? waitingIds : null,
             ],
             queryFn: ({signal}) =>
                 queryByAgents(agentIds, (references) =>
@@ -344,6 +348,9 @@ const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
                         // The activity floor still applies; the boundary only narrows it further.
                         oldest,
                         newest: boundary,
+                        // The same id push-down the head does. Without it the tail asks for every
+                        // session older than the boundary, and the filter leaks on the second page.
+                        sessionIds: waiting ? (waitingIds ?? []) : undefined,
                         limit: scopeLimit(scopeId) * pages,
                         order: "descending",
                         abortSignal: signal,
@@ -351,7 +358,11 @@ const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
                     }),
                 ),
             // Nothing to page until the head has landed, and no pages asked for yet.
-            enabled: Boolean(projectId) && pages > 0 && Boolean(boundary),
+            enabled:
+                Boolean(projectId) &&
+                pages > 0 &&
+                Boolean(boundary) &&
+                (!waiting || waitingIds !== null),
             placeholderData: keepPreviousDataWithinProject(scopeId, projectId),
             staleTime: 30_000,
             refetchOnWindowFocus: false,
