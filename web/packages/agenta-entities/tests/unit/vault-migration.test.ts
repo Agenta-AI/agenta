@@ -63,7 +63,12 @@ describe("legacy vault key migration", () => {
         await store.set(migrateVaultKeysAtom)
         expect(api.create).toHaveBeenCalledTimes(2)
         expect(store.get(vaultMigrationAtom)).toEqual({migrating: false, migrated: true})
-        expect(localStorage.getItem(llmAvailableProvidersToken)).toBeNull()
+        // The entry that failed stays behind for the next page load; the saved one is gone.
+        const left = JSON.parse(
+            JSON.parse(localStorage.getItem(llmAvailableProvidersToken) ?? '""'),
+        )
+        expect(left).toEqual([{name: "OPENAI_API_KEY", key: "k1"}])
+        expect(localStorage.getItem(`${llmAvailableProvidersToken}Backup`)).toContain("COHERE")
     })
 
     it("accepts a payload that an older build wrote once instead of twice", async () => {

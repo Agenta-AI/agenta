@@ -369,14 +369,16 @@ export const migrateVaultKeysAtom = atom(null, async (get, set) => {
 
         if (localStorageProviders) {
             const providers = parseLegacyProviders(localStorageProviders)
+            const failed: LlmProvider[] = []
             if (providers) {
                 for (const provider of providers) {
                     if (!provider.key) continue
                     try {
-                        await set(createStandardSecretAtom, provider as LlmProvider)
+                        await set(createStandardSecretAtom, provider)
                     } catch (error) {
-                        // One bad entry must not stop the others; the backup below keeps it.
+                        // One bad entry must not stop the others; it stays for the next load.
                         console.error("[vault] Legacy provider key was not migrated:", error)
+                        failed.push(provider)
                     }
                 }
             } else {
@@ -385,9 +387,17 @@ export const migrateVaultKeysAtom = atom(null, async (get, set) => {
                 )
             }
 
-            // Create backup and cleanup
+            // Keep a backup, then leave only the entries that still need a retry in place, in
+            // the canonical double-encoded form. A later page load picks them up again.
             localStorage.setItem(`${llmAvailableProvidersToken}Backup`, localStorageProviders)
-            localStorage.removeItem(llmAvailableProvidersToken)
+            if (failed.length > 0) {
+                localStorage.setItem(
+                    llmAvailableProvidersToken,
+                    JSON.stringify(JSON.stringify(failed)),
+                )
+            } else {
+                localStorage.removeItem(llmAvailableProvidersToken)
+            }
         }
     } catch (error) {
         // A failed migration must not hold the vault UI in its loading state: the keys stay
@@ -398,14 +408,13 @@ export const migrateVaultKeysAtom = atom(null, async (get, set) => {
     }
 })
 
-/** One legacy entry: whatever else it carried, only a named provider with a key can migrate. */
-const legacyProviderSchema = z.object({key: z.string().optional()}).passthrough()
-const legacyProvidersSchema = z.array(legacyProviderSchema.nullable())
+/** One legacy entry: whatever else it carried, only an object with a string key can migrate. */
+const legacyProviderSchema = z.object({key: z.string().nullish()}).passthrough()
 
 /**
  * The legacy localStorage payload was double-encoded JSON (a JSON string holding JSON), but
- * older builds wrote it once. Accept both; return null for anything that is not a list of
- * objects. Null entries are dropped rather than failing the whole list.
+ * older builds wrote it once. Accept both; return null when the payload is not a list. Each
+ * entry is validated on its own, so one malformed entry does not block the valid ones.
  */
 function parseLegacyProviders(raw: string): LlmProvider[] | null {
     let parsed: unknown
@@ -415,9 +424,11 @@ function parseLegacyProviders(raw: string): LlmProvider[] | null {
     } catch {
         return null
     }
-    const entries = safeParseWithLogging(legacyProvidersSchema, parsed, "[vault] legacy providers")
-    if (!entries) return null
-    return entries.filter(
-        (entry): entry is NonNullable<typeof entry> => entry != null,
-    ) as LlmProvider[]
+    if (!Array.isArray(parsed)) return null
+    const providers: LlmProvider[] = []
+    for (const entry of parsed) {
+        const valid = safeParseWithLogging(legacyProviderSchema, entry, "[vault] legacy provider")
+        if (valid) providers.push(valid as unknown as LlmProvider)
+    }
+    return providers
 }
