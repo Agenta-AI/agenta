@@ -1,12 +1,10 @@
 import {useMemo} from "react"
 
-import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
+import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
 import {
     Archive,
     Clock,
-    Lightning,
     Minus,
-    Robot,
     Rows,
     SquaresFour,
     User,
@@ -36,9 +34,8 @@ const StatusDot = ({className}: {className: string}) => (
  * The agents roster's single view control: which roster is on screen and who made it, then how
  * the rows are cut.
  *
- * Type names the ONE set on screen, the way the sessions menu's own Type facet does: Archived
- * shows the agents that were put away INSTEAD of the ones in use, never alongside them, so the
- * page always answers a single question.
+ * Archived is a switch, the way the sessions menu's is: on, it shows the agents that were put away
+ * INSTEAD of the ones in use, never alongside them, so the page always answers a single question.
  *
  * Status is the ONE state an agent has here: Waiting when a session of its own is blocked on a
  * person, Idle otherwise. No Running — nothing this client reads says an agent is mid-turn, and a
@@ -60,7 +57,7 @@ export const AgentFilterMenu = ({
     /** The org roster, as `{id, name}` in display order. */
     owners: AgentOwner[]
 }) => {
-    const sections = useMemo<FilterMenuSection[]>(
+    const sections = useMemo<FilterMenuItem[]>(
         () => [
             {
                 key: "owner",
@@ -77,20 +74,6 @@ export const AgentFilterMenu = ({
                 ],
                 emptyText: "No members yet",
                 onChange: (value) => onChange({...view, owner: value}),
-            },
-            {
-                key: "type",
-                label: "Type",
-                // The bolt the sessions and automations menus give their own Type row: one facet,
-                // one mark, whichever list you are reading.
-                icon: <Lightning size={ICON} />,
-                value: view.type,
-                options: [
-                    // The robot means AGENT throughout this app, so it marks the agents in use.
-                    {value: "active", label: "Active", icon: <Robot size={ICON} />},
-                    {value: "archived", label: "Archived", icon: <Archive size={ICON} />},
-                ],
-                onChange: (value) => onChange({...view, type: value as AgentTypeFilter}),
             },
             {
                 key: "status",
@@ -111,6 +94,15 @@ export const AgentFilterMenu = ({
                     },
                 ],
                 onChange: (value) => onChange({...view, status: value as AgentStatusFilter}),
+            },
+            {
+                kind: "toggle",
+                key: "archived",
+                label: "Only archived",
+                icon: <Archive size={ICON} />,
+                checked: view.type === "archived",
+                onChange: (checked) =>
+                    onChange({...view, type: (checked ? "archived" : "active") as AgentTypeFilter}),
             },
             {
                 key: "group",
