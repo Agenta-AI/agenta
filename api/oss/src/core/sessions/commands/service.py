@@ -44,6 +44,7 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandState,
 )
 from oss.src.core.sessions.commands.interfaces import (
+    ABANDONED_COMMAND_BATCH,
     CommandCreateResult,
     ControlDeliveryPort,
     DeliveryReceipt,
@@ -1529,74 +1530,97 @@ class SessionCommandsService:
             )
         return settled
 
+    @staticmethod
+    def _abandoned_sort_key(command: SessionCommand) -> Tuple[datetime, UUID]:
+        stamp = command.claim_expires_at or command.updated_at or command.created_at
+        if stamp is None:
+            stamp = datetime.min.replace(tzinfo=timezone.utc)
+        elif stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        return stamp, command.id
+
     async def settle_abandoned_commands(self, *, now: datetime) -> int:
         max_deliveries = env.agenta.sessions.commands.max_deliveries
-        abandoned = await self._dao.expire_claims(
-            now=now,
-            max_deliveries=max_deliveries,
-            pending_before=now
-            - timedelta(seconds=env.agenta.sessions.commands.admission_timeout_seconds),
+        pending_before = now - timedelta(
+            seconds=env.agenta.sessions.commands.admission_timeout_seconds
         )
         settled = 0
-        for command in abandoned:
-            if command.kind in (
-                SessionCommandKind.continue_interaction,
-                SessionCommandKind.continue_input,
-            ):
-                capability_enabled = (
-                    env.agenta.sessions.durable_approvals
-                    if command.kind == SessionCommandKind.continue_interaction
-                    else env.agenta.sessions.queue
-                )
-                if not capability_enabled:
+        after_sort_at: Optional[datetime] = None
+        after_id: Optional[UUID] = None
+        while True:
+            abandoned = await self._dao.expire_claims(
+                now=now,
+                max_deliveries=max_deliveries,
+                pending_before=pending_before,
+                after_sort_at=after_sort_at,
+                after_id=after_id,
+                limit=ABANDONED_COMMAND_BATCH,
+            )
+            if not abandoned:
+                break
+            for command in abandoned:
+                if command.kind in (
+                    SessionCommandKind.continue_interaction,
+                    SessionCommandKind.continue_input,
+                ):
+                    capability_enabled = (
+                        env.agenta.sessions.durable_approvals
+                        if command.kind == SessionCommandKind.continue_interaction
+                        else env.agenta.sessions.queue
+                    )
+                    if not capability_enabled:
+                        continue
+                    if command.claim_count < max_deliveries:
+                        await self._deliver(command)
+                        continue
+                    result = await self._settle_exhausted_continuation(command)
+                    if result:
+                        settled += 1
                     continue
-                if command.claim_count < max_deliveries:
+                if await self._cancel_target_already_ended(command):
+                    dropped = await self._drop_undeliverable_cancel(
+                        command, outcome=SessionCommandOutcome.not_running
+                    )
+                    if dropped is not None:
+                        settled += 1
+                    continue
+                beating = await self._session_is_beating(
+                    project_id=command.project_id,
+                    session_id=command.session_id,
+                )
+                if beating and command.claim_count < max_deliveries:
                     await self._deliver(command)
                     continue
-                result = await self._settle_exhausted_continuation(command)
-                if result:
-                    settled += 1
-                continue
-            if await self._cancel_target_already_ended(command):
-                dropped = await self._drop_undeliverable_cancel(
-                    command, outcome=SessionCommandOutcome.not_running
-                )
-                if dropped is not None:
-                    settled += 1
-                continue
-            beating = await self._session_is_beating(
-                project_id=command.project_id,
-                session_id=command.session_id,
-            )
-            if beating and command.claim_count < max_deliveries:
-                await self._deliver(command)
-                continue
-            if beating:
-                # Delivery budget is spent, but a heartbeat is not a lost runner.
-                # Park the cancel; the turn keeps running until it ends on its own.
-                log.warning(
-                    "parking undeliverable cancel command=%s session=%s after %s "
-                    "attempts; runner is still heartbeating so the turn is not lost",
-                    command.id,
-                    command.session_id,
-                    command.claim_count,
-                )
-                continue
+                if beating:
+                    # Delivery budget is spent, but a heartbeat is not a lost runner.
+                    # Park the cancel; the turn keeps running until it ends on its own.
+                    # The sweep paginates past this row so it cannot starve newer work.
+                    log.warning(
+                        "parking undeliverable cancel command=%s session=%s after %s "
+                        "attempts; runner is still heartbeating so the turn is not lost",
+                        command.id,
+                        command.session_id,
+                        command.claim_count,
+                    )
+                    continue
 
-            result = await self.settle(
-                command_id=command.id,
-                project_id=command.project_id,
-                replica_id=None,
-                expected_states=[
-                    SessionCommandState.pending,
-                    SessionCommandState.claimed,
-                ],
-                state=SessionCommandState.obsolete,
-                outcome=SessionCommandOutcome.lost,
-                execution_id=command.target_turn_id,
-            )
-            if result is not None:
-                settled += 1
+                result = await self.settle(
+                    command_id=command.id,
+                    project_id=command.project_id,
+                    replica_id=None,
+                    expected_states=[
+                        SessionCommandState.pending,
+                        SessionCommandState.claimed,
+                    ],
+                    state=SessionCommandState.obsolete,
+                    outcome=SessionCommandOutcome.lost,
+                    execution_id=command.target_turn_id,
+                )
+                if result is not None:
+                    settled += 1
+            after_sort_at, after_id = self._abandoned_sort_key(abandoned[-1])
+            if len(abandoned) < ABANDONED_COMMAND_BATCH:
+                break
         return settled
 
     async def _settle_exhausted_continuation(self, command: SessionCommand) -> bool:

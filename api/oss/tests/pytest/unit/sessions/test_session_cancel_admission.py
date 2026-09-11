@@ -29,6 +29,7 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandState,
 )
 from oss.src.core.sessions.commands.interfaces import (
+    ABANDONED_COMMAND_BATCH,
     CommandCreateResult,
     DeliveryReceipt,
 )
@@ -238,8 +239,34 @@ class _FakeCommandsDAO:
     async def clear_stopping_turn(self, *, project_id, session_id, turn_id=None):
         self.stopping_turn_ids.append(None)
 
-    async def expire_claims(self, *, now, max_deliveries, pending_before=None):
-        return self.abandoned
+    async def expire_claims(
+        self,
+        *,
+        now,
+        max_deliveries,
+        pending_before=None,
+        after_sort_at=None,
+        after_id=None,
+        limit=ABANDONED_COMMAND_BATCH,
+    ):
+        by_id = {row.id: row for row in self.rows}
+        rows = [by_id.get(row.id, row) for row in self.abandoned]
+
+        def sort_key(row):
+            stamp = row.claim_expires_at or row.updated_at or row.created_at
+            if stamp is None:
+                stamp = datetime.min.replace(tzinfo=timezone.utc)
+            elif stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            return (stamp, row.id)
+
+        rows = sorted(rows, key=sort_key)
+        if after_sort_at is not None and after_id is not None:
+            cursor = after_sort_at
+            if cursor.tzinfo is None:
+                cursor = cursor.replace(tzinfo=timezone.utc)
+            rows = [row for row in rows if sort_key(row) > (cursor, after_id)]
+        return rows[:limit]
 
 
 class _FakeStreamsService:
@@ -1462,16 +1489,21 @@ async def test_successful_redis_projection_is_not_offered_for_repair(lock_engine
     assert await svc.repair_terminal_redis() == 0
 
 
-def _abandoned_command(*, claim_count: int = 1) -> SessionCommand:
+def _abandoned_command(
+    *,
+    claim_count: int = 1,
+    created_at: Optional[datetime] = None,
+    command_id=None,
+) -> SessionCommand:
     return SessionCommand(
-        id=uuid.uuid7(),
+        id=command_id or uuid.uuid7(),
         project_id=_PROJECT,
         session_id=_SESSION,
         kind="cancel",
         target_turn_id="turn-A",
         state=SessionCommandState.pending,
         claim_count=claim_count,
-        created_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+        created_at=created_at or (datetime.now(timezone.utc) - timedelta(minutes=5)),
     )
 
 
@@ -1677,6 +1709,57 @@ async def test_exhausted_cancel_still_settles_after_the_turn_completes(
     assert dao.rows[0].outcome == SessionCommandOutcome.not_running
     assert streams.stream.stopping_turn_id is None
     assert executions.rows[(_SESSION, "turn-A")].terminal_outcome == "completed"
+
+
+@pytest.mark.asyncio
+async def test_parked_cancels_do_not_starve_a_later_retryable_cancel(
+    lock_engine, monkeypatch
+):
+    """Maintainer repro: 200 parked heartbeating cancels plus one newer retryable.
+
+    expire_claims reads the oldest 200 eligible rows. Parking must not pin that
+    window on the same 200, or the later cancel never gets a delivery attempt.
+    """
+    maximum = 3
+    monkeypatch.setattr(env.agenta.sessions.commands, "max_deliveries", maximum)
+    base = datetime.now(timezone.utc) - timedelta(minutes=10)
+    parked = [
+        _abandoned_command(
+            claim_count=maximum,
+            created_at=base + timedelta(milliseconds=index),
+        )
+        for index in range(ABANDONED_COMMAND_BATCH)
+    ]
+    later = _abandoned_command(
+        claim_count=0,
+        created_at=base + timedelta(minutes=5),
+    )
+    dao = _FakeCommandsDAO()
+    dao.rows = [*parked, later]
+    dao.abandoned = [*parked, later]
+    delivery = _RecordingDelivery(status="unreachable")
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(_stream("turn-A", datetime.now(timezone.utc))),
+        delivery=delivery,
+    )
+
+    now = datetime.now(timezone.utc)
+    for _ in range(3):
+        settled = await svc.settle_abandoned_commands(now=now)
+        assert settled == 0
+
+    later_row = next(row for row in dao.rows if row.id == later.id)
+    assert later_row.claim_count == maximum
+    assert later_row.state == SessionCommandState.pending
+    assert [row.id for row in delivery.delivered] == [later.id] * maximum
+    by_id = {row.id: row for row in dao.rows}
+    for parked_row in parked:
+        stored = by_id[parked_row.id]
+        assert stored.state == SessionCommandState.pending
+        assert stored.outcome is None
+        assert stored.claim_count == maximum
 
 
 @pytest.mark.asyncio
