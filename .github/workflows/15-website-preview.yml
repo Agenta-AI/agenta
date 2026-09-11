@@ -4,11 +4,11 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - "website/**"
+      - 'website/**'
       # The site publishes /openapi.json from this spec (website/scripts/copy-openapi.mjs),
       # so a regenerated spec has to redeploy the site.
-      - "docs/docs/reference/openapi.json"
-      - ".github/workflows/15-website-preview.yml"
+      - 'docs/docs/reference/openapi.json'
+      - '.github/workflows/15-website-preview.yml'
   workflow_dispatch:
     inputs:
       pr_number:
@@ -49,7 +49,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: "pnpm"
+          cache: 'pnpm'
           cache-dependency-path: website/pnpm-lock.yaml
 
       - name: Install dependencies
@@ -83,46 +83,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: "pnpm"
+          cache: 'pnpm'
           cache-dependency-path: website/pnpm-lock.yaml
 
       - name: Install dependencies
         run: cd website && pnpm install --frozen-lockfile
-
-      - name: Seed article media in R2
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          cd website
-          bucket="agenta-website-media"
-          if ! pnpm exec wrangler r2 bucket list | grep -Fq "name: ${bucket}"; then
-            pnpm exec wrangler r2 bucket create "$bucket"
-          fi
-
-          upload() {
-            key="$1"
-            url="$2"
-            checksum="$3"
-            content_type="$4"
-            file="/tmp/${key##*/}"
-            curl --fail --location --retry 2 --output "$file" "$url"
-            echo "${checksum}  ${file}" | sha256sum --check
-            pnpm exec wrangler r2 object put "${bucket}/${key}" \
-              --remote \
-              --file "$file" \
-              --content-type "$content_type" \
-              --cache-control "public, max-age=31536000, immutable"
-          }
-
-          prefix="blog/open-source-claude-cowork-alternative"
-          upload "${prefix}/openwork-dc5963f6.png" "https://github.com/user-attachments/assets/66a8dd9b-5260-488c-957d-e54331e78c1c" "dc5963f6ffa1a1bdcdd2e5b5a168f384cf633c5922fe5f9eb21b7f913ea19b4d" "image/png"
-          upload "${prefix}/aionui-dd8b5154.png" "https://raw.githubusercontent.com/iOfficeAI/AionUi/main/resources/homepage.png" "dd8b51547e35faa2829b553d358292b739298fbefdcd6b1e91ce9bda0bd007e6" "image/png"
-          upload "${prefix}/eigent-9582f836.png" "https://www.eigent.ai/thumbnail.png" "9582f83627d8e5a67485b10daa28a735369dff6d392e7399c04d5b19db2c6606" "image/png"
-          upload "${prefix}/mindshub-d906cace.gif" "https://github.com/user-attachments/assets/048761b8-aa77-4506-9c4d-32e2fdecbb60" "d906caceaedb233d4285199b3cd03d0dbdf87df55f34a423609b59c91e8a9bd1" "image/gif"
-          upload "${prefix}/open-cowork-4194dd76.mov" "https://github.com/user-attachments/assets/dbeb0337-2d19-4b5d-a438-5220f2a87ca7" "4194dd767ff67529eb7d6a77a3356060528f1a204400806c564d23e9bd8ab83e" "video/quicktime"
-          upload "${prefix}/kuse-2333e893.jpg" "https://cdn.prod.website-files.com/696f5f01694524696615d2b4%2F69719bdc96169eaa4c286fda_Kuse%20Cowork_poster.0000000.jpg" "2333e893e9a16337e4181e9463c1b21ad6285f571970c3173b7017bf71d3cb07" "image/jpeg"
-          upload "${prefix}/open-claude-cowork-3213d32a.gif" "https://raw.githubusercontent.com/composio-community/open-claude-cowork/master/open-claude-cowork.gif" "3213d32acbb66e885936bf46751d0d71d320e848bf3353517c2f3c62ef2a099f" "image/gif"
 
       - name: Build site
         env:
