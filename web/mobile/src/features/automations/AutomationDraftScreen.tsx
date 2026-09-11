@@ -6,8 +6,7 @@ import {
     AutomationTriggerDrawers,
     useAutomationCreate,
 } from "@agenta/automation-ui"
-import {Button} from "@agenta/ui/ui"
-import {LoaderCircle} from "lucide-react"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -73,12 +72,7 @@ export const AutomationDraftScreen = ({
                                         {/* Creating writes a trigger and, for a schedule,
                                                 its first run — long enough that a button which
                                                 only greys out reads as broken. */}
-                                        {state.saving ? (
-                                            <LoaderCircle
-                                                data-icon="inline-start"
-                                                className="animate-spin"
-                                            />
-                                        ) : null}
+                                        {state.saving ? <Spinner data-icon="inline-start" /> : null}
                                         Create automation
                                     </Button>
                                 </div>
