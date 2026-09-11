@@ -2,7 +2,7 @@ import {useMemo} from "react"
 
 import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {useSessionFilters, type SessionStatusFilter} from "@agenta/sessions/state"
-import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
+import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
 import {
     Archive,
     CalendarBlank,
@@ -37,9 +37,9 @@ const StatusDot = ({className}: {className: string}) => (
  * the two nav entries offer one control rather than a popover on one and a toolbar of switches on
  * the other.
  *
- * Type names the ONE set on screen — Chat, Automation, or Archived — the way the sidebar's Type
- * facet does. Picking Automation or Archived shows those INSTEAD of the sessions you started, not
- * alongside them, so the page always answers a single question.
+ * Type names the ONE set on screen — Chat or Automation — the way the sidebar's Type facet does.
+ * Archived is a switch rather than a third type: it is a lens over either set, and on it shows the
+ * archived sessions INSTEAD of the live ones, so the page always answers a single question.
  *
  * No sort row: the server orders sessions by recency everywhere in this app, and a client-side
  * sort would only re-order the pages that happen to have loaded.
@@ -67,8 +67,7 @@ export const SessionFilterMenu = ({
     const {agentId, status, mode, archivedOnly, setAgentId, setStatus, setMode, setArchivedOnly} =
         useSessionFilters()
 
-    const sections = useMemo<FilterMenuSection[]>(() => {
-        const type = archivedOnly ? "archived" : mode ? "automation" : "chat"
+    const sections = useMemo<FilterMenuItem[]>(() => {
         return [
             {
                 key: "type",
@@ -76,19 +75,14 @@ export const SessionFilterMenu = ({
                 // A bolt, not the robot: the robot means AGENT throughout this app, and an
                 // automation is a trigger that ran one.
                 icon: <Lightning size={ICON} />,
-                value: type,
+                value: mode ? "automation" : "chat",
                 options: [
                     {value: "chat", label: "Chat", icon: <ChatCircle size={ICON} />},
                     {value: "automation", label: "Automation", icon: <Lightning size={ICON} />},
-                    {value: "archived", label: "Archived", icon: <Archive size={ICON} />},
                 ],
-                // One list at a time, the way the sidebar's Type facet works: picking Automation
-                // or Archived shows THOSE, not those plus the ones you started. Chat is the
-                // default because it is the set a reader means by "my sessions".
-                onChange: (value) => {
-                    setMode(value === "automation")
-                    setArchivedOnly(value === "archived")
-                },
+                // One list at a time, the way the sidebar's Type facet works. Chat is the default
+                // because it is the set a reader means by "my sessions".
+                onChange: (value) => setMode(value === "automation"),
             },
             {
                 key: "status",
@@ -153,6 +147,14 @@ export const SessionFilterMenu = ({
                     {value: "30d", label: "Last 30 days", icon: <Clock size={ICON} />},
                 ],
                 onChange: (value) => onChange({...view, activity: value as SessionActivityWindow}),
+            },
+            {
+                kind: "toggle",
+                key: "archived",
+                label: "Only archived",
+                icon: <Archive size={ICON} />,
+                checked: archivedOnly,
+                onChange: setArchivedOnly,
             },
             {
                 key: "group",
