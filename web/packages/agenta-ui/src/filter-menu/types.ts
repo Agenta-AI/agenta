@@ -43,6 +43,11 @@ export interface FilterMenuSection<Value extends string = string> {
     block?: FilterMenuBlock
     /** What the flyout says when `options` is empty. */
     emptyText?: string
+    /**
+     * A wider flyout, for options whose labels are names rather than words. The default width
+     * fits "Last 30 days"; an agent called "Search Console Assistant" truncates to nothing.
+     */
+    wide?: boolean
 }
 
 /**

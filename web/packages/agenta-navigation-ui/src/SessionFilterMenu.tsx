@@ -147,6 +147,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 // The catalog only starts loading when this menu opens, so the facet is briefly
                 // empty. Say so, rather than let it read as "this project has no agents".
                 emptyText: agentOptionsPending ? "Loading agents…" : "No agents yet",
+                wide: true,
                 onChange: toggleAgent,
             },
             {
