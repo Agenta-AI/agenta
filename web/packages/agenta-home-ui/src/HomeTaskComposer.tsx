@@ -53,8 +53,8 @@ export interface HomeTaskComposerProps {
     /** Send, in create mode. Absent ⇒ the host does not offer creating here. */
     onCreate?: (input: {text: string}) => void | Promise<void>
     /**
-     * Leave what is bound for a blank create — the picker's "New agent" row, and the ✕ on a bound
-     * template. The composer is never aimed at nothing, so this is the only way out of a binding.
+     * Leave what is bound for a blank create — the picker's footer "New agent" row, and the ✕ on
+     * a bound template. The composer is never aimed at nothing, so this is the only way out of a binding.
      */
     onClear?: () => void
     /** A template the composer is building from — named in the dock like an agent is. */
@@ -178,8 +178,9 @@ export const HomeTaskComposer = ({
     ) : fixedAgentId || !effectiveAgentId ? null : (
         // The app's one AgentPicker, not a label. A name that only READ as text gave no sign it
         // could change, and the change lived in a list a screen's height away — people clicked the
-        // name, found nothing, and assumed a bug. Creating is its FIRST row rather than an ✕ on
-        // the chip: a close control that quietly opened a new mode was a second hidden affordance.
+        // name, found nothing, and assumed a bug. Creating is the picker's own footer row rather
+        // than an ✕ on the chip: a close control that quietly opened a new mode was a second hidden
+        // affordance.
         <AgentPicker
             trigger="pill"
             density="compact"
@@ -187,7 +188,6 @@ export const HomeTaskComposer = ({
             onChange={(id) => onAgentChange?.(id)}
             disabled={!onAgentChange}
             onCreateAgent={onClear}
-            createFirst
             triggerAriaLabel="Agent"
             // The dock is already a surface; a filled pill on it is a box within a box.
             triggerClassName="bg-transparent px-1 text-[12px] font-normal hover:bg-accent"

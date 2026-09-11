@@ -3,6 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {
     agentLabel,
     AUTOMATION_STATUS_LABEL,
+    AutomationLastRunCell,
     AutomationListEmpty,
     AutomationListError,
     AutomationListNoMatch,
@@ -69,8 +70,9 @@ const KIND_CHIP: Record<"event" | "schedule", string> = {
 
 const COLUMNS: ListTableColumn[] = [
     {key: "name", label: "Automation", width: "minmax(140px,2fr)"},
-    {key: "status", label: "Status", width: "minmax(110px,1fr)"},
+    {key: "status", label: "Status", width: "minmax(100px,0.8fr)"},
     {key: "runsWhen", label: "Runs when", width: "minmax(130px,1fr)"},
+    {key: "lastRun", label: "Last run", width: "minmax(110px,0.9fr)"},
     {key: "agent", label: "Agent", width: "minmax(120px,1fr)"},
     {key: "actions", label: "Actions", srOnly: true, width: "24px"},
 ]
@@ -243,6 +245,8 @@ export const AutomationListScreen = ({
                             >
                                 {runsWhen}
                             </span>
+
+                            <AutomationLastRunCell automation={automation} />
 
                             {agentName ? (
                                 <span className="flex min-w-0 items-center gap-1.5">

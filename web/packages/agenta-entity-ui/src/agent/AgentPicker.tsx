@@ -29,12 +29,6 @@ export interface AgentPickerProps {
     /** Shown when a "New agent" row should close the list. Absent ⇒ no row. */
     onCreateAgent?: () => void
     createLabel?: string
-    /**
-     * Put the create row FIRST, above the agents, rather than in a footer under them. Off by
-     * default: a picker that mostly chooses keeps creating out of the way, but a surface whose
-     * composer can just as well describe a new agent wants it as the leading choice.
-     */
-    createFirst?: boolean
     placeholder?: string
     searchPlaceholder?: string
     /**
@@ -43,6 +37,8 @@ export interface AgentPickerProps {
      */
     fallbackName?: string | null
     triggerAriaLabel?: string
+    /** The binding is missing or wrong: the control wears the app's error border. */
+    invalid?: boolean
     triggerClassName?: string
     contentClassName?: string
     side?: "top" | "right" | "bottom" | "left"
@@ -206,11 +202,11 @@ export const AgentPicker = ({
     density = "compact",
     onCreateAgent,
     createLabel = "New agent",
-    createFirst = false,
     placeholder = "Pick an agent",
     searchPlaceholder = "Search agents",
     fallbackName = null,
     triggerAriaLabel = "Agent",
+    invalid = false,
     triggerClassName,
     contentClassName,
     side = "bottom",
@@ -280,6 +276,7 @@ export const AgentPicker = ({
                 aria-label={triggerAriaLabel}
                 aria-haspopup="listbox"
                 aria-expanded={open}
+                aria-invalid={invalid || undefined}
                 disabled={disabled}
                 // `cn`, not a join: a host's `triggerClassName` has to be able to REPLACE a
                 // utility (a composer wants no fill), and plain concatenation leaves that to
@@ -304,6 +301,7 @@ export const AgentPicker = ({
                 aria-label={triggerAriaLabel}
                 aria-haspopup="listbox"
                 aria-expanded={open}
+                aria-invalid={invalid || undefined}
                 disabled={disabled}
                 className={cn(
                     "box-border border-solid font-[inherit]",
@@ -315,6 +313,8 @@ export const AgentPicker = ({
                     "data-[state=open]:border-primary",
                     "data-[state=open]:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
                     "disabled:cursor-default disabled:border-border disabled:bg-background",
+                    // The same error treatment the app's own Select trigger wears.
+                    "aria-[invalid=true]:border-error aria-[invalid=true]:focus:shadow-[0_0_0_2px_var(--ag-errorOutline)]",
                     triggerClassName,
                 )}
             >
@@ -372,24 +372,6 @@ export const AgentPicker = ({
                     />
                 </label>
 
-                {onCreateAgent && createFirst ? (
-                    // Over a rule, for the same reason the footer sits under one.
-                    <div className="flex flex-col border-0 border-b border-solid border-border p-1">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setOpen(false)
-                                onCreateAgent()
-                            }}
-                            className="box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
-                        >
-                            <span className="flex size-5 shrink-0 items-center justify-center">
-                                <Plus aria-hidden size={14} className="text-muted-foreground" />
-                            </span>
-                            <span className="min-w-0 truncate font-medium">{createLabel}</span>
-                        </button>
-                    </div>
-                ) : null}
                 <div className="flex max-h-[280px] flex-col gap-px overflow-y-auto p-1">
                     {agentsQuery.isPending ? (
                         // Row geometry, not a spinner — the list replaces this without shifting.
