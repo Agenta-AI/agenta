@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {Popover, PopoverContent, PopoverTrigger, SkeletonBlock} from "@agenta/ui/ui"
+import {cn, Popover, PopoverContent, PopoverTrigger, SkeletonBlock} from "@agenta/ui/ui"
 import {Check, MagnifyingGlass, Plus, Robot} from "@phosphor-icons/react"
 import {CaretDown} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -37,6 +37,8 @@ export interface AgentPickerProps {
      */
     fallbackName?: string | null
     triggerAriaLabel?: string
+    /** The binding is missing or wrong: the control wears the app's error border. */
+    invalid?: boolean
     triggerClassName?: string
     contentClassName?: string
     side?: "top" | "right" | "bottom" | "left"
@@ -204,6 +206,7 @@ export const AgentPicker = ({
     searchPlaceholder = "Search agents",
     fallbackName = null,
     triggerAriaLabel = "Agent",
+    invalid = false,
     triggerClassName,
     contentClassName,
     side = "bottom",
@@ -273,16 +276,18 @@ export const AgentPicker = ({
                 aria-label={triggerAriaLabel}
                 aria-haspopup="listbox"
                 aria-expanded={open}
+                aria-invalid={invalid || undefined}
                 disabled={disabled}
-                className={[
+                // `cn`, not a join: a host's `triggerClassName` has to be able to REPLACE a
+                // utility (a composer wants no fill), and plain concatenation leaves that to
+                // stylesheet order.
+                className={cn(
                     "box-border cursor-pointer appearance-none border-0 font-[inherit]",
                     "inline-flex min-w-0 items-center gap-2 rounded-control bg-muted px-2 py-1",
                     "text-[13px] font-medium text-foreground outline-none transition-colors",
                     "hover:bg-accent focus-visible:bg-accent disabled:cursor-default",
                     triggerClassName,
-                ]
-                    .filter(Boolean)
-                    .join(" ")}
+                )}
             >
                 <AgentChip workflowId={value} box="size-5" glyph={13} />
                 <span className="min-w-0 truncate">{selectedLabel ?? placeholder}</span>
@@ -296,8 +301,9 @@ export const AgentPicker = ({
                 aria-label={triggerAriaLabel}
                 aria-haspopup="listbox"
                 aria-expanded={open}
+                aria-invalid={invalid || undefined}
                 disabled={disabled}
-                className={[
+                className={cn(
                     "box-border border-solid font-[inherit]",
                     "flex w-full cursor-pointer items-center justify-between gap-1 border text-left",
                     "px-input py-input-y text-field-md rounded-control text-foreground",
@@ -307,10 +313,10 @@ export const AgentPicker = ({
                     "data-[state=open]:border-primary",
                     "data-[state=open]:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
                     "disabled:cursor-default disabled:border-border disabled:bg-background",
+                    // The same error treatment the app's own Select trigger wears.
+                    "aria-[invalid=true]:border-error aria-[invalid=true]:focus:shadow-[0_0_0_2px_var(--ag-errorOutline)]",
                     triggerClassName,
-                ]
-                    .filter(Boolean)
-                    .join(" ")}
+                )}
             >
                 <span className="flex min-w-0 flex-1 items-center gap-2">
                     <AgentChip workflowId={value} box="size-5" glyph={13} />
@@ -349,12 +355,10 @@ export const AgentPicker = ({
                     requestAnimationFrame(() => searchRef.current?.focus())
                 }}
             >
-                {/* The glass takes the WIDTH the rows give their chips, at the same 12px indent,
-                    so the icons and the two text columns share one pair of edges. Width only —
-                    matching the chip's height too would make the search field taller than a
-                    field needs to be. */}
+                {/* A 20px box, not the rows' 28px chip width: a 14px glass centred in 28px read
+                    as a gap between icon and field, and a search field is not a row. */}
                 <label className="flex items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
-                    <span className="flex w-7 shrink-0 items-center justify-center">
+                    <span className="flex w-5 shrink-0 items-center justify-center">
                         <MagnifyingGlass size={14} aria-hidden className="text-muted-foreground" />
                     </span>
                     <input

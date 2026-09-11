@@ -11,7 +11,7 @@ import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
 
 /**
  * The agent overview's composer — Home's composer pinned to this agent (no picker: the route
- * already answers which agent). Same mint-stash-route mechanism as [[HomeComposer]]: the id is
+ * already answers which agent). Same mint-stash-route mechanism as [[useHomeHandoff]]: the id is
  * minted once per mount so staged attachments have a stable scope before the session exists,
  * and the first send is what actually creates it server-side.
  */
@@ -50,7 +50,6 @@ export const AgentComposer = ({
 
     return (
         <HomeTaskComposer
-            agents={[{id: agentId, name: agentName}]}
             fixedAgentId={agentId}
             placeholder={`Ask ${agentName}… — starts a new session`}
             attachments={attachments}
