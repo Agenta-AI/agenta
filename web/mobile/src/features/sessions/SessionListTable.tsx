@@ -191,6 +191,8 @@ export const SessionListTable = ({
                     // the minima fit every width this page is read at, so the frame's own
                     // horizontal scroller was never doing anything.
                     stickyHeader
+                    // Compact for the same reason it is sticky: this is the long list.
+                    density="compact"
                     loading={list.isPending}
                     groups={groups}
                     rowKey={(vm) => vm.id}

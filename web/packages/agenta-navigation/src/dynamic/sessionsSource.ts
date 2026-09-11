@@ -22,13 +22,11 @@ import {
     applyManualOrder,
     applyManualOrderByActivity,
     SIDEBAR_AGENT_GROUP_ZONE,
-    SIDEBAR_AGENT_ORDER_ZONE,
     SIDEBAR_STATUS_GROUP_ZONE,
     sidebarManualOrderAtomFamily,
     sidebarManualOrdersAtom,
     sidebarReorderActiveAtom,
     sidebarSessionZone,
-    withManualAgentRanks,
 } from "../reorder"
 import {
     sidebarAlwaysOpenGroupsAtomFamily,
@@ -946,7 +944,7 @@ export const sidebarSessionGroupKey = (ref: SessionSidebarRef): string =>
  */
 export const SESSION_REORDER_ZONES: Partial<Record<SidebarSessionGroupBy, SidebarEntityReorder>> = {
     agent: {
-        // Its OWN zone, not the Agents group's: the two agent lists arrange independently.
+        // The headings' own zone — nothing else arranges agents in the rail.
         groupZone: SIDEBAR_AGENT_GROUP_ZONE,
         // Keyed as the heading is, like the status headings. Nothing else writes this zone, so
         // there is no id shape to agree with.
@@ -981,10 +979,10 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
             }
         }
         const groupBy = get(sidebarSessionFiltersAtomFamily(scopeId)).groupBy
-        // Under AGENT grouping, order the headings by the SAME chat-session rank the Agents group
-        // uses — so the two agent lists agree and the busiest agent leads, not the alphabetical
-        // first. Frozen per page load like that rank, so headings do not reshuffle as you work.
-        // Pinned still leads and "No agent yet" still trails (their ranks are untouched).
+        // Under AGENT grouping, order the headings by chat-session count, so the busiest agent
+        // leads rather than the alphabetical first. Frozen per page load, so headings do not
+        // reshuffle as you work. Pinned still leads and "No agent yet" still trails (their
+        // ranks are untouched).
         if (groupBy === "agent") {
             const ranks = get(sidebarAgentCountsAtomFamily(scopeId))
             for (const [key, bucket] of labels) {
@@ -1089,11 +1087,11 @@ const sessionFilterMenuOpen = (get: Getter, scopeId: string): boolean =>
 const AGENT_RANK_WINDOW = 200
 
 /**
- * Every agent's sessions, UNFILTERED — the query that ranks the Agents group.
+ * Every agent's sessions, UNFILTERED — the query that ranks the agent headings.
  *
  * Its own request, not the rail's rows: the rail's list carries the session filters, so ranking
- * off it let a filter (one agent, one status, a narrower window) reorder the Agents group — a
- * filter is not a use. Project-scoped, origin-agnostic, no activity floor.
+ * off it let a filter (one agent, one status, a narrower window) reorder the headings — a filter
+ * is not a use. Project-scoped, origin-agnostic, no activity floor.
  *
  * FROZEN per page load — `staleTime`/`gcTime: Infinity`, no focus refetch, no interval — so the
  * order an agent lives at does not shift while you work: a new session bumps nothing until you
@@ -1127,8 +1125,8 @@ const sidebarAgentActivityQueryAtomFamily = atomFamily((scopeId: string) =>
 )
 
 /**
- * `agentId -> chat-session count`, ranking the Agents group by how much you actually work with
- * each agent.
+ * `agentId -> chat-session count`, ranking the agent headings by how much you actually work
+ * with each agent.
  *
  * CHATS only — the query above excludes trigger runs — so an automation-heavy agent ranks on the
  * conversations you had, not the runs a schedule fired. A busy agent leads, the count barely moves
@@ -1151,22 +1149,7 @@ const sidebarAgentCountsAtomFamily = atomFamily((scopeId: string) =>
 )
 
 /**
- * Ranks for the Agents NAV GROUP: counts, with that group's own arrangement on top.
- *
- * The agent headings under Sessions deliberately do NOT read this — they carry their own zone, so
- * arranging one list leaves the other alone.
- */
-export const sidebarAgentRanksAtomFamily = atomFamily((scopeId: string) =>
-    atom((get) =>
-        withManualAgentRanks(
-            get(sidebarAgentCountsAtomFamily(scopeId)),
-            get(sidebarManualOrderAtomFamily(SIDEBAR_AGENT_ORDER_ZONE)),
-        ),
-    ),
-)
-
-/**
- * Agents the filter can narrow to, from the same catalog the Agents group lists.
+ * Agents the filter can narrow to, from the project's agent catalog.
  *
  * Gated on the FILTER MENU being open, not on the Sessions group. The group is `alwaysOpen`, so a
  * group-level gate is always true and this pulled the whole agent catalog on every sidebar mount,
@@ -1200,3 +1183,122 @@ export const sidebarSessionAgentOptionsPendingAtomFamily = atomFamily((scopeId: 
         return get(agentWorkflowsListQueryStateAtom).isPending
     }),
 )
+
+/**
+ * Does this project hold any session at all, BEFORE the rail's filters?
+ *
+ * The defaults are themselves filters (`activity: "7d"`, `type: "chat"`), so an empty rail with
+ * clean filters does not mean an empty project. Answered off the unfiltered ranking query, which
+ * a rendered Sessions group already subscribes.
+ */
+export const sidebarHasAnySessionAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => {
+        const query = get(sidebarAgentActivityQueryAtomFamily(scopeId))
+        return {
+            any: (query.data?.length ?? 0) > 0,
+            // Unknown yet: a control must not disappear on a question we have not answered.
+            pending: query.isPending,
+        }
+    }),
+)
+
+/** Open state for the rail's session search. One rail per app, so one atom rather than a family. */
+export const sidebarSessionSearchOpenAtom = atom(false)
+
+/** A palette lists what you can pick at a glance, not a page you scroll. */
+const SEARCH_RESULT_LIMIT = 8
+
+/** Long enough to swallow a typed word, short enough that a pause feels answered. */
+const SEARCH_DEBOUNCE_MS = 250
+
+/** What is in the box right now — the input renders this, and it changes on every keystroke. */
+const searchInputAtom = atom("")
+
+/** What the request asks for. Trails the box by `SEARCH_DEBOUNCE_MS` so typing a word costs
+ * one search rather than one per character. */
+const searchTermAtom = atom("")
+
+// One rail per app, so one timer. Cleared before each reschedule, so only the last keystroke fires.
+let searchDebounce: ReturnType<typeof setTimeout> | undefined
+
+/** What is typed into it. Cleared with the overlay, so a reopen starts empty. */
+export const sidebarSessionSearchQueryAtom = atom(
+    (get) => get(searchInputAtom),
+    (_get, set, next: string) => {
+        set(searchInputAtom, next)
+        if (searchDebounce) clearTimeout(searchDebounce)
+        // An emptied box answers immediately: there is no request to wait for.
+        if (!next.trim()) {
+            set(searchTermAtom, "")
+            return
+        }
+        searchDebounce = setTimeout(() => set(searchTermAtom, next), SEARCH_DEBOUNCE_MS)
+    },
+)
+
+/**
+ * Search over the project's sessions, answered by the SERVER.
+ *
+ * Filtering the rail's own window would search the last fifty rows and call the rest missing —
+ * which is exactly the case a search exists for. `enabled` keeps a closed (or empty) palette from
+ * issuing anything.
+ */
+const sessionSearchQueryAtom = atomWithQuery((get) => {
+    const projectId = get(projectIdAtom)
+    const search = get(searchTermAtom).trim()
+    return {
+        queryKey: ["sidebar-session-search", projectId, search],
+        queryFn: ({signal}: {signal: AbortSignal}) =>
+            querySessions({
+                projectId: projectId as string,
+                search,
+                // The rail never lists archived sessions; neither does its search.
+                includeArchived: false,
+                limit: SEARCH_RESULT_LIMIT,
+                abortSignal: signal,
+            }),
+        enabled: Boolean(projectId) && search.length > 0,
+        staleTime: 30_000,
+        // Hold the previous rows while the next keystroke resolves, so the list does not blink.
+        // Within the SAME project only: the key carries the project, and across a switch this
+        // would paint the previous project's sessions into the palette.
+        placeholderData: (
+            previous: SessionStream[] | null | undefined,
+            previousQuery?: {queryKey: readonly unknown[]},
+        ) => (previousQuery?.queryKey[1] === projectId ? previous : undefined),
+    }
+})
+
+const NO_PINS: ReadonlySet<string> = new Set()
+
+/** Search hits as rail rows: same glyph rules, same "archived agent takes its sessions" rule. */
+export const sidebarSessionSearchResultsAtom = atom<SessionSidebarRef[]>((get) => {
+    const rows = get(sessionSearchQueryAtom).data ?? []
+    // Before the reads below, not after: `liveAgentIdsAtom` mounts the UNPAGED agent catalog, and
+    // a closed palette must not pull it — the grouped source above skips it for the same reason.
+    if (rows.length === 0) return []
+    const refs = rows
+        .map((row) => toSidebarRef(row, NO_PINS as Set<string>))
+        .filter((ref): ref is SessionSidebarRef => ref !== null)
+    return dropMissingAgentSessions(refs, get(liveAgentIdsAtom)).map((ref) => ({
+        ...ref,
+        agentName: ref.agentId
+            ? (get(workflowMolecule.selectors.artifactName(ref.agentId)) ?? null)
+            : null,
+    }))
+})
+
+/**
+ * Whether the palette is still working towards an answer for what is in the box.
+ *
+ * The debounce counts: between a keystroke and the request the query is idle on the PREVIOUS
+ * term, and without this the palette would announce "No sessions match" for a search it has not
+ * run yet.
+ */
+export const sidebarSessionSearchLoadingAtom = atom((get) => {
+    const typed = get(searchInputAtom).trim()
+    if (!typed) return false
+    if (typed !== get(searchTermAtom).trim()) return true
+    const query = get(sessionSearchQueryAtom)
+    return query.isFetching && query.data == null
+})

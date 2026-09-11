@@ -133,6 +133,7 @@ export const SessionFilterMenu = ({
                     })),
                 ],
                 emptyText: "No agents yet",
+                wide: true,
                 onChange: (value) => setAgentId(value === ALL_AGENTS ? null : value),
             },
             {

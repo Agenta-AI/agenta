@@ -103,6 +103,7 @@ export const AutomationFilterMenu = ({
                     })),
                 ],
                 emptyText: "No agents yet",
+                wide: true,
                 onChange: (value) => onChange({...view, agent: value}),
             },
             {
