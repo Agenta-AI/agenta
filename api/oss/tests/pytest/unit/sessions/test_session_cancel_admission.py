@@ -40,6 +40,7 @@ from oss.src.core.sessions.commands.types import (
     SessionCommandNotClaimable,
 )
 from oss.src.core.sessions.executions.dtos import (
+    SessionExecutionState,
     SessionExecutionSettlement,
     SessionExecutionSettlementResult,
 )
@@ -303,12 +304,16 @@ class _FakeStreamsService:
         mirror_stopped,
         transaction=None,
     ):
-        if mirror_stopped and self.stream is not None:
-            self.stream = self.stream.model_copy(
-                update={
-                    "flags": self.stream.flags.model_copy(update={"is_running": False})
-                }
+        if self.stream is None:
+            return
+        if turn_id is not None and self.stream.stopping_turn_id not in (turn_id, None):
+            return
+        updates: Dict[str, object] = {"stopping_turn_id": None}
+        if mirror_stopped:
+            updates["flags"] = self.stream.flags.model_copy(
+                update={"is_running": False}
             )
+        self.stream = self.stream.model_copy(update=updates)
 
 
 class _FakeInteractionsService:
@@ -1539,7 +1544,14 @@ async def test_a_pending_command_is_settled_lost_when_the_runner_is_gone(lock_en
 
 
 @pytest.mark.asyncio
-async def test_redelivery_stops_at_the_configured_maximum(lock_engine, monkeypatch):
+async def test_undeliverable_cancel_does_not_mark_a_heartbeating_turn_lost(
+    lock_engine, monkeypatch
+):
+    """Shape (a): delivery budget spent, runner still beating, turn still live.
+
+    The sweep must park the cancel rather than declare the execution lost. A lost
+    settlement is what made the runner abort a healthy turn after three failures.
+    """
     maximum = 2
     monkeypatch.setattr(env.agenta.sessions.commands, "max_deliveries", maximum)
     command = _abandoned_command(claim_count=maximum)
@@ -1547,18 +1559,124 @@ async def test_redelivery_stops_at_the_configured_maximum(lock_engine, monkeypat
     dao.rows = [command]
     dao.abandoned = [command]
     delivery = _RecordingDelivery()
+    executions = _FakeExecutionsDAO()
+    stream = _stream("turn-A", datetime.now(timezone.utc)).model_copy(
+        update={"stopping_turn_id": "turn-A"}
+    )
+    streams = _FakeStreamsService(stream)
     svc = _service(
         lock_engine,
         dao=dao,
-        streams=_FakeStreamsService(_stream("turn-A", datetime.now(timezone.utc))),
+        streams=streams,
         delivery=delivery,
+        executions=executions,
+    )
+
+    settled = await svc.settle_abandoned_commands(now=datetime.now(timezone.utc))
+
+    assert settled == 0
+    assert delivery.delivered == []
+    assert dao.rows[0].state == SessionCommandState.pending
+    assert dao.rows[0].outcome is None
+    assert dao.rows[0].claim_count == maximum
+    assert (_SESSION, "turn-A") not in executions.rows
+    assert streams.stream.stopping_turn_id == "turn-A"
+
+
+@pytest.mark.asyncio
+async def test_pending_cancel_settles_when_the_target_turn_completes_on_its_own(
+    lock_engine,
+):
+    """Shape (b): the turn ends before the cancel can be delivered.
+
+    The session is still beating (warm sandbox), so the old sweep retried until
+    claim_count hit the budget and then tried to settle `lost`, which lost the
+    compare-and-set against `completed` and left stopping_turn_id set forever.
+    """
+    command = _abandoned_command(claim_count=1)
+    dao = _FakeCommandsDAO()
+    dao.rows = [command]
+    dao.abandoned = [command]
+    delivery = _RecordingDelivery()
+    executions = _FakeExecutionsDAO()
+    executions.rows[(_SESSION, "turn-A")] = SessionExecutionSettlement(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id="turn-A",
+        state=SessionExecutionState.terminal,
+        terminal_outcome="completed",
+        settled_by="runner",
+        settled_at=datetime.now(timezone.utc),
+    )
+    stream = _stream("turn-A", datetime.now(timezone.utc)).model_copy(
+        update={
+            "stopping_turn_id": "turn-A",
+            "flags": SessionStreamFlags(is_alive=True, is_running=False),
+        }
+    )
+    streams = _FakeStreamsService(stream)
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=streams,
+        delivery=delivery,
+        executions=executions,
     )
 
     settled = await svc.settle_abandoned_commands(now=datetime.now(timezone.utc))
 
     assert settled == 1
     assert delivery.delivered == []
-    assert dao.rows[0].outcome == SessionCommandOutcome.lost
+    assert dao.rows[0].state == SessionCommandState.obsolete
+    assert dao.rows[0].outcome == SessionCommandOutcome.not_running
+    assert streams.stream.stopping_turn_id is None
+    winner = executions.rows[(_SESSION, "turn-A")]
+    assert winner.terminal_outcome == "completed"
+    assert winner.settled_by == "runner"
+
+
+@pytest.mark.asyncio
+async def test_exhausted_cancel_still_settles_after_the_turn_completes(
+    lock_engine, monkeypatch
+):
+    """Same as shape (b), but the budget is already spent when the turn ends."""
+    maximum = 3
+    monkeypatch.setattr(env.agenta.sessions.commands, "max_deliveries", maximum)
+    command = _abandoned_command(claim_count=maximum)
+    dao = _FakeCommandsDAO()
+    dao.rows = [command]
+    dao.abandoned = [command]
+    executions = _FakeExecutionsDAO()
+    executions.rows[(_SESSION, "turn-A")] = SessionExecutionSettlement(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id="turn-A",
+        state=SessionExecutionState.terminal,
+        terminal_outcome="completed",
+        settled_by="runner",
+        settled_at=datetime.now(timezone.utc),
+    )
+    stream = _stream("turn-A", datetime.now(timezone.utc)).model_copy(
+        update={
+            "stopping_turn_id": "turn-A",
+            "flags": SessionStreamFlags(is_alive=True, is_running=False),
+        }
+    )
+    streams = _FakeStreamsService(stream)
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=streams,
+        executions=executions,
+    )
+
+    settled = await svc.settle_abandoned_commands(now=datetime.now(timezone.utc))
+
+    assert settled == 1
+    assert dao.rows[0].state == SessionCommandState.obsolete
+    assert dao.rows[0].outcome == SessionCommandOutcome.not_running
+    assert streams.stream.stopping_turn_id is None
+    assert executions.rows[(_SESSION, "turn-A")].terminal_outcome == "completed"
 
 
 @pytest.mark.asyncio
