@@ -6,7 +6,6 @@ import {
     ClockCounterClockwise,
     FolderSimple,
     Key,
-    Lightning,
     Link,
     Receipt,
     ShieldCheck,
@@ -31,8 +30,6 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
             return <Sparkle size={14} />
         case "tools":
             return <Wrench size={14} />
-        case "triggers":
-            return <Lightning size={14} />
         case "webhooks":
             return <Link size={14} />
         case "workspace":

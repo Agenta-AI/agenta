@@ -12,10 +12,13 @@
  * The config surface shows one flat file view; the agent's durable folder is a SUBFOLDER of the
  * conversation's working folder, not a separate "App drive" (that split lives only in the drawer).
  */
-import {type ReactNode} from "react"
+import {useCallback, type ReactNode} from "react"
 
+import {triggerScheduleDrawerAtom} from "@agenta/entities/gatewayTrigger"
 import {CONFIG_REGION_BAR, ConfigRowTrailing} from "@agenta/ui/components/presentational"
-import {SkeletonBlock} from "@agenta/ui/ui"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
+import {Plus} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
 
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
@@ -59,7 +62,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
     return (
         <>
             <section className="flex flex-col" aria-busy>
-                <AgentRegionHeaderBar title="Triggers" sticky={sticky}>
+                <AgentRegionHeaderBar title="Automations" sticky={sticky}>
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                     </ConfigRowTrailing>
@@ -90,6 +93,7 @@ export function AgentOperationsSections({
     sticky = true,
     storage,
     storageHeader,
+    automationDrawer,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
@@ -103,21 +107,51 @@ export function AgentOperationsSections({
      * layer for the same reason as `storage`. Follows the shared `ConfigRowTrailing` convention so
      * its folder glyph lands on the panel's affordance axis. */
     storageHeader?: ReactNode
+    /** The automations create/edit drawer, passed down to the Automations section. */
+    automationDrawer: ReactNode
 }) {
-    const {count: triggerCount} = useAgentTriggers(revisionId)
+    const {count: triggerCount, defaultReferences, defaultBoundLabel} = useAgentTriggers(revisionId)
+    const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
+
+    // The region's own "+", now that Subscriptions and Schedules are one list with no headers of
+    // their own to hang it from. It opens a schedule-shaped draft; the drawer's own "Runs when"
+    // control is where a reader switches it to an event, so there is nothing to choose here.
+    const onAdd = useCallback(() => {
+        openScheduleDrawer({
+            defaultReferences,
+            defaultBoundLabel,
+            playgroundEntityId: revisionId ?? undefined,
+        })
+    }, [defaultBoundLabel, defaultReferences, openScheduleDrawer, revisionId])
 
     return (
         <>
             <section className="flex flex-col">
-                <AgentRegionHeaderBar title="Triggers" sticky={sticky}>
-                    <ConfigRowTrailing>
+                <AgentRegionHeaderBar title="Automations" sticky={sticky}>
+                    {/* No reserved affordance column: this region has no caret, and the empty
+                        14px slot only held the "+" off the bar's right edge. */}
+                    <ConfigRowTrailing reserve={false}>
                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                            {countSummary(triggerCount, "trigger")}
+                            {countSummary(triggerCount, "automation")}
                         </span>
+                        {disabled ? null : (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={onAdd}
+                                aria-label="Add automation"
+                            >
+                                <Plus size={16} />
+                            </Button>
+                        )}
                     </ConfigRowTrailing>
                 </AgentRegionHeaderBar>
                 <div className={sectionsBodyClass}>
-                    <TriggerManagementSection entityId={revisionId} disabled={disabled} />
+                    <TriggerManagementSection
+                        entityId={revisionId}
+                        disabled={disabled}
+                        automationDrawer={automationDrawer}
+                    />
                 </div>
             </section>
 

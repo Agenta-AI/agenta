@@ -1,22 +1,16 @@
 import {createElement} from "react"
 
-import {
-    agentWorkflowsListQueryStateAtom,
-    promptWorkflowsListQueryStateAtom,
-} from "@agenta/entities/workflow"
+import {promptWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {playgroundSessionPath} from "@agenta/sessions/link"
 import {addPendingSessionOpenAtom} from "@agenta/sessions/state"
 import {ChatsCircleIcon, CircleIcon, CircleNotchIcon, LightningIcon} from "@phosphor-icons/react"
-import {RobotIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
-import {SIDEBAR_AGENT_ORDER_ZONE} from "../reorder"
 
 import {withEntityGroups, withRefsByRecency} from "./groups"
 import {sidebarSessionToggledGroupsAtomFamily} from "./sessionFilters"
 import {
-    sidebarAgentRanksAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     sidebarSessionsListAtomFamily,
@@ -36,9 +30,9 @@ const DEFAULT_SIDEBAR_ENTITY_LIMIT = 5
  * has been fetched, not by a render cap. */
 export const SIDEBAR_UNBOUNDED = Number.POSITIVE_INFINITY
 
-// Sidebar item keys that own a dynamic entity list. The static row in
-// `useSidebarConfig` and the registry entry below must share the same key —
-// keep the constant the single source of truth.
+// Sidebar item keys shared by the static row in `useSidebarConfig` and any registry entry
+// below — keep the constant the single source of truth. Only Prompts and Sessions own a
+// dynamic list today; the rest are plain rows whose keys are still addressed by name.
 export const PROMPTS_SIDEBAR_KEY = "project-prompts-link"
 export const AGENTS_SIDEBAR_KEY = "project-agents-link"
 export const TESTSETS_SIDEBAR_KEY = "app-testsets-link"
@@ -66,6 +60,7 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
               config.childMatchPaths!(ref as TRef).map((path) => `${projectURL}${path}`)
         : undefined,
     emptyLabel: config.emptyLabel,
+    hideWhenEmpty: config.hideWhenEmpty,
     maxItems: config.maxItems ?? DEFAULT_SIDEBAR_ENTITY_LIMIT,
     dragZone: config.dragZone,
     showAllLink: config.showAllPath
@@ -153,6 +148,9 @@ const ENTITIES: SidebarEntity[] = [
             return agent ? `${name} — ${agent}` : undefined
         },
         emptyLabel: "No sessions",
+        // The Sessions row has no caret to protect, and "No sessions yet" under a heading that
+        // already says Sessions is the same sentence twice.
+        hideWhenEmpty: true,
         // Grouped by owning agent, with the same headings, filters and row menu the mobile rail
         // uses — one model, two hosts.
         getGroupKey: sidebarSessionGroupKey,
@@ -162,21 +160,6 @@ const ENTITIES: SidebarEntity[] = [
         getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
         // Every loaded page renders; the scroll container pages in more as you reach its end.
         maxItems: SIDEBAR_UNBOUNDED,
-    }),
-    defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
-        kind: "app",
-        icon: createElement(RobotIcon, {size: 14}),
-        listAtom: agentWorkflowsListQueryStateAtom,
-        getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
-        // An agent's surface is its overview — its config, sessions and runs live there (#6389).
-        childPath: (workflow) => `/apps/${workflow.id}/overview`,
-        // Busiest agent first, by session count — stable session to session, unlike recency,
-        // which reshuffled on every turn. Frozen per page load. Same rule the mobile rail applies.
-        ranksAtom: sidebarAgentRanksAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
-        // This nav group's own arrangement; the Sessions agent headings carry a separate zone.
-        dragZone: SIDEBAR_AGENT_ORDER_ZONE,
-        emptyLabel: "No agents",
-        showAllPath: "/agents",
     }),
 ]
 

@@ -219,10 +219,27 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         workflows_service, transactions_engine=transactions_engine
     )
 
+    async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
+        result = await workflows_service.invoke_workflow_detached(
+            project_id=project_id,
+            user_id=user_id,
+            request=request,
+        )
+        return result.run_id
+
+    # Detached, like the interactions worker. Invoking inline posts to the runner with a 60s
+    # HTTP timeout, so any agent run longer than a minute raised a timeout — one whose string
+    # is empty — and the delivery was written 500/failed with a blank error while the runner
+    # carried on and finished the work. Every scheduled run of a real agent read as a failure.
+    #
+    # The delivery now settles at 202/dispatched. That is honest but incomplete: nothing writes
+    # the run's terminal outcome afterwards, so a delivery stays "dispatched" for good. The
+    # durable completion callback that would close it is still to come.
     triggers_dispatcher = TriggersDispatcher(
         triggers_dao=triggers_dao,
         session_claims_dao=session_streams_dao,
         workflows_service=workflows_service,
+        dispatch_fn=_dispatch_detached_run,
     )
     TriggersWorker(
         broker=broker, dispatcher=triggers_dispatcher, triggers_dao=triggers_dao

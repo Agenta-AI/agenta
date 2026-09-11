@@ -14,7 +14,7 @@ import {
     SKILLS_SIDEBAR_KEY,
 } from "@agenta/navigation"
 import {loadMoreSidebarSessionsAtomFamily} from "@agenta/navigation"
-import {SessionFilterMenu} from "@agenta/navigation-ui"
+import {SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
 import {advancedNavHiddenAtom} from "@agenta/shared/state"
 import {
     ChartLineUpIcon,
@@ -99,7 +99,6 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Agents",
                 link: `${projectURL}/agents`,
                 icon: <RobotIcon size={14} />,
-                hideChildrenWhenCollapsed: true,
                 // Only agents reach `/apps/<id>` with this rail up, so the prefix can't over-claim.
                 matchLinks: [`${projectURL}/agents`, `${baseAppURL}/`],
                 // Onboarding IS agent creation — the list page is an empty dead-end until it commits.
@@ -124,13 +123,18 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 disabled: !hasProjectURL || deadEndNavDisabled,
                 tooltip: deadEndNavDisabled ? "Your sessions will appear here" : undefined,
                 // No collapse caret: the rows are grouped and individually collapsible, and the
-                // filter is this group's affordance.
+                // search and filter are this group's affordances.
                 alwaysOpen: true,
                 // The rail does not scroll; THIS group does. Sessions is the only list that grows
                 // without bound, so the entries after it stay on screen.
                 scrollChildren: true,
                 onReachEnd: loadMoreSessions,
-                groupAction: <SessionFilterMenu scopeId={MAIN_SIDEBAR_SCOPE_ID} />,
+                groupAction: (
+                    <>
+                        <SessionSearchButton />
+                        <SessionFilterMenu scopeId={MAIN_SIDEBAR_SCOPE_ID} />
+                    </>
+                ),
             },
             {
                 key: "evaluation-group",

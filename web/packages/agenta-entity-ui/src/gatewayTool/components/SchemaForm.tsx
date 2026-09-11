@@ -22,7 +22,14 @@ import {
     InputNumber,
     TimePicker,
 } from "@agenta/ui/ui"
-import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
+import {
+    CaretLeft,
+    CaretRight,
+    Check,
+    MinusCircle,
+    Plus,
+    SlidersHorizontal,
+} from "@phosphor-icons/react"
 // DELIBERATE RESIDUE — antd `Form` stays as the state engine (registration, rules,
 // validateFields, useWatch). The `form: FormInstance` prop is cross-package public API:
 // web/oss ElicitationWidget drives it with `useWatch`/`validateFields`/`setFieldsValue`,
@@ -93,6 +100,12 @@ interface Props {
     form?: FormInstance
     disabled?: boolean
     jsonMode?: boolean
+    /**
+     * What the optional-fields collapse calls itself, given the count. Defaults to
+     * "Optional (N)" — a host whose optional fields are something more specific than "fields"
+     * (event filters, say) passes its own wording.
+     */
+    optionalLabel?: (count: number) => string
     /** Render optional fields inline instead of behind an "Optional (N)" collapse. */
     flat?: boolean
     /** Opt-in `format` handling (date/date-time/multiline/email/uri) — see BuildFormFieldsOptions. */
@@ -115,6 +128,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
             disabled,
             jsonMode,
             flat,
+            optionalLabel,
             formats,
             openEnums,
             onValuesChange,
@@ -429,7 +443,10 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                         )}
                     </div>
                 ) : (
-                    <>
+                    // The fields are siblings with no chrome between them, so the column has to
+                    // own the rhythm: without it a label sat directly under the control above it
+                    // and the stack read as one run-on field.
+                    <div className="flex flex-col gap-4">
                         {requiredFields.map((field) => (
                             <SchemaFormField key={field.name} field={field} disabled={disabled} />
                         ))}
@@ -445,11 +462,27 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                   />
                               ))
                             : optionalFields.length > 0 && (
-                                  <Accordion type="multiple" variant="ghost" className="-mx-4 mt-1">
+                                  <Accordion type="multiple" variant="ghost" className="-mx-4">
                                       <AccordionItem value="optional">
-                                          <AccordionTrigger className="py-2 text-xs">
+                                          {/* Caret at the end, so the row reads label-first like
+                                              every other heading in this form. The sliders name
+                                              what is behind it: extras that tune the event, not
+                                              more of the fields above. */}
+                                          <AccordionTrigger
+                                              caret="end"
+                                              className="items-center gap-1.5 py-2 text-xs"
+                                          >
+                                              <span className="flex h-[22px] shrink-0 items-center">
+                                                  <SlidersHorizontal
+                                                      aria-hidden
+                                                      size={13}
+                                                      className="text-colorTextDescription"
+                                                  />
+                                              </span>
                                               <span className="text-xs text-colorTextDescription">
-                                                  Optional ({optionalFields.length})
+                                                  {optionalLabel
+                                                      ? optionalLabel(optionalFields.length)
+                                                      : `Optional (${optionalFields.length})`}
                                               </span>
                                           </AccordionTrigger>
                                           {/* forceMount: collapsed fields must stay registered
@@ -459,18 +492,20 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                               forceMount
                                               className="data-[state=closed]:hidden"
                                           >
-                                              {optionalFields.map((field) => (
-                                                  <SchemaFormField
-                                                      key={field.name}
-                                                      field={field}
-                                                      disabled={disabled}
-                                                  />
-                                              ))}
+                                              <div className="flex flex-col gap-4">
+                                                  {optionalFields.map((field) => (
+                                                      <SchemaFormField
+                                                          key={field.name}
+                                                          field={field}
+                                                          disabled={disabled}
+                                                      />
+                                                  ))}
+                                              </div>
                                           </AccordionContent>
                                       </AccordionItem>
                                   </Accordion>
                               )}
-                    </>
+                    </div>
                 )}
             </Form>
         )
@@ -522,17 +557,22 @@ function cleanFormValues(values: Record<string, unknown>): Record<string, unknow
 // Field components
 // ---------------------------------------------------------------------------
 
+/** Inline message under an empty required field. */
+const REQUIRED_MESSAGE = "Needed before this can run"
+
 /**
- * A field's label, with its description behind a `?`. Provider schemas ship descriptions that
- * run to several sentences (Gmail's `label_ids` enumerates eleven label constants); rendering
+ * A field's label, with its description behind an info icon. Provider schemas ship descriptions
+ * that run to several sentences (Gmail's `label_ids` enumerates eleven label constants); rendering
  * them inline buried every control under a paragraph it only needed to read once.
  */
 function FieldLabel({field}: {field: FormFieldDescriptor}) {
     return (
-        <span className="inline-flex items-center gap-1 leading-tight">
-            {/* No required marker: a form of mostly-required provider fields reads as noise,
-                and the validation message on submit is the honest signal. */}
+        <span className="inline-flex items-center gap-1 text-[13px] font-medium leading-tight">
             <span>{field.label}</span>
+            {/* No "Required" marker on the label: every field in these schemas is either needed
+                or plainly optional under its own heading, and the word repeated down a column
+                read as an error state on a form nobody had filled in yet. The requirement is
+                still enforced, and REQUIRED_MESSAGE says so at the point it is broken. */}
             {field.description && <HelpTip label={field.label}>{field.description}</HelpTip>}
         </span>
     )
@@ -966,7 +1006,7 @@ function SchemaFormField({
     /** Threaded explicitly — the replaced leaves don't read antd's Form disabled context. */
     disabled?: boolean
 }) {
-    const rules = field.required ? [{required: true, message: `${field.label} is required`}] : []
+    const rules = field.required ? [{required: true, message: REQUIRED_MESSAGE}] : []
     const label = hideLabel ? undefined : <FieldLabel field={field} />
 
     // Object with nested children → render in a collapsible section
@@ -1366,7 +1406,7 @@ function ArrayObjectItem({
                 <AccordionContent forceMount className="data-[state=closed]:hidden">
                     {itemChildren.map((child) => {
                         const childRules = child.required
-                            ? [{required: true, message: `${child.label} is required`}]
+                            ? [{required: true, message: REQUIRED_MESSAGE}]
                             : []
                         const childLabel = <FieldLabel field={child} />
 
@@ -1401,7 +1441,7 @@ function ArrayObjectItem({
                                                             ? [
                                                                   {
                                                                       required: true,
-                                                                      message: `${gc.label} is required`,
+                                                                      message: REQUIRED_MESSAGE,
                                                                   },
                                                               ]
                                                             : []
