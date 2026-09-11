@@ -204,9 +204,9 @@ function ConfirmModal({record}: {record: ConfirmRecord}) {
                 // antd's confirm modals are not closable by default; `closable` opts in.
                 showCloseButton={config.closable ?? false}
                 className={cn(
-                    // antd non-centered Modals sit 100px from the top. `self-start` beats the
-                    // positioner's `items-center` without touching the shared AlertDialog.
-                    config.centered ? undefined : "self-start mt-[100px]",
+                    // Centered like every shadcn dialog; `centered: false` opts back into antd's
+                    // 100px-from-top placement (`self-start` beats the positioner's `items-center`).
+                    config.centered === false ? "self-start mt-[100px]" : undefined,
                     config.className,
                 )}
                 style={
