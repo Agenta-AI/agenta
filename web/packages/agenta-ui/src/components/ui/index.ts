@@ -64,7 +64,7 @@ export {
     type DateRangeCalendarProps,
 } from "./date-range-picker"
 export {TreeSelect, type TreeSelectOption, type TreeSelectProps} from "./tree-select"
-export {Toast, ToastViewport, type ToastProps, type ToastType} from "./toast"
+export {Toaster} from "./toast"
 export {
     Notification,
     NotificationViewport,
