@@ -11,13 +11,7 @@ import {
 } from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
 import {fetchAllProjects} from "@agenta/entities/project"
-import {
-    getSettingsTabDescription,
-    getSettingsTabDocs,
-    getSettingsTabLabel,
-    getSettingsTabVariant,
-    type SettingsTabKey,
-} from "@agenta/settings"
+import {getSettingsTabVariant, type SettingsTabKey} from "@agenta/settings"
 import {useApiKeys, type SettingsAccess} from "@agenta/settings"
 import {
     AccessControlsSection,
@@ -40,6 +34,12 @@ import {useRouter} from "next/router"
 import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {
+    getMobileSettingsTabDescription,
+    getMobileSettingsTabDocs,
+    getMobileSettingsTabLabel,
+    INTEGRATIONS_SECTION_COPY,
+} from "@/lib/integrationsCopy"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -213,7 +213,7 @@ const TabBody = ({
             if (!access.canShowTools) return null
             return (
                 <>
-                    <GatewayToolsSection confirm={confirm} />
+                    <GatewayToolsSection confirm={confirm} copy={INTEGRATIONS_SECTION_COPY} />
                     {confirmModal}
                 </>
             )
@@ -355,9 +355,9 @@ export const SettingsScreen = ({
                 desktop widths this app now serves. */}
             <SettingsPageShell
                 variant={getSettingsTabVariant(active)}
-                title={getSettingsTabLabel(active, access)}
-                description={getSettingsTabDescription(active, access)}
-                docs={getSettingsTabDocs(active)}
+                title={getMobileSettingsTabLabel(active, access)}
+                description={getMobileSettingsTabDescription(active, access)}
+                docs={getMobileSettingsTabDocs(active)}
             >
                 <TabBody
                     tab={active}

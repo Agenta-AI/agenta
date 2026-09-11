@@ -490,6 +490,7 @@ export {
     agentTemplateSeed,
     categoryFromSlug,
     categorySlug,
+    composioLogo,
     templateBuilderMessage,
     templateCategories,
     templateProviderSlugs,

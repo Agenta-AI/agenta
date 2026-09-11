@@ -54,7 +54,7 @@ export const SessionsPageSkeleton = () => (
                     key={row}
                     // The wide tracks: this renders before the viewport is measured, and the
                     // Agent bar hides below `sm` as the real table does.
-                    className="grid w-full grid-cols-[minmax(160px,2fr)_minmax(120px,1fr)_96px] items-center gap-3 px-2 py-[13px]"
+                    className="grid w-full grid-cols-[minmax(160px,2fr)_minmax(120px,1fr)_96px] items-center gap-3 px-2 py-2"
                 >
                     <SkeletonBlock active className={cn("h-5 rounded", TITLE_WIDTHS[row % 3])} />
                     <SkeletonBlock active className="hidden h-5 rounded sm:block" />
