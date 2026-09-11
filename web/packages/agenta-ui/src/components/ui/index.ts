@@ -29,7 +29,14 @@ export {
     type SelectTriggerProps,
 } from "./select"
 export {Popover, PopoverTrigger, PopoverAnchor, PopoverContent} from "./popover"
-export {Tooltip, TooltipTrigger, TooltipContent, TooltipProvider} from "./tooltip"
+export {
+    Tooltip,
+    TooltipTrigger,
+    TooltipContent,
+    TooltipProvider,
+    type TooltipShortcut,
+} from "./tooltip"
+export {Kbd, KbdGroup, kbdVariants, type KbdProps} from "./kbd"
 export {SimpleTooltip, type SimpleTooltipProps} from "./tooltip-composed"
 export {RadioGroup, RadioGroupItem, type RadioGroupProps} from "./radio-group"
 export {
