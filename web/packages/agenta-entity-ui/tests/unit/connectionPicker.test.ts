@@ -550,13 +550,19 @@ describe("buildConnectionPickerRows", () => {
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude (deployment login)",
+                    harness: "claude",
+                },
             ],
         })
 
-        // The plan's consumer name, never "Claude subscription" — the picker's olive tag is what
-        // says it is a subscription, so the name must not say it a second time.
-        expect(rows.map((row) => row.name)).toEqual(["Claude"])
+        // The plan's consumer name plus where the login comes from. Never "Claude subscription":
+        // the picker's olive tag already says it is a subscription, so the name says the one thing
+        // the tag cannot, which is that this login is the deployment's and not a hosted one.
+        expect(rows.map((row) => row.name)).toEqual(["Claude (deployment login)"])
         const subscription = rows[0]
         expect(subscription.kind).toBe("subscription")
         expect(subscription.iconKey).toBe("anthropic")
@@ -581,14 +587,24 @@ describe("buildConnectionPickerRows", () => {
             },
             harnessIds: [...HARNESS_IDS, "codex"],
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
-                {key: "openai:codex", provider: "openai", name: "ChatGPT", harness: "codex"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude (deployment login)",
+                    harness: "claude",
+                },
+                {
+                    key: "openai:codex",
+                    provider: "openai",
+                    name: "ChatGPT (deployment login)",
+                    harness: "codex",
+                },
             ],
         })
 
         expect(rows.map((row) => [row.name, row.key])).toEqual([
-            ["Claude", "subscription:anthropic"],
-            ["ChatGPT", "subscription:openai"],
+            ["Claude (deployment login)", "subscription:anthropic"],
+            ["ChatGPT (deployment login)", "subscription:openai"],
         ])
         // Every pair names its family; a self_managed pick without one fails server-side.
         expect(rows.every((row) => row.models.every((model) => model.provider))).toBe(true)
@@ -604,7 +620,12 @@ describe("buildConnectionPickerRows", () => {
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude (deployment login)",
+                    harness: "claude",
+                },
             ],
         }
 
@@ -656,7 +677,12 @@ describe("buildConnectionPickerRows", () => {
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude (deployment login)",
+                    harness: "claude",
+                },
             ],
         })
 
@@ -701,7 +727,12 @@ describe("selectedModelRowKey", () => {
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude (deployment login)",
+                    harness: "claude",
+                },
             ],
         })
 
@@ -751,7 +782,7 @@ describe("selectedModelRowKey", () => {
             }),
         )!
         expect(marked.model.mode).toBe("self_managed")
-        expect(marked.model.connectionName).toBe("Claude")
+        expect(marked.model.connectionName).toBe("Claude (deployment login)")
     })
 
     it("marks nothing when no model is stored", () => {
@@ -805,10 +836,21 @@ describe("pickerSelectionFrom", () => {
         })
     })
 
-    it("clears the slug for a subscription pick", () => {
+    it("keeps the slug on a hosted subscription pick", () => {
+        // A hosted subscription IS a stored record, and the slug is what names its sign-in.
+        // Dropping it here sent the run to whatever login the deployment happened to mount.
+        expect(
+            pickerSelectionFrom("gpt-5.6-sol", {
+                connectionSlug: "chatgpt",
+                connectionMode: "self_managed",
+                harness: "pi_core",
+            }),
+        ).toMatchObject({mode: "self_managed", slug: "chatgpt"})
+    })
+
+    it("leaves a mounted subscription pick slugless, because it names no record", () => {
         expect(
             pickerSelectionFrom("claude-fable-5", {
-                connectionSlug: "anthropic",
                 connectionMode: "self_managed",
                 harness: "claude",
             }),

@@ -10,7 +10,7 @@ import {
 } from "../../src/tools/pi-validation-patch.ts";
 
 /**
- * Verbatim from the installed bundle (`@earendil-works/pi-ai` 0.80.6,
+ * Verbatim from the installed bundle (`@earendil-works/pi-ai` 0.85.1,
  * `dist/utils/validation.js`). Keep it byte-exact: the patch's only job is to rewrite this shape,
  * so a fixture that drifts from the real bundle proves nothing.
  */

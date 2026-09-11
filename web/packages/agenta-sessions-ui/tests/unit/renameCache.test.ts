@@ -26,6 +26,25 @@ describe("withRenamedSession", () => {
         })
     })
 
+    // The rail's paging tail caches `{rows, more}`, not a bare array: whether another page exists
+    // cannot be read off a row count once response validation can drop a row. A rename of a
+    // session below the first page reaches the rail only through this branch, because rename
+    // deliberately patches the cache instead of refetching.
+    it("renames inside the rail's paging tail", () => {
+        const data = {rows: [row("s1", "old"), row("s2", "other")], more: true}
+
+        expect(withRenamedSession(data, "s1", "new")).toEqual({
+            rows: [row("s1", "new"), row("s2", "other")],
+            more: true,
+        })
+    })
+
+    it("hands back the same tail when the session is not in it", () => {
+        const data = {rows: [row("s2", "other")], more: false}
+
+        expect(withRenamedSession(data, "s1", "new")).toBe(data)
+    })
+
     it("renames inside an infinite query's pages", () => {
         const data = {pageParams: [null], pages: [{sessions: [row("s1", "old")]}]}
 

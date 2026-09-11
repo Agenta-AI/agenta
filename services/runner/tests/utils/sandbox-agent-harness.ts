@@ -34,6 +34,7 @@ export interface FakeOptions {
   streamUsage?: Record<string, number>;
   output?: string;
   promptError?: Error;
+  probeError?: Error;
   permissionDecision?: PermissionDecision | "pendingApproval";
   emitPermission?: boolean;
   permissionToolCallId?: string;
@@ -243,7 +244,10 @@ export function fakeHarness(options: FakeOptions = {}) {
     buildDaemonEnv: (agent, daemonOptions) => {
       calls.daemonAgent = agent;
       calls.daemonOptions = daemonOptions;
-      return {};
+      // The real `buildDaemonEnv` always names a pi command, and a local subscription run wraps
+      // it to deliver its own system prompts. A double that returned `{}` would fail every such
+      // run on the prompt-channel gate.
+      return { PI_ACP_PI_COMMAND: "/bin/pi" };
     },
     resolveDaemonBinary: () => "/bin/sandbox-agent",
     buildSandboxProvider: (...args: unknown[]) => {
@@ -269,8 +273,9 @@ export function fakeHarness(options: FakeOptions = {}) {
         },
       };
     }) as any,
-    probeCapabilities: async () =>
-      ({
+    probeCapabilities: async () => {
+      if (options.probeError) throw options.probeError;
+      return ({
         source: "probed",
         capabilities: {
           mcpTools: true,
@@ -279,7 +284,8 @@ export function fakeHarness(options: FakeOptions = {}) {
           streamingDeltas: true,
           ...(options.capabilities ?? {}),
         },
-      }) as any,
+      }) as any;
+    },
     applyModel: async (_session, model, _log, options) => {
       calls.applyModelArgs.push({ model, options });
       return model ?? "resolved-model";

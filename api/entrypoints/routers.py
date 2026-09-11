@@ -82,6 +82,8 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
+from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.events.service import EventsService
@@ -627,6 +629,11 @@ vault_service = VaultService(
     secrets_dao=secrets_dao,
 )
 
+subscription_login_service = SubscriptionLoginService(
+    vault_service=vault_service,
+    runner_client=SubscriptionLoginRunnerClient(),
+)
+
 provider_probe_service = ProviderProbeService()
 
 
@@ -983,6 +990,7 @@ _t_routers = time.perf_counter()
 
 secrets = VaultRouter(
     vault_service=vault_service,
+    subscription_login_service=subscription_login_service,
 )
 
 providers = ProvidersRouter(

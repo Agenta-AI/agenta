@@ -1,4 +1,5 @@
 from typing import Optional, Literal, List
+from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID
 from datetime import datetime
 
@@ -552,31 +553,20 @@ def parse_environment_revision_query_request_from_body(
     #
     include_archived: Optional[bool] = None,
     #
+    grouping: Optional[RevisionGrouping] = None,
+    #
     windowing: Optional[Windowing] = None,
 ) -> EnvironmentRevisionQueryRequest:
-    environment_revision_query_request = None
-
-    try:
-        environment_revision_query_request = EnvironmentRevisionQueryRequest(
-            environment_revision=environment_revision,
-            #
-            environment_refs=environment_refs,
-            environment_variant_refs=environment_variant_refs,
-            environment_revision_refs=environment_revision_refs,
-            #
-            references=references,
-            #
-            include_archived=include_archived,
-            #
-            windowing=windowing,
-        )
-
-    except Exception as e:  # pylint: disable=broad-except
-        log.warn(e)
-
-        environment_revision_query_request = EnvironmentRevisionQueryRequest()
-
-    return environment_revision_query_request
+    return EnvironmentRevisionQueryRequest(
+        environment_revision=environment_revision,
+        environment_refs=environment_refs,
+        environment_variant_refs=environment_variant_refs,
+        environment_revision_refs=environment_revision_refs,
+        references=references,
+        include_archived=include_archived,
+        grouping=grouping,
+        windowing=windowing,
+    )
 
 
 def merge_environment_revision_query_requests(
@@ -608,6 +598,8 @@ def merge_environment_revision_query_requests(
                 if query_request_body.include_archived is not None
                 else query_request_params.include_archived
             ),
+            #
+            grouping=query_request_body.grouping or query_request_params.grouping,
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )

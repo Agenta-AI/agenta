@@ -9,6 +9,19 @@ from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.managed import SecretManagementDTO, SecretManager
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
+from oss.src.core.secrets.subscription_service import SubscriptionLoginService
+
+
+def _vault_router(vault_service: VaultService) -> VaultRouter:
+    """The router as the entrypoint wires it, with a runner client nothing here calls."""
+    return VaultRouter(
+        vault_service=vault_service,
+        subscription_login_service=SubscriptionLoginService(
+            vault_service=vault_service,
+            runner_client=SubscriptionLoginRunnerClient(base_url="", token=""),
+        ),
+    )
 
 
 PROJECT_ID = str(uuid4())
@@ -72,7 +85,7 @@ def client(monkeypatch):
         request.state.project_id = PROJECT_ID
         return await call_next(request)
 
-    app.include_router(VaultRouter(vault_service=VaultService(_DAO())).router)
+    app.include_router(_vault_router(VaultService(_DAO())).router)
     return TestClient(app)
 
 
