@@ -1159,10 +1159,15 @@ def _continuity(cell: dict, tier: str) -> dict:
                 "why": (
                     "cold 2 needs the runner replica REPLACED, which no HTTP client can do. Pass "
                     "--cold2-replace-cmd (or set AGENTA_QA_RUNNER_REPLACE_CMD) to a command that "
-                    "SIGKILLs the runner replica — e.g. `docker kill -s KILL <runner>`. It must "
-                    "be SIGKILL: on SIGTERM the runner runs its shutdown handler and destroys "
-                    "every sandbox it owns, including the session this cell wants to resume "
-                    "(warm-approvals-qa.md)."
+                    "SIGKILLs the runner replica AND starts the replacement — e.g. "
+                    "`docker kill -s KILL <runner> && docker start <runner>` followed by a wait "
+                    "for health. It must be SIGKILL: on SIGTERM the runner runs its shutdown "
+                    "handler and destroys every sandbox it owns, including the session this cell "
+                    "wants to resume (warm-approvals-qa.md). And it must start the container "
+                    "explicitly: Docker treats an operator-issued kill as a manual stop and skips "
+                    "the `always` restart policy, so a bare `docker kill` leaves the runner down "
+                    "for every later cell (measured 2026-09-10: seven minutes down before a human "
+                    "noticed; with the explicit start, back in about forty seconds)."
                 ),
             }
         try:
@@ -2808,9 +2813,12 @@ def main() -> int:
         "--cold2-replace-cmd",
         default=os.environ.get("AGENTA_QA_RUNNER_REPLACE_CMD"),
         help=(
-            "shell command that replaces the runner replica, for the cold2 journey. MUST SIGKILL "
-            "(e.g. `docker kill -s KILL <runner>`): on SIGTERM the runner destroys every sandbox "
-            "it owns, including the session under test. Without it, cold2 SKIPs."
+            "shell command that replaces the runner replica, for the cold2 journey. MUST SIGKILL: "
+            "on SIGTERM the runner destroys every sandbox it owns, including the session under "
+            "test. It must also START the replacement itself and return only once it is serving, "
+            "because Docker skips the restart policy for an operator-issued kill. So: "
+            "`docker kill -s KILL <runner> && docker start <runner>` plus a wait for health, NOT "
+            "a bare `docker kill`. Without it, cold2 SKIPs."
         ),
     )
     p.add_argument(
