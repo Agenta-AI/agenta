@@ -51,9 +51,10 @@ export const AgentComposer = ({
     return (
         <HomeTaskComposer
             fixedAgentId={agentId}
-            placeholder={`Ask ${agentName}… — starts a new session`}
             attachments={attachments}
             onStart={start}
+            // Home's composer, mic and all — this is the same start-a-session control.
+            voice
         />
     )
 }
