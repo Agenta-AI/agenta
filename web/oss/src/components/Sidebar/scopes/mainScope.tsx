@@ -10,7 +10,6 @@ import {HOME_SIDEBAR_KEY, MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "@ag
 import {SessionSearchPalette, SidebarLogo} from "@agenta/navigation-ui"
 import {atom, useAtomValue} from "jotai"
 
-import SidePanelSubscriptionInfo from "@/oss/components/SidePanel/Subscription"
 import useURL from "@/oss/hooks/useURL"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {homeNavHighlightedAtom} from "@/oss/state/onboarding"
@@ -25,13 +24,6 @@ import {useSidebarBottomSection} from "./bottomSection"
 const MainSidebarHeader = ({collapsed}: SidebarSlotContext) => (
     <SidebarLogo collapsed={collapsed} toggle={<SidebarToggleButton />} />
 )
-
-const MainSidebarFooter = ({collapsed}: SidebarSlotContext) =>
-    collapsed ? null : (
-        <div className="w-full">
-            <SidePanelSubscriptionInfo />
-        </div>
-    )
 
 // The palette is a modal with one owner: mounted here, it exists exactly where the Sessions
 // group that opens it does, rather than in every scope's shell.
@@ -90,6 +82,5 @@ export const mainSidebarScope: SidebarScope = {
     useSelection: useMainSidebarSelection,
     useSections: useMainSidebarSections,
     header: MainSidebarHeader,
-    footer: MainSidebarFooter,
     afterBottom: MainSidebarAfterBottom,
 }
