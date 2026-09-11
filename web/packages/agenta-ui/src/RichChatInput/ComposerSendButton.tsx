@@ -1,9 +1,8 @@
 import {type ReactNode} from "react"
 
-import {ArrowUp} from "@phosphor-icons/react"
+import {ArrowUp, CircleNotch} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
-import {Spinner} from "../components/ui/spinner"
 import {cn} from "../components/ui/utils"
 
 export interface ComposerSendButtonProps {
@@ -44,12 +43,14 @@ export function ComposerSendButton({
             disabled={disabled || sending}
             onClick={onClick}
             // Filled accent when there's something to send, a clearly-inert grey fill when empty
-            // (never a faint outlined ghost).
+            // (never a faint outlined ghost). A send in flight keeps the fill even though the
+            // editor has already emptied under it: a spinner on the inert grey said "nothing to
+            // do" and "working" at once.
             className={cn(
                 // The control radius, not a circle: the composer is a rounded rectangle and every
                 // other control on it follows that radius — a puck was the one round thing on it.
                 "rounded-control",
-                disabled
+                disabled && !sending
                     ? "!border-[var(--ag-send-disabled-bg)] !bg-[var(--ag-send-disabled-bg)] !text-[var(--ag-send-disabled-fg)]"
                     : // Re-toned by its CONTAINER, not by a prop: the button sits five levels below
                       // any host that might want a different fill, and threading a colour down
@@ -58,7 +59,9 @@ export function ComposerSendButton({
             )}
         >
             {sending ? (
-                <Spinner size="small" className="text-current" />
+                // The ring the rest of the chat surfaces load with, not the antd four-dot
+                // spinner: one glyph swaps for another at the same weight on the same button.
+                <CircleNotch size={16} weight="bold" className="animate-spin" />
             ) : (
                 (icon ?? <ArrowUp size={16} weight="bold" />)
             )}
