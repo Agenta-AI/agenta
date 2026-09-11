@@ -6,13 +6,15 @@ import {
     CANCEL_REASON_OTHER,
 } from "@agenta/settings-ui"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
 } from "@agenta/ui/ui"
 
 interface Props {
@@ -48,14 +50,17 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
     }
 
     return (
-        <Dialog open={open} onOpenChange={(next) => (next ? undefined : onOpenChange(false))}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Cancel auto-renewal</DialogTitle>
-                    <DialogDescription>
+        <AlertDialog
+            open={open}
+            onOpenChange={(next) => (next || cancelling ? undefined : onOpenChange(false))}
+        >
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel auto-renewal</AlertDialogTitle>
+                    <AlertDialogDescription>
                         Your plan stays active until the end of the current period.
-                    </DialogDescription>
-                </DialogHeader>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
                 <div>
                     <CancelSubscriptionReasons
                         value={reason}
@@ -65,23 +70,31 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
                     />
                     {error ? <p className="m-0 pt-2 text-sm text-colorError">{error}</p> : null}
                 </div>
-                <DialogFooter>
-                    <Button
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                        disabled={cancelling}
-                    >
-                        Keep my plan
-                    </Button>
-                    <Button
-                        variant="destructive"
-                        disabled={!canConfirm || cancelling}
-                        onClick={() => void confirm()}
-                    >
-                        {cancelling ? "Cancelling…" : "Confirm"}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                <AlertDialogFooter>
+                    <AlertDialogCancel asChild>
+                        <Button
+                            variant="outline"
+                            onClick={() => onOpenChange(false)}
+                            disabled={cancelling}
+                        >
+                            Keep my plan
+                        </Button>
+                    </AlertDialogCancel>
+                    {/* Stays open for the error; `confirm` closes it on success. */}
+                    <AlertDialogAction asChild>
+                        <Button
+                            variant="destructive"
+                            disabled={!canConfirm || cancelling}
+                            onClick={(event) => {
+                                event.preventDefault()
+                                void confirm()
+                            }}
+                        >
+                            {cancelling ? "Cancelling…" : "Confirm"}
+                        </Button>
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     )
 }

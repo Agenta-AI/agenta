@@ -3,6 +3,14 @@ import {useEffect, useState} from "react"
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {ProjectsPage} from "@agenta/settings-ui"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     Dialog,
     DialogContent,
@@ -54,30 +62,41 @@ export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
                 />
             )}
             renderDeleteDialog={({open, onClose, onSubmit, pending, project}) => (
-                <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Delete project</DialogTitle>
-                            <DialogDescription>This cannot be undone.</DialogDescription>
-                        </DialogHeader>
+                <AlertDialog
+                    open={open}
+                    onOpenChange={(next) => (next || pending ? undefined : onClose())}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Delete project</AlertDialogTitle>
+                            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                        </AlertDialogHeader>
                         <p className="m-0 text-sm">
                             Permanently deletes {project?.project_name}, including all of its
                             agents, datasets and deployments.
                         </p>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={onClose} disabled={pending}>
-                                Cancel
-                            </Button>
-                            <Button
-                                variant="destructive"
-                                disabled={pending}
-                                onClick={() => onSubmit()}
-                            >
-                                Delete project
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel asChild>
+                                <Button variant="outline" onClick={onClose} disabled={pending}>
+                                    Cancel
+                                </Button>
+                            </AlertDialogCancel>
+                            {/* The page closes it once the delete lands. */}
+                            <AlertDialogAction asChild>
+                                <Button
+                                    variant="destructive"
+                                    disabled={pending}
+                                    onClick={(event) => {
+                                        event.preventDefault()
+                                        onSubmit()
+                                    }}
+                                >
+                                    {pending ? "Deleting…" : "Delete project"}
+                                </Button>
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             )}
         />
     )

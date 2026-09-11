@@ -8,6 +8,14 @@ import {
 } from "@agenta/entities/organization"
 import {MembersPage} from "@agenta/settings-ui"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     Dialog,
     DialogContent,
@@ -182,39 +190,49 @@ export const MembersTab = ({
                 </DialogContent>
             </Dialog>
 
-            <Dialog
+            <AlertDialog
                 open={Boolean(pendingRemoval)}
-                onOpenChange={(next) => (next ? undefined : setPendingRemoval(null))}
+                onOpenChange={(next) =>
+                    next || removeMutation.isPending ? undefined : setPendingRemoval(null)
+                }
             >
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Remove member</DialogTitle>
-                        <DialogDescription>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Remove member</AlertDialogTitle>
+                        <AlertDialogDescription>
                             They lose access to this organization.
-                        </DialogDescription>
-                    </DialogHeader>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
                     <p className="m-0 text-sm">
                         Remove {pendingRemoval?.user.username || pendingRemoval?.user.email}?
                     </p>
                     {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setPendingRemoval(null)}
-                            disabled={removeMutation.isPending}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            disabled={removeMutation.isPending}
-                            onClick={() => pendingRemoval && removeMutation.mutate(pendingRemoval)}
-                        >
-                            {removeMutation.isPending ? "Removing…" : "Remove"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={() => setPendingRemoval(null)}
+                                disabled={removeMutation.isPending}
+                            >
+                                Cancel
+                            </Button>
+                        </AlertDialogCancel>
+                        {/* Stays open for the error; the mutation clears pendingRemoval on success. */}
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={removeMutation.isPending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    if (pendingRemoval) removeMutation.mutate(pendingRemoval)
+                                }}
+                            >
+                                {removeMutation.isPending ? "Removing…" : "Remove"}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </MembersPage>
     )
 }
