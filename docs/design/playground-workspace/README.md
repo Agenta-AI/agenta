@@ -1,6 +1,6 @@
 # Playground workspace discussion
 
-> AGENT-GENERATED, low weight. Draft for founder and frontend review. No implementation or scope approval is implied.
+> Draft for founder and frontend review. No implementation or scope approval is implied.
 
 Date: 2026-09-11.
 

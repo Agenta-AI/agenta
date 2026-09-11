@@ -1,6 +1,6 @@
 # Product requirements: playground workspace
 
-> AGENT-GENERATED, low weight. Draft for discussion. Proposed requirements and scope need founder approval.
+> Draft for discussion. Proposed requirements and scope need founder approval.
 
 Date: 2026-09-11. Technical companion: [initial RFC](rfc.md).
 

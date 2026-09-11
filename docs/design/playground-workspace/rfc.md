@@ -1,6 +1,6 @@
 # Initial RFC: playground workspace architecture
 
-> AGENT-GENERATED, low weight. Rough request for comments, not an approved technical design or implementation plan.
+> Rough request for comments, not an approved technical design or implementation plan.
 
 Date: 2026-09-11. Product companion: [PRD](prd.md).
 
