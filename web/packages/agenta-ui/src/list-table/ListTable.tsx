@@ -58,9 +58,12 @@ export const ListTable = <Row,>({
     onToggleGroup,
     empty,
     stickyHeader = false,
+    density = "default",
     className,
 }: ListTableProps<Row>) => {
     const grid = gridTemplate(columns)
+    // One value for the rows AND their skeleton, so loading holds the rhythm the rows arrive in.
+    const rowPad = density === "compact" ? "py-2" : "py-[13px]"
     const isEmpty = groups.every((group) => group.rows.length === 0)
 
     return (
@@ -115,7 +118,7 @@ export const ListTable = <Row,>({
                         {Array.from({length: skeletonRows}, (_, row) => (
                             <div
                                 key={row}
-                                className="grid w-full items-center gap-3 py-[13px]"
+                                className={cn("grid w-full items-center gap-3", rowPad)}
                                 style={{gridTemplateColumns: grid}}
                             >
                                 {columns.map((column, index) => (
@@ -230,7 +233,8 @@ export const ListTable = <Row,>({
                                             // the row's BOX grows by the same 12px its padding
                                             // gives back, so its content box — and so its grid
                                             // tracks — stay identical to the header's.
-                                            "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent py-[13px] text-left",
+                                            "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
+                                            rowPad,
                                             "-mx-3 w-[calc(100%+1.5rem)] px-3",
                                             onOpenRow && "cursor-pointer hover:bg-accent/60",
                                             onOpenRow && FOCUS_RING,

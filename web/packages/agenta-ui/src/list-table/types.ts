@@ -67,5 +67,11 @@ export interface ListTableProps<Row> {
      * beside it rather than only itself.
      */
     stickyHeader?: boolean
+    /**
+     * Row rhythm. `compact` is for the long lists — a sessions page runs to hundreds of rows, and
+     * 13px above and below each one is a screen of air per hundred. The default suits a list a
+     * reader scans once.
+     */
+    density?: "default" | "compact"
     className?: string
 }
