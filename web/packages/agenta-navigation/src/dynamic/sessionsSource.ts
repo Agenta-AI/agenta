@@ -2,6 +2,7 @@ import {
     livenessPollInterval,
     queryInteractions,
     querySessions,
+    querySessionsFlatPage,
     type SessionStream,
 } from "@agenta/entities/session"
 import {
@@ -146,6 +147,109 @@ const queryByAgents = async (
     return [...byId.values()].sort((a, b) => activity(b) - activity(a))
 }
 
+/** `queryByAgents` over tail reads: any agent with more below it means the rail has more. */
+const walkByAgents = async (
+    agentIds: readonly string[],
+    run: (references: {id: string}[] | undefined) => Promise<SessionPageWalk>,
+): Promise<SessionPageWalk> => {
+    let more = false
+    const rows = await queryByAgents(agentIds, async (references) => {
+        const walk = await run(references)
+        more = more || walk.more
+        return walk.rows
+    })
+    return {rows: rows ?? [], more}
+}
+
+/**
+ * The largest `windowing.limit` the sessions query accepts. Above it the server answers 422, so a
+ * request that widens past this returns nothing at all rather than a truncated page.
+ */
+const MAX_SESSION_QUERY_LIMIT = 200
+
+/**
+ * The longest `session_ids` list the sessions query accepts. Above it the server answers 422 and
+ * the request returns nothing, so the id push-down has to stay inside it.
+ */
+const MAX_SESSION_IDS_PER_QUERY = 500
+
+/**
+ * A tail read: the rows, and whether the server has more below the last one.
+ *
+ * `more` cannot be inferred from `rows.length`. Row validation drops a row the frontend schema
+ * does not know yet, so a full page can arrive short, and a length test would close paging one
+ * page early on the same unknown enum value that used to end the walk.
+ */
+interface SessionPageWalk {
+    rows: SessionStream[]
+    more: boolean
+}
+
+interface SessionPageWalkParams {
+    projectId: string
+    references: {id: string}[] | undefined
+    flags: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean} | undefined
+    includeArchived: boolean | undefined
+    origin: Parameters<typeof querySessionsFlatPage>[0]["origin"]
+    excludeOrigin: Parameters<typeof querySessionsFlatPage>[0]["excludeOrigin"]
+    oldest: string | undefined
+    newest: string | undefined
+    sessionIds: string[] | undefined
+    pages: number
+    pageSize: number
+    abortSignal: AbortSignal | undefined
+}
+
+/**
+ * Read `pages` windows below `newest`, one fixed-size request at a time.
+ *
+ * The tail used to ask for `pageSize * pages` rows in a single request. Past the cap that is a
+ * 422, so the fifth page at size 50 came back empty, the rail collapsed to its head window, and
+ * no project with more than 250 sessions could reach an older one. Walking the server's own
+ * cursor (`windowing.next` with the boundary it belongs to) keeps every request inside the cap.
+ *
+ * Still one read of the WHOLE tail per load, not an appended page, because that is what lets a
+ * row archived elsewhere disappear from it. A short page means the list ended, so stop there
+ * rather than spending the remaining round trips on nothing.
+ */
+const walkSessionPages = async ({
+    pages,
+    pageSize,
+    newest,
+    ...rest
+}: SessionPageWalkParams): Promise<SessionPageWalk> => {
+    const limit = Math.min(pageSize, MAX_SESSION_QUERY_LIMIT)
+    const rows: SessionStream[] = []
+    let cursor: {newest?: string; next?: string} = {newest}
+    let more = false
+
+    for (let page = 0; page < pages; page++) {
+        const result = await querySessionsFlatPage({
+            ...rest,
+            newest: cursor.newest,
+            next: cursor.next,
+            limit,
+            order: "descending",
+            lowPriority: true,
+        })
+        // Throwing rather than returning what was read so far: a partial tail returned as a
+        // success is stored as the whole list and never retried, which silently loses every row
+        // below the page that failed.
+        if (!result) throw new Error(`Session page ${page + 1} of ${pages} failed`)
+        rows.push(...result.sessions)
+
+        const nextCursor = result.windowing
+        // `count` is what the server returned; `sessions` is what survived row validation, which
+        // drops a row the frontend schema does not know yet. Reading the survivors here would
+        // read one dropped row in a full page as the end of the list.
+        more = result.count >= limit && Boolean(nextCursor?.next)
+        if (!more) break
+        cursor = {newest: nextCursor!.newest ?? undefined, next: nextCursor!.next!}
+    }
+
+    return {rows, more}
+}
+
 /**
  * Carry the previous rows through a key change, but only inside the same project.
  *
@@ -153,12 +257,10 @@ const queryByAgents = async (
  * group does not blink empty mid-interaction; the second must not, because those rows belong to a
  * project you just left.
  */
-const keepPreviousDataWithinProject = (scopeId: string, projectId: string | null) =>
+const keepPreviousDataWithinProject = <T>(scopeId: string, projectId: string | null) =>
     scopeGroups(scopeId)
-        ? (
-              previous: SessionStream[] | null | undefined,
-              previousQuery?: {queryKey: readonly unknown[]},
-          ) => (previousQuery?.queryKey[1] === projectId ? previous : undefined)
+        ? (previous: T | undefined, previousQuery?: {queryKey: readonly unknown[]}) =>
+              previousQuery?.queryKey[1] === projectId ? previous : undefined
         : undefined
 
 /**
@@ -183,7 +285,19 @@ const sidebarWaitingIdsQueryAtomFamily = atomFamily((scopeId: string) =>
                     actionableOnly: true,
                     abortSignal: signal,
                 })
+                // The interactions query applies no ORDER BY, so row order is not stable between
+                // executions. Both session queries put this array in their cache key, and a pure
+                // reorder would re-key them on every poll and re-fetch the whole tail. The server
+                // sorts the id list anyway, so ordering it here costs nothing.
+                //
+                // Truncated because the id push-down is the filter: a longer list is a 422 and the
+                // rail would show nothing at all rather than a subset. Sorting first makes which
+                // ids survive stable across polls. Paging closes on its own once the capped set
+                // runs out, since a short page ends the walk. Past 500 sessions gated at once the
+                // rail lists 500 of them; there is no server predicate to narrow it further.
                 return [...new Set((rows ?? []).map((row) => row.session_id))]
+                    .sort()
+                    .slice(0, MAX_SESSION_IDS_PER_QUERY)
             },
             enabled: Boolean(projectId) && (needed || scopeGroups(scopeId)),
             staleTime: 10_000,
@@ -236,7 +350,10 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
             // Without this every facet click is a cache miss that empties the group
             // mid-interaction. Held ONLY within a project: the key carries the project id too, so
             // an unconditional carry-over shows the previous project's sessions in a new one.
-            placeholderData: keepPreviousDataWithinProject(scopeId, projectId),
+            placeholderData: keepPreviousDataWithinProject<SessionStream[] | null>(
+                scopeId,
+                projectId,
+            ),
             staleTime: 30_000,
             refetchInterval: (query) => livePollInterval(query.state.data),
             refetchOnWindowFocus: true,
@@ -244,12 +361,25 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
     }),
 )
 
-/** Each page widens one request, so the last one is the most expensive — stop before it hurts. */
+/** Each page is one more round trip on every tail read — stop before it hurts. */
 const MAX_SESSION_PAGES = 12
 
-/** The predicate a page count belongs to — change it and the count is meaningless. */
-const filtersKey = (filters: SidebarSessionFilters) =>
-    [filters.agentIds.join(","), filters.status, filters.activity, filters.type].join("|")
+/**
+ * What a page count and its frozen boundary belong to — change it and both are meaningless.
+ *
+ * The project is part of it. A count kept across a project switch renders the new project's whole
+ * list at once, and a boundary kept across one freezes the tail at a timestamp from a list you are
+ * no longer looking at. Both readers and the writer take it as a parameter rather than reading a
+ * project atom of their own, so a site left behind fails to compile instead of drifting.
+ */
+const filtersKey = (filters: SidebarSessionFilters, projectId: string | null) =>
+    [
+        projectId ?? "",
+        filters.agentIds.join(","),
+        filters.status,
+        filters.activity,
+        filters.type,
+    ].join("|")
 
 const sessionPageCountStateAtomFamily = atomFamily((_scopeId: string) =>
     atom<{key: string; pages: number; boundary?: string}>({key: "", pages: 0}),
@@ -266,11 +396,17 @@ export const sidebarSessionPageCountAtomFamily = atomFamily((scopeId: string) =>
     atom(
         (get) => {
             const state = get(sessionPageCountStateAtomFamily(scopeId))
-            const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)))
+            const key = filtersKey(
+                get(sidebarSessionFiltersAtomFamily(scopeId)),
+                get(projectIdAtom),
+            )
             return state.key === key ? state.pages : 0
         },
         (get, set, next: {pages: number; boundary?: string}) => {
-            const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)))
+            const key = filtersKey(
+                get(sidebarSessionFiltersAtomFamily(scopeId)),
+                get(projectIdAtom),
+            )
             set(sessionPageCountStateAtomFamily(scopeId), {key, ...next})
         },
     ),
@@ -286,7 +422,7 @@ export const sidebarSessionPageCountAtomFamily = atomFamily((scopeId: string) =>
 const sidebarSessionBoundaryAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => {
         const state = get(sessionPageCountStateAtomFamily(scopeId))
-        const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)))
+        const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)), get(projectIdAtom))
         return state.key === key ? state.boundary : undefined
     }),
 )
@@ -311,13 +447,16 @@ const oldestActivity = (rows: readonly SessionStream[]): string | undefined => {
  * dedupe to the fresh one above.
  */
 const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
-    atomWithQuery<SessionStream[] | null>((get) => {
+    atomWithQuery<SessionPageWalk>((get) => {
         const projectId = get(projectIdAtom)
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
         const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
         const {agentIds, flags, includeArchived, origin, excludeOrigin, oldest} =
             requestFilters(filters)
         const boundary = get(sidebarSessionBoundaryAtomFamily(scopeId))
+        const waiting = filters.status === "waiting"
+        const waitingQuery = get(sidebarWaitingIdsQueryAtomFamily(scopeId))
+        const waitingIds = waitingQuery.data ?? null
         return {
             // `projectId` stays at index 1: `keepPreviousDataWithinProject` reads that slot to
             // tell a facet change from a project switch.
@@ -331,10 +470,11 @@ const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
                 filters.type,
                 boundary ?? null,
                 pages,
+                waiting ? waitingIds : null,
             ],
             queryFn: ({signal}) =>
-                queryByAgents(agentIds, (references) =>
-                    querySessions({
+                walkByAgents(agentIds, (references) =>
+                    walkSessionPages({
                         projectId: projectId ?? "",
                         references,
                         flags,
@@ -344,15 +484,21 @@ const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
                         // The activity floor still applies; the boundary only narrows it further.
                         oldest,
                         newest: boundary,
-                        limit: scopeLimit(scopeId) * pages,
-                        order: "descending",
+                        // The same id push-down the head does. Without it the tail asks for every
+                        // session older than the boundary, and the filter leaks on the second page.
+                        sessionIds: waiting ? (waitingIds ?? []) : undefined,
+                        pages,
+                        pageSize: scopeLimit(scopeId),
                         abortSignal: signal,
-                        lowPriority: true,
                     }),
                 ),
             // Nothing to page until the head has landed, and no pages asked for yet.
-            enabled: Boolean(projectId) && pages > 0 && Boolean(boundary),
-            placeholderData: keepPreviousDataWithinProject(scopeId, projectId),
+            enabled:
+                Boolean(projectId) &&
+                pages > 0 &&
+                Boolean(boundary) &&
+                (!waiting || waitingIds !== null),
+            placeholderData: keepPreviousDataWithinProject<SessionPageWalk>(scopeId, projectId),
             staleTime: 30_000,
             refetchOnWindowFocus: false,
         }
@@ -362,8 +508,9 @@ const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
 /**
  * What the rail needs to page: whether more exist, whether a page is in flight, and how to ask.
  *
- * `loadMore` widens the window rather than appending a cursor page, so every reload re-reads the
- * whole tail — which is also what lets a row archived elsewhere disappear from it.
+ * `loadMore` asks for one more page rather than appending a cursor page to the rows already held,
+ * so every reload re-reads the whole tail. That is what lets a row archived elsewhere disappear
+ * from it. `walkSessionPages` does the re-read as one fixed-size request per page.
  */
 export const sidebarSessionPagingAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => {
@@ -372,10 +519,9 @@ export const sidebarSessionPagingAtomFamily = atomFamily((scopeId: string) =>
         const older = get(sidebarSessionsOlderQueryAtomFamily(scopeId))
         const pageSize = scopeLimit(scopeId)
         const headFull = (head.data?.length ?? 0) >= pageSize
-        // A short page is the end of the list; a full one means there is probably another.
-        const olderFull = (older.data?.length ?? 0) >= pageSize * pages
         return {
-            hasMore: pages < MAX_SESSION_PAGES && (pages === 0 ? headFull : olderFull),
+            hasMore:
+                pages < MAX_SESSION_PAGES && (pages === 0 ? headFull : Boolean(older.data?.more)),
             isLoadingMore: older.isFetching,
             isError: older.isError,
         }
@@ -441,7 +587,10 @@ const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
                 ),
             enabled:
                 Boolean(projectId) && pinnedIds.length > 0 && (!waiting || waitingIds !== null),
-            placeholderData: keepPreviousDataWithinProject(scopeId, projectId),
+            placeholderData: keepPreviousDataWithinProject<SessionStream[] | null>(
+                scopeId,
+                projectId,
+            ),
             staleTime: 30_000,
             refetchInterval: (query) => livePollInterval(query.state.data),
             refetchOnWindowFocus: true,
@@ -602,9 +751,9 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
 
         // Pages past the head. They trail it, and `uniqueBySession` keeps the head's copy of any
         // row that has since climbed back into it.
-        const olderRows = (get(sidebarSessionsOlderQueryAtomFamily(scopeId)).data ?? []).filter(
-            (row) => !pinned.has(row.session_id),
-        )
+        const olderRows = (
+            get(sidebarSessionsOlderQueryAtomFamily(scopeId)).data?.rows ?? []
+        ).filter((row) => !pinned.has(row.session_id))
 
         const isRef = (ref: SessionSidebarRef | null): ref is SessionSidebarRef => ref !== null
         const server = [

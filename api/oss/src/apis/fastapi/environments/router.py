@@ -2,6 +2,8 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Request, status, Depends, HTTPException
+from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -1070,10 +1072,20 @@ class EnvironmentsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        environment_revision_query_request = merge_environment_revision_query_requests(
-            query_request_params,
-            query_request_body,
-        )
+        try:
+            environment_revision_query_request = (
+                merge_environment_revision_query_requests(
+                    query_request_params,
+                    query_request_body,
+                )
+            )
+        except ValidationError as exc:
+            # Merging re-runs request validation, so an invalid params/body combination
+            # must reach the caller as 422 instead of being suppressed into an empty 200.
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=jsonable_encoder(exc.errors()),
+            ) from exc
 
         environment_revisions = await self.environments_service.query_environment_revisions(
             project_id=UUID(request.state.project_id),

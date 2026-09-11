@@ -1546,8 +1546,12 @@ class GitDAO(GitDAOInterface):
                     .order_by(group_column, self.RevisionDBE.id.desc())
                     .subquery()
                 )
+                # Rebuilding the statement drops every predicate, including the tenant
+                # scope. Restoring it also restores the leading column of every index on
+                # these tables, so the outer lookup seeks instead of scanning.
                 stmt = (
                     select(self.RevisionDBE)
+                    .filter(self.RevisionDBE.project_id == project_id)  # type: ignore
                     .filter(self.RevisionDBE.id.in_(select(selected_ids.c.id)))
                     .order_by(self.RevisionDBE.id.desc())
                 )
