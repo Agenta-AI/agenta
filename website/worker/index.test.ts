@@ -32,16 +32,28 @@ const SITE = assets({
 });
 
 const MEDIA = {
-  async get(key: string) {
+  async head(key: string) {
+    return key === "blog/example/image-abc123.webp" ? { size: 5 } : null;
+  },
+  async get(
+    key: string,
+    options?: { range: { offset: number; length: number } },
+  ) {
     if (key !== "blog/example/image-abc123.webp") return null;
+    const bytes = new TextEncoder().encode("media");
+    const range = options?.range;
+    const body = range
+      ? bytes.slice(range.offset, range.offset + range.length)
+      : bytes;
     return {
       body: new ReadableStream({
         start(controller) {
-          controller.enqueue(new TextEncoder().encode("media"));
+          controller.enqueue(body);
           controller.close();
         },
       }),
       httpEtag: '"abc123"',
+      size: bytes.length,
       writeHttpMetadata(headers: Headers) {
         headers.set("Content-Type", "image/webp");
       },
@@ -67,7 +79,38 @@ describe("R2 media", () => {
       "public, max-age=31536000, immutable",
     );
     expect(response.headers.get("etag")).toBe('"abc123"');
+    expect(response.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    expect(response.headers.get("referrer-policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
     expect(await response.text()).toBe("media");
+  });
+
+  it("serves satisfiable byte ranges without reading the full object", async () => {
+    const response = await worker.fetch(
+      new Request("https://agenta.ai/media/blog/example/image-abc123.webp", {
+        headers: { Range: "bytes=0-3" },
+      }),
+      { ASSETS: SITE, MEDIA },
+    );
+
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-range")).toBe("bytes 0-3/5");
+    expect(response.headers.get("content-length")).toBe("4");
+    expect(response.headers.get("accept-ranges")).toBe("bytes");
+    expect(await response.text()).toBe("medi");
+  });
+
+  it("returns 416 for unsatisfiable byte ranges", async () => {
+    const response = await worker.fetch(
+      new Request("https://agenta.ai/media/blog/example/image-abc123.webp", {
+        headers: { Range: "bytes=9-12" },
+      }),
+      { ASSETS: SITE, MEDIA },
+    );
+
+    expect(response.status).toBe(416);
+    expect(response.headers.get("content-range")).toBe("bytes */5");
   });
 
   it("returns 404 for missing or empty media keys", async () => {

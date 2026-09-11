@@ -39,9 +39,14 @@ import {
 interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
   MEDIA: {
-    get(key: string): Promise<{
+    head(key: string): Promise<{ size: number } | null>;
+    get(
+      key: string,
+      options?: { range: { offset: number; length: number } },
+    ): Promise<{
       body: ReadableStream;
       httpEtag: string;
+      size: number;
       writeHttpMetadata(headers: Headers): void;
     } | null>;
   };
@@ -67,7 +72,12 @@ async function handle(request: Request, env: Env): Promise<Response> {
 
   const url = new URL(request.url);
   if (url.pathname.startsWith("/media/")) {
-    return serveMedia(url.pathname.slice("/media/".length), method, env);
+    return serveMedia(
+      url.pathname.slice("/media/".length),
+      method,
+      request.headers.get("range"),
+      env,
+    );
   }
   const twin = mdPath(url.pathname);
   // A path that names a file (asset, /llms.txt, /openapi.json, a .md twin) is
@@ -127,22 +137,82 @@ async function handle(request: Request, env: Env): Promise<Response> {
 async function serveMedia(
   key: string,
   method: string,
+  rangeHeader: string | null,
   env: Env,
 ): Promise<Response> {
   if (!key || key.split("/").some((segment) => segment === "..")) {
-    return new Response(null, { status: 404 });
+    return new Response(null, { status: 404, headers: HEADERS });
   }
 
-  const object = await env.MEDIA.get(key);
-  if (!object) return new Response(null, { status: 404 });
+  let range: { offset: number; length: number } | null = null;
+  let objectSize: number | null = null;
+  if (method === "GET" && rangeHeader) {
+    const metadata = await env.MEDIA.head(key);
+    if (!metadata) return new Response(null, { status: 404, headers: HEADERS });
+    objectSize = metadata.size;
+    range = parseByteRange(rangeHeader, objectSize);
+    if (!range) {
+      return new Response(null, {
+        status: 416,
+        headers: {
+          ...HEADERS,
+          "Accept-Ranges": "bytes",
+          "Content-Range": `bytes */${objectSize}`,
+        },
+      });
+    }
+  }
 
-  const headers = new Headers();
+  const object = await env.MEDIA.get(key, range ? { range } : undefined);
+  if (!object) return new Response(null, { status: 404, headers: HEADERS });
+
+  const headers = new Headers(HEADERS);
   object.writeHttpMetadata(headers);
   headers.set("Cache-Control", "public, max-age=31536000, immutable");
   headers.set("ETag", object.httpEtag);
-  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Accept-Ranges", "bytes");
 
-  return new Response(method === "HEAD" ? null : object.body, { headers });
+  let status = 200;
+  if (range && objectSize !== null) {
+    const end = range.offset + range.length - 1;
+    headers.set("Content-Length", String(range.length));
+    headers.set("Content-Range", `bytes ${range.offset}-${end}/${objectSize}`);
+    status = 206;
+  }
+
+  return new Response(method === "HEAD" ? null : object.body, {
+    status,
+    headers,
+  });
+}
+
+function parseByteRange(
+  header: string,
+  size: number,
+): { offset: number; length: number } | null {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match || (!match[1] && !match[2]) || size === 0) return null;
+
+  if (!match[1]) {
+    const requested = Number(match[2]);
+    if (!Number.isSafeInteger(requested) || requested <= 0) return null;
+    const length = Math.min(requested, size);
+    return { offset: size - length, length };
+  }
+
+  const offset = Number(match[1]);
+  const requestedEnd = match[2] ? Number(match[2]) : size - 1;
+  if (
+    !Number.isSafeInteger(offset) ||
+    !Number.isSafeInteger(requestedEnd) ||
+    offset >= size ||
+    requestedEnd < offset
+  ) {
+    return null;
+  }
+
+  const end = Math.min(requestedEnd, size - 1);
+  return { offset, length: end - offset + 1 };
 }
 
 /** Fetch one asset by path; null when it does not exist. */
