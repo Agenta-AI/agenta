@@ -713,14 +713,21 @@ class TestGetObjectSessionReuse:
         await _object_store().close()
 
     async def test_missing_key_still_maps_to_not_found(self, monkeypatch):
+        import oss.src.core.store.storage as storage_mod
         from miniopy_async.error import S3Error
 
         from oss.src.core.mounts.types import MountFileNotFound
 
         store = _object_store()
-        err = S3Error.__new__(S3Error)
-        err.code = "NoSuchKey"
+        created = []
+        monkeypatch.setattr(
+            storage_mod.aiohttp,
+            "ClientSession",
+            lambda: _TrackSession(created),
+        )
+        err = S3Error("NoSuchKey", "not found", "missing", "req", "host", object())
         monkeypatch.setattr(store, "_client", lambda: _FakeMinio(error=err))
 
         with pytest.raises(MountFileNotFound):
             await store.get_object(bucket=_BUCKET, key="missing")
+        await store.close()
