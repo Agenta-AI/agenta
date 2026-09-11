@@ -3,6 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {
     agentLabel,
     AUTOMATION_STATUS_LABEL,
+    AutomationLastRunCell,
     AutomationListEmpty,
     AutomationListError,
     AutomationListNoMatch,
@@ -19,6 +20,7 @@ import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, ListTableToolbar, type ListTableColumn} from "@agenta/ui/list-table"
 import {ClockClockwise, Lightning, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -67,13 +69,35 @@ const KIND_CHIP: Record<"event" | "schedule", string> = {
     schedule: "bg-[var(--ag-preset-purple-bg)] text-[var(--ag-preset-purple-text)]",
 }
 
-const COLUMNS: ListTableColumn[] = [
-    {key: "name", label: "Automation", width: "minmax(140px,2fr)"},
-    {key: "status", label: "Status", width: "minmax(110px,1fr)"},
+const NAME_COLUMN: ListTableColumn = {key: "name", label: "Automation", width: "minmax(140px,2fr)"}
+const LAST_RUN_COLUMN: ListTableColumn = {
+    key: "lastRun",
+    label: "Last run",
+    width: "minmax(110px,0.9fr)",
+}
+const ACTIONS_COLUMN: ListTableColumn = {
+    key: "actions",
+    label: "Actions",
+    srOnly: true,
+    width: "24px",
+}
+
+const WIDE_COLUMNS: ListTableColumn[] = [
+    NAME_COLUMN,
+    {key: "status", label: "Status", width: "minmax(100px,0.8fr)"},
     {key: "runsWhen", label: "Runs when", width: "minmax(130px,1fr)"},
+    LAST_RUN_COLUMN,
     {key: "agent", label: "Agent", width: "minmax(120px,1fr)"},
-    {key: "actions", label: "Actions", srOnly: true, width: "24px"},
+    ACTIONS_COLUMN,
 ]
+// A phone keeps the name and whether it is doing anything; the kind tile already says schedule
+// or event, and status, cadence and agent wait on the detail screen.
+const NARROW_COLUMNS: ListTableColumn[] = [NAME_COLUMN, LAST_RUN_COLUMN, ACTIONS_COLUMN]
+
+/** The sessions table's line, so the two nav entries slim down at the same width. */
+const WIDE_QUERY = "(min-width: 640px)"
+const WIDE_MIN_WIDTH = 680
+const NARROW_MIN_WIDTH = 300
 
 /**
  * The automations list — where the nav's Automations entry lands.
@@ -108,6 +132,7 @@ export const AutomationListScreen = ({
     })
     // Group headings carry a chevron, so it has to do something: collapsed keys, not a flag per
     // group, because the groups themselves come and go as the view changes.
+    const narrow = !useMediaQuery(WIDE_QUERY)
     const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
     const toggleGroup = useCallback(
         (key: string) =>
@@ -158,8 +183,8 @@ export const AutomationListScreen = ({
 
         return (
             <ListTable
-                columns={COLUMNS}
-                minWidth={680}
+                columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
+                minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
                 loading={isLoading}
                 groups={groups.map((group) => ({
                     key: group.key,
@@ -227,24 +252,30 @@ export const AutomationListScreen = ({
                                 </span>
                             </span>
 
-                            <span className="flex min-w-0 items-center gap-[7px]">
-                                <span
-                                    aria-hidden
-                                    className={`size-1.5 shrink-0 rounded-full ${color.dot}`}
-                                />
-                                <span className={`text-[13px] ${color.text}`}>
-                                    {AUTOMATION_STATUS_LABEL[status]}
+                            {narrow ? null : (
+                                <span className="flex min-w-0 items-center gap-[7px]">
+                                    <span
+                                        aria-hidden
+                                        className={`size-1.5 shrink-0 rounded-full ${color.dot}`}
+                                    />
+                                    <span className={`text-[13px] ${color.text}`}>
+                                        {AUTOMATION_STATUS_LABEL[status]}
+                                    </span>
                                 </span>
-                            </span>
+                            )}
 
-                            <span
-                                className="block truncate text-[13px] text-muted-foreground"
-                                title={runsWhen}
-                            >
-                                {runsWhen}
-                            </span>
+                            {narrow ? null : (
+                                <span
+                                    className="block truncate text-[13px] text-muted-foreground"
+                                    title={runsWhen}
+                                >
+                                    {runsWhen}
+                                </span>
+                            )}
 
-                            {agentName ? (
+                            <AutomationLastRunCell automation={automation} />
+
+                            {narrow ? null : agentName ? (
                                 <span className="flex min-w-0 items-center gap-1.5">
                                     {/* The agent's own mark, not a generic robot — a column of
                                         identical icons identifies nothing. Same tile the agent

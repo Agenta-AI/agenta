@@ -15,6 +15,12 @@ export interface ListTableColumn {
      * its neighbours and the table looks unevenly spaced at every width but one.
      */
     width: string
+    /**
+     * Extra classes on the HEADER cell — in practice the alignment, for a column whose body cells
+     * are not left-aligned. The header has to follow the cells or the two read as different
+     * columns.
+     */
+    headerClassName?: string
 }
 
 /**
@@ -52,5 +58,14 @@ export interface ListTableProps<Row> {
     skeletonRows?: number
     /** Drawn in place of the rows when every group is empty. */
     empty?: ReactNode
+    /**
+     * Pin the header row to the top of the page's scroller.
+     *
+     * Costs the frame its own horizontal scroller: `overflow-x: auto` makes this box a scrollport
+     * in BOTH axes, and a `sticky` header inside one with no vertical range never moves. The page
+     * scroller absorbs the overflow instead, so a table wider than the viewport scrolls the column
+     * beside it rather than only itself.
+     */
+    stickyHeader?: boolean
     className?: string
 }
