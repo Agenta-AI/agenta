@@ -166,9 +166,9 @@ export const HomeFocus = ({
                 >
                     <HomeTaskComposer
                         voice
-                        agents={agents}
                         attachments={attachments}
                         agentId={boundAgentId}
+                        onAgentChange={selectAgent}
                         mode={binding.kind === "agent" ? "task" : "create"}
                         template={binding.kind === "template" ? binding.template : null}
                         onCreate={async (input) => {

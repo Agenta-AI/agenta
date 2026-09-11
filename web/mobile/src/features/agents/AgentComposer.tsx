@@ -50,7 +50,6 @@ export const AgentComposer = ({
 
     return (
         <HomeTaskComposer
-            agents={[{id: agentId, name: agentName}]}
             fixedAgentId={agentId}
             placeholder={`Ask ${agentName}… — starts a new session`}
             attachments={attachments}

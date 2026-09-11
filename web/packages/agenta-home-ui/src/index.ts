@@ -32,6 +32,5 @@ export {
     HomeTaskComposer,
     type HomeComposerMode,
     type HomeComposerTemplate,
-    type HomeTaskComposerAgent,
     type HomeTaskComposerProps,
 } from "./HomeTaskComposer"

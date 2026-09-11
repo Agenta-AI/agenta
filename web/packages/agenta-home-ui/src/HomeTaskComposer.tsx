@@ -7,15 +7,10 @@ import {
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {useVoiceComposer, type useComposerAttachments} from "@agenta/chat/hooks"
-import {AgentChip} from "@agenta/entity-ui/agent"
+import {AgentPicker} from "@agenta/entity-ui/agent"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
 import {RobotIcon, XIcon} from "@phosphor-icons/react"
-
-export interface HomeTaskComposerAgent {
-    id: string
-    name: string
-}
 
 /** What the composer is for right now: running a task, or describing an agent to create. */
 export type HomeComposerMode = "task" | "create"
@@ -29,8 +24,6 @@ export interface HomeComposerTemplate {
 }
 
 export interface HomeTaskComposerProps {
-    /** Agents the dock can name. Ordering is the host's — see `agentId` for what is bound. */
-    agents: HomeTaskComposerAgent[]
     /** The attachment engine (staging + uploads); the host owns its rollout flag and scope. */
     attachments: ReturnType<typeof useComposerAttachments>
     /** Start the task. Called only with a resolved agent. */
@@ -49,6 +42,8 @@ export interface HomeTaskComposerProps {
      * too, so resolving it in both places is how the two stop agreeing.
      */
     agentId?: string | null
+    /** A pick from the dock's own picker. Absent ⇒ the dock only names the agent. */
+    onAgentChange?: (agentId: string) => void
     /**
      * `create` turns the same composer into "describe an agent": the dock names what is about to
      * be built and send creates instead of starting. A separate create composer beside this one
@@ -57,7 +52,10 @@ export interface HomeTaskComposerProps {
     mode?: HomeComposerMode
     /** Send, in create mode. Absent ⇒ the host does not offer creating here. */
     onCreate?: (input: {text: string}) => void | Promise<void>
-    /** Unbind. The host's answer is create mode — the composer is never aimed at nothing. */
+    /**
+     * Leave what is bound for a blank create — the picker's "New agent" row, and the ✕ on a bound
+     * template. The composer is never aimed at nothing, so this is the only way out of a binding.
+     */
     onClear?: () => void
     /** A template the composer is building from — named in the dock like an agent is. */
     template?: HomeComposerTemplate | null
@@ -107,10 +105,10 @@ const DockLabel = ({
 /**
  * Home's primary action: describe a task, aim it at an agent, send.
  *
- * Which agent it is aimed at is NAMED in a dock under the input, not picked there: the list below
- * the composer is what binds one, and a dropdown here was a second way to do the same thing that
- * also hid the fact that the rows do it. The send button stays where it always is — that
- * affordance is the one the rest of the app teaches.
+ * Which agent it is aimed at is picked in a dock under the input — the app's one AgentPicker,
+ * beside the thing it changes. The list below binds too, but a name that only READ as text gave
+ * no sign it could change, and people clicked it, found nothing, and assumed a bug. The send
+ * button stays where it always is — that affordance is the one the rest of the app teaches.
  *
  * Two modes, one input. `task` runs work with an agent that exists; `create` describes one to
  * make. Create used to live inside a picker as a hidden option, which meant send did two different
@@ -121,13 +119,13 @@ const DockLabel = ({
  * without them renders a still ring, silently.
  */
 export const HomeTaskComposer = ({
-    agents,
     attachments,
     onStart,
     fixedAgentId,
     placeholder = "Describe the task, or start the conversation…",
     maxHeightClassName,
     agentId,
+    onAgentChange,
     mode = "task",
     onCreate,
     onClear,
@@ -150,8 +148,6 @@ export const HomeTaskComposer = ({
         onAttach: (file) => attachments.addFiles([file]),
         onSendVoiceMessage: (file) => attachments.addFiles([file]),
     })
-
-    const selectedName = agents.find((agent) => agent.id === effectiveAgentId)?.name
 
     // A blank create cannot be cleared: the composer always sends somewhere, and "aimed at
     // nothing" is not a state it can be in. Binding one of the rows below is what replaces it. A
@@ -180,11 +176,21 @@ export const HomeTaskComposer = ({
             name="New agent"
         />
     ) : fixedAgentId || !effectiveAgentId ? null : (
-        <DockLabel
-            tile={<AgentChip workflowId={effectiveAgentId} box="size-5" glyph={13} />}
-            name={selectedName ?? "Agent"}
-            onClear={onClear}
-            clearLabel="Unbind this agent"
+        // The app's one AgentPicker, not a label. A name that only READ as text gave no sign it
+        // could change, and the change lived in a list a screen's height away — people clicked the
+        // name, found nothing, and assumed a bug. Creating is its FIRST row rather than an ✕ on
+        // the chip: a close control that quietly opened a new mode was a second hidden affordance.
+        <AgentPicker
+            trigger="pill"
+            density="compact"
+            value={effectiveAgentId}
+            onChange={(id) => onAgentChange?.(id)}
+            disabled={!onAgentChange}
+            onCreateAgent={onClear}
+            createFirst
+            triggerAriaLabel="Agent"
+            // The dock is already a surface; a filled pill on it is a box within a box.
+            triggerClassName="bg-transparent px-1 text-[12px] font-normal hover:bg-accent"
         />
     )
 

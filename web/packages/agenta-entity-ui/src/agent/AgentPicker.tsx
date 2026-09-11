@@ -29,6 +29,12 @@ export interface AgentPickerProps {
     /** Shown when a "New agent" row should close the list. Absent ⇒ no row. */
     onCreateAgent?: () => void
     createLabel?: string
+    /**
+     * Put the create row FIRST, above the agents, rather than in a footer under them. Off by
+     * default: a picker that mostly chooses keeps creating out of the way, but a surface whose
+     * composer can just as well describe a new agent wants it as the leading choice.
+     */
+    createFirst?: boolean
     placeholder?: string
     searchPlaceholder?: string
     /**
@@ -200,6 +206,7 @@ export const AgentPicker = ({
     density = "compact",
     onCreateAgent,
     createLabel = "New agent",
+    createFirst = false,
     placeholder = "Pick an agent",
     searchPlaceholder = "Search agents",
     fallbackName = null,
@@ -348,12 +355,10 @@ export const AgentPicker = ({
                     requestAnimationFrame(() => searchRef.current?.focus())
                 }}
             >
-                {/* The glass takes the WIDTH the rows give their chips, at the same 12px indent,
-                    so the icons and the two text columns share one pair of edges. Width only —
-                    matching the chip's height too would make the search field taller than a
-                    field needs to be. */}
+                {/* A 20px box, not the rows' 28px chip width: a 14px glass centred in 28px read
+                    as a gap between icon and field, and a search field is not a row. */}
                 <label className="flex items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
-                    <span className="flex w-7 shrink-0 items-center justify-center">
+                    <span className="flex w-5 shrink-0 items-center justify-center">
                         <MagnifyingGlass size={14} aria-hidden className="text-muted-foreground" />
                     </span>
                     <input
@@ -367,6 +372,24 @@ export const AgentPicker = ({
                     />
                 </label>
 
+                {onCreateAgent && createFirst ? (
+                    // Over a rule, for the same reason the footer sits under one.
+                    <div className="flex flex-col border-0 border-b border-solid border-border p-1">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setOpen(false)
+                                onCreateAgent()
+                            }}
+                            className="box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+                        >
+                            <span className="flex size-5 shrink-0 items-center justify-center">
+                                <Plus aria-hidden size={14} className="text-muted-foreground" />
+                            </span>
+                            <span className="min-w-0 truncate font-medium">{createLabel}</span>
+                        </button>
+                    </div>
+                ) : null}
                 <div className="flex max-h-[280px] flex-col gap-px overflow-y-auto p-1">
                     {agentsQuery.isPending ? (
                         // Row geometry, not a spinner — the list replaces this without shifting.
@@ -438,7 +461,7 @@ export const AgentPicker = ({
                     )}
                 </div>
 
-                {onCreateAgent ? (
+                {onCreateAgent && !createFirst ? (
                     // Its own footer padding rather than a rule: the plus and the shorter row
                     // already say this is an action, and a hairline over it read as a seam. The
                     // top padding is the separation the rule used to provide.
