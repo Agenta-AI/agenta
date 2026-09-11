@@ -2,7 +2,6 @@ import {timeAgo} from "@agenta/shared/utils"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {type Automation} from "./automationModel"
-import {runDotClass} from "./runModel"
 import {useAutomationRuns} from "./useAutomationRuns"
 
 /** When an automation last ran and how often — Status says it is on, this says it is doing anything. */
@@ -28,18 +27,11 @@ export const AutomationLastRunCell = ({automation}: {automation: Automation}) =>
 
     return (
         <span className="flex min-w-0 flex-col">
-            <span className="flex min-w-0 items-center gap-[7px]">
-                {/* The newest run's colour, so a failed last run shows from the list. */}
-                <span
-                    aria-hidden
-                    className={`size-1.5 shrink-0 rounded-full ${runDotClass(newest)}`}
-                />
-                <span
-                    className="truncate text-[13px] text-foreground"
-                    title={newest.created_at ?? undefined}
-                >
-                    {when}
-                </span>
+            <span
+                className="truncate text-[13px] text-foreground"
+                title={newest.created_at ?? undefined}
+            >
+                {when}
             </span>
             {counted ? (
                 <span className="truncate text-[12px] text-muted-foreground">
