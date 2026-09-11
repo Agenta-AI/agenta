@@ -2274,6 +2274,36 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/start-subscription-login",
+          label: "Start Subscription Login",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/read-subscription-login",
+          label: "Read Subscription Login",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/cancel-subscription-login",
+          label: "Cancel Subscription Login",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/push-subscription-login",
+          label: "Push Subscription Login",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/report-subscription-login-failure",
+          label: "Report Subscription Login Failure",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/probe-provider",
           label: "Probe Provider",
           className: "api-method post",
@@ -2666,13 +2696,13 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method post",
+          className: "api-method put",
         },
         {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method put",
+          className: "api-method post",
         },
         {
           type: "doc",
