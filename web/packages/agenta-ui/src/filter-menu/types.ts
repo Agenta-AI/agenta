@@ -8,7 +8,7 @@ import type {ReactNode} from "react"
  * lint-enforced) and the desktop app can mount the same component.
  */
 
-/** Which block of the panel a row sits in. Sort and group live below the divider. */
+/** Which block of the panel a row sits in. Sort and group render first, filters under them. */
 export type FilterMenuBlock = "filter" | "sort"
 
 /** Where a panel or a flyout opens, passed straight through to Radix. */
@@ -39,7 +39,7 @@ export interface FilterMenuSection<Value extends string = string> {
     onChange: (value: Value) => void
     /** Multi-select: options toggle and the check marks accumulate. */
     multi?: boolean
-    /** Defaults to `"filter"`. Sort and group rows pass `"sort"`. */
+    /** Defaults to `"filter"`. Sort and group rows pass `"sort"` and render first. */
     block?: FilterMenuBlock
     /** What the flyout says when `options` is empty. */
     emptyText?: string
@@ -49,7 +49,7 @@ export interface FilterMenuSection<Value extends string = string> {
  * A yes/no row: icon, label, and a switch on the right. No flyout — the row IS the control.
  *
  * For the facet that is not a choice among sets but a lens over one — "only archived" — where an
- * option list would offer two entries to say one bit.
+ * option list would offer two entries to say one bit. Toggles always render last in the panel.
  */
 export interface FilterMenuToggle {
     kind: "toggle"
@@ -60,8 +60,6 @@ export interface FilterMenuToggle {
     checked: boolean
     onChange: (checked: boolean) => void
     disabled?: boolean
-    /** Defaults to `"filter"`. */
-    block?: FilterMenuBlock
 }
 
 /** What the panel takes: an option row or a toggle row, in display order. */

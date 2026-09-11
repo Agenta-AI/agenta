@@ -100,7 +100,7 @@ export const FilterMenuPanel = ({
     // is often still typing in the search field above, so a hover must not take the caret.
     const [openedByKeyboard, setOpenedByKeyboard] = useState(false)
     const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const rowRefs = useRef(new Map<string, HTMLButtonElement | null>())
+    const rowRefs = useRef(new Map<string, HTMLElement | null>())
     const searchRef = useRef<HTMLInputElement | null>(null)
 
     // Search matches a row by its own label OR by any option's — typing "chat" should surface
@@ -137,12 +137,18 @@ export const FilterMenuPanel = ({
         drilledEntry && !isFilterMenuToggle(drilledEntry.section)
             ? {section: drilledEntry.section, options: drilledEntry.options}
             : null
+    // Sort and group first, the filters under them, toggles last — wherever a consumer declared
+    // them, so every panel reads in the same order.
+    const rows = visible.filter((e) => !isFilterMenuToggle(e.section))
+    const blockOf = (e: (typeof visible)[number]) =>
+        isFilterMenuToggle(e.section) ? "toggle" : (e.section.block ?? "filter")
     const blocks: {key: string; entries: typeof visible}[] = [
-        {key: "filter", entries: visible.filter((e) => (e.section.block ?? "filter") === "filter")},
-        {key: "sort", entries: visible.filter((e) => e.section.block === "sort")},
+        {key: "sort", entries: rows.filter((e) => blockOf(e) === "sort")},
+        {key: "filter", entries: rows.filter((e) => blockOf(e) === "filter")},
+        {key: "toggle", entries: visible.filter((e) => blockOf(e) === "toggle")},
     ].filter((block) => block.entries.length > 0)
 
-    const order = visible.map((entry) => entry.section.key)
+    const order = blocks.flatMap((block) => block.entries.map((entry) => entry.section.key))
 
     const cancelClose = () => {
         if (!closeTimer.current) return
@@ -197,7 +203,7 @@ export const FilterMenuPanel = ({
         // Open-time only: re-running would pull focus out of whatever the reader moved to.
     }, [])
 
-    const onRowKeyDown = (key: string) => (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    const onRowKeyDown = (key: string) => (event: React.KeyboardEvent<HTMLElement>) => {
         const index = order.indexOf(key)
         if (event.key === "ArrowDown") {
             event.preventDefault()
@@ -205,10 +211,7 @@ export const FilterMenuPanel = ({
         } else if (event.key === "ArrowUp") {
             event.preventDefault()
             focusRow(order[(index - 1 + order.length) % order.length])
-        } else if (
-            (event.key === "ArrowRight" || event.key === "Enter" || event.key === " ") &&
-            !isFilterMenuToggle(sections.find((s) => s.key === key) ?? sections[0])
-        ) {
+        } else if (event.key === "ArrowRight" || event.key === "Enter" || event.key === " ") {
             event.preventDefault()
             cancelClose()
             setOpenedByKeyboard(true)
