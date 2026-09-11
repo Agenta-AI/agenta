@@ -4,6 +4,8 @@
 
 Date: 2026-09-11.
 
+[Explore the interactive mockup](https://agenta-playground-workspace-concept.mahmoud-637.workers.dev) or read its [walkthrough and source notes](mockup/README.md).
+
 The proposal turns the agent playground into one or two panes with movable tabs. A conversation, file, explorer, or application can occupy either pane.
 
 Read [the product requirements document](prd.md) for the intended experience, then [the initial request for comments](rfc.md) for the architecture and tradeoffs. Both are deliberately high level. There is no implementation schedule or final interface contract.
