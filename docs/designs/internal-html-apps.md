@@ -1,6 +1,6 @@
 # Internal HTML apps in the workspace
 
-> AGENT-GENERATED, low weight. Draft for technical discussion. This document does not commit us to a roadmap or implementation.
+> Draft for technical discussion. This document does not commit us to a roadmap or implementation.
 
 ## Context
 
