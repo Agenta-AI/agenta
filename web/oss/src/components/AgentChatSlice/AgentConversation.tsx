@@ -266,11 +266,10 @@ const AgentConversation = ({
         prevStatusRef.current = status
     }, [status, sessionId, bumpSessionActivity])
 
-    // Model connection: is the project vault empty (no key of any kind), the agent not self-managed,
-    // and the user never set up a key before? Drives the connect-a-model banner AND disables the
-    // composer until connected — see `gateActive` on `useAgentModelKeyStatus` for the full chain.
+    // Model connection: missing-key gate or a down runner. Drives the banner AND disables the
+    // composer — see `composerBlocked` on `useAgentModelKeyStatus` for the full chain.
     const modelKey = useAgentModelKeyStatus(entityId)
-    const modelBlocked = modelKey.gateActive
+    const modelBlocked = modelKey.composerBlocked
     const [recoverableContinuation, setRecoverableContinuation] = useState(false)
     // Execution id of the continuation the last durable answer started (respond body,
     // `execution.id`). The queue holds every send until that execution writes its terminal record:

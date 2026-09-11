@@ -26,11 +26,18 @@ export interface AgentModelKeyStatus {
      */
     loading: boolean
     /**
-     * The connect-a-model gate. It becomes active only after vault connections, harness capabilities,
-     * and live subscription status resolve and together produce zero runnable model routes.
-     * Banner and composer-block consumers should both key off this.
+     * The connect-a-model gate. Active only after vault connections, harness capabilities, and live
+     * subscription status resolve with zero runnable routes, and the runner is not merely down.
+     * The providers CTA keys off this. Composer lock keys off `composerBlocked`.
      */
     gateActive: boolean
+    /**
+     * The subscription probe succeeded with `runner: "unavailable"` and nothing else is runnable.
+     * Not a missing-key; the providers drawer is the wrong fix.
+     */
+    runnerUnavailable: boolean
+    /** Composer lock: missing-key gate or a down runner. */
+    composerBlocked: boolean
 }
 
 interface LlmRef {
@@ -43,17 +50,71 @@ interface HarnessRef {
     kind?: unknown
 }
 
+export const CONNECT_MODEL_BANNER_MESSAGE = "Add your model provider key to run this agent."
+export const RUNNER_UNAVAILABLE_BANNER_MESSAGE = "The agent runtime is temporarily unreachable."
+export const CONNECT_MODEL_COMPOSER_PLACEHOLDER = "Connect a model to start chatting…"
+export const RUNNER_UNAVAILABLE_COMPOSER_PLACEHOLDER =
+    "The agent runtime is temporarily unreachable…"
+
+export type ModelComposerBlockReason = "connect-model" | "runner-unavailable" | null
+
 /**
  * The connect-a-model gate, as a rule over resolved facts. A stored secret alone is insufficient:
  * at least one exact connection/subscription + harness + model route must be runnable.
+ *
+ * A successful `runner: "unavailable"` probe is not "no runnable model": subscription pairs were
+ * unreadable because the runner is down, so this gate stays off.
  */
 export const connectModelGate = ({
     loading,
     candidateCount,
+    runnerUnavailable = false,
 }: {
     loading: boolean
     candidateCount: number
-}): boolean => !loading && candidateCount === 0
+    runnerUnavailable?: boolean
+}): boolean => !loading && !runnerUnavailable && candidateCount === 0
+
+/** Banner copy, provider CTA, and composer placeholder for the two lock reasons. */
+export const modelComposerChrome = ({
+    gateActive,
+    runnerUnavailable,
+}: {
+    gateActive: boolean
+    runnerUnavailable: boolean
+}): {
+    reason: ModelComposerBlockReason
+    locked: boolean
+    bannerMessage: string | null
+    showProviderSetup: boolean
+    placeholder: string | undefined
+} => {
+    if (runnerUnavailable) {
+        return {
+            reason: "runner-unavailable",
+            locked: true,
+            bannerMessage: RUNNER_UNAVAILABLE_BANNER_MESSAGE,
+            showProviderSetup: false,
+            placeholder: RUNNER_UNAVAILABLE_COMPOSER_PLACEHOLDER,
+        }
+    }
+    if (gateActive) {
+        return {
+            reason: "connect-model",
+            locked: true,
+            bannerMessage: CONNECT_MODEL_BANNER_MESSAGE,
+            showProviderSetup: true,
+            placeholder: CONNECT_MODEL_COMPOSER_PLACEHOLDER,
+        }
+    }
+    return {
+        reason: null,
+        locked: false,
+        bannerMessage: null,
+        showProviderSetup: false,
+        placeholder: undefined,
+    }
+}
 
 export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
     const config = useAtomValue(
@@ -87,9 +148,11 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
               ) ?? null)
             : null
 
+        const runnerUnavailable = candidateState.runnerUnavailable === true
         const gateActive = connectModelGate({
             loading: candidateState.status !== "ready",
             candidateCount: candidateState.candidates.length,
+            runnerUnavailable,
         })
 
         return {
@@ -100,6 +163,8 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
             providerEntry,
             loading: candidateSourcesLoading,
             gateActive,
+            runnerUnavailable,
+            composerBlocked: gateActive || runnerUnavailable,
         }
     }, [config, standardSecrets, candidateSourcesLoading, candidateState])
 }

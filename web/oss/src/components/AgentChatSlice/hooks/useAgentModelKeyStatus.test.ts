@@ -19,4 +19,8 @@ describe("connectModelGate", () => {
     it("does not turn loading into an empty-state claim", () => {
         expect(connectModelGate(facts({loading: true}))).toBe(false)
     })
+
+    it("does not blame a missing key when the runner answered unavailable", () => {
+        expect(connectModelGate(facts({runnerUnavailable: true}))).toBe(false)
+    })
 })

@@ -17,6 +17,7 @@ import {
 } from "@agenta/chat/components"
 import type {QueuedMessage} from "@agenta/chat/hooks"
 import {
+    modelComposerChrome,
     useAgentConversation,
     useAgentModelKeyStatus,
     useConnectionDock,
@@ -137,12 +138,11 @@ export const LiveConversation = ({
         [conversation.messages],
     )
 
-    // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
-    // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
-    // send, not shown a raw 422 after it. Blocks the composer, holds the parked task, and raises
-    // the strip below.
+    // The connect-model / runner-unavailable gate — desktop parity. The engine deliberately
+    // leaves this to the skin (`useAgentConversation` says so). Blocks the composer, holds the
+    // parked task, and raises the strip below.
     const modelKey = useAgentModelKeyStatus(entityId)
-    const modelBlocked = modelKey.gateActive
+    const modelBlocked = modelKey.composerBlocked
     // The strip stays hidden until the vault answers (`gateActive` is false while it loads), but
     // the parked task must NOT go out on that same unknown — see `pendingTaskPolicy`.
     const modelKeyLoading = modelKey.loading
@@ -734,7 +734,8 @@ export const LiveConversation = ({
                         <ContentRail>
                             <ConnectModelStrip
                                 providerEntry={modelKey.providerEntry}
-                                gateActive={modelBlocked}
+                                gateActive={modelKey.gateActive}
+                                runnerUnavailable={modelKey.runnerUnavailable}
                             />
                         </ContentRail>
                         {/* Failed Home tasks retain their original text and files for retry. */}
@@ -798,9 +799,7 @@ export const LiveConversation = ({
                             }}
                             onSteer={({text, parts}) => conversation.steer({text, parts})}
                             disabled={conversation.isHydrating || modelBlocked}
-                            placeholder={
-                                modelBlocked ? "Connect a model to start chatting…" : undefined
-                            }
+                            placeholder={modelComposerChrome(modelKey).placeholder}
                             waitingOnUser={conversation.hitlPending}
                             streaming={shouldShowStopControl({
                                 busy: streamingHere,

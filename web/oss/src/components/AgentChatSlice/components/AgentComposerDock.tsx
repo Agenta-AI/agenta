@@ -15,6 +15,7 @@ import {
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {
+    modelComposerChrome,
     useChatSlashCommands,
     type useComposerDraft,
     type ConnectionDockState,
@@ -144,7 +145,7 @@ const AgentComposerDock = ({
     voice: ReturnType<typeof useVoiceComposer>
     /** Whether the selected model can take audio in; `null` where the catalog does not say. */
     audioPerceivable: boolean | null
-    /** The composer itself is unusable (IDE hand-off / no model key). */
+    /** The composer itself is unusable (IDE hand-off / no model / runner down). */
     composerDisabled: boolean
     /** Read at event time — attachments are refused right now (a take in flight, or the above). */
     attachmentsBlocked: () => boolean
@@ -167,6 +168,7 @@ const AgentComposerDock = ({
         handleStartOver,
         showBareOnboardingHero,
     } = onboardingChat
+    const chrome = modelComposerChrome(modelKey)
     const {setViewingUid, atMax} = attachments
     const {
         voiceRecorder,
@@ -477,9 +479,7 @@ const AgentComposerDock = ({
                                 ? ideHandoffActive
                                     ? "Continue in your IDE from the steps above — or start over."
                                     : STRIP_COPY.describeAgentPlaceholder
-                                : modelBlocked
-                                  ? "Connect a model to start chatting…"
-                                  : undefined
+                                : chrome.placeholder
                         }
                         waitingOnUser={hitlPending}
                         initialMarkdown={composer.initialDraft}

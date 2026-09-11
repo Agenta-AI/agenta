@@ -1,7 +1,7 @@
 import {useEffect} from "react"
 
 import {RevealCollapse} from "@agenta/chat/components"
-import type {AgentModelKeyStatus} from "@agenta/chat/hooks"
+import {modelComposerChrome, type AgentModelKeyStatus} from "@agenta/chat/hooks"
 import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
 import {openProviderDrawerRequestAtom} from "@agenta/shared/state"
 import {Button} from "@agenta/ui/ui"
@@ -11,29 +11,27 @@ import {Lock} from "lucide-react"
 import {useOnboardingProviderSetup} from "../hooks/useOnboardingProviderSetup"
 
 /**
- * Set-up-your-key prompt shown above the composer while the project vault is empty (see `gateActive`
- * on `useAgentModelKeyStatus` — project-wide, not per-provider). The composer is disabled alongside it
- * (the parent gates on the same status).
+ * Prompt above the composer while the project cannot run: missing provider key (`gateActive`) or a
+ * down agent runner (`runnerUnavailable`). The composer is disabled alongside it.
  *
- * The button opens the providers drawer DIRECTLY — the same drawer the Model section's dashed pill
- * opens. It used to flip the playground to Build and open the Model section instead, which only
- * showed that pill: a second "set up your providers" prompt standing between the user and the form
- * that actually takes a key. Connecting from here also points the agent at what was just connected
- * (see `useOnboardingProviderSetup`), so the gate clears and the composer is ready to type in.
+ * The missing-key button opens the providers drawer DIRECTLY. Connecting from here also points the
+ * agent at what was just connected (see `useOnboardingProviderSetup`). A down runner has no CTA:
+ * there is no key to add, and the probe already refetches on its own.
  *
- * Always mounted so it can animate IN (gate activates) and OUT (key added / not applicable) via
- * `RevealCollapse` instead of popping. Shown only when `gateActive` and not `suppressed` (the
- * pre-commit onboarding defers the check).
+ * Always mounted so it can animate IN and OUT via `RevealCollapse` instead of popping. Shown when
+ * either lock reason is active and not `suppressed` (pre-commit onboarding defers the check).
  */
 const ConnectModelBanner = ({
     entityId,
     gateActive,
+    runnerUnavailable,
     suppressed = false,
 }: AgentModelKeyStatus & {entityId: string; suppressed?: boolean}) => {
     const setup = useOnboardingProviderSetup(entityId, {gateActive})
     const [drawerRequested, setDrawerRequested] = useAtom(openProviderDrawerRequestAtom)
+    const chrome = modelComposerChrome({gateActive, runnerUnavailable})
 
-    const open = !suppressed && gateActive
+    const open = !suppressed && chrome.locked
 
     // A remote trigger (the failed-run callout) asks for the drawer. This component owns it, so it
     // opens here — the banner above stays closed unless its own gate is active.
@@ -50,13 +48,13 @@ const ConnectModelBanner = ({
                 <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2">
                     <span className="flex min-w-0 items-center gap-2 text-xs text-[var(--ag-colorWarningText)]">
                         <Lock size={14} className="shrink-0" />
-                        <span className="truncate">
-                            Add your model provider key to run this agent.
-                        </span>
+                        <span className="truncate">{chrome.bannerMessage}</span>
                     </span>
-                    <Button onClick={setup.openDrawer} className="shrink-0">
-                        Set up model providers
-                    </Button>
+                    {chrome.showProviderSetup ? (
+                        <Button onClick={setup.openDrawer} className="shrink-0">
+                            Set up model providers
+                        </Button>
+                    ) : null}
                 </div>
             </RevealCollapse>
             {/* Outside the collapse: the drawer must survive the banner closing under it, which is
