@@ -18,8 +18,8 @@ import {AutomationField} from "./AutomationField"
  * The composer maps the message onto whichever input the bound agent takes, read off the agent's
  * LATEST REVISION rather than off the artifact: only a revision carries `flags.is_chat` and the
  * input schema, so a screen that knows the agent only from a list would otherwise see neither and
- * write a chat agent's instruction under "message", which the runner never reads. The field waits
- * for the revision instead of guessing.
+ * write a chat agent's instruction under "message", which the runner never reads. The field does
+ * not wait for the revision — it lets the reader type and migrates the key when the shape lands.
  */
 export const AutomationInstructionField = ({
     agentId,
@@ -52,10 +52,11 @@ export const AutomationInstructionField = ({
         return ports.find((port) => port.type === "string")?.key ?? "message"
     }, [inputSchema, isChat])
 
-    // Nothing is typed under a guessed key: without a revision there is no way to know whether
-    // this agent takes `messages` or a named string input, and the wrong one saves an automation
-    // that fails on every run with nothing on screen to say why.
-    const unresolved = !agentId || (!revision && latest.isPending)
+    // The field is never locked. Before an agent is picked — or before its revision lands — the
+    // message is typed under the completion key, and the migration below rewrites it into the
+    // agent's real shape the moment that shape is known. A locked field was the earlier answer,
+    // and it read as broken: nothing on the screen said WHY it would not take input.
+    const resolving = Boolean(agentId) && !revision && latest.isPending
 
     // The revision can land after a message was typed, or an automation can have been saved under
     // the wrong key before this resolved at all. Either way the stored shape is migrated to the
@@ -65,7 +66,7 @@ export const AutomationInstructionField = ({
     useEffect(() => {
         const previous = previousShape.current
         previousShape.current = shape
-        if (unresolved) return
+        if (resolving) return
         if (previous.isChat === shape.isChat && previous.primaryKey === shape.primaryKey) return
         const next = remapMessageShape(inputsText, previous, shape)
         if (next === inputsText) return
@@ -74,7 +75,7 @@ export const AutomationInstructionField = ({
         } catch {
             // A mapping the composer cannot read is left exactly as it was.
         }
-    }, [inputsText, onCommit, shape, unresolved])
+    }, [inputsText, onCommit, resolving, shape])
 
     const onChange = useCallback(
         (next: string) => {
@@ -96,7 +97,6 @@ export const AutomationInstructionField = ({
                 onChange={onChange}
                 isChat={isChat}
                 primaryKey={primaryKey}
-                disabled={unresolved}
             />
         </AutomationField>
     )

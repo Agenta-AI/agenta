@@ -17,16 +17,20 @@ export const AutomationAgentField = ({
     agentId = null,
     agentName,
     onSelectAgent,
+    error,
 }: {
     /** The agent the draft currently binds. */
     agentId?: string | null
     agentName: string | null
     /** Absent ⇒ the field reads only. */
     onSelectAgent?: (agentId: string) => void
+    /** Set after a blocked create: the field is what is missing, and says so in red. */
+    error?: string
 }) => (
-    <AutomationField label="Agent" helper="The agent this automation runs.">
+    <AutomationField label="Agent" helper="The agent this automation runs." error={error}>
         <AgentPicker
             value={agentId}
+            invalid={Boolean(error)}
             // The read-only case still renders the picker so the bound agent keeps its glyph and
             // its name; `disabled` only takes away the opening.
             onChange={(next) => onSelectAgent?.(next)}

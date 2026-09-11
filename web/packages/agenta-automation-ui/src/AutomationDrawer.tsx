@@ -254,20 +254,16 @@ const AutomationCreateDrawer = ({
                     >
                         Cancel
                     </Button>
-                    {/* A disabled button takes no pointer events, so the reason has to hang off
-                        something that does. */}
-                    <span title={state.blockedReason || undefined}>
-                        <LoadingButton
-                            type="button"
-                            className="font-normal"
-                            loading={state.saving}
-                            disabled={!!state.blockedReason}
-                            title={state.blockedReason || undefined}
-                            onClick={() => void state.create().then((made) => made && onClose())}
-                        >
-                            Create automation
-                        </LoadingButton>
-                    </span>
+                    {/* Always pressable. A press with something missing does not create; it
+                        turns the missing fields red, which is how the reader learns what to do. */}
+                    <LoadingButton
+                        type="button"
+                        className="font-normal"
+                        loading={state.saving}
+                        onClick={() => void state.create().then((made) => made && onClose())}
+                    >
+                        Create automation
+                    </LoadingButton>
                 </div>
             }
         >

@@ -64,27 +64,25 @@ export const AutomationDraftScreen = ({
                                     >
                                         Cancel
                                     </Button>
-                                    {/* A disabled button takes no pointer events, so the reason
-                                        has to hang off something that does. */}
-                                    <span title={state.blockedReason || undefined}>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            className="text-xs font-normal"
-                                            disabled={!!state.blockedReason || state.saving}
-                                            title={state.blockedReason || undefined}
-                                            onClick={() => void onCreate()}
-                                        >
-                                            {/* Creating writes a trigger and, for a schedule,
+                                    {/* Always pressable. A press with something missing does
+                                        not create; it turns the missing fields red, which is
+                                        how the reader learns what to do. */}
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        className="text-xs font-normal"
+                                        disabled={state.saving}
+                                        onClick={() => void onCreate()}
+                                    >
+                                        {/* Creating writes a trigger and, for a schedule,
                                                 its first run — long enough that a button which
                                                 only greys out reads as broken. Sized by class:
                                                 lucide's `size` prop leaves the svg em-scaled. */}
-                                            {state.saving ? (
-                                                <LoaderCircle className="size-3 animate-spin" />
-                                            ) : null}
-                                            Create automation
-                                        </Button>
-                                    </span>
+                                        {state.saving ? (
+                                            <LoaderCircle className="size-3 animate-spin" />
+                                        ) : null}
+                                        Create automation
+                                    </Button>
                                 </div>
                             }
                         />

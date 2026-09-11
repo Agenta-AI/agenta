@@ -31,6 +31,7 @@ export const AutomationRunsWhenField = ({
     onChangeCron,
     onChangeKind,
     onSelectEvent,
+    error,
 }: {
     automation: Automation
     onChangeCron: (cron: string) => void
@@ -38,6 +39,8 @@ export const AutomationRunsWhenField = ({
     onChangeKind?: (kind: AutomationKind) => void
     /** Where a picked event goes — the host's draft, which saves it with the rest. */
     onSelectEvent: (selection: EventSelection) => void
+    /** Set after a blocked create: this field is what is missing, and says so in red. */
+    error?: string
 }) => {
     const [open, setOpen] = useState(false)
     const schedule = useScheduleBuilder(automation.cron ?? "", onChangeCron)
@@ -60,7 +63,7 @@ export const AutomationRunsWhenField = ({
     const label = isSchedule ? schedule.summary : runsWhenLabel(automation)
 
     return (
-        <AutomationField label="Runs when" helper={helper}>
+        <AutomationField label="Runs when" helper={helper} error={error}>
             <PickerOverlay
                 open={open}
                 onOpenChange={setOpen}
@@ -70,6 +73,7 @@ export const AutomationRunsWhenField = ({
                     // controls read as one stack rather than two sizes of field.
                     <button
                         type="button"
+                        aria-invalid={error ? true : undefined}
                         className={cn(selectTriggerVariants(), "h-auto py-input-y")}
                     >
                         <span className="flex min-w-0 flex-1 items-center gap-2">

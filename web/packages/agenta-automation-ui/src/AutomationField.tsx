@@ -10,16 +10,26 @@ import type {ReactNode} from "react"
 export const AutomationField = ({
     label,
     helper,
+    error,
     children,
 }: {
     label: string
     helper?: ReactNode
+    /**
+     * What is wrong with this field right now. Takes the helper's line rather than adding one
+     * under it: the field has one place to speak, and while it is wrong that is what it says.
+     */
+    error?: string
     children: ReactNode
 }) => (
     <div className="flex flex-col gap-[7px]">
         <span className="text-[13px] font-medium text-foreground">{label}</span>
         {children}
-        {helper ? (
+        {error ? (
+            <span role="alert" className="text-[12px] leading-snug text-destructive">
+                {error}
+            </span>
+        ) : helper ? (
             <span className="text-[12px] leading-snug text-muted-foreground">{helper}</span>
         ) : null}
     </div>

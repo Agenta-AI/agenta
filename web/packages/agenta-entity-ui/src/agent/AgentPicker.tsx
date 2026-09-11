@@ -440,16 +440,19 @@ export const AgentPicker = ({
                 </div>
 
                 {onCreateAgent ? (
-                    // Under a rule: making an agent is a different act from choosing one, and a
-                    // row that sits flush with the list gets picked by mistake.
-                    <div className="flex flex-col border-0 border-t border-solid border-border p-1">
+                    // Its own footer padding rather than a rule: the plus and the shorter row
+                    // already say this is an action, and a hairline over it read as a seam. The
+                    // top padding is the separation the rule used to provide.
+                    <div className="flex flex-col px-1 pb-1 pt-2">
                         <button
                             type="button"
                             onClick={() => {
                                 setOpen(false)
                                 onCreateAgent()
                             }}
-                            className="box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+                            // Tighter than a list row: this is a footer action, not one of the
+                            // choices, and at row height it read as an eighth agent.
+                            className="box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
                         >
                             <span className="flex size-5 shrink-0 items-center justify-center">
                                 <Plus aria-hidden size={14} className="text-muted-foreground" />

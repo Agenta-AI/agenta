@@ -29,7 +29,7 @@ export const AutomationCreateBody = ({
     showAgentField?: boolean
     footer?: ReactNode
 }) => {
-    const {draft, preview, agentName, generatedName} = state
+    const {draft, preview, agentName, generatedName, errors} = state
 
     return (
         <>
@@ -67,6 +67,7 @@ export const AutomationCreateBody = ({
                         agentId={draft.agentId}
                         agentName={agentName}
                         onSelectAgent={state.setAgent}
+                        error={errors.agent}
                     />
                 ) : null}
                 <AutomationRunsWhenField
@@ -74,6 +75,7 @@ export const AutomationCreateBody = ({
                     onChangeCron={state.setCron}
                     onChangeKind={state.setKind}
                     onSelectEvent={state.setEvent}
+                    error={errors.runsWhen}
                 />
                 <AutomationInstructionField
                     agentId={draft.agentId}

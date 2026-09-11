@@ -117,16 +117,33 @@ export const useAutomationCreate = ({
         })
     }, [defaultReferences, draft.agentId, latestRevision.data?.workflow_variant_id, variants.data])
 
-    // One sentence that both disables the button and explains it, so the two can never disagree.
-    const blockedReason = useMemo(() => {
-        if (!draft.agentId) return "Pick the agent this automation runs"
-        if (draft.kind === "schedule") {
-            return draft.cron.trim() ? "" : "Choose when this automation runs"
-        }
-        return draft.connectionId && draft.eventKey
-            ? ""
-            : "Choose the event this automation runs on"
-    }, [draft.agentId, draft.connectionId, draft.cron, draft.eventKey, draft.kind])
+    // What is still missing, by field, so the screen can point at each one rather than at the
+    // button. Both fields can be missing at once; a reader who sees only the first fixes it and
+    // is then told about the second, which is the form equivalent of being sent back twice.
+    const missing = useMemo(
+        () => ({
+            agent: !draft.agentId ? "Pick the agent this automation runs" : "",
+            runsWhen:
+                draft.kind === "schedule"
+                    ? draft.cron.trim()
+                        ? ""
+                        : "Choose when this automation runs"
+                    : draft.connectionId && draft.eventKey
+                      ? ""
+                      : "Choose the event this automation runs on",
+        }),
+        [draft.agentId, draft.connectionId, draft.cron, draft.eventKey, draft.kind],
+    )
+    const blockedReason = missing.agent || missing.runsWhen
+
+    // The errors show only once the reader has tried to create: a form that opens with two
+    // red fields is telling them off for not having filled in what they have not reached yet.
+    // Once they have tried, the marks stay live — they clear field by field as each is fixed.
+    const [attempted, setAttempted] = useState(false)
+    const errors = useMemo(
+        () => (attempted ? missing : {agent: "", runsWhen: ""}),
+        [attempted, missing],
+    )
 
     // The field components read an `Automation`, which is the shape a saved row has. A draft is
     // that shape with nothing behind it — same fields, same labels, no fetch.
@@ -200,9 +217,18 @@ export const useAutomationCreate = ({
         setDraft((current) => ({...current, connectionId, eventKey, triggerConfig}))
     }, [])
 
-    /** Resolves to the created row, or null. Messages are owned here; navigation is not. */
+    /**
+     * Resolves to the created row, or null. Messages are owned here; navigation is not.
+     *
+     * A blocked attempt is not refused silently: it turns the field errors on and returns null,
+     * so the button is always pressable and pressing it is what points at what is missing.
+     */
     const create = useCallback(async () => {
-        if (blockedReason || saving) return null
+        if (saving) return null
+        if (blockedReason) {
+            setAttempted(true)
+            return null
+        }
         setSaving(true)
         try {
             // The name is optional: an unnamed automation is saved under the name the heading has
@@ -237,6 +263,7 @@ export const useAutomationCreate = ({
         agentName,
         generatedName,
         blockedReason,
+        errors,
         saving,
         setName,
         setAgent,
