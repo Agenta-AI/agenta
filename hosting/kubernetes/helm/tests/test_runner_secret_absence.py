@@ -19,7 +19,6 @@ Requires the `helm` binary on PATH.
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
 import yaml
@@ -198,7 +197,8 @@ def check(names: list[str]) -> list[str]:
     return failures
 
 
-def main() -> int:
+def collect_failures() -> list[str]:
+    """Every way the rendered chart widens the runner's environment."""
     failures: list[str] = []
 
     # Default deployment: the token comes from the platform Secret, env still narrow.
@@ -262,23 +262,31 @@ def main() -> int:
             "custom runner securityContext suppresses the /dev/fuse hostPath"
         )
 
-    if failures:
-        print("FAIL: runner environment is not narrow:", file=sys.stderr)
-        for line in failures:
-            print(f"  - {line}", file=sys.stderr)
-        return 1
+    return failures
 
-    print(
-        "OK: internal-services key is limited to API/Services; runner env remains narrow."
+
+def failure_report(failures: list[str]) -> str:
+    return "runner environment is not narrow:\n" + "\n".join(
+        f"  - {failure}" for failure in failures
     )
-    print(f"  default env: {sorted(names)}")
-    return 0
 
 
 def test_runner_env_stays_narrow() -> None:
-    """pytest entry point. The module also runs standalone; both call main()."""
-    assert main() == 0, "the runner environment stays narrow"
+    """pytest entry point. The module also runs standalone; both call collect_failures().
+
+    The offending variable names belong in the assertion, not in a log line. They are
+    environment variable NAMES read out of a rendered manifest rather than any value, and a
+    failure is unactionable without them: whoever reads it needs to know which variable
+    widened the runner.
+    """
+    failures = collect_failures()
+    assert not failures, failure_report(failures)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    _failures = collect_failures()
+    if _failures:
+        raise SystemExit(failure_report(_failures))
+    print(
+        "OK: internal-services key is limited to API/Services; runner env remains narrow."
+    )

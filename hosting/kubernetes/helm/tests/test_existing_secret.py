@@ -17,9 +17,7 @@ Requires the `helm` binary on PATH.
 
 from __future__ import annotations
 
-import re
 import subprocess
-import sys
 from pathlib import Path
 
 import yaml
@@ -108,13 +106,8 @@ def secret_references(docs: list[dict]) -> list[tuple[str, str, str]]:
     return refs
 
 
-def redact_failure_line(line: str) -> str:
-    """Redact potentially sensitive values from failure output."""
-    # Replace quoted values (for example secret names shown with !r) with a marker.
-    return re.sub(r"'[^']*'", "'<redacted>'", line)
-
-
-def main() -> int:
+def collect_failures() -> list[str]:
+    """Every way the rendered chart fails to honor `secrets.existingSecret`."""
     failures: list[str] = []
     docs = render()
 
@@ -172,21 +165,29 @@ def main() -> int:
                 f"{workload}: agentRunner.auth.tokenSecretRef ignored, reads {name!r}"
             )
 
-    if failures:
-        print("FAIL: secrets.existingSecret is not honored:", file=sys.stderr)
-        for line in failures:
-            print(f"  - {redact_failure_line(line)}", file=sys.stderr)
-        return 1
+    return failures
 
-    print("OK: every Secret reference honors secrets.existingSecret.")
-    print(f"  runner token sources: {len(token_refs)} workload(s)")
-    return 0
+
+def failure_report(failures: list[str]) -> str:
+    return "secrets.existingSecret is not honored:\n" + "\n".join(
+        f"  - {failure}" for failure in failures
+    )
 
 
 def test_existing_secret_is_honored() -> None:
-    """pytest entry point. The module also runs standalone; both call main()."""
-    assert main() == 0, "secrets.existingSecret is honored"
+    """pytest entry point. The module also runs standalone; both call collect_failures().
+
+    The offending workload and Secret names belong in the assertion, not in a log line. They
+    are Kubernetes Secret RESOURCE names rather than secret material, and a failure is
+    unactionable without them: whoever reads it needs to know which reference points at the
+    wrong Secret.
+    """
+    failures = collect_failures()
+    assert not failures, failure_report(failures)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    _failures = collect_failures()
+    if _failures:
+        raise SystemExit(failure_report(_failures))
+    print("OK: every Secret reference honors secrets.existingSecret.")
