@@ -5,7 +5,14 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {Archive, Copy, DotsThreeVertical, Note, PencilSimple} from "@phosphor-icons/react"
+import {
+    Archive,
+    Copy,
+    DotsThreeVertical,
+    Note,
+    PencilSimple,
+    TextAlignLeft,
+} from "@phosphor-icons/react"
 
 import {useAgentActions, type AgentActionTarget} from "./useAgentActions"
 
@@ -21,6 +28,8 @@ export interface AgentActionsMenuProps {
      * cache), so it passes them; a host without one falls through to [[useAgentActions]].
      */
     onRename?: () => void
+    /** Edits the description in place. Absent means no item: the desktop edits it in its rename modal. */
+    onEditDescription?: () => void
     /** Named for the prop's history; the verb it stands for is Archive. */
     onDelete?: () => void
     /** Custom-workflow "Configure" — only the desktop has that flow, so absent means no item. */
@@ -42,6 +51,7 @@ export const AgentActionsMenu = ({
     agent,
     onOpen,
     onRename,
+    onEditDescription,
     onDelete,
     onConfigure,
     align = "start",
@@ -86,6 +96,12 @@ export const AgentActionsMenu = ({
                         Rename
                     </DropdownMenuItem>
                 )}
+                {onEditDescription ? (
+                    <DropdownMenuItem onSelect={onEditDescription}>
+                        <TextAlignLeft size={16} />
+                        Edit description
+                    </DropdownMenuItem>
+                ) : null}
                 {agent.slug ? (
                     <DropdownMenuItem onSelect={() => void actions.copy(agent.slug!, "Slug")}>
                         <Copy size={16} />

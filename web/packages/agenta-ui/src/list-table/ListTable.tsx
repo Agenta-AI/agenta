@@ -31,6 +31,9 @@ const SKELETON_WIDTHS = ["w-4/5", "w-3/5", "w-2/3", "w-1/2", "w-3/4"]
  */
 const STICKY = {height: "h-9", groupTop: "top-9"} as const
 
+/** With no visible header, a stuck group heading sits at the scroller's own top. */
+const groupTop = (hideHeader: boolean) => (hideHeader ? "top-0" : STICKY.groupTop)
+
 /**
  * The list frame every table-shaped screen in this app shares: a header row, optional group
  * headings that collapse, and rows that open.
@@ -58,9 +61,13 @@ export const ListTable = <Row,>({
     onToggleGroup,
     empty,
     stickyHeader = false,
+    hideHeader = false,
+    density = "default",
     className,
 }: ListTableProps<Row>) => {
     const grid = gridTemplate(columns)
+    // One value for the rows AND their skeleton, so loading holds the rhythm the rows arrive in.
+    const rowPad = density === "compact" ? "py-2" : "py-[13px]"
     const isEmpty = groups.every((group) => group.rows.length === 0)
 
     return (
@@ -77,21 +84,27 @@ export const ListTable = <Row,>({
             <div style={{minWidth}}>
                 <div
                     role="row"
+                    // The sr-only header carries none of the visual classes: `sticky`/`h-9`
+                    // would win over its `absolute` and leave a 36px blank strip.
                     className={cn(
-                        // No horizontal inset, here or on the rows or the group headings: every
-                        // one of them reads from the table's own edge, which is the line the page
-                        // title and the toolbar above already keep. Dropping it from ALL of them
-                        // together is what matters — the header's content box has to stay
-                        // identical to a row's, or their grid tracks resolve differently and
-                        // every column but the first drifts off its cells.
-                        "grid gap-3 border-0 border-b border-solid border-border/40 text-[13px] font-medium text-muted-foreground",
-                        // Opaque, or the rows read straight through it as they pass under. A
-                        // stated height rather than padding, so the group headings below can be
-                        // stuck directly beneath it without measuring anything — and the margin
-                        // goes, or a 4px slot of rows would show through the gap.
-                        stickyHeader
-                            ? `sticky top-0 z-20 ${STICKY.height} items-center bg-background`
-                            : "mb-1 py-2",
+                        hideHeader
+                            ? "sr-only"
+                            : [
+                                  // No horizontal inset, here or on the rows or the group headings: every
+                                  // one of them reads from the table's own edge, which is the line the page
+                                  // title and the toolbar above already keep. Dropping it from ALL of them
+                                  // together is what matters — the header's content box has to stay
+                                  // identical to a row's, or their grid tracks resolve differently and
+                                  // every column but the first drifts off its cells.
+                                  "grid gap-3 border-0 border-b border-solid border-border/40 text-[13px] font-medium text-muted-foreground",
+                                  // Opaque, or the rows read straight through it as they pass under. A
+                                  // stated height rather than padding, so the group headings below can be
+                                  // stuck directly beneath it without measuring anything — and the margin
+                                  // goes, or a 4px slot of rows would show through the gap.
+                                  stickyHeader
+                                      ? `sticky top-0 z-20 ${STICKY.height} items-center bg-background`
+                                      : "mb-1 py-2",
+                              ],
                     )}
                     style={{gridTemplateColumns: grid}}
                 >
@@ -115,7 +128,7 @@ export const ListTable = <Row,>({
                         {Array.from({length: skeletonRows}, (_, row) => (
                             <div
                                 key={row}
-                                className="grid w-full items-center gap-3 py-[13px]"
+                                className={cn("grid w-full items-center gap-3", rowPad)}
                                 style={{gridTemplateColumns: grid}}
                             >
                                 {columns.map((column, index) => (
@@ -172,7 +185,7 @@ export const ListTable = <Row,>({
                                             // Stuck directly under the column header, so a long
                                             // run still says which group you are reading.
                                             stickyHeader &&
-                                                `sticky ${STICKY.groupTop} z-10 bg-background`,
+                                                `sticky ${groupTop(hideHeader)} z-10 bg-background`,
                                             FOCUS_RING,
                                         )}
                                     >
@@ -191,7 +204,7 @@ export const ListTable = <Row,>({
                                         className={cn(
                                             "m-0 pb-1.5 pt-3.5 text-[13px] text-muted-foreground",
                                             stickyHeader &&
-                                                `sticky ${STICKY.groupTop} z-10 bg-background`,
+                                                `sticky ${groupTop(hideHeader)} z-10 bg-background`,
                                         )}
                                     >
                                         {group.label}
@@ -230,7 +243,8 @@ export const ListTable = <Row,>({
                                             // the row's BOX grows by the same 12px its padding
                                             // gives back, so its content box — and so its grid
                                             // tracks — stay identical to the header's.
-                                            "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent py-[13px] text-left",
+                                            "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
+                                            rowPad,
                                             "-mx-3 w-[calc(100%+1.5rem)] px-3",
                                             onOpenRow && "cursor-pointer hover:bg-accent/60",
                                             onOpenRow && FOCUS_RING,

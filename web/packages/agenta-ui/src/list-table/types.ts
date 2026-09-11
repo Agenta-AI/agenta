@@ -67,5 +67,17 @@ export interface ListTableProps<Row> {
      * beside it rather than only itself.
      */
     stickyHeader?: boolean
+    /**
+     * Keep the column names for screen readers only. For a list whose surroundings already say
+     * what the rows are — a tab named "Sessions" over a single-column list — where a header row
+     * only repeats the tab.
+     */
+    hideHeader?: boolean
+    /**
+     * Row rhythm. `compact` is for the long lists — a sessions page runs to hundreds of rows, and
+     * 13px above and below each one is a screen of air per hundred. The default suits a list a
+     * reader scans once.
+     */
+    density?: "default" | "compact"
     className?: string
 }
