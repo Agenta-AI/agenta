@@ -147,13 +147,13 @@ const rowClickHandler = (item: NavItem, onItemSelect?: NavMenuProps["onItemSelec
     return item.onClick
 }
 
-const RowLabel = ({
+const RowLabel = memo(function RowLabel({
     item,
     onItemSelect,
 }: {
     item: NavItem
     onItemSelect?: NavMenuProps["onItemSelect"]
-}) => {
+}) {
     // Rows truncate at almost every rail width, so the label carries its own hover text: the
     // entity's tooltip where it has one, the full title otherwise. `Tip` is the collapsed rail's,
     // and both list groups hide their children there.
@@ -189,11 +189,11 @@ const RowLabel = ({
     )
     // Per-row chrome (a kebab, a right-click menu) owns its own hooks — this only mounts it.
     return item.wrapRow ? item.wrapRow(label) : label
-}
+})
 
 /** A group heading inside a submenu — a label over the rows below it, never a row itself.
  * With `onClick` it folds the rows under it away, and grows a caret to say so. */
-const GroupLabelRow = ({item}: {item: NavItem}) => {
+const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
     const toggle = item.onClick
     if (!toggle)
         return (
@@ -238,9 +238,9 @@ const GroupLabelRow = ({item}: {item: NavItem}) => {
             </span>
         </div>
     )
-}
+})
 
-const LeafRow = ({
+const LeafRow = memo(function LeafRow({
     item,
     selected,
     onItemSelect,
@@ -248,7 +248,7 @@ const LeafRow = ({
     item: NavItem
     selected: boolean
     onItemSelect?: NavMenuProps["onItemSelect"]
-}) => {
+}) {
     const onClick = rowClickHandler(item, onItemSelect)
     // A controlled scope (Settings) gives its items `onItemSelect` and no `link`, so the row
     // is the only control there is — without this it is an unfocusable <div> wrapping a
@@ -279,6 +279,65 @@ const LeafRow = ({
         >
             {item.icon ? <span className="flex shrink-0 items-center">{item.icon}</span> : null}
             <RowLabel item={item} onItemSelect={onItemSelect} />
+        </div>
+    )
+})
+
+/** Within this many px of the bottom counts as reaching the end. */
+const REACH_END_PX = 120
+
+/** Long enough that one flick asks once, short enough not to be felt as a stall. */
+const REACH_END_THROTTLE_MS = 400
+
+/**
+ * The one scrolling group's rows, which page in more as you reach the end.
+ *
+ * `onScroll` rather than an IntersectionObserver sentinel: a sentinel is permanently visible
+ * whenever the content is shorter than the box — routine here, since headings collapse — and that
+ * is a runaway fetch. A scroll handler cannot fire without a scroll. The autofill pass below
+ * covers the case a scroll handler structurally cannot: no scrollbar yet, so no scroll to hear.
+ */
+const ScrollGroupChildren = ({
+    children,
+    onReachEnd,
+}: {
+    children: ReactNode
+    onReachEnd?: () => void
+}) => {
+    const boxRef = useRef<HTMLDivElement>(null)
+    // Throttled, NOT keyed on scrollHeight: a page whose rows all land in collapsed groups adds no
+    // height, and a height-keyed guard would then never let another page be asked for. Time cannot
+    // latch. The source's own in-flight check stops the duplicate a flick would otherwise queue.
+    const askedAt = useRef(0)
+
+    const reachEnd = () => {
+        if (!onReachEnd) return
+        const now = Date.now()
+        if (now - askedAt.current < REACH_END_THROTTLE_MS) return
+        askedAt.current = now
+        onReachEnd()
+    }
+
+    return (
+        // Its own scroll box, outside HeightCollapse: the animation drives height, and a scroll
+        // area needs its height to come from the flex line instead. `min-h-0` is what lets it
+        // shrink below its content; the rows around it hold their size on their own.
+        <div
+            ref={boxRef}
+            data-nav-scroll="true"
+            className={clsx(GROUP_CHILDREN, "min-h-0 overflow-y-auto", DRAG_GHOST)}
+            onScroll={
+                onReachEnd
+                    ? (event) => {
+                          const box = event.currentTarget
+                          if (box.scrollHeight - box.scrollTop - box.clientHeight <= REACH_END_PX) {
+                              reachEnd()
+                          }
+                      }
+                    : undefined
+            }
+        >
+            {children}
         </div>
     )
 }
@@ -508,16 +567,9 @@ const NavMenuImpl = ({
                         )}
                     </div>
                     {item.scrollChildren ? (
-                        // Its own scroll box, outside HeightCollapse: the animation drives height,
-                        // and a scroll area needs its height to come from the flex line instead.
-                        // `min-h-0` is what lets it shrink below its content; the rows around it
-                        // hold their size on their own (auto min-height == their fixed row height).
-                        <div
-                            data-nav-scroll="true"
-                            className={clsx(GROUP_CHILDREN, "min-h-0 overflow-y-auto", DRAG_GHOST)}
-                        >
+                        <ScrollGroupChildren onReachEnd={item.onReachEnd}>
                             {(item.submenu ?? []).map(renderItem)}
-                        </div>
+                        </ScrollGroupChildren>
                     ) : (
                         // `shrink-0`: HeightCollapse's wrapper is `overflow-hidden`, which drops a
                         // flex item's automatic min-height — so beside a scrolling group it

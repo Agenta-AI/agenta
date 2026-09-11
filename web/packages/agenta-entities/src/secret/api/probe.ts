@@ -43,6 +43,7 @@ const probeResponseSchema: z.ZodType<AgentaApi.ProbeProviderResponse> = z.object
     discovery: z.object({
         status: z.enum(DISCOVERY_STATUSES),
         models: z.array(z.string()).default([]),
+        model_names: z.record(z.string(), z.string()).default({}),
     }),
     fetched_at: z.string(),
 })

@@ -44,7 +44,7 @@ The snapshot recipe therefore:
   data, and the web, and one headless Chromium installed by Playwright under
   `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` and linked as `chromium`. Every section of the
   script asserts its own pin and fails the build otherwise; the pins live at the top of that file;
-- installs `@earendil-works/pi-coding-agent@0.80.6`;
+- installs `@earendil-works/pi-coding-agent@0.85.1`;
 - fails the build unless `pi --version` succeeds;
 - reinstalls the private Pi ACP adapter at `pi-acp@0.0.29` through
   `sandbox-agent install-agent`, rather than installing a global package that the daemon

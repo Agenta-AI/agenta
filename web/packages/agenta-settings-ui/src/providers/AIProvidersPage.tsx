@@ -4,13 +4,19 @@ import {
     activeModelsSummary,
     credentialSummary,
     deleteSecretAtom,
+    isSubscriptionConnection,
+    subscriptionIsReady,
     SecretManagementPolicy,
     providerConnectionsAtom,
     useVaultSecret,
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {ProviderDrawer, providerIconFor} from "@agenta/entity-ui/secretProvider"
+import {
+    ProviderDrawer,
+    providerIconFor,
+    SubscriptionConnectionCard,
+} from "@agenta/entity-ui/secretProvider"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
 import {PencilSimpleLine, Plus, Trash, WarningCircle} from "@phosphor-icons/react"
@@ -77,16 +83,25 @@ export const AIProvidersPage = ({
     // so it is not listed here. It stays in `providerConnectionsAtom`, which is what the composer
     // gate and the model pickers count: hiding the row must not make the project look keyless,
     // which is also why the drawer below still receives the unfiltered list.
+    // A subscription connection has no credential to show in a Credential column and no card to
+    // edit; it gets its own panel above the table instead.
     const rows = useMemo<ConnectionRow[]>(
         () =>
             connections
                 .filter(
                     (connection) =>
-                        connection.managementPolicy !== SecretManagementPolicy.ManagerOnly,
+                        connection.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
+                        !isSubscriptionConnection(connection),
                 )
                 .map((connection) => ({...connection, key: connection.id})),
         [connections],
     )
+
+    const subscription = useMemo(
+        () => connections.find(isSubscriptionConnection) ?? null,
+        [connections],
+    )
+    const subscriptionConnected = subscriptionIsReady(subscription?.subscription)
 
     const openCatalog = useCallback(() => {
         setSelected(null)
@@ -166,7 +181,19 @@ export const AIProvidersPage = ({
 
     return (
         <>
-            <section className="flex flex-col gap-2">
+            <section className="flex flex-col gap-4">
+                <SubscriptionConnectionCard
+                    connection={subscription}
+                    onRemove={
+                        canRemove
+                            ? (record) => {
+                                  setRemoveError(null)
+                                  setPendingRemoval(record)
+                              }
+                            : undefined
+                    }
+                />
+
                 <DataTable<ConnectionRow>
                     className="ph-no-capture"
                     columns={columns}
@@ -205,12 +232,18 @@ export const AIProvidersPage = ({
                             image="simple"
                             description={
                                 <div className="flex flex-col gap-1">
+                                    {/* The table lists API-key connections only, so its empty
+                                        state must not claim the project has nothing connected
+                                        while the subscription card above says Connected. */}
                                     <span className="text-xs font-medium text-colorText">
-                                        No providers connected
+                                        {subscriptionConnected
+                                            ? "No API keys connected"
+                                            : "No providers connected"}
                                     </span>
                                     <span>
-                                        Connect a provider with your own API key to run agents,
-                                        prompts, and evaluations.
+                                        {subscriptionConnected
+                                            ? "Your ChatGPT subscription runs agents already. Add an API key to use another provider, or to run prompts and evaluations."
+                                            : "Connect a provider with your own API key to run agents, prompts, and evaluations."}
                                     </span>
                                 </div>
                             }
@@ -231,8 +264,8 @@ export const AIProvidersPage = ({
                 ) : null}
 
                 <p className="m-0 text-xs text-colorTextSecondary">
-                    Claude and ChatGPT subscriptions are detected by the runner from your
-                    deployment&apos;s mounted login folder and are not listed here.{" "}
+                    A Claude subscription is detected by the runner from your deployment&apos;s
+                    mounted login folder and is not listed here.{" "}
                     <a href={subscriptionDocsUrl} target="_blank" rel="noreferrer">
                         Set one up
                     </a>

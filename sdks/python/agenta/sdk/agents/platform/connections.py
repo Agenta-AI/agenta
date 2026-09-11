@@ -38,7 +38,11 @@ from ..connections import (
     ModelRef,
     ProviderMismatchError,
     ResolvedConnection,
+    ResolvedSubscription,
     RuntimeAuthContext,
+    SubscriptionConnectionMissingError,
+    SubscriptionLoginRequiredError,
+    SubscriptionNotSupportedError,
     UnsupportedConnectionModeError,
     WriteOnlySecretError,
 )
@@ -601,6 +605,145 @@ def _managed(secret: Dict[str, Any]) -> bool:
     return isinstance(management, dict) and bool(management.get("policy"))
 
 
+# The vault kind that holds a hosted subscription connection.
+SUBSCRIPTION_SECRET_KIND = "subscription_provider"
+
+# The login state a run needs. Any other state means the person must sign in again.
+_SUBSCRIPTION_READY = "ready"
+
+# The provider family a subscription resolves to, per harness. Pi reaches the ChatGPT
+# subscription through its ``openai-codex`` provider, which the capability table already
+# declares, so the resolved pair passes the harness check without a new capability.
+#
+# Pi is the only entry. Codex 0.145.0 refuses a login file without an ``id_token`` and the
+# ChatGPT device login never issues one, so the same credential cannot be handed to it. Add
+# a harness here once its credential format is supported end to end.
+_SUBSCRIPTION_HARNESS_PROVIDERS: Dict[str, str] = {
+    "pi_core": "openai-codex",
+}
+
+# The subscription providers a run can consume. `chatgpt` is the only one today.
+_SUBSCRIPTION_PROVIDERS = frozenset({"chatgpt"})
+
+
+@dataclass
+class _SubscriptionCandidate:
+    """One ``subscription_provider`` vault record, as the resolver reads it."""
+
+    id: str
+    slug: str
+    provider: str
+    version: int
+    generation: int
+    state: str
+    login: Dict[str, Any]
+
+    def is_ready(self) -> bool:
+        return self.state == _SUBSCRIPTION_READY and bool(self.login)
+
+
+def _as_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _subscription_candidate(secret: Dict[str, Any]) -> Optional[_SubscriptionCandidate]:
+    """Read one subscription record, or ``None`` when it carries no addressable slug.
+
+    ``data.login`` is present only when the caller's credential carries the secret-resolve
+    grant. Without it the vault returns the record with the login stripped, which reads here
+    as "not ready" and fails loud rather than running with no credential.
+    """
+    slug = _stripped(secret.get("slug"))
+    secret_id = _stripped(secret.get("id"))
+    if not slug or not secret_id:
+        return None
+    data = _data(secret)
+    return _SubscriptionCandidate(
+        id=secret_id,
+        slug=slug,
+        provider=_stripped(data.get("provider")) or "",
+        version=_as_int(data.get("login_version")),
+        generation=_as_int(data.get("login_generation")),
+        state=_stripped(data.get("login_state")) or "",
+        login=_as_dict(data.get("login")),
+    )
+
+
+def _subscription_provider(harness: Optional[str]) -> str:
+    """The provider family this subscription resolves to for ``harness``.
+
+    Callers check the harness first, so the mapping always holds an entry here.
+    """
+    return _SUBSCRIPTION_HARNESS_PROVIDERS[harness or ""]
+
+
+def _resolve_subscription(
+    *,
+    secrets: Sequence[Any],
+    model: ModelRef,
+    slug: str,
+    harness: Optional[str] = None,
+) -> ResolvedConnection:
+    """Resolve a ``self_managed`` connection that names a hosted subscription secret.
+
+    The credential mode stays ``runtime_provided`` and the environment stays empty: the
+    harness still authenticates itself. What changes is that Agenta now delivers the login
+    the harness signs in with, as the ``subscription`` block beside the connection.
+    """
+    chosen: Optional[_SubscriptionCandidate] = None
+    for item in secrets:
+        secret = _as_dict(item)
+        if secret.get("kind") != SUBSCRIPTION_SECRET_KIND:
+            continue
+        candidate = _subscription_candidate(secret)
+        if candidate is not None and candidate.slug == slug:
+            chosen = candidate
+            break
+
+    # The pair is checked before the login state: signing in again would not help a run
+    # that cannot consume the credential in the first place.
+    if (harness or "") not in _SUBSCRIPTION_HARNESS_PROVIDERS:
+        raise SubscriptionNotSupportedError(
+            harness=harness, provider=chosen.provider if chosen else ""
+        )
+
+    if chosen is None:
+        # The config names a connection this project does not hold. Signing in cannot fix a
+        # name, so this is not the sign-in prompt.
+        raise SubscriptionConnectionMissingError(slug=slug)
+
+    if not chosen.is_ready():
+        # One error for a not-ready state and an absent login: the person takes the same
+        # action in both cases. Never name the login or its state here.
+        raise SubscriptionLoginRequiredError(slug=slug, provider=chosen.provider)
+
+    if chosen.provider not in _SUBSCRIPTION_PROVIDERS:
+        raise SubscriptionNotSupportedError(harness=harness, provider=chosen.provider)
+
+    provider = _subscription_provider(harness)
+    return build_resolved_connection(
+        provider=provider,
+        model=model.model,
+        credential_mode="runtime_provided",
+        values={},
+        # A miss means workspace-only downstream; do not guess.
+        input_modalities=model_input_modalities(
+            harness, model.model, provider=provider or None
+        ),
+        subscription=ResolvedSubscription(
+            id=chosen.id,
+            slug=chosen.slug,
+            provider=chosen.provider,
+            version=chosen.version,
+            generation=chosen.generation,
+            login=chosen.login,
+        ),
+    )
+
+
 def _catalog(secrets: Iterable[Any]) -> List[_ConnectionCandidate]:
     candidates: List[_ConnectionCandidate] = []
     for item in secrets:
@@ -718,6 +861,16 @@ def _resolve_from_secrets(
     if inferred:
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
+        subscription_slug = _stripped(connection.slug)
+        if subscription_slug:
+            # A named self-managed connection is a hosted subscription: Agenta stores the
+            # login and delivers it. An unnamed one is the operator mount on the runner.
+            return _resolve_subscription(
+                secrets=secrets,
+                model=model,
+                slug=subscription_slug,
+                harness=harness,
+            )
         provider = model.provider or ""
         return build_resolved_connection(
             provider=provider,
@@ -802,7 +955,11 @@ class VaultConnectionResolver:
         model: ModelRef,
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
-        if model.connection.mode == "self_managed":
+        # An unnamed self-managed connection resolves to "inject nothing" with no vault read.
+        # A named one points at a hosted subscription secret, so it must fetch like `agenta`.
+        if model.connection.mode == "self_managed" and not _stripped(
+            model.connection.slug
+        ):
             return await _StaticSecretsResolver([]).resolve(
                 model=model, context=context
             )

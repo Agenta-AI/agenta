@@ -7,6 +7,7 @@ import {
     AGENTS_SIDEBAR_KEY,
     PROMPTS_SIDEBAR_KEY,
     SIDEBAR_ENTITIES,
+    SIDEBAR_UNBOUNDED,
     defineSidebarEntity,
     livePollInterval,
     agentSessionCounts,
@@ -71,6 +72,23 @@ describe("resolveChildren", () => {
 
         expect(children).toHaveLength(15)
         expect(children.at(-1)?.title).toBe("Show all")
+    })
+
+    // Sessions renders every page it has loaded, so its cap is lifted rather than raised — and an
+    // uncapped entity has nothing left over to put behind a Show all.
+    it("renders every ref and no Show all when the entity is unbounded", () => {
+        const refs = Array.from({length: 120}, (_, index) => ref(`s${index}`, `Session ${index}`))
+        const children = resolveChildren(
+            entity({
+                maxItems: SIDEBAR_UNBOUNDED,
+                showAllLink: (projectURL) => `${projectURL}/sessions`,
+            }),
+            ready(refs),
+            "/w/w1/p/p1",
+        )
+
+        expect(children).toHaveLength(120)
+        expect(children.some((child) => child.title === "Show all")).toBe(false)
     })
 })
 

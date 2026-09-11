@@ -37,8 +37,28 @@ if os.environ.get("AGENTA_SERVICE_BASE"):
         file=sys.stderr,
     )
 
-MODEL = "haiku"
-PROVIDER = "anthropic"
+# The default cell shape: Claude on the operator's own mounted subscription, local sandbox.
+# That combination is free on a dev box and it is what most cells here were written against.
+#
+# It is also a combination NO preview stage can serve, which is why every part of it is a knob.
+# A cloud stage refuses the local sandbox with a 403 naming the provider allow-list, and it has
+# no mounted operator subscription, so a cell left on the defaults dies with `runtime_provided
+# local run requires a mounted subscription` and says nothing about the release. During the
+# v0.117.0 release run that shape blocked the client-tool cell and the commit-approval script on
+# both stages until each was re-run with these overrides. Set them, change no assertion.
+#
+#   AGENTA_QA_MODEL / AGENTA_QA_PROVIDER   the model id and its provider
+#   AGENTA_QA_CONNECTION_MODE              `self_managed` (operator subscription) or `agenta`
+#                                          (the project's own vault connection)
+#   AGENTA_QA_CONNECTION_SLUG              the vault slug, needed for a custom provider
+#   AGENTA_QA_HARNESS                      `claude`, `pi_core` or `codex`
+#   AGENTA_QA_SANDBOX                      `local` or `daytona`
+MODEL = os.environ.get("AGENTA_QA_MODEL", "haiku")
+PROVIDER = os.environ.get("AGENTA_QA_PROVIDER", "anthropic")
+CONNECTION_MODE = os.environ.get("AGENTA_QA_CONNECTION_MODE", "self_managed")
+CONNECTION_SLUG = os.environ.get("AGENTA_QA_CONNECTION_SLUG") or None
+HARNESS_KIND = os.environ.get("AGENTA_QA_HARNESS", "claude")
+SANDBOX_KIND = os.environ.get("AGENTA_QA_SANDBOX", "local")
 
 # Harness-kind and model-id gotchas, found live during the platform-guidance discovery
 # verification (2026-08-06). Bake these in so nobody re-derives them the hard way:
@@ -88,14 +108,14 @@ def agent_config(
         "llm": {
             "model": MODEL,
             "provider": PROVIDER,
-            "connection": {"mode": "self_managed", "slug": None},
+            "connection": {"mode": CONNECTION_MODE, "slug": CONNECTION_SLUG},
             "extras": {},
         },
         "tools": tools or [],
         "mcps": [],
         "skills": [],
-        "harness": {"kind": "claude"},
-        "sandbox": {"kind": "local"},
+        "harness": {"kind": HARNESS_KIND},
+        "sandbox": {"kind": SANDBOX_KIND},
     }
 
 
