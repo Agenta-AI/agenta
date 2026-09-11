@@ -1,7 +1,7 @@
 import {
-    fetchWorkflowsBatch,
-    filterAgentWorkflows,
+    ensureAgentFlags,
     queryWorkflows,
+    selectAgentWorkflows,
     type Workflow,
 } from "@agenta/entities/workflow"
 import {useQuery} from "@tanstack/react-query"
@@ -14,9 +14,11 @@ import {useQuery} from "@tanstack/react-query"
  * that list" as "archived" (#6457). Flipping the flag there would break the rail, so the archived
  * set is fetched on its own and merged by the screen.
  *
- * Two round trips — the artifacts, then their latest revisions — because agent identity is
- * revision-derived and an archived artifact carries no `is_agent` of its own. That cost is why
- * `enabled` is a prop: nothing here runs until the Archived facet leaves its default.
+ * Agent identity is revision-derived — an archived artifact carries no `is_agent` of its own —
+ * so the artifacts are checked against the project's shared classification map. That map already
+ * covers archived workflows and is fetched once per project, so this is one round trip for the
+ * artifacts and, usually, a cache hit for the flags. `enabled` is still a prop: nothing here runs
+ * until the Archived facet leaves its default.
  */
 /** Stable, so a screen memoising on `agents` does not recompute on every render while disabled. */
 const NONE: Workflow[] = []
@@ -35,11 +37,8 @@ export const useArchivedAgents = ({projectId, enabled}: {projectId: string; enab
             })
             const archived = (response.workflows ?? []).filter((workflow) => workflow.deleted_at)
             if (archived.length === 0) return []
-            const latestRevisions = await fetchWorkflowsBatch(
-                projectId,
-                archived.map((workflow) => workflow.id),
-            )
-            return filterAgentWorkflows(archived, latestRevisions)
+            const agentFlags = await ensureAgentFlags(projectId)
+            return selectAgentWorkflows(archived, agentFlags)
         },
         enabled: enabled && Boolean(projectId),
         staleTime: 30_000,
