@@ -114,7 +114,11 @@ export function SendButton({
                     </span>
                 ) : null}
                 {!empty || forceEnabled ? (
-                    <ComposerSendButton onClick={handleClick} disabled={disabled} sending={sending} />
+                    <ComposerSendButton
+                        onClick={handleClick}
+                        disabled={disabled}
+                        sending={sending}
+                    />
                 ) : null}
             </span>
         )
