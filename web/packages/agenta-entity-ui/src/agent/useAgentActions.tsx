@@ -34,6 +34,27 @@ export const useRenameAgent = () => {
     )
 }
 
+/** The description write on its own, for an inline editor. An empty string clears it. */
+export const useUpdateAgentDescription = () => {
+    const queryClient = useQueryClient()
+    const projectId = useAtomValue(projectIdAtom) ?? ""
+
+    return useCallback(
+        async (id: string, description: string): Promise<boolean> => {
+            try {
+                await updateWorkflow(projectId, {id, description})
+            } catch {
+                message.error("Couldn't update this agent's description")
+                return false
+            }
+            void queryClient.invalidateQueries({queryKey: ["workflows"]})
+            void queryClient.invalidateQueries({queryKey: ["agent-workflows"]})
+            return true
+        },
+        [projectId, queryClient],
+    )
+}
+
 /**
  * Everything you can do to an agent from its own surfaces, defined once — the same shape
  * [[useSessionActions]] gives sessions.

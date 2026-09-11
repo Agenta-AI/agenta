@@ -47,11 +47,3 @@ export const INTEGRATIONS_SECTION_COPY = {
     emptyBody: "Connect an integration to let your agents call it.",
     noMatch: (term: string) => `No integrations match “${term}”`,
 } as const
-
-/** Copy for the agent overview's config card, whose tools row says "Tools" for oss/ee. */
-export const AGENT_CONFIG_INTEGRATIONS_COPY = {
-    toolsTitle: "Integrations",
-    toolsCount: (count: number) => `${count} enabled`,
-    toolsAdd: "Add integrations",
-    toolsNone: "None enabled",
-} as const

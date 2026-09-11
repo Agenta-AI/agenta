@@ -9,6 +9,8 @@ export interface InlineRenameOptions {
     onCommit: (name: string) => Promise<boolean>
     /** What a failed commit says. Defaults to the session wording this started as. */
     errorText?: string
+    /** Let a blank draft commit — for a field that can be cleared, like a description. */
+    allowEmpty?: boolean
 }
 
 export interface InlineRename {
@@ -35,6 +37,7 @@ export const useInlineRename = ({
     current,
     onCommit,
     errorText = "Couldn't rename this session",
+    allowEmpty = false,
 }: InlineRenameOptions): InlineRename => {
     const [renaming, setRenaming] = useState(false)
     const [draft, setDraft] = useState("")
@@ -56,9 +59,9 @@ export const useInlineRename = ({
         committedRef.current = true
         const name = draft.trim()
         setRenaming(false)
-        if (!name || name === (current ?? "")) return
+        if ((!name && !allowEmpty) || name === (current ?? "")) return
         if (!(await onCommit(name))) message.error(errorText)
-    }, [current, draft, errorText, onCommit])
+    }, [allowEmpty, current, draft, errorText, onCommit])
 
     return {renaming, draft, setDraft, start, commit, cancel}
 }
