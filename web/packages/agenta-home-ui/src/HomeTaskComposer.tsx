@@ -53,6 +53,11 @@ export interface HomeTaskComposerProps {
     /** Send, in create mode. Absent ⇒ the host does not offer creating here. */
     onCreate?: (input: {text: string}) => void | Promise<void>
     /**
+     * A send is in flight — creating an agent, or opening the session — and the page has not
+     * moved yet. Without it, the moment between pressing send and arriving somewhere was silent.
+     */
+    sending?: boolean
+    /**
      * Leave what is bound for a blank create — the picker's footer "New agent" row, and the ✕ on
      * a bound template. The composer is never aimed at nothing, so this is the only way out of a binding.
      */
@@ -128,6 +133,7 @@ export const HomeTaskComposer = ({
     onAgentChange,
     mode = "task",
     onCreate,
+    sending,
     onClear,
     template,
     inputRef,
@@ -226,6 +232,7 @@ export const HomeTaskComposer = ({
                 >
                     <ChatComposer
                         inputRef={richInputRef}
+                        sending={sending}
                         dictating={voiceEnabled && voice.dictating}
                         dictationAnalyserRef={voiceEnabled ? voice.dictationAnalyserRef : undefined}
                         onSubmit={async (text) => {

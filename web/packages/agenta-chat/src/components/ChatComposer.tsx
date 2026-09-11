@@ -57,6 +57,8 @@ export interface ChatComposerProps {
     waitingOnUser?: boolean
     initialMarkdown?: string
     onChange?: (markdown: string) => void
+    /** The send is in flight and has not landed — the button spins and refuses a second press. */
+    sending?: boolean
     /** A run is streaming — the send button becomes Stop. */
     streaming?: boolean
     /** The Stop request is pending or accepted, awaiting the stream's terminal event. */
@@ -103,6 +105,7 @@ export const ChatComposer = ({
     waitingOnUser,
     initialMarkdown,
     onChange,
+    sending,
     streaming,
     stopping,
     onStop,
@@ -213,6 +216,7 @@ export const ChatComposer = ({
                 sendForceEnabled={files.length > 0}
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}
+                sending={sending}
                 streaming={streaming}
                 stopping={stopping}
                 onStop={onStop}

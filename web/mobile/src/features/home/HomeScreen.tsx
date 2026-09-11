@@ -79,6 +79,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             attachments={handoff.attachments}
             onStartTask={handoff.onStartTask}
             onCreateFromPrompt={handoff.onCreateFromPrompt}
+            sending={handoff.sending}
             templatesHref={`${base}/templates`}
             loading={agentsQuery.isPending}
             loadingSlot={<HomeListSkeleton />}

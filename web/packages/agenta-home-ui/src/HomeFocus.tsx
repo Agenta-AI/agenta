@@ -37,6 +37,8 @@ export interface HomeFocusProps {
     onCreateFromPrompt: (input: {text: string; templateName?: string}) => void | Promise<void>
     /** Where "Browse all N templates" lands. */
     templatesHref: string
+    /** A start or a create is in flight and the page has not moved yet. */
+    sending?: boolean
     /** The agents list's states — the host's own designed versions. */
     loading?: boolean
     loadingSlot?: ReactNode
@@ -63,6 +65,7 @@ export const HomeFocus = ({
     onStartTask,
     onCreateFromPrompt,
     templatesHref,
+    sending,
     loading,
     loadingSlot,
     emptySlot,
@@ -179,6 +182,7 @@ export const HomeFocus = ({
                             })
                             setBindingChoice({kind: "agent", id: null})
                         }}
+                        sending={sending}
                         onClear={startCreating}
                         onStart={onStartTask}
                         inputRef={inputRef}

@@ -32,6 +32,9 @@ export const useHomeHandoff = (base: string) => {
         return id
     })
     const attachments = useComposerAttachments({sessionId})
+    // The task path navigates too, and the moment between send and the chat route mounting was
+    // silent. On success the page unmounts, so this only ever has to come back down on failure.
+    const [starting, setStarting] = useState(false)
 
     const stagedParts = useCallback(() => {
         const staged = attachments.files
@@ -45,6 +48,7 @@ export const useHomeHandoff = (base: string) => {
         async ({agentId, text}: {agentId: string; text: string}) => {
             const {staged, parts} = stagedParts()
             stash({sessionId, task: {agentId, text, parts}})
+            setStarting(true)
             // A cancelled navigation RESOLVES false rather than throwing, so both outcomes have to
             // land here — the same hazard `useNewAgentAction` documents. Catching alone cleared the
             // attachments while the task sat unplayed in the stash.
@@ -55,6 +59,7 @@ export const useHomeHandoff = (base: string) => {
                 // The chat route never mounted, so drop the stash — otherwise the task replays the
                 // next time this session id is opened. Attachments stay staged, still sendable.
                 dropPendingTask(sessionId)
+                setStarting(false)
                 return
             }
             // Cleared only once the destination is committed to.
@@ -74,10 +79,18 @@ export const useHomeHandoff = (base: string) => {
                 // own default to name it from the task.
                 name: templateName,
             })
-            if (ok) attachments.clearAttachments(staged.map((file) => file.uid))
+            if (ok) {
+                attachments.clearAttachments(staged.map((file) => file.uid))
+                return
+            }
+            // The same channel the chat composer uses for a send that did not land: docked above
+            // the input, dismissable, and the draft is still there. Without it a failed create
+            // just stopped spinning and said nothing. Generic on purpose: `newAgent.error` here
+            // is this closure's copy from before the failure, and would always read null.
+            attachments.setRejections([{name: "Agent", reason: "couldn't be created — try again."}])
         },
         [attachments, newAgent, sessionId, stagedParts],
     )
 
-    return {attachments, onStartTask, onCreateFromPrompt}
+    return {attachments, onStartTask, onCreateFromPrompt, sending: starting || newAgent.creating}
 }

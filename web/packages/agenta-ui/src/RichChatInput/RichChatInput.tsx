@@ -107,6 +107,8 @@ export interface RichChatInputProps {
     /** Hide the built-in send button (keyboard-only). */
     hideSendButton?: boolean
     /** A stream is in flight — the send button becomes a Stop button. */
+    /** The send is in flight; the button spins and refuses a second press. */
+    sending?: boolean
     streaming?: boolean
     /** Disable the Stop control while its durable request is settling. */
     stopping?: boolean
@@ -183,6 +185,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             sendForceEnabled,
             sendDisabled,
             hideSendButton,
+            sending,
             streaming,
             stopping,
             onStop,
@@ -405,6 +408,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                     forceEnabled={sendForceEnabled}
                                     disabled={disabled || sendDisabled}
                                     disabledReason={sendDisabledReason}
+                                    sending={sending}
                                     streaming={streaming}
                                     onStop={onStop}
                                     stopping={stopping}
