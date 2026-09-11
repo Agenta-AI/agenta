@@ -1057,8 +1057,10 @@ export async function updateWorkflow(
     projectId: string,
     payload: UpdateWorkflowPayload,
 ): Promise<Workflow> {
-    // Update workflow metadata if non-data fields changed
-    const hasMetadataChanges = payload.name || payload.description || payload.flags || payload.tags
+    // Update workflow metadata if non-data fields changed. Description is checked for presence,
+    // not truth: an empty string is how a description is cleared.
+    const hasMetadataChanges =
+        payload.name || payload.description !== undefined || payload.flags || payload.tags
     if (hasMetadataChanges) {
         await axios.put(
             `${getAgentaApiUrl()}/workflows/${payload.id}`,

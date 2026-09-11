@@ -1,21 +1,14 @@
 import {describe, expect, it} from "vitest"
 
+import {SESSION_REORDER_ZONES} from "../../src/dynamic/sessionsSource"
 import {
     applyManualOrder,
     applyManualOrderByActivity,
     capManualOrder,
     mergeManualOrder,
     movedManualOrder,
-    withManualAgentRanks,
 } from "../../src/reorder/applyOrder"
-import {withRefsByRecency} from "../../src/dynamic/groups"
-import type {SidebarEntityRef, SidebarEntitySource} from "../../src/dynamic/types"
-import {SESSION_REORDER_ZONES} from "../../src/dynamic/sessionsSource"
-import {
-    SIDEBAR_AGENT_GROUP_ZONE,
-    SIDEBAR_AGENT_ORDER_ZONE,
-    SIDEBAR_STATUS_GROUP_ZONE,
-} from "../../src/reorder/manualOrder"
+import {SIDEBAR_AGENT_GROUP_ZONE, SIDEBAR_STATUS_GROUP_ZONE} from "../../src/reorder/manualOrder"
 
 const id = (row: {id: string}) => row.id
 const rows = (...ids: string[]) => ids.map((value) => ({id: value}))
@@ -86,38 +79,6 @@ describe("mergeManualOrder", () => {
     })
 })
 
-describe("withManualAgentRanks", () => {
-    const counts = new Map([
-        ["busy", 40],
-        ["quiet", 1],
-    ])
-
-    it("lifts an arranged agent above every session count", () => {
-        const ranks = withManualAgentRanks(counts, ["quiet"])
-        expect(ranks.get("quiet")!).toBeGreaterThan(ranks.get("busy")!)
-    })
-
-    it("preserves the arranged order", () => {
-        const ranks = withManualAgentRanks(counts, ["quiet", "busy"])
-        expect(ranks.get("quiet")!).toBeGreaterThan(ranks.get("busy")!)
-    })
-
-    it("hands back the same map when nothing is arranged", () => {
-        expect(withManualAgentRanks(counts, [])).toBe(counts)
-    })
-
-    it("puts arranged agents first through the real sorter", () => {
-        // Composition, not the helper alone: a sign error in the rank base only shows up here.
-        const source = {
-            status: "ready",
-            refs: [{id: "busy"}, {id: "quiet"}, {id: "unranked"}],
-        } as SidebarEntitySource
-        const ranks = withManualAgentRanks(counts, ["quiet"])
-        const sorted = withRefsByRecency(source, (ref: SidebarEntityRef) => ranks.get(ref.id))
-        expect(sorted.refs.map((ref) => ref.id)).toEqual(["quiet", "busy", "unranked"])
-    })
-})
-
 describe("movedManualOrder", () => {
     it("swaps with the neighbour in that direction", () => {
         expect(movedManualOrder(["a", "b", "c"], "b", -1)).toEqual(["b", "a", "c"])
@@ -142,11 +103,8 @@ describe("SESSION_REORDER_ZONES", () => {
         expect(SESSION_REORDER_ZONES.none).toBeUndefined()
     })
 
-    it("arranges agent headings apart from the Agents nav group", () => {
-        // The two agent lists answer different questions, so arranging one says nothing about
-        // the other. Sharing a zone made a drag in the rail silently reorder the nav group.
+    it("arranges agent headings in their own zone", () => {
         expect(SESSION_REORDER_ZONES.agent?.groupZone).toBe(SIDEBAR_AGENT_GROUP_ZONE)
-        expect(SESSION_REORDER_ZONES.agent?.groupZone).not.toBe(SIDEBAR_AGENT_ORDER_ZONE)
     })
 
     it("leaves every heading that is not an agent out of the agent order", () => {
@@ -170,10 +128,8 @@ describe("SESSION_REORDER_ZONES", () => {
     })
 
     it("keeps every zone it offers distinct from every other", () => {
-        // One shared zone is how the Agents nav group and the Sessions headings ended up
-        // reordering together.
+        // One shared zone is how two of these lists ended up reordering together.
         const zones = [
-            SIDEBAR_AGENT_ORDER_ZONE,
             SESSION_REORDER_ZONES.agent?.groupZone,
             SESSION_REORDER_ZONES.status?.groupZone,
             SESSION_REORDER_ZONES.agent?.rowZone?.("agent:abc123"),

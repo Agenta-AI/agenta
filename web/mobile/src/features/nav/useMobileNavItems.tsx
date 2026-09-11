@@ -1,16 +1,12 @@
 import {createElement, useCallback, useMemo, type ReactNode} from "react"
 
-import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
-import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {
     AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
     defineSidebarEntity,
-    SIDEBAR_AGENT_ORDER_ZONE,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
     SKILLS_SIDEBAR_KEY,
-    sidebarAgentRanksAtomFamily,
     sidebarSessionToggledGroupsAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
@@ -18,12 +14,11 @@ import {
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
     withEntityGroups,
-    withRefsByRecency,
     type SessionSidebarRef,
     type SidebarConfig,
     type SidebarEntityRef,
 } from "@agenta/navigation"
-import {SessionFilterMenu} from "@agenta/navigation-ui"
+import {buildReleaseNavItems, SessionFilterMenu} from "@agenta/navigation-ui"
 import {SessionRowActions, useSessionActions, useSessionRowChrome} from "@agenta/sessions-ui"
 import {
     ChartLineUpIcon,
@@ -33,8 +28,8 @@ import {
     GearIcon,
     GithubLogoIcon,
     HouseIcon,
+    KeyboardIcon,
     LightningIcon,
-    PhoneIcon,
     PuzzlePieceIcon,
     QuestionIcon,
     RobotIcon,
@@ -67,6 +62,9 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         getLabel: (session) => session.name || "Untitled session",
         childPath: (session) => `/sessions/${session.sessionId}`,
         emptyLabel: "No sessions yet",
+        // No caret on this row to protect, and "No sessions yet" under a heading that already
+        // says Sessions is the same sentence twice.
+        hideWhenEmpty: true,
         // No "Show all" row: the group's own "Sessions" row already links to the full list, and
         // the headings make a trailing overflow link read as one more session.
         // No pin glyph: pinned rows sit under their own heading, which says it once.
@@ -107,29 +105,6 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
 )
 
 /**
- * Same shape for agents, over the roster query the Agents screen already reads — so opening the
- * group costs nothing once that screen has run. Children land on mobile's own agent overview.
- */
-const mobileAgentsEntity = defineSidebarEntity(MOBILE_NAV_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
-    kind: "app",
-    icon: createElement(RobotIcon, {size: 14}),
-    // Per row: this agent's own glyph, falling back to the shared one.
-    getIcon: (workflow) =>
-        createElement(AgentGlyph, {
-            workflowId: workflow.id,
-            size: 14,
-            fallback: createElement(RobotIcon, {size: 14}),
-        }),
-    listAtom: agentWorkflowsListQueryStateAtom,
-    getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
-    childPath: (workflow) => `/agents/${workflow.id}`,
-    // The same zone the desktop rail writes: one arrangement, both hosts.
-    dragZone: SIDEBAR_AGENT_ORDER_ZONE,
-    emptyLabel: "No agents",
-    showAllPath: "/agents",
-})
-
-/**
  * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
  * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
  * forking a component.
@@ -142,14 +117,6 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     // call changes identity on every render — which busts the memo below, re-buckets every row,
     // and hands `NavMenu` a new items array that defeats its own memo.
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
-    // Busiest agent first, by session count — stable session to session (frozen per page load),
-    // where recency reshuffled on every turn. Agents with no session keep catalog order below.
-    const rawAgentsSource = useAtomValue(mobileAgentsEntity.activeSourceAtom)
-    const agentRanks = useAtomValue(sidebarAgentRanksAtomFamily(MOBILE_NAV_SCOPE_ID))
-    const agentsSource = useMemo(
-        () => withRefsByRecency(rawAgentsSource, (ref) => agentRanks.get(ref.id)),
-        [agentRanks, rawAgentsSource],
-    )
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
     const chrome = useSessionRowChrome(useSessionActions())
     const wrapSessionRow = useCallback(
@@ -175,11 +142,13 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 title: "Agents",
                 icon: createElement(RobotIcon, {size: 16}),
                 link: `${projectURL}/agents`,
-                // Collapsed rail: navigate to the section instead of flyout-ing the list, the
-                // same call the desktop rail makes. The icon's obvious meaning is "take me
-                // there", and a long popover is a list to read rather than a menu to pick from.
-                hideChildrenWhenCollapsed: true,
-                submenu: resolveChildren(mobileAgentsEntity, agentsSource, projectURL),
+            },
+            // After Agents: an automation is something an agent has, and Skills is what it uses.
+            {
+                key: "automations",
+                title: "Automations",
+                icon: createElement(LightningIcon, {size: 16}),
+                link: `${projectURL}/automations`,
             },
             {
                 key: SKILLS_SIDEBAR_KEY,
@@ -224,7 +193,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                   ]
                 : []),
         ],
-        [agentsSource, loadMoreSessions, source, projectURL, wrapSessionRow],
+        [loadMoreSessions, source, projectURL, wrapSessionRow],
     )
 }
 
@@ -241,13 +210,11 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
-): SidebarConfig[] => {
-    const version = useAtomValue(versionAtom)
-
-    return useMemo(
-        () => [
+): SidebarConfig[] =>
+    useMemo(
+        () =>
             // The settings scope drops it: the rail IS settings there, as on the desktop.
-            ...(includeSettingsLink
+            includeSettingsLink
                 ? [
                       {
                           key: "mobile-settings",
@@ -256,24 +223,42 @@ export const useMobileBottomNavItems = (
                           link: `${projectURL}/settings`,
                       },
                   ]
-                : []),
+                : [],
+        [includeSettingsLink, projectURL],
+    )
+
+/**
+ * Help & Docs as an item the rail renders as an icon button beside the project switcher, the
+ * same place the desktop rail puts it. It is a menu you reach for, not a place in the product,
+ * and the row it held was the widest thing in the rail's footer.
+ */
+export const useMobileHelpItem = ({
+    onOpenShortcuts,
+}: {onOpenShortcuts?: () => void} = {}): SidebarConfig => {
+    const version = useAtomValue(versionAtom)
+
+    return useMemo(
+        () =>
             buildHelpDocsNavItem({
                 icons: {
                     help: createElement(QuestionIcon, {size: 16}),
                     docs: createElement(ScrollIcon, {size: 14}),
                     github: createElement(GithubLogoIcon, {size: 14}),
                     slack: createElement(SlackLogoIcon, {size: 14}),
-                    bookCall: createElement(PhoneIcon, {size: 14}),
                 },
-                suffix: version
-                    ? createElement(
-                          "span",
-                          {className: "text-[10px] leading-none text-colorTextTertiary"},
-                          `v${version}`,
-                      )
-                    : undefined,
+                extraItems: [
+                    {
+                        key: "keyboard-shortcuts",
+                        title: "Keyboard shortcuts",
+                        icon: createElement(KeyboardIcon, {size: 14}),
+                        isHidden: !onOpenShortcuts,
+                        onClick: () => onOpenShortcuts?.(),
+                        // The rule between the destinations and the release list.
+                        divider: true,
+                    },
+                    ...buildReleaseNavItems(version),
+                ],
             }),
-        ],
-        [includeSettingsLink, projectURL, version],
+        [onOpenShortcuts, version],
     )
 }

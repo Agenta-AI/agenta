@@ -12,7 +12,6 @@ import {
 const baseAccess: SettingsAccess = {
     billingEnabled: true,
     canShowTools: true,
-    canShowTriggers: true,
     canViewApiKeys: true,
     canViewEvents: true,
     isEE: true,
@@ -50,11 +49,8 @@ describe("resolveSettingsTab", () => {
         )
     })
 
-    it("gates tools and triggers independently", () => {
+    it("gates tools", () => {
         expect(resolveSettingsTab("tools", {...baseAccess, canShowTools: false})).toBe("workspace")
-        expect(resolveSettingsTab("triggers", {...baseAccess, canShowTriggers: false})).toBe(
-            "workspace",
-        )
     })
 
     it("keeps personal preferences available in OSS", () => {
@@ -100,14 +96,7 @@ describe("settings sidebar scopes", () => {
         const keysForScope = (scope: (typeof SETTINGS_SCOPES)[number]["key"]) =>
             tabs.filter((tab) => tab.scope === scope).map(({key}) => key)
 
-        expect(keysForScope("project")).toEqual([
-            "apiKeys",
-            "secrets",
-            "llms",
-            "tools",
-            "triggers",
-            "webhooks",
-        ])
+        expect(keysForScope("project")).toEqual(["apiKeys", "secrets", "llms", "tools", "webhooks"])
         expect(keysForScope("organization")).toEqual([
             "organizationGeneral",
             "workspace",

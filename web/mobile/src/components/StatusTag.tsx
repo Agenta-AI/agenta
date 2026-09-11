@@ -2,18 +2,23 @@ import type {ReactNode} from "react"
 
 import {cn} from "@/lib/utils"
 
-export type StatusTone = "running" | "live" | "attention" | "muted"
+export type StatusTone = "running" | "live" | "attention" | "failed" | "muted"
 
 /**
- * Three distinct states, distinguishable without reading the label: the accent means "act on
- * this", success means "healthy and warm", muted means "nothing is happening here". `live` and
- * `muted` must never collapse to the same treatment — a warm session and an ended one are
- * opposites, and rendering both as the same grey pill is what made "live" read as inert.
+ * Distinct states, distinguishable without reading the label: the accent means "act on this",
+ * success means "healthy and warm", muted means "nothing is happening here". `live` and `muted`
+ * must never collapse to the same treatment — a warm session and an ended one are opposites, and
+ * rendering both as the same grey pill is what made "live" read as inert.
+ *
+ * `failed` is the one tone that means something went wrong. It is separate from `attention`
+ * because the accent asks for a look while red reports a fault, and an automation that stopped
+ * failing should visibly stop being red.
  */
 const TONES: Record<StatusTone, string> = {
     running: "border-primary/40 text-primary bg-primary/10",
     live: "border-success/40 text-success bg-success/10",
     attention: "border-primary/40 text-primary bg-primary/10",
+    failed: "border-destructive/40 text-destructive bg-destructive/10",
     muted: "border-border text-muted-foreground bg-muted/40",
 }
 

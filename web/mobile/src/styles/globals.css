@@ -33,6 +33,7 @@
    wrong" — one line per package is the cheap insurance. */
 @source "../../node_modules/@agenta/ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/entity-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/automation-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/playground-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/playground/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/chat/src/**/*.{ts,tsx}";
@@ -266,6 +267,9 @@
     --animate-skeleton: skeleton 1.4s ease infinite;
     --animate-spin-move: spin-move 1s linear infinite alternate;
     --animate-config-shimmer: config-shimmer 1.8s ease-in-out 2 forwards;
+    /* Home's create-mode ring. The component lives in @agenta/home-ui, which ships no CSS. */
+    --animate-composer-ring: composer-ring-spin 3s linear infinite;
+    --animate-composer-ring-in: composer-ring-in 0.25s ease-out both;
 }
 
 @keyframes overlay-in {
@@ -441,5 +445,30 @@
         @apply text-foreground;
         /* The rail's surface: iOS paints its status-bar strip from this, above the drawer. */
         background: var(--ag-sidebar-bg);
+    }
+}
+
+@keyframes composer-ring-spin {
+    from {
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
+@keyframes composer-ring-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* The ring still appears — it just stops turning. */
+@media (prefers-reduced-motion: reduce) {
+    .animate-composer-ring {
+        animation: none;
+        transform: translate(-50%, -50%);
     }
 }
