@@ -21,6 +21,11 @@ export {
 } from "./AgentPicker"
 export {NextTriggersSection, type NextTriggersSectionProps} from "./NextTriggersSection"
 export {
+    useUpcomingTriggers,
+    type UpcomingTrigger,
+    type UseUpcomingTriggersArgs,
+} from "./useUpcomingTriggers"
+export {
     AgentConfigSummaryCard,
     type AgentConfigSummaryCardProps,
     type AgentConfigSummaryCopy,
