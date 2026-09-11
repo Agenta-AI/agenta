@@ -1,6 +1,5 @@
+import {Button} from "@agenta/ui/ui"
 import {Funnel, MagnifyingGlass} from "@phosphor-icons/react"
-
-import {Button} from "@/components/ui/button"
 
 /**
  * The project has agents, but none the reader asked for.

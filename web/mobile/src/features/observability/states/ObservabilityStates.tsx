@@ -1,6 +1,6 @@
+import {Button} from "@agenta/ui/ui"
 import {Activity, RefreshCw, TriangleAlert} from "lucide-react"
 
-import {Button} from "@/components/ui/button"
 import {Skeleton} from "@/components/ui/skeleton"
 
 /**

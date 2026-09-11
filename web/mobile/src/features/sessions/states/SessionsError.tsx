@@ -1,6 +1,5 @@
+import {Button} from "@agenta/ui/ui"
 import {RefreshCw, TriangleAlert} from "lucide-react"
-
-import {Button} from "@/components/ui/button"
 
 /**
  * The list failed to load.

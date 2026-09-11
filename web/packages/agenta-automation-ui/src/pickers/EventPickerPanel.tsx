@@ -331,13 +331,7 @@ export const EventPickerPanel = ({
                     ) : (
                         <span className="flex-1" />
                     )}
-                    <Button
-                        type="button"
-                        size="sm"
-                        className="text-xs font-normal"
-                        disabled={!ready || saving}
-                        onClick={() => void onDone()}
-                    >
+                    <Button type="button" disabled={!ready || saving} onClick={() => void onDone()}>
                         Done
                     </Button>
                 </div>

@@ -4,6 +4,7 @@ import {type Automation, useAutomation} from "@agenta/automation-ui"
 import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
 import {message} from "@agenta/ui/app-message"
 import {
+    Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -12,8 +13,6 @@ import {
 } from "@agenta/ui/ui"
 import {ClockCounterClockwise, DotsThreeVertical, Pause, Play, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
-
-import {Button} from "@/components/ui/button"
 
 import {useStartBlankSession} from "../chat/useStartBlankSession"
 import {useConfirmModal} from "../settings/useConfirmModal"

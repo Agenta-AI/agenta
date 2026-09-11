@@ -2,9 +2,8 @@ import {useMemo} from "react"
 
 import type {Automation} from "@agenta/automation-ui"
 import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
+import {Button} from "@agenta/ui/ui"
 import {Play} from "@phosphor-icons/react"
-
-import {Button} from "@/components/ui/button"
 
 import {useStartBlankSession} from "../chat/useStartBlankSession"
 

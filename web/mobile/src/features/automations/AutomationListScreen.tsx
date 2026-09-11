@@ -22,13 +22,13 @@ import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, ListTableToolbar, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
 import {ClockClockwise, Lightning, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {Button} from "@/components/ui/button"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -335,12 +335,12 @@ export const AutomationListScreen = ({
                                     Automations
                                 </h1>
                                 <Button
-                                    size="sm"
                                     aria-label="New automation"
-                                    className="text-xs font-normal"
+                                    // Square icon button on a phone, where the label is hidden.
+                                    className="max-sm:size-8 max-sm:px-0"
                                     onClick={() => void router.push(`${base}/automations/new`)}
                                 >
-                                    <Plus className="size-3" />
+                                    <Plus />
                                     {/* The label costs more than it earns at phone width: it
                                         pushed the page's own title into an ellipsis. */}
                                     <span className="hidden sm:inline">New automation</span>
