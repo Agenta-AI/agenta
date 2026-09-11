@@ -10,7 +10,7 @@ import {
     type SessionMenuEntry,
 } from "@agenta/sessions-ui"
 import {timeAgo} from "@agenta/shared/utils"
-import {PencilSimple, PushPin} from "@phosphor-icons/react"
+import {ChatCircle, Lightning, PencilSimple, PushPin} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
 
@@ -41,19 +41,45 @@ const RowActionButton = ({
     </button>
 )
 
-/** Filled while something is happening, a hollow ring when not. The word is in the tooltip. */
+/** The Status column's dot: filled while something is happening, a hollow ring when not. */
 const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
     const live = status.status === "waiting" || status.status === "running"
     return (
         <span
-            role="img"
-            aria-label={status.label}
-            title={status.label}
+            aria-hidden
             className={cn(
                 "box-border size-[7px] shrink-0 rounded-full border-[1.5px] border-solid",
                 live ? `${status.dotClassName} border-transparent` : "border-colorBorder",
             )}
         />
+    )
+}
+
+/**
+ * The row's mark: what KIND of session, with its status on the shoulder. The glyph is the pair
+ * the Type facet offers. The dot is solid in every state (a hollow ring would be a ring inside a
+ * ring at this size), takes the Status column's hue, pulses while live, and wears a page-colour
+ * ring so it sits ON the glyph rather than in it.
+ */
+const KindIcon = ({vm}: {vm: SessionRowVm}) => {
+    const Glyph = vm.isAutomation ? Lightning : ChatCircle
+    return (
+        <span
+            role="img"
+            aria-label={`${vm.isAutomation ? "Automation run" : "Chat session"}, ${vm.status.label}`}
+            title={vm.status.label}
+            className="relative flex shrink-0 text-muted-foreground"
+        >
+            <Glyph size={15} aria-hidden />
+            <span
+                aria-hidden
+                className={cn(
+                    "absolute -right-1 -top-1 box-border size-[9px] rounded-full border-2 border-solid border-background",
+                    vm.status.dotClassName,
+                    vm.status.pulse && "motion-safe:animate-pulse",
+                )}
+            />
+        </span>
     )
 }
 
@@ -104,8 +130,7 @@ export const SessionRowCells = ({
     return (
         <>
             <span className={cn("flex min-w-0 items-center gap-2", archived && FADED)}>
-                {/* Only on a phone, where no Status column carries it. */}
-                {narrow ? <StatusDot status={vm.status} /> : null}
+                <KindIcon vm={vm} />
                 {rename.renaming ? (
                     <span className="min-w-0 flex-1" onClick={swallow}>
                         {/* Preflight is off, so the border and font are stated. `focus`, not
