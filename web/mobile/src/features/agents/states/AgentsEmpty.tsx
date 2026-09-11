@@ -1,4 +1,5 @@
-import {Robot} from "@phosphor-icons/react"
+import {Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from "@agenta/ui/ui"
+import {Bot} from "lucide-react"
 
 /**
  * No agents at all.
@@ -11,14 +12,16 @@ import {Robot} from "@phosphor-icons/react"
  * two rows below the first is not a shorter path.
  */
 export const AgentsEmpty = () => (
-    <div className="flex flex-col items-center justify-center gap-2.5 px-8 py-16 text-center">
-        <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-muted">
-            <Robot aria-hidden size={19} className="text-muted-foreground" />
-        </span>
-        <p className="m-0 text-[14px] font-medium text-foreground">No agents yet</p>
-        <p className="m-0 max-w-[42ch] text-[13px] leading-snug text-muted-foreground">
-            An agent is something you can chat with and hand work to. Create one from the button
-            above, blank or from a template.
-        </p>
-    </div>
+    <Empty className="py-16">
+        <EmptyHeader>
+            <EmptyMedia variant="icon">
+                <Bot />
+            </EmptyMedia>
+            <EmptyTitle>No agents yet</EmptyTitle>
+            <EmptyDescription>
+                An agent is something you can chat with and hand work to. Create one from the button
+                above, blank or from a template.
+            </EmptyDescription>
+        </EmptyHeader>
+    </Empty>
 )

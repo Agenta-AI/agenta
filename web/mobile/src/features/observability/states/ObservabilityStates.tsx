@@ -1,4 +1,12 @@
-import {Button} from "@agenta/ui/ui"
+import {
+    Button,
+    Empty,
+    EmptyContent,
+    EmptyDescription,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+} from "@agenta/ui/ui"
 import {Activity, RefreshCw, TriangleAlert} from "lucide-react"
 
 import {Skeleton} from "@/components/ui/skeleton"
@@ -32,24 +40,32 @@ export const ObservabilityEmpty = ({
     title?: string
     hint?: string
 }) => (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
-        <Activity className="size-6 text-muted-foreground" />
-        <p className="m-0 text-sm font-medium text-foreground">{title}</p>
-        <p className="m-0 text-xs text-muted-foreground">{hint}</p>
-    </div>
+    <Empty className="py-16">
+        <EmptyHeader>
+            <EmptyMedia variant="icon">
+                <Activity />
+            </EmptyMedia>
+            <EmptyTitle>{title}</EmptyTitle>
+            <EmptyDescription>{hint}</EmptyDescription>
+        </EmptyHeader>
+    </Empty>
 )
 
 export const ObservabilityFiltered = ({onClear}: {onClear: () => void}) => (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-        <Activity className="size-6 text-muted-foreground" />
-        <p className="m-0 text-sm font-medium text-foreground">Nothing matches these filters</p>
-        <p className="m-0 text-xs text-muted-foreground">
-            Try a wider time range, or clear the filters.
-        </p>
-        <Button variant="outline" size="sm" onClick={onClear}>
-            Clear filters
-        </Button>
-    </div>
+    <Empty className="py-16">
+        <EmptyHeader>
+            <EmptyMedia variant="icon">
+                <Activity />
+            </EmptyMedia>
+            <EmptyTitle>Nothing matches these filters</EmptyTitle>
+            <EmptyDescription>Try a wider time range, or clear the filters.</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+            <Button variant="outline" size="sm" onClick={onClear}>
+                Clear filters
+            </Button>
+        </EmptyContent>
+    </Empty>
 )
 
 export const ObservabilityError = ({
