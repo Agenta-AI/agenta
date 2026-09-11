@@ -443,7 +443,7 @@ export const AgentPicker = ({
                     )}
                 </div>
 
-                {onCreateAgent && !createFirst ? (
+                {onCreateAgent ? (
                     // Its own footer padding rather than a rule: the plus and the shorter row
                     // already say this is an action, and a hairline over it read as a seam. The
                     // top padding is the separation the rule used to provide.

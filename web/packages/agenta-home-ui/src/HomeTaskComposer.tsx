@@ -10,7 +10,7 @@ import {useVoiceComposer, type useComposerAttachments} from "@agenta/chat/hooks"
 import {AgentPicker} from "@agenta/entity-ui/agent"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
-import {RobotIcon, XIcon} from "@phosphor-icons/react"
+import {XIcon} from "@phosphor-icons/react"
 
 /** What the composer is for right now: running a task, or describing an agent to create. */
 export type HomeComposerMode = "task" | "create"
@@ -166,28 +166,24 @@ export const HomeTaskComposer = ({
             onClear={onClear}
             clearLabel="Clear this template"
         />
-    ) : creating ? (
-        <DockLabel
-            tile={
-                <span className="flex size-5 shrink-0 items-center justify-center rounded-control-sm bg-colorFillSecondary text-muted-foreground">
-                    <RobotIcon aria-hidden size={13} />
-                </span>
-            }
-            name="New agent"
-        />
-    ) : fixedAgentId || !effectiveAgentId ? null : (
+    ) : fixedAgentId ? null : (
         // The app's one AgentPicker, not a label. A name that only READ as text gave no sign it
         // could change, and the change lived in a list a screen's height away — people clicked the
         // name, found nothing, and assumed a bug. Creating is the picker's own footer row rather
         // than an ✕ on the chip: a close control that quietly opened a new mode was a second hidden
         // affordance.
+        //
+        // The same picker while CREATING, with nothing bound: "New agent" is a state you can leave
+        // by choosing an agent, and a dock that stopped being a dropdown there made it look like
+        // the only way out was the list below.
         <AgentPicker
             trigger="pill"
             density="compact"
-            value={effectiveAgentId}
+            value={creating ? null : effectiveAgentId}
+            placeholder="New agent"
             onChange={(id) => onAgentChange?.(id)}
             disabled={!onAgentChange}
-            onCreateAgent={onClear}
+            onCreateAgent={creating ? undefined : onClear}
             triggerAriaLabel="Agent"
             // The dock is already a surface; a filled pill on it is a box within a box.
             triggerClassName="bg-transparent px-1 text-[12px] font-normal hover:bg-accent"
