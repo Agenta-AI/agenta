@@ -62,7 +62,7 @@ export const surface = {
     container: {light: "#ffffff", dark: "#141414"}, // [absorbs] --ag-c-FFFFFF, the #141414 literals
     elevated: {light: "#ffffff", dark: "#242424"}, // [override] [absorbs] 25+ light surfaces → one dark
     layout: {light: GROUND, dark: "#000000"}, // the warm page ground behind white cards
-    spotlight: {light: "rgba(36, 36, 36, 0.9)", dark: "#424242"},
+    spotlight: {light: "#242424", dark: "#424242"},
     mask: {light: "rgba(36, 36, 36, 0.45)", dark: "rgba(0, 0, 0, 0.45)"},
     containerDisabled: {light: "rgba(36, 36, 36, 0.04)", dark: "rgba(255, 255, 255, 0.08)"},
     infoBg: {light: "#e5f1f9", dark: "#111a2c"}, // antd's colorInfoBg (unified with antd render)
