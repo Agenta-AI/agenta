@@ -10,7 +10,7 @@ import {
     type SessionMenuEntry,
 } from "@agenta/sessions-ui"
 import {timeAgo} from "@agenta/shared/utils"
-import {ChatCircle, Lightning, PencilSimple, PushPin} from "@phosphor-icons/react"
+import {PencilSimple, PushPin} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
 
@@ -40,25 +40,6 @@ const RowActionButton = ({
         {children}
     </button>
 )
-
-/**
- * What KIND of row this is, the same two marks the Type facet offers: a chat you started, or a run
- * an automation started. Two lists in one column read as one long list without it.
- */
-const KindIcon = ({automation}: {automation: boolean}) =>
-    automation ? (
-        <Lightning
-            size={15}
-            className="shrink-0 text-muted-foreground"
-            aria-label="Automation run"
-        />
-    ) : (
-        <ChatCircle
-            size={15}
-            className="shrink-0 text-muted-foreground"
-            aria-label="Chat session"
-        />
-    )
 
 /** Filled while something is happening, a hollow ring when not. The word is in the tooltip. */
 const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
@@ -123,13 +104,8 @@ export const SessionRowCells = ({
     return (
         <>
             <span className={cn("flex min-w-0 items-center gap-2", archived && FADED)}>
-                {/* The cell leads with a mark either way: the kind where a Status column carries
-                    the status, the status dot on a phone where nothing else does. */}
-                {narrow ? (
-                    <StatusDot status={vm.status} />
-                ) : (
-                    <KindIcon automation={vm.isAutomation} />
-                )}
+                {/* Only on a phone, where no Status column carries it. */}
+                {narrow ? <StatusDot status={vm.status} /> : null}
                 {rename.renaming ? (
                     <span className="min-w-0 flex-1" onClick={swallow}>
                         {/* Preflight is off, so the border and font are stated. `focus`, not
