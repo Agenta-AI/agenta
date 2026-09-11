@@ -37,7 +37,8 @@
     // worker-served responses, so everything else (images, fonts, favicons,
     // /openapi.json, /llms.txt, /sitemap-*.xml, and the four 308s in
     // public/_redirects) must stay on the plain asset path. The two "!" rules
-    // keep blog/author IMAGES (one level deeper) on that path too.
+    // keep blog/author IMAGES (one level deeper) on that path too. /media/* is
+    // deliberately routed through the worker so it can read the R2 binding.
     "run_worker_first": [
       "/",
       "/api",

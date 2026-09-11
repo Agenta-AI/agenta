@@ -14,9 +14,11 @@
 //      negotiation — everything else (images, fonts, /openapi.json, the four
 //      308s in public/_redirects) keeps the plain asset path. Responses this
 //      worker returns re-apply the `/*` policy from negotiate.ts `HEADERS`.
-//      Unknown paths reach this worker because `not_found_handling` is "none";
-//      with "404-page" the asset server would answer them itself and no agent
-//      could ever get a markdown or JSON 404.
+//      The R2-backed /media/* path also runs through this worker so article media
+//      stays first-party and receives immutable cache headers. Unknown paths reach
+//      this worker because `not_found_handling` is "none"; with "404-page" the
+//      asset server would answer them itself and no agent could ever get a markdown
+//      or JSON 404.
 //   2. Cloudflare's CDN ignores Vary values other than Accept-Encoding, so the
 //      markdown representation is marked private so a shared cache can never
 //      hand a markdown body to a browser.
