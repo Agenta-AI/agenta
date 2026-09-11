@@ -3,23 +3,12 @@ import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import {X} from "lucide-react"
 
+import {Button} from "./button"
 import {cn} from "./utils"
 
 /**
- * Dialog — a Radix primitive in @agenta/ui, following shadcn's source conventions (no
- * `forwardRef`, `data-slot` on every part). Re-skinned to antd's `Modal`.
- *
- * antd → @agenta/ui mapping:
- *   <Modal open onCancel title footer width>
- *     → <Dialog open onOpenChange><DialogTrigger/><DialogContent>
- *         <DialogHeader><DialogTitle/><DialogDescription/></DialogHeader>
- *         …body… <DialogFooter/></DialogContent></Dialog>
- *   open→open · onCancel→onOpenChange(false) · title→DialogTitle · footer→DialogFooter ·
- *   getContainer→container (on DialogContent) · closable→showCloseButton.
- *
- * Chrome measured against antd Modal (light + dark): content bg colorBgElevated,
- * borderless, radius borderRadiusLG, contentPadding, shadow boxShadow (shadow-dialog),
- * default width 520px, centered. Mask = colorBgMask covering the viewport.
+ * Dialog — the shadcn dialog on Radix, styled through the token bridge.
+ * antd Modal mapping: onCancel→onOpenChange(false), getContainer→container, closable→showCloseButton.
  */
 
 function Dialog(props: React.ComponentProps<typeof DialogPrimitive.Root>) {
@@ -46,8 +35,8 @@ function DialogOverlay({
         <DialogPrimitive.Overlay
             data-slot="dialog-overlay"
             className={cn(
-                // antd mask = colorBgMask over the whole viewport; fades in/out.
-                "fixed inset-0 z-50 bg-colorBgMask",
+                // 10% black mask with a light blur where supported.
+                "fixed inset-0 isolate z-50 bg-black/10 supports-[backdrop-filter]:backdrop-blur-[4px]",
                 "data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
                 className,
             )}
@@ -64,44 +53,31 @@ function DialogContent({
     closeIcon,
     ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
-    /** Portal target. Defaults to document.body; pass an element to render inline (e.g. a
-     * scroll container, or a forced-open parity story). */
+    /** Portal target; defaults to document.body. */
     container?: HTMLElement | null
-    /** antd `closable`. Renders the top-right close X. */
+    /** Renders the top-right close X. */
     showCloseButton?: boolean
-    /** antd `closeIcon`. Overrides the default X (e.g. a caller-owned icon carrying its own
-     * `data-tour`/test attributes) — falls back to the default X when omitted. */
+    /** Replaces the default X icon. */
     closeIcon?: React.ReactNode
 }) {
     return (
         <DialogPortal container={container}>
             <DialogOverlay />
-            {/* Center via a flex positioner, NOT a transform on the content: the scale-only
-                animate-dialog-in/out keyframes set `transform`, which replaces any static
-                transform — so a `-translate-*` centering offset would be dropped mid-zoom and
-                the modal would jump. pointer-events-none lets clicks fall through to the mask. */}
+            {/* Flex-centred, not transform-centred: the zoom keyframes would overwrite a translate. */}
             <div
                 data-slot="dialog-positioner"
-                className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+                // p-4 keeps a phone-width modal off the viewport edges.
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
             >
                 <DialogPrimitive.Content
                     data-slot="dialog-content"
                     className={cn(
-                        // font-portal: portals to <body>, escaping the app font scope (preflight off).
-                        // box-border: preflight off, so padding must sit inside the width.
-                        // antd Modal content is borderless, radius borderRadiusLG, bg colorBgElevated,
-                        // shadow boxShadow (shadow-dialog). Centered by the positioner above.
-                        "relative pointer-events-auto",
-                        // gap-3 (12px): antd's rendered section rhythm is title→body 12px and
-                        // body→footer 12px (its box is 132px). antd's `.ant-modal-header`
-                        // margin-bottom is a literal 8px, but its block layout renders a 12px
-                        // header→body gap; matching the rendered 12px both places keeps parity.
-                        "box-border flex flex-col gap-3 w-full max-w-[520px]",
-                        // radius 16px = the app's EnhancedModal (`style={{borderRadius:16}}`), NOT
-                        // antd's raw borderRadiusLG (10px). Candidate token: control-xl.
-                        "bg-colorBgElevated text-colorText shadow-dialog rounded-[16px] font-portal",
-                        // antd contentPadding: 20px vertical, 24px horizontal.
-                        "py-5 px-6",
+                        // font-portal: portalled to <body>, outside the app font scope (preflight off).
+                        "relative pointer-events-auto font-portal",
+                        "box-border flex max-h-full w-full max-w-[520px] flex-col gap-4 overflow-y-auto",
+                        // Hairline ring instead of a shadow; color-mix because v3 can't alpha a var() colour.
+                        "rounded-xl bg-popover p-4 text-sm text-popover-foreground outline-none",
+                        "ring-1 ring-[color:color-mix(in_srgb,var(--ag-colorText)_10%,transparent)]",
                         "data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out",
                         className,
                     )}
@@ -109,21 +85,15 @@ function DialogContent({
                 >
                     {children}
                     {showCloseButton && (
-                        <DialogPrimitive.Close
-                            data-slot="dialog-close-x"
-                            className={cn(
-                                // Native <button> under preflight-off: reset bg/font/padding.
-                                // antd close: 28px square, offset 13px, radius 6px, colorIcon.
-                                "absolute right-[13px] top-[13px] box-border p-0 bg-transparent border-0 font-[inherit]",
-                                "flex size-7 items-center justify-center rounded-control-sm",
-                                "text-colorIcon cursor-pointer outline-none transition-colors",
-                                "hover:bg-fill-quaternary hover:text-colorIconHover",
-                                "focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-[-3px] focus-visible:outline-focus-ring",
-                            )}
-                            aria-label="Close"
-                        >
-                            {/* antd close icon is 14px; size via class, not the lucide size prop. */}
-                            {closeIcon ?? <X className="size-3.5" />}
+                        <DialogPrimitive.Close data-slot="dialog-close-x" asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="absolute right-2 top-2"
+                                aria-label="Close"
+                            >
+                                {closeIcon ?? <X />}
+                            </Button>
                         </DialogPrimitive.Close>
                     )}
                 </DialogPrimitive.Content>
@@ -142,15 +112,35 @@ function DialogHeader({className, ...props}: React.ComponentProps<"div">) {
     )
 }
 
-function DialogFooter({className, ...props}: React.ComponentProps<"div">) {
+function DialogFooter({
+    className,
+    showCloseButton = false,
+    children,
+    ...props
+}: React.ComponentProps<"div"> & {
+    /** Appends an outline "Close" button that dismisses the dialog. */
+    showCloseButton?: boolean
+}) {
     return (
         <div
             data-slot="dialog-footer"
-            // antd footer: buttons right-aligned; the 12px gap above comes from the content's
-            // gap-3. gap-2 here is the horizontal spacing between the footer buttons.
-            className={cn("flex flex-row items-center justify-end gap-2", className)}
+            // Full-bleed muted band (-m undoes the content's p-4); stacked on a phone, a row from sm.
+            // border-0 first: preflight is off, so `border-solid` alone would paint every side.
+            className={cn(
+                "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl p-4 sm:flex-row sm:justify-end",
+                "border-0 border-t border-solid border-border",
+                "bg-[color:color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent)]",
+                className,
+            )}
             {...props}
-        />
+        >
+            {children}
+            {showCloseButton && (
+                <DialogPrimitive.Close asChild>
+                    <Button variant="outline">Close</Button>
+                </DialogPrimitive.Close>
+            )}
+        </div>
     )
 }
 
@@ -158,9 +148,8 @@ function DialogTitle({className, ...props}: React.ComponentProps<typeof DialogPr
     return (
         <DialogPrimitive.Title
             data-slot="dialog-title"
-            // antd `.ant-modal-title`: 16px/20px, weight 600, colorTextHeading. m-0 resets the
-            // UA <h2> margin (preflight off) so section spacing comes only from the layout gap.
-            className={cn("m-0 text-base font-semibold leading-5 text-colorTextHeading", className)}
+            // m-0 resets the UA <h2> margin (preflight off).
+            className={cn("m-0 text-base font-medium leading-none", className)}
             {...props}
         />
     )
@@ -173,8 +162,11 @@ function DialogDescription({
     return (
         <DialogPrimitive.Description
             data-slot="dialog-description"
-            // antd `.ant-modal-body`: 12px/20px colorText. m-0 resets the UA <p> margin.
-            className={cn("m-0 text-field-md text-colorText", className)}
+            // m-0 resets the UA <p> margin (preflight off).
+            className={cn(
+                "m-0 text-sm text-muted-foreground [&_a]:underline [&_a]:underline-offset-[3px] [&_a:hover]:text-foreground",
+                className,
+            )}
             {...props}
         />
     )
