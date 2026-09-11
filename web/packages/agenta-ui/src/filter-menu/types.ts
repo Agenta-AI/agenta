@@ -24,6 +24,8 @@ export interface FilterMenuOption<Value extends string = string> {
 }
 
 export interface FilterMenuSection<Value extends string = string> {
+    /** Absent on an option row; the discriminant that tells it from a toggle. */
+    kind?: "options"
     /** Stable identity for the row — also the React key. */
     key: string
     label: string
@@ -42,6 +44,33 @@ export interface FilterMenuSection<Value extends string = string> {
     /** What the flyout says when `options` is empty. */
     emptyText?: string
 }
+
+/**
+ * A yes/no row: icon, label, and a switch on the right. No flyout — the row IS the control.
+ *
+ * For the facet that is not a choice among sets but a lens over one — "only archived" — where an
+ * option list would offer two entries to say one bit.
+ */
+export interface FilterMenuToggle {
+    kind: "toggle"
+    /** Stable identity for the row — also the React key. */
+    key: string
+    label: string
+    icon?: ReactNode
+    checked: boolean
+    onChange: (checked: boolean) => void
+    disabled?: boolean
+    /** Defaults to `"filter"`. */
+    block?: FilterMenuBlock
+}
+
+/** What the panel takes: an option row or a toggle row, in display order. */
+export type FilterMenuItem<Value extends string = string> =
+    | FilterMenuSection<Value>
+    | FilterMenuToggle
+
+export const isFilterMenuToggle = (item: FilterMenuItem): item is FilterMenuToggle =>
+    "kind" in item && item.kind === "toggle"
 
 export interface FilterMenuTriggerProps {
     /**

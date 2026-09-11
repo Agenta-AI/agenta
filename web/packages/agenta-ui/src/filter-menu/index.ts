@@ -12,10 +12,14 @@ export {FilterMenuOptionList} from "./FilterMenuOptionList"
 export type {
     FilterMenuAlign,
     FilterMenuBlock,
+    FilterMenuItem,
     FilterMenuOption,
     FilterMenuPlacementProps,
     FilterMenuSection,
     FilterMenuSide,
+    FilterMenuToggle,
     FilterMenuTriggerProps,
 } from "./types"
+export {isFilterMenuToggle} from "./types"
+export {FilterMenuToggleRow} from "./FilterMenuToggleRow"
 export {useFilterMenuView} from "./useFilterMenuView"

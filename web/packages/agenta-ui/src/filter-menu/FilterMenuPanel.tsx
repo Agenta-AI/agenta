@@ -7,7 +7,8 @@ import {useMediaQuery} from "../hooks/useMediaQuery"
 
 import {FilterMenuOptionList} from "./FilterMenuOptionList"
 import {FilterMenuRow, selectedValues, summaryLabel} from "./FilterMenuRow"
-import type {FilterMenuPlacementProps, FilterMenuSection} from "./types"
+import {FilterMenuToggleRow} from "./FilterMenuToggleRow"
+import {isFilterMenuToggle, type FilterMenuItem, type FilterMenuPlacementProps} from "./types"
 
 /**
  * Under this width the panel drills in rather than fanning out. 640 is the point where a 188px
@@ -79,7 +80,7 @@ export const FilterMenuPanel = ({
     flyoutSideOffset,
     className,
 }: {
-    sections: FilterMenuSection[]
+    sections: FilterMenuItem[]
     searchable?: boolean
     searchPlaceholder?: string
     /** Seeds the search field — a story or a restored view can land on a narrowed panel. */
@@ -104,9 +105,17 @@ export const FilterMenuPanel = ({
 
     // Search matches a row by its own label OR by any option's — typing "chat" should surface
     // Type, not hide it because the word never appears in the word "Type".
+    // A toggle has no options, so it matches by its label alone.
     const matched = useMemo(() => {
         const term = query.trim().toLowerCase()
         return sections.map((section) => {
+            if (isFilterMenuToggle(section)) {
+                return {
+                    section,
+                    options: [],
+                    visible: !term || section.label.toLowerCase().includes(term),
+                }
+            }
             if (!term) return {section, options: section.options, visible: true}
             const rowHit = section.label.toLowerCase().includes(term)
             const options = section.options.filter((option) =>
@@ -121,7 +130,13 @@ export const FilterMenuPanel = ({
     }, [query, sections])
 
     const visible = matched.filter((entry) => entry.visible)
-    const drilled = drilldown ? (matched.find((e) => e.section.key === drillKey) ?? null) : null
+    const drilledEntry = drilldown
+        ? (matched.find((e) => e.section.key === drillKey) ?? null)
+        : null
+    const drilled =
+        drilledEntry && !isFilterMenuToggle(drilledEntry.section)
+            ? {section: drilledEntry.section, options: drilledEntry.options}
+            : null
     const blocks: {key: string; entries: typeof visible}[] = [
         {key: "filter", entries: visible.filter((e) => (e.section.block ?? "filter") === "filter")},
         {key: "sort", entries: visible.filter((e) => e.section.block === "sort")},
@@ -190,7 +205,10 @@ export const FilterMenuPanel = ({
         } else if (event.key === "ArrowUp") {
             event.preventDefault()
             focusRow(order[(index - 1 + order.length) % order.length])
-        } else if (event.key === "ArrowRight" || event.key === "Enter" || event.key === " ") {
+        } else if (
+            (event.key === "ArrowRight" || event.key === "Enter" || event.key === " ") &&
+            !isFilterMenuToggle(sections.find((s) => s.key === key) ?? sections[0])
+        ) {
             event.preventDefault()
             cancelClose()
             setOpenedByKeyboard(true)
@@ -291,40 +309,55 @@ export const FilterMenuPanel = ({
                         // in a list that has none.
                         className="flex flex-col gap-px p-1 pt-0"
                     >
-                        {block.entries.map((entry) => (
-                            <FilterMenuRow
-                                key={entry.section.key}
-                                section={entry.section}
-                                options={entry.options}
-                                open={openKey === entry.section.key}
-                                autoFocusOptions={openedByKeyboard}
-                                inline={drilldown}
-                                onActivate={() => setDrillKey(entry.section.key)}
-                                onHoverOpen={() => openByHover(entry.section.key)}
-                                onHoverLeave={scheduleClose}
-                                onOpenChange={(next) => {
-                                    // A flyout the keyboard opened took focus into itself, and
-                                    // `onCloseAutoFocus` is prevented, so closing it would drop
-                                    // focus on <body>. The row it came from gets it back.
-                                    if (!next && openedByKeyboard && openKey === entry.section.key)
-                                        restoreFocus(entry.section.key)
-                                    setOpenKey((current) => {
-                                        if (next) return entry.section.key
-                                        // The row being closed is not always the row that just
-                                        // opened: moving the pointer to a new row opens that one
-                                        // and only then does the old flyout report itself shut.
-                                        // Honouring that late close would wipe the new key.
-                                        return current === entry.section.key ? null : current
-                                    })
-                                }}
-                                flyoutSide={flyoutSide}
-                                flyoutAlign={flyoutAlign}
-                                flyoutSideOffset={flyoutSideOffset}
-                                tabIndex={0}
-                                rowRef={(node) => rowRefs.current.set(entry.section.key, node)}
-                                onKeyDown={onRowKeyDown(entry.section.key)}
-                            />
-                        ))}
+                        {block.entries.map((entry) =>
+                            isFilterMenuToggle(entry.section) ? (
+                                <FilterMenuToggleRow
+                                    key={entry.section.key}
+                                    item={entry.section}
+                                    tabIndex={0}
+                                    onMouseEnter={closeNow}
+                                    rowRef={(node) => rowRefs.current.set(entry.section.key, node)}
+                                    onKeyDown={onRowKeyDown(entry.section.key)}
+                                />
+                            ) : (
+                                <FilterMenuRow
+                                    key={entry.section.key}
+                                    section={entry.section}
+                                    options={entry.options}
+                                    open={openKey === entry.section.key}
+                                    autoFocusOptions={openedByKeyboard}
+                                    inline={drilldown}
+                                    onActivate={() => setDrillKey(entry.section.key)}
+                                    onHoverOpen={() => openByHover(entry.section.key)}
+                                    onHoverLeave={scheduleClose}
+                                    onOpenChange={(next) => {
+                                        // A flyout the keyboard opened took focus into itself, and
+                                        // `onCloseAutoFocus` is prevented, so closing it would drop
+                                        // focus on <body>. The row it came from gets it back.
+                                        if (
+                                            !next &&
+                                            openedByKeyboard &&
+                                            openKey === entry.section.key
+                                        )
+                                            restoreFocus(entry.section.key)
+                                        setOpenKey((current) => {
+                                            if (next) return entry.section.key
+                                            // The row being closed is not always the row that just
+                                            // opened: moving the pointer to a new row opens that one
+                                            // and only then does the old flyout report itself shut.
+                                            // Honouring that late close would wipe the new key.
+                                            return current === entry.section.key ? null : current
+                                        })
+                                    }}
+                                    flyoutSide={flyoutSide}
+                                    flyoutAlign={flyoutAlign}
+                                    flyoutSideOffset={flyoutSideOffset}
+                                    tabIndex={0}
+                                    rowRef={(node) => rowRefs.current.set(entry.section.key, node)}
+                                    onKeyDown={onRowKeyDown(entry.section.key)}
+                                />
+                            ),
+                        )}
                     </div>
                 ))
             )}

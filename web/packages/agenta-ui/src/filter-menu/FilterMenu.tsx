@@ -6,7 +6,7 @@ import {Popover, PopoverContent} from "../components/ui/popover"
 
 import {FilterMenuPanel} from "./FilterMenuPanel"
 import {FilterMenuTrigger} from "./FilterMenuTrigger"
-import type {FilterMenuPlacementProps, FilterMenuSection, FilterMenuTriggerProps} from "./types"
+import type {FilterMenuItem, FilterMenuPlacementProps, FilterMenuTriggerProps} from "./types"
 
 export interface FilterMenuProps extends FilterMenuTriggerProps, FilterMenuPlacementProps {
     /**
@@ -14,7 +14,7 @@ export interface FilterMenuProps extends FilterMenuTriggerProps, FilterMenuPlace
      * dropping the group section is how a surface turns grouping off, and there is no
      * section-specific code path anywhere in here.
      */
-    sections: FilterMenuSection[]
+    sections: FilterMenuItem[]
     /** The search field filters rows AND their options by label. Defaults on. */
     searchable?: boolean
     searchPlaceholder?: string

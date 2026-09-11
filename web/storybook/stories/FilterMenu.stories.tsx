@@ -1,8 +1,19 @@
 import {useState} from "react"
 
-import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
+import {FilterMenu, type FilterMenuItem} from "@agenta/ui/filter-menu"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Bot, CalendarClock, Clock, Layers, LayoutList, Minus, Rows3, Type, Zap} from "lucide-react"
+import {
+    Archive,
+    Bot,
+    CalendarClock,
+    Clock,
+    Layers,
+    LayoutList,
+    Minus,
+    Rows3,
+    Type,
+    Zap,
+} from "lucide-react"
 
 /**
  * `@agenta/ui/filter-menu` is antd-free and entity-free, so it renders identically in `/m` and
@@ -33,6 +44,7 @@ interface View {
     status: string
     sort: string
     group: string
+    archived: boolean
 }
 
 const INITIAL: View = {
@@ -41,14 +53,15 @@ const INITIAL: View = {
     status: "all",
     sort: "activity",
     group: "none",
+    archived: false,
 }
 
 const buildSections = (
     view: View,
     set: (patch: Partial<View>) => void,
     {withGroup = true, emptyAgents = false} = {},
-): FilterMenuSection[] => {
-    const sections: FilterMenuSection[] = [
+): FilterMenuItem[] => {
+    const sections: FilterMenuItem[] = [
         {
             key: "type",
             label: "Type",
@@ -87,6 +100,14 @@ const buildSections = (
                 {value: "paused", label: "Paused", icon: <Minus size={ICON} />},
             ],
             onChange: (status) => set({status}),
+        },
+        {
+            kind: "toggle",
+            key: "archived",
+            label: "Only archived",
+            icon: <Archive size={ICON} />,
+            checked: view.archived,
+            onChange: (archived) => set({archived}),
         },
         {
             key: "sort",
