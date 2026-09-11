@@ -1,0 +1,47 @@
+---
+title: "Manage sessions"
+sidebar_label: "Manage sessions"
+description: "Query, inspect, rename, archive, stop, and delete agent sessions."
+sidebar_position: 10
+---
+
+Session management endpoints use the authenticated project from the request context.
+
+| Operation            | Endpoint                                                  |
+| -------------------- | --------------------------------------------------------- |
+| Query sessions       | `POST /api/sessions/query`                                |
+| Inspect a session    | `GET /api/sessions/{session_id}`                          |
+| Rename               | `PATCH /api/sessions/{session_id}`                        |
+| Archive or unarchive | `POST /api/sessions/{session_id}/archive` or `/unarchive` |
+| Stop active work     | `POST /api/sessions/{session_id}/stop`                    |
+| Delete               | `DELETE /api/sessions/{session_id}`                       |
+| Query interactions   | `POST /api/sessions/interactions/query`                   |
+| Query queued inputs  | `POST /api/sessions/inputs/query`                         |
+
+## Query
+
+```json
+{
+  "session": {
+    "search": "support",
+    "origins": ["manual"]
+  },
+  "include_ended": true,
+  "include_archived": false,
+  "include_total": true,
+  "expand": ["last_message", "trigger"],
+  "windowing": { "limit": 50, "order": "descending" }
+}
+```
+
+Use `include_ended` to include inactive sessions and `archived_only` to restrict results to archived sessions. Cursor fields in `windowing` paginate without relying on mutable offsets.
+
+## Archive versus delete
+
+Archiving hides a session from ordinary queries but preserves its records. Unarchiving restores it. Deletion is destructive and should only follow explicit user intent.
+
+Stopping and archiving are independent: stop active execution before destructive cleanup when necessary.
+
+## Interactions
+
+Interactions have kinds `user_approval`, `user_input`, or `client_tool`, and statuses `pending`, `responded`, `resolved`, or `cancelled`. Fetch the pending interaction before responding so the client can validate its current status and payload.

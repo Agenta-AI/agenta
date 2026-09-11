@@ -1,0 +1,50 @@
+---
+title: "Sessions and turns"
+sidebar_label: "Sessions and turns"
+description: "Start, continue, steer, pause, resume, and stop agent sessions."
+sidebar_position: 8
+---
+
+A call to `/services/agent/v0/invoke` creates one turn. Reusing `session_id` associates later turns with the same conversation and sandbox workspace.
+
+## Start and continue
+
+Omit `session_id` to let Agenta mint one, then store `x-ag-session-id` from the response. Supply that ID on every later invoke request.
+
+When your client also uses `/api/sessions`, keep IDs to letters, numbers, underscores, and hyphens. The management API currently accepts a narrower character set than invoke.
+
+## Busy sessions
+
+Set top-level `on_busy` when a session already has an active execution:
+
+| Value    | Behavior                                                            |
+| -------- | ------------------------------------------------------------------- |
+| `reject` | Refuse overlapping work.                                            |
+| `queue`  | Queue the new input behind the active execution.                    |
+| `steer`  | Deliver input to the active execution when the harness supports it. |
+
+`on_busy` requires an explicit `session_id`.
+
+## Pause and resume
+
+A gated tool, user-input request, or client tool can end a turn with `stop_reason: "paused"`. The response contains `pending_interaction`; durable session APIs also expose the interaction.
+
+Resume in either way:
+
+- replay the paused assistant message with the answer represented as a tool result; or
+- call `POST /api/sessions/interactions/{interaction_id}/respond`.
+
+Do not answer the same interaction twice. A non-pending interaction returns `409`.
+
+## Stop an execution
+
+```http
+POST /api/sessions/{session_id}/stop
+Authorization: ApiKey {API_KEY}
+```
+
+Stopping targets active work; it does not delete the session. Use the session management endpoints to archive or delete stored session data.
+
+## Warm state and replay
+
+Agenta may retain a warm harness and sandbox between turns. If that state is unavailable, it reconstructs conversation history from session records. Applications should persist the session ID and complete message or interaction data, not assume a specific process remains alive.

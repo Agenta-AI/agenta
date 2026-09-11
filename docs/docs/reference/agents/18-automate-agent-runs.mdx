@@ -1,0 +1,65 @@
+---
+title: "Automate agent runs"
+sidebar_label: "Automate agent runs"
+description: "Run an agent from a cron schedule or a connected provider event."
+sidebar_position: 19
+---
+
+Agenta automations start agent runs on a schedule or when a connected provider emits an event. They are not session-completion webhooks.
+
+## Scheduled run
+
+Create a trigger schedule with a five-field UTC cron expression:
+
+```json
+{
+  "schedule": {
+    "name": "Weekday support digest",
+    "description": "Summarize new support work every weekday.",
+    "data": {
+      "event_key": "weekday-support-digest",
+      "schedule": "0 8 * * 1-5",
+      "inputs_fields": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Prepare today's support digest."
+          }
+        ],
+        "payload": "$.event.attributes"
+      }
+    }
+  }
+}
+```
+
+`start_time` and `end_time` optionally bound the active UTC window. The schedule binds to a workflow revision when it is created.
+
+## Provider event
+
+A subscription requires a ready provider connection, an event key from the trigger catalog, and event-specific `trigger_config`:
+
+```json
+{
+  "subscription": {
+    "name": "Triage new issues",
+    "connection_id": "019d952f-0000-0000-0000-000000000020",
+    "data": {
+      "event_key": "github_issue_created",
+      "trigger_config": { "owner": "acme", "repo": "product" },
+      "inputs_fields": {
+        "messages": [{ "role": "user", "content": "Triage this new issue." }],
+        "payload": "$.event.attributes"
+      }
+    }
+  }
+}
+```
+
+Confirm the catalog event's integration and description before saving it. Event matching is provider-specific.
+
+## Input mapping
+
+A leaf beginning with `$` is a JSONPath selector over the fire context; a leaf beginning with `/` is a JSON Pointer. Other strings pass through literally. Unmatched selectors resolve to `null`; selectors are not interpolated inside larger strings.
+
+Include an explicit imperative `messages` entry and map the provider payload under a sibling key. See [Automations](/concepts/automations) for setup and delivery monitoring.
