@@ -171,7 +171,7 @@ function SelectItem({
                 // without this a long option overflows the panel instead of truncating.
                 "[&>span]:min-w-0 [&>span]:flex-1",
                 // antd option geometry: min-h 28px, 4px×12px padding, 6px radius, selected weight 600.
-                "box-border min-h-control rounded-control-sm px-3 py-1 text-field-md",
+                "box-border min-h-control-sm rounded-control-sm px-3 py-1 text-field-md",
                 // antd colours: highlighted-but-not-selected = controlItemBgHover; selected =
                 // controlItemBgActive (a cool bluish tint, not the neutral accent gray). The
                 // `:not()` keeps the selected row's active bg from being overridden by hover.

@@ -6,22 +6,9 @@ import {cva, type VariantProps} from "class-variance-authority"
 import {cn} from "./utils"
 
 /**
- * Button — a Radix + cva primitive in @agenta/ui, following shadcn's source conventions: no
- * `forwardRef` (React 19 passes `ref` as a prop) and a `data-slot` attribute. Radix `Slot` for
- * `asChild`, `cva` for variants.
- *
- * Deliberately minimal, like stock shadcn: no `icon`/`loading` props. Compose instead —
- * icons are children (the base handles svg sizing/spacing), and `LoadingButton` in
- * ./button-composed covers the loading state.
- *
- * Geometry/typography come from the `control-*` theme scale, never raw pixels, so the
- * whole control system is retunable in one place (see tailwind.config.ts `controlScale`).
- *
- * antd → @agenta/ui mapping (for migrating call-sites):
- *   type="primary"→"default"  type="default"→"outline"  type="text"→"ghost"
- *   type="link"→"link"  type="dashed"→"dashed"  danger→"destructive" (primary) or
- *   "destructive-outline" (default)  size small/middle/large→sm/default/lg
- *   shape="circle"→size="icon" + `rounded-control-round`
+ * Button — the shadcn button (Radix Slot + cva), sized off the `control-*`/`btn-*` scale; icons are
+ * children and `LoadingButton` covers loading. antd mapping: primary→default, default→outline,
+ * text→ghost, danger→destructive, small/middle/large→sm/default/lg.
  */
 const buttonVariants = cva(
     [
@@ -29,46 +16,50 @@ const buttonVariants = cva(
         // resets preflight would normally provide are applied per-control. Delete these once
         // antd is gone and preflight is switched back on — see antd-inventory/GOTCHAS.md.
         "box-border border-solid font-[inherit] py-0",
-        "inline-flex items-center justify-center gap-2 whitespace-nowrap border font-normal leading-normal",
-        "cursor-pointer select-none transition-colors",
-        // antd's keyboard focus ring: 4px solid colorPrimaryBorder, 1px offset, on
-        // :focus-visible only (no ring on mouse click). No resting outline.
-        "outline-none focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
-        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:border-border disabled:text-disabled disabled:shadow-none",
+        "group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap",
+        // Weight 400, not Nova's 500 — a deliberate house deviation.
+        "border border-transparent bg-clip-padding font-normal",
+        "cursor-pointer select-none transition-all",
+        // Nova focus ring; color-mix because Tailwind v3 can't alpha-modify a `var()` colour.
+        "outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-[color:color-mix(in_srgb,var(--ag-colorPrimary)_50%,transparent)]",
+        // Nova press nudge, skipped on menu/popover triggers.
+        "active:[&:not([aria-haspopup])]:translate-y-px",
+        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+        "aria-invalid:border-error aria-invalid:ring-[3px] aria-invalid:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0",
     ],
     {
         variants: {
             variant: {
-                // antd gives its solid/outlined/dashed buttons a `0 2px 0` shadow tinted per
-                // colour family (primaryShadow/dangerShadow/defaultShadow — button/style/token.js
-                // L47-49, wired in variant.js L84/L96/L152/L167/L188); text and link get none.
                 default:
-                    "bg-primary text-btn-primary-fg border-transparent shadow-[0_2px_0_var(--ag-controlOutline)] hover:bg-btn-primary-hover active:bg-btn-primary-active disabled:bg-disabled-bg",
-                destructive:
-                    "bg-error text-white border-transparent shadow-[0_2px_0_var(--ag-errorOutline)] hover:bg-error-hover active:bg-error-active",
-                "destructive-outline":
-                    "bg-background border-error text-error shadow-[0_2px_0_var(--ag-errorOutline)] hover:text-error-hover hover:border-error-hover active:text-error-active active:border-error-active",
+                    "bg-primary text-btn-primary-fg hover:bg-[color-mix(in_srgb,var(--ag-colorPrimary)_80%,transparent)]",
                 outline:
-                    "border-border bg-btn-default-bg text-foreground shadow-[0_2px_0_var(--ag-colorFillQuaternary)] hover:bg-btn-default-hover-bg hover:border-btn-primary-hover hover:text-btn-primary-hover active:bg-btn-default-active-bg active:border-btn-primary-active active:text-btn-primary-active disabled:bg-disabled-bg",
+                    "border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground aria-expanded:bg-accent aria-expanded:text-accent-foreground",
+                dashed: "border-dashed border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground",
                 secondary:
-                    "bg-secondary text-secondary-foreground border-transparent hover:bg-muted",
-                // disabled:border-transparent is load-bearing: the base sets
-                // `disabled:border-border`, and a plain `border-transparent` does NOT override a
-                // `disabled:`-modified class in tailwind-merge. Without it, antd's chrome-less
-                // text/link buttons grow a visible 1px box the moment they are disabled.
-                ghost: "bg-transparent border-transparent text-foreground hover:bg-btn-text-hover-bg active:bg-btn-text-active-bg disabled:bg-transparent disabled:border-transparent",
-                link: "bg-transparent border-transparent text-btn-link hover:text-btn-link-hover active:text-btn-link-active disabled:bg-transparent disabled:border-transparent",
-                dashed: "border-dashed border-border bg-btn-default-bg text-foreground shadow-[0_2px_0_var(--ag-colorFillQuaternary)] hover:border-btn-primary-hover hover:text-btn-primary-hover active:bg-btn-default-active-bg active:border-btn-primary-active active:text-btn-primary-active disabled:bg-disabled-bg",
+                    "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_srgb,var(--ag-colorFillSecondary),var(--ag-colorText)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+                ghost: "bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground aria-expanded:bg-accent aria-expanded:text-accent-foreground",
+                // Hovers use `accent` (6%): `muted` is 4% here and vanishes on the warm rail.
+                destructive:
+                    "bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)] text-error hover:bg-[color-mix(in_srgb,var(--ag-colorError)_20%,transparent)] focus-visible:border-[color:color-mix(in_srgb,var(--ag-colorError)_40%,transparent)] focus-visible:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
+                "destructive-outline":
+                    "border-error bg-background text-error hover:bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)] focus-visible:border-[color:color-mix(in_srgb,var(--ag-colorError)_40%,transparent)] focus-visible:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
+                link: "bg-transparent text-primary underline-offset-4 hover:underline",
             },
+            // `has-[[data-icon=…]]` trims the padding on the icon side.
             size: {
-                sm: "h-control-sm px-btn-sm text-btn-sm rounded-control-sm",
-                default: "h-control px-btn text-btn-md rounded-control",
-                lg: "h-control-lg px-btn-lg text-btn-lg rounded-control-lg",
-                // antd sizes an icon-ONLY button's glyph from `onlyIconSize`/`onlyIconSizeSM` (14px
-                // both here), not the button's text ramp (button/style/index.js L136-140).
-                icon: "h-control w-control p-0 text-[14px] rounded-control",
-                "icon-sm": "h-control-sm w-control-sm p-0 text-[14px] rounded-control-sm",
+                xs: "h-control-xs gap-btn-gap-sm px-btn-xs text-btn-xs rounded-control-sm has-[[data-icon=inline-start]]:pl-btn-icon-pad-sm has-[[data-icon=inline-end]]:pr-btn-icon-pad-sm [&_svg:not([class*='size-'])]:size-btn-icon-xs",
+                sm: "h-control-sm gap-btn-gap-sm px-btn-sm text-btn-sm rounded-control-sm has-[[data-icon=inline-start]]:pl-btn-icon-pad-sm has-[[data-icon=inline-end]]:pr-btn-icon-pad-sm [&_svg:not([class*='size-'])]:size-btn-icon-sm",
+                default:
+                    "h-control gap-btn-gap px-btn text-btn-md rounded-control has-[[data-icon=inline-start]]:pl-btn-icon-pad has-[[data-icon=inline-end]]:pr-btn-icon-pad [&_svg:not([class*='size-'])]:size-btn-icon",
+                lg: "h-control-lg gap-btn-gap px-btn-lg text-btn-lg rounded-control has-[[data-icon=inline-start]]:pl-btn-icon-pad has-[[data-icon=inline-end]]:pr-btn-icon-pad [&_svg:not([class*='size-'])]:size-btn-icon",
+                "icon-xs":
+                    "size-control-xs p-0 text-btn-xs rounded-control-sm [&_svg:not([class*='size-'])]:size-btn-icon-xs",
+                "icon-sm":
+                    "size-control-sm p-0 text-btn-sm rounded-control-sm [&_svg:not([class*='size-'])]:size-btn-icon-sm",
+                icon: "size-control p-0 text-btn-md rounded-control [&_svg:not([class*='size-'])]:size-btn-icon",
+                "icon-lg":
+                    "size-control-lg p-0 text-btn-lg rounded-control [&_svg:not([class*='size-'])]:size-btn-icon",
             },
         },
         defaultVariants: {variant: "default", size: "default"},
@@ -92,13 +83,15 @@ const inferIconSize = (children: React.ReactNode): "icon" | undefined => {
     return React.isValidElement(kids[0]) ? "icon" : undefined
 }
 
-function Button({className, variant, size, asChild = false, ...props}: ButtonProps) {
+function Button({className, variant = "default", size, asChild = false, ...props}: ButtonProps) {
     const Comp = asChild ? Slot : "button"
     // `asChild` hands rendering to the child, so its single element is the button, not an icon.
     const effectiveSize = size ?? (asChild ? undefined : inferIconSize(props.children))
     return (
         <Comp
             data-slot="button"
+            data-variant={variant}
+            data-size={effectiveSize ?? "default"}
             className={cn(buttonVariants({variant, size: effectiveSize, className}))}
             {...props}
         />

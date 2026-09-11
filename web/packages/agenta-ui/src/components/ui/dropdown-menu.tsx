@@ -90,7 +90,7 @@ const itemBase = [
     "relative flex w-full cursor-pointer select-none items-center gap-2 outline-none",
     // antd `.ant-dropdown-menu-item` geometry (NOT SelectItem's): 30px tall = 5px×12px padding
     // + 20px line-height, min-height 0, radius 6px. py-input-y-ghost = 5px (reused 5px token).
-    "box-border rounded-control-sm px-3 py-input-y-ghost text-field-md",
+    "box-border rounded-control-sm px-3 py-1 text-field-md",
     // Hover = `accent`, NOT `muted`: in dark both `--popover` and `--muted` are #242424, so a
     // muted highlight paints the menu's own background and the row reads as unhoverable.
     "[&[data-highlighted]]:bg-accent",
