@@ -58,8 +58,7 @@ const StatusDot = ({status}: {status: SessionRowStatusMeta}) => {
 /**
  * The row's mark: what KIND of session, with its status on the shoulder. The glyph is the pair
  * the Type facet offers. The dot is solid in every state (a hollow ring would be a ring inside a
- * ring at this size), takes the Status column's hue, pulses while live, and wears a page-colour
- * ring so it sits ON the glyph rather than in it.
+ * ring at this size), takes the Status column's hue, and pulses while live.
  */
 const KindIcon = ({vm}: {vm: SessionRowVm}) => {
     const Glyph = vm.isAutomation ? Lightning : ChatCircle
@@ -74,7 +73,7 @@ const KindIcon = ({vm}: {vm: SessionRowVm}) => {
             <span
                 aria-hidden
                 className={cn(
-                    "absolute -right-1 -top-1 box-border size-[9px] rounded-full border-2 border-solid border-background",
+                    "absolute -right-0.5 -top-0.5 size-[7px] rounded-full",
                     vm.status.dotClassName,
                     vm.status.pulse && "motion-safe:animate-pulse",
                 )}
