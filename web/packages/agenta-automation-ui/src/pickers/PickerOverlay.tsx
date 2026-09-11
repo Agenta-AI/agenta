@@ -99,7 +99,7 @@ export const PickerOverlay = ({
                 // whose Done button is off screen.
                 className="h-[min(85dvh,640px)] gap-0 overflow-hidden p-0"
             >
-                <SheetHeader className="shrink-0 px-4 pb-2 pt-4">
+                <SheetHeader className="shrink-0 px-4 py-3">
                     <SheetTitle className="text-sm">{title}</SheetTitle>
                 </SheetHeader>
                 {children}

@@ -73,7 +73,7 @@ export const EventAppRail = ({
                             aria-pressed={app.integrationKey === selectedKey}
                             onClick={() => onSelect(app)}
                             className={cn(
-                                "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-foreground hover:bg-muted",
+                                "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2.5 text-left text-[13px] text-foreground hover:bg-muted lg:py-1.5",
                                 app.integrationKey === selectedKey && "bg-muted font-medium",
                             )}
                         >
@@ -94,7 +94,7 @@ export const EventAppRail = ({
                     <button
                         type="button"
                         onClick={onConnectAnother}
-                        className="mt-px flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-muted-foreground hover:bg-muted"
+                        className="mt-px flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2.5 lg:py-1.5 text-left text-[13px] text-muted-foreground hover:bg-muted"
                     >
                         <Plug aria-hidden className="size-3.5 shrink-0" />
                         <span className="min-w-0 truncate">Connect another app…</span>

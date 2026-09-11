@@ -44,6 +44,7 @@ export const AutomationDetailBody = ({
     onDiscard,
     onSave,
     actions,
+    testRun,
 }: {
     /** The saved row — the identity half of the screen. */
     automation: Automation
@@ -79,8 +80,10 @@ export const AutomationDetailBody = ({
     onToggle: (next: boolean) => Promise<void>
     onDiscard: () => void
     onSave: () => void
-    /** Test run and the actions menu — on the title's line, not the page header. */
+    /** The actions menu — on the title's line, not the page header. */
     actions?: ReactNode
+    /** The Test run control — beside the name on a wide screen, under it on a phone. */
+    testRun?: ReactNode
 }) => (
     <div className={className ?? "mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px]"}>
         <div className="flex min-w-0 items-start gap-2">
@@ -89,15 +92,19 @@ export const AutomationDetailBody = ({
                 description={automation.description}
                 onRename={onRename}
             />
-            {actions ? (
-                <span className="ml-auto flex shrink-0 items-center gap-1.5">{actions}</span>
-            ) : null}
+            <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                {/* Test run sits by the name from lg up; on a phone it drops to the meta line
+                    beside the switch, where the row has the room. */}
+                {testRun ? <span className="hidden lg:flex">{testRun}</span> : null}
+                {actions}
+            </span>
         </div>
         <AutomationMetaRow
             active={automation.isActive}
             agentName={agentName}
             updatedAt={automation.updatedAt}
             onToggle={onToggle}
+            trailing={testRun ? <span className="lg:hidden">{testRun}</span> : null}
         />
         <AutomationFailureBanner reason={failureReason} />
         <div className="mt-[26px] flex flex-col gap-[22px]">

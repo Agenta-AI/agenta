@@ -158,19 +158,19 @@ export const AutomationDetailScreen = ({
                             onSelectEvent={setEvent}
                             onChangeInputs={setInputs}
                             onToggle={onToggle}
+                            testRun={
+                                <AutomationTestRunButton
+                                    automation={automation}
+                                    base={base}
+                                    dirty={dirty}
+                                />
+                            }
                             actions={
-                                <>
-                                    <AutomationTestRunButton
-                                        automation={automation}
-                                        base={base}
-                                        dirty={dirty}
-                                    />
-                                    <AutomationActionsMenu
-                                        automation={automation}
-                                        base={base}
-                                        onLeave={leave}
-                                    />
-                                </>
+                                <AutomationActionsMenu
+                                    automation={automation}
+                                    base={base}
+                                    onLeave={leave}
+                                />
                             }
                             onDiscard={discard}
                             onSave={() => void save()}

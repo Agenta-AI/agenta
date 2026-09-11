@@ -23,7 +23,7 @@ export const EventRow = ({
         aria-pressed={selected}
         onClick={onSelect}
         className={cn(
-            "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-foreground hover:bg-muted",
+            "flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2.5 text-left text-[13px] text-foreground hover:bg-muted lg:py-1.5",
             selected && "bg-muted",
         )}
     >

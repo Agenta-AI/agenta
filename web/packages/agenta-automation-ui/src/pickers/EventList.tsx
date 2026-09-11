@@ -54,7 +54,7 @@ export const EventList = ({
     )
 
     return (
-        <div className="flex min-w-0 flex-1 flex-col gap-px">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5 lg:gap-px">
             {isLoading ? (
                 <>
                     <SkeletonBlock active className="h-7 w-full" />
