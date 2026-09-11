@@ -11,6 +11,7 @@ live against the docker-compose SeaweedFS in the acceptance suite; the fakes her
 the service-side derivation (prefix, bucket, policy scope, XML parsing, master-key isolation).
 """
 
+import asyncio
 from typing import Dict, Optional
 from urllib.parse import parse_qs
 from uuid import uuid4, uuid5, NAMESPACE_DNS
@@ -583,3 +584,143 @@ class TestMountsCredentialsTtlConfig:
         else:
             monkeypatch.setenv("AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS", value)
         assert MountsConfig().credentials_ttl_seconds == expected
+
+
+# ---------------------------------------------------------------------------
+# get_object session reuse (storage layer)
+# ---------------------------------------------------------------------------
+
+
+class _FakeBody:
+    def __init__(self, data: bytes):
+        self._data = data
+
+    async def read(self):
+        return self._data
+
+
+class _FakeObjectResponse:
+    def __init__(self, data: bytes = b"payload"):
+        self.content = _FakeBody(data)
+        self.released = False
+
+    async def release(self):
+        self.released = True
+
+
+class _FakeMinio:
+    def __init__(self, *, error=None):
+        self.calls = []
+        self.responses = []
+        self._error = error
+
+    async def get_object(self, bucket, key, session):
+        self.calls.append((bucket, key, session))
+        if self._error is not None:
+            raise self._error
+        resp = _FakeObjectResponse()
+        self.responses.append(resp)
+        return resp
+
+
+class _TrackSession:
+    def __init__(self, created):
+        self.closed = False
+        created.append(self)
+
+    async def close(self):
+        self.closed = True
+
+
+def _object_store():
+    from oss.src.core.store.storage import ObjectStore
+
+    return ObjectStore(
+        endpoint_url="https://s3.eu-central-1.amazonaws.com",
+        access_key=_MASTER_KEY,
+        secret_key=_MASTER_SECRET,
+        region="eu-central-1",
+    )
+
+
+@pytest.mark.asyncio
+class TestGetObjectSessionReuse:
+    async def test_reuses_one_session_across_reads(self, monkeypatch):
+        import oss.src.core.store.storage as storage_mod
+
+        store = _object_store()
+        client = _FakeMinio()
+        created = []
+        monkeypatch.setattr(store, "_client", lambda: client)
+        monkeypatch.setattr(
+            storage_mod.aiohttp,
+            "ClientSession",
+            lambda: _TrackSession(created),
+        )
+
+        assert await store.get_object(bucket=_BUCKET, key="a") == b"payload"
+        assert await store.get_object(bucket=_BUCKET, key="b") == b"payload"
+
+        assert len(created) == 1
+        assert [session for _, _, session in client.calls] == [created[0], created[0]]
+        assert all(resp.released for resp in client.responses)
+        assert created[0].closed is False
+
+    async def test_concurrent_first_reads_share_one_session(self, monkeypatch):
+        import oss.src.core.store.storage as storage_mod
+
+        store = _object_store()
+        client = _FakeMinio()
+        created = []
+        monkeypatch.setattr(store, "_client", lambda: client)
+        monkeypatch.setattr(
+            storage_mod.aiohttp,
+            "ClientSession",
+            lambda: _TrackSession(created),
+        )
+
+        await asyncio.gather(
+            store.get_object(bucket=_BUCKET, key="a"),
+            store.get_object(bucket=_BUCKET, key="b"),
+            store.get_object(bucket=_BUCKET, key="c"),
+        )
+
+        assert len(created) == 1
+        assert {session for _, _, session in client.calls} == {created[0]}
+
+    async def test_close_then_next_read_opens_another_session(self, monkeypatch):
+        import oss.src.core.store.storage as storage_mod
+
+        store = _object_store()
+        client = _FakeMinio()
+        created = []
+        monkeypatch.setattr(store, "_client", lambda: client)
+        monkeypatch.setattr(
+            storage_mod.aiohttp,
+            "ClientSession",
+            lambda: _TrackSession(created),
+        )
+
+        await store.get_object(bucket=_BUCKET, key="a")
+        await store.close()
+        assert created[0].closed is True
+
+        await store.get_object(bucket=_BUCKET, key="b")
+        assert len(created) == 2
+        assert client.calls[1][2] is created[1]
+
+    async def test_close_is_safe_when_no_read_happened(self):
+        await _object_store().close()
+
+    async def test_missing_key_still_maps_to_not_found(self, monkeypatch):
+        from miniopy_async.error import S3Error
+
+        from oss.src.core.mounts.types import MountFileNotFound
+
+        store = _object_store()
+        err = S3Error.__new__(S3Error)
+        err.code = "NoSuchKey"
+        monkeypatch.setattr(store, "_client", lambda: _FakeMinio(error=err))
+
+        with pytest.raises(MountFileNotFound):
+            await store.get_object(bucket=_BUCKET, key="missing")

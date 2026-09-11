@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from hashlib import sha256
 from io import BytesIO
@@ -89,6 +90,9 @@ class ObjectStore:
         self._region = region
         self._sts_endpoint_url = sts_endpoint_url
         self._signing_key = signing_key
+        # ClientSession binds to the running loop; this object is built at import time.
+        self._session: Optional[aiohttp.ClientSession] = None
+        self._session_lock = asyncio.Lock()
 
     @property
     def enabled(self) -> bool:
@@ -128,6 +132,23 @@ class ObjectStore:
             secure=secure,
             region=self._region,
         )
+
+    async def _http_session(self) -> aiohttp.ClientSession:
+        session = self._session
+        if session is not None and not session.closed:
+            return session
+        async with self._session_lock:
+            session = self._session
+            if session is None or session.closed:
+                self._session = aiohttp.ClientSession()
+            return self._session
+
+    async def close(self) -> None:
+        async with self._session_lock:
+            session = self._session
+            self._session = None
+        if session is not None and not session.closed:
+            await session.close()
 
     async def ensure_bucket(self, *, bucket: str) -> None:
         """Create the store bucket if absent (master key).
@@ -422,19 +443,20 @@ class ObjectStore:
         key: str,
     ) -> bytes:
         client = self._client()
-        # get_object needs an explicit aiohttp session (miniopy-async 1.21 signature) and hands
-        # back a streaming ClientResponse; own the session so it outlives the body read.
-        async with aiohttp.ClientSession() as session:
-            try:
-                resp = await client.get_object(bucket, key, session)
-            except S3Error as e:
-                if e.code in ("NoSuchKey", "NoSuchObject", "NoSuchBucket"):
-                    raise MountFileNotFound() from e
-                raise
-            try:
-                return await resp.content.read()
-            finally:
-                await resp.release()
+        # miniopy-async 1.21 requires a caller-supplied session and returns a live
+        # ClientResponse. Reuse one session so archive reads keep the TCP/TLS
+        # connection instead of handshaking per object.
+        session = await self._http_session()
+        try:
+            resp = await client.get_object(bucket, key, session)
+        except S3Error as e:
+            if e.code in ("NoSuchKey", "NoSuchObject", "NoSuchBucket"):
+                raise MountFileNotFound() from e
+            raise
+        try:
+            return await resp.content.read()
+        finally:
+            await resp.release()
 
     async def put_object(
         self,

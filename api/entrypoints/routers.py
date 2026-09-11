@@ -348,6 +348,8 @@ async def lifespan(*args, **kwargs):
     for adapter in _composio_triggers_adapters.values():
         await adapter.close()
 
+    await store.close()
+
     await _transactions_engine.close()
     await _analytics_engine.close()
     await _streams_engine.close()
