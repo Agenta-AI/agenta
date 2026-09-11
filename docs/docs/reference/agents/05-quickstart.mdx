@@ -37,7 +37,7 @@ Send another request with the same revision and `session_id`:
 
 ```json
 {
-  "session_id": "customer-case-4821",
+  "session_id": "<x-ag-session-id from the first response>",
   "references": {
     "workflow_revision": { "id": "019d952f-0000-0000-0000-000000000002" }
   },
@@ -51,6 +51,6 @@ Send another request with the same revision and `session_id`:
 }
 ```
 
-If a turn pauses, answer its pending interaction before continuing. See [Tools and interactions](/reference/agents/tools-and-interactions). To stop an active execution, call `POST /api/sessions/{session_id}/stop`.
+If a turn pauses, answer its pending interaction before continuing. See [Tools and interactions](/reference/agents/tools-and-interactions). To stop an active execution, call `POST /api/sessions/{session_id}/cancel`.
 
 For a non-streaming result, send `Accept: application/json`. For Vercel AI SDK frames, also send `x-ag-messages-format: vercel`.

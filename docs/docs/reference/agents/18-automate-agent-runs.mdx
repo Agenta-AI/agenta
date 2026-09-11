@@ -33,7 +33,9 @@ Create a trigger schedule with a five-field UTC cron expression:
 }
 ```
 
-`start_time` and `end_time` optionally bound the active UTC window. The schedule binds to a workflow revision when it is created.
+`start_time` and `end_time` optionally bound the active UTC window. When the agent creates a schedule with the `create_schedule` platform tool, Agenta binds it to the current workflow variant. The dispatcher resolves that variant's latest revision each time the schedule fires, so later commits change future runs.
+
+To keep execution stable, create the schedule through `POST /api/triggers/schedules/` and set `schedule.data.references.workflow_revision` to a specific revision `id` or `version`. A `workflow_revision` reference remains pinned; a `workflow` or `workflow_variant` reference tracks its latest revision.
 
 ## Provider event
 

@@ -13,7 +13,7 @@ Session management endpoints use the authenticated project from the request cont
 | Inspect a session    | `GET /api/sessions/{session_id}`                          |
 | Rename               | `PATCH /api/sessions/{session_id}`                        |
 | Archive or unarchive | `POST /api/sessions/{session_id}/archive` or `/unarchive` |
-| Stop active work     | `POST /api/sessions/{session_id}/stop`                    |
+| Cancel active work   | `POST /api/sessions/{session_id}/cancel`                  |
 | Delete               | `DELETE /api/sessions/{session_id}`                       |
 | Query interactions   | `POST /api/sessions/interactions/query`                   |
 | Query queued inputs  | `POST /api/sessions/inputs/query`                         |
