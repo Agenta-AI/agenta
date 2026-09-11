@@ -159,6 +159,7 @@ export const AutomationListScreen = ({
         return (
             <ListTable
                 columns={COLUMNS}
+                minWidth={680}
                 loading={isLoading}
                 groups={groups.map((group) => ({
                     key: group.key,
