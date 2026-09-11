@@ -2,17 +2,17 @@ import {useEffect, useState} from "react"
 
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {ProjectsPage} from "@agenta/settings-ui"
-
-import {Button} from "@/components/ui/button"
-import {Input} from "@/components/ui/input"
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet"
+    Button,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/ui/ui"
+
+import {Input} from "@/components/ui/input"
 
 interface Props {
     projects: ProjectsResponse[]
@@ -21,7 +21,7 @@ interface Props {
 }
 
 /**
- * Mobile binding: the shared projects table, with create / rename / delete as bottom sheets
+ * Mobile binding: the shared projects table, with create / rename / delete as modals
  * (the desktop uses antd modals — same verbs, each app's own idiom). The mutations live in
  * ProjectsPage; this only supplies the surfaces that collect the input.
  */
@@ -54,17 +54,20 @@ export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
                 />
             )}
             renderDeleteDialog={({open, onClose, onSubmit, pending, project}) => (
-                <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-                    <SheetContent side="responsive">
-                        <SheetHeader>
-                            <SheetTitle>Delete project</SheetTitle>
-                            <SheetDescription>This cannot be undone.</SheetDescription>
-                        </SheetHeader>
-                        <p className="px-4 text-sm">
+                <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Delete project</DialogTitle>
+                            <DialogDescription>This cannot be undone.</DialogDescription>
+                        </DialogHeader>
+                        <p className="m-0 text-sm">
                             Permanently deletes {project?.project_name}, including all of its
                             agents, datasets and deployments.
                         </p>
-                        <SheetFooter>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={onClose} disabled={pending}>
+                                Cancel
+                            </Button>
                             <Button
                                 variant="destructive"
                                 disabled={pending}
@@ -72,12 +75,9 @@ export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
                             >
                                 Delete project
                             </Button>
-                            <Button variant="outline" onClick={onClose} disabled={pending}>
-                                Cancel
-                            </Button>
-                        </SheetFooter>
-                    </SheetContent>
-                </Sheet>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             )}
         />
     )
@@ -114,13 +114,13 @@ const NameSheet = ({
     }, [open, initialValue])
 
     return (
-        <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-            <SheetContent side="responsive">
-                <SheetHeader>
-                    <SheetTitle>{title}</SheetTitle>
-                    {description ? <SheetDescription>{description}</SheetDescription> : null}
-                </SheetHeader>
-                <div className="px-4">
+        <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{title}</DialogTitle>
+                    {description ? <DialogDescription>{description}</DialogDescription> : null}
+                </DialogHeader>
+                <div>
                     <Input
                         autoFocus
                         value={value}
@@ -128,18 +128,18 @@ const NameSheet = ({
                         placeholder="Project name"
                     />
                 </div>
-                <SheetFooter>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose} disabled={pending}>
+                        Cancel
+                    </Button>
                     <Button
                         disabled={pending || !value.trim()}
                         onClick={() => onSubmit(value.trim())}
                     >
                         {submitLabel}
                     </Button>
-                    <Button variant="outline" onClick={onClose} disabled={pending}>
-                        Cancel
-                    </Button>
-                </SheetFooter>
-            </SheetContent>
-        </Sheet>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }

@@ -5,16 +5,15 @@ import {
     CancelSubscriptionReasons,
     CANCEL_REASON_OTHER,
 } from "@agenta/settings-ui"
-
-import {Button} from "@/components/ui/button"
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet"
+    Button,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/ui/ui"
 
 interface Props {
     open: boolean
@@ -49,15 +48,15 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
     }
 
     return (
-        <Sheet open={open} onOpenChange={(next) => (next ? undefined : onOpenChange(false))}>
-            <SheetContent side="responsive">
-                <SheetHeader>
-                    <SheetTitle>Cancel auto-renewal</SheetTitle>
-                    <SheetDescription>
+        <Dialog open={open} onOpenChange={(next) => (next ? undefined : onOpenChange(false))}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Cancel auto-renewal</DialogTitle>
+                    <DialogDescription>
                         Your plan stays active until the end of the current period.
-                    </SheetDescription>
-                </SheetHeader>
-                <div className="px-4">
+                    </DialogDescription>
+                </DialogHeader>
+                <div>
                     <CancelSubscriptionReasons
                         value={reason}
                         onChange={setReason}
@@ -66,14 +65,7 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
                     />
                     {error ? <p className="m-0 pt-2 text-sm text-colorError">{error}</p> : null}
                 </div>
-                <SheetFooter>
-                    <Button
-                        variant="destructive"
-                        disabled={!canConfirm || cancelling}
-                        onClick={() => void confirm()}
-                    >
-                        {cancelling ? "Cancelling…" : "Confirm"}
-                    </Button>
+                <DialogFooter>
                     <Button
                         variant="outline"
                         onClick={() => onOpenChange(false)}
@@ -81,8 +73,15 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
                     >
                         Keep my plan
                     </Button>
-                </SheetFooter>
-            </SheetContent>
-        </Sheet>
+                    <Button
+                        variant="destructive"
+                        disabled={!canConfirm || cancelling}
+                        onClick={() => void confirm()}
+                    >
+                        {cancelling ? "Cancelling…" : "Confirm"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }
