@@ -207,11 +207,11 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
                 icon={<FadersHorizontalIcon size={ICON} />}
                 variant="ghost"
                 // The rail's own control geometry, not the toolbar button's: a 22px square on a
-                // 26px group row. Square, so its hover fill reads as one hit area rather than a
+                // 28px group row. Square, so its hover fill reads as one hit area rather than a
                 // wide slab behind a small glyph.
                 triggerClassName="mr-1 size-[22px] p-0 text-colorTextTertiary hover:text-colorText"
                 // No applied-dot here, unlike the automations toolbar: this trigger is 22px on a
-                // 26px group row beside the search glyph, and a dot in its corner read as a
+                // 28px group row beside the search glyph, and a dot in its corner read as a
                 // status on the Sessions row rather than as a state of the control.
                 onReset={onReset}
                 resetDisabled={!dirty}

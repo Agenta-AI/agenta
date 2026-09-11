@@ -126,16 +126,16 @@ const ENTITIES: SidebarEntity[] = [
             // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
             const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
             if (session.running)
-                return createElement(CircleNotchIcon, {size: 10, className: "animate-spin"})
+                return createElement(CircleNotchIcon, {size: 12, className: "animate-spin"})
             if (session.isAutomation)
                 return createElement(LightningIcon, {
-                    size: 10,
+                    size: 12,
                     // Fill means LIVE on both glyphs; the bolt shape alone says automation.
                     weight: session.waiting || session.alive ? "fill" : "regular",
                     className: amber,
                 })
             return createElement(CircleIcon, {
-                size: 9,
+                size: 10,
                 weight: session.waiting || session.alive ? "fill" : "regular",
                 className: amber,
             })
@@ -156,10 +156,8 @@ const ENTITIES: SidebarEntity[] = [
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
-        // 12px: a session title is the rail's longest string and reads under the nav rows, not
-        // beside them. It overrides ROW_BASE's 13px because LeafRow merges with tailwind-merge.
         // An archived row is second-class, not hidden: same row, dimmed.
-        getRowClassName: (session) => (session.archived ? "text-[12px] opacity-60" : "text-[12px]"),
+        getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
         // Every loaded page renders; the scroll container pages in more as you reach its end.
         maxItems: SIDEBAR_UNBOUNDED,
     }),

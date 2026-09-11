@@ -44,14 +44,13 @@ export interface NavMenuProps {
 
 // calc, not 94%: an exact 8px inset each side, so the row's right edge lines up with the
 // 8px-inset collapse toggle in the brand row.
-// h-[26px]/13px, not h-9: the rail is a dense nav, and 36px rows pushed every item
-// progressively further down the list than the desktop app has ever placed them.
+// h-7/text-sm: the desktop rail's own row, and the reading rhythm ChatGPT and Manus keep. A
+// 26px/13px pass was tried and read as one packed column with no breathing room.
 // gap-[10px], not gap-2: antd Menu's icon margin is 10px, and at 8px every label in the
 // rail sat 2px left of where the desktop app has always drawn it.
-// leading-[18px], not leading-7 and not leading-none: the row is 26px and `items-center` does
-// the centring, so the line box only has to CONTAIN the glyphs. At leading-none it equalled the
-// font size, and `truncate`'s overflow:hidden then sliced the descenders off every g, p and y.
-const ROW_HEIGHT = "h-[26px] text-[13px] leading-[18px]"
+// leading-7, not leading-none: `truncate` clips to the line box, and a line box equal to the
+// font size slices the descenders off every g, p and y.
+const ROW_HEIGHT = "h-7 text-sm leading-7"
 // shrink-0: the rows are flex children of a `min-h-0 flex-1` nav, so an overflowing rail
 // squeezed them below their own height instead of scrolling. The Sessions group owns the
 // scrolling; every other row holds its size.
@@ -208,7 +207,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
         return (
             <p
                 {...dragAttrs(item.dragItem)}
-                className="m-0 mx-auto w-[calc(100%-16px)] shrink-0 px-3 pb-1 pt-0.5 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none"
+                className="m-0 mx-auto w-[calc(100%-16px)] shrink-0 px-3 pb-0.5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none"
             >
                 {item.title}
             </p>
@@ -221,7 +220,7 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             {...dragAttrs(item.dragItem)}
             // Not uppercase, unlike the static heading above: a collapsible heading labels an
             // ENTITY (an agent), and shouting a proper noun misspells it.
-            className="mx-auto flex w-[calc(100%-16px)] shrink-0 cursor-pointer select-none items-center gap-1 rounded-md pb-1 pl-3 pr-0 pt-0.5 text-[12px] text-colorTextTertiary hover:text-colorText"
+            className="mx-auto flex w-[calc(100%-16px)] shrink-0 cursor-pointer select-none items-center gap-1 rounded-md pb-0.5 pl-3 pr-0 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText"
             onClick={toggle}
             onKeyDown={(event) => {
                 if (onMoveKey(event)) return
@@ -277,7 +276,7 @@ const LeafRow = memo(function LeafRow({
     return (
         <div
             {...dragAttrs(item.dragItem)}
-            // cn, not clsx: a row can carry its own size or colour (a session title is 12px) and
+            // cn, not clsx: a row can carry its own size or colour (an archived session is dimmed) and
             // plain concatenation leaves it beside ROW_BASE's, where the stylesheet's order
             // decides the winner rather than this list does.
             className={cn(
