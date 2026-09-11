@@ -31,14 +31,50 @@ const SITE = assets({
   },
 });
 
+const MEDIA = {
+  async get(key: string) {
+    if (key !== "blog/example/image-abc123.webp") return null;
+    return {
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("media"));
+          controller.close();
+        },
+      }),
+      httpEtag: '"abc123"',
+      writeHttpMetadata(headers: Headers) {
+        headers.set("Content-Type", "image/webp");
+      },
+    };
+  },
+};
+
 const get = (path: string, accept?: string, method = "GET") =>
   worker.fetch(
     new Request(`https://agenta.ai${path}`, {
       method,
       headers: accept ? { accept } : {},
     }),
-    { ASSETS: SITE },
+    { ASSETS: SITE, MEDIA },
   );
+
+describe("R2 media", () => {
+  it("serves project-controlled media with immutable caching", async () => {
+    const response = await get("/media/blog/example/image-abc123.webp");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/webp");
+    expect(response.headers.get("cache-control")).toBe(
+      "public, max-age=31536000, immutable",
+    );
+    expect(response.headers.get("etag")).toBe('"abc123"');
+    expect(await response.text()).toBe("media");
+  });
+
+  it("returns 404 for missing or empty media keys", async () => {
+    expect((await get("/media/missing.webp")).status).toBe(404);
+    expect((await get("/media/")).status).toBe(404);
+  });
+});
 
 describe("markdown negotiation", () => {
   it("serves the markdown twin when markdown is preferred", async () => {
@@ -194,7 +230,7 @@ describe("robustness", () => {
       new Request("https://agenta.ai/pricing", {
         headers: { accept: "text/markdown" },
       }),
-      { ASSETS: flaky },
+      { ASSETS: flaky, MEDIA },
     );
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("ok");

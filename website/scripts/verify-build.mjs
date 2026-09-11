@@ -41,6 +41,19 @@ const posts = readdirSync(resolve(root, "src/content/posts")).filter((file) =>
   file.endsWith(".mdx"),
 );
 for (const post of posts) {
+  const source = readFileSync(resolve(root, "src/content/posts", post), "utf8");
+  source.split("\n").forEach((line, index) => {
+    const remoteMarkdownImage = /!\[[^\]]*\]\(https?:\/\//i.test(line);
+    const remoteHtmlMedia =
+      /<(?:img|video|source)\b[^>]+\b(?:src|srcset)=["']https?:\/\//i.test(
+        line,
+      );
+    check(
+      !remoteMarkdownImage && !remoteHtmlMedia,
+      `${post}:${index + 1} embeds remote media; mirror it to the R2-backed /media/ path`,
+    );
+  });
+
   const twin = `blog/${post.replace(/\.mdx$/, "")}.md`;
   check(existsSync(resolve(dist, twin)), `missing markdown twin: dist/${twin}`);
 }

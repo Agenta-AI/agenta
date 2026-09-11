@@ -14,6 +14,12 @@
   // stays pure SSG; this worker only picks a prebuilt representation and sets
   // agent-facing headers. See worker/index.ts.
   "main": "./worker/index.ts",
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "agenta-website-media",
+    },
+  ],
   "assets": {
     "directory": "./dist",
     // The worker reads prebuilt .md twins through this binding.
@@ -42,8 +48,9 @@
       "/blog/*",
       "/authors",
       "/authors/*",
+      "/media/*",
       "!/blog/*/*",
-      "!/authors/*.*"
-    ]
-  }
+      "!/authors/*.*",
+    ],
+  },
 }

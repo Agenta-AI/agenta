@@ -36,6 +36,13 @@ import {
 // The entire Workers runtime surface this script uses.
 interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
+  MEDIA: {
+    get(key: string): Promise<{
+      body: ReadableStream;
+      httpEtag: string;
+      writeHttpMetadata(headers: Headers): void;
+    } | null>;
+  };
 }
 
 const MARKDOWN = "text/markdown; charset=utf-8";
@@ -57,6 +64,9 @@ async function handle(request: Request, env: Env): Promise<Response> {
   if (method !== "GET" && method !== "HEAD") return env.ASSETS.fetch(request);
 
   const url = new URL(request.url);
+  if (url.pathname.startsWith("/media/")) {
+    return serveMedia(url.pathname.slice("/media/".length), method, env);
+  }
   const twin = mdPath(url.pathname);
   // A path that names a file (asset, /llms.txt, /openapi.json, a .md twin) is
   // never negotiated — hand it straight to the asset server, headers untouched.
@@ -110,6 +120,27 @@ async function handle(request: Request, env: Env): Promise<Response> {
     // Point agents that do not guess at the markdown twin (RFC 8288).
     Link: `<${twin}>; rel="alternate"; type="text/markdown"`,
   });
+}
+
+async function serveMedia(
+  key: string,
+  method: string,
+  env: Env,
+): Promise<Response> {
+  if (!key || key.split("/").some((segment) => segment === "..")) {
+    return new Response(null, { status: 404 });
+  }
+
+  const object = await env.MEDIA.get(key);
+  if (!object) return new Response(null, { status: 404 });
+
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  headers.set("ETag", object.httpEtag);
+  headers.set("X-Content-Type-Options", "nosniff");
+
+  return new Response(method === "HEAD" ? null : object.body, { headers });
 }
 
 /** Fetch one asset by path; null when it does not exist. */
