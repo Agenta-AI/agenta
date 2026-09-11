@@ -21,6 +21,7 @@ import {EventPickerNoApps} from "../states/EventPickerStates"
 import {appLabel, connectedApps, eventLabel, type ConnectedApp} from "./connectedApps"
 import {EventAppRail} from "./EventAppRail"
 import {EventList} from "./EventList"
+import {usePickerIsWide} from "./PickerOverlay"
 
 /** What Done hands back in a draft's "not yet saved" mode. */
 export interface EventSelection {
@@ -72,6 +73,10 @@ export const EventPickerPanel = ({
     const [search, setSearch] = useState("")
     /** Only what the user clicked in the rail — the default is derived, so it can arrive late. */
     const [railKey, setRailKey] = useState<string | undefined>(undefined)
+    // A phone has no room for the rail beside the list, so the apps become a step of their own:
+    // apps → events → filters, each full width, with a way back at the top of the next.
+    const isWide = usePickerIsWide()
+    const [onApps, setOnApps] = useState(!automation.eventKey)
 
     const openCatalogDrawer = useSetAtom(triggerCatalogDrawerOpenAtom)
     // The catalog hooks read one shared search atom — the panel owns it while it is open.
@@ -129,6 +134,7 @@ export const EventPickerPanel = ({
         setSaving(false)
         setSearch("")
         setRailKey(undefined)
+        setOnApps(!automation.eventKey)
     }, [open, automation.connectionId, automation.eventKey])
 
     // Filters belong to the event's own schema, so a different event starts from empty; the
@@ -161,6 +167,7 @@ export const EventPickerPanel = ({
         (app: ConnectedApp) => {
             setRailKey(app.integrationKey)
             setBrowsing(true)
+            setOnApps(false)
             // The search belongs to the app it was typed for; carrying it across would answer a
             // question about GitHub with an empty Slack list. Cleared everywhere at once, or the
             // new app's first query would still carry the old app's words.
@@ -215,17 +222,27 @@ export const EventPickerPanel = ({
                     scrolling body the row stopped at the visible height, and the rail's rule
                     ended mid-panel while the form ran on past it. */}
                 <div className="flex flex-1 items-stretch gap-[10px]">
-                    {/* The rail never goes away: the search belongs to the app selected in it,
-                        so hiding it would take away the one control that changes the scope. */}
-                    <EventAppRail
-                        apps={apps}
-                        selectedKey={activeApp?.integrationKey}
-                        isLoading={connectionsLoading}
-                        onSelect={onSelectApp}
-                        onConnectAnother={onConnectAnother}
-                    />
+                    {/* Wide, the rail never goes away: the search belongs to the app selected in
+                        it, so hiding it would take away the one control that changes the scope.
+                        Narrow, it is the first step and leaves once an app is picked. */}
+                    {isWide || onApps ? (
+                        <EventAppRail
+                            apps={apps}
+                            // The apps step marks only a real pick: the wide rail's derived
+                            // default would read as "this one is chosen" before anything was.
+                            selectedKey={
+                                isWide
+                                    ? activeApp?.integrationKey
+                                    : (railKey ?? connection?.integration_key)
+                            }
+                            isLoading={connectionsLoading}
+                            onSelect={onSelectApp}
+                            onConnectAnother={onConnectAnother}
+                            full={!isWide}
+                        />
+                    ) : null}
                     {/* Only the right pane changes once an event is chosen — the rail stays put. */}
-                    {showFilters ? (
+                    {!isWide && onApps ? null : showFilters ? (
                         <div className="flex min-w-0 flex-1 flex-col gap-2">
                             <div className="flex flex-col gap-1">
                                 <button
@@ -261,6 +278,16 @@ export const EventPickerPanel = ({
                         // panel: it asks the selected app what it publishes, and a field above
                         // the rail read as a search of everything.
                         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+                            {isWide ? null : (
+                                <button
+                                    type="button"
+                                    onClick={() => setOnApps(true)}
+                                    className="flex w-fit cursor-pointer items-center gap-[5px] border-0 bg-transparent p-0 text-left text-[12px] text-muted-foreground hover:text-foreground"
+                                >
+                                    <ArrowLeft aria-hidden size={13} className="shrink-0" />
+                                    <span className="min-w-0 truncate">All apps</span>
+                                </button>
+                            )}
                             <div className="relative shrink-0">
                                 <Search
                                     aria-hidden

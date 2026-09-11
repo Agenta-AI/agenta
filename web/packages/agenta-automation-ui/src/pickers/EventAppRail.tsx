@@ -23,6 +23,7 @@ export const EventAppRail = ({
     isLoading,
     onSelect,
     onConnectAnother,
+    full = false,
 }: {
     apps: ConnectedApp[]
     selectedKey?: string
@@ -30,6 +31,8 @@ export const EventAppRail = ({
     onSelect: (app: ConnectedApp) => void
     /** Last row of the rail — connecting an app is how this list grows. */
     onConnectAnother?: () => void
+    /** A phone shows the apps as a step of their own, full width, with no rule beside them. */
+    full?: boolean
 }) => {
     const {integrations, isLoading: catalogLoading} = useTriggerCatalogIntegrations()
     // Name as well as logo: a connection is named for the account it authorises ("gmail-main"),
@@ -45,7 +48,12 @@ export const EventAppRail = ({
     return (
         // The box stretches so its rule runs the whole panel; the rows inside stick, so the app
         // you are browsing stays reachable while a long event list or filter form scrolls past.
-        <div className="w-1/3 shrink-0 border-0 border-r border-solid border-border pr-[9px]">
+        <div
+            className={cn(
+                "shrink-0",
+                full ? "w-full" : "w-1/3 border-0 border-r border-solid border-border pr-[9px]",
+            )}
+        >
             <div className="sticky top-0 flex flex-col gap-px">
                 {isLoading ? (
                     <>

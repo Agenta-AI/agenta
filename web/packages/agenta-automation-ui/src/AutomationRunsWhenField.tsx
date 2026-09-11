@@ -9,12 +9,18 @@ import {AutomationField} from "./AutomationField"
 import {runsWhenLabel, type Automation, type AutomationKind} from "./automationModel"
 import {cn} from "./lib/utils"
 import {EventPickerPanel, type EventSelection} from "./pickers/EventPickerPanel"
-import {PickerOverlay} from "./pickers/PickerOverlay"
+import {PickerOverlay, usePickerIsWide} from "./pickers/PickerOverlay"
 
 /** The two things an automation can run on, in the order the design shows them. */
-const KINDS: {value: AutomationKind; label: string; icon: typeof CalendarBlank}[] = [
-    {value: "schedule", label: "On a schedule", icon: CalendarBlank},
-    {value: "event", label: "When something happens", icon: Lightning},
+const KINDS: {
+    value: AutomationKind
+    label: string
+    /** A phone's half-width chip has room for two words, not four. */
+    shortLabel: string
+    icon: typeof CalendarBlank
+}[] = [
+    {value: "schedule", label: "On a schedule", shortLabel: "Schedule", icon: CalendarBlank},
+    {value: "event", label: "When something happens", shortLabel: "Event", icon: Lightning},
 ]
 
 /**
@@ -43,6 +49,7 @@ export const AutomationRunsWhenField = ({
     error?: string
 }) => {
     const [open, setOpen] = useState(false)
+    const isWide = usePickerIsWide()
     const schedule = useScheduleBuilder(automation.cron ?? "", onChangeCron)
 
     const isSchedule = automation.kind === "schedule"
@@ -88,9 +95,10 @@ export const AutomationRunsWhenField = ({
                     </button>
                 }
             >
-                <div className="flex min-h-0 flex-col">
+                {/* `flex-1` so the sheet's fixed height reaches the panel's own scroller. */}
+                <div className="flex min-h-0 flex-1 flex-col">
                     <div className="flex shrink-0 gap-1 p-2">
-                        {KINDS.map(({value, label: kindLabel, icon: KindIcon}) => {
+                        {KINDS.map(({value, label: kindLabel, shortLabel, icon: KindIcon}) => {
                             const active = value === automation.kind
                             return (
                                 <Button
@@ -114,14 +122,16 @@ export const AutomationRunsWhenField = ({
                                     className="h-8 min-w-0 flex-1 font-normal"
                                 >
                                     <KindIcon aria-hidden size={14} />
-                                    <span className="min-w-0 truncate">{kindLabel}</span>
+                                    <span className="min-w-0 truncate">
+                                        {isWide ? kindLabel : shortLabel}
+                                    </span>
                                 </Button>
                             )
                         })}
                     </div>
 
                     {isSchedule ? (
-                        <div className="p-4">
+                        <div className="min-h-0 overflow-y-auto p-4">
                             <ScheduleBuilderPanel
                                 value={automation.cron ?? ""}
                                 controls={schedule}

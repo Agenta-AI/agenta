@@ -14,6 +14,12 @@ import {
 import {useMediaQuery} from "../lib/useMediaQuery"
 import {cn} from "../lib/utils"
 
+/** The phone/desktop line every automation picker reads — the app's own `lg`. */
+export const PICKER_WIDE_QUERY = "(min-width: 64rem)"
+
+/** True from `lg` up: the picker is a popover, and its panels have room to sit side by side. */
+export const usePickerIsWide = () => useMediaQuery(PICKER_WIDE_QUERY)
+
 /**
  * The one overlay the automation pickers open from: a popover anchored to the field from `lg` up,
  * a bottom sheet below it.
@@ -50,7 +56,7 @@ export const PickerOverlay = ({
 }) => {
     // SSR default false: the server has no viewport, and a phone is the narrower guess to be
     // wrong about — the sheet renders correctly at any width, a popover does not.
-    const isWide = useMediaQuery("(min-width: 64rem)")
+    const isWide = usePickerIsWide()
 
     if (isWide) {
         return (
@@ -88,7 +94,10 @@ export const PickerOverlay = ({
                 side="bottom"
                 // No description on a picker; declaring none keeps Radix from warning about it.
                 aria-describedby={undefined}
-                className="gap-0 overflow-hidden p-0"
+                // Taller than the sheet's 378px default: the schedule builder and an event's
+                // filter form both run past it, and a body clipped at a fixed height is one
+                // whose Done button is off screen.
+                className="h-[min(85dvh,640px)] gap-0 overflow-hidden p-0"
             >
                 <SheetHeader className="shrink-0 px-4 pb-2 pt-4">
                     <SheetTitle className="text-sm">{title}</SheetTitle>

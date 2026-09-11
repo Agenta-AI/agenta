@@ -46,7 +46,7 @@ export const AutomationCreateBody = ({
                         fallback={generatedName}
                     />
                 </div>
-                <span className="flex shrink-0 items-center gap-[9px]">
+                <span className="hidden shrink-0 items-center gap-[9px] lg:flex">
                     <Switch
                         size="sm"
                         checked={draft.isActive}
