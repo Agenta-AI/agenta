@@ -299,7 +299,7 @@ export const HomeTaskComposer = ({
                 opaque, so a line tucked under it shows straight THROUGH rather than behind, and
                 its own bottom edge is the rule between them. */}
             {dock ? (
-                <div className="-mt-6 mx-px flex items-center gap-2 rounded-b-lg border border-t-0 border-solid border-[var(--ag-colorSplit)] bg-transparent px-2.5 pb-2 pt-8">
+                <div className="-mt-6 mx-px flex items-center gap-2 rounded-b-lg border border-t-0 border-solid border-[var(--ag-colorSplit)] bg-transparent px-2.5 pb-1 pt-7">
                     {dock}
                 </div>
             ) : null}
