@@ -29,6 +29,14 @@ The LLM gateway exposes the same namespace for all supported model protocols:
 The relay preserves provider protocol/error shapes. A policy denial is produced
 before relay and never invokes the upstream.
 
+A custom endpoint declares the provider family it speaks — `openai` or `anthropic` — and that
+declaration becomes the endpoint's `provider_key`. The route suffix is not the declaration: the
+relay serves all three suffixes on every custom endpoint, so only the declared family says which
+harnesses and models the endpoint can serve. A missing declaration means infer by the legacy rule,
+and new records must declare. The registered endpoint row still needs a concrete `provider_key`, so
+an undeclared record registers as `openai`; the grandfather rule governs what the picker offers, not
+what the row stores.
+
 ### MCP surface
 
 MCP is transparent Streamable HTTP, one URL per server:
