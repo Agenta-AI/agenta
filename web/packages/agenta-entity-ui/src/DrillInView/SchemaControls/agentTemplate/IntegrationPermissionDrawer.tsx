@@ -37,7 +37,7 @@ import {
     partitionToolsByAccess,
     presetPermissions,
     readIntegrationPreset,
-    rollupGroupPermission,
+    rollupEffectiveGroupPermission,
     rollupLabel,
     savedToolPermission,
     withStaleTools,
@@ -175,6 +175,7 @@ function ToolGroup({
     tools,
     search,
     permissions,
+    agentPolicy,
     onChangeToolPermission,
     disabled,
 }: {
@@ -184,6 +185,7 @@ function ToolGroup({
     tools: CatalogToolInfo[]
     search: string
     permissions: GatewayConnectionPermissions
+    agentPolicy?: PermissionPolicy | null
     onChangeToolPermission: (toolKey: string, permission: GatewayPermission) => void
     disabled?: boolean
 }) {
@@ -194,12 +196,8 @@ function ToolGroup({
     const setOpen = () =>
         setExpanded((prev) => ({...prev, [storageKey]: !(prev[storageKey] ?? true)}))
     const rollup = useMemo(
-        () =>
-            rollupGroupPermission(
-                tools.map((tool) => tool.key),
-                permissions,
-            ),
-        [tools, permissions],
+        () => rollupEffectiveGroupPermission(tools, permissions, agentPolicy),
+        [tools, permissions, agentPolicy],
     )
     const matching = useMemo(() => {
         if (!search) return tools
@@ -408,6 +406,7 @@ function DrawerBody({
                         tools={readOnly}
                         search={search}
                         permissions={permissions}
+                        agentPolicy={agentPolicy}
                         onChangeToolPermission={onChangeToolPermission}
                         disabled={disabled}
                     />
@@ -418,6 +417,7 @@ function DrawerBody({
                         tools={write}
                         search={search}
                         permissions={permissions}
+                        agentPolicy={agentPolicy}
                         onChangeToolPermission={onChangeToolPermission}
                         disabled={disabled}
                     />
