@@ -51,14 +51,20 @@ def upgrade() -> None:
         ),
         sa.Column("start_time", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("end_time", sa.TIMESTAMP(timezone=True), nullable=True),
+        # All six lifecycle columns, fully nullable, no FK on the actor columns — the
+        # repo-wide `LifecycleDBA` standard the DBEs inherit. See
+        # `oss/tests/pytest/unit/models/test_lifecycle_conventions.py`.
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),
             server_default=sa.text("CURRENT_TIMESTAMP"),
-            nullable=False,
+            nullable=True,
         ),
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.Column("deleted_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column("created_by_id", sa.UUID(), nullable=True),
+        sa.Column("updated_by_id", sa.UUID(), nullable=True),
+        sa.Column("deleted_by_id", sa.UUID(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("measurement_id", name="uq_measurements_measurement_id"),
     )
@@ -84,8 +90,13 @@ def upgrade() -> None:
             "created_at",
             sa.TIMESTAMP(timezone=True),
             server_default=sa.text("CURRENT_TIMESTAMP"),
-            nullable=False,
+            nullable=True,
         ),
+        sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column("deleted_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column("created_by_id", sa.UUID(), nullable=True),
+        sa.Column("updated_by_id", sa.UUID(), nullable=True),
+        sa.Column("deleted_by_id", sa.UUID(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.ForeignKeyConstraint(
             ["measurement_id"],

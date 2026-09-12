@@ -53,12 +53,12 @@ has not been exercised against `TransactionsEngine` under load.
 > `ThreadPoolExecutor`/`asyncio.run` bridge) no longer exists; there is nothing left to be unsafe
 > across a thread boundary.
 
-**The integration tests have now been run.** They were written during the wave and executed for
-the first time on 12 September 2026, against a throwaway Postgres and Redis rather than this
-procedure's full stack — none of them needs the API or the workers running. Thirteen of sixteen
-wallet tests pass, both measurement tests pass, and three fail; two of the three failures are a
-real defect in the production signup-grant path. Results, the infrastructure recipe, and the three
-failures are in step 9 below.
+**The integration tests have now been run, and they pass.** They were written during the wave and
+executed for the first time on 12 September 2026, against a throwaway Postgres and Redis rather
+than this procedure's full stack — none of them needs the API or the workers running. The first run
+found four defects, including one that would have failed every signup. All four are fixed, and the
+suites are now 20 passed, 0 failed, 0 skipped. Results, the infrastructure recipe, and what each
+defect was are in step 9 below.
 
 The order below is still the order to run them in, and it is still the order of what matters:
 
@@ -484,12 +484,16 @@ a pass.** Four things are easy to get wrong:
   fixture upgrades to `ee0000000004` and downgrades to `ee0000000003` itself. Left at head,
   the fixture's upgrade is a no-op and `test_migration_upgrade_downgrade_upgrade_round_trip`
   fails its opening assertion that the tables do not yet exist.
-- **Pass `-n 0`.** `api/pytest.ini` carries `addopts = -n auto`, which fans these tests out
-  over one worker per core against a single database. They share schema state and will
-  interfere. Any CI wiring for these files needs the same flag.
+- **Nothing special is needed for xdist any more.** These tests share schema state, so
+  fanning them over one worker per core used to break them: the wallet directory under the
+  repo's default invocation was 4 failed, 13 errors, 1 passed. `api/pytest.ini` now runs
+  `--dist=loadgroup`, and every wallet and measurement integration module carries
+  `pytest.mark.xdist_group(name="wallets-integration")`, so they all land on one worker.
+  `loadgroup` behaves as `load` for ungrouped tests, so nothing else changes. Follow this
+  precedent for any new DB-state module here; `services/pytest.ini` does the same.
 
-Run each command with `AGENTA_LICENSE=ee AGENTA_WALLETS_ENABLED=true`, the three URIs, and
-`-n 0`, from `api/`:
+Run each command with `AGENTA_LICENSE=ee AGENTA_WALLETS_ENABLED=true` and the three URIs,
+from `api/`:
 
 ```bash
 # 1. MOST IMPORTANT — the concurrency guarantee itself: proves competing deliveries
@@ -525,27 +529,23 @@ uv run --no-sync python -m pytest \
   ee/tests/pytest/integration/wallets/test_wallets_grants_postgres.py -v
 ```
 
-### First-run results, 12 September 2026
+### Results, 12 September 2026
 
 Postgres 17 and Redis 8, throwaway containers, `core_ee` at `ee0000000005` and `tracing_ee`
-at `ee0000000002` before the per-fixture downgrade, `-n 0`, no skips anywhere:
+at `ee0000000002` before the per-fixture downgrade. No skips anywhere.
 
-| Suite | Result |
-| --- | --- |
-| (1) settlement concurrency, the one that matters | 1 passed |
-| (2) `test_wallets_migration_postgres.py` | 7 passed |
-| (3) debit worker duplicate delivery | 1 passed |
-| (4) `measurements/test_measurements_integration.py` | 2 passed |
-| (5) backfill migration | 3 passed |
-| (5) provisioning | 1 passed, 1 failed |
-| (6) grants | 2 failed |
-| whole `integration/wallets/` directory | 13 passed, 3 failed |
-| whole `integration/measurements/` directory | 2 passed |
-| unit control, `unit/wallets/` + `unit/measurements/` | 126 passed |
+| Run | First run | After the fixes |
+| --- | --- | --- |
+| whole `integration/wallets/` directory | 13 passed, 3 failed | **18 passed** |
+| whole `integration/measurements/` directory | 2 passed | **2 passed** |
+| both directories together, default invocation | 1 passed, 4 failed, 13 errors | **20 passed** |
+| `unit/wallets/` + `unit/measurements/` | 126 passed | **126 passed** |
+| whole `ee/tests/pytest/unit` | 497 passed | **497 passed** |
+| `ee/tests/pytest/unit` + `oss/tests/pytest/unit` | 1 failed, 4790 passed, 6 skipped | **4791 passed, 6 skipped** |
 
-**The four priority suites all pass.** The general-balance row lock does serialize
-settlement, the schema enforces its invariants, the replay guard engages against a real
-engine, and the measurement chain converges after a transient publish failure.
+**The four priority suites pass.** The general-balance row lock does serialize settlement,
+the schema enforces its invariants, the replay guard engages against a real engine, and the
+measurement chain converges after a transient publish failure.
 
 One test-harness defect had to be fixed before any of this could run at all: every fixture
 and several test bodies called the synchronous `alembic.command.upgrade` from inside an
@@ -554,12 +554,14 @@ and several test bodies called the synchronous `alembic.command.upgrade` from in
 errored out before touching the database, and always had. The calls are now dispatched
 with `asyncio.to_thread`. `core_ee/env.py` is untouched and identical to `main`.
 
-### The three failures
+### What the first run found, and what fixed it
 
-Two are one production defect. One is a test that expired.
+Four defects, all fixed. Two of them were in production code and one of those would have
+failed every signup, which is the whole argument for running tests somebody wrote and never
+executed.
 
-**`WalletsDAO.award_credit` violates its own foreign key on every first delivery.** Both
-`test_wallets_grants_postgres.py` failures are this, raising
+**`WalletsDAO.award_credit` violated its own foreign key on every first delivery.** Both
+`test_wallets_grants_postgres.py` failures were this, raising
 
 ```text
 asyncpg.exceptions.ForeignKeyViolationError: insert or update on table "wallet_balances"
@@ -567,57 +569,75 @@ violates foreign key constraint "wallet_balances_wallet_credit_id_fkey"
 DETAIL:  Key (wallet_credit_id)=(...) is not present in table "wallet_credits".
 ```
 
-`award_credit` calls `session.add(credit)`, `session.add(balance)`, then one `flush()`.
+`award_credit` called `session.add(credit)`, `session.add(balance)`, then one `flush()`.
 There is no `relationship()` between `WalletCreditDBE` and `WalletBalanceDBE`, only a
 table-level `ForeignKeyConstraint` — and a table-level constraint orders DDL, not the
-unit-of-work flush between two independent mappers. SQLAlchemy emits the `wallet_balances`
-insert first, every time. This is not a test artefact: it is the signup-grant path, so the
-`signup` grant cannot ever have been awarded successfully. A `flush()` between the two adds,
-or a real `relationship()`, fixes it. `apply_plan_change` mints a credit and its balance row
-the same way and may carry the same latent bug; its test fails earlier, for the unrelated
-reason below, so it has not been reached.
+unit-of-work flush between two independent mappers. SQLAlchemy emitted the `wallet_balances`
+insert first, every time. This was not a test artefact: it is the signup-grant path, where
+`_award_signup_grant` re-raises and the signup flow deletes the new user, so every signup
+would have failed the day the flag was turned on.
 
-**`test_apply_plan_change_mints_credit_and_debits_outgoing_against_real_db` has a hardcoded
-date.** It fails `assert found_credit is not None`. The test seeds a `plan_allowance` credit
-with `end_time` set to a `PERIOD_END` constant of 1 February 2026, then expects
-`get_active_plan_allowance_credit` to return it. That DAO method filters on
+**Fixed** with an explicit `await session.flush()` between the two adds, in `award_credit`
+and in `apply_plan_change`, which minted its credit and balance row the same way and carried
+the identical defect — masked, because its own test died earlier on the date problem below.
+A `relationship()` was the alternative and was rejected: the wallet schema declares no ORM
+relationships at all, `settle()` loads the credit and balance pair through an explicit join
+rather than attribute navigation, and a single lazy-loading relationship in an async DAO is
+a hazard the rest of the file deliberately avoids. The flush costs one round trip inside a
+transaction that still commits once, so atomicity is unchanged.
+`test_award_credit_first_delivery_writes_credit_and_its_balance_row` is the regression test;
+the existing grants tests cover the rest.
+
+**`get_active_plan_allowance_credit` could not be exercised at a fixed logical time.** The
+symptom was `test_apply_plan_change_mints_credit_and_debits_outgoing_against_real_db` failing
+`assert found_credit is not None`: the test seeds a `plan_allowance` credit whose `end_time`
+is a hardcoded 1 February 2026, and the DAO filtered on
 `or_(end_time.is_(None), end_time > func.now())` using the database clock, so a credit that
-expired seven months ago is correctly excluded. The test could only ever have passed before
-1 February 2026. The fix is two-part, and the second half is the interesting one:
-`apply_plan_change` and `award_credit` both accept an injectable `now`, but
-`get_active_plan_allowance_credit` reads `func.now()` instead, so the DAO cannot be exercised
-at a fixed logical time by any caller.
+expired seven months ago was correctly excluded. The test could only ever have passed before
+1 February 2026.
 
-### And one failure outside these suites: the lifecycle-column convention
+**Fixed** at the cause rather than the symptom. `apply_plan_change` and `award_credit` both
+accept an injectable `now`; `get_active_plan_allowance_credit` now does too, defaulting to
+`func.now()` so no existing caller changes behaviour, and `apply_plan_change` threads its own
+`now` into it so one plan change reads one instant. The fake DAO honours it as well. The test
+no longer consults the wall clock at all, so it is time-independent rather than passing until
+some future date, and `test_get_active_plan_allowance_credit_reads_the_injected_clock` pins
+the new behaviour.
 
+**The measurement tables broke the repo's lifecycle-column convention.**
 `oss/tests/pytest/unit/models/test_lifecycle_conventions.py::test_lifecycle_columns_complete_and_nullable`
-fails on this branch:
+failed with
 
 ```text
 AssertionError: measurements is missing lifecycle columns:
 {'created_by_id', 'updated_by_id', 'deleted_by_id'}
 ```
 
-The repo's standard is that a table either has none of the six lifecycle columns or all six,
-fully nullable, with no foreign keys on the three actor columns. The wallet tables comply,
-because `WalletCreditDBA`, `WalletDebitDBA` and `WalletBalanceDBA` all inherit
-`LifecycleDBA`. The measurement tables do not: `ee/src/dbs/postgres/measurements/dbes.py`
-declares `created_at`, `updated_at` and `deleted_at` by hand on `measurements`, and only
-`created_at` on `measurement_values`, so both tables carry some lifecycle columns and are
-missing the rest.
+The standard is that a table has either none of the six lifecycle columns or all six, fully
+nullable, with no foreign keys on the three actor columns. The wallet tables complied by
+inheriting `LifecycleDBA`; the measurement tables declared their timestamps by hand. This one
+hid well: the convention test imports only the OSS model modules, so it passes alone and fails
+as soon as anything imports the EE measurement models, which is any run covering both
+`ee/tests/pytest/unit` and `oss/tests/pytest/unit`.
 
-This one is easy to miss and worth knowing about. The convention test only imports the OSS
-model modules, so it passes when run alone. It fails as soon as anything else in the same
-process imports the EE measurement models — which is what happens in any run that covers
-both `ee/tests/pytest/unit` and `oss/tests/pytest/unit`. Measured on 12 September 2026, that
-combined run is `1 failed, 4620 passed, 176 skipped`, and this is the one failure.
+**Fixed** by inheriting `LifecycleDBA` on both measurement tables and adding the three
+nullable actor columns to `ee0000000002_add_measurements.py`, with `created_at` relaxed to
+nullable to match. That migration was edited in place rather than superseded: the branch is
+unmerged, the feature is flag-gated off, and the tables exist in no deployment. `downgrade()`
+drops both tables, so it stayed symmetric. Anyone who already applied the old `ee0000000002`
+must downgrade to `ee0000000001` and re-upgrade.
 
-Either inherit `LifecycleDBA` on both measurement tables and add the three nullable actor
-columns to `ee0000000002_add_measurements.py`, or state the exemption where the convention is
-defined. An immutable gateway-minted observation arguably has no actor, which is a reasonable
-argument for the exemption — but it has to be written down rather than left as a failing test.
+**The suites were unsafe under the repo's default invocation.** `api/pytest.ini` runs
+`-n auto`, and these tests share schema state, so the wallet directory under the default was
+1 passed, 4 failed, 13 errors. **Fixed** by following the precedent in `services/pytest.ini`:
+`--dist=loadgroup` in `api/pytest.ini`, and one `xdist_group` marker shared by every wallet
+and measurement integration module. Running the two directories together also exposed a
+pre-existing leak, which fails identically on the unmodified branch: the Redis streams engine
+is a process-wide singleton holding one client while pytest-asyncio gives each test a fresh
+event loop, and `_xadd` swallows the resulting failure into a bare `False`. Both integration
+conftests now reset that engine per test, mirroring `_fresh_engine_per_test` next to it.
 
-**Failure meaning, per suite:**
+**Failure meaning, per suite,** for when one of these goes red again:
 - (1) failing means two concurrent settlements can both read the same stale credit
   balance and both fund from it — real double-spend under load; the highest-severity
   possible failure in this design. Do not ship past a failing (1).

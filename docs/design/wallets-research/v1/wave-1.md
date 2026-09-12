@@ -83,10 +83,11 @@ deliveries of the same posting key.
   concurrent deliveries cannot overspend one credit. **Delivered and run** on 12 September 2026
   against a throwaway Postgres 17 and Redis 8 at `core_ee` head `ee0000000005` / `tracing_ee`
   `ee0000000002`: the concurrency guarantee, the migration invariants, the debit-worker duplicate
-  guard and the measurement chain all pass. Three of the sixteen fail, and two of those three are a
-  real defect in `WalletsDAO.award_credit`. A fourth failure sits outside these suites: the repo's
-  lifecycle-column convention test rejects the `measurements` tables. All four are recorded in
-  [nodes/im-1-02-pipeline/acceptance.md](nodes/im-1-02-pipeline/acceptance.md) §9.
+  guard and the measurement chain all pass. The first run found four defects, two of them in
+  production code — `WalletsDAO.award_credit` and `apply_plan_change` both inserted a credit's
+  balance row before the credit itself, and the `measurements` tables broke the repo's
+  lifecycle-column convention. All four are fixed, and the suites are 20 passed, 0 failed.
+  [nodes/im-1-02-pipeline/acceptance.md](nodes/im-1-02-pipeline/acceptance.md) §9 records each one.
 - Local deployment acceptance uses fake built-in LLM and MCP calls only. It confirms both chains reach
   one measurement and one idempotent core settlement per gateway call. **Not yet run**; it needs a
   deployment with the flag on.
@@ -123,20 +124,22 @@ migration beyond `ee0000000005` (`core_ee` head remains `ee0000000005`):
 
 Both worktrees are documented in `nodes/im-1-02-pipeline/acceptance.md`, including the
 integration suites they added and the results of running them. Those results matter here:
-`WP-1-05`'s signup grant does not work. `WalletsDAO.award_credit` inserts a credit's balance
-row before the credit itself in one flush, so it violates its own foreign key on every first
-delivery. See §9 of the acceptance document for the evidence and the fix.
+`WP-1-05`'s signup grant did not work when it was first exercised against a real engine.
+`WalletsDAO.award_credit` inserted a credit's balance row before the credit itself in one
+flush and violated its own foreign key on every first delivery, and `apply_plan_change`
+carried the same defect. Both are fixed. See §9 of the acceptance document.
 
 ## Feature flag
 
 Everything above ships switched off. `AGENTA_WALLETS_ENABLED` (EE only, `env.wallets.enabled`,
 default `false`) gates every write the wallet performs, because the wave is code-complete
 but not yet proven end to end against a real deployment. The integration suites have since
-run and found a defect that vindicates the flag: `WalletsDAO.award_credit` fails its own
-foreign key, and the load-bearing call site sits on the signup path, where
+run and vindicated the flag: `WalletsDAO.award_credit` failed its own foreign key on every
+first delivery, and the load-bearing call site sits on the signup path, where
 `_provision_wallet_general_balance` and `_award_signup_grant` both re-raise and the signup
-flow deletes the new user when provisioning fails. With the flag on and that defect
-unfixed, every signup would fail. Fix `award_credit` before turning the flag on.
+flow deletes the new user when provisioning fails. With the flag on, every signup would
+have failed. That defect is fixed, but the flag stays off until the acceptance procedure
+has run against a deployment.
 
 While the flag is off:
 

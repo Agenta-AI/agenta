@@ -28,7 +28,14 @@ from oss.src.dbs.postgres.shared.engine import (
 )
 from ee.tests.pytest.utils.wallets.builders import build_debit_command
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+# One xdist group for the whole wallet pipeline: these modules churn the shared alembic
+# chain, the process-wide engine singleton, and the wallet Redis streams, so they are only
+# correct on a single worker under `pytest.ini`'s default `-n auto --dist=loadgroup`.
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.integration,
+    pytest.mark.xdist_group(name="wallets-integration"),
+]
 
 DOWN_REVISION = "ee0000000003"
 REVISION = "ee0000000004"

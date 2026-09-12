@@ -11,7 +11,7 @@ RUN — see `docs/design/wallets-research/v1/nodes/im-1-02-pipeline/acceptance.m
 
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from alembic import command
@@ -22,7 +22,14 @@ from ee.databases.postgres.migrations.core_ee.utils import alembic_cfg
 from ee.src.dbs.postgres.wallets.dao import WalletsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+# One xdist group for the whole wallet pipeline: these modules churn the shared alembic
+# chain, the process-wide engine singleton, and the wallet Redis streams, so they are only
+# correct on a single worker under `pytest.ini`'s default `-n auto --dist=loadgroup`.
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.integration,
+    pytest.mark.xdist_group(name="wallets-integration"),
+]
 
 DOWN_REVISION = "ee0000000003"
 # Schema only (wallet tables) — the ee0000000005 backfill migration is not needed for
@@ -32,6 +39,9 @@ SCHEMA_REVISION = "ee0000000004"
 
 PERIOD_START = datetime(2026, 1, 1, tzinfo=timezone.utc)
 PERIOD_END = datetime(2026, 2, 1, tzinfo=timezone.utc)
+# Every expiry decision below is made against this injected instant, never the database
+# clock, so the fixed period above cannot go stale as wall-clock time passes it.
+NOW = PERIOD_START + timedelta(days=21)
 
 
 @pytest.fixture(autouse=True)
@@ -147,7 +157,7 @@ async def test_apply_plan_change_mints_credit_and_debits_outgoing_against_real_d
             )
 
         found_credit = await dao.get_active_plan_allowance_credit(
-            organization_id=organization_id
+            organization_id=organization_id, now=NOW
         )
         assert found_credit is not None
         assert found_credit.id == outgoing_credit_id
@@ -162,7 +172,7 @@ async def test_apply_plan_change_mints_credit_and_debits_outgoing_against_real_d
             incoming_priority=10,
             incoming_end_time=PERIOD_END,
             floor_musd=-500,
-            now=datetime(2026, 1, 22, tzinfo=timezone.utc),
+            now=NOW,
         )
 
         assert result.replayed is False
@@ -208,7 +218,7 @@ async def test_apply_plan_change_mints_credit_and_debits_outgoing_against_real_d
             incoming_priority=10,
             incoming_end_time=PERIOD_END,
             floor_musd=-500,
-            now=datetime(2026, 1, 25, tzinfo=timezone.utc),
+            now=NOW + timedelta(days=3),
         )
         assert replay.replayed is True
         assert replay.incoming_credit_id == result.incoming_credit_id
@@ -217,5 +227,50 @@ async def test_apply_plan_change_mints_credit_and_debits_outgoing_against_real_d
             organization_id=organization_id
         )
         assert general_after_replay.balance_musd == general.balance_musd
+    finally:
+        await _cleanup(organization_id)
+
+
+async def test_get_active_plan_allowance_credit_reads_the_injected_clock(wallet_schema):
+    """The "outgoing" credit lookup judges expiry against the `now` the caller injects —
+    the same instant `apply_plan_change` prorates against — not the database clock, so a
+    plan change cannot read one clock and prorate against another."""
+    organization_id = uuid.uuid4()
+    dao = WalletsDAO()
+
+    try:
+        expired_credit_id = uuid.uuid4()
+        active_credit_id = uuid.uuid4()
+
+        engine = get_transactions_engine()
+        async with engine.session() as session:
+            for credit_id, end_time in (
+                (expired_credit_id, NOW - timedelta(days=1)),
+                (active_credit_id, PERIOD_END),
+            ):
+                await session.execute(
+                    text(
+                        "INSERT INTO wallet_credits "
+                        "(id, organization_id, credit_kind, amount_musd, priority, end_time) "
+                        "VALUES (:id, :organization_id, 'plan_allowance', 310000, 10, :end_time)"
+                    ),
+                    {
+                        "id": credit_id,
+                        "organization_id": organization_id,
+                        "end_time": end_time,
+                    },
+                )
+
+        at_now = await dao.get_active_plan_allowance_credit(
+            organization_id=organization_id, now=NOW
+        )
+        assert at_now is not None
+        assert at_now.id == active_credit_id
+
+        # An instant past every seeded end_time: nothing is active any more.
+        after_period = await dao.get_active_plan_allowance_credit(
+            organization_id=organization_id, now=PERIOD_END + timedelta(days=1)
+        )
+        assert after_period is None
     finally:
         await _cleanup(organization_id)

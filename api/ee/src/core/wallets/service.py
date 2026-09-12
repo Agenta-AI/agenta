@@ -88,6 +88,7 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
 
         outgoing_credit = await self.wallets_dao.get_active_plan_allowance_credit(
             organization_id=organization_id,
+            now=now,
         )
 
         proration = compute_plan_change_proration(

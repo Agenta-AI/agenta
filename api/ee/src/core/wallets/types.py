@@ -319,10 +319,13 @@ class WalletsDAOInterface(ABC):
         self,
         *,
         organization_id: UUID,
+        now: Optional[datetime] = None,
     ) -> Optional[WalletCreditDTO]:
         """The organization's current, unexpired `plan_allowance`-kind credit, if any —
         the "outgoing" credit a plan change prorates a remainder out of. Wave 1 assumes
-        at most one such credit is active at a time."""
+        at most one such credit is active at a time. `now` is the instant expiry is
+        judged against, so a plan change reads this and prorates against one clock;
+        implementations fall back to their own clock when it is omitted."""
         raise NotImplementedError
 
     @abstractmethod
