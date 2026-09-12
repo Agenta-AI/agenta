@@ -37,4 +37,6 @@ the wallet receives a gateway-decided debit command. The delivered direction is 
 chain: `streams:measurements` feeds the measurement worker and `streams:debits` feeds the wallet
 worker. Existing ACP `records` keeps its name. The Wave 1 slice uses fake built-in LLM and MCP
 gateways. Checkpoint 1 closes when the acceptance procedure has run against a deployment with the
-flag on.
+flag on. Wave 2, in [wave-2.md](wave-2.md), replaces the fakes with the gateway itself: real
+usage capture, a versioned rate card, and admission before dispatch. It is specified and not
+implemented, and it is the first wave to span two branches.
