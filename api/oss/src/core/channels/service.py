@@ -1432,6 +1432,13 @@ class ChannelsService:
             capabilities=capabilities,
         )
         if agent is None:
+            agent = await self._agent_holding_thread(
+                project_id=project_id,
+                space=space,
+                event=event,
+                capabilities=capabilities,
+            )
+        if agent is None:
             agent = await self._addressed_agent(
                 project_id=project_id,
                 connection_id=connection_id,
@@ -1481,12 +1488,12 @@ class ChannelsService:
         )
 
         # THREAD grain composes to None where the platform declares no thread
-        # fields (the no-threads case). MESSAGE scope always mints a fresh
-        # thread keyed on this event's own id, since "one session per
-        # message" is the point of that scope.
+        # fields (the no-threads case). MESSAGE scope keys the thread on this
+        # event's own id, since "one session per message" is the point of
+        # that scope; the lookup still runs so a redelivered event finds its
+        # own thread instead of minting a second one (and a second trigger).
         is_message_scope = policy.session_scope is ChannelSessionScope.MESSAGE
 
-        thread = None
         if is_message_scope:
             thread_key = event.id
         else:
@@ -1503,12 +1510,12 @@ class ChannelsService:
                     ChannelKeyGrain.THREAD,
                     event.data.external_locator,
                 )
-            thread = await self.channels_dao.fetch_current_thread(
-                project_id=project_id,
-                space_id=space.id,
-                external_key=thread_key,
-                agent_id=agent.id,
-            )
+        thread = await self.channels_dao.fetch_current_thread(
+            project_id=project_id,
+            space_id=space.id,
+            external_key=thread_key,
+            agent_id=agent.id,
+        )
 
         # A click and a numbered reply converge here: both carry a candidate
         # string, and resolve_pending_choice treats them identically. A click
@@ -1637,6 +1644,44 @@ class ChannelsService:
             return None
         return await self.channels_dao.fetch_agent(
             project_id=project_id, agent_id=waiting.agent_id
+        )
+
+    async def _agent_holding_thread(
+        self,
+        *,
+        project_id: UUID,
+        space: ChannelSpace,
+        event: ChannelInboxEvent,
+        capabilities: ChannelCapabilities,
+    ) -> Optional[ChannelAgent]:
+        """The agent whose open conversation this message continues. A reply
+        without a sigil in a thread a specialist opened belongs to that
+        specialist; the default agent would have no thread there and drop it.
+        A sigil always wins, so naming another agent still switches."""
+        named = _parse_sigil(
+            content=event.data.processed.content,
+            sigil=capabilities.addressing.sigils.agent,
+        )
+        if named is not None:
+            return None
+        if space.kind is ChannelSpaceKind.PRIVATE:
+            thread_key = space.external_key
+        else:
+            try:
+                thread_key = compose_external_key(
+                    capabilities, ChannelKeyGrain.THREAD, event.data.external_locator
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                return None
+        thread = await self.channels_dao.fetch_active_thread(
+            project_id=project_id,
+            space_id=space.id,
+            external_key=thread_key,
+        )
+        if thread is None:
+            return None
+        return await self.channels_dao.fetch_agent(
+            project_id=project_id, agent_id=thread.agent_id
         )
 
     async def _addressed_agent(
