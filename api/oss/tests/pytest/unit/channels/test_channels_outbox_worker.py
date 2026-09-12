@@ -251,6 +251,9 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def fetch_thread_awaiting_choice(self, **kwargs):
         raise NotImplementedError
 
+    async def fetch_active_thread(self, **kwargs):
+        raise NotImplementedError
+
     async def close_thread(self, **kwargs):
         raise NotImplementedError
 

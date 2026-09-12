@@ -361,6 +361,15 @@ class ChannelAgentData(BaseModel):
                 "references must name the workflow the agent runs; use one of "
                 f"{sorted(RESOLVABLE_AGENT_REFERENCE_KEYS)}"
             )
+        # The runtime accepts one reference family per run (see
+        # WorkflowsService._validate_execution_reference_families); an agent
+        # bound to two would save fine and fail on its first turn.
+        families = sorted({key.split("_", 1)[0] for key in references})
+        if len(families) > 1:
+            raise ValueError(
+                "references must belong to one family (workflow or application), "
+                f"not {families}"
+            )
         return references
 
 
