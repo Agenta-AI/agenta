@@ -442,6 +442,7 @@ class ChannelsDAOInterface(ABC):
         """
         ...
 
+    @abstractmethod
     async def fetch_thread_awaiting_choice(
         self,
         *,
@@ -452,7 +453,7 @@ class ChannelsDAOInterface(ABC):
     ) -> Optional[ChannelThread]:
         """The active thread under this key, whichever agent holds it, that
         has a pending choice; None when nothing is waiting for an answer."""
-        return None
+        ...
 
     @abstractmethod
     async def query_threads(
