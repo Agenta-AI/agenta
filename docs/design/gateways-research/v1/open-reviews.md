@@ -15,6 +15,191 @@ the full-stack test to show MCP initialization, `tools/list`, `tools/call`, and 
 marker for every mock namespace. Until then, retain the named non-strict expected failures and
 run the dashboard procedure in `qa.md` with a real harness connection.
 
+**Observed on 2026-09-12.** The automated matrix now separates the two harnesses. Every Pi and
+every Codex cell of `test_agent_harness_calls_echo_through_each_mock_mcp_gateway_route` passes,
+and all nine Claude cells fail, one per LLM-namespace and MCP-namespace pair, with a tool result
+that carries no echo marker (`assert 'mock MCP tool call failed' == 'mock MCP echo …'`). So Codex
+is no longer part of this finding on the automated path and Claude Code is the whole of it. The
+escape hatch the entry relies on is also unavailable: the dashboard procedure in `qa.md` could not
+reach the MCP leg for **any** harness on that date, for the reasons recorded in OR26 and OR31, so
+"run the dashboard procedure with a real harness connection" is not currently an option.
+
+---
+
+### OR26. The dashboard cannot select or create any gateway LLM route
+
+`qa.md` step 2 asks the operator to select the builtin LLM mock route (`builtin/mock`) in the
+dashboard and run it. There is no such control. Searching the playground model picker for `mock`
+and for `agenta` both return `No data`, and Settings / AI providers / Add provider offers the real
+providers plus `OpenAI-compatible endpoint` and nothing else. The routes themselves are live:
+`GET /gateways/llms/builtin/mock/v1/models` and the `agenta` equivalent both answer `200` with
+`mock/echo`, `gpt-5.5` and `claude-sonnet-5`.
+
+The `custom` namespace is no better, and that is the part that matters. Saving an
+OpenAI-compatible provider through the AI providers page writes a `custom_provider` **secret** and
+never creates the matching gateway endpoint: `POST /gateways/llms/endpoints/query` still returns
+`count: 0` afterwards. The run then fails at the control plane, because the SDK asks
+`POST /gateways/llms/resolve` for an endpoint that was never registered and receives `404`.
+
+So the gateway LLM plane has no reachable product path at all. The acceptance matrix proves the
+routes over HTTP, which is why this did not show up there; `qa.md` exists precisely to catch that
+difference, and it did. D1 says everything transits a gateway with no bypass, and a plane a user
+cannot reach is the bypass taken by default.
+
+The same shape holds on the MCP side. `Add MCP server` is a free-form name, URL and authentication
+form with no builtin catalogue, so `qa.md` step 4 cannot select the builtin mock MCP server
+either.
+
+Closure: the provider-creation path in `web/packages/agenta-settings` must create the LLM endpoint
+alongside the `custom_provider` secret, or `resolve_agent_connection` in
+`core/gateways/llms/service.py` must resolve a `custom_provider` secret that has no registered
+endpoint. Proven by a Playwright acceptance case beside
+`web/{oss,ee}/tests/playwright/acceptance/settings/mcp-oauth.spec.ts` that saves an
+OpenAI-compatible provider and then asserts `POST /gateways/llms/endpoints/query` returns one row.
+`qa.md` now carries the API call that stands in for the missing control in the meantime.
+
+---
+
+### OR27. A gateway control-plane refusal reaches the user with no code and no message
+
+This is OR25's failure shape, reopened on a different seam. OR25 closed the case where the
+insecure-endpoint refusal escaped as an unhandled `ValidationError` reported as
+`v1:sdk:unknown-workflow-invoke-error` at HTTP 500. A missing or disabled endpoint still does
+exactly that.
+
+`POST /gateways/llms/resolve` for an unregistered endpoint answers `404` with
+`{"detail":"LLM endpoint not found: custom/<slug>"}` — a bare string, not the
+`{code, message, retryable, next_step, details}` envelope OR25 established as the one shape a
+caller reads whichever side refused. `build_gateway_resolved_connection`'s caller in
+`sdk/agents/platform/connections.py` then discards even that, because it reads only the status and
+never the body. The running normalizer can therefore report only
+`v1:sdk:unknown-workflow-invoke-error`, HTTP 500,
+`message=connection resolution failed (HTTP 404)`, and the dashboard shows
+`Message wasn't sent — try again.` An operator whose only mistake was an endpoint that does not
+exist sees a server fault and no way to act on it, which is OR25's own description of the case it
+closed. `qa.md` calls a failure to surface `code` a gateway or runner regression, and by that rule
+this is one, on all three harnesses.
+
+Closure, two changes following the OR25 precedent, one per side. `LLMGatewayRouter`'s resolve
+route should refuse through `handle_gateway_exceptions` with the shared envelope, a `code` of
+`endpoint_not_found` and a `next_step` naming the endpoint to register. `ConnectionResolutionError`
+in `sdk/agents/platform/connections.py` should parse `error_detail` off the response and carry it
+rather than reducing every refusal to a status code. Proven by a case beside
+`test_the_refusal_is_typed_and_names_the_flag` in
+`sdks/python/oss/tests/pytest/unit/agents/test_gateway_credentials.py` asserting that a `404`
+body's `code` survives into the raised error, plus an API unit case on the resolve route asserting
+the envelope shape.
+
+---
+
+### OR28. Harness compatibility of the typed refusal: what each one preserves
+
+`qa.md` requires every harness to preserve the human message and the machine-readable `code`,
+allows Pi or Claude Code to preserve the whole envelope, and accepts Codex preserving only
+`message` plus the embedded marker if the UI offers a generic recovery path.
+
+Measured on 2026-09-12 against a data-plane `403` (`model_not_allowed`) and, where the harness got
+that far, a control-plane `404`:
+
+- **Pi** preserves `code` and the message, but only as text inside the harness's own session
+  recap, rendered as `[error: 403: {…,"code":"model_not_allowed"}]` rather than as an error
+  surface. `retryable`, `next_step` and `details` are absent.
+- **Claude Code** preserves nothing. The run ends at `Message wasn't sent — try again.`
+- **Codex** renders a first-class error card with `Show more` and preserves the human message, but
+  no `code`, `retryable`, `next_step` or `details`. Its card is the best of the three surfaces and
+  the weakest of the three payloads, which inverts the expectation `qa.md` records.
+
+None of the three reaches the complete envelope the design allows for Pi or Claude Code, and no
+harness offers the generic recovery path that is the stated condition for accepting Codex's
+reduced payload. Per the closing note in `qa.md` these are harness-compatibility findings and must
+not be normalized away in the UI.
+
+Closure: WP25 is the package that owns the trip back (`AgentErrorDetail` through harness, runner
+and agent service). Proven per harness by extending the replay fixtures under
+`services/oss/tests/pytest/acceptance/` with a refusal case that asserts `code` appears in the
+agent-service response for Pi, Claude Code and Codex, rather than only in the transcript text.
+
+---
+
+### OR29. `PUT` on an LLM endpoint silently drops `provider_key`
+
+`POST /gateways/llms/endpoints/` persists `provider_key` correctly. `PUT` on the same endpoint
+with the same field returns `200`, and a subsequent read shows no `provider_key` at all. Nothing
+in the response says the field was ignored.
+
+The consequence is not cosmetic. `resolve_agent_connection` computes
+`target.provider_key or provider_key` and, with neither present, raises
+`ValueError("gateway endpoint has no provider")` at `core/gateways/llms/service.py:270`. That
+`ValueError` is unhandled, so the caller receives HTTP 500 and the generic "An unexpected error
+occurred. Please try again later or contact support." An endpoint edited through the update path
+therefore breaks every run against it, and the only recovery is to delete and recreate it.
+
+Two defects in one. The update path must round-trip `provider_key`, and an endpoint that reaches
+resolve without a provider is a data-integrity violation that deserves a typed refusal rather than
+a generic 500.
+
+Closure: `LLMEndpointsDAO`'s update path plus the `edit_llm_endpoint` request DTO in
+`apis/fastapi/gateways/llms/router.py`. Proven by an integration case beside
+`api/oss/tests/pytest/integration/gateways/` that creates an endpoint with a `provider_key`, edits
+an unrelated field through `PUT`, and asserts the key is still readable and still resolves.
+
+---
+
+### OR30. Two unhandled `ValueError`s on the resolve route become generic 500s
+
+Beyond OR29's case, `POST /gateways/llms/resolve` with only `model` and neither `provider_key` nor
+`connection_slug` raises `ValueError("an unnamed gateway connection requires a provider")`, also
+unhandled, also a generic 500. A request missing a required combination of fields is a client
+error and belongs at `422`, the status `EndpointResolutionError` and `GatewayInsecureEndpointError`
+already use.
+
+The pattern to follow is the one OR25 landed: keep the `ValueError` as the invariant no
+construction path can dodge, and put a typed error in front of it at the seam every request passes
+through. `handle_gateway_exceptions` already wraps this route, so the work is adding the cases
+rather than adding a mechanism.
+
+Closure: two new arms in `handle_gateway_exceptions` in `apis/fastapi/gateways/llms/router.py`.
+Proven by unit cases on the resolve route asserting `422` and an envelope `code` for a body with
+only `model`, and for an endpoint whose provider is missing.
+
+---
+
+### OR31. The dashboard offers harness and route combinations the runtime refuses
+
+Three places let the operator build a configuration that cannot run, with no warning at
+configuration time and no explanation at run time.
+
+The provider form's `Harnesses` control accepts Claude Code on an OpenAI-compatible endpoint. The
+model picker then offers that model under a `Claude Code` group, and the run fails with
+`422 provider 'openai' is not supported by harness 'claude'` while the user sees only
+`Message wasn't sent — try again.` Codex accepts the same combination and fails differently, from
+inside the harness: `model '<provider>/custom/<model>' is not available on this run … Allowed
+values: gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna, gpt-5.5, gpt-5.2`. A harness whose model
+catalogue is fixed cannot use a custom gateway model at all, so offering one is a dead end rather
+than a misconfiguration.
+
+`Add MCP server` has the mirror-image problem: the URL the operator types is not the URL that is
+requested. A server named `gw-mock-mcp` pointed at the builtin mock gateway route went out as
+`POST /gateways/mcps/custom/gw-mock-mcp` and returned `404`, because the server name becomes a
+`custom` slug and the supplied URL is discarded. Either the field routes, or it should not be a
+URL field.
+
+And Pi, the one harness whose gateway LLM leg works end to end, has **no `MCP servers` row in the
+configuration panel at all**, while Claude Code and Codex both do. No MCP server can be attached
+to a Pi agent from the dashboard, which is why `qa.md` step 4 has no executable happy path on any
+harness.
+
+Smaller, same family: the picker renders three separate options all named `echo`, one per harness,
+with the harness carried only by a visual group header and absent from the accessible name.
+
+Closure, in the order the QA hit them. The provider form and the model picker must consult the
+same capability table the SDK enforces in `sdks/python/agenta/sdk/agents/capabilities.py`, so an
+unsupported pair is not offerable. The Pi branch of the configuration panel must render the
+`MCP servers` row. `Add MCP server` must either persist its URL as a custom MCP endpoint or stop
+asking for one. Proven by package unit cases in `web/packages/agenta-entities` over the
+harness/provider compatibility selector, plus a Playwright acceptance case asserting the
+`MCP servers` row is present for all three harnesses.
+
 ---
 
 ## Closed review record
