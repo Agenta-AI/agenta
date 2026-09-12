@@ -18,6 +18,7 @@ WP13's wire commit, before WP4's emission lands, so there is nothing to assert y
 
 from __future__ import annotations
 
+import os
 from uuid import uuid4
 
 import pytest
@@ -25,7 +26,21 @@ import requests
 
 from agenta.sdk.agents.platform import PlatformConnection, resolve_mcp
 
-pytestmark = [pytest.mark.acceptance]
+_MOCKS_ENABLED = os.getenv("AGENTA_GATEWAYS_MOCKS_ENABLED", "").lower() == "true"
+
+# The mock upstream this suite dials is a compose service, so it exists only in a dev
+# stack that opts into the mock topology. Deployments without it (the PR preview) would
+# otherwise fail here on DNS rather than on anything the resolver does.
+pytestmark = [
+    pytest.mark.acceptance,
+    pytest.mark.skipif(
+        not _MOCKS_ENABLED,
+        reason=(
+            "gateway mocks are disabled "
+            "(set AGENTA_GATEWAYS_MOCKS_ENABLED=true in an OSS/EE dev compose stack)"
+        ),
+    ),
+]
 
 # The mock speaks Streamable HTTP in JSON mode.
 # at the root path (see the sibling api-layer acceptance test).
