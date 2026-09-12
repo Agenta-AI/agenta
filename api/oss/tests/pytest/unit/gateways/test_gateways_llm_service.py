@@ -9,6 +9,8 @@ from uuid import uuid4
 
 import pytest
 
+from agenta.sdk.utils.assets import supported_llm_models
+
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import (
     LLMDeploymentKind,
@@ -372,7 +374,11 @@ async def test_list_models_standard_strips_the_litellm_routing_prefix():
         scope=_scope(), namespace=GatewayEndpointNamespace.STANDARD, name="anthropic"
     )
 
-    assert slugs[0] == "claude-fable-5"
+    # Read the expectation off the catalogue rather than naming a model: a catalogue sync
+    # rotates the ids and reorders the list, and the contract under test is the baring,
+    # not which model happens to lead.
+    catalogued = supported_llm_models["anthropic"]
+    assert slugs == [slug.removeprefix("anthropic/") for slug in catalogued]
     assert not any(slug.startswith("anthropic/") for slug in slugs)
 
 
