@@ -181,6 +181,31 @@ does not exist on this one.
 
 ## Next steps
 
+The blocking set comes first, and it falls into two kinds of work.
+
+**Mechanical, one correct answer each.** Each of these is self-contained, and none of them needs a
+decision about the trust model. OR36 and OR37 replace the one-element strip list with an explicit
+forward allowlist, merge headers case-insensitively, and give the pooled client no cookie jar.
+OR43 redacts every credential-bearing field per secret kind and stops duplicating the client secret
+into `extra.client_info`. OR46 adds the missing `OAUTH_PROVIDER` enum value. OR57 registers the mock
+adapter only when the flag is on. OR50 enforces the token ceiling on every alias and on the omitted
+case. OR44 rejects the model-routing fields the allowlist does not check. OR60 restricts the model
+string before it reaches a URL path. Do these first: they are cheap, and OR46 unblocks any real test
+of the OAuth path.
+
+**Decisions, not repairs.** Four findings ask what the trust model is, and each needs an answer
+before code. OR38 asks what a sandbox-held credential may authenticate, which means minting a
+gateway-audience token rather than reusing the platform one. OR41 asks where the authorization
+attempt lives, which means an opaque server-side record rather than a signed blob in the URL. OR40
+and OR64 ask where the egress boundary belongs, given that the MCP HTTP adapter already does it
+correctly and the LLM adapter and the OAuth client do not. OR39 asks what the gateway owes a caller
+when an upstream echoes the injected key back. Settle these four before writing the fixes, because
+each one moves a seam.
+
+**Then re-prove it.** OR65 is the reason the suites stayed green through all of this. A fix set that
+lands without the end-to-end path it names leaves the branch in the same position: green, and
+unproven at the boundary that matters.
+
 Wave 4 is done. What remains from it is OR31d, which is not dashboard work: the SDK's Codex settings
 writer must pin the resolved model id in `$CODEX_HOME/config.toml` for a gateway-routed run, and the
 runner must stop setting the model that is already the session default. Whoever takes it should run
