@@ -2,39 +2,6 @@
 
 ## Active review findings
 
-### OR34. The AI providers drawer closes itself and discards the form
-
-`Settings / AI providers / Add provider` opens a drawer that closes on its own, with no
-interaction, no save and no notice. Measured on `agenta-ee-dev-gateways` on 2026-09-13: open and
-untouched at 40 seconds, gone at 50, with everything typed into it discarded.
-
-The window this leaves is shorter than the task. An operator who switches tabs to copy a key off
-the provider's console comes back to a closed drawer and an empty form, and the only way to finish
-is to have the key on the clipboard before the drawer opens.
-
-Closure: the drawer stays open until the operator saves it or closes it. Proven by a Playwright
-acceptance case beside `web/{oss,ee}/tests/playwright/acceptance/settings/mcp-oauth.spec.ts` that
-opens the drawer, fills it, waits past a minute with no interaction, and asserts the fields still
-hold what was typed.
-
----
-
-### OR35. The API keys page offers no way to create a key
-
-`Settings / API keys` renders an empty state that invites the reader to generate a key, and no
-control that generates one exists anywhere in the page. Measured on `agenta-ee-dev-gateways` on
-2026-09-13: the empty state is the whole page, and the DOM carries no create button, menu item or
-link.
-
-An operator who needs a key for the SDK, for a direct API call, or for the endpoint-creation step
-`qa.md` describes has no dashboard path to one.
-
-Closure: the page carries a create control, and the created key is listed. Proven by a Playwright
-acceptance case beside `web/{oss,ee}/tests/playwright/acceptance/settings/mcp-oauth.spec.ts` that
-creates a key from the empty state and asserts the row appears.
-
----
-
 ### OR36. A proxied request relays the caller's session cookie and Authorization header upstream, and one pooled client carries upstream cookies between tenants
 
 Two defects share one root cause and one fix, so they are recorded together. A gateway call relays
@@ -772,6 +739,38 @@ enum member and the retained rows, and the upgrade sets a `lock_timeout`.
 ---
 
 ## Closed review record
+
+### OR34. The AI providers drawer closes itself and discards the form — CLOSED, and the drawer was not what closed it
+
+`Settings / AI providers / Add provider` opened a drawer that closed on its own, with no
+interaction, no save and no notice. Measured on `agenta-ee-dev-gateways` on 2026-09-13: open and
+untouched at 40 seconds, gone at 50, with everything typed into it discarded.
+
+Nothing in the drawer does this. On a development deployment the mobile app's Next hot-module-reload
+websocket at `/m/_next/hmr` fails its handshake through Traefik, so the development client falls back
+to reloading the whole page every 50 to 60 seconds. The reload takes the page, and every open form
+goes with it. The drawer is one casualty among all of them. A production build runs no such client,
+does not reload, and the drawer holds.
+
+Closure: closed as a development-deployment artefact rather than a dashboard defect. The follow-up
+belongs to hosting and not to this document set: proxy the mobile hot-reload websocket in the
+development compose and Traefik configuration so the development client keeps its connection.
+
+---
+
+### OR35. The API keys page offers no way to create a key — CLOSED, and it is not this branch's
+
+`Settings / API keys` renders an empty state that invites the reader to generate a key, and no
+control that generates one exists anywhere in the page. Measured on `agenta-ee-dev-gateways` on
+2026-09-13: the empty state is the whole page, and the DOM carries no create button, menu item or
+link.
+
+The defect reproduces on `main` and has no gateway component. The mobile `SettingsScreen` hardcodes
+`canEdit` to `false`, so the create control never renders for anyone.
+
+Closure: tracked as https://github.com/Agenta-AI/agenta/issues/6803, outside this document set.
+
+---
 
 ### OR26. The dashboard can configure a custom provider that no run can use — CLOSED in the vault, not in the browser
 

@@ -433,9 +433,11 @@ owned elsewhere, and no turn has been run against it. The entry's proposed remed
 Codex from custom endpoints, does not follow either: Codex's custom-surface family is `openai`, so
 the OR31a filter already puts it in the right place.
 
-**Two defects found in passing are open**, both outside the gateway work: OR34 (the AI providers
-drawer closes itself after about 45 seconds and discards the form) and OR35 (the API keys page
-offers no way to create a key).
+**Two defects found in passing are closed**, and neither belonged to the gateway work. OR34 (the AI
+providers drawer closing itself) is a development-deployment artefact: the mobile app's hot-reload
+websocket fails through Traefik and the development client reloads the page every 50 to 60 seconds,
+taking every open form with it. OR35 (no create control on the API keys page) reproduces on `main`
+and is tracked as issue #6803.
 
 OR28 sat alongside rather than in this order and is closed too: per-harness preservation of the
 refusal envelope, which is WP25's remit, with OR32 as its MCP counterpart. OR23 is closed, and it was never

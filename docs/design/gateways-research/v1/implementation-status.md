@@ -92,9 +92,11 @@ declares its protocol and the harness control filters on it), **OR31b** (Pi decl
 registers the custom MCP endpoint that carries its URL). **OR31d** is reclassified: the Codex
 refusal is a missing model declaration in the SDK's Codex settings writer and the runner, owned
 elsewhere and not yet proven by a run. **OR28** and **OR32** are closed on the runner and
-agent-service side. Two defects found in passing are open as **OR34** (the AI providers drawer
-closes itself after about 45 seconds and discards the form) and **OR35** (the API keys page offers
-no way to create a key).
+agent-service side. Two defects found in passing are closed, and neither belonged to this branch.
+**OR34** (the AI providers drawer closing itself) is a development-deployment artefact: the mobile
+app's hot-reload websocket fails through Traefik and the development client reloads the page every
+50 to 60 seconds, discarding every open form. **OR35** (no create control on the API keys page)
+reproduces on `main` and is tracked as issue #6803.
 
 ### Deployment flags
 

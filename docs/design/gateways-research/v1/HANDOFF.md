@@ -38,7 +38,7 @@ The remaining documents are the design itself: `decisions.md`, `architecture.md`
 security review of the credential boundary found blocking defects underneath them: the caller's
 session cookie and Authorization header reach the tenant's upstream, one pooled client carries
 upstream cookies between tenants, the credential the sandbox holds can read the vault, and an
-upstream can return the injected provider key through its response body. The open set is **OR34
+upstream can return the injected provider key through its response body. The open set is **OR36
 through OR68**, recorded in `open-reviews.md` with a closure condition and a proving test each.
 Read that file before planning work on this branch; green suites are not evidence here, and
 `OR65` says why.
@@ -84,10 +84,13 @@ step.
   not that it destroyed one, and the closed record says so), **OR30** (both untyped resolve failures
   are typed 422s) and **OR32** (a failed MCP handshake rides a non-fatal `mcp_server_failed`
   notice instead of vanishing).
-- **Open.** Two defects found in passing during the 2026-09-13 QA, both outside the gateway work:
-  **OR34** (the AI providers drawer closes itself after about 45 seconds with no interaction and
-  discards the form) and **OR35** (the API keys page offers no way to create a key). Then
-  **OR36 through OR68** from the 2026-09-13 security and code review. Ten of those are P0, blocking
+- **Closed since, and neither was ours.** The two defects found in passing during the 2026-09-13 QA
+  both turned out to sit outside this branch. **OR34** (the AI providers drawer closing itself) is a
+  development-deployment artefact: the mobile app's hot-reload websocket fails its handshake through
+  Traefik and the development client reloads the whole page every 50 to 60 seconds, taking every open
+  form with it. **OR35** (no create control on the API keys page) reproduces on `main` and is tracked
+  as issue #6803.
+- **Open.** **OR36 through OR68** from the 2026-09-13 security and code review. Ten of those are P0, blocking
   on security or data loss (OR36 to OR45); seventeen are P1, blocking on correctness (OR46 to
   OR62); six are debt (OR63 to OR68).
 
@@ -212,8 +215,9 @@ runner must stop setting the model that is already the session default. Whoever 
 a turn first, because the mechanism is read off the pinned `codex-acp` bundle and has never been
 measured.
 
-OR34 and OR35 are settings-page defects with no gateway component. They block a fresh operator from
-configuring a provider or minting a key, so they are worth filing outside this document set.
+OR34 and OR35 are closed and need nothing from this branch. OR34 leaves a hosting follow-up: proxy
+the mobile hot-reload websocket in the development compose and Traefik configuration, so a
+development stack stops reloading itself and discarding open forms. OR35 is tracked as issue #6803.
 
 Everything else is "After C3" in `plan.md`: usage recording and the wallet that prices it (WP11 and
 WP22, which ship together), and per-endpoint configuration (WP21).
