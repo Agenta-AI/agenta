@@ -16,7 +16,8 @@ interface AgentFormValues {
     slug: string
     name?: string
     connection_id: string
-    workflow_id: string
+    workflow_variant_id: string
+    reference_family?: string
     is_active: boolean
 }
 
@@ -70,7 +71,10 @@ export default function AgentFormDrawer({open, onClose, agentId, onSaved}: Agent
                         slug: agent.slug ?? "",
                         name: agent.name ?? undefined,
                         connection_id: agent.connection_id,
-                        workflow_id: Object.values(agent.data.references ?? {})[0]?.id ?? "",
+                        workflow_variant_id:
+                            Object.values(agent.data.references ?? {})[0]?.id ?? "",
+                        reference_family:
+                            Object.keys(agent.data.references ?? {})[0] ?? "workflow_variant",
                         is_active: agent.flags?.is_active ?? true,
                     })
                     setPolicy(agent.data.policy ?? {})
@@ -84,7 +88,12 @@ export default function AgentFormDrawer({open, onClose, agentId, onSaved}: Agent
         setIsSaving(true)
         try {
             const data: AgentaApi.ChannelAgentData = {
-                references: {main: {id: values.workflow_id}},
+                // an existing agent keeps the family it was saved with; a new one is a variant
+                references: {
+                    [values.reference_family ?? "workflow_variant"]: {
+                        id: values.workflow_variant_id,
+                    },
+                },
                 policy,
             }
             const flags: AgentaApi.ChannelAgentFlags = {
@@ -163,13 +172,16 @@ export default function AgentFormDrawer({open, onClose, agentId, onSaved}: Agent
                         }))}
                     />
                 </Form.Item>
+                <Form.Item name="reference_family" hidden>
+                    <Input />
+                </Form.Item>
                 <Form.Item
-                    name="workflow_id"
-                    label="Bound workflow"
-                    rules={[{required: true, message: "A workflow reference is required"}]}
-                    extra="The workflow/variant/revision this agent runs"
+                    name="workflow_variant_id"
+                    label="Agent variant"
+                    rules={[{required: true, message: "An agent variant id is required"}]}
+                    extra="The id of the agent variant this channel agent runs. It follows the variant's latest revision."
                 >
-                    <Input placeholder="workflow id" />
+                    <Input placeholder="variant id" />
                 </Form.Item>
                 <Form.Item name="is_active" label="Active" valuePropName="checked">
                     <Switch />

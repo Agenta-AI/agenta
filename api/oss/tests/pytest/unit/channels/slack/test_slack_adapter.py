@@ -953,8 +953,8 @@ async def test_backfill_page_size_clamps_to_configured_default(monkeypatch):
         limit=1000,  # requested more than the tight tier allows
     )
 
-    sent = json.loads(transport.requests[0].content)
-    assert sent["limit"] == 10
+    # read methods carry their arguments as query parameters, not a JSON body
+    assert transport.requests[0].url.params["limit"] == "10"
 
 
 # --- hosted-connection declaration narrowing ---------------------------------- #

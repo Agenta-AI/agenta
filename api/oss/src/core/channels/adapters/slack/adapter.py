@@ -46,6 +46,9 @@ log = get_module_logger(__name__)
 
 _SLACK_API_BASE = "https://slack.com/api"
 
+# conversations.list page size. Slack caps a page at 1000; 200 keeps responses small.
+_LISTING_PAGE_SIZE = 200
+
 # Default page size for backfill; clamped further to the install's own rate
 # tier at fetch time.
 _DEFAULT_BACKFILL_LIMIT = int(os.getenv("AGENTA_CHANNELS_BACKFILL_LIMIT") or 50)
@@ -185,6 +188,9 @@ class SlackAdapter(ChannelAdapterInterface):
             "team_id": team_id,
             "bot_user_id": body.get("user_id"),
             "api_app_id": body.get("api_app_id"),
+            # The workspace's display name. Not part of the identity key; it
+            # gives the connection a human name when the caller sends none.
+            "team_name": body.get("team"),
         }
         return {
             key: value
@@ -372,18 +378,36 @@ class SlackAdapter(ChannelAdapterInterface):
         self, *, connection: ChannelConnection
     ) -> List[ChannelSpaceCandidate]:
         candidates: List[ChannelSpaceCandidate] = []
-        response = await self._call(connection, "conversations.list", {})
-        for entry in response.get("channels", []):
-            candidates.append(
-                ChannelSpaceCandidate(
-                    kind=_space_kind_from_listing(entry),
-                    external_locator={
-                        "team": _team_of(connection),
-                        "channel": entry["id"],
-                    },
-                    display_name=entry.get("name"),
-                )
+        # Slack pages the listing (100 per call by default), filters AFTER
+        # paging, and returns only public channels unless asked. A workspace
+        # with more channels than one page silently hid the rest, so follow
+        # the cursor until Slack returns none.
+        cursor = ""
+        while True:
+            params: Dict[str, Any] = {
+                "types": "public_channel,private_channel",
+                "exclude_archived": True,
+                "limit": _LISTING_PAGE_SIZE,
+            }
+            if cursor:
+                params["cursor"] = cursor
+            response = await self._call(
+                connection, "conversations.list", params, as_query=True
             )
+            for entry in response.get("channels", []):
+                candidates.append(
+                    ChannelSpaceCandidate(
+                        kind=_space_kind_from_listing(entry),
+                        external_locator={
+                            "team": _team_of(connection),
+                            "channel": entry["id"],
+                        },
+                        display_name=entry.get("name"),
+                    )
+                )
+            cursor = (response.get("response_metadata") or {}).get("next_cursor") or ""
+            if not cursor:
+                break
         return candidates
 
     # --- history --- #
@@ -403,7 +427,7 @@ class SlackAdapter(ChannelAdapterInterface):
             method = "conversations.history"
 
         try:
-            response = await self._call(connection, method, params)
+            response = await self._call(connection, method, params, as_query=True)
         except _SlackApiError as e:
             if e.error == "missing_scope" or e.status_code == 403:
                 raise ChannelBackfillRefused(reason=e.error) from e
@@ -466,14 +490,34 @@ class SlackAdapter(ChannelAdapterInterface):
             return await self._call(connection, method, {**params, "blocks": None})
 
     async def _call(
-        self, connection: ChannelConnection, method: str, params: Dict[str, Any]
+        self,
+        connection: ChannelConnection,
+        method: str,
+        params: Dict[str, Any],
+        *,
+        as_query: bool = False,
     ) -> Dict[str, Any]:
+        """One Slack Web API call. Write methods take a JSON body. Read methods
+        (`conversations.*`) must get their arguments as query parameters: Slack
+        ignores a JSON body there, so a `limit`, `types` or `cursor` sent that
+        way silently falls back to the defaults."""
         token = _bot_token(connection)
-        response = await self._client.post(
-            method,
-            json={k: v for k, v in params.items() if v is not None},
-            headers={"Authorization": f"Bearer {token}"},
-        )
+        clean = {k: v for k, v in params.items() if v is not None}
+        if as_query:
+            response = await self._client.post(
+                method,
+                params={
+                    k: (str(v).lower() if isinstance(v, bool) else v)
+                    for k, v in clean.items()
+                },
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        else:
+            response = await self._client.post(
+                method,
+                json=clean,
+                headers={"Authorization": f"Bearer {token}"},
+            )
         body = response.json()
         if not body.get("ok"):
             raise _SlackApiError(

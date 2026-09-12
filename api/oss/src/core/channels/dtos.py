@@ -326,9 +326,51 @@ class ChannelEffectivePolicy(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# The reference families the workflows service resolves at run time. A key
+# outside this set hydrates nothing, and the agent fails on its first turn
+# with "no runnable service URL" -- so refuse it at write time instead.
+RESOLVABLE_AGENT_REFERENCE_KEYS = frozenset(
+    {
+        "workflow",
+        "workflow_variant",
+        "workflow_revision",
+        "application",
+        "application_variant",
+        "application_revision",
+    }
+)
+
+
 class ChannelAgentData(BaseModel):
     references: Dict[str, Reference]  # the bound workflow/variant/revision
     policy: Optional[ChannelPolicy] = None
+
+    @field_validator("references")
+    @classmethod
+    def _references_must_be_resolvable(
+        cls, references: Dict[str, Reference]
+    ) -> Dict[str, Reference]:
+        unknown = sorted(set(references) - RESOLVABLE_AGENT_REFERENCE_KEYS)
+        if unknown:
+            raise ValueError(
+                f"references key(s) {unknown} cannot be resolved into a runnable "
+                f"agent; use one of {sorted(RESOLVABLE_AGENT_REFERENCE_KEYS)}"
+            )
+        if not references:
+            raise ValueError(
+                "references must name the workflow the agent runs; use one of "
+                f"{sorted(RESOLVABLE_AGENT_REFERENCE_KEYS)}"
+            )
+        # The runtime accepts one reference family per run (see
+        # WorkflowsService._validate_execution_reference_families); an agent
+        # bound to two would save fine and fail on its first turn.
+        families = sorted({key.split("_", 1)[0] for key in references})
+        if len(families) > 1:
+            raise ValueError(
+                "references must belong to one family (workflow or application), "
+                f"not {families}"
+            )
+        return references
 
 
 class ChannelSpaceData(BaseModel):

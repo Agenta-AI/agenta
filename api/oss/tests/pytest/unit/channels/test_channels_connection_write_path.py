@@ -97,6 +97,7 @@ class _FakeVaultService:
         self.create_calls = []
         self.created_ids = []
         self.update_calls = []
+        self.delete_calls = []
         self._store: Dict[UUID, _FakeSecret] = {}
 
     async def create_secret(self, *, project_id, create_secret_dto):
@@ -106,6 +107,10 @@ class _FakeVaultService:
         self.create_calls.append(create_secret_dto)
         self.created_ids.append(secret_id)
         return secret
+
+    async def delete_secret(self, *, secret_id, project_id=None, organization_id=None):
+        self._store.pop(secret_id, None)
+        self.delete_calls.append(secret_id)
 
     async def update_secret(self, *, secret_id, project_id, update_secret_dto):
         if secret_id not in self._store:
@@ -427,3 +432,189 @@ async def test_edit_without_credentials_never_touches_the_vault():
     assert adapter.verify_calls == []
     assert vault.create_calls == []
     assert vault.update_calls == []
+
+
+# --- create: a name and a slug the user never had to type -------------------- #
+
+
+async def test_create_derives_the_slug_from_the_name_with_a_short_suffix():
+    dao = _fake_dao()
+    adapter = _FakeAdapter(discovered={"team_id": "T1"})
+    service = _service(dao=dao, adapter=adapter, vault=_FakeVaultService())
+
+    connection = ChannelConnectionCreate(
+        channel="slack",
+        name="Acme Corp!",
+        data={"api_app_id": "A1", "enterprise_id": ""},
+        credentials={"bot_token": _CANARY_TOKEN, "signing_secret": "sec"},
+    )
+
+    result = await service.create_connection(
+        project_id=uuid4(), user_id=uuid4(), connection=connection
+    )
+
+    base, _, suffix = result.slug.rpartition("-")
+    assert base == "acme-corp"
+    assert len(suffix) == 6 and all(c in "0123456789abcdef" for c in suffix)
+    assert result.name == "Acme Corp!"
+
+
+async def test_create_names_the_connection_after_the_workspace_when_no_name_is_sent():
+    dao = _fake_dao()
+    adapter = _FakeAdapter(discovered={"team_id": "T1", "team_name": "Agenta"})
+    service = _service(dao=dao, adapter=adapter, vault=_FakeVaultService())
+
+    connection = ChannelConnectionCreate(
+        channel="slack",
+        data={"api_app_id": "A1", "enterprise_id": ""},
+        credentials={"bot_token": _CANARY_TOKEN, "signing_secret": "sec"},
+    )
+
+    result = await service.create_connection(
+        project_id=uuid4(), user_id=uuid4(), connection=connection
+    )
+
+    assert result.name == "Agenta"
+    assert result.slug.startswith("agenta-")
+    # the workspace name stays a plain data field, never part of the identity key
+    assert result.data["team_name"] == "Agenta"
+    assert "team_name" not in result.data["connection_locator"]
+
+
+async def test_two_creates_with_the_same_name_get_different_slugs():
+    dao = _fake_dao()
+    adapter = _FakeAdapter(discovered={"team_id": "T1"})
+    service = _service(dao=dao, adapter=adapter, vault=_FakeVaultService())
+
+    slugs = set()
+    for _ in range(2):
+        connection = ChannelConnectionCreate(
+            channel="slack",
+            name="Acme",
+            data={"api_app_id": "A1", "enterprise_id": ""},
+            credentials={"bot_token": _CANARY_TOKEN, "signing_secret": "sec"},
+        )
+        result = await service.create_connection(
+            project_id=uuid4(), user_id=uuid4(), connection=connection
+        )
+        slugs.add(result.slug)
+
+    assert len(slugs) == 2
+
+
+async def test_a_caller_supplied_slug_and_name_are_kept_as_given():
+    dao = _fake_dao()
+    adapter = _FakeAdapter(discovered={"team_id": "T1", "team_name": "Agenta"})
+    service = _service(dao=dao, adapter=adapter, vault=_FakeVaultService())
+
+    connection = ChannelConnectionCreate(
+        channel="slack",
+        slug="acme",
+        name="Acme",
+        data={"api_app_id": "A1", "enterprise_id": ""},
+        credentials={"bot_token": _CANARY_TOKEN, "signing_secret": "sec"},
+    )
+
+    result = await service.create_connection(
+        project_id=uuid4(), user_id=uuid4(), connection=connection
+    )
+
+    assert (result.slug, result.name) == ("acme", "Acme")
+
+
+# --- create: a failed insert leaves no orphaned secret, and says why --------- #
+
+
+def _integrity_error(text: str) -> IntegrityError:
+    return IntegrityError("INSERT INTO channel_connections ...", {}, Exception(text))
+
+
+async def test_a_failed_insert_discards_the_secret_it_just_wrote():
+    dao = _fake_dao()
+    dao.create_connection = AsyncMock(
+        side_effect=_integrity_error(
+            'null value in column "slug" of relation "channel_connections" '
+            "violates not-null constraint"
+        )
+    )
+    vault = _FakeVaultService()
+    service = _service(
+        dao=dao, adapter=_FakeAdapter(discovered={"team_id": "T1"}), vault=vault
+    )
+
+    connection = ChannelConnectionCreate(
+        channel="slack",
+        slug="acme",
+        data={"api_app_id": "A1", "enterprise_id": ""},
+        credentials={"bot_token": _CANARY_TOKEN, "signing_secret": "sec"},
+    )
+
+    with pytest.raises(EntityCreationConflict):
+        await service.create_connection(
+            project_id=uuid4(), user_id=uuid4(), connection=connection
+        )
+
+    assert len(vault.create_calls) == 1
+    assert vault.delete_calls == vault.created_ids
+    assert vault._store == {}
+
+
+async def test_an_unrelated_integrity_error_names_the_constraint_not_a_duplicate():
+    dao = _fake_dao()
+    dao.create_connection = AsyncMock(
+        side_effect=_integrity_error(
+            'null value in column "slug" of relation "channel_connections" '
+            "violates not-null constraint"
+        )
+    )
+    service = _service(
+        dao=dao,
+        adapter=_FakeAdapter(discovered={"team_id": "T1"}),
+        vault=_FakeVaultService(),
+    )
+
+    connection = ChannelConnectionCreate(
+        channel="slack",
+        slug="acme",
+        data={"api_app_id": "A1", "enterprise_id": ""},
+        credentials={"bot_token": _CANARY_TOKEN, "signing_secret": "sec"},
+    )
+
+    with pytest.raises(EntityCreationConflict) as caught:
+        await service.create_connection(
+            project_id=uuid4(), user_id=uuid4(), connection=connection
+        )
+
+    assert "already exists" not in str(caught.value)
+    assert "slug" in str(caught.value)
+
+
+async def test_a_failed_secret_cleanup_still_surfaces_the_conflict():
+    dao = _fake_dao()
+    dao.create_connection = AsyncMock(
+        side_effect=_integrity_error(
+            'duplicate key value violates unique constraint "uq_channel_connections_external_key"'
+        )
+    )
+    vault = _FakeVaultService()
+
+    async def _refuse(**kwargs):
+        raise RuntimeError("vault down")
+
+    vault.delete_secret = _refuse
+    service = _service(
+        dao=dao, adapter=_FakeAdapter(discovered={"team_id": "T1"}), vault=vault
+    )
+
+    connection = ChannelConnectionCreate(
+        channel="slack",
+        slug="acme",
+        data={"api_app_id": "A1", "enterprise_id": ""},
+        credentials={"bot_token": _CANARY_TOKEN, "signing_secret": "sec"},
+    )
+
+    # the cleanup is best effort: the caller sees the real error, never the cleanup's
+    with pytest.raises(EntityCreationConflict):
+        await service.create_connection(
+            project_id=uuid4(), user_id=uuid4(), connection=connection
+        )
