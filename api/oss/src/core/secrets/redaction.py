@@ -40,6 +40,27 @@ PRIMARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, str]] = {
 }
 
 
+# Credential fields that sit on the data object itself instead of inside a nested
+# container. A subscription connection keeps both its harness login and its in-flight
+# device attempt here, and neither may reach a browser: the login is the credential, and
+# the attempt is the one-time handle that redeems it. Unlike the primary fields above,
+# these are stripped whatever `write_only` says, because a subscription has no readable
+# form of its credential at all.
+DATA_CREDENTIAL_FIELDS: Dict[str, Tuple[str, ...]] = {
+    "subscription_provider": ("login", "login_attempt"),
+}
+
+
+# Every secret kind states where its credential lives, in exactly ONE of the two maps
+# above: a kind in neither is a kind nothing redacts. The maps stay separate because their
+# shapes differ (a nested container and a field, against fields on the data object), and a
+# kind in both would give one credential two locations that can disagree. Assert against
+# this set rather than against either map alone.
+CREDENTIAL_FIELD_KINDS: frozenset = frozenset(PRIMARY_CREDENTIAL_FIELDS) | frozenset(
+    DATA_CREDENTIAL_FIELDS
+)
+
+
 def mask_secret_value(value: str) -> str:
     """A short, non-reversible display preview like ``sk-****9Qa``.
 
@@ -57,7 +78,11 @@ def mask_secret_value(value: str) -> str:
 
 
 def primary_credential_value(secret: SecretResponseDTO) -> Optional[Any]:
-    """The kind's primary value field (key, client_secret, content), or None."""
+    """The kind's primary value field (key, client_secret, content, login), or None."""
+    data_fields = DATA_CREDENTIAL_FIELDS.get(str(secret.kind.value))
+    if data_fields:
+        return getattr(secret.data, data_fields[0], None)
+
     container_name, field = PRIMARY_CREDENTIAL_FIELDS.get(
         str(secret.kind.value), (None, None)
     )
@@ -104,6 +129,11 @@ def project_secret_response(
     projected = PublicSecretResponseDTO.model_validate(
         {**public_data, "value_status": _value_status(secret)}
     )
+
+    if not reveal_write_only:
+        for field in DATA_CREDENTIAL_FIELDS.get(str(projected.kind.value), ()):
+            if hasattr(projected.data, field):
+                setattr(projected.data, field, None)
 
     if not secret.write_only or reveal_write_only:
         return projected

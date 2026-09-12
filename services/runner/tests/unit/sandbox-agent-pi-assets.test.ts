@@ -16,6 +16,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -37,6 +38,7 @@ import {
   resolvePiToolSpecsDelivery,
   uploadDirToSandbox,
   uploadPiToolSpecsToSandbox,
+  uploadSystemPromptToSandbox,
   writePiModelsConfigLocal,
   writePiToolSpecsFileLocal,
   writeSystemPromptLocal,
@@ -1015,6 +1017,220 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
   });
 });
 
+/**
+ * Every session on one hosted subscription connection shares ONE Pi agent dir, because that dir
+ * holds `auth.json` and the lock that serializes Pi's OAuth refresh. Prompt files written there
+ * are read by every other session on the connection, and two sessions that start at once race on
+ * them. These tests drive the real wrapper `prepareLocalPiAssets` installs and resolve the prompt
+ * the way pinned Pi 0.80.6 does.
+ */
+describe("prepareLocalPiAssets (per-session prompts on a shared connection dir)", () => {
+  /** A stand-in `pi` that records the argument list it was called with. */
+  function stubPiCommand(): { command: string; argvFile: string } {
+    const dir = tempDir("agenta-pi-stub-");
+    const argvFile = join(dir, "argv.json");
+    const command = join(dir, "pi");
+    writeFileSync(
+      command,
+      [
+        "#!/bin/sh",
+        `printf '%s\\n' "$@" > ${JSON.stringify(argvFile)}`,
+        "",
+      ].join("\n"),
+      { mode: 0o700 },
+    );
+    return { command, argvFile };
+  }
+
+  /**
+   * What Pi 0.80.6 would load for this run. `--system-prompt` and `--append-system-prompt`
+   * SUPPRESS the agent-dir discovery (`resource-loader.js:332-340`); with no flag Pi falls back to
+   * `<agentDir>/SYSTEM.md` and `<agentDir>/APPEND_SYSTEM.md` (`:750-770`). Either input may be a
+   * path or literal text, and a path that exists is read (`resolvePromptInput`, `:15-29`).
+   */
+  function loadedPrompts(
+    env: Record<string, string>,
+    argvFile: string,
+  ): { system?: string; append?: string } {
+    spawnSync(env.PI_ACP_PI_COMMAND, ["--mode", "rpc", "--no-themes"], {
+      encoding: "utf-8",
+    });
+    const argv = readFileSync(argvFile, "utf-8").split("\n").slice(0, -1);
+    // THE AGENT DIR IS THE DAEMON ENV'S, exactly as Pi resolves it. Reading the run's own prompt
+    // dir instead would hide the whole defect: production points Pi at the shared connection dir.
+    const agentDir = env.PI_CODING_AGENT_DIR as string;
+    const read = (path: string): string =>
+      existsSync(path) ? readFileSync(path, "utf-8") : path;
+    const discovered = (name: string): string | undefined => {
+      const path = join(agentDir, name);
+      return existsSync(path) ? readFileSync(path, "utf-8") : undefined;
+    };
+    /**
+     * `systemPromptSource ?? discoverSystemPromptFile()`. A flag VALUE that is present, even an
+     * empty one, is not nullish, so it suppresses the discovery; `resolvePromptInput("")` then
+     * yields undefined, which is Pi's own default. Only an absent flag falls back to the dir.
+     */
+    const resolve = (flag: string, name: string): string | undefined => {
+      const at = argv.indexOf(flag);
+      if (at < 0) return discovered(name);
+      const value = argv[at + 1] as string;
+      return value === "" ? undefined : read(value);
+    };
+    return {
+      system: resolve("--system-prompt", "SYSTEM.md"),
+      append: resolve("--append-system-prompt", "APPEND_SYSTEM.md"),
+    };
+  }
+
+  function subscriptionRun(
+    connectionDir: string,
+    prompt: {
+      hasSystemPrompt: boolean;
+      systemPrompt?: string;
+      appendSystemPrompt?: string;
+    },
+  ): { env: Record<string, string>; argvFile: string; promptDir?: string } {
+    const { command, argvFile } = stubPiCommand();
+    const env: Record<string, string> = { PI_ACP_PI_COMMAND: command };
+    const { promptDir } = prepareLocalPiAssets({
+      plan: {
+        isPi: true,
+        isDaytona: false,
+        credentials: {
+          credentialMode: "runtime_provided",
+          subscriptionHome: connectionDir,
+        },
+        workspace: { skillDirs: [], sourcePiAgentDir: "/unused" },
+        prompt: {
+          systemPrompt: undefined,
+          appendSystemPrompt: undefined,
+          ...prompt,
+        },
+      } as never,
+      env,
+    });
+    if (promptDir) dirs.push(promptDir);
+    return { env, argvFile, promptDir };
+  }
+
+  it("keeps two sessions' prompts apart, and leaves the shared dir with none", () => {
+    const connectionDir = tempDir("agenta-pi-connection-");
+    writeFileSync(join(connectionDir, "auth.json"), '{"t":"live"}', "utf-8");
+
+    // Both sessions are prepared BEFORE either starts Pi: this is the concurrent case, where
+    // deleting a leftover file at start time would not have been enough.
+    const a = subscriptionRun(connectionDir, {
+      hasSystemPrompt: true,
+      systemPrompt: "you are agent A",
+    });
+    const b = subscriptionRun(connectionDir, {
+      hasSystemPrompt: true,
+      appendSystemPrompt: "agent B extra framing",
+    });
+
+    assert.deepEqual(loadedPrompts(a.env, a.argvFile), {
+      system: "you are agent A",
+      append: undefined,
+    });
+    assert.deepEqual(loadedPrompts(b.env, b.argvFile), {
+      system: undefined,
+      append: "agent B extra framing",
+    });
+    // Nothing was written into the dir the two sessions share.
+    assert.equal(existsSync(join(connectionDir, "SYSTEM.md")), false);
+    assert.equal(existsSync(join(connectionDir, "APPEND_SYSTEM.md")), false);
+    // The login the dir exists for is untouched.
+    assert.ok(existsSync(join(connectionDir, "auth.json")));
+  });
+
+  it("does not read a prompt file another writer left in the shared dir", () => {
+    const connectionDir = tempDir("agenta-pi-connection-");
+    // What an earlier runner build wrote, or anything else with access to the dir.
+    writeFileSync(join(connectionDir, "SYSTEM.md"), "you are agent A", "utf-8");
+    writeFileSync(join(connectionDir, "APPEND_SYSTEM.md"), "stale extra", "utf-8");
+
+    const run = subscriptionRun(connectionDir, { hasSystemPrompt: false });
+
+    assert.deepEqual(loadedPrompts(run.env, run.argvFile), {
+      system: undefined,
+      append: undefined,
+    });
+    // Both were also cleared out of the dir the runner owns, so nothing is left to find.
+    assert.equal(existsSync(join(connectionDir, "SYSTEM.md")), false);
+    assert.equal(existsSync(join(connectionDir, "APPEND_SYSTEM.md")), false);
+  });
+
+  /**
+   * The sequence the wrapper's empty flags exist for. Suppose the clearing step above had not run,
+   * or another writer put the file back between the two runs: run B must still see nothing.
+   */
+  it("gives run B no prompt after run A had one, even with a file back in the shared dir", () => {
+    const connectionDir = tempDir("agenta-pi-connection-");
+
+    const a = subscriptionRun(connectionDir, {
+      hasSystemPrompt: true,
+      systemPrompt: "you are agent A",
+      appendSystemPrompt: "agent A framing",
+    });
+    assert.deepEqual(loadedPrompts(a.env, a.argvFile), {
+      system: "you are agent A",
+      append: "agent A framing",
+    });
+
+    // Put both files back, as a writer this runner does not control would.
+    writeFileSync(join(connectionDir, "SYSTEM.md"), "you are agent A", "utf-8");
+    writeFileSync(join(connectionDir, "APPEND_SYSTEM.md"), "agent A framing", "utf-8");
+
+    const b = subscriptionRun(connectionDir, { hasSystemPrompt: false });
+    assert.deepEqual(loadedPrompts(b.env, b.argvFile), {
+      system: undefined,
+      append: undefined,
+    });
+  });
+
+  it("keeps an appended prompt from picking up a shared base prompt", () => {
+    const connectionDir = tempDir("agenta-pi-connection-");
+    const run = subscriptionRun(connectionDir, {
+      hasSystemPrompt: true,
+      appendSystemPrompt: "only framing",
+    });
+    // Between the wrapper being written and Pi starting, as a concurrent writer would.
+    writeFileSync(join(connectionDir, "SYSTEM.md"), "you are agent A", "utf-8");
+
+    assert.deepEqual(loadedPrompts(run.env, run.argvFile), {
+      system: undefined,
+      append: "only framing",
+    });
+  });
+
+  it("reports no prompt dir when the daemon environment names no pi command", () => {
+    const connectionDir = tempDir("agenta-pi-connection-");
+    const env: Record<string, string> = {};
+
+    const { promptDir } = prepareLocalPiAssets({
+      plan: {
+        isPi: true,
+        isDaytona: false,
+        credentials: {
+          credentialMode: "runtime_provided",
+          subscriptionHome: connectionDir,
+        },
+        workspace: { skillDirs: [], sourcePiAgentDir: "/unused" },
+        prompt: {
+          hasSystemPrompt: true,
+          systemPrompt: "you are agent A",
+          appendSystemPrompt: undefined,
+        },
+      } as never,
+      env,
+    });
+
+    // The caller fails the run closed on this; it must never fall back to the shared dir.
+    assert.equal(promptDir, undefined);
+    assert.equal(existsSync(join(connectionDir, "SYSTEM.md")), false);
+  });
+});
+
 describe("sandbox uploads", () => {
   it("recursively uploads files into sandbox fs", async () => {
     const root = tempDir("agenta-pi-upload-test-");
@@ -1041,6 +1257,55 @@ describe("sandbox uploads", () => {
         body: "child",
       },
       { op: "write", path: "/agent/skills/custom/top.txt", body: "top" },
+    ]);
+  });
+
+  /**
+   * A Daytona subscription agent dir is keyed by connection and survives a warm reuse, so a
+   * prompt this run does not have must be removed rather than left for the next session.
+   */
+  it("removes the prompt files a sandbox run does not have", async () => {
+    const writes: Array<{ path: string; body: string }> = [];
+    const commands: string[] = [];
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async ({ path }: { path: string }, body: string) =>
+        writes.push({ path, body }),
+      runProcess: async ({ args }: { args: string[] }) =>
+        commands.push(args[1] as string),
+    };
+
+    await uploadSystemPromptToSandbox(
+      sandbox,
+      "/home/sandbox/agenta/subscriptions/c1",
+      undefined,
+      "only an append prompt",
+    );
+
+    assert.deepEqual(writes, [
+      {
+        path: "/home/sandbox/agenta/subscriptions/c1/APPEND_SYSTEM.md",
+        body: "only an append prompt",
+      },
+    ]);
+    assert.deepEqual(commands, [
+      "rm -f '/home/sandbox/agenta/subscriptions/c1/SYSTEM.md'",
+    ]);
+  });
+
+  it("removes both prompt files when a sandbox run has no prompt", async () => {
+    const commands: string[] = [];
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async () => assert.fail("nothing to write"),
+      runProcess: async ({ args }: { args: string[] }) =>
+        commands.push(args[1] as string),
+    };
+
+    await uploadSystemPromptToSandbox(sandbox, "/pi-agent", undefined, undefined);
+
+    assert.deepEqual(commands, [
+      "rm -f '/pi-agent/SYSTEM.md' '/pi-agent/APPEND_SYSTEM.md'",
     ]);
   });
 

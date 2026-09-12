@@ -28,7 +28,7 @@ export interface SessionListCardProps {
     onOpenRow: SessionCardListProps["onOpenRow"]
     menuFor?: SessionCardListProps["menuFor"]
     onMenuSelect?: SessionCardListProps["onMenuSelect"]
-    /** Persists a rename; given it, a row renames in place instead of falling through. */
+    /** Supply it and a row renames in place from its menu; omit it and the entry is inert. */
     onRenameRow?: SessionCardListProps["onRenameRow"]
 }
 

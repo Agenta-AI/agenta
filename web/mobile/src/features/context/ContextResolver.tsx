@@ -88,7 +88,7 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
                 </p>
                 <button
                     type="button"
-                    className="border-border min-h-11 rounded-md border px-3 py-2 text-xs"
+                    className="border-border min-h-11 cursor-pointer rounded-md border px-3 py-2 text-xs"
                     onClick={() => void query.refetch()}
                 >
                     Retry

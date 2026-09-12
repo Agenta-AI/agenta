@@ -7,6 +7,7 @@ import {
     AGENTS_SIDEBAR_KEY,
     PROMPTS_SIDEBAR_KEY,
     SIDEBAR_ENTITIES,
+    SIDEBAR_UNBOUNDED,
     defineSidebarEntity,
     livePollInterval,
     agentSessionCounts,
@@ -71,6 +72,23 @@ describe("resolveChildren", () => {
 
         expect(children).toHaveLength(15)
         expect(children.at(-1)?.title).toBe("Show all")
+    })
+
+    // Sessions renders every page it has loaded, so its cap is lifted rather than raised — and an
+    // uncapped entity has nothing left over to put behind a Show all.
+    it("renders every ref and no Show all when the entity is unbounded", () => {
+        const refs = Array.from({length: 120}, (_, index) => ref(`s${index}`, `Session ${index}`))
+        const children = resolveChildren(
+            entity({
+                maxItems: SIDEBAR_UNBOUNDED,
+                showAllLink: (projectURL) => `${projectURL}/sessions`,
+            }),
+            ready(refs),
+            "/w/w1/p/p1",
+        )
+
+        expect(children).toHaveLength(120)
+        expect(children.some((child) => child.title === "Show all")).toBe(false)
     })
 })
 
@@ -619,10 +637,8 @@ describe("agentSessionCounts", () => {
 describe("registered entity destinations", () => {
     const workflow = ref("01a03ed2-c322-7493-b2a2-29b8ae273530", "Ops Assistant")
 
-    it("opens an agent on its overview, not the playground", () => {
-        expect(SIDEBAR_ENTITIES[AGENTS_SIDEBAR_KEY].childLink(workflow, "/w/w1/p/p1")).toBe(
-            "/w/w1/p/p1/apps/01a03ed2-c322-7493-b2a2-29b8ae273530/overview",
-        )
+    it("registers no list under Agents — the rail draws it as a plain row", () => {
+        expect(SIDEBAR_ENTITIES[AGENTS_SIDEBAR_KEY]).toBeUndefined()
     })
 
     it("still opens a prompt on the playground", () => {

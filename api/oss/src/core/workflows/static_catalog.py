@@ -164,7 +164,16 @@ def _request_secret_revision() -> WorkflowRevision:
                 "tool": {
                     "type": "client",
                     "name": REQUEST_SECRET_TOOL_NAME,
-                    "description": "Pause the run and ask the user to configure a custom secret.",
+                    "description": (
+                        "Pause the run and ask the user to configure a custom secret. "
+                        "Call this tool when a credential the operation needs is not "
+                        "available, and let the user set it up here instead of asking "
+                        "for the value. Never ask the user to paste a credential into "
+                        "chat, and never inspect or print the value of a configured "
+                        "credential. If the user cancels the setup, stop the affected "
+                        "operation and do not ask for that secret again unless the user "
+                        "asks to retry."
+                    ),
                     "input_schema": {
                         "type": "object",
                         "properties": {
@@ -214,9 +223,8 @@ def _request_input_revision() -> WorkflowRevision:
                     "description": (
                         "Pause the run and ask the user for typed input via an inline form. "
                         "Use this instead of guessing values the user must confirm — for "
-                        "example, when wiring a provider tool, ask WHICH actions to enable "
-                        "(enum from discover_tools results) or collect non-secret settings "
-                        "(subdomain, workspace) before request_connection; or collect schedule "
+                        "example, collect a non-secret setting before request_connection (an "
+                        "account subdomain, which workspace to use); or collect schedule "
                         "details (frequency, time of day, timezone) before create_schedule. "
                         "`requestedSchema` must be a FLAT JSON object schema: top-level "
                         "string/number/integer/boolean properties (enum, format, title and "

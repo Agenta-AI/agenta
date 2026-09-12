@@ -4,6 +4,7 @@ import {
     buildSkillFromFiles,
     mergePastedSkill,
     parseSkillMarkdown,
+    scanSkillFiles,
 } from "../../src/DrillInView/SchemaControls/skillUpload"
 
 const bytes = (value: string) => new TextEncoder().encode(value)
@@ -129,5 +130,54 @@ describe("mergePastedSkill", () => {
         expect(next.name).toBe("keep")
         expect(next.description).toBe("keep me")
         expect(next.body).toBe("# Just a body")
+    })
+})
+
+describe("scanSkillFiles", () => {
+    it("returns one candidate per SKILL.md, each scoped to its own subtree", () => {
+        const scan = scanSkillFiles([
+            {path: "skills/alpha/SKILL.md", bytes: bytes("---\nname: alpha\n---\nA")},
+            {path: "skills/alpha/ref.md", bytes: bytes("alpha ref")},
+            {path: "skills/beta/SKILL.md", bytes: bytes("---\nname: beta\n---\nB")},
+            {path: "README.md", bytes: bytes("repo readme")},
+        ])
+        expect(scan.candidates.map((c) => c.skill.name)).toEqual(["alpha", "beta"])
+        const alpha = scan.candidates[0]
+        // alpha owns only its subtree — beta's files and the repo README never leak in.
+        expect(alpha.skill.files).toEqual([{path: "ref.md", content: "alpha ref"}])
+        expect(scan.fileCount).toBe(4)
+    })
+
+    it("a nested skill's files stay out of the parent candidate", () => {
+        const scan = scanSkillFiles([
+            {path: "SKILL.md", bytes: bytes("---\nname: parent\n---\nP")},
+            {path: "nested/SKILL.md", bytes: bytes("---\nname: nested\n---\nN")},
+            {path: "nested/helper.py", bytes: bytes("print()")},
+        ])
+        const parent = scan.candidates.find((c) => c.skill.name === "parent")
+        expect(parent?.skill.files).toEqual([])
+        const nested = scan.candidates.find((c) => c.skill.name === "nested")
+        expect(nested?.skill.files).toEqual([{path: "helper.py", content: "print()"}])
+    })
+
+    it("skips binary and oversized files with a reason instead of mojibaking them in", () => {
+        const binary = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x00, 0x1a])
+        const huge = bytes("x".repeat(200_001))
+        const scan = scanSkillFiles([
+            {path: "skill/SKILL.md", bytes: bytes("---\nname: skill\n---\nBody")},
+            {path: "skill/logo.png", bytes: binary},
+            {path: "skill/big.txt", bytes: huge},
+        ])
+        expect(scan.candidates[0].skill.files).toEqual([])
+        expect(scan.skipped).toEqual([
+            {path: "skill/logo.png", reason: "binary"},
+            {path: "skill/big.txt", reason: "too large"},
+        ])
+    })
+
+    it("no SKILL.md anywhere yields zero candidates (the invalid state)", () => {
+        const scan = scanSkillFiles([{path: "notes.md", bytes: bytes("just notes")}])
+        expect(scan.candidates).toEqual([])
+        expect(scan.fileCount).toBe(1)
     })
 })
