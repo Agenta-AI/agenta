@@ -21,8 +21,6 @@ export const useSettingsAccess = (): SettingsAccess => {
         () => ({
             billingEnabled,
             canShowTools: isToolsEnabled(),
-            // The deployment flag arrives with the feature-flag PR up the stack.
-            canShowChannels: true,
             canViewApiKeys,
             canViewEvents,
             canShowChannels,
