@@ -51,11 +51,12 @@ API_KEYS_MAPPING = {
     "ANYSCALE_API_KEY": "anyscale",
     "PERPLEXITYAI_API_KEY": "perplexityai",
     "DEEPINFRA_API_KEY": "deepinfra",
-    "TOGETHERAI_API_KEY": "togetherai",
+    "TOGETHER_API_KEY": "togetherai",
     "ALEPHALPHA_API_KEY": "alephalpha",
     "OPENROUTER_API_KEY": "openrouter",
     "GROQ_API_KEY": "groq",
     "GEMINI_API_KEY": "gemini",
+    "MINIMAX_API_KEY": "minimax",
 }
 
 
