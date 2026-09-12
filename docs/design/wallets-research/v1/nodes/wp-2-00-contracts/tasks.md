@@ -24,8 +24,9 @@ two throwaway branches, two commits. Each item below is one reviewable commit.
 2. Add `SpendAdmission` and `GatewayCallContext` to `policy/dtos.py`.
 3. Add `SpendAdmissionInterface` and `UsageSinkInterface` to `policy/interfaces.py`, and add
    the two optional keyword arguments to `GatewayPolicyService.record`'s signature with the
-   sink-gating condition written out. No sink is called yet — `WP-2-01` supplies one — but the
-   condition belongs with the signature, because it is the reason both arguments are optional.
+   sink-gating condition beside them as a comment. Do not call a sink and do not touch the
+   constructor: there is no collaborator to call until `WP-2-01` adds one. The signature
+   belongs here because four nodes fork against it; the behaviour belongs there.
 4. Add `policy/null.py` with `NullSpendAdmission` (allows, no ceiling, no reason) and
    `NullUsageSink` (returns immediately). These are the defaults a flag-off deployment gets,
    so they must be constructible with no arguments.

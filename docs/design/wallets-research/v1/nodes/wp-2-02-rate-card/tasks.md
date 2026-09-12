@@ -45,8 +45,8 @@ commit.
 1. Add `charges.py` with `calculate_charge`, pure and total: every input produces either a
    charge or `None`, and it raises nothing.
 2. Implement the chargeability predicate first, with its three refusals separately testable:
-   not `builtin`, not `local`, not priced. Read the provider and model from
-   `resource_locator`, never from `resource_key`.
+   not `builtin`, `vault`, not priced. Read the provider and model — or the server, on the MCP
+   plane — from `resource_locator`, never from `resource_key`.
 3. Implement the arithmetic exactly as the specification states it — integer products, one
    ceiling division at the end, a positive total never rounding to nothing.
 4. Log at error level, once per unpriced model, with provider and model. This log is the
@@ -55,9 +55,11 @@ commit.
 ## Wiring it in
 
 1. Update the Wave 1 test corpus to the namespace vocabulary before rewiring the worker:
-   `builders.py`, the measurement worker tests, the pricing tests and the measurement
-   integration test all write `endpoint_kind="managed"`, which `calculate_charge` refuses.
-   Doing this first means the rewiring commit shows a behaviour change and not a wall of red.
+   `builders.py`, both acceptance fakes, the measurement worker tests, the pricing tests and
+   the measurement integration test all write `endpoint_kind="managed"`, which
+   `calculate_charge` refuses. Doing this first means the rewiring commit shows a behaviour
+   change and not a wall of red. The MCP fake is the one that matters: it is the only MCP
+   producer in the repository and the only thing the MCP charge can be tested against.
 2. Change `MeasurementWorker._process_one` to call `calculate_charge` instead of
    `calculate_fake_charge`. Nothing else in the worker changes: the `None` path, the
    no-organization path, the publish and the ACK ordering are all already correct.
