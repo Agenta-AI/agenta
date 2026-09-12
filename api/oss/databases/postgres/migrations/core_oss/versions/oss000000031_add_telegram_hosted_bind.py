@@ -1,7 +1,7 @@
 """add telegram hosted bind tables
 
-Revision ID: oss000000030
-Revises: oss000000029
+Revision ID: oss000000031
+Revises: oss000000030
 Create Date: 2026-09-09 00:00:00.000000
 
 The hosted (Agenta-owned) Telegram bot is one bot shared by every project, so
@@ -18,8 +18,8 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "oss000000030"
-down_revision: Union[str, None] = "oss000000029"
+revision: str = "oss000000031"
+down_revision: Union[str, None] = "oss000000030"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

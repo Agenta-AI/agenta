@@ -35,7 +35,7 @@ Backend — Telegram:
 - [x] Custom Telegram bot: adapter, ingress, activation. PR #6679. Reviewed
   (Codex + CodeRabbit), unit-tested (874+), live-verified (DM, groups, memory,
   escaping). Merge-ready, NOT merged.
-- [x] Hosted Telegram bot: bind service, DAO + tables (migration oss000000030),
+- [x] Hosted Telegram bot: bind service, DAO + tables (migration oss000000031),
   hosted adapter, ingress hosted-resolve, bind-link endpoint. PR #6724 (stacked
   on #6679). Reviewed (Codex + CodeRabbit, all addressed), unit-tested,
   live-verified end to end. Merge-ready, NOT merged.
