@@ -22,7 +22,7 @@ gives, not the order below.
 | `waves.md` | The delivery model. It defines checkpoints, waves, and the three node types (work package, intermediate merge, cleanup). |
 | `wave-1.md` | What Wave 1 delivered. It carries the checkpoint boundary, the fixed inputs, the replay invariant, the completion evidence, and the feature-flag section. Start here for the state of the code. |
 | `preflight.md` | The review that Wave 1's graph and specifications had to pass before any node work began. It records four blockers and four gaps, and the disposition of each. |
-| `open-designs.md` | The register of unresolved design questions, fourteen of them, each self-contained. |
+| `open-designs.md` | The register of design questions, fifteen of them, each self-contained. |
 | `entities.md` | The canonical data model. It is authoritative for every table, column, and name. Where any other document disagrees with it, it wins. |
 | `nodes/*/specs.md` and `nodes/*/tasks.md` | One pair per node in the Wave 1 graph. The specification states the boundary and the owned code; the task list is the ordered work. This is the format Wave 2 must also use. |
 | `nodes/im-1-02-pipeline/acceptance.md` | The verification procedure. Section 9 holds the test commands, the infrastructure recipe, and the results. Sections 0 through 8 are the manual acceptance run against a deployed stack. |
@@ -42,13 +42,14 @@ The migrations land unconditionally, whether the flag is on or off. The `core_ee
 `ee0000000005` and the `tracing_ee` head is `ee0000000002`.
 
 The unit and integration suites pass as of 12 September 2026, at those two migration heads,
-against a throwaway Postgres 17 and Redis 8.
+against a throwaway Postgres 17 and Redis 8. The counts below include the lazy-provisioning
+work that closed item 14.
 
 | Suite | Result |
 | --- | --- |
-| `ee/tests/pytest/unit/wallets/` plus `ee/tests/pytest/unit/measurements/` | 126 passed |
-| The whole of `ee/tests/pytest/unit` | 497 passed |
-| `integration/wallets/` and `integration/measurements/` together | 20 passed |
+| `ee/tests/pytest/unit/wallets/` plus `ee/tests/pytest/unit/measurements/` | 133 passed |
+| The whole of `ee/tests/pytest/unit` | 504 passed |
+| `integration/wallets/` and `integration/measurements/` together | 26 passed |
 
 The first integration run found four defects, two of them in production code. One of the two
 would have failed every signup the day the flag was turned on. All four are fixed. Section 9
@@ -106,14 +107,14 @@ credit, and it alone is enough to catch a broken locking strategy.
 
 ## Open items, in priority order
 
-1. **Organizations provisioned while the flag was off.** This is item 14 in
-   `open-designs.md` and it blocks turning the flag on. The migrations are unconditional but
-   the provisioning code is not, so every organization created while the flag is false has no
-   general balance row, and the backfill migration has already run and will not run again.
-   The first debit for such an organization raises a not-found error that the debit worker
-   treats as retryable, so the message redelivers forever. The register proposes lazy
-   provisioning on the settlement path, plus reclassifying that error as terminal and alerted.
-   Decide it before the flag is ever turned on, not after.
+1. **The value the dark-window organizations missed.** Item 14 is closed: every wallet
+   write path, and the admission read, now provisions a missing general balance row
+   idempotently, and a missing, unprovisionable row is terminal in the debit worker rather
+   than redelivered forever. What lazy provisioning does not restore is value. An
+   organization created while the flag was off also missed its signup grant, so it comes
+   back at a zero balance and is refused at admission until something funds it. That is
+   item 15 in `open-designs.md`; the recommendation there is a one-off backfill calling the
+   already-idempotent `WalletsService.award`, run before the flag is turned on.
 2. **The seam to the gateway.** Three pieces of Wave 1 are placeholders that the gateway has
    to replace. The `record()` call has to become a real producer into `streams:measurements`,
    driven by actual gateway usage rather than the wallet-owned fakes under

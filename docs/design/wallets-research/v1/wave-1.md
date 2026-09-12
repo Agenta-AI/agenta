@@ -77,8 +77,9 @@ deliveries of the same posting key.
 ## Completion evidence
 
 - Unit tests cover the non-strict `check`, two message serializers, worker acknowledgement order, amount boundary,
-  duplicate delivery, restricted-credit selection, split debit, and allowed deficit. **Delivered:**
-  126 pass.
+  duplicate delivery, restricted-credit selection, split debit, and allowed deficit, plus the
+  lazy provisioning and terminal missing-balance classification that closed item 14.
+  **Delivered:** 133 pass.
 - Real-Postgres integration tests prove all debit and balance changes commit or roll back together and
   concurrent deliveries cannot overspend one credit. **Delivered and run** on 12 September 2026
   against a throwaway Postgres 17 and Redis 8 at `core_ee` head `ee0000000005` / `tracing_ee`
@@ -86,7 +87,8 @@ deliveries of the same posting key.
   guard and the measurement chain all pass. The first run found four defects, two of them in
   production code — `WalletsDAO.award_credit` and `apply_plan_change` both inserted a credit's
   balance row before the credit itself, and the `measurements` tables broke the repo's
-  lifecycle-column convention. All four are fixed, and the suites are 20 passed, 0 failed.
+  lifecycle-column convention. All four are fixed, and the suites are 26 passed, 0 failed —
+  20 at the wave's close, plus the six that pin lazy provisioning.
   [nodes/im-1-02-pipeline/acceptance.md](nodes/im-1-02-pipeline/acceptance.md) §9 records each one.
 - Local deployment acceptance uses fake built-in LLM and MCP calls only. It confirms both chains reach
   one measurement and one idempotent core settlement per gateway call. **Not yet run**; it needs a
@@ -158,15 +160,23 @@ the flag on needs no schema step. But the backfill runs once, at migration time,
 only the organizations that existed then. Every organization created while
 `AGENTA_WALLETS_ENABLED` was `false` is skipped by `provision_signup_subscription` and
 `provision_user_subscription` and therefore holds no `wallet_balances` general row at all.
-Those organizations do not heal themselves when the flag is turned on: their first debit
-raises `WalletGeneralBalanceNotFoundError`, which `DebitWorker` treats as retryable, so the
-message redelivers indefinitely — the poison-message gap that `WP-1-04` closed for the
-signup path but that reopens for any organization provisioned with the flag off. Enabling
-the flag later therefore requires one of two things first: re-running the `ee0000000005`
-backfill against the gap (it is `ON CONFLICT DO NOTHING`, so it is safe to re-run), or
-adding lazy provisioning so the settlement path creates a missing general balance row on
-demand. Decide which before the flag is turned on, not after. Recorded as an open item in
-[open-designs.md](open-designs.md).
+**Those organizations now heal themselves.** They did not when this wave closed: the first
+debit for one of them raised `WalletGeneralBalanceNotFoundError`, `DebitWorker` treated it
+as retryable, and the message redelivered indefinitely. Item 14 of
+[open-designs.md](open-designs.md) closed that, and the fix ships on this branch. Every
+wallet write path — `settle`, `apply_plan_change`, `award_credit` — now opens with
+`WalletsDAO._lock_general_balance`, which inserts the row under the same partial unique
+index before locking it, inside the caller's transaction. `WalletsService.check` does the
+same on the admission read. Re-running the `ee0000000005` backfill is no longer needed, and
+`WalletGeneralBalanceNotFoundError` is now a defensive invariant that `DebitWorker` treats
+as terminal: logged with the organization and the idempotency key, then ACKed, because
+redelivering a posting cannot make an uninsertable row appear.
+
+Two consequences worth carrying forward. `check` used to allow an organization with no
+balance row and now provisions one and answers from it, which is a rejection while that
+organization holds no credit. And lazy provisioning restores the row, not the value: an
+organization created while the flag was off also missed its signup grant, which is item 15
+of [open-designs.md](open-designs.md).
 
 Apart from that gap, turning the flag on changes no behaviour described in this document.
 The guards are early-returns around calls that already existed; nothing else reads the flag.

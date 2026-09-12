@@ -13,6 +13,7 @@ from oss.src.dbs.postgres.shared.engine import (
 from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.wallets.contracts import DebitCommandV1
+from ee.src.core.wallets.plans import LAZY_PROVISION_FLOOR_MUSD
 from ee.src.core.wallets.types import (
     PlanChangeResultDTO,
     WalletBalanceDTO,
@@ -39,11 +40,93 @@ from ee.src.dbs.postgres.wallets.mappings import (
 log = get_module_logger(__name__)
 
 
+def _general_balance_insert(*, organization_id: UUID, floor_musd: int):
+    """The one definition of "insert this organization's general balance row if it does
+    not exist". ON CONFLICT targets the exact partial unique index — that index, not any
+    application-level check-then-insert, is the guard against a duplicate row under a
+    retry or a concurrent creation."""
+    return (
+        pg_insert(WalletBalanceDBE)
+        .values(
+            id=uuid_utils.uuid7(),
+            organization_id=organization_id,
+            wallet_credit_id=None,
+            balance_musd=0,
+            floor_musd=floor_musd,
+        )
+        .on_conflict_do_nothing(
+            index_elements=[WalletBalanceDBE.organization_id],
+            index_where=WalletBalanceDBE.wallet_credit_id.is_(None),
+        )
+    )
+
+
 class WalletsDAO(WalletsDAOInterface):
     def __init__(self, engine: TransactionsEngine = None):
         if engine is None:
             engine = get_transactions_engine()
         self.engine = engine
+
+    async def _lock_general_balance(
+        self,
+        *,
+        session,
+        organization_id: UUID,
+    ) -> WalletBalanceDBE:
+        """Lock the organization's general balance row, provisioning it first when it is
+        absent. Every write path below opens with this call, so each of them serializes
+        on the same row for the same organization.
+
+        Lazy provisioning is what closes the `AGENTA_WALLETS_ENABLED` gap recorded as
+        item 14 of `docs/design/wallets-research/v1/open-designs.md`: an organization
+        created while the flag was off was skipped by `provision_signup_subscription`,
+        and the `ee0000000005` backfill has already run and will not run again, so
+        nothing else would ever give it a row. Provisioning here needs no plan lookup —
+        `LAZY_PROVISION_FLOOR_MUSD` is every known plan's floor today, and a plan change
+        rewrites the floor anyway.
+
+        The insert is idempotent (partial unique index) and rides this transaction, so a
+        rolled-back settlement leaves no row behind and the next delivery provisions
+        again. `WalletGeneralBalanceNotFoundError` is therefore no longer a routine
+        outcome; it survives as a defensive invariant for the case where the row is
+        neither present nor insertable.
+        """
+        general_stmt = (
+            select(WalletBalanceDBE)
+            .where(
+                WalletBalanceDBE.organization_id == organization_id,
+                WalletBalanceDBE.wallet_credit_id.is_(None),
+            )
+            .with_for_update()
+        )
+
+        general = (await session.execute(general_stmt)).scalar_one_or_none()
+        if general is not None:
+            return general
+
+        await session.execute(
+            _general_balance_insert(
+                organization_id=organization_id,
+                floor_musd=LAZY_PROVISION_FLOOR_MUSD,
+            )
+        )
+        await session.flush()
+
+        # Re-read under the lock. A concurrent transaction that inserted the row first
+        # blocks the statement above on the unique index and then makes its row visible
+        # here, so the winner of that race is irrelevant: both callers end up holding the
+        # same single row.
+        general = (await session.execute(general_stmt)).scalar_one_or_none()
+        if general is None:
+            raise WalletGeneralBalanceNotFoundError(organization_id)
+
+        log.info(
+            "[WALLETS] Provisioned a missing general balance row lazily",
+            organization_id=str(organization_id),
+            floor_musd=LAZY_PROVISION_FLOOR_MUSD,
+        )
+
+        return general
 
     async def get_general_balance(
         self,
@@ -66,22 +149,15 @@ class WalletsDAO(WalletsDAOInterface):
         command: DebitCommandV1,
     ) -> List[WalletDebitDTO]:
         async with self.engine.session() as session:
-            # 1. Lock the organization general balance FIRST. Every posting for this
-            #    organization touches this one row, so this lock also serializes every
-            #    concurrent settle() call for the organization — the mechanism that keeps
-            #    competing deliveries from overspending any one credit.
-            general_stmt = (
-                select(WalletBalanceDBE)
-                .where(
-                    WalletBalanceDBE.organization_id == command.organization_id,
-                    WalletBalanceDBE.wallet_credit_id.is_(None),
-                )
-                .with_for_update()
+            # 1. Lock the organization general balance FIRST, provisioning it when it is
+            #    missing. Every posting for this organization touches this one row, so
+            #    this lock also serializes every concurrent settle() call for the
+            #    organization — the mechanism that keeps competing deliveries from
+            #    overspending any one credit.
+            general = await self._lock_general_balance(
+                session=session,
+                organization_id=command.organization_id,
             )
-            general = (await session.execute(general_stmt)).scalar_one_or_none()
-
-            if general is None:
-                raise WalletGeneralBalanceNotFoundError(command.organization_id)
 
             # 2. Replay check: this posting already settled — return the original rows,
             #    no second write.
@@ -162,27 +238,28 @@ class WalletsDAO(WalletsDAOInterface):
         *,
         organization_id: UUID,
         floor_musd: int = 0,
-    ) -> None:
+    ) -> WalletBalanceDTO:
         async with self.engine.session() as session:
-            # ON CONFLICT targets the exact partial unique index — the actual guard
-            # against a duplicate row on retry or concurrent creation, not this
-            # application-level call itself.
-            stmt = (
-                pg_insert(WalletBalanceDBE)
-                .values(
-                    id=uuid_utils.uuid7(),
+            await session.execute(
+                _general_balance_insert(
                     organization_id=organization_id,
-                    wallet_credit_id=None,
-                    balance_musd=0,
                     floor_musd=floor_musd,
                 )
-                .on_conflict_do_nothing(
-                    index_elements=[WalletBalanceDBE.organization_id],
-                    index_where=WalletBalanceDBE.wallet_credit_id.is_(None),
-                )
             )
-            await session.execute(stmt)
             await session.flush()
+
+            # Read back rather than returning what was inserted: on the conflict path
+            # nothing was inserted, and the caller wants the row that actually exists.
+            stmt = select(WalletBalanceDBE).where(
+                WalletBalanceDBE.organization_id == organization_id,
+                WalletBalanceDBE.wallet_credit_id.is_(None),
+            )
+            balance = (await session.execute(stmt)).scalar_one_or_none()
+
+            if balance is None:
+                raise WalletGeneralBalanceNotFoundError(organization_id)
+
+            return balance_dbe_to_dto(balance)
 
     async def get_active_plan_allowance_credit(
         self,
@@ -228,19 +305,13 @@ class WalletsDAO(WalletsDAOInterface):
         now: Optional[datetime] = None,
     ) -> PlanChangeResultDTO:
         async with self.engine.session() as session:
-            # 1. Lock the general balance first — every write below touches it, and this
-            #    also serializes concurrent plan changes for the same organization.
-            general_stmt = (
-                select(WalletBalanceDBE)
-                .where(
-                    WalletBalanceDBE.organization_id == organization_id,
-                    WalletBalanceDBE.wallet_credit_id.is_(None),
-                )
-                .with_for_update()
+            # 1. Lock the general balance first, provisioning it when missing — every
+            #    write below touches it, and this also serializes concurrent plan changes
+            #    for the same organization.
+            general = await self._lock_general_balance(
+                session=session,
+                organization_id=organization_id,
             )
-            general = (await session.execute(general_stmt)).scalar_one_or_none()
-            if general is None:
-                raise WalletGeneralBalanceNotFoundError(organization_id)
 
             # 2. Replay guard — checked BEFORE any amount is applied. No dedicated ledger
             #    table: the outgoing side rides the exact same (organization_id,
@@ -396,20 +467,13 @@ class WalletsDAO(WalletsDAOInterface):
         now: Optional[datetime] = None,
     ) -> WalletCreditDTO:
         async with self.engine.session() as session:
-            # 1. Lock the general balance first — same reason as `apply_plan_change`:
-            #    every write below touches it, and this serializes concurrent awards for
-            #    the same organization.
-            general_stmt = (
-                select(WalletBalanceDBE)
-                .where(
-                    WalletBalanceDBE.organization_id == organization_id,
-                    WalletBalanceDBE.wallet_credit_id.is_(None),
-                )
-                .with_for_update()
+            # 1. Lock the general balance first, provisioning it when missing — same
+            #    reason as `apply_plan_change`: every write below touches it, and this
+            #    serializes concurrent awards for the same organization.
+            general = await self._lock_general_balance(
+                session=session,
+                organization_id=organization_id,
             )
-            general = (await session.execute(general_stmt)).scalar_one_or_none()
-            if general is None:
-                raise WalletGeneralBalanceNotFoundError(organization_id)
 
             # 2. Replay guard: an existing credit already carrying this idempotency key
             #    is this exact award, already applied — return it, write nothing new.

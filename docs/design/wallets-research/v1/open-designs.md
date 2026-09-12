@@ -70,9 +70,10 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 11 | Open | Restricted-credit applicability, selection order, and admission. |
 | 12 | Open | Store classes, same-database co-location units, financial-history authority, and cross-store recovery. |
 | 13 | Open | Whether earned value expires at all, and what decides spend order between lots. |
-| 14 | Open | How an organization provisioned while `AGENTA_WALLETS_ENABLED` was off gets its balance row. |
+| 14 | Decided | How an organization provisioned while `AGENTA_WALLETS_ENABLED` was off gets its balance row. |
+| 15 | Open | What, if anything, restores the value those organizations also missed. |
 
-Items 2, 4, and 7 are decided. The table is an index only; each numbered item below contains the
+Items 2, 4, 7, and 14 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
 
 **What Wave 1 closed, and what it did not.** Wave 1 delivered the measurement and settlement
@@ -1286,7 +1287,7 @@ position on whether earned value is payment or promotion._
 
 ## 14. Organizations provisioned while the wallet flag was off
 
-**Status:** Open
+**Status:** Decided — option 2 with option 3 alongside it. Implemented on this branch.
 
 ### Context
 
@@ -1337,6 +1338,98 @@ Option 2, with option 3 alongside it. Lazy provisioning is the only remedy that 
 depend on somebody remembering an operational step at flag-flip time, and a terminal
 classification is worth having regardless, since infinite silent retry is the wrong
 response to any unprovisioned organization.
+
+### Decision
+
+**Both, as the current direction proposed: lazy provisioning on every wallet write path,
+and a terminal classification for the error that survives it.**
+
+`WalletsDAO._lock_general_balance` is now the single entry to the general balance row.
+`settle`, `apply_plan_change` and `award_credit` all open with it, and it inserts the row
+under the same partial unique index before taking the lock. `WalletsService.check` does the
+same on the admission read. The insert rides the caller's transaction, so a settlement that
+fails afterwards leaves no row behind and the next delivery provisions again.
+
+The lazy row starts at `LAZY_PROVISION_FLOOR_MUSD`, which is 0. No plan lookup happens on
+these paths, for two reasons: 0 is every known plan's floor in `plans.py` today, and
+`apply_plan_change` rewrites the floor from the incoming plan anyway. A path that had to
+reach the subscription to learn a number already fixed would be the wrong shape.
+
+`WalletGeneralBalanceNotFoundError` therefore stops being a routine outcome and becomes a
+defensive invariant: reaching it means the row is neither present nor insertable.
+`DebitWorker` now catches it explicitly, logs it at error level with the organization and
+the idempotency key, and ACKs. There is no dead-letter stream in this repository, so that
+log line is the record of a dropped charge — the same treatment the worker already gives a
+malformed envelope. Option 1, re-running the backfill, is not needed and is not written up
+as a procedure: nothing now depends on somebody remembering an operational step at
+flag-flip time.
+
+**One behaviour changes beyond the gap itself, deliberately.** `check` used to allow an
+organization with no general balance row, on the reasoning that there was "nothing to
+reject against". It now provisions the row and answers from it, which is a rejection for an
+organization holding no credits. That was never a policy that unprovisioned organizations
+spend freely; it was the gap wearing a friendly face. The consequence is that the day the
+flag is turned on, every organization created during the window the flag was off sits at
+its floor and is refused at admission until it holds credit. What restores that credit is
+item 15, and it is a separate question.
+
+Evidence: `ee/tests/pytest/unit/wallets/test_wallets_service.py` and
+`test_wallets_debit_worker.py` cover the service and worker halves against the in-memory
+fake; `ee/tests/pytest/integration/wallets/test_wallets_lazy_provisioning_postgres.py`
+proves against a real Postgres that eight competing first deliveries leave exactly one row,
+that a rolled-back settlement leaves none, and that the award and plan-change paths heal
+themselves the same way.
+
+## 15. What restores the value the dark-window organizations also missed
+
+**Status:** Open
+
+### Context
+
+Item 14 gives every organization a general balance row, whenever it first needs one. It
+does not give any of them value. An organization created while `AGENTA_WALLETS_ENABLED` was
+off was skipped by `provision_signup_subscription` entirely, so it missed two things, not
+one: the balance row, and the `signup` grant that `WP-1-05` awards on that same path. A
+mid-period plan change during that window was likewise not prorated, so no `plan_allowance`
+credit was minted for it either.
+
+With item 14 in place, such an organization's first admission read provisions a row at zero
+and refuses the call. Nothing is wedged and nothing is corrupted; it simply has no credit.
+
+### Decision needed
+
+Which mechanism, if any, mints the missed credit, and when it runs.
+
+1. **Nothing.** The organizations pick up value at their next plan change or renewal, and
+   the free tier's signup grant is not backdated. Cheapest, and wrong for anybody who
+   signed up during the window and never changes plan.
+2. **A one-off backfill job** over the organizations created in the window, calling
+   `WalletsService.award(activity_code="signup", ...)` once per organization. That call is
+   already idempotent on `award:signup:organization:{organization_id}`, so it cannot
+   double-award, and it needs no new schema. It does need a way to enumerate the window,
+   which is a `created_at` range over `organizations` and nothing cleverer.
+3. **Lazily, next to the balance row.** Have the path that provisions the row also award
+   the catalog grant. This spreads a product decision across the settlement and admission
+   paths, which is exactly where `report.md` §9.2 says the signup grant should not live: it
+   is awarded on the signup path so that it stays one event with one cause.
+
+### Why it matters
+
+Whether these organizations can use the managed gateway at all on day one turns on this.
+Under option 1 they cannot, until something else funds them, and the visible symptom is an
+admission refusal rather than an error, so it will be read as a bug.
+
+### Current direction
+
+Option 2. The award is already idempotent and already catalog-driven, so the backfill is a
+script that calls the existing entry point rather than a new code path, and it runs once,
+before the flag is turned on, with a countable result. Option 3 is rejected for the reason
+above: the grant catalog records what an activity earns, and "existed while a flag was off"
+is not an activity.
+
+The amount, and whether a dark-window organization deserves the grant at all, are product
+questions rather than engineering ones. This item fixes the mechanism and where it runs; it
+does not decide the number.
 
 ### Decision
 
