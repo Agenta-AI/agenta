@@ -398,6 +398,12 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         model_selection="provider/id",
         models=_pi_models(),
         model_catalog=_model_catalog("pi_core"),
+        # Pi has no built-in MCP client; the Agenta Pi extension is one, and it takes only an
+        # already-resolved Agenta gateway route (``/gateways/mcps/...``), never a direct author
+        # URL — enforced in ``services/runner/src/extensions/pi-mcp.ts``.
+        mcp=HarnessMCPCapabilities(
+            user_servers=UserMCPServerCapabilities(),
+        ),
     ),
     "claude": HarnessConnectionCapabilities(
         providers=["anthropic"],
