@@ -28,6 +28,21 @@ The rhythm per wave: define the wave → write specs and tasks for its packages 
 prepare → run the packages in parallel → merge and fix static issues → deploy → fix dynamic
 issues → next wave.
 
+### Rebase and squash, 2026-09-12
+
+The series no longer exists as a series. It was squashed to a single commit on `main`, so the
+package boundaries above are a record of how the work was built and not of how it will land.
+
+Three things moved in the rebase. The migration `oss000000022_add_gateway_endpoints` collided with
+a migration of the same number on `main` and is now `oss000000030`, parented on `main`'s head
+`oss000000029`. `main`'s platform-runtime-key mechanism, its EE credits-consumed gate and its
+fail-closed SSRF default were all kept, because the branch's history had reverted them for
+unrelated reasons; the reverts were not gateway work and one of them accepted a public placeholder
+as a valid runtime key. And two dependency bumps the branch carried were dropped rather than
+merged: the published SDK's Python floor, and the runner's `codex-acp` pin at 1.7.0 with the
+`CODEX_PATH` variable that came with it. Both are independent of the gateways and must land
+separately if they are still wanted.
+
 ---
 
 ## Scope confirmation
@@ -376,6 +391,38 @@ a probe: whether a body still carrying `model` is rejected or ignored is undocum
 
 **Wave 3 also carries seven cleanups** unblocked by C2 — CU1, CU2, CU6, CU7, CU10, CU12 and CU13.
 See [`workstreams/launch-3.md`](workstreams/launch-3.md).
+
+---
+
+## Wave 4 (next)
+
+Everything above is built and green under automated acceptance. The dashboard product path is not,
+and wave 4 is exactly the work that makes it run. The findings are written up in
+`open-reviews.md`; this is the order to take them in, because each one is the reason the next is
+not yet observable.
+
+1. **OR26 — a gateway endpoint must exist after the dashboard creates a provider.** The AI
+   providers page writes a `custom_provider` secret and no endpoint, so every run resolves against
+   something that was never registered. Either the page creates the endpoint or the resolver falls
+   back to the secret. Nothing else on this list can be verified through the product until this
+   lands.
+2. **OR27 — the SDK resolver must preserve the error body.** A control-plane refusal loses its
+   `code` at one `if` in `sdk/agents/platform/connections.py`, which turns every gateway refusal
+   into a generic 500. `qa.md` calls that a regression, and it is the cheapest fix on the list.
+3. **OR31a — Pi has no `MCP servers` row.** Pi is the one harness whose gateway LLM leg works, so
+   this is what blocks the MCP half of the QA procedure on every harness.
+4. **OR31b — Claude Code is offerable on an OpenAI-compatible endpoint it cannot use.** The
+   configuration surface must consult the same capability table the SDK enforces.
+5. **OR31c — Codex cannot use a custom gateway model key.** Its model catalogue is fixed, so a
+   gateway model offered under Codex is a dead end rather than a misconfiguration.
+6. **OR29 and OR30 — the endpoint update path and the resolve route.** `PUT` drops
+   `provider_key`, and two `ValueError`s on resolve escape as generic 500s. Both are data-integrity
+   and typed-refusal work on the same seam, and they are last only because the paths above reach
+   users first.
+
+OR23 and OR28 sit alongside rather than in this order: OR23 is Claude Code's native MCP exchange
+under the automated matrix, and OR28 is per-harness preservation of the refusal envelope, which is
+WP25's remit.
 
 ---
 
