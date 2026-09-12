@@ -15,6 +15,7 @@ imports the ``.mcp`` / ``.skills`` / ``.tools`` subsystems), so keep it dependen
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import urlparse
 from uuid import UUID
@@ -45,6 +46,52 @@ _LOOPBACK_HOSTNAMES = frozenset(
 
 def _is_loopback(hostname: Optional[str]) -> bool:
     return (hostname or "").strip("[]").lower() in _LOOPBACK_HOSTNAMES
+
+
+# The deployment-level opt-in that lets gateway credentials cross a plain-http hop to a
+# ROUTABLE host. Default off: D37 keeps HTTPS, or a loopback hop with no remote to leak to,
+# as the rule for every bearer credential. It exists because a self-hosted deployment served
+# over plain http at an IP or a LAN name is otherwise unable to use a gateway-routed model at
+# all, and because the alternative operators reach for is widening the loopback set.
+#
+# Deliberately narrow: it applies ONLY to our own credentials into our own gateway, never to
+# a provider's secret (``opaque_http``), whose plaintext-hop rule is unchanged.
+INSECURE_HTTP_ENV_VAR = "AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED"
+
+_TRUTHY = frozenset({"true", "1", "t", "y", "yes", "on", "enable", "enabled"})
+
+
+def gateway_insecure_http_allowed() -> bool:
+    """Whether this deployment opted into plain-http gateway credentials.
+
+    Read at call time rather than cached at import: the value comes from a deployment's env
+    file, a container recreate is what changes it, and a test flips it per case.
+    """
+    return (os.getenv(INSECURE_HTTP_ENV_VAR) or "").strip().lower() in _TRUTHY
+
+
+def is_effective_https_endpoint(
+    base_url: Optional[str], *, allow_insecure_http: bool = False
+) -> bool:
+    """Whether ``base_url`` may carry a bearer credential.
+
+    The single implementation of the transport rule, so the model invariant and the typed
+    error raised at the gateway-construction seam cannot disagree about one URL. The runner's
+    ``isEffectiveSecureEndpoint`` (``run-plan.ts``) mirrors it on the TypeScript side.
+    """
+    parsed = urlparse(base_url or "")
+    scheme = parsed.scheme.lower()
+    if scheme == "https" and parsed.hostname:
+        return True
+    # A plaintext hop to a loopback host has no remote to leak the value to.
+    if scheme == "http" and _is_loopback(parsed.hostname):
+        return True
+    # The caller's explicit opt-in (see ``INSECURE_HTTP_ENV_VAR``), default off. A separate
+    # branch rather than a relaxed condition above, so the two defaults it must not touch —
+    # https anywhere, plain http to loopback — stay readable as themselves.
+    if scheme == "http" and parsed.hostname and allow_insecure_http:
+        return True
+    return False
 
 
 # Which deployment surface a provider is reached through. ``direct`` is the provider's own
@@ -332,14 +379,13 @@ class ResolvedConnection(BaseModel):
     subscription: Optional[ResolvedSubscription] = Field(default=None, repr=False)
     gateway_credentials: Optional[GatewayCredentials] = Field(default=None, repr=False)
 
-    def _require_effective_https(self, subject: str) -> None:
+    def _require_effective_https(
+        self, subject: str, *, allow_insecure_http: bool = False
+    ) -> None:
         base_url = self.endpoint.base_url if self.endpoint else None
-        parsed = urlparse(base_url or "")
-        scheme = parsed.scheme.lower()
-        if scheme == "https" and parsed.hostname:
-            return
-        # A plaintext hop to a loopback host has no remote to leak the value to.
-        if scheme == "http" and _is_loopback(parsed.hostname):
+        if is_effective_https_endpoint(
+            base_url, allow_insecure_http=allow_insecure_http
+        ):
             return
         raise ValueError(f"{subject} require an effective HTTPS endpoint")
 
@@ -362,9 +408,12 @@ class ResolvedConnection(BaseModel):
             self._require_effective_https("opaque_http model credentials")
         # Gateway credentials are still bearer credentials. Local development's normal API
         # gateway is loopback HTTP (which _require_effective_https explicitly permits), but a
-        # remote plaintext route must never receive them.
+        # remote plaintext route must never receive them unless the deployment says so.
         if self.gateway_credentials is not None:
-            self._require_effective_https("gateway credentials")
+            self._require_effective_https(
+                "gateway credentials",
+                allow_insecure_http=gateway_insecure_http_allowed(),
+            )
         return self
 
     def plaintext_environment(self) -> Dict[str, str]:

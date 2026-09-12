@@ -324,8 +324,7 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  | { ok: true; plan: RunPlan }
-  | { ok: false; error: string };
+  { ok: true; plan: RunPlan } | { ok: false; error: string };
 
 // The five wire fields this change RETIRED. They are listed here so the runner can reject a
 // request that still sends them, rather than ignore them.
@@ -420,7 +419,38 @@ function defaultDaytonaCwd(durableCwd?: string): string {
   return durableCwd ?? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`;
 }
 
-const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+// `host.docker.internal` is here for the same reason the Python SDK's `_LOOPBACK_HOSTNAMES`
+// carries it: Docker exposes the host loopback to a container under that fixed alias, so a
+// hop to it is the same hop. It was missing on this leg, which meant the SDK admitted a
+// connection the runner then refused — the run reached the sandbox and died there.
+const LOOPBACK_HOSTNAMES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "host.docker.internal",
+]);
+
+/** The deployment opt-in that lets OUR gateway credentials cross plain HTTP to a routable
+ * host. Mirrors the Python SDK's `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED`
+ * (`connections/models.py`): with the flag off both legs refuse, with it on both allow, so a
+ * run can never be admitted by one and stranded by the other. Default off, and deliberately
+ * not consulted for a provider's own secret — that rule stays HTTPS-or-loopback always.
+ * Read per call, because a container recreate is what changes it. */
+function gatewayInsecureHttpAllowed(): boolean {
+  const raw = (process.env.AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED ?? "")
+    .trim()
+    .toLowerCase();
+  return (
+    raw === "1" ||
+    raw === "true" ||
+    raw === "t" ||
+    raw === "y" ||
+    raw === "yes" ||
+    raw === "on" ||
+    raw === "enable" ||
+    raw === "enabled"
+  );
+}
 
 /** Mirrors the provider-credential transport rule in the Python SDK: HTTPS anywhere, or
  * plain HTTP to loopback, which has no remote to leak a provider credential to. */
@@ -558,6 +588,22 @@ export function materializeModelEnvironment(
         ok: false,
         error:
           "gateway credentials require a valid header name and newline-free value",
+      };
+    }
+    // Gateway credentials are bearer credentials too, so the transport rule that guards a
+    // provider secret above guards them here. Without this the two legs disagreed: the SDK
+    // refused a plain-http routable gateway while the runner accepted one, which is the
+    // inconsistency `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` now resolves in both directions.
+    if (
+      !isEffectiveSecureEndpoint(connection.endpoint?.baseUrl) &&
+      !gatewayInsecureHttpAllowed()
+    ) {
+      return {
+        ok: false,
+        error:
+          "gateway credentials require an effective HTTPS endpoint; serve the deployment " +
+          "over HTTPS, or set AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED=true on a trusted " +
+          "single-tenant deployment",
       };
     }
     // Gateway credentials replace provider credentials for a gateway-routed connection.
@@ -735,7 +781,9 @@ export function buildRunPlan(
     }
   }
   const subscription =
-    requestCredentialMode === "runtime_provided" ? requestSubscription : undefined;
+    requestCredentialMode === "runtime_provided"
+      ? requestSubscription
+      : undefined;
 
   const materializedModel = materializeModelEnvironment(request);
   if (!materializedModel.ok) return materializedModel;
