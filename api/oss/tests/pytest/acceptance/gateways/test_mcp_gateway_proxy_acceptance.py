@@ -8,9 +8,27 @@ Needs a real deployment_kind (api/AGENTS.md's test-layer rule). Run it with the 
 """
 
 import json
+import os
 from uuid import uuid4
 
 import pytest
+
+
+_MOCKS_ENABLED = os.getenv("AGENTA_GATEWAYS_MOCKS_ENABLED", "").lower() == "true"
+
+# The mock upstream this suite dials is a compose service, so it exists only in a dev
+# stack that opts into the mock topology. Deployments without it (the PR preview) would
+# otherwise fail here on DNS rather than on anything the gateway does.
+pytestmark = [
+    pytest.mark.acceptance,
+    pytest.mark.skipif(
+        not _MOCKS_ENABLED,
+        reason=(
+            "gateway mocks are disabled "
+            "(set AGENTA_GATEWAYS_MOCKS_ENABLED=true in an OSS/EE dev compose stack)"
+        ),
+    ),
+]
 
 # Mock MCP upstream base URL; it uses Streamable HTTP JSON at the root path.
 _MOCK_BASE_URL = "http://mock-mcp-gateway:9092/"

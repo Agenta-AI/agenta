@@ -37,7 +37,10 @@ const createTags = (license: TestLicenseType) =>
         speed: TestSpeedType.SLOW,
     })
 
-export const mcpOAuthAcceptanceTests = (license: TestLicenseType) => {
+// Returns the suite body rather than running it. `test.describe` takes a callback, so
+// calling `test()` directly here would register the case outside any describe block and
+// hand `describe` an `undefined` body, which fails collection for the whole project.
+export const mcpOAuthAcceptanceTests = (license: TestLicenseType) => () => {
     const tags = createTags(license)
 
     test(
