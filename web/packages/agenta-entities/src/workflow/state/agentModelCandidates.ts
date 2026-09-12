@@ -31,6 +31,11 @@ export interface AgentModelCandidatesState {
     connections: ProviderConnection[]
     capabilities: HarnessCapabilitiesMap | null
     error: unknown | null
+    /**
+     * The subscription probe answered that the runner is down, and nothing else is runnable.
+     * Empty candidates here are "we could not read subscription pairs", not "add a provider key".
+     */
+    runnerUnavailable: boolean
 }
 
 interface CandidateSourceState {
@@ -66,11 +71,19 @@ export const resolveAgentModelCandidateSources = ({
             connections,
             capabilities: null,
             error,
+            runnerUnavailable: false,
         }
     }
     // A failed check never blocks on itself: fall through and answer from the vault alone.
     if (showSubscriptions && !subscriptionSettled && !subscriptionError) {
-        return {status: "loading", candidates: [], connections, capabilities, error: null}
+        return {
+            status: "loading",
+            candidates: [],
+            connections,
+            capabilities,
+            error: null,
+            runnerUnavailable: false,
+        }
     }
 
     const subscriptionPairs = showSubscriptions
@@ -105,9 +118,13 @@ export const resolveAgentModelCandidateSources = ({
             connections,
             capabilities,
             error: subscriptionError,
+            runnerUnavailable: false,
         }
     }
-    return {status: "ready", candidates, connections, capabilities, error: null}
+    // Successful `runner: unavailable` with no vault routes is a down runner, not a missing key.
+    const runnerUnavailable =
+        showSubscriptions && subscriptionStatus?.runner === "unavailable" && candidates.length === 0
+    return {status: "ready", candidates, connections, capabilities, error: null, runnerUnavailable}
 }
 
 export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boolean) =>

@@ -48,6 +48,7 @@ describe("resolveAgentModelCandidateSources", () => {
         expect(state.status).toBe("ready")
         expect(state.candidates).toHaveLength(1)
         expect(state.candidates[0].source).toBe("connection")
+        expect(state.runnerUnavailable).toBe(false)
     })
 
     it("does not manufacture subscription candidates when the runner has none", () => {
@@ -59,7 +60,7 @@ describe("resolveAgentModelCandidateSources", () => {
             showSubscriptions: true,
         })
 
-        expect(state).toMatchObject({status: "ready", candidates: []})
+        expect(state).toMatchObject({status: "ready", candidates: [], runnerUnavailable: false})
     })
 
     it("reports required source failures instead of loading forever", () => {
@@ -87,7 +88,12 @@ describe("resolveAgentModelCandidateSources", () => {
             showSubscriptions: true,
         })
 
-        expect(state).toMatchObject({status: "error", error, candidates: []})
+        expect(state).toMatchObject({
+            status: "error",
+            error,
+            candidates: [],
+            runnerUnavailable: false,
+        })
         // `ready` here is what activated the connect-a-model gate and told the user to add a
         // provider key when the real fault was that Agenta could not reach the runner.
         expect(state.status).not.toBe("ready")
@@ -108,6 +114,7 @@ describe("resolveAgentModelCandidateSources", () => {
 
         expect(state.status).toBe("ready")
         expect(state.candidates.length).toBeGreaterThan(0)
+        expect(state.runnerUnavailable).toBe(false)
     })
 
     it("still answers 'no candidates' when the runner genuinely reports none", () => {
@@ -120,7 +127,7 @@ describe("resolveAgentModelCandidateSources", () => {
             showSubscriptions: true,
         })
 
-        expect(state).toMatchObject({status: "ready", candidates: []})
+        expect(state).toMatchObject({status: "ready", candidates: [], runnerUnavailable: false})
     })
 
     it("ignores a subscription failure once an answer is already in hand", () => {
@@ -136,6 +143,7 @@ describe("resolveAgentModelCandidateSources", () => {
 
         expect(state.status).toBe("ready")
         expect(state.candidates).toHaveLength(1)
+        expect(state.runnerUnavailable).toBe(false)
     })
 
     it("does not treat a subscription failure as fatal when subscriptions are off", () => {
@@ -148,5 +156,36 @@ describe("resolveAgentModelCandidateSources", () => {
         })
 
         expect(state.status).toBe("ready")
+    })
+
+    it("flags a successful runner-unavailable probe when nothing else is runnable", () => {
+        const state = resolveAgentModelCandidateSources({
+            vaultRows: [],
+            capabilities,
+            subscriptionStatus: {runner: "unavailable", checked_at: null},
+            subscriptionSettled: true,
+            showSubscriptions: true,
+        })
+
+        expect(state.status).toBe("ready")
+        expect(state.candidates).toEqual([])
+        expect(state.runnerUnavailable).toBe(true)
+        expect(state.error).toBeNull()
+    })
+
+    it("still treats a connected runner with no ready harness as missing models", () => {
+        const state = resolveAgentModelCandidateSources({
+            vaultRows: [],
+            capabilities,
+            subscriptionStatus: {runner: "connected", checked_at: null, harnesses: {}},
+            subscriptionSettled: true,
+            showSubscriptions: true,
+        })
+
+        expect(state).toMatchObject({
+            status: "ready",
+            candidates: [],
+            runnerUnavailable: false,
+        })
     })
 })
