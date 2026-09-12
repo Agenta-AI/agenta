@@ -326,6 +326,16 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
         records_service=RecordsService(
             records_dao=RecordsDAO(engine=get_analytics_engine()),
         ),
+        # The same session reads the API composition gives its dispatcher: an
+        # interaction without stored references resolves its workflow through
+        # the turn and the stream header, or the resume has no service URL.
+        turns_service=SessionTurnsService(
+            turns_dao=SessionTurnsDAO(engine=transactions_engine),
+        ),
+        streams_service=SessionStreamsService(
+            streams_dao=SessionStreamsDAO(engine=transactions_engine),
+            lock_engine=get_lock_engine(),
+        ),
         dispatch_fn=_dispatch_detached_run,
     )
 

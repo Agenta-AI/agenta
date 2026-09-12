@@ -167,7 +167,7 @@ class InboxDispatcher:
         # clear the question so the common case (a later card supersedes it) has
         # nothing stale to resolve against; this is not a concurrency guard --
         # two clicks racing before either clears is a known follow-up (F101).
-        await self.channels_service.channels_dao.set_pending_choice(
+        await self.channels_service.set_pending_choice(
             project_id=project_id,
             thread_id=resolution.thread.id,
             pending_choice=None,
