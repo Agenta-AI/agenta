@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import type {SettingsAccess} from "@agenta/settings"
-import {isBillingEnabled, isEE, isToolsEnabled} from "@agenta/shared/api"
+import {isBillingEnabled, isChannelsEnabled, isEE, isToolsEnabled} from "@agenta/shared/api"
 
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {useOrgData} from "@/oss/state/org"
@@ -14,18 +14,19 @@ export const useSettingsAccess = (): SettingsAccess => {
     const {canViewApiKeys, canViewEvents} = useProjectPermissions()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
     const billingEnabled = isBillingEnabled()
+    // the feature flag gates the deployment; the per-user switch opts a person in
+    const canShowChannels = isChannelsEnabled()
 
     return useMemo(
         () => ({
             billingEnabled,
             canShowTools: isToolsEnabled(),
-            // The deployment flag arrives with the feature-flag PR up the stack.
-            canShowChannels: true,
             canViewApiKeys,
             canViewEvents,
+            canShowChannels,
             isEE: isEE(),
             isOwner,
         }),
-        [billingEnabled, canViewApiKeys, canViewEvents, isOwner],
+        [billingEnabled, canViewApiKeys, canViewEvents, canShowChannels, isOwner],
     )
 }

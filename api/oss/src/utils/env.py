@@ -826,6 +826,14 @@ class ChannelsSlackConfig(BaseModel):
 
 
 class ChannelsConfig(BaseModel):
+    # The whole channels feature, off by default. When false the ingress and
+    # the configuration routes 404 and the inbox worker does not consume, so a
+    # deployment can carry the code without exposing the feature. A per-user UI
+    # switch gates the settings tab on top of this (NEXT_PUBLIC_..._CHANNELS).
+    enabled: bool = (
+        os.getenv("AGENTA_CHANNELS_ENABLED") or "false"
+    ).strip().lower() in _TRUTHY
+
     slack: ChannelsSlackConfig = ChannelsSlackConfig()
 
     model_config = ConfigDict(extra="ignore")

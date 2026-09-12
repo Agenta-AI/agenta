@@ -297,7 +297,8 @@ async def lifespan(*args, **kwargs):
     validate_platform_runtime_key()
 
     await _triggers_broker.startup()
-    await _channels_inbox_broker.startup()
+    if env.channels.enabled:
+        await _channels_inbox_broker.startup()
 
     # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
     # so a store outage doesn't block API startup (mounts degrade, the rest runs).
@@ -352,7 +353,8 @@ async def lifespan(*args, **kwargs):
     )
 
     await _triggers_broker.shutdown()
-    await _channels_inbox_broker.shutdown()
+    if env.channels.enabled:
+        await _channels_inbox_broker.shutdown()
 
     for adapter in _composio_adapters.values():
         await adapter.close()
@@ -1705,31 +1707,35 @@ app.include_router(
 # Ingress paths are literal per channel (/channels/slack/events/), never a path
 # parameter: _PUBLIC_ENDPOINTS matches by prefix. The configuration router
 # mounts under the same prefix and stays authenticated.
-app.include_router(
-    router=channels_ingress.router,
-    prefix="/channels",
-    tags=["Channels"],
-)
+#
+# The whole surface is behind AGENTA_CHANNELS_ENABLED: off by default, so a
+# deployment carries the code without exposing the ingress or the config API.
+if env.channels.enabled:
+    app.include_router(
+        router=channels_ingress.router,
+        prefix="/channels",
+        tags=["Channels"],
+    )
 
-app.include_router(
-    router=channels_ingress.router,
-    prefix="/preview/channels",
-    tags=["Channels"],
-    include_in_schema=False,
-)
+    app.include_router(
+        router=channels_ingress.router,
+        prefix="/preview/channels",
+        tags=["Channels"],
+        include_in_schema=False,
+    )
 
-app.include_router(
-    router=channels.router,
-    prefix="/channels",
-    tags=["Channels"],
-)
+    app.include_router(
+        router=channels.router,
+        prefix="/channels",
+        tags=["Channels"],
+    )
 
-app.include_router(
-    router=channels.router,
-    prefix="/preview/channels",
-    tags=["Channels"],
-    include_in_schema=False,
-)
+    app.include_router(
+        router=channels.router,
+        prefix="/preview/channels",
+        tags=["Channels"],
+        include_in_schema=False,
+    )
 
 app.include_router(
     router=triggers.admin_router,
