@@ -43,11 +43,21 @@ deployment — **Pi**, **Claude Code**, and **Codex** — create an otherwise id
 agent/run configuration:
 
 1. Select that harness in the dashboard. Record its displayed version and login/connection state.
-2. Give the agent a gateway LLM route. **The builtin routes are not selectable in the dashboard in
-   this increment** — the model picker has no `builtin/mock` or `builtin/agenta` entry, and
-   Add provider offers only the real providers plus `OpenAI-compatible endpoint` (OR26). Use a
-   custom OpenAI-compatible endpoint pointed at the compose mock LLM service instead. It still
-   traverses browser → API → runner → harness → gateway, which is what this procedure is for.
+2. Give the agent a gateway LLM route. **Use the `custom` namespace, not a builtin route.** The
+   builtin mock providers are generated in development only and production never lists them
+   (`mocks.md`), so the dashboard is not meant to offer them: the model picker has no
+   `builtin/mock` or `builtin/agenta` entry and `Add provider` offers the real providers plus
+   `OpenAI-compatible endpoint`. Treat the builtin routes as the HTTP-level precondition proved in
+   step 3 of the preconditions, and point a custom endpoint at the compose mock LLM service for
+   this step. It still traverses browser → API → runner → harness → gateway, which is what this
+   procedure is for.
+
+   **Create one endpoint per protocol you intend to test.** A harness accepts or refuses the run on
+   the endpoint's declared `provider_key`: Claude Code needs `anthropic` and an Anthropic-protocol
+   model, and refuses an `openai` endpoint with
+   `422 provider 'openai' is not supported by harness 'claude'`. Codex refuses any custom gateway
+   model, whatever the endpoint declares, because it matches the full prefixed model key against a
+   fixed catalogue (OR31).
 
    Save an `OpenAI-compatible endpoint` provider in Settings / AI providers, with the harnesses
    you intend to test enabled. That writes a `custom_provider` secret and **does not** create the
@@ -75,8 +85,9 @@ agent/run configuration:
    });
    ```
 
-   Confirm `POST /api/gateways/llms/endpoints/query` now returns one row. Remove this step once
-   OR26 is closed and the providers page registers the endpoint itself.
+   Confirm `POST /api/gateways/llms/endpoints/query` now returns one row. Set `provider_key` in the
+   endpoint body to the protocol the harness needs. Remove this step once OR26 is closed and the
+   providers page registers the endpoint itself.
 
    Then use a prompt that produces an unmistakable echo response, for example
    `Reply with exactly: gateway-live-qa`.
@@ -87,10 +98,11 @@ agent/run configuration:
    — and ask the agent to call its `echo` tool with a unique marker. There is no builtin MCP
    catalogue to select from: `Add MCP server` is a free-form name, URL and authentication form. Two
    known defects gate this step today, so record what happens rather than expecting a pass. The
-   supplied URL is discarded and the request goes out as `custom/<server name>`, which has no
-   registered endpoint and returns `404`; and with Pi selected the configuration panel has no
-   `MCP servers` row at all (OR31). Automated acceptance covers this interaction for Pi and Codex;
-   record the live result as product-path evidence.
+   supplied URL is discarded and the request goes out as `custom/<server name>`, and the
+   `MCP servers` section is hidden whenever Pi is selected (OR31). A server whose handshake fails
+   is dropped without a word in the transcript or the runner log, so check the gateway's own
+   request log before concluding that no call was made (OR32). Automated acceptance covers this
+   interaction for Pi and Codex; record the live result as product-path evidence.
 5. Add an existing Agenta callback tool and the builtin Agenta MCP server. Confirm the tool list is
    scoped to the run and that the selected callback can be invoked.
 6. Induce a **typed gateway refusal** using the dashboard-supported configuration — preferably a
@@ -104,9 +116,9 @@ agent/run configuration:
 
 | Harness | Happy LLM | Happy MCP | Typed refusal surfaced | Required evidence |
 | --- | --- | --- | --- | --- |
-| Pi | echo response | echo tool result | record all visible fields | run link/id + screenshot |
-| Claude Code | echo response | echo tool result | record all visible fields | run link/id + screenshot |
-| Codex | echo response | echo tool result | record all visible fields | run link/id + screenshot |
+| Pi | echo response, on a custom endpoint of either protocol | echo tool result | record all visible fields | run link/id + screenshot |
+| Claude Code | echo response, on a custom endpoint declaring `anthropic` | echo tool result | record all visible fields | run link/id + screenshot |
+| Codex | no pass is available: it rejects every custom gateway model key (OR31). Record the refusal. | echo tool result | record all visible fields | run link/id + screenshot |
 
 The required invariant is that every harness preserves the human message and the machine-readable
 gateway `code`. Pi or Claude Code may preserve the complete error envelope. Codex is expected to

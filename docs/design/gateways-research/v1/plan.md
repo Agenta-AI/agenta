@@ -404,24 +404,33 @@ not yet observable.
 1. **OR26 — a gateway endpoint must exist after the dashboard creates a provider.** The AI
    providers page writes a `custom_provider` secret and no endpoint, so every run resolves against
    something that was never registered. Either the page creates the endpoint or the resolver falls
-   back to the secret. Nothing else on this list can be verified through the product until this
-   lands.
-2. **OR31a — Pi has no `MCP servers` row.** Pi is the one harness whose gateway LLM leg works, so
-   this is what blocks the MCP half of the QA procedure on every harness.
-3. **OR31b — Claude Code is offerable on an OpenAI-compatible endpoint it cannot use.** The
-   configuration surface must consult the same capability table the SDK enforces.
-4. **OR31c — Codex cannot use a custom gateway model key.** Its model catalogue is fixed, so a
-   gateway model offered under Codex is a dead end rather than a misconfiguration.
+   back to the secret. Nothing else on this list can be verified through the product without an
+   API call standing in for it.
+2. **OR31a — the provider form offers no protocol choice.** It can only describe an
+   OpenAI-compatible endpoint, so Claude Code is offerable on an endpoint it must refuse. The same
+   harness runs end to end once the endpoint declares the `anthropic` protocol, so this is a
+   missing field rather than an unsupported combination. The form and the picker must also consult
+   the capability table the SDK enforces.
+3. **OR31b — Pi has no `MCP servers` row.** The section is hidden whenever Pi is selected, and Pi
+   is the one harness whose gateway LLM leg works out of the box, so this blocks the MCP half of
+   the QA procedure on every harness.
+4. **OR31c — Codex cannot use a custom gateway model key.** It matches the full prefixed key
+   against a fixed catalogue, so a gateway model offered under Codex is a structural dead end
+   rather than a misconfiguration, and should not be offered at all.
+5. **OR32 — a server that fails its MCP handshake must not vanish.** The run reports success while
+   the server is absent. This one is runner and agent-service work, not dashboard work, and it
+   gates any trust in the MCP half of the procedure.
 
-What remains is all dashboard work. The three runtime findings this wave opened with are closed:
-the resolve route now refuses with the shared envelope and the SDK resolver carries it (OR27), the
-edit path round-trips `provider_key` (OR29), and the two untyped resolve failures are typed 422s
-(OR30). See the closed record in `open-reviews.md`.
+Items 1 to 4 are dashboard work. The three runtime findings this wave opened with are closed: the
+resolve route now refuses with the shared envelope and the SDK resolver carries it (OR27), the edit
+path round-trips `provider_key` (OR29), and the two untyped resolve failures are typed 422s (OR30).
+See the closed record in `open-reviews.md`.
 
 OR28 sits alongside rather than in this order: it is per-harness preservation of the refusal
-envelope, which is WP25's remit. OR23 is closed, and it was never the harness problem it was
-written up as: the mock MCP server refused `initialize`, so no spec-compliant client could
-handshake against it. The full acceptance matrix is green on all three harnesses.
+envelope, which is WP25's remit, and OR32 is its MCP counterpart. OR23 is closed, and it was never
+the harness problem it was written up as: the mock MCP server refused `initialize`, so no
+spec-compliant client could handshake against it. The full acceptance matrix is green on all three
+harnesses.
 
 ---
 

@@ -2,37 +2,54 @@
 
 ## Active review findings
 
-### OR26. The dashboard cannot select or create any gateway LLM route
+### OR26. The dashboard can configure a custom provider that no run can use
 
-`qa.md` step 2 asks the operator to select the builtin LLM mock route (`builtin/mock`) in the
-dashboard and run it. There is no such control. Searching the playground model picker for `mock`
-and for `agenta` both return `No data`, and Settings / AI providers / Add provider offers the real
-providers plus `OpenAI-compatible endpoint` and nothing else. The routes themselves are live:
-`GET /gateways/llms/builtin/mock/v1/models` and the `agenta` equivalent both answer `200` with
-`mock/echo`, `gpt-5.5` and `claude-sonnet-5`.
+Two things were recorded under this number. One of them did not survive a check against the design
+set, so the entry now leads with the defect that did.
 
-The `custom` namespace is no better, and that is the part that matters. Saving an
-OpenAI-compatible provider through the AI providers page writes a `custom_provider` **secret** and
-never creates the matching gateway endpoint: `POST /gateways/llms/endpoints/query` still returns
-`count: 0` afterwards. The run then fails at the control plane, because the SDK asks
-`POST /gateways/llms/resolve` for an endpoint that was never registered and receives `404`.
+**The product gap.** Saving an OpenAI-compatible provider through `Settings / AI providers` writes
+a `custom_provider` **secret** and stops there. `POST /gateways/llms/endpoints/query` still returns
+`count: 0` afterwards. The runtime half is already converted: the SDK asks
+`POST /gateways/llms/resolve` with the secret's slug as `connection_slug`, the gateway finds no
+endpoint row, and the run dies on its first turn. Every agent configured this way fails, on every
+harness.
 
-So the gateway LLM plane has no reachable product path at all. The acceptance matrix proves the
-routes over HTTP, which is why this did not show up there; `qa.md` exists precisely to catch that
-difference, and it did. D1 says everything transits a gateway with no bypass, and a plane a user
-cannot reach is the bypass taken by default.
+D20 settles which side is wrong. Standard endpoints are generated and never stored; **only custom
+endpoints become rows.** A `custom` provider that produces no row is therefore missing its half of
+the contract, and the resolve call is right to refuse. Reproduced by hand: creating the row through
+`POST /gateways/llms/endpoints/` with the secret's slug and a matching `provider_key` makes the
+same dashboard agent run end to end, `200` on
+`/gateways/llms/custom/<slug>/v1/chat/completions`. Nothing else had to change, which is what
+identifies the creation path as the single missing piece.
 
-The same shape holds on the MCP side. `Add MCP server` is a free-form name, URL and authentication
-form with no builtin catalogue, so `qa.md` step 4 cannot select the builtin mock MCP server
-either.
+**What was withdrawn.** This entry also read the absence of a `builtin/mock` control as a product
+gap: the model picker returns `No data` for both `mock` and `agenta`, `Add provider` lists the real
+providers plus `OpenAI-compatible endpoint` and nothing else, and `Add MCP server` is a free-form
+name, URL and authentication form with no catalogue. Those observations hold, but they are a defect
+in `qa.md`'s procedure rather than in the product. `scope-checklist.md` has no dashboard,
+playground, picker or frontend row anywhere; its wave 2 is "every caller converted", the callers
+being the SDK and the services rather than a UI, and the only frontend work in the whole document
+set is the wave 3 MCP OAuth consent flow. `implementation-status.md` calls builtin `agenta` and
+`mock` development-only test providers, and `mocks.md` is stronger still: the mock entries "are
+generated in development only. Production neither lists them nor accepts their routes." A dashboard
+control for picking a development-only test provider would contradict that sentence rather than
+satisfy it.
 
-Closure: the provider-creation path in `web/packages/agenta-settings` must create the LLM endpoint
-alongside the `custom_provider` secret, or `resolve_agent_connection` in
-`core/gateways/llms/service.py` must resolve a `custom_provider` secret that has no registered
-endpoint. Proven by a Playwright acceptance case beside
-`web/{oss,ee}/tests/playwright/acceptance/settings/mcp-oauth.spec.ts` that saves an
+So the procedure asked for a gate that was never in this increment's scope, and the choice of
+repair is the author's. Either `qa.md` stops naming `builtin/mock` and specifies the `custom`
+namespace, which *is* meant to be operator-configurable, naming the builtin routes only as an
+HTTP-level precondition the way the acceptance matrix already does; or the dashboard grows a
+development-only affordance, which then has to answer `mocks.md`'s production rule. `qa.md` now
+takes the first way. The live check kept its value either way, because the substituted `custom` run
+is what found the product gap above, OR31, OR32, and the real cause behind OR23, OR27, OR29 and
+OR30.
+
+Closure: the provider-creation path in `web/packages/agenta-settings` must register the LLM endpoint
+alongside the `custom_provider` secret, keyed by the same slug the resolver will ask for, with
+`provider_key` set from the protocol the operator chose (OR31). Proven by a Playwright acceptance
+case beside `web/{oss,ee}/tests/playwright/acceptance/settings/mcp-oauth.spec.ts` that saves an
 OpenAI-compatible provider and then asserts `POST /gateways/llms/endpoints/query` returns one row.
-`qa.md` now carries the API call that stands in for the missing control in the meantime.
+`qa.md` carries the API call that stands in for the missing registration in the meantime.
 
 ---
 
@@ -48,7 +65,8 @@ that far, a control-plane `404`:
 - **Pi** preserves `code` and the message, but only as text inside the harness's own session
   recap, rendered as `[error: 403: {…,"code":"model_not_allowed"}]` rather than as an error
   surface. `retryable`, `next_step` and `details` are absent.
-- **Claude Code** preserves nothing. The run ends at `Message wasn't sent — try again.`
+- **Claude Code** preserves nothing on either refusal. The run ends at
+  `Message wasn't sent — try again.`
 - **Codex** renders a first-class error card with `Show more` and preserves the human message, but
   no `code`, `retryable`, `next_step` or `details`. Its card is the best of the three surfaces and
   the weakest of the three payloads, which inverts the expectation `qa.md` records.
@@ -57,6 +75,12 @@ None of the three reaches the complete envelope the design allows for Pi or Clau
 harness offers the generic recovery path that is the stated condition for accepting Codex's
 reduced payload. Per the closing note in `qa.md` these are harness-compatibility findings and must
 not be normalized away in the UI.
+
+These measurements predate OR27's closure, which changed the API and the SDK legs only: a
+control-plane refusal now leaves the resolver as a `422` carrying `endpoint_not_found` and a
+sentence. Nothing between the SDK and the harness surface changed, so the three rows above still
+describe what a user sees. Re-measuring them is the first step of this fix, not a reason to
+discount them.
 
 Closure: WP25 is the package that owns the trip back (`AgentErrorDetail` through harness, runner
 and agent service). Proven per harness by extending the replay fixtures under
@@ -67,39 +91,70 @@ agent-service response for Pi, Claude Code and Codex, rather than only in the tr
 
 ### OR31. The dashboard offers harness and route combinations the runtime refuses
 
-Three places let the operator build a configuration that cannot run, with no warning at
+Four places let the operator build a configuration that cannot run, with no warning at
 configuration time and no explanation at run time.
 
-The provider form's `Harnesses` control accepts Claude Code on an OpenAI-compatible endpoint. The
-model picker then offers that model under a `Claude Code` group, and the run fails with
-`422 provider 'openai' is not supported by harness 'claude'` while the user sees only
-`Message wasn't sent — try again.` Codex accepts the same combination and fails differently, from
+**The provider form offers no protocol choice.** Its `Harnesses` control accepts Claude Code on an
+OpenAI-compatible endpoint. The model picker then offers that model under a `Claude Code` group,
+and the run fails with `422 provider 'openai' is not supported by harness 'claude'` while the user
+sees only `Message wasn't sent — try again.` The combination itself is legitimate: declaring the
+endpoint's `provider_key` as `anthropic` and giving it an Anthropic-protocol model makes the same
+harness run end to end through `/gateways/llms/custom/<slug>/v1/messages`, which is how the happy
+LLM cell was passed. What the form is missing is the protocol declaration, since today it offers an
+OpenAI-shaped endpoint and nothing else.
+
+**Codex is a dead end on any custom endpoint.** It accepts the same combination and fails from
 inside the harness: `model '<provider>/custom/<model>' is not available on this run … Allowed
-values: gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna, gpt-5.5, gpt-5.2`. A harness whose model
-catalogue is fixed cannot use a custom gateway model at all, so offering one is a dead end rather
-than a misconfiguration.
+values: gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna, gpt-5.5, gpt-5.2`. Codex compares the **full**
+model key, provider prefix included, against a fixed catalogue, so no custom gateway model can ever
+satisfy it, whatever the endpoint declares. This one is not a mismatch a better form repairs: the
+`Harnesses` control should not offer Codex on a custom endpoint until that key shape changes.
 
-`Add MCP server` has the mirror-image problem: the URL the operator types is not the URL that is
-requested. A server named `gw-mock-mcp` pointed at the builtin mock gateway route went out as
-`POST /gateways/mcps/custom/gw-mock-mcp` and returned `404`, because the server name becomes a
-`custom` slug and the supplied URL is discarded. Either the field routes, or it should not be a
-URL field.
+**The `MCP servers` section is hidden whenever Pi is selected**, and Pi is the one harness whose
+gateway LLM leg works out of the box. A server configured under Claude Code disappears from the
+panel on switching to Pi and comes back on switching away, so it is hidden rather than deleted. It
+is also inert, and nothing tells the operator that the server they configured will not be used.
 
-And Pi, the one harness whose gateway LLM leg works end to end, has **no `MCP servers` row in the
-configuration panel at all**, while Claude Code and Codex both do. No MCP server can be attached
-to a Pi agent from the dashboard, which is why `qa.md` step 4 has no executable happy path on any
-harness.
+**`Add MCP server` does not route the URL it asks for.** A server named `gw-mock-mcp` pointed at a
+builtin mock gateway route went out as `POST /gateways/mcps/custom/gw-mock-mcp`: the name becomes a
+`custom` slug and the supplied URL is discarded. Either the field routes, or it should not be a URL
+field.
 
-Smaller, same family: the picker renders three separate options all named `echo`, one per harness,
-with the harness carried only by a visual group header and absent from the accessible name.
+Smaller, same family: the picker renders several options with identical accessible names (`echo`,
+`echo`, `echo`, one per harness), the harness carried only by a visual group header.
 
-Closure, in the order the QA hit them. The provider form and the model picker must consult the
-same capability table the SDK enforces in `sdks/python/agenta/sdk/agents/capabilities.py`, so an
-unsupported pair is not offerable. The Pi branch of the configuration panel must render the
-`MCP servers` row. `Add MCP server` must either persist its URL as a custom MCP endpoint or stop
-asking for one. Proven by package unit cases in `web/packages/agenta-entities` over the
-harness/provider compatibility selector, plus a Playwright acceptance case asserting the
-`MCP servers` row is present for all three harnesses.
+Closure, in the order the QA hit them. The provider form must let the operator declare the
+endpoint's protocol, and the form and the model picker must consult the same capability table the
+SDK enforces in `sdks/python/agenta/sdk/agents/capabilities.py`, so an unsupported pair is not
+offerable. The Pi branch of the configuration panel must render the `MCP servers` row.
+`Add MCP server` must either persist its URL as a custom MCP endpoint or stop asking for one.
+Proven by package unit cases in `web/packages/agenta-entities` over the harness/provider
+compatibility selector, plus a Playwright acceptance case asserting the `MCP servers` row is
+present for all three harnesses.
+
+---
+
+### OR32. A server that fails its MCP handshake vanishes from the run
+
+Driven from the dashboard, a Claude Code agent with a gateway MCP server attached produced one
+`POST /gateways/mcps/custom/gw-mock-mcp -> 501` and then carried on as if no server had been
+configured. The turn completed. Nothing appeared in the transcript, and the runner logged only
+`claude MCP protocol negotiation: auto`, so the handshake failure appeared nowhere the operator or
+an on-call engineer would look.
+
+The `501` itself was the mock refusing `initialize`, and that is closed under OR23. The silence is
+not. That fix changed the mock adapter and unified the two tiers' error envelope; it changed nothing
+about what a run reports when a server drops out. A real custom MCP server that fails its handshake
+— a wrong URL, an expired grant, an upstream that does not speak Streamable HTTP — still disappears
+with the run reporting success, which is worse than the LLM leg, where the turn at least fails.
+
+This is the MCP counterpart of OR28: the refusal exists on the wire and is lost on the way to the
+user. Closure: the runner must record a per-server handshake outcome and the agent service must
+carry it onto the run, so a server that did not connect is visible as a server that did not
+connect. Proven by a services acceptance case beside
+`services/oss/tests/pytest/acceptance/test_agent_gateway_route.py` that attaches an MCP server
+whose handshake fails and asserts the run names it, rather than asserting only that the turn
+completed.
 
 ---
 

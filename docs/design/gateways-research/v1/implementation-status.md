@@ -61,19 +61,24 @@ recorded in OR23.
 ### The dashboard product path
 
 The manual procedure in `qa.md` was run the same day against the same stack, in a disposable
-project, through an isolated browser. **The product path from the dashboard does not complete for
-any harness.** Per harness:
+project, through an isolated browser. **Two of the three harnesses complete a gateway LLM turn from
+the dashboard, none completes the MCP leg, and no harness can be configured without an API call
+first.** Per harness:
 
 | Harness | Gateway LLM leg | Gateway MCP leg | Typed refusal |
 | --- | --- | --- | --- |
-| Pi | reaches the gateway and returns `200`, on a custom endpoint created through the API | not executable: the configuration panel has no `MCP servers` row for Pi | partial: `code` and message appear only inside the harness session recap |
-| Claude Code | refused at `422`, `provider 'openai' is not supported by harness 'claude'` | not proven: the MCP request went out as `custom/<name>` and returned `404` | nothing reaches the user |
-| Codex | refused inside the harness: the gateway model key is not in its fixed model catalogue | not reached | partial: an error card with the human message, no `code` |
+| Pi | reaches the gateway and returns `200`, on a custom endpoint created through the API | not executable: the `MCP servers` section is hidden whenever Pi is selected | partial: `code` and message appear only inside the harness session recap |
+| Claude Code | completes a turn, on a custom endpoint declaring the `anthropic` protocol; refused at `422` on an `openai` one, which is the only protocol the provider form offers | failed silently: the handshake was refused and the run carried on as if no server were attached | nothing reaches the user |
+| Codex | refused inside the harness: it matches the full prefixed model key against a fixed catalogue, so no custom gateway model can satisfy it | not reached | partial: an error card with the human message, no `code` |
 
-The blockers are recorded as OR26 through OR31 in `open-reviews.md`. OR26 is the one that gates
-the rest: the AI providers page writes a `custom_provider` secret and never creates the gateway
-endpoint, so every run resolves against an endpoint that does not exist. OR27 is why the resulting
-refusal reaches the user as a generic 500 with no `code`.
+Four findings remain active in `open-reviews.md`. **OR26** is the one that gates configuration: the
+AI providers page writes a `custom_provider` secret and never registers the endpoint the SDK then
+resolves, which is why every cell above needed an endpoint created through the API. **OR31** is the
+configuration surface itself, starting with the missing protocol choice that makes Claude Code
+un-runnable through the form. **OR28** is per-harness preservation of the refusal envelope, which
+no harness satisfies. **OR32** is the silent MCP handshake failure in the Claude Code row. OR23,
+OR27, OR29 and OR30 were closed the same day; the closed record carries their mechanisms and
+tests.
 
 ### Deployment flags
 
