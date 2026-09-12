@@ -364,6 +364,27 @@ async def test_parse_event_ignores_our_own_indicator_edit():
     assert await adapter.parse_event(body=body, connection=connection) is None
 
 
+async def test_parse_event_keeps_a_me_message():
+    """A `/me` message is a person speaking: Slack marks it `me_message` and keeps
+    the plain-message fields, so it must enter like any other message."""
+
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {
+            "channel": "C1",
+            "subtype": "me_message",
+            "user": "U1",
+            "text": "<@UBOT1> waves",
+            "ts": "3.3",
+        }
+    )
+
+    event = await adapter.parse_event(body=body)
+    assert event is not None
+    assert event.processed.content[0]["text"] == "<@UBOT1> waves"
+    assert event.processed.sender == {"id": "U1"}
+
+
 @pytest.mark.parametrize("subtype", ["message_changed", "message_deleted"])
 async def test_parse_event_drops_edit_and_delete_subtypes(subtype):
     """No path processes an edit or a deletion, so even a human's edit must

@@ -32,9 +32,13 @@ PAUSED_STOP_REASON = "paused"
 ROW_REJECTION_ERRORS = (DataError, IntegrityError)
 
 
-def terminal_turns_in_batch(events: List[Any]) -> Dict[str, str]:
-    """`session_id -> turn_id` for every turn that reached a terminal `done` in
-    this batch, PAUSED ones included. The channels outbox folds and renders a
+def terminal_turns_in_batch(events: List[Any]) -> List[Tuple[str, str]]:
+    """`(session_id, turn_id)` for every turn that reached a terminal `done` in
+    this batch, PAUSED ones included, each pair once, in batch order. Keyed by
+    the pair and not the session: one committed batch can hold the terminal
+    records of two turns of one session (a park and its continuation), and a
+    dict on session_id would keep only the later one, so the earlier turn's
+    outbox result would never render. The channels outbox folds and renders a
     turn only on a turn-ended signal; `complete_turn` emits one for a turn the
     desktop completes, but a PARKED turn (never completes) and an approval
     CONTINUATION (a detached run) both miss it, so the channels card would
@@ -42,10 +46,12 @@ def terminal_turns_in_batch(events: List[Any]) -> Dict[str, str]:
     before the outbox reads it; `streams:sessions` is consumed only by the
     channels outbox, which dedups by (turn_id, index), so a turn that also ends
     through `complete_turn` just edits the same message."""
-    terminal: Dict[str, str] = {}
+    terminal: List[Tuple[str, str]] = []
     for record in events:
         if record.record_type == TERMINAL_RECORD_TYPE and record.turn_id:
-            terminal[record.session_id] = str(record.turn_id)
+            pair = (str(record.session_id), str(record.turn_id))
+            if pair not in terminal:
+                terminal.append(pair)
     return terminal
 
 
@@ -448,7 +454,7 @@ class RecordsWorker(StreamConsumer):
             # terminal_turns_in_batch.
             for session_id, turn_id in terminal_turns_in_batch(
                 [r for r in results if isinstance(r, SessionRecord)]
-            ).items():
+            ):
                 await publish_turn_ended(
                     project_id=UUID(str(project_batch["project_id"])),
                     session_id=session_id,

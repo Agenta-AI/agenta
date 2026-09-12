@@ -233,7 +233,7 @@ class ChannelsOutboxWorker:
                     turn_id=turn_id,
                     token=item.interaction_id,
                 )
-                await self.channels_service.channels_dao.set_pending_choice(
+                await self.channels_service.set_pending_choice(
                     project_id=project_id,
                     thread_id=thread.id,
                     pending_choice=ChannelPendingChoice(

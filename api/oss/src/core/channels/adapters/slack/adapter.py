@@ -55,7 +55,9 @@ _DEFAULT_BACKFILL_LIMIT = int(os.getenv("AGENTA_CHANNELS_BACKFILL_LIMIT") or 50)
 
 # Message subtypes that are still a person's message: a reply also sent to the
 # channel, and a file shared with a comment. Every other subtype is a notice.
-_MESSAGE_SUBTYPES = {"thread_broadcast", "file_share"}
+# A `/me` message arrives as subtype `me_message` with the same user, channel
+# and text fields as a plain message: it is a person speaking, so it routes.
+_MESSAGE_SUBTYPES = {"thread_broadcast", "file_share", "me_message"}
 
 # Slack's own signal that an installation stopped -- deactivate, never
 # route these as messages.
