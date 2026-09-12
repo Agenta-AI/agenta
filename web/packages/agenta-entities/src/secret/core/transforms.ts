@@ -14,6 +14,7 @@
 
 import type {LlmProvider} from "@agenta/shared/types"
 
+import {SUBSCRIPTION_PROVIDER_KIND, subscriptionProviderName} from "./subscriptionConnections"
 import {
     PROVIDER_KINDS,
     SecretKind,
@@ -89,6 +90,13 @@ const storageFacts = (secret: SecretResponseDto) => ({
     managementPolicy: secret.management?.policy,
 })
 
+const modelNames = (models: {slug: string; extras?: Record<string, unknown> | null}[]) =>
+    Object.fromEntries(
+        models.flatMap((model) =>
+            typeof model.extras?.name === "string" ? [[model.slug, model.extras.name]] : [],
+        ),
+    )
+
 export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => {
     return secrets.reduce((acc, secret) => {
         if (secret.kind === SecretKind.ProviderKey) {
@@ -115,6 +123,7 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 // Absent stays absent: no saved list means "use the defaults", which an empty
                 // array would misreport as "this connection offers no models".
                 models: data.models?.map((model) => model.slug),
+                modelNames: data.models ? modelNames(data.models) : undefined,
                 harnesses: data.harnesses ?? undefined,
                 created_at: secret.lifecycle?.created_at ?? undefined,
             })
@@ -141,10 +150,48 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 sessionToken: extras.aws_session_token || "",
                 bearerToken: extras.aws_bearer_token_bedrock || "",
                 models: data.models.map((model) => model.slug),
+                modelNames: modelNames(data.models),
                 modelKeys: data.model_keys ?? undefined,
                 harnesses: data.harnesses ?? undefined,
                 version: data.provider.version ?? "",
                 created_at: secret.lifecycle?.created_at ?? "",
+            })
+        } else if ((secret.kind as string) === SUBSCRIPTION_PROVIDER_KIND) {
+            // Not a Fern union member yet, so the payload is read field by field rather than cast.
+            // Every field is optional on purpose: a browser on an older bundle must still render
+            // the row, and an unreadable state falls back to "sign in needed".
+            const data = (secret.data ?? {}) as unknown as Record<string, unknown>
+            const provider = typeof data.provider === "string" ? data.provider : "chatgpt"
+            const stringList = (value: unknown): string[] | undefined =>
+                Array.isArray(value)
+                    ? value.filter((id): id is string => typeof id === "string")
+                    : undefined
+
+            acc.push({
+                ...storageFacts(secret),
+                title: provider,
+                name: secret.header?.name ?? subscriptionProviderName(provider),
+                displayName: secret.header?.name ?? undefined,
+                id: secret.id ?? undefined,
+                slug: secret.slug ?? undefined,
+                type: SUBSCRIPTION_PROVIDER_KIND,
+                provider,
+                models: stringList(data.models),
+                modelKeys: stringList(data.model_keys),
+                harnesses: stringList(data.harnesses),
+                subscription: {
+                    provider,
+                    loginState:
+                        typeof data.login_state === "string" ? data.login_state : "pending_login",
+                    loginVersion:
+                        typeof data.login_version === "number" ? data.login_version : undefined,
+                    loginGeneration:
+                        typeof data.login_generation === "number"
+                            ? data.login_generation
+                            : undefined,
+                    loginError: typeof data.login_error === "string" ? data.login_error : null,
+                },
+                created_at: secret.lifecycle?.created_at ?? undefined,
             })
         } else if (secret.kind === SecretKind.CustomSecret) {
             // `secret.data` is the Fern union; kind already discriminates it, but
@@ -191,7 +238,16 @@ export const transformStandardProviderPayloadData = (
                 kind: providerKind,
                 // An omitted key means "keep the stored value"; `""` would blank it.
                 provider: values.key ? {key: values.key} : {},
-                ...(values.models ? {models: values.models.map((slug) => ({slug}))} : {}),
+                ...(values.models
+                    ? {
+                          models: values.models.map((slug) => ({
+                              slug,
+                              ...(values.modelNames?.[slug]
+                                  ? {extras: {name: values.modelNames[slug]}}
+                                  : {}),
+                          })),
+                      }
+                    : {}),
                 ...(values.harnesses ? {harnesses: values.harnesses} : {}),
             } satisfies StandardProviderDto,
         },
@@ -232,7 +288,13 @@ export const transformCustomProviderPayloadData = (values: LlmProvider): CreateS
                         aws_bearer_token_bedrock: values.bearerToken,
                     },
                 },
-                models: values.models?.map((slug) => ({slug})) ?? [],
+                models:
+                    values.models?.map((slug) => ({
+                        slug,
+                        ...(values.modelNames?.[slug]
+                            ? {extras: {name: values.modelNames[slug]}}
+                            : {}),
+                    })) ?? [],
                 ...(values.harnesses ? {harnesses: values.harnesses} : {}),
             } as CustomProviderDto,
         },

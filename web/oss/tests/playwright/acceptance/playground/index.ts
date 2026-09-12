@@ -427,7 +427,10 @@ const playgroundTests = () => {
                     // avoids matching "Germany" in the testset-option label or loading
                     // skeleton that might be visible before the rows arrive.
                     await expect(
-                        loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
+                        loadDialog
+                            .locator(".avt-row, .ant-table-row")
+                            .filter({hasText: "Germany"})
+                            .first(),
                     ).toBeVisible({timeout: 30000})
 
                     // Click the .ant-checkbox-wrapper label rather than getByRole("checkbox")
@@ -442,7 +445,7 @@ const playgroundTests = () => {
                     // column is free of portal interference.
                     for (let i = 0; i < rows.length; i++) {
                         await loadDialog
-                            .locator(".ant-table-row")
+                            .locator(".avt-row, .ant-table-row")
                             .filter({hasText: rows[i].country})
                             .first()
                             .locator(".ant-checkbox-wrapper")
@@ -581,7 +584,10 @@ const playgroundTests = () => {
                 // avoids matching "Germany" in the testset-option label or loading
                 // skeleton that might be visible before the rows arrive.
                 await expect(
-                    loadDialog.locator(".ant-table-row").filter({hasText: "Germany"}).first(),
+                    loadDialog
+                        .locator(".avt-row, .ant-table-row")
+                        .filter({hasText: "Germany"})
+                        .first(),
                 ).toBeVisible({timeout: 30000})
                 for (let i = 0; i < rows.length; i++) {
                     // Click the .ant-checkbox-wrapper label rather than getByRole("checkbox")
@@ -595,7 +601,7 @@ const playgroundTests = () => {
                     // The CellContentPopover only appears over data cells so the selection
                     // column is free of portal interference.
                     await loadDialog
-                        .locator(".ant-table-row")
+                        .locator(".avt-row, .ant-table-row")
                         .filter({hasText: rows[i].country})
                         .first()
                         .locator(".ant-checkbox-wrapper")
@@ -625,9 +631,7 @@ const playgroundTests = () => {
                             role: Role.USER,
                         },
                     ])
-                    await expect(
-                        page.locator("button.ant-btn-primary").filter({hasText: "Commit"}).first(),
-                    ).toBeEnabled()
+                    await expect(page.getByRole("button", {name: "Commit"}).first()).toBeEnabled()
                     await saveVariant("version")
                 },
             )

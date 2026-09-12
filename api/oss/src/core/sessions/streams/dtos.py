@@ -16,6 +16,29 @@ from oss.src.core.sessions.types import (
 )
 
 
+class SessionNameSource(str, Enum):
+    """Where a session's name came from: a person, or a program.
+
+    It governs the name only, never the description, and it is not caller identity — both
+    kinds of request run under the same user credential. ``manual`` is a person typing a
+    name. ``automatic`` is a program proposing one: the agent's own ``rename_session``, or
+    the browser's auto-title from a first message.
+
+    It travels as a query parameter, never in the body, so a model cannot claim a person
+    chose its name: the ``rename_session`` catalog entry fixes ``name_source=automatic``
+    inside its own path and the model only ever fills the body.
+
+    ``manual`` is the default, which is a real trade rather than a free win. An unmarked
+    caller (a script, a service running an older SDK during a rolling deploy) is read as a
+    person, so an automatic name it writes is remembered as person-chosen and the next
+    agent rename of that session is refused until a person renames it. That is the
+    recoverable direction. The other default loses a person's name instead.
+    """
+
+    manual = "manual"
+    automatic = "automatic"
+
+
 class SessionStreamFlags(BaseModel):
     """The nest as primitive bools (alive ⊇ running ⊇ attached).
 
@@ -76,6 +99,9 @@ class SessionStreamQueryResult(BaseModel):
 
 class SessionStreamCreate(Header):
     session_id: str
+    # Who chose `name`. Typed here and encoded by the mapper, so the core never handles the
+    # storage representation.
+    name_source: Optional[SessionNameSource] = None
     flags: Optional[SessionStreamFlags] = None
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
@@ -109,15 +135,44 @@ class SessionStreamHeaderEdit(Header):
     ``rename_session`` schema already rejects both; this closes the direct-API hole.
     """
 
-    @field_validator("name")
+    #: The exact name this edit replaces, sent by an automatic caller whose new name a
+    #: person asked for. It is a precondition, not a permission: the write lands only while
+    #: the stored name still equals it, so a call that was decided before a later rename is
+    #: refused rather than applied. That is the whole failure this guard exists for, and a
+    #: bare "yes, overwrite" flag cannot express it, because a stale call would carry the
+    #: flag just as truthfully as a fresh one.
+    #:
+    #: Body-carried on purpose, unlike `name_source`: this one IS the model's own claim.
+    #: The claim it makes is checkable, which is why it is safe to let the model make it.
+    replacing_name: Optional[str] = None
+
+    #: The name revision `replacing_name` was read at, from the same refusal. The two are
+    #: checked together and neither is redundant. The name is what a person recognizes and
+    #: cannot be guessed; the revision is what makes the authorization single-use, so a
+    #: person restoring an earlier name does not revive a request that already ran against
+    #: it. A revision alone would be guessable, since it counts from one.
+    replacing_revision: Optional[int] = None
+
+    @field_validator("name", "replacing_name")
     @classmethod
-    def _non_empty_name_must_not_be_blank(cls, value: Optional[str]) -> Optional[str]:
-        if value and not value.strip():
+    def _trim_a_name(cls, value: Optional[str]) -> Optional[str]:
+        """Trim, and refuse a name that is only whitespace.
+
+        Storing ``"   "`` clears the visible title while the row still holds a value, a
+        state no caller ever means, so a non-empty name must carry a non-whitespace
+        character. An empty string stays empty: that is the chat rail's explicit
+        clear-title action. Trimming rather than merely validating is what makes
+        ``replacing_name`` comparable to the stored name by exact equality.
+        """
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if value and not trimmed:
             raise ValueError(
                 "name must contain a non-whitespace character"
                 " (send an empty string to clear the title)"
             )
-        return value
+        return trimmed
 
 
 class SessionStreamQuery(BaseModel):

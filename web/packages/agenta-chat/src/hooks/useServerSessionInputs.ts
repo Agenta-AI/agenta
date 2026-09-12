@@ -16,13 +16,36 @@ import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
 
 import type {QueuedMessage} from "./useAgentChatQueue"
+import {useMountGeneration} from "./useMountGeneration"
+
+/** "queued" parks the input and the dock owns it; "running" starts a turn the transcript adopts. */
+export type ServerInputAdmission = "queued" | "running"
+
+/** Reports what became of ONE send, so its echo can retire on evidence about itself. */
+export interface ServerInputWatcher {
+    /** The run stream named the turn this send started. */
+    onAccepted?: (executionId: string) => void
+    /** A 202 parked it as this durable input. */
+    onParked?: (inputId: string) => void
+    /** No turn will ever carry it: refused, errored, or accepted by nothing. */
+    onFailed?: () => void
+    /**
+     * The accepted turn finished and its records have been re-read. If the saved row still has
+     * not arrived by now it never will, so the echo stops waiting silently.
+     */
+    onSettled?: () => void
+}
 
 export interface ServerSessionInputs {
     capabilities: SessionPendingInputView["capabilities"]
     executionState: SessionPendingInputView["executionState"]
     busy: boolean
     queued: QueuedMessage[]
-    submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
+    submit: (
+        message: QueuedMessage,
+        policy: "queue" | "steer",
+        watcher?: ServerInputWatcher,
+    ) => Promise<ServerInputAdmission>
     remove: (id: string) => Promise<void>
     sendNow: (id: string) => Promise<void>
     edit: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
@@ -31,6 +54,123 @@ export interface ServerSessionInputs {
 }
 
 const emptyView = reduceSessionPendingInputs(null)
+
+const RUN_ERROR_FRAME_TYPES = new Set(["error", "data-agent-error"])
+
+type RunFrame = {kind: "accepted"; executionId: string} | {kind: "error"} | {kind: "started"} | null
+
+const runFrameFromLine = (line: string): RunFrame => {
+    const payload = line.startsWith("data:") ? line.slice(5).trim() : line.trim()
+    if (!payload || payload === "[DONE]") return null
+    try {
+        const frame = JSON.parse(payload) as {
+            type?: unknown
+            data?: {executionId?: unknown}
+            messageMetadata?: {turnId?: unknown}
+        }
+        if (typeof frame.type !== "string") return null
+        if (RUN_ERROR_FRAME_TYPES.has(frame.type)) return {kind: "error"}
+        // The runner emits its `turn` event only after it admits the request, and the Vercel
+        // adapter forwards that id as message metadata. It is the only thing in an ordinary
+        // request's stream that proves a turn exists.
+        //
+        // `start` and `start-step` are NOT that evidence, however early they arrive: the adapter
+        // yields both before it reads a single runner event, so a request the runner then refuses
+        // carries them exactly as a successful one does.
+        if (frame.type === "message-metadata") {
+            const turnId = frame.messageMetadata?.turnId
+            return typeof turnId === "string" && turnId ? {kind: "started"} : null
+        }
+        if (frame.type !== "data-session-accepted") return null
+        const id = frame.data?.executionId
+        return typeof id === "string" && id ? {kind: "accepted", executionId: id} : null
+    } catch {
+        return null
+    }
+}
+
+/**
+ * Drain the run stream and report only what it actually says about this send.
+ *
+ * An HTTP 200 proves the request was taken, nothing more, so an error frame before the turn begins
+ * is reported as a failure. Silence is NOT: the runner emits the acceptance frame only for a
+ * detached request, and this adapter also sends ordinary ones, so a stream that ends without
+ * acceptance is usually a perfectly good turn. Those fall back to the count, exactly as before
+ * identity existed.
+ *
+ * "Before the turn begins" is the whole of it, and for an ordinary request the turn id on the
+ * `message-metadata` frame is what says so. Live evidence for why this matters: a run whose model
+ * call failed mid-turn ("no credits remaining") emitted its error 13 s in, by which time the user's
+ * row was saved and rendered. Reading that as a refused send put a second copy of a delivered
+ * message on screen under "Message wasn't sent", and handed the text back to the composer. Once a
+ * turn exists its failure is the transcript's to render, on the assistant row where it belongs.
+ */
+export const readRunAdmission = async (
+    response: Response,
+    watcher?: ServerInputWatcher,
+): Promise<boolean> => {
+    const reader = response.body?.getReader()
+    if (!reader) {
+        watcher?.onFailed?.()
+        return false
+    }
+    const decoder = new TextDecoder()
+    let buffer = ""
+    let accepted = false
+    let started = false
+    const scan = (chunk: string): "error" | "accepted" | null => {
+        buffer += chunk
+        // CR-only and CRLF framing are both valid SSE.
+        const lines = buffer.split(/\r\n|\r|\n/)
+        buffer = lines.pop() ?? ""
+        for (const line of lines) {
+            const frame = runFrameFromLine(line)
+            if (!frame) continue
+            // Scanning continues past the turn-id frame, because a detached run names its turn in
+            // a frame of its own, and that id is what retires the echo on identity.
+            if (frame.kind === "started") {
+                started = true
+                continue
+            }
+            if (frame.kind === "error") {
+                if (started) continue
+                return "error"
+            }
+            accepted = true
+            watcher?.onAccepted?.(frame.executionId)
+            return "accepted"
+        }
+        return null
+    }
+    try {
+        for (;;) {
+            const {done, value} = await reader.read()
+            if (done) break
+            if (accepted) continue
+            if (scan(decoder.decode(value, {stream: true})) === "error") {
+                watcher?.onFailed?.()
+                await reader.cancel().catch(() => undefined)
+                return false
+            }
+        }
+        // A last frame with no trailing newline is still a frame, and it can be the refusal.
+        if (!accepted && buffer.trim() && scan("\n") === "error") {
+            watcher?.onFailed?.()
+            return false
+        }
+    } catch {
+        // A dropped connection says nothing about the turn either way, so it reports nothing.
+    }
+    return accepted
+}
+
+export const parkedInputIdFromBody = (body: unknown): string | null => {
+    if (!body || typeof body !== "object") return null
+    const input = (body as {input?: unknown}).input
+    if (!input || typeof input !== "object") return null
+    const id = (input as {id?: unknown}).id
+    return typeof id === "string" && id ? id : null
+}
 
 export const useServerSessionInputs = ({
     entityId,
@@ -73,6 +213,14 @@ export const useServerSessionInputs = ({
     entityIdRef.current = entityId
     onExecutedRef.current = onExecuted
     isSharedReaderReadyRef.current = isSharedReaderReady
+
+    // A run stream outlives this mount, and the session registry deliberately preserves the same
+    // Chat across a remount, so an old completion firing `onExecuted` can adopt a stale snapshot
+    // over a newer transcript and persist it. The generation is captured when the chain starts and
+    // re-checked after every await. It closes THIS hook's own windows only: `onExecuted` starts a
+    // records read of its own, and the host that owns that read guards its adoption with a
+    // generation of its own.
+    const mount = useMountGeneration()
 
     const load = useCallback((): Promise<SessionPendingInputView | null> => {
         if (loadInFlightRef.current?.scope === scope) {
@@ -128,7 +276,14 @@ export const useServerSessionInputs = ({
     }, [fetchCapabilities, sessionId, scope])
 
     const submit = useCallback(
-        async (message: QueuedMessage, policy: "queue" | "steer") => {
+        async (
+            message: QueuedMessage,
+            policy: "queue" | "steer",
+            watcher?: ServerInputWatcher,
+        ): Promise<ServerInputAdmission> => {
+            // Captured before the first await, so every continuation below is checked against the
+            // mount that actually started this send.
+            const generation = mount.capture()
             const outbound: UIMessage = {
                 id: message.id,
                 role: "user",
@@ -162,23 +317,37 @@ export const useServerSessionInputs = ({
             }
 
             if (response.status === 202) {
-                await response.body?.cancel()
+                // The body names the durable input this became. The echo retires when the dock is
+                // OBSERVED to list that id, not merely because this refresh returned.
+                const parkedId = await response
+                    .json()
+                    .then(parkedInputIdFromBody)
+                    .catch(() => null)
+                if (parkedId) watcher?.onParked?.(parkedId)
+                else watcher?.onFailed?.()
                 await refresh()
-                return
+                return "queued"
             }
 
             // Admission succeeded when the response headers arrived. Keep consuming a fresh 200
             // run in the background so the composer can admit Queue/Steer while that run streams.
-            void response
-                .arrayBuffer()
-                .catch(() => undefined)
-                .then(async () => {
+            // A 200 only proves the request was taken: the turn is accepted when the stream's
+            // first frame names it, and a stream that ends without one never started a turn.
+            void readRunAdmission(response, watcher)
+                .then(async (accepted) => {
+                    if (!mount.isCurrent(generation)) return
                     await refresh()
+                    if (!mount.isCurrent(generation)) return
                     onExecutedRef.current?.()
+                    // ONLY for a turn this stream actually named. Silence means the runner never
+                    // emits acceptance on this path, not that nothing was sent, and settling on
+                    // it would put "wasn't sent" under a message that was.
+                    if (accepted) watcher?.onSettled?.()
                 })
                 .catch(() => undefined)
+            return "running"
         },
-        [refresh, sessionId],
+        [mount, refresh, sessionId],
     )
 
     const remove = useCallback(

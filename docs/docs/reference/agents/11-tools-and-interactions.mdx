@@ -1,0 +1,62 @@
+---
+title: "Tools and interactions"
+sidebar_label: "Tools and interactions"
+description: "Configure agent tools, resolve permissions, and answer paused interactions."
+sidebar_position: 12
+---
+
+Agents can use harness built-ins, connected applications, code tools, client tools, referenced workflows, MCP tools, and platform tools injected by Agenta.
+
+## Tool types
+
+| Type                 | Execution location                          |
+| -------------------- | ------------------------------------------- |
+| Harness built-in     | Harness and sandbox; do not list in `tools` |
+| `gateway_connection` | Connected application through the gateway   |
+| `code`               | Runner-provided Python or Node runtime      |
+| `client`             | Your application                            |
+| `reference`          | Another Agenta workflow, server-side        |
+| MCP                  | Configured HTTP MCP server                  |
+
+A connected application is one `gateway_connection` entry for the whole integration. The older per-action `gateway` shape is legacy.
+
+## Client tools
+
+```json
+{
+  "type": "client",
+  "name": "lookup_account",
+  "description": "Find an account by email.",
+  "input_schema": {
+    "type": "object",
+    "properties": { "email": { "type": "string" } },
+    "required": ["email"]
+  },
+  "permission": "allow"
+}
+```
+
+When called, the turn pauses with a `client_tool` interaction. Post the result to `POST /api/sessions/interactions/{interaction_id}/respond`:
+
+```json
+{
+  "answer": {
+    "tool_call_id": "call_019d952f",
+    "outcome": "completed",
+    "output": { "account_id": "acct_4821", "name": "Example Company" }
+  }
+}
+```
+
+Use `outcome: "error"` and an error output when the client action fails.
+
+## Permission resolution
+
+1. A code, client, or reference tool's `permission` wins.
+2. A connected app uses `policy.permissions.tools[tool_key]`, then its connection default.
+3. `inherit` uses `runner.permissions.default`.
+4. `allow_reads` allows read-hinted tools and asks for the rest.
+
+The final result is `allow`, `ask`, or `deny`. `ask` creates a `user_approval` interaction; `deny` returns a tool error. Pi built-ins also use `harness.permissions` rules.
+
+After a disconnect, query interactions by session and answer only records still marked `pending`.

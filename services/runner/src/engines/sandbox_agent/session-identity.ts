@@ -309,6 +309,24 @@ function configShape(request: AgentRunRequest) {
               usage: credential.usage,
             }),
           ),
+          // A hosted subscription contributes IDENTITY and GENERATION, and nothing else.
+          //
+          // `id` because a warm session built on one connection's login must never serve a run on
+          // another connection: the agent dir is per-connection, and reuse would authenticate as
+          // the wrong account. `generation` because a new device login makes the running harness's
+          // cached token dead — Pi never re-reads `auth.json` while its cached token is unexpired,
+          // so the session has to start cold.
+          //
+          // NOT `version`, and not the login. Version moves on every background refresh, which is
+          // exactly the case warm reuse is for; hashing it would cold-start a session for a token
+          // rotation the harness handled itself. And the login is a credential — it does not enter
+          // a digest input any more than it enters a log line.
+          subscription: request.modelConnection.subscription
+            ? {
+                id: request.modelConnection.subscription.id,
+                generation: request.modelConnection.subscription.generation,
+              }
+            : null,
         }
       : null,
     sandboxCredentials:
@@ -343,6 +361,7 @@ function configShape(request: AgentRunRequest) {
     // text is spliced at environment build and remains fixed while that environment is warm.
     // Hashing it would restore the integration-change over-eviction that the separate guidance
     // seam removed. The next ordinary environment build picks up changes.
+    // `turnContext` is delivered with each prompt and never configures the environment.
     permissions: request.permissions ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
     harnessFiles: request.harnessFiles ?? null,

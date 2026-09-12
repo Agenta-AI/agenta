@@ -1,3 +1,4 @@
+from re import sub
 from typing import Optional, Union, List, Dict, Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -13,6 +14,10 @@ from oss.src.core.secrets.enums import (
     CustomProviderKind,
     CustomSecretFormat,
     ChannelSecretKind,
+    SubscriptionLoginState,
+    SubscriptionProviderKind,
+    SUBSCRIPTION_PROVIDER_HARNESSES,
+    SUBSCRIPTION_PROVIDER_MODELS,
 )
 from oss.src.core.shared.dtos import (
     Identifier,
@@ -80,6 +85,64 @@ class CustomProviderDTO(BaseModel):
     model_keys: Optional[List[str]] = None
 
 
+class SubscriptionLoginDTO(BaseModel):
+    """A harness-format subscription credential, stored and returned verbatim.
+
+    The shape is Pi's, not ours: extra keys are kept so a Pi version that adds a field
+    round-trips through the vault without losing it.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    type: str = "oauth"
+    access: Optional[str] = None
+    refresh: Optional[str] = None
+    # Epoch milliseconds, as Pi writes it. Two logins are ordered by this value.
+    expires: Optional[int] = None
+    accountId: Optional[str] = None  # noqa: N815 - Pi's own field name.
+
+
+class SubscriptionLoginAttemptDTO(BaseModel):
+    """The in-flight device login, kept on the row so any API replica can poll it."""
+
+    id: str
+    expires_at: Optional[str] = None
+    user_code: Optional[str] = None
+    verification_uri: Optional[str] = None
+    poll_after_ms: Optional[int] = None
+
+
+class SubscriptionProviderDTO(BaseModel):
+    provider: SubscriptionProviderKind = SubscriptionProviderKind.CHATGPT
+    # A missing list is filled with the provider default; an empty list is an explicit "none".
+    harnesses: Optional[List[str]] = None
+    models: Optional[List[str]] = None
+
+    login: Optional[SubscriptionLoginDTO] = None
+    # Bumps on every stored login change, including a refresh pushed back by a run.
+    login_version: int = 0
+    # Bumps only on a new device login, so a refresh keeps warm sessions.
+    login_generation: int = 0
+    login_state: SubscriptionLoginState = SubscriptionLoginState.PENDING_LOGIN
+    login_error: Optional[str] = None
+    login_attempt: Optional[SubscriptionLoginAttemptDTO] = None
+
+    # fields will be filled at runtime
+    provider_slug: Optional[str] = None
+    model_keys: Optional[List[str]] = None
+
+
+def subscription_provider_slug(name: Optional[str]) -> str:
+    """The picker-facing slug for a subscription connection, derived from its name.
+
+    Lowercased and hyphenated rather than taken verbatim like a custom provider's, because
+    the model keys built from it are matched against the harness provider id, and the
+    default name is "ChatGPT" while the key the contract fixes is `chatgpt/<model>`.
+    """
+    normalized = sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+    return normalized or SubscriptionProviderKind.CHATGPT.value
+
+
 class SSOProviderSettingsDTO(BaseModel):
     client_id: str
     client_secret: Optional[str] = None
@@ -135,6 +198,9 @@ SecretDataDTO = Union[
     WebhookProviderDTO,
     CustomSecretDTO,
     ChannelSecretDTO,
+    # Last on purpose: every field has a default, so this member would swallow another
+    # kind's raw dict if it were tried first.
+    SubscriptionProviderDTO,
 ]
 
 
@@ -279,6 +345,31 @@ def _validate_secret_data_based_on_kind(
             raise ValueError(
                 "The provided request secret dto is missing required fields for ChannelSecretSettingsDTO"
             )
+    elif kind == SecretKind.SUBSCRIPTION_PROVIDER.value:
+        if not isinstance(data, dict):
+            raise ValueError(
+                "The provided request secret dto is not a valid type for SubscriptionProviderDTO"
+            )
+
+        provider = data.get("provider") or SubscriptionProviderKind.CHATGPT.value
+        if isinstance(provider, SubscriptionProviderKind):
+            provider = provider.value
+        if provider not in {member.value for member in SubscriptionProviderKind}:
+            raise ValueError(
+                "The provided provider in data is not a valid SubscriptionProviderKind enum"
+            )
+        data["provider"] = provider
+
+        provider_kind = SubscriptionProviderKind(provider)
+        # A subscription carries no value on create: the login arrives later through the
+        # device login routes, so `value_required` adds nothing to check here.
+        if data.get("harnesses") is None:
+            data["harnesses"] = list(SUBSCRIPTION_PROVIDER_HARNESSES[provider_kind])
+        if data.get("models") is None:
+            data["models"] = list(SUBSCRIPTION_PROVIDER_MODELS[provider_kind])
+
+        values["data"] = SubscriptionProviderDTO.model_validate(data)
+
     else:
         raise ValueError("The provided kind is not a valid SecretKind enum")
 
@@ -345,6 +436,14 @@ class CreateSecretDTO(Slug, BaseModel):
                 and secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value
             ):
                 secret["data"].update({"provider_slug": header["name"]})
+            elif (
+                isinstance(secret, dict)
+                and secret.get("kind") == SecretKind.SUBSCRIPTION_PROVIDER.value
+                and isinstance(secret.get("data"), dict)
+            ):
+                secret["data"].update(
+                    {"provider_slug": subscription_provider_slug(header["name"])}
+                )
         return values
 
 
@@ -385,6 +484,14 @@ class UpdateSecretDTO(BaseModel):
                 and secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value
             ):
                 secret["data"].update({"provider_slug": header["name"]})
+            elif (
+                isinstance(secret, dict)
+                and secret.get("kind") == SecretKind.SUBSCRIPTION_PROVIDER.value
+                and isinstance(secret.get("data"), dict)
+            ):
+                secret["data"].update(
+                    {"provider_slug": subscription_provider_slug(header["name"])}
+                )
         return values
 
 
@@ -408,6 +515,15 @@ class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):
 
     @model_validator(mode="after")
     def build_up_model_keys(self):
+        if self.kind == SecretKind.SUBSCRIPTION_PROVIDER:
+            provider_slug = self.data.provider_slug or self.data.provider.value  # type: ignore[union-attr]
+            self.data.provider_slug = provider_slug  # type: ignore[union-attr]
+            self.data.model_keys = [  # type: ignore[union-attr]
+                f"{provider_slug}/{model}"
+                for model in (self.data.models or [])  # type: ignore[union-attr]
+            ]
+            return self
+
         if self.kind == SecretKind.CUSTOM_PROVIDER:
             self.data.model_keys = [  # type: ignore[union-attr]
                 f"{self.data.provider_slug}/{self.data.kind.value}/{model.slug}"  # type: ignore[union-attr]

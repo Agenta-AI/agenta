@@ -487,6 +487,9 @@ services:
             # default of `127.0.0.1` (same-host only) is unreachable cross-container.
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
+            # Where the runner keeps state that must outlive a container recreate: the per-connection
+            # copy of a hosted subscription login (Pi rotates the refresh token on every exchange).
+            AGENTA_RUNNER_STATE_DIR: /var/lib/agenta/runner-state
             PI_CODING_AGENT_DIR: /pi-agent
             # Keep both canonical API bases. The public URL identifies caller-provided OTLP
             # credentials as Agenta-owned; the internal URL is the route the runner actually uses.
@@ -530,6 +533,7 @@ services:
             # token must persist back to the host login (a copy would discard it).
             - ${HOME}/.pi/agent:/pi-agent:rw
         # === NETWORK ============================================== #
+            - runner-state:/var/lib/agenta/runner-state
         networks:
             - agenta-network
         # === RUNTIME ============================================== #
@@ -911,6 +915,7 @@ networks:
     agenta-network:
 
 volumes:
+    runner-state:
     postgres-data:
     redis-volatile-data:
     redis-durable-data:
