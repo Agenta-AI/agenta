@@ -188,7 +188,14 @@ class WalletsDAO(WalletsDAOInterface):
         self,
         *,
         organization_id: UUID,
+        now: Optional[datetime] = None,
     ) -> Optional[WalletCreditDTO]:
+        # "Unexpired" is relative to the caller's logical clock when it has one — the
+        # same `now` `apply_plan_change` prorates against, so one plan change reads a
+        # single instant. Falling back to the database clock keeps the pre-existing
+        # behavior for callers that pass nothing.
+        cutoff = now if now is not None else func.now()
+
         stmt = (
             select(WalletCreditDBE)
             .where(
@@ -196,7 +203,7 @@ class WalletsDAO(WalletsDAOInterface):
                 WalletCreditDBE.credit_kind == "plan_allowance",
                 or_(
                     WalletCreditDBE.end_time.is_(None),
-                    WalletCreditDBE.end_time > func.now(),
+                    WalletCreditDBE.end_time > cutoff,
                 ),
             )
             .order_by(WalletCreditDBE.end_time.desc().nulls_last())
@@ -340,6 +347,12 @@ class WalletsDAO(WalletsDAOInterface):
                     },
                 )
                 session.add(incoming_credit)
+                # `wallet_balances.wallet_credit_id` is a table-level FK with no ORM
+                # relationship behind it, so the unit of work has nothing to order these
+                # two INSERTs by. Flush the credit first or Postgres rejects the balance
+                # row on `wallet_balances_wallet_credit_id_fkey`.
+                await session.flush()
+
                 incoming_balance = WalletBalanceDBE(
                     id=uuid_utils.uuid7(),
                     organization_id=organization_id,
@@ -422,6 +435,11 @@ class WalletsDAO(WalletsDAOInterface):
                 data={"references": {"award_idempotency_key": idempotency_key}},
             )
             session.add(credit)
+            # Same FK-ordering constraint as `apply_plan_change`: no ORM relationship
+            # ties `wallet_balances.wallet_credit_id` to `wallet_credits.id`, so the
+            # credit INSERT has to be flushed before the balance row can reference it.
+            await session.flush()
+
             session.add(
                 WalletBalanceDBE(
                     id=uuid_utils.uuid7(),

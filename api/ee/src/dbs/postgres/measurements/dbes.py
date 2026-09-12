@@ -17,14 +17,14 @@ from sqlalchemy import (
     UUID,
     UniqueConstraint,
     Index,
-    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
 from oss.src.dbs.postgres.shared.base import Base
+from oss.src.dbs.postgres.shared.dbas import LifecycleDBA
 
 
-class MeasurementDBE(Base):
+class MeasurementDBE(Base, LifecycleDBA):
     __tablename__ = "measurements"
 
     id = Column(
@@ -52,14 +52,6 @@ class MeasurementDBE(Base):
     start_time = Column(TIMESTAMP(timezone=True), nullable=True)
     end_time = Column(TIMESTAMP(timezone=True), nullable=True)
 
-    created_at = Column(
-        TIMESTAMP(timezone=True),
-        server_default=func.current_timestamp(),
-        nullable=False,
-    )
-    updated_at = Column(TIMESTAMP(timezone=True), nullable=True)
-    deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
-
     __table_args__ = (
         PrimaryKeyConstraint("id"),
         UniqueConstraint("measurement_id", name="uq_measurements_measurement_id"),
@@ -68,7 +60,7 @@ class MeasurementDBE(Base):
     )
 
 
-class MeasurementValueDBE(Base):
+class MeasurementValueDBE(Base, LifecycleDBA):
     __tablename__ = "measurement_values"
 
     id = Column(
@@ -86,12 +78,6 @@ class MeasurementValueDBE(Base):
     key = Column(String, nullable=False)
     value = Column(Integer, nullable=False)
     cost_musd = Column(Integer, nullable=True)
-
-    created_at = Column(
-        TIMESTAMP(timezone=True),
-        server_default=func.current_timestamp(),
-        nullable=False,
-    )
 
     __table_args__ = (
         PrimaryKeyConstraint("id"),

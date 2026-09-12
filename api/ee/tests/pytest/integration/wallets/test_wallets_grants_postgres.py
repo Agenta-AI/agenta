@@ -36,7 +36,14 @@ from ee.src.dbs.postgres.wallets.dao import WalletsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.utils.env import env
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+# One xdist group for the whole wallet pipeline: these modules churn the shared alembic
+# chain, the process-wide engine singleton, and the wallet Redis streams, so they are only
+# correct on a single worker under `pytest.ini`'s default `-n auto --dist=loadgroup`.
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.integration,
+    pytest.mark.xdist_group(name="wallets-integration"),
+]
 
 DOWN_REVISION = "ee0000000003"
 # Schema only (wallet tables) — the ee0000000005 backfill migration is not needed for
@@ -148,6 +155,45 @@ async def test_award_credit_is_idempotent_against_real_conflict(wallet_schema):
                 {"organization_id": organization_id},
             )
             assert result.scalar() == 1  # only ONE credit was ever minted
+    finally:
+        await _cleanup(organization_id)
+
+
+async def test_award_credit_first_delivery_writes_credit_and_its_balance_row(
+    wallet_schema,
+):
+    """A first delivery writes the credit AND the per-credit `wallet_balances` row that
+    references it. Both rows go into one transaction with nothing but a table-level FK
+    ordering them, so this is the regression guard against the balance INSERT being
+    emitted first and tripping `wallet_balances_wallet_credit_id_fkey`."""
+    organization_id = uuid.uuid4()
+    dao = WalletsDAO()
+
+    try:
+        await dao.provision_general_balance(organization_id=organization_id)
+
+        credit = await dao.award_credit(
+            organization_id=organization_id,
+            idempotency_key=compose_award_idempotency_key(
+                activity_code="signup", organization_id=organization_id
+            ),
+            credit_kind="signup_grant",
+            amount_musd=1_000_000,
+            priority=20,
+            end_time=datetime(2026, 8, 14, tzinfo=timezone.utc) + timedelta(days=365),
+            now=datetime(2026, 8, 14, tzinfo=timezone.utc),
+        )
+
+        engine = get_transactions_engine()
+        async with engine.session() as session:
+            balance = await session.execute(
+                text(
+                    "SELECT balance_musd FROM wallet_balances "
+                    "WHERE wallet_credit_id = :credit_id"
+                ),
+                {"credit_id": credit.id},
+            )
+            assert balance.scalar() == 1_000_000
     finally:
         await _cleanup(organization_id)
 
