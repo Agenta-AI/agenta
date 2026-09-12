@@ -45,16 +45,15 @@
 - [x] Run `ruff format`, `ruff check`, and `git diff --check` on `api/`. All clean: 1785 files
       formatted, all checks passed.
 - [x] Run the API suites, to the extent they run without a deployed stack.
-      - The wallet and measurement unit suites: 126 passed.
-      - The whole EE plus OSS unit layer: 1 failed, 4620 passed, 176 skipped. The one failure is
-        the lifecycle-column convention test, which the branch's `measurements` tables break.
+      - The wallet and measurement unit suites: 126 passed. The whole EE unit layer: 497 passed.
+      - The whole EE plus OSS unit layer: 4791 passed, 0 failed, 6 skipped.
       - The integration suites that had never been executed, run for the first time on
-        12 September 2026: 13 passed and 3 failed under `integration/wallets/`, 2 passed under
-        `integration/measurements/`. All four priority suites pass.
+        12 September 2026: 18 passed under `integration/wallets/`, 2 passed under
+        `integration/measurements/`, 20 passed with both together under the default invocation.
       - Not run: the integration and acceptance layers that need a deployed API and workers.
-      All four failures, the production defect two of them expose in `WalletsDAO.award_credit`,
-      and the infrastructure recipe are recorded in `../im-1-02-pipeline/acceptance.md` §9.
+      The first run failed four ways, two of them production defects. All four are fixed with
+      regression tests and recorded in `../im-1-02-pipeline/acceptance.md` §9.
 - [x] Hand the branch and the written acceptance procedure to the user for local deployment and the
-      acceptance run. Three things must happen before the flag is turned on: fix `award_credit`,
-      settle `open-designs.md` item 14, and resolve the lifecycle-column convention failure one way
-      or the other.
+      acceptance run. One thing still has to be settled before the flag is turned on:
+      `open-designs.md` item 14, how an organization provisioned while the flag was off gets its
+      balance row.

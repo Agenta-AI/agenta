@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 import pytest
 
+import oss.src.dbs.redis.shared.engine as redis_engine_module
 from oss.src.utils.env import env
 
 
@@ -40,3 +41,17 @@ def _skip_when_deps_unreachable(request):
         pytest.skip(
             "Durable Redis not reachable — skipping measurements integration tests"
         )
+
+
+@pytest.fixture(autouse=True)
+async def _fresh_streams_engine_per_test():
+    """The durable-Redis streams engine is a process-wide singleton holding one client,
+    and pytest-asyncio gives each test its own event loop — a client built in an earlier
+    test's loop fails every publish made here, and `_xadd` swallows that into a bare
+    `False`. Rebuild it per test, the way these modules rebuild the Postgres transactions
+    engine."""
+    redis_engine_module._streams_engine = None
+    yield
+    if redis_engine_module._streams_engine is not None:
+        await redis_engine_module._streams_engine.close()
+        redis_engine_module._streams_engine = None

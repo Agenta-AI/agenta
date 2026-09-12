@@ -150,9 +150,16 @@ class FakeWalletsDAO(WalletsDAOInterface):
         self,
         *,
         organization_id: UUID,
+        now: Optional[datetime] = None,
     ) -> Optional[WalletCreditDTO]:
         for candidate, _ in self._credits.values():
             if candidate.credit_kind == "plan_allowance":
+                if (
+                    now is not None
+                    and candidate.end_time is not None
+                    and candidate.end_time <= now
+                ):
+                    continue  # expired at the caller's clock — mirrors the real DAO
                 return WalletCreditDTO(
                     id=candidate.wallet_credit_id,
                     organization_id=organization_id,

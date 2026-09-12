@@ -23,7 +23,14 @@ from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
 from ee.tests.pytest.utils.measurements.fakes import InMemoryOrganizationResolver
 from ee.tests.pytest.utils.wallets.builders import build_measurement_command
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+# Same xdist group as the wallet integration modules: this worker publishes to the same
+# `STREAM_MEASUREMENTS`/`STREAM_DEBITS` Redis streams they consume, so it must not run
+# beside them on another worker.
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.integration,
+    pytest.mark.xdist_group(name="wallets-integration"),
+]
 
 
 class _OnceFailingDebitPublisher:
