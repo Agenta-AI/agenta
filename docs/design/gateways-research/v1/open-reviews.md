@@ -53,42 +53,6 @@ OpenAI-compatible provider and then asserts `POST /gateways/llms/endpoints/query
 
 ---
 
-### OR28. Harness compatibility of the typed refusal: what each one preserves
-
-`qa.md` requires every harness to preserve the human message and the machine-readable `code`,
-allows Pi or Claude Code to preserve the whole envelope, and accepts Codex preserving only
-`message` plus the embedded marker if the UI offers a generic recovery path.
-
-Measured on 2026-09-12 against a data-plane `403` (`model_not_allowed`) and, where the harness got
-that far, a control-plane `404`:
-
-- **Pi** preserves `code` and the message, but only as text inside the harness's own session
-  recap, rendered as `[error: 403: {…,"code":"model_not_allowed"}]` rather than as an error
-  surface. `retryable`, `next_step` and `details` are absent.
-- **Claude Code** preserves nothing on either refusal. The run ends at
-  `Message wasn't sent — try again.`
-- **Codex** renders a first-class error card with `Show more` and preserves the human message, but
-  no `code`, `retryable`, `next_step` or `details`. Its card is the best of the three surfaces and
-  the weakest of the three payloads, which inverts the expectation `qa.md` records.
-
-None of the three reaches the complete envelope the design allows for Pi or Claude Code, and no
-harness offers the generic recovery path that is the stated condition for accepting Codex's
-reduced payload. Per the closing note in `qa.md` these are harness-compatibility findings and must
-not be normalized away in the UI.
-
-These measurements predate OR27's closure, which changed the API and the SDK legs only: a
-control-plane refusal now leaves the resolver as a `422` carrying `endpoint_not_found` and a
-sentence. Nothing between the SDK and the harness surface changed, so the three rows above still
-describe what a user sees. Re-measuring them is the first step of this fix, not a reason to
-discount them.
-
-Closure: WP25 is the package that owns the trip back (`AgentErrorDetail` through harness, runner
-and agent service). Proven per harness by extending the replay fixtures under
-`services/oss/tests/pytest/acceptance/` with a refusal case that asserts `code` appears in the
-agent-service response for Pi, Claude Code and Codex, rather than only in the transcript text.
-
----
-
 ### OR31. The dashboard offers harness and route combinations the runtime refuses
 
 Four places let the operator build a configuration that cannot run, with no warning at
@@ -134,31 +98,102 @@ present for all three harnesses.
 
 ---
 
-### OR32. A server that fails its MCP handshake vanishes from the run
-
-Driven from the dashboard, a Claude Code agent with a gateway MCP server attached produced one
-`POST /gateways/mcps/custom/gw-mock-mcp -> 501` and then carried on as if no server had been
-configured. The turn completed. Nothing appeared in the transcript, and the runner logged only
-`claude MCP protocol negotiation: auto`, so the handshake failure appeared nowhere the operator or
-an on-call engineer would look.
-
-The `501` itself was the mock refusing `initialize`, and that is closed under OR23. The silence is
-not. That fix changed the mock adapter and unified the two tiers' error envelope; it changed nothing
-about what a run reports when a server drops out. A real custom MCP server that fails its handshake
-— a wrong URL, an expired grant, an upstream that does not speak Streamable HTTP — still disappears
-with the run reporting success, which is worse than the LLM leg, where the turn at least fails.
-
-This is the MCP counterpart of OR28: the refusal exists on the wire and is lost on the way to the
-user. Closure: the runner must record a per-server handshake outcome and the agent service must
-carry it onto the run, so a server that did not connect is visible as a server that did not
-connect. Proven by a services acceptance case beside
-`services/oss/tests/pytest/acceptance/test_agent_gateway_route.py` that attaches an MCP server
-whose handshake fails and asserts the run names it, rather than asserting only that the turn
-completed.
-
----
-
 ## Closed review record
+
+### OR28. Harness compatibility of the typed refusal — CLOSED, and one harness was worse than recorded
+
+The finding's three rows were measured before OR27 closed, and re-measuring them was the first
+step of the fix rather than a reason to discount them. Re-measured live on 2026-09-12 against
+`agenta-ee-dev-gateways`, one turn per harness on each plane, driving the endpoint the playground
+drives (`POST /services/agent/v0/invoke`, `Accept: text/event-stream`,
+`x-ag-messages-format: vercel`).
+
+**The control plane no longer has a harness axis.** OR27 moved that refusal upstream of the
+harness entirely: the SDK resolver refuses before a run starts, so Pi, Claude Code and Codex all
+answer `422`, `failure_code: endpoint_not_found`, `LLM endpoint not found: custom/<slug>`. There
+is nothing left for a harness to mangle.
+
+**The data plane still had one, and Codex's row was worse than the finding recorded.** Against a
+`403 model_not_allowed`:
+
+- **Pi** and **Claude Code** ended the run under the generic `runner_error`, with the gateway's
+  refusal readable only as prose in `errorText`. No `code`, no `retryable`, no `next_step`.
+- **Codex** reported the refused run as a **success**: HTTP `200`, `stop_reason: end_turn`, and
+  the refusal sitting in the transcript as if the model had said it. The finding called Codex's
+  card "the best of the three surfaces and the weakest of the three payloads"; on this plane it
+  had no payload at all and reported the failure as its own opposite.
+
+Four changes, one refusal.
+
+The live `error` event gains a `detail` field carrying the gateway's `{code, message, retryable,
+next_step, details}`. The terminal result has carried `errorDetail` since OR25, but the live leg
+had no field for it, and `_error_parts` suppresses the terminal frame once a live error has gone
+out — so the browser saw the refusal and nothing machine-readable. `code` and `detail.code` stay
+separate fields because they answer different questions: one picks a recovery path, the other says
+what the gateway refused.
+
+A refusal a harness folded into its ANSWER now fails the turn, beside the existing swallowed-Pi
+recovery in `run-turn.ts`. The `⟦agenta_code:…⟧` marker is what identifies it; text without one is
+left alone, so a model quoting a refusal is not mistaken for a model receiving one.
+
+The recovery runs at the runner's transport boundary (`writeRecord` in `server.ts`) rather than
+inside one engine path. `engine.ts` applied `withGatewayErrorDetail` on its own one-shot path, but
+the session path builds its result in `session-coordinator.ts` and never passes through that call
+— so a pooled run, which is every playground run, answered differently from a one-shot run.
+
+`parseFromBody` accepts a bare gateway body, not only a wrapped `{"error": {…}}`. Pi's error
+helper unwraps `error` before reporting, so its text carried the whole envelope and the scan read
+none of it; the bare shape is accepted only when its `message` carries the marker.
+
+On the SDK side `_error_parts` takes the event's `detail` and the gateway's code replaces the
+generic `runner_error` on the `data-agent-error` frame. A NAMED runner class
+(`starter_credits_exhausted`) still wins, because the client has its own recovery path for it.
+
+Measured after, same three harnesses, same plane: `failure_code: model_not_allowed` and an
+`errorDetail` on every one; Pi carries the full envelope including `next_step`, Codex and Claude
+Code carry `code`, `message` and `retryable`, which is the marker's ceiling. Codex fails the run.
+
+Tests: `test_a_data_plane_refusal_reaches_the_caller_with_its_code` and
+`test_a_control_plane_refusal_reaches_the_caller_with_its_code` in
+`services/oss/tests/pytest/acceptance/test_agent_gateway_refusal.py`, parametrized over the three
+harnesses and run against the live stack; `tests/unit/gateway-refusal-envelope.test.ts` in the
+runner, which pins the envelope on the event, the bare-body shape, the transport boundary and the
+folded refusal; and
+`sdks/python/oss/tests/pytest/unit/agents/adapters/test_vercel_stream_refusal_envelope.py`, which
+pins the frame the client reads.
+
+### OR32. A server that fails its MCP handshake vanishes from the run — CLOSED
+
+The runner now probes the MCP `initialize` handshake itself, once per session, for every
+configured server. Reading the harnesses was not an option: the Claude ACP adapter emits no MCP
+status frame of any kind, so a failed server is indistinguishable there from a server nobody
+configured. Probing once is the only way the same failure becomes the same notice on all three.
+
+Each failure is logged at warn with the server name and the status, and rides a new
+`mcp_server_failed` event as a NON-FATAL notice — the turn still runs, it just runs without that
+server's tools, which is what actually happened. The outcome lives on the environment rather than
+the turn, so a pooled warm turn reports it too: the session outlives the cold turn that probed,
+and the person driving turn three has no other way to learn that a server never joined. The SDK's
+Vercel egress projects it as `data-mcp-server-failed`; its `elif` chain has no fallthrough, so an
+event it does not name is dropped in silence, which is how this would have been lost on the last
+hop.
+
+Two harness-specific halves came with it. Codex's own synthetic `mcp__<server>__startup` failure
+frame, which the runner discarded as transcript noise, now becomes the same notice — it is the
+server's verdict from inside the sandbox, which the runner's probe cannot see. Pi no longer lets
+one server's refusal escape `before_agent_start` and kill the whole turn; it skips that server's
+tools and names it, as the ACP harnesses already did.
+
+What the probe does not prove: it runs from the runner's network vantage, which is the sandbox's
+only on a local run. A `connected` outcome is evidence, not a guarantee. The refusal the gateway
+itself returns — the case this exists for — holds either way.
+
+Tests: `tests/unit/mcp-handshake-notice.test.ts` in the runner, which classifies each way a
+handshake fails and then drives the whole engine once per harness, asserting the turn still
+succeeds and names the server; the Codex frame is pinned in
+`tests/unit/session-keepalive-engine.test.ts` beside the tool-call suppression it belongs to; Pi's
+non-fatal registration in `tests/unit/pi-gateway-mcp.test.ts`; and the egress in
+`sdks/python/oss/tests/pytest/unit/agents/adapters/test_vercel_stream_mcp_notice.py`.
 
 ### OR27. A gateway control-plane refusal reaching the user with no code and no message — CLOSED
 
