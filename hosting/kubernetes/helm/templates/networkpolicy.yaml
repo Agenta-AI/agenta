@@ -9,18 +9,25 @@
    When on, the chart renders one policy per bundled data store it deploys:
    the volatile Redis, the durable Redis and the bundled SeaweedFS. Each
    policy selects that store's pods and allows ingress only from pods of this
-   release, in the same namespace, on that store's port. A pod that a
-   NetworkPolicy selects accepts nothing else, so the single allow rule is
-   also the default deny for every other source and port.
+   release, in the same namespace, on that store's port. Selecting a pod
+   turns off its default allow-everything, so the single allow rule is also
+   the deny for every other source and port.
 
-   Egress stays unrestricted: `policyTypes` lists Ingress only.
+   Policies are additive, so that deny holds only while no other policy
+   selects the same pods. A namespace-wide allow policy still lets its own
+   sources in, and this policy takes nothing away from it. The README says
+   so too, under "Restricting the bundled data stores".
 
-   The bundled PostgreSQL has no policy here. The Bitnami subchart renders
-   its own NetworkPolicy and that one allows every source by default.
-   Policies are additive, so a second, narrower policy from this chart would
-   not take anything away. Restrict PostgreSQL through the subchart's own
-   values instead; the README section "Restricting the bundled data stores"
-   gives the exact keys.
+   Egress stays unrestricted: `policyTypes` lists Ingress only. That is not
+   the same as permitting egress. A policy elsewhere that restricts egress
+   for these pods keeps doing so.
+
+   The bundled PostgreSQL has no policy here, for the same additive reason.
+   The Bitnami subchart renders its own NetworkPolicy and that one allows
+   every source by default, so a second, narrower policy from this chart
+   would not take anything away. Restrict PostgreSQL through the subchart's
+   own values instead; the README section "Restricting the bundled data
+   stores" gives the exact keys.
    ================================================================ */}}
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $networkPolicy := default dict $values.networkPolicy -}}

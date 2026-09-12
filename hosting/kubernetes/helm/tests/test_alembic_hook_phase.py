@@ -11,6 +11,10 @@ weight. The chart's ServiceAccount is a regular resource, so a Job that named it
 was refused by Kubernetes ("serviceaccount agenta not found"), never started a
 pod, and left `helm install` in pending-install.
 
+That applies to the first install only. On an upgrade the ServiceAccount is
+already there, and the Job names it, so the identity the operator configured on
+it survives. These tests cover both renders.
+
 Run: uv run hosting/kubernetes/helm/tests/test_alembic_hook_phase.py
 Requires the `helm` binary on PATH.
 """
@@ -58,7 +62,13 @@ PRE = ["--set", "alembic.hookPhase=pre"]
 PRE_EVENTS = {"pre-install", "pre-upgrade"}
 
 
-def render(extra_args: list[str] | None = None) -> list[dict]:
+def render(extra_args: list[str] | None = None, is_upgrade: bool = False) -> list[dict]:
+    """Render the chart. `is_upgrade` renders it the way `helm upgrade` would.
+
+    `helm template` renders an install unless told otherwise, so a template that
+    reads .Release.IsInstall or .Release.IsUpgrade needs both renders to be
+    covered.
+    """
     result = subprocess.run(
         [
             "helm",
@@ -66,6 +76,7 @@ def render(extra_args: list[str] | None = None) -> list[dict]:
             RELEASE,
             str(CHART_DIR),
             *BASE_ARGS,
+            *(["--is-upgrade"] if is_upgrade else []),
             *(extra_args or []),
         ],
         capture_output=True,
@@ -163,7 +174,13 @@ def main() -> int:
             # Not part of the release: the operator created it beforehand.
             continue
         events = hook_events(rendered)
-        assert events & PRE_EVENTS, f"{kind}/{name} is applied after the Job runs"
+        # Both events, not either one. The Job runs on pre-install AND on
+        # pre-upgrade, so a dependency that covers only one of them is missing
+        # on the other.
+        assert PRE_EVENTS <= events, (
+            f"{kind}/{name} runs on {sorted(events) or 'no hook event'}, "
+            f"so it is applied after the Job on {sorted(PRE_EVENTS - events)}"
+        )
         assert hook_weight(rendered) < job_weight, (
             f"{kind}/{name} has hook weight {hook_weight(rendered)}, "
             f"which does not run before the Job's {job_weight}"
@@ -173,21 +190,36 @@ def main() -> int:
     # check the loop above actually saw it.
     assert ("Secret", FULLNAME) in pod_references(pre_spec)
 
+    # --- An upgrade names the ServiceAccount again: the install created it. ---
+    # Dropping the name here would drop the identity the operator put on that
+    # ServiceAccount, such as the GKE workload identity annotation that reaches
+    # Cloud SQL, on every upgrade of a release that was installed fine.
+    upgrade_job = migration_job(render(EXTERNAL_DB + PRE, is_upgrade=True))
+    upgrade_spec = pod_spec(upgrade_job)
+    assert hook_events(upgrade_job) == {"pre-install", "pre-upgrade"}
+    assert upgrade_spec["serviceAccountName"] == FULLNAME, upgrade_spec
+    assert "automountServiceAccountToken" not in upgrade_spec
+
     # --- An operator-supplied ServiceAccount exists already, so keep naming it. ---
-    external_sa_docs = render(
-        EXTERNAL_DB
-        + PRE
-        + [
-            "--set",
-            "serviceAccount.create=false",
-            "--set",
-            "serviceAccount.name=migration-runner",
-        ]
-    )
-    external_sa_job = migration_job(external_sa_docs)
-    assert named_resources(external_sa_docs, "ServiceAccount").get(FULLNAME) is None
-    assert pod_spec(external_sa_job)["serviceAccountName"] == "migration-runner"
-    assert "automountServiceAccountToken" not in pod_spec(external_sa_job)
+    EXTERNAL_SA = [
+        "--set",
+        "serviceAccount.create=false",
+        "--set",
+        "serviceAccount.name=migration-runner",
+    ]
+    for is_upgrade in (False, True):
+        external_sa_docs = render(EXTERNAL_DB + PRE + EXTERNAL_SA, is_upgrade=is_upgrade)
+        external_sa_job = migration_job(external_sa_docs)
+        # create=false means the chart renders NO ServiceAccount, under any
+        # name. Checking only for FULLNAME would pass a chart that created
+        # `migration-runner` itself, which is the object the operator owns.
+        rendered_sas = named_resources(external_sa_docs, "ServiceAccount")
+        assert rendered_sas == {}, (
+            f"serviceAccount.create=false still rendered {sorted(rendered_sas)} "
+            f"(is_upgrade={is_upgrade})"
+        )
+        assert pod_spec(external_sa_job)["serviceAccountName"] == "migration-runner"
+        assert "automountServiceAccountToken" not in pod_spec(external_sa_job)
 
     # --- The other workloads keep the ServiceAccount in both phases. ---
     for docs in (post_docs, pre_docs):

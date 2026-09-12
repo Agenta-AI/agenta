@@ -90,15 +90,23 @@ misspelled one and falls back to the default. Render the chart and read the
 Keep the default `post` with the bundled PostgreSQL, whose StatefulSet does not
 exist yet at pre-install time and would deadlock the Job.
 
-In the pre phase the Job names no ServiceAccount. It runs before the release's
-own ServiceAccount is applied, and Kubernetes refuses a pod that names a
-ServiceAccount which does not exist, so the Job never starts one and the install
-sits in pending-install. The migration reaches PostgreSQL only and needs no
-Kubernetes API access, so its pod takes the namespace's default ServiceAccount
-and mounts no token. If a cluster policy requires a named ServiceAccount,
-create one yourself and set `serviceAccount.create: false` with
-`serviceAccount.name`. The chart keeps naming that one, because it already
-exists when the hook runs.
+On the first install in the pre phase the Job names no ServiceAccount. It runs
+before the release's own ServiceAccount is applied, and Kubernetes refuses a pod
+that names a ServiceAccount which does not exist, so the Job never starts one and
+the install sits in pending-install. The migration reaches PostgreSQL only and
+needs no Kubernetes API access, so on that one install its pod takes the
+namespace's default ServiceAccount and mounts no token.
+
+Every later upgrade names the ServiceAccount again. By then the first install has
+created it, and naming it keeps the identity you configured on it. That matters
+if you annotate it, because `serviceAccount.annotations` is where a GKE release
+binds the workload identity that reaches Cloud SQL with IAM auth.
+
+So the first install is the one case with no named identity for the migration. If
+the migration itself needs one, or a cluster policy requires a named
+ServiceAccount, create the ServiceAccount yourself and set
+`serviceAccount.create: false` with `serviceAccount.name`. The chart names that
+one in every phase, because it exists before the install starts.
 
 ## A managed ingress (GKE)
 
@@ -231,9 +239,15 @@ networkPolicy:
 The chart then renders one NetworkPolicy per bundled store it deploys:
 `redis-volatile`, `redis-durable` and `seaweedfs`. Each policy selects that
 store's pods and allows ingress only from pods of this release, in the same
-namespace, on that store's port. A pod that a NetworkPolicy selects accepts
-nothing else, so that single rule is also the default deny for every other
-source and port. Egress is left alone.
+namespace, on that store's port. Selecting a pod turns off its default
+allow-everything, so that single rule is also the deny for every other source
+and port. Egress is left alone.
+
+Policies are additive, so this deny holds only while no other policy selects the
+same pods. A namespace-wide allow policy, which is a common way to start, still
+lets its own sources in. These policies take nothing away from one that is
+already there. Check what else selects the store pods before you count the store
+as locked down.
 
 Read the policies back before you trust them. A cluster whose CNI does not
 implement NetworkPolicy accepts the objects and ignores them, with no event and

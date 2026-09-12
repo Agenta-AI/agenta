@@ -6,8 +6,9 @@
 
 `<component>.strategy`, `<component>.lifecycle` and
 `<component>.terminationGracePeriodSeconds` are opt-in per workload. This test
-checks that setting them on `api` reaches the api workload and nothing else, and
-that a default render still carries none of them.
+checks that every workload reads its own three keys, that setting them on `api`
+reaches the api workload and nothing else, and that a default render still
+carries none of them.
 
 Run: uv run hosting/kubernetes/helm/tests/test_lifecycle_rollout.py
 Requires the `helm` binary on PATH.
@@ -95,17 +96,105 @@ API_ARGS = [
     "api.strategy.type=RollingUpdate",
 ]
 
+# Every workload, as (values key, component label, takes a spec.strategy).
+# A Deployment takes one; the two StatefulSets and the migration Job do not.
+# The README and values.yaml both list these 13, so this table is the check
+# that the list is true.
+WORKLOADS = (
+    ("api", "api", True),
+    ("services", "services", True),
+    ("web", "web", True),
+    ("webMobile", "web-mobile", True),
+    ("cron", "cron", True),
+    ("workerStreams", "worker-streams", True),
+    ("workerQueues", "worker-queues", True),
+    ("agentRunner", "runner", True),
+    ("supertokens", "supertokens", True),
+    ("redisVolatile", "redis-volatile", True),
+    ("redisDurable", "redis-durable", False),
+    ("store.seaweedfs", "seaweedfs", False),
+    ("alembic", "alembic", False),
+)
+
+# The two workloads that are off by default, and what turns them on.
+ALL_WORKLOADS_ON = [
+    "--set",
+    "store.enabled=true",
+    "--set",
+    "webMobile.enabled=true",
+]
+
+
+def every_workload_reads_its_own_keys() -> None:
+    """Set the three keys on all 13 workloads at once, in one render.
+
+    Each workload gets a grace period of its own, so a workload that reads
+    another one's value fails here instead of looking correct. A workload that
+    reads no value at all fails too. Without this, dropping `lifecycle` from,
+    say, the web or the runner template would pass every other assertion in
+    this file.
+    """
+    args = list(ALL_WORKLOADS_ON)
+    grace_periods = {}
+    for index, (key, component, _) in enumerate(WORKLOADS):
+        grace = 20 + index  # distinct per workload
+        grace_periods[component] = grace
+        args += [
+            "--set",
+            f"{key}.terminationGracePeriodSeconds={grace}",
+            "--set",
+            f"{key}.lifecycle.preStop.exec.command[0]=drain-{component}",
+        ]
+        if component != "alembic":
+            # The Job has no spec.strategy to take one, and `strategy` on a
+            # StatefulSet must stay unrendered, which the loop below checks.
+            args += ["--set", f"{key}.strategy.type=Recreate"]
+
+    rendered = {component_of(w): w for w in workloads(render(args))}
+    expected = sorted(component for _, component, _ in WORKLOADS)
+    assert sorted(rendered) == expected, sorted(rendered)
+
+    for key, component, takes_strategy in WORKLOADS:
+        workload = rendered[component]
+        spec = pod_spec(workload)
+        assert spec.get("terminationGracePeriodSeconds") == grace_periods[component], (
+            f"{key} -> {component}: grace period "
+            f"{spec.get('terminationGracePeriodSeconds')}"
+        )
+        with_lifecycle = containers_with_lifecycle(workload)
+        assert len(with_lifecycle) == 1, f"{key} -> {component}: {with_lifecycle}"
+        assert with_lifecycle[0]["lifecycle"] == {
+            "preStop": {"exec": {"command": [f"drain-{component}"]}}
+        }, f"{key} -> {component}"
+        if takes_strategy:
+            assert workload["spec"].get("strategy") == {"type": "Recreate"}, (
+                f"{key} -> {component}: {workload['spec'].get('strategy')}"
+            )
+        else:
+            assert "strategy" not in workload["spec"], (
+                f"{key} -> {component} is a {workload['kind']} and has no "
+                f"spec.strategy, so the chart must not render one"
+            )
+
 
 def main() -> int:
     # --- A default render carries none of the three keys. ---
-    default_docs = render()
-    default_workloads = workloads(default_docs)
-    assert len(default_workloads) >= 12, default_workloads
-    for workload in default_workloads:
-        name = component_of(workload)
-        assert "strategy" not in workload["spec"], name
-        assert "terminationGracePeriodSeconds" not in pod_spec(workload), name
-        assert containers_with_lifecycle(workload) == [], name
+    # Twice: once as the chart comes, and once with every workload on, so the
+    # two that are off by default are covered here too.
+    for extra_args in ([], ALL_WORKLOADS_ON):
+        default_workloads = workloads(render(extra_args))
+        if extra_args:
+            assert len(default_workloads) == len(WORKLOADS), default_workloads
+        else:
+            assert len(default_workloads) >= 11, default_workloads
+        for workload in default_workloads:
+            name = component_of(workload)
+            assert "strategy" not in workload["spec"], name
+            assert "terminationGracePeriodSeconds" not in pod_spec(workload), name
+            assert containers_with_lifecycle(workload) == [], name
+
+    # --- Every workload reads its own three keys. ---
+    every_workload_reads_its_own_keys()
 
     # --- Set all three on api only. ---
     docs = render(API_ARGS)

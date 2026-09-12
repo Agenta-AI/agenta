@@ -122,8 +122,10 @@ def main() -> int:
         # Ingress only, so egress stays unrestricted.
         assert spec["policyTypes"] == ["Ingress"], component
 
-        # One rule: this release's pods, on the store's port. Anything else is
-        # denied, because a selected pod accepts only what a policy allows.
+        # One rule: this release's pods, on the store's port. Selecting a pod
+        # turns off its default allow-everything, so this rule is also the deny
+        # for every other source and port. Another policy that selects the same
+        # pods can still allow more; policies are additive.
         assert len(spec["ingress"]) == 1, component
         rule = spec["ingress"][0]
         assert rule["ports"] == [{"port": port, "protocol": "TCP"}], component
