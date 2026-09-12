@@ -34,8 +34,16 @@ The remaining documents are the design itself: `decisions.md`, `architecture.md`
 
 ## Current state
 
-The branch is mergeable on `main` as of 2026-09-12. Unit suites and the automated acceptance and
-integration suites are green. **The dashboard product path works end to end as of 2026-09-13**: a
+**The branch is not mergeable as of 2026-09-13.** Every local suite and the PR CI are green, and a
+security review of the credential boundary found blocking defects underneath them: the caller's
+session cookie and Authorization header reach the tenant's upstream, one pooled client carries
+upstream cookies between tenants, the credential the sandbox holds can read the vault, and an
+upstream can return the injected provider key through its response body. The open set is **OR34
+through OR68**, recorded in `open-reviews.md` with a closure condition and a proving test each.
+Read that file before planning work on this branch; green suites are not evidence here, and
+`OR65` says why.
+
+**The dashboard product path works end to end as of 2026-09-13**: a
 provider created in the dashboard registers its gateway endpoint, and Pi and Claude Code each
 complete both a gateway LLM turn and a gateway MCP tool call, with no API call standing in for any
 step.
@@ -78,7 +86,10 @@ step.
   notice instead of vanishing).
 - **Open.** Two defects found in passing during the 2026-09-13 QA, both outside the gateway work:
   **OR34** (the AI providers drawer closes itself after about 45 seconds with no interaction and
-  discards the form) and **OR35** (the API keys page offers no way to create a key).
+  discards the form) and **OR35** (the API keys page offers no way to create a key). Then
+  **OR36 through OR68** from the 2026-09-13 security and code review. Ten of those are P0, blocking
+  on security or data loss (OR36 to OR45); seventeen are P1, blocking on correctness (OR46 to
+  OR62); six are debt (OR63 to OR68).
 
 ## The live evidence, 2026-09-13
 
