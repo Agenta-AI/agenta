@@ -3,6 +3,7 @@ import {type RefObject, useCallback, useRef, useState} from "react"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {useAudioRecorder} from "./useAudioRecorder"
+import {useDictationAnalyser} from "./useDictationAnalyser"
 
 /**
  * The composer's voice surface for one session: the recorder that backs the recording takeover,
@@ -53,6 +54,8 @@ export const useVoiceComposer = ({
     const [dictationError, setDictationError] = useState<string | null>(null)
     // Locks the editor while speech is coming in, so typing can't interleave with the transcript.
     const [dictating, setDictating] = useState(false)
+    // The recogniser hands back transcripts and no audio, so the wave needs its own stream.
+    const dictationAnalyserRef = useDictationAnalyser(dictating)
     const micError = voiceRecorder.error ?? dictationError
     const dismissMicError = () => {
         setDictationError(null)
@@ -67,6 +70,7 @@ export const useVoiceComposer = ({
         endDictation,
         dictating,
         setDictating,
+        dictationAnalyserRef,
         setDictationError,
         micError,
         dismissMicError,

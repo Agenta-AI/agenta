@@ -1382,7 +1382,8 @@ class _PermissionsSchema(BaseModel):
         description=(
             "allow runs every tool without asking. ask requires approval for every tool. "
             "deny refuses every tool. allow_reads runs read-hinted tools and asks for "
-            "everything else; this is the default."
+            "everything else. Omitting this field applies allow_reads; the standard "
+            "creation template sets it to allow."
         ),
     )
 
@@ -1511,7 +1512,7 @@ def build_agent_v0_default(
     template["harness"] = {"kind": _DEFAULT_HARNESS}
     template["runner"] = {
         "kind": "sidecar",
-        "permissions": {"default": _DEFAULT_PERMISSION_MODE},
+        "permissions": {"default": "allow"},
     }
     template["sandbox"] = sandbox
     return template

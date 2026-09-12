@@ -24,6 +24,7 @@ from pydantic import (
 )
 
 from agenta.sdk.engines.running.errors import ERRORS_BASE_URL, ErrorStatus
+from agenta.sdk.utils.logging import get_module_logger
 
 from .connections import EnvironmentCredentialBinding, ModelRef, ResolvedConnection
 from .mcp import (
@@ -35,8 +36,36 @@ from .mcp import (
 from .pi_builtins import PI_BUILTIN_TOOL_NAMES
 from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
 from .permission_rules import wire_author_permission_rules
-from .tools import ToolCallback, ToolConfig, ToolSpec, coerce_tool_configs
+from .tools import (
+    ToolCallback,
+    ToolConfig,
+    ToolConfigurationError,
+    ToolSpec,
+    coerce_tool_configs,
+)
 from .tools.models import PermissionMode, ResolvedGatewayPolicy, coerce_tool_spec
+
+log = get_module_logger(__name__)
+
+
+def _is_legacy_gateway_entry(entry: Any) -> bool:
+    """Whether an entry is the pre-rework one-action gateway shape.
+
+    The tag alone does not say so. A current-format ``gateway`` entry is still authored
+    today, and a malformed one is a mistake its author must see, so the entry has to carry a
+    positive mark of its age before it may be dropped:
+
+    * ``provider_action``, the field name the pre-2026-08-27 writer used, or
+    * neither ``action`` nor ``connection``, which no current-format entry can be missing.
+
+    ``composio`` is the same shape under its older name: ``coerce_tool_config`` renames it
+    before it parses, so a refusal for either spelling names the same legacy entry.
+    """
+    if not isinstance(entry, dict) or entry.get("type") not in {"gateway", "composio"}:
+        return False
+    if entry.get("provider_action"):
+        return True
+    return not entry.get("action") and not entry.get("connection")
 
 
 # ---------------------------------------------------------------------------
@@ -607,6 +636,18 @@ class RunContext(BaseModel):
         return out
 
 
+class SessionContext(BaseModel):
+    """API-supplied facts rendered by the SDK for the current turn.
+
+    These are prompt inputs, not tool bindings or environment configuration.
+    The runner receives only the rendered text as ``turnContext``.
+    """
+
+    agent_name: Optional[str] = None
+    session_name: Optional[str] = None
+    first_turn: Optional[bool] = None
+
+
 # ---------------------------------------------------------------------------
 # Run result
 # ---------------------------------------------------------------------------
@@ -713,7 +754,33 @@ class AgentTemplate(BaseModel):
     @field_validator("tools", mode="before")
     @classmethod
     def _coerce_tools(cls, value: Any) -> List[ToolConfig]:
-        return coerce_tool_configs(_as_list(value)).tool_configs
+        # Tolerance is deliberately narrow. A legacy ``gateway`` entry predates the rework
+        # and no migration ever rewrote one, so an unrepairable one is dropped rather than
+        # allowed to fail every run of an agent nobody can edit back into shape.
+        #
+        # Every OTHER refusal still fails the run, loudly and unchanged: a typo in a tool
+        # name, a malformed connection entry, and two conflicting policies for the same
+        # integration are all real misconfigurations the author must see. Dropping those
+        # would take a tool the author believes is configured and make it vanish in silence.
+        entries = _as_list(value)
+        result = coerce_tool_configs(entries, on_error="collect")
+        for diagnostic in result.diagnostics:
+            entry = (
+                entries[diagnostic.index]
+                if 0 <= diagnostic.index < len(entries)
+                else None
+            )
+            if not _is_legacy_gateway_entry(entry):
+                raise ToolConfigurationError(
+                    diagnostic.message,
+                    index=diagnostic.index,
+                    value=entry,
+                )
+            log.warning(
+                "agent: dropped an unrepairable legacy gateway tool entry: %s",
+                diagnostic.message,
+            )
+        return result.tool_configs
 
     @field_validator("mcp_servers", mode="before")
     @classmethod
@@ -1216,6 +1283,8 @@ class SessionConfig(BaseModel):
     # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted from the
     # wire when unset, so a run that needs no binding is byte-identical to before.
     run_context: Optional[RunContext] = None
+    # Refreshed per invoke and rendered as turn context before reaching the backend.
+    session_context: Optional[SessionContext] = None
     session_id: Optional[str] = None
     # Explicit per-invoke ownership handoff. False preserves request-owned cancellation.
     detached: bool = False

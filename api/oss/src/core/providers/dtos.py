@@ -53,6 +53,7 @@ class CredentialResult(BaseModel):
 class DiscoveryResult(BaseModel):
     status: DiscoveryStatus
     models: List[str] = Field(default_factory=list)
+    model_names: Dict[str, str] = Field(default_factory=dict)
 
 
 class ProbeOutcome(BaseModel):

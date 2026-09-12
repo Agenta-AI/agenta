@@ -137,7 +137,7 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
         })
     })
 
-    it("omits the slug for a self_managed connection", () => {
+    it("writes no slug for a self_managed run that names no record", () => {
         expect(
             composeModelValue({
                 modelId: "opus",
@@ -146,6 +146,23 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
                 slug: null,
             }),
         ).toEqual({model: "opus", provider: "anthropic", connection: {mode: "self_managed"}})
+    })
+
+    it("writes the slug for a hosted subscription, which is self_managed AND a record", () => {
+        // The resolver selects the stored sign-in by this slug. Without it the run falls back to
+        // whatever login the deployment mounted, which on cloud is none.
+        expect(
+            composeModelValue({
+                modelId: "gpt-5.6-sol",
+                provider: "openai-codex",
+                mode: "self_managed",
+                slug: "chatgpt",
+            }),
+        ).toEqual({
+            model: "gpt-5.6-sol",
+            provider: "openai-codex",
+            connection: {mode: "self_managed", slug: "chatgpt"},
+        })
     })
 
     it("round-trips a structured object through the helpers", () => {

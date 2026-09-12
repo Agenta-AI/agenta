@@ -71,6 +71,22 @@ describe("panel keys", () => {
 })
 
 describe("changed paths — the strings the drawer hardcodes", () => {
+    it("assigns only the exact default path to Permissions, not hidden runner rules", () => {
+        const changes = changesFor(
+            template({
+                runner: {
+                    permissions: {default: "allow", rules: [{tool: "restricted", policy: "deny"}]},
+                },
+            }),
+            template(),
+        )
+        expect(
+            changes.sectionsByKey.get("permissions")?.scalarChanges?.map((change) => change.key),
+        ).toEqual(["runner.permissions.default"])
+        expect(
+            changes.sectionsByKey.get("advanced")?.scalarChanges?.map((change) => change.key),
+        ).toEqual(["runner.permissions.rules"])
+    })
     it("an approval grant to harness.permissions.allow lands on the Advanced section at that exact path", () => {
         const committed = template()
         const draft = template({harness: {kind: "claude", permissions: {allow: ["Terminal"]}}})
@@ -122,6 +138,10 @@ describe("changed paths — the strings the drawer hardcodes", () => {
         const changes = changesFor(draft, committed)
 
         expect(changes.changedPaths.has("runner.permissions.default")).toBe(true)
+        expect(changes.panelKeys).toEqual(new Set(["permissions"]))
+        expect(changes.sectionsByKey.get("permissions")?.scalarChanges?.map((c) => c.key)).toEqual([
+            "runner.permissions.default",
+        ])
         expect(changes.hasChangedUnder("runner")).toBe(true)
     })
 

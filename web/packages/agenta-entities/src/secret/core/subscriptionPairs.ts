@@ -32,7 +32,11 @@ export interface SubscriptionPair {
     key: string
     /** Provider family the logo is looked up by (`anthropic`, `openai`). */
     provider: string
-    /** The plan's consumer name: `Claude`, `ChatGPT`. */
+    /**
+     * What the row is called: `Claude (deployment login)`, `ChatGPT (deployment login)`. The
+     * source is part of the name, because a project can also hold a HOSTED subscription to the
+     * same plan and the two rows would otherwise be identical.
+     */
     name: string
     /** The harness id this pair runs in (`claude`, `codex`, `pi_core`). */
     harness: string
@@ -60,6 +64,18 @@ const PROVIDER_BY_HARNESS: Record<string, string> = {
 /** The plan name for a provider family, falling back to the family itself. */
 export const subscriptionPlanName = (provider: string): string =>
     PLAN_NAME_BY_PROVIDER[provider] ?? provider
+
+/**
+ * What a MOUNTED subscription calls itself, once a hosted one can carry the same plan.
+ *
+ * The two are different connections to the same product. A hosted subscription is signed in from
+ * the app and stored per project; a mounted one is a login folder the deployment gives the runner,
+ * with its own model list. On a deployment that has both, two rows called "ChatGPT · Subscription"
+ * are indistinguishable, and a user picking between them is guessing. So the mounted one says
+ * where it comes from, and the hosted one keeps the plain product name it was signed in under.
+ */
+export const mountedSubscriptionName = (provider: string): string =>
+    `${subscriptionPlanName(provider)} (deployment login)`
 
 /**
  * Every usable subscription × harness pair the runner reported, in harness-id order.
@@ -100,7 +116,7 @@ export const subscriptionPairsFrom = (
             if (seen.has(key)) continue
             seen.add(key)
 
-            pairs.push({key, provider, name: subscriptionPlanName(provider), harness})
+            pairs.push({key, provider, name: mountedSubscriptionName(provider), harness})
         }
     }
 

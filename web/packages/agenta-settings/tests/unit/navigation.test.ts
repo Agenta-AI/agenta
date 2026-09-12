@@ -12,7 +12,6 @@ import {
 const baseAccess: SettingsAccess = {
     billingEnabled: true,
     canShowTools: true,
-    canShowTriggers: true,
     canViewApiKeys: true,
     canViewEvents: true,
     isEE: true,
@@ -50,11 +49,8 @@ describe("resolveSettingsTab", () => {
         )
     })
 
-    it("gates tools and triggers independently", () => {
+    it("gates tools", () => {
         expect(resolveSettingsTab("tools", {...baseAccess, canShowTools: false})).toBe("workspace")
-        expect(resolveSettingsTab("triggers", {...baseAccess, canShowTriggers: false})).toBe(
-            "workspace",
-        )
     })
 
     it("keeps personal preferences available in OSS", () => {
@@ -105,7 +101,6 @@ describe("settings sidebar scopes", () => {
             "secrets",
             "llms",
             "tools",
-            "triggers",
             "channels",
             "webhooks",
         ])

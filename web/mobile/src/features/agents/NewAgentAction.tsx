@@ -36,7 +36,9 @@ export const NewAgentAction = ({
     /** On the trigger — the roster toolbar sizes it down on a phone. */
     className?: string
 }) => (
-    <span className={`flex flex-col gap-1 ${align === "end" ? "items-end" : "items-stretch"}`}>
+    <span
+        className={`flex flex-col gap-1 ${align === "end" ? "shrink-0 items-end" : "items-stretch"}`}
+    >
         <NewAgentButton
             className={className}
             label={label}

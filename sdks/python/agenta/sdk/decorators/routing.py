@@ -13,6 +13,7 @@ from starlette.routing import Mount
 
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.models.workflows import (
+    failure_code_of,
     WorkflowInvokeRequest,
     WorkflowInspectRequest,
     WorkflowInspectResponse,
@@ -559,12 +560,20 @@ async def handle_invoke_success(
 async def handle_invoke_failure(exception: Exception) -> Response:
     status = None
 
+    # A stable slug naming the class of failure, when the exception declares one. It reaches
+    # the client as `status.failure_code` so a browser can branch on the failure instead of
+    # matching the message text. A resolution failure raised BEFORE the stream opens (a
+    # subscription with no usable login, say) can only be reported through an error body, so
+    # without this the same failure carries a code on the stream and none on the batch reply.
+    failure_code = failure_code_of(exception)
+
     if isinstance(exception, ErrorStatus):
         status = WorkflowServiceStatus(
             type=exception.type,
             code=exception.code,
             message=exception.message,
             stacktrace=exception.stacktrace,
+            failure_code=failure_code,
         )
 
     else:
@@ -592,6 +601,7 @@ async def handle_invoke_failure(exception: Exception) -> Response:
             code=code,
             message=message,
             stacktrace=stacktrace,
+            failure_code=failure_code,
         )
 
     trace_id = None

@@ -10,12 +10,65 @@
  * The drawer's own writer is `useModelHarness`; these mirror its two writes (`llm` via
  * `composeModelValue`, `harness.kind` via a section replace) without its React state.
  */
+import deepEqual from "fast-deep-equal"
+
 import {composeModelValue, connectionFromConfig, type ConnectionMode} from "./connectionUtils"
 import {isPermissionPolicy, type PermissionPolicy} from "./permissionPolicy"
 import {locateTemplate} from "./toolPermission"
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
     Boolean(v && typeof v === "object" && !Array.isArray(v))
+
+/** Apply only buffered edits; untouched fields keep their latest live values. */
+export function mergeAgentConfigDraft(
+    live: Record<string, unknown>,
+    baseline: Record<string, unknown>,
+    draft: Record<string, unknown>,
+    section?: "model-harness" | "advanced",
+): Record<string, unknown> {
+    const next = {...live}
+    for (const key of new Set([...Object.keys(baseline), ...Object.keys(draft)])) {
+        if (deepEqual(baseline[key], draft[key]) && key in baseline === key in draft) continue
+        if (!(key in draft)) {
+            if (isRecord(baseline[key]) && isRecord(live[key])) {
+                const remaining = mergeAgentConfigDraft(live[key], baseline[key], {})
+                if (Object.keys(remaining).length) next[key] = remaining
+                else delete next[key]
+            } else delete next[key]
+        } else if (isRecord(draft[key]) && (isRecord(baseline[key]) || !(key in baseline))) {
+            next[key] = mergeAgentConfigDraft(
+                isRecord(live[key]) ? live[key] : {},
+                isRecord(baseline[key]) ? baseline[key] : {},
+                draft[key],
+            )
+        } else next[key] = draft[key]
+    }
+    // A picker selection owns the complete route, not just its changed scalar fields.
+    if (
+        section === "model-harness" &&
+        (!deepEqual(baseline.llm, draft.llm) ||
+            !deepEqual(
+                isRecord(baseline.harness) ? baseline.harness.kind : undefined,
+                isRecord(draft.harness) ? draft.harness.kind : undefined,
+            ))
+    ) {
+        for (const [key, fields] of [
+            ["llm", ["model", "provider", "connection"]],
+            ["harness", ["kind"]],
+        ] as const) {
+            const selected = isRecord(draft[key]) ? draft[key] : {}
+            const merged = isRecord(next[key]) ? {...next[key]} : {}
+            for (const field of fields) {
+                if (field in selected) merged[field] = selected[field]
+                else delete merged[field]
+            }
+            if (key === "llm" && typeof draft.llm === "string") next.llm = draft.llm
+            else if (Object.keys(merged).length) next[key] = merged
+            else delete next[key]
+        }
+    }
+    return next
+}
 
 export interface ModelPatch {
     modelId: string
@@ -69,7 +122,7 @@ export function withHarnessKind(parameters: unknown, kind: string): Record<strin
 
 /**
  * Set `agent.runner.permissions.default`. The rules list beside it rides through untouched — the
- * palette picks a policy, rule editing stays in the config drawer.
+ * palette picks a policy without changing stored rules.
  */
 export function withRunnerPermission(
     parameters: unknown,
