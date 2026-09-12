@@ -86,6 +86,7 @@ import {
   takeDaytonaSecretLease,
 } from "./daytona-secret-provider.ts";
 import type { DaytonaSecretLease } from "./daytona-secrets.ts";
+import { errorEventWithDetail } from "../../gateway-error.ts";
 import { probeMcpServerHandshakes } from "./mcp-handshake.ts";
 import { buildSessionMcpServers, validateUserMcpServers } from "./mcp.ts";
 import { applyModel } from "./model.ts";
@@ -421,7 +422,7 @@ function publishAcquireResult(
 ): AcquireEnvironmentResult {
   if (result.ok) return result;
   if (result.errorCode && result.errorCode !== "runner_error") {
-    emit?.({ type: "error", message: result.error, code: result.errorCode });
+    emit?.(errorEventWithDetail(result.error, result.errorCode));
   }
   return {
     ok: false,

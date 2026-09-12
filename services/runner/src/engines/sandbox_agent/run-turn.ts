@@ -116,6 +116,11 @@ import {
 } from "./runtime-policy.ts";
 import { appendSessionTurn } from "./session-continuity-durable.ts";
 import { nextTurnIndex, sessionContinuityStore } from "./session-continuity.ts";
+import {
+  carriesGatewayRefusalMarker,
+  errorEventWithDetail,
+  parseGatewayErrorDetail,
+} from "../../gateway-error.ts";
 import { mcpHandshakeFailureMessage } from "./mcp-handshake.ts";
 import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
 import { carriesApprovalReplyOnly } from "./session-identity.ts";
@@ -1612,8 +1617,32 @@ export async function runTurn(
               })
             : findSwallowedPiError(plan.workspace.cwd, piTranscriptCursor))
         : undefined;
+    // A harness that folded the gateway's refusal into its ANSWER rather than raising it.
+    //
+    // OR28: Codex ends such a turn `end_turn` with the refusal as the assistant's only message,
+    // so the run was reported as a SUCCESS — HTTP 200, `stop_reason: end_turn`, the refusal
+    // sitting in the transcript as if the model had said it. That is the worst of the three
+    // harnesses: Pi and Claude at least fail. The marker the gateway stamps into every typed
+    // refusal is what identifies it; a plain 403 with no marker is left alone, because only the
+    // marker distinguishes our refusal from a model quoting one.
+    const swallowedGatewayRefusal =
+      !swallowedPiError &&
+      stopReason !== "paused" &&
+      stopReason !== "cancelled" &&
+      carriesGatewayRefusalMarker(visibleOutput)
+        ? parseGatewayErrorDetail(visibleOutput)
+        : undefined;
     let swallowedError: string | undefined;
-    if (swallowedPiError) {
+    if (swallowedGatewayRefusal) {
+      swallowedError = swallowedGatewayRefusal.message;
+      run.recordError(swallowedError, request.modelConnection?.provider);
+      run.emitEvent({
+        type: "error",
+        message: swallowedError,
+        code: "runner_error",
+        detail: swallowedGatewayRefusal,
+      });
+    } else if (swallowedPiError) {
       // THE ORDINARY PATH FOR A SUBSCRIPTION AUTH FAILURE ON PI. Pi does not throw a provider
       // refusal; it writes the refusal into its transcript and ends the turn with `end_turn`, so
       // the `catch` below never sees it. The recovery therefore has to run here as well.
@@ -1640,11 +1669,7 @@ export async function runTurn(
         );
       swallowedError = classified.message;
       run.recordError(swallowedError, request.modelConnection?.provider);
-      run.emitEvent({
-        type: "error",
-        message: classified.message,
-        code: classified.code,
-      });
+      run.emitEvent(errorEventWithDetail(classified.message, classified.code));
     }
     if (nativeTraceBatches === 0 && !swallowedError) {
       await harnessTrace.emitMissingBatchFallback(run);
@@ -1660,7 +1685,16 @@ export async function runTurn(
       // A failed turn may have left a partial turn in the native transcript: the prior record
       // is no longer a faithful resume point.
       invalidateContinuity(sessionId, plan.harness, deps);
-      return { ok: false, error: swallowedError };
+      // The envelope is attached HERE for the folded-refusal path, because its message has had
+      // the marker stripped out: `withGatewayErrorDetail` scans the text and would find nothing
+      // left to recover. The Pi path keeps its text intact and is recovered there as before.
+      return {
+        ok: false,
+        error: swallowedError,
+        ...(swallowedGatewayRefusal
+          ? { errorDetail: swallowedGatewayRefusal }
+          : {}),
+      };
     }
 
     // Which endings are a faithful resume point, and may therefore advance the in-memory resume
@@ -1762,11 +1796,7 @@ export async function runTurn(
     } else if (nativeTraceBatches === 0) {
       await harnessTrace.emitMissingBatchFallback(otel, error);
     }
-    otel?.emitEvent({
-      type: "error",
-      message: error,
-      code: classified.code,
-    });
+    otel?.emitEvent(errorEventWithDetail(error, classified.code));
     // An aborted turn may have left a partial turn in the native transcript.
     invalidateContinuity(sessionId, plan.harness, deps);
     // Same ordering as the happy path: settle the durable rows before the terminal record goes out.

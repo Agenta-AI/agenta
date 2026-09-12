@@ -359,6 +359,7 @@ async def _agent_run_to_vercel_parts_impl(
                 for part in _error_parts(
                     data.get("message", ""),
                     failure_code=_runner_failure_code(data.get("code")),
+                    error_detail=data.get("detail"),
                 ):
                     yield part
             elif etype == "turn":
@@ -664,6 +665,7 @@ async def _agent_stream_to_vercel_stream_impl(
                 for part in _error_parts(
                     data.get("message", ""),
                     failure_code=_runner_failure_code(data.get("code")),
+                    error_detail=data.get("detail"),
                 ):
                     yield part
             elif etype == "turn":
@@ -1013,16 +1015,29 @@ def _error_parts(
     *,
     failure_code: Optional[str] = None,
     error: Optional[BaseException] = None,
+    error_detail: Optional[Dict[str, Any]] = None,
 ) -> Iterator[Dict[str, Any]]:
     resolved_code = failure_code or getattr(error, "failure_code", None)
     if not isinstance(resolved_code, str) or not resolved_code:
         resolved_code = AgentRunFailed.failure_code
     resolved_text = _as_text(error_text)
+    # Include recovered gateway error details only when available. The live `error` event carries
+    # them in its own `detail` field; a raised terminal failure carries them on the exception.
+    resolved_detail = error_detail
+    if not resolved_detail:
+        resolved_detail = getattr(error, "error_detail", None)
+    # OR28: prefer the gateway's own code over the runner's generic one. A NAMED runner class
+    # (`starter_credits_exhausted`) answers a different question and wins; the generic fallback
+    # carries no information the gateway's code does not carry better.
+    if (
+        resolved_code == DEFAULT_RUNNER_FAILURE_CODE
+        and isinstance(resolved_detail, dict)
+        and _FAILURE_CODE.match(str(resolved_detail.get("code", "")))
+    ):
+        resolved_code = str(resolved_detail["code"])
     data: Dict[str, Any] = {"code": resolved_code, "errorText": resolved_text}
-    # Include recovered gateway error details only when available.
-    error_detail = getattr(error, "error_detail", None)
-    if error_detail:
-        data["errorDetail"] = error_detail
+    if resolved_detail:
+        data["errorDetail"] = resolved_detail
     yield {"type": "data-agent-error", "data": data}
     yield {"type": "error", "errorText": resolved_text}
 

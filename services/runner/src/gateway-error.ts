@@ -19,7 +19,7 @@
  * A harness whose SDK discards BOTH — the full body and the marker inside `message` — still
  * yields `undefined`.
  */
-import type { AgentErrorDetail } from "./protocol.ts";
+import type { AgentErrorDetail, AgentEvent } from "./protocol.ts";
 
 // A distinct marker preserves the error code when a harness discards the error body.
 const CODE_MARKER_RE = /⟦agenta_code:([a-z_]+)⟧/;
@@ -47,7 +47,11 @@ const NEXT_STEPS: Record<string, string> = {
 /** The first balanced `{...}` JSON object in `text`, or undefined if none parses. Scans left to
  * right so the FIRST candidate wins, matching where a formatted error message places the body. */
 function firstJsonObject(text: string): unknown {
-  for (let start = text.indexOf("{"); start !== -1; start = text.indexOf("{", start + 1)) {
+  for (
+    let start = text.indexOf("{");
+    start !== -1;
+    start = text.indexOf("{", start + 1)
+  ) {
     let depth = 0;
     for (let i = start; i < text.length; i++) {
       if (text[i] === "{") depth++;
@@ -66,6 +70,36 @@ function firstJsonObject(text: string): unknown {
   return undefined;
 }
 
+/** Does this text still carry the gateway's typed-refusal marker? */
+export function carriesGatewayRefusalMarker(text: string | undefined): boolean {
+  return !!text && CODE_MARKER_RE.test(text);
+}
+
+/**
+ * The stream's `error` event, carrying the gateway's envelope whenever the harness's text still
+ * holds it.
+ *
+ * OR28: `code` on this event is the RUNNER's failure class, a vocabulary the client uses to offer
+ * a recovery path; the gateway's own `model_not_allowed` never had a field to ride in, so a live
+ * stream reached the browser with the refusal as prose and nothing machine-readable. The terminal
+ * result has carried `errorDetail` since OR25. This puts the same envelope on the live leg, so one
+ * refusal reads the same whichever leg reported it. The two codes stay separate fields rather than
+ * one overwritten field, because a named runner class (`starter_credits_exhausted`) and a gateway
+ * code answer different questions.
+ */
+export function errorEventWithDetail(
+  message: string,
+  code?: string,
+): Extract<AgentEvent, { type: "error" }> {
+  const detail = parseGatewayErrorDetail(message);
+  return {
+    type: "error",
+    message,
+    ...(code ? { code } : {}),
+    ...(detail ? { detail } : {}),
+  };
+}
+
 /** Parse a harness error string for an embedded gateway refusal body, or undefined. */
 export function parseGatewayErrorDetail(
   raw: string | undefined,
@@ -80,7 +114,21 @@ export function parseGatewayErrorDetail(
 function parseFromBody(raw: string): AgentErrorDetail | undefined {
   const parsed = firstJsonObject(raw);
   if (!parsed || typeof parsed !== "object") return undefined;
-  const body = (parsed as { error?: GatewayErrorBody }).error;
+  const wrapped = (parsed as { error?: GatewayErrorBody }).error;
+  // Two shapes reach this scan. Most SDKs fold the gateway's OpenAI-shaped `{"error": {...}}`
+  // in verbatim. Pi unwraps it first (`utils/error-body.js`), so its text carries the BARE body
+  // — which the wrapper-only scan missed, costing Pi the `next_step` and `details` its message
+  // still held (OR28). A bare object is only accepted when its `message` carries the gateway's
+  // own marker, so an unrelated JSON blob with `code` and `message` keys is not mistaken for a
+  // refusal we authored.
+  const bare =
+    !wrapped &&
+    typeof (parsed as GatewayErrorBody).code === "string" &&
+    typeof (parsed as GatewayErrorBody).message === "string" &&
+    CODE_MARKER_RE.test(String((parsed as GatewayErrorBody).message))
+      ? (parsed as GatewayErrorBody)
+      : undefined;
+  const body = wrapped ?? bare;
   if (!body || typeof body !== "object") return undefined;
   const code = typeof body.code === "string" ? body.code : undefined;
   const message = typeof body.message === "string" ? body.message : undefined;

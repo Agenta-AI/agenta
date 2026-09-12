@@ -500,6 +500,14 @@ export type AgentEvent =
        * Values: see `RunErrorCode` in engines/sandbox_agent/errors.ts.
        */
       code?: string;
+      /**
+       * The GATEWAY's own typed refusal, recovered from the harness's error text, when this
+       * failure was one. A different vocabulary from `code` above and a different question:
+       * `code` says what class of run failure this is, `detail.code` says what the gateway
+       * refused and what to do about it. Present only when the text still carried it — see
+       * `parseGatewayErrorDetail`. The terminal `AgentRunResult.errorDetail` is the same shape.
+       */
+      detail?: AgentErrorDetail;
     }
   // `traceId` is the run's observability trace id, stamped on the turn's terminal event so a
   // persisted transcript can link a replayed turn back to its trace (latency, full-trace view).
