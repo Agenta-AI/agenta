@@ -781,6 +781,35 @@ The old per-surface names (`AGENTA_WEBHOOKS_ALLOW_INSECURE`, `AGENTA_WEBHOOK_ALL
 deprecated aliases and still work, but new configuration should use the canonical name.
 :::
 
+## Agenta gateways
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | n/a (read directly by the SDK and the runner) | n/a |
+
+:::note Serving the gateway over plain HTTP
+An agent that reaches a model or an MCP server through an Agenta gateway authenticates to
+that gateway with a bearer credential. Agenta sends one only over HTTPS, or over plain HTTP
+to a loopback address, which never leaves the machine. Both defaults are on, and
+`AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` defaults to `false`.
+
+This matters if you reach your deployment at a plain-HTTP address that is not loopback, such
+as `http://192.0.2.10:8680` or `http://agenta.internal`. Agenta refuses to send the
+credential, so every gateway-routed run fails with the error code
+`gateway_insecure_endpoint` and a message naming this variable.
+
+Two ways to fix it. Put the deployment behind HTTPS, which is the right answer for anything
+other people can reach. Or, if it is a single-tenant deployment on a network you control, set
+`AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED=true` and accept that the credential travels in clear
+text on that network.
+
+Setting it to `true` changes exactly one answer. A provider's own API key is still never sent
+over plain HTTP to a non-loopback host, and a remote sandbox still requires an HTTPS endpoint
+with a public DNS name, because a cloud sandbox dials your deployment across the internet.
+The variable is read by the API, the agent service, and the runner, so set it in the env file
+all three load and recreate those containers.
+:::
+
 ## alembic
 
 | Env var | env.py path | values.yaml path |

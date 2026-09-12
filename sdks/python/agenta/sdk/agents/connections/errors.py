@@ -165,6 +165,55 @@ class InvalidConnectionConfigurationError(AgentConnectionError):
     status_code = 422
 
 
+class GatewayInsecureEndpointError(ConnectionResolutionError):
+    """Raised when gateway credentials would cross plain http to a routable host.
+
+    D37's rule, unchanged: a bearer credential travels over https, or over a loopback hop
+    that has no remote to leak it to. What this class adds is the ANSWER to the operator who
+    hits it. The refusal used to surface as a pydantic ``ValidationError`` escaping the
+    connection model, which the running normalizer could only report as an unhandled 500 with
+    a traceback, so a self-hosted deployment served over plain http at an IP saw a server
+    fault where it should have seen its own configuration and the one flag that changes it.
+
+    ``next_step`` names that flag (``AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED``), and
+    ``error_detail`` carries the agent-actionable envelope
+    (``{code, message, retryable, next_step, details}``) the runner recovers for a gateway
+    data-plane refusal, so a caller reads one shape whichever side refused.
+    """
+
+    # A deployment whose own base URL cannot carry a bearer is a configuration situation.
+    status_code = 422
+    failure_code = "gateway_insecure_endpoint"
+
+    MESSAGE = (
+        "Gateway credentials require an effective HTTPS endpoint. This deployment's gateway "
+        "base URL is plain http to a host that is not loopback, so a bearer credential would "
+        "cross the network in clear text."
+    )
+    NEXT_STEP = (
+        "Serve the deployment over HTTPS, or set "
+        "AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED=true if it is a trusted single-tenant "
+        "deployment on a network you control."
+    )
+
+    def __init__(self, *, base_url: Optional[str] = None) -> None:
+        super().__init__(self.MESSAGE)
+        self.base_url = base_url
+        # Non-secret: this is the deployment's own gateway address, never a credential. It is
+        # the one fact the operator needs to recognize which URL the refusal is about.
+        details = {"flag": "AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED"}
+        if base_url:
+            details["base_url"] = base_url
+        self.error_detail = {
+            "code": self.failure_code,
+            "message": self.MESSAGE,
+            # Nothing about repeating the same request changes the deployment's scheme.
+            "retryable": False,
+            "next_step": self.NEXT_STEP,
+            "details": details,
+        }
+
+
 class ConnectionNotFoundError(ConnectionResolutionError):
     """Raised when a named connection (``mode == agenta`` + ``slug``) does not exist."""
 
