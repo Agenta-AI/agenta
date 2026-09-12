@@ -1,5 +1,6 @@
 import { type AgentRunRequest, type ToolPermission } from "../../protocol.ts";
 import { claimSessionOwnership, REPLICA_ID } from "../../sessions/alive.ts";
+import { materializeGatewayHeaders } from "./run-plan.ts";
 import {
   configuredIngestBases,
   isAgentaIngest,
@@ -10,6 +11,7 @@ import {
 } from "../../tracing/otel.ts";
 import { endpointHost } from "../../tracing/export-diagnostics.ts";
 import { PendingApprovalPauseController } from "./pause.ts";
+import { GATEWAY_PLACEHOLDER_API_KEY } from "../../extensions/model-provider-override.ts";
 
 type Log = (message: string) => void;
 
@@ -162,6 +164,21 @@ const CLAUDE_STRICT_DEPLOYMENTS = new Set([
   "vertex_ai",
 ]);
 
+/**
+ * Codex validates the provider block's ``env_key`` before it sends an HTTP request. Gateway
+ * routes authenticate with ``X-AG-Credentials`` instead, so provide only a fixed, non-secret
+ * selector value—not a provider credential.
+ */
+export function applyCodexGatewayConnectionEnv(
+  env: Record<string, string>,
+  request: AgentRunRequest,
+  acpAgent: string,
+): void {
+  if (acpAgent !== "codex" || !request.modelConnection?.gatewayCredentials?.value)
+    return;
+  env.OPENAI_API_KEY = GATEWAY_PLACEHOLDER_API_KEY;
+}
+
 export function applyClaudeConnectionEnv(
   env: Record<string, string>,
   request: AgentRunRequest,
@@ -169,6 +186,10 @@ export function applyClaudeConnectionEnv(
   logger: Log,
 ): void {
   if (acpAgent !== "claude") return;
+
+  // Claude Code discovers the gateway's current stateless MCP interface.
+  env.MCP_PROTOCOL_NEGOTIATION = "auto";
+  logger("claude MCP protocol negotiation: auto");
 
   // Disable the Claude Agent SDK's Tool-Search feature for every Claude run. The bundled
   // SDK defaults Tool-Search ON, which makes Claude DEFER the `agenta-tools` MCP tools and
@@ -186,6 +207,22 @@ export function applyClaudeConnectionEnv(
   if (baseUrl) {
     env.ANTHROPIC_BASE_URL = baseUrl;
     logger(`claude base_url: ${baseUrl}`);
+  }
+
+  // Gateway credentials use one `Name: Value` pair per ANTHROPIC_CUSTOM_HEADERS line.
+  const gatewayHeaders = materializeGatewayHeaders(request);
+  const headerLines = Object.entries(gatewayHeaders)
+    .map(([name, value]) => `${name}: ${value}`)
+    .join("\n");
+  if (headerLines) {
+    env.ANTHROPIC_CUSTOM_HEADERS = headerLines;
+    // The Anthropic SDK refuses to initialize without a key-shaped value, even when a custom
+    // base URL and headers authenticate the request. This is only a fixed selector; the gateway
+    // alone reads the real credential carried in ANTHROPIC_CUSTOM_HEADERS.
+    env.ANTHROPIC_API_KEY = GATEWAY_PLACEHOLDER_API_KEY;
+    logger(
+      `claude gateway credentials header: ${request.modelConnection?.gatewayCredentials?.header}`,
+    );
   }
 
   if (deployment === "bedrock") {

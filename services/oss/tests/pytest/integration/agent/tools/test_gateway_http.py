@@ -4,11 +4,13 @@ import httpx
 import pytest
 
 from agenta.sdk.agents import (
+    CallbackToolSpec,
     GatewayToolResolutionError,
     ToolCallback,
 )
 
 from oss.src.agent.tools import resolve_tools
+from oss.src.agent.tools import resolver as agent_tool_resolver
 from agenta.sdk.agents.platform import gateway
 
 pytestmark = pytest.mark.integration
@@ -244,3 +246,67 @@ async def test_http_status_failure_is_typed(install_http):
     with pytest.raises(GatewayToolResolutionError) as caught:
         await resolve_tools([_GATEWAY])
     assert caught.value.status == 400
+
+
+async def test_agenta_mcp_exchanges_the_run_credential_for_callback_tools(
+    install_http,
+    monkeypatch,
+):
+    capture = {}
+    install_http(agent_tool_resolver)
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"credentials": "Secret scoped-run-token"}
+
+    class Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, url, *, json, headers):
+            capture.update(url=url, json=json, headers=headers)
+            return Response()
+
+    monkeypatch.setattr(agent_tool_resolver.httpx, "AsyncClient", Client)
+    resolved = await agent_tool_resolver.resolve_mcp_servers(
+        [
+            {
+                "name": "agenta",
+                "connection": {
+                    "type": "gateway",
+                    "namespace": "builtin",
+                    "provider": "agenta",
+                },
+            }
+        ],
+        tool_specs=[
+            CallbackToolSpec(
+                name="rename_session",
+                description="Rename the current session",
+                input_schema={"type": "object"},
+                call_ref="agenta.rename_session",
+            )
+        ],
+    )
+
+    assert capture["url"] == "https://api.x/api/gateways/mcps/credentials/agenta"
+    assert capture["headers"]["Authorization"] == "Access tok"
+    assert capture["json"]["tools"] == [
+        {
+            "name": "rename_session",
+            "call_ref": "agenta.rename_session",
+            "description": "Rename the current session",
+            "input_schema": {"type": "object"},
+        }
+    ]
+    assert resolved[0].url.endswith("/gateways/mcps/builtin/agenta/run")
+    assert resolved[0].credentials[0].value == "Secret scoped-run-token"

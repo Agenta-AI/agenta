@@ -34,6 +34,8 @@ PRIMARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, str]] = {
     "webhook_provider": ("provider", "key"),
     "sso_provider": ("provider", "client_secret"),
     "custom_secret": ("secret", "content"),
+    "oauth_provider": ("provider", "client_secret"),
+    "oauth_grant": ("grant", "access_token"),
 }
 
 

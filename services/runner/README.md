@@ -89,8 +89,8 @@ through an INTERNAL loopback HTTP MCP channel the runner serves (`tools/mcp-brid
 `tools/tool-mcp-http.ts`) — this channel is live and is how Claude runs take custom tools.
 
 This internal channel is different from external user MCP servers in `mcpServers`. The public
-contract accepts HTTP only. Pi currently refuses external MCP because it delivers tools through
-its bundled extension rather than ACP MCP; Claude accepts the HTTP entries.
+contract accepts HTTP only. Claude and Codex receive those entries over ACP; Pi's bundled
+extension discovers registered Agenta gateway MCP routes and registers their tools natively.
 
 ## The extension bundle
 

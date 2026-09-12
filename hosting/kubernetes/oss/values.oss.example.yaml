@@ -17,6 +17,7 @@ agenta:
   cryptKey: "replace-me"
   servicesInternalKey: "replace-me"
   runnerToken: "replace-me"
+  insecureEgressAllowed: false
 
 # ================================================================== #
 # === Images ===
@@ -117,14 +118,6 @@ agenta:
 #     middleware:
 #       authEnabled: true
 #       cachingEnabled: true
-
-# ================================================================== #
-# === agenta.insecureEgressAllowed ===
-# default true (permissive, zero-config self-host); set false to harden a
-# shared/multi-tenant deployment.
-# ================================================================== #
-# agenta:
-#   insecureEgressAllowed: true
 
 # ================================================================== #
 # === agenta.sandboxLocalAllowed ===

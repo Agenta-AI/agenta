@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     getSettingsSidebarTabs,
     getSettingsTabDescription,
+    getSettingsTabLabel,
     resolveSettingsTab,
     SETTINGS_SCOPES,
     SETTINGS_TABS,
@@ -96,7 +97,14 @@ describe("settings sidebar scopes", () => {
         const keysForScope = (scope: (typeof SETTINGS_SCOPES)[number]["key"]) =>
             tabs.filter((tab) => tab.scope === scope).map(({key}) => key)
 
-        expect(keysForScope("project")).toEqual(["apiKeys", "secrets", "llms", "tools", "webhooks"])
+        expect(keysForScope("project")).toEqual([
+            "apiKeys",
+            "secrets",
+            "llms",
+            "tools",
+            "webhooks",
+            "mcpEndpoints",
+        ])
         expect(keysForScope("organization")).toEqual([
             "organizationGeneral",
             "workspace",
@@ -106,5 +114,10 @@ describe("settings sidebar scopes", () => {
             "billing",
         ])
         expect(keysForScope("personal")).toEqual(["account", "preferences"])
+    })
+
+    it("exposes separate LLM and MCP pages", () => {
+        expect(getSettingsTabLabel("llms", baseAccess)).toBe("AI providers")
+        expect(getSettingsTabLabel("mcpEndpoints", baseAccess)).toBe("MCPs")
     })
 })
