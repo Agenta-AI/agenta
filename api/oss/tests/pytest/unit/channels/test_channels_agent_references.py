@@ -52,3 +52,29 @@ def test_an_empty_reference_map_is_refused():
         ChannelAgentData(references={})
 
     assert "must name the workflow" in str(caught.value)
+
+
+def test_references_from_two_families_are_refused():
+    """The runtime runs exactly one family per turn; a mixed binding would save
+    and then fail on its first turn."""
+    with pytest.raises(ValidationError) as caught:
+        ChannelAgentData(
+            references={
+                "workflow_variant": {"id": uuid4()},
+                "application_revision": {"id": uuid4()},
+            }
+        )
+
+    assert "one family" in str(caught.value)
+
+
+def test_references_within_one_family_are_accepted_together():
+    data = ChannelAgentData(
+        references={
+            "workflow": {"id": uuid4()},
+            "workflow_variant": {"id": uuid4()},
+            "workflow_revision": {"id": uuid4()},
+        }
+    )
+
+    assert set(data.references) == {"workflow", "workflow_variant", "workflow_revision"}
