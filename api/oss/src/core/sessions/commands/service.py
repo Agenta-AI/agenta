@@ -44,6 +44,7 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandState,
 )
 from oss.src.core.sessions.commands.interfaces import (
+    ABANDONED_COMMAND_BATCH,
     CommandCreateResult,
     ControlDeliveryPort,
     DeliveryReceipt,
@@ -1466,56 +1467,160 @@ class SessionCommandsService:
         age = (datetime.now(timezone.utc) - updated_at).total_seconds()
         return age < HEARTBEAT_INTERVAL_SECONDS * 2
 
-    async def settle_abandoned_commands(self, *, now: datetime) -> int:
-        max_deliveries = env.agenta.sessions.commands.max_deliveries
-        abandoned = await self._dao.expire_claims(
-            now=now,
-            max_deliveries=max_deliveries,
-            pending_before=now
-            - timedelta(seconds=env.agenta.sessions.commands.admission_timeout_seconds),
-        )
-        settled = 0
-        for command in abandoned:
-            if command.kind in (
-                SessionCommandKind.continue_interaction,
-                SessionCommandKind.continue_input,
-            ):
-                capability_enabled = (
-                    env.agenta.sessions.durable_approvals
-                    if command.kind == SessionCommandKind.continue_interaction
-                    else env.agenta.sessions.queue
-                )
-                if not capability_enabled:
-                    continue
-                if command.claim_count < max_deliveries:
-                    await self._deliver(command)
-                    continue
-                result = await self._settle_exhausted_continuation(command)
-                if result:
-                    settled += 1
-                continue
-            beating = await self._session_is_beating(
+    async def _cancel_target_already_ended(self, command: SessionCommand) -> bool:
+        """True when this cancel's target is no longer a live execution.
+
+        Heartbeat age cannot tell a completed turn from a running one: the parked
+        sandbox keeps beating. The execution row (or a newer stream turn id) can.
+        """
+        if command.target_turn_id is None:
+            return True
+        if self._executions is not None:
+            execution = await self._executions.fetch_execution(
                 project_id=command.project_id,
                 session_id=command.session_id,
-            )
-            if beating and command.claim_count < max_deliveries:
-                await self._deliver(command)
-                continue
-
-            result = await self.settle(
-                command_id=command.id,
-                project_id=command.project_id,
-                replica_id=None,
-                expected_states=[
-                    SessionCommandState.pending,
-                    SessionCommandState.claimed,
-                ],
-                state=SessionCommandState.obsolete,
-                outcome=SessionCommandOutcome.lost,
                 execution_id=command.target_turn_id,
             )
-            if result is not None:
-                settled += 1
+            if execution is not None and execution.terminal_outcome is not None:
+                return True
+        stream = await self._streams.fetch_header(
+            project_id=command.project_id, session_id=command.session_id
+        )
+        return (
+            stream is not None
+            and stream.turn_id is not None
+            and stream.turn_id != command.target_turn_id
+        )
+
+    async def _drop_undeliverable_cancel(
+        self,
+        command: SessionCommand,
+        *,
+        outcome: SessionCommandOutcome,
+    ) -> Optional[SessionCommand]:
+        """Close a cancel without rewriting the execution's terminal outcome.
+
+        `settle(..., outcome=lost)` is atomic with `executions.settle(lost)`. When the
+        target already completed, that compare-and-set loses and rolls the command
+        back too, which is how `stopping_turn_id` got stuck. This path only settles
+        the command and clears our stopping mark.
+        """
+        transition = SessionCommandSettle(
+            project_id=command.project_id,
+            command_id=command.id,
+            state=SessionCommandState.obsolete,
+            outcome=outcome,
+            expected_states=[
+                SessionCommandState.pending,
+                SessionCommandState.claimed,
+            ],
+        )
+        async with self._dao.transaction() as transaction:
+            settled = await self._dao.settle_command(
+                settle=transition, transaction=transaction
+            )
+            if settled is None:
+                return None
+            await self._streams.settle_command(
+                project_id=command.project_id,
+                session_id=command.session_id,
+                turn_id=command.target_turn_id,
+                mirror_stopped=False,
+                transaction=transaction,
+            )
+        return settled
+
+    @staticmethod
+    def _abandoned_sort_key(command: SessionCommand) -> Tuple[datetime, UUID]:
+        stamp = command.claim_expires_at or command.updated_at or command.created_at
+        if stamp is None:
+            stamp = datetime.min.replace(tzinfo=timezone.utc)
+        elif stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        return stamp, command.id
+
+    async def settle_abandoned_commands(self, *, now: datetime) -> int:
+        max_deliveries = env.agenta.sessions.commands.max_deliveries
+        pending_before = now - timedelta(
+            seconds=env.agenta.sessions.commands.admission_timeout_seconds
+        )
+        settled = 0
+        after_sort_at: Optional[datetime] = None
+        after_id: Optional[UUID] = None
+        while True:
+            abandoned = await self._dao.expire_claims(
+                now=now,
+                max_deliveries=max_deliveries,
+                pending_before=pending_before,
+                after_sort_at=after_sort_at,
+                after_id=after_id,
+                limit=ABANDONED_COMMAND_BATCH,
+            )
+            if not abandoned:
+                break
+            for command in abandoned:
+                if command.kind in (
+                    SessionCommandKind.continue_interaction,
+                    SessionCommandKind.continue_input,
+                ):
+                    capability_enabled = (
+                        env.agenta.sessions.durable_approvals
+                        if command.kind == SessionCommandKind.continue_interaction
+                        else env.agenta.sessions.queue
+                    )
+                    if not capability_enabled:
+                        continue
+                    if command.claim_count < max_deliveries:
+                        await self._deliver(command)
+                        continue
+                    result = await self._settle_exhausted_continuation(command)
+                    if result:
+                        settled += 1
+                    continue
+                if await self._cancel_target_already_ended(command):
+                    dropped = await self._drop_undeliverable_cancel(
+                        command, outcome=SessionCommandOutcome.not_running
+                    )
+                    if dropped is not None:
+                        settled += 1
+                    continue
+                beating = await self._session_is_beating(
+                    project_id=command.project_id,
+                    session_id=command.session_id,
+                )
+                if beating and command.claim_count < max_deliveries:
+                    await self._deliver(command)
+                    continue
+                if beating:
+                    # Delivery budget is spent, but a heartbeat is not a lost runner.
+                    # Park the cancel; the turn keeps running until it ends on its own.
+                    # The sweep paginates past this row so it cannot starve newer work.
+                    log.warning(
+                        "parking undeliverable cancel command=%s session=%s after %s "
+                        "attempts; runner is still heartbeating so the turn is not lost",
+                        command.id,
+                        command.session_id,
+                        command.claim_count,
+                    )
+                    continue
+
+                result = await self.settle(
+                    command_id=command.id,
+                    project_id=command.project_id,
+                    replica_id=None,
+                    expected_states=[
+                        SessionCommandState.pending,
+                        SessionCommandState.claimed,
+                    ],
+                    state=SessionCommandState.obsolete,
+                    outcome=SessionCommandOutcome.lost,
+                    execution_id=command.target_turn_id,
+                )
+                if result is not None:
+                    settled += 1
+            after_sort_at, after_id = self._abandoned_sort_key(abandoned[-1])
+            if len(abandoned) < ABANDONED_COMMAND_BATCH:
+                break
         return settled
 
     async def _settle_exhausted_continuation(self, command: SessionCommand) -> bool:

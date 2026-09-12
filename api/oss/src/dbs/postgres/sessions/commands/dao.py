@@ -24,6 +24,7 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandState,
 )
 from oss.src.core.sessions.commands.interfaces import (
+    ABANDONED_COMMAND_BATCH,
     CommandCreateResult,
     SessionCommandsDAOInterface,
     SessionScope,
@@ -674,7 +675,15 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         now: datetime,
         max_deliveries: int,
         pending_before: Optional[datetime] = None,
+        after_sort_at: Optional[datetime] = None,
+        after_id: Optional[UUID] = None,
+        limit: int = ABANDONED_COMMAND_BATCH,
     ) -> List[SessionCommand]:
+        sort_at = func.coalesce(
+            SessionCommandDBE.claim_expires_at,
+            SessionCommandDBE.updated_at,
+            SessionCommandDBE.created_at,
+        )
         async with self.engine.session() as session:
             abandoned = and_(
                 SessionCommandDBE.state == SessionCommandState.claimed.value,
@@ -692,20 +701,22 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                         < pending_before,
                     ),
                 )
-            stmt = (
-                select(SessionCommandDBE)
-                .where(
-                    SessionCommandDBE.deleted_at.is_(None),
-                    abandoned,
-                )
-                .order_by(
-                    func.coalesce(
-                        SessionCommandDBE.claim_expires_at,
-                        SessionCommandDBE.updated_at,
-                        SessionCommandDBE.created_at,
+            filters = [
+                SessionCommandDBE.deleted_at.is_(None),
+                abandoned,
+            ]
+            if after_sort_at is not None and after_id is not None:
+                filters.append(
+                    or_(
+                        sort_at > after_sort_at,
+                        and_(sort_at == after_sort_at, SessionCommandDBE.id > after_id),
                     )
                 )
-                .limit(200)
+            stmt = (
+                select(SessionCommandDBE)
+                .where(*filters)
+                .order_by(sort_at, SessionCommandDBE.id)
+                .limit(limit)
             )
             result = await session.execute(stmt)
             rows = result.scalars().all()
