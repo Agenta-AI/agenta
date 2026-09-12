@@ -331,6 +331,18 @@ async def test_parse_event_extracts_sigils_and_marks_addressed():
     assert event.addressed is True
 
 
+async def test_parse_event_command_alone_is_not_a_mention():
+    """`!new` without a mention or sigil is a command, admitted by the COMMAND
+    trigger; marking it addressed let it through a mention-only policy."""
+    adapter = SlackAdapter()
+    body = _event_callback({"channel": "C1", "user": "U1", "text": "!new", "ts": "1.1"})
+
+    event = await adapter.parse_event(body=body)
+
+    assert event is not None
+    assert event.addressed is False
+
+
 async def test_parse_event_unaddressed_message_marks_addressed_false():
     adapter = SlackAdapter()
     body = _event_callback(
