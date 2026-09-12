@@ -91,6 +91,45 @@ def test_gateway_route_renders_base_url_and_env_http_headers():
     assert "ApiKey" not in content  # never the raw credential value
 
 
+def test_gateway_route_declares_the_model_codex_would_refuse_to_switch_to():
+    # OR31d. Codex checks a model CHANGE against a baked five-entry catalogue, so an Agenta
+    # model key was refused before the request left the process. Declared in config it is
+    # accepted, because codex-acp takes it verbatim as the thread's model.
+    content, config = _config(
+        build_codex_settings_files(
+            {},
+            credential_mode="none",
+            gateway_base_url="https://gw.example.com/gateways/llms/custom/acme",
+            gateway_header="X-AG-Credentials",
+            model="acme/openai/echo",
+        )
+    )
+    assert config["model"] == "acme/openai/echo"
+    # A top-level scalar, so it must precede the provider table TOML requires tables to follow.
+    assert content.index("model = ") < content.index("[model_providers.")
+
+
+def test_a_non_gateway_managed_run_still_leaves_the_model_to_the_runner():
+    # Pinning where the catalogue already knows the id would take selection from the runner
+    # for no gain, so the scalar is gateway-routed runs only.
+    _, config = _config(
+        build_codex_settings_files({}, credential_mode="env", model="gpt-5.5")
+    )
+    assert "model" not in config
+
+
+def test_a_gateway_run_with_no_resolved_model_writes_no_model_scalar():
+    _, config = _config(
+        build_codex_settings_files(
+            {},
+            credential_mode="none",
+            gateway_base_url="https://gw.example.com/gateways/llms/custom/acme",
+            gateway_header="X-AG-Credentials",
+        )
+    )
+    assert "model" not in config
+
+
 def test_non_gateway_run_omits_base_url_and_headers():
     # Byte-identical to before when there is nothing gateway-shaped to add.
     content, config = _config(build_codex_settings_files({}, credential_mode="env"))
