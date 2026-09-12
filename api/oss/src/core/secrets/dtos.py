@@ -86,7 +86,8 @@ class CustomProviderDTO(BaseModel):
     models: List[CustomModelSettingsDTO]
     harnesses: Optional[List[str]] = None
     # Not a credential: it describes the endpoint's wire shape, so it is never redacted.
-    # None means OpenAI-compatible, which is what every record written before it assumed.
+    # None registers the endpoint as `openai`, because the row needs a concrete provider family.
+    # It is not a declaration: the surfaces that offer harnesses infer an undeclared record instead.
     protocol: Optional[LLMEndpointProtocol] = None
 
     # fields will be filled at runtime

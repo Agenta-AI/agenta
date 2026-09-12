@@ -167,10 +167,17 @@ family to match the declared protocol, reusing the existing `customRouteFamily` 
 `HARNESS_CUSTOM_DEPLOYMENT_PROVIDERS` rather than adding a second copy of that table.
 `customRouteAdmitsModel` prefers the declaration over its per-model vendor guess.
 
-An **undeclared** protocol narrows nothing, deliberately. Records written before the field existed
-include Anthropic gateways with a saved Claude policy, and reading their silence as
-OpenAI-compatible would take every Claude Code row out of their picker. Those keep the vendor
-guess. The form writes a protocol on every save, so a record saved through it is narrowed.
+An **undeclared** protocol narrows nothing, deliberately. This is a grandfather rule, not a default:
+records written before the field existed include Anthropic gateways with a saved Claude policy, and
+reading their silence as OpenAI-compatible would take every Claude Code row out of their picker.
+Those keep the vendor guess. `declaredEndpointProtocol` in `.../secret/core/connections.ts` is where
+the two paths part. New records always declare, because the form writes a protocol on every save, so
+the legacy path only ever serves records that predate the field. Both paths are pinned in
+`web/packages/agenta-entity-ui/tests/unit/connectionPicker.test.ts`: the five legacy Claude Code
+cases, and beside them `offers a declared anthropic endpoint under Claude Code, and under neither Pi
+nor Codex`, `keeps a declared openai endpoint on Pi and Codex even when its models are
+Anthropic-named`, and `lets a declared anthropic endpoint hand Claude Code its OpenAI-named models
+too`.
 
 Two options, not the three the entry implied. The relay serves all three route suffixes on any
 custom endpoint and only the provider family changes behaviour, so a chat-completions versus
