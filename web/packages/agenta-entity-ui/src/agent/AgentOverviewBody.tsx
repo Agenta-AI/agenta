@@ -3,7 +3,7 @@ import type {ReactNode} from "react"
 import {SessionListCard, type SessionListCardProps} from "@agenta/sessions-ui"
 import {PanelSurface} from "@agenta/ui/components/presentational"
 
-import {AgentConfigSummaryCard} from "./AgentConfigSummaryCard"
+import {AgentConfigSummaryCard, type AgentConfigSummaryCopy} from "./AgentConfigSummaryCard"
 import {AgentFilesCard} from "./AgentFilesCard"
 import {AgentOverviewLayout} from "./AgentOverviewLayout"
 import {NextTriggersSection} from "./NextTriggersSection"
@@ -36,6 +36,8 @@ export interface AgentOverviewBodyProps {
     agentNames?: Map<string, string>
     /** The Channels connect section, host-owned (it wires to the channels API). */
     channels?: ReactNode
+    /** Overrides the config card's tools-row wording, for a host that names the concept its way. */
+    configCopy?: Partial<AgentConfigSummaryCopy>
 }
 
 /**
@@ -59,6 +61,7 @@ export const AgentOverviewBody = ({
     alwaysShowPin,
     agentNames,
     channels,
+    configCopy,
 }: AgentOverviewBodyProps) => (
     <AgentOverviewLayout
         main={
@@ -102,7 +105,7 @@ export const AgentOverviewBody = ({
         }
         rail={
             <PanelSurface className="flex flex-col gap-3">
-                <AgentConfigSummaryCard appId={agentId} onEdit={onEditConfig} />
+                <AgentConfigSummaryCard appId={agentId} onEdit={onEditConfig} copy={configCopy} />
                 {channels}
                 <AgentFilesCard appId={agentId} />
                 {/* Scoped to this agent. Automation RUNS say what already happened; an agent

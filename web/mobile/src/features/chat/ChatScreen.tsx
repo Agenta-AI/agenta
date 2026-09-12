@@ -23,7 +23,6 @@ import {LiveConversation} from "./LiveConversation"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {SessionWorkspace} from "./SessionWorkspace"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
-import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useAgentEntity} from "./useAgentEntity"
@@ -240,7 +239,6 @@ const ReplayScreen = ({
                                 <StatusTag tone="running" dot>
                                     running
                                 </StatusTag>
-                                <StopButton sessionId={sessionId} projectId={projectId} />
                             </ContentRail>
                         </div>
                     ) : null}

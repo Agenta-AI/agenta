@@ -30,7 +30,7 @@
         "lucide-react": "^0.479.0",
         "usehooks-ts": "^3.1.1",
         "json5": "^2.2.3",
-        "js-yaml": "^4.1.0"
+        "js-yaml": "^4.3.1"
     },
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",

@@ -23,6 +23,8 @@ interface SendButtonProps {
     onStop?: () => void
     /** Additional submit choices shown beside Stop while a run is active. */
     busyActions?: {label: string; onSubmit: (markdown: string) => void}[]
+    /** The send is in flight; see ComposerSendButton. */
+    sending?: boolean
 }
 
 /** Circular send button. Mirrors the Cmd/Ctrl+Enter path via the shared submit helper.
@@ -36,6 +38,7 @@ export function SendButton({
     stopping,
     onStop,
     busyActions,
+    sending,
 }: SendButtonProps) {
     const [editor] = useLexicalComposerContext()
     const [empty, setEmpty] = useState(true)
@@ -111,14 +114,20 @@ export function SendButton({
                     </span>
                 ) : null}
                 {!empty || forceEnabled ? (
-                    <ComposerSendButton onClick={handleClick} disabled={disabled} />
+                    <ComposerSendButton
+                        onClick={handleClick}
+                        disabled={disabled}
+                        sending={sending}
+                    />
                 ) : null}
             </span>
         )
     }
 
     const sendDisabled = disabled || (empty && !forceEnabled)
-    const button = <ComposerSendButton onClick={handleClick} disabled={sendDisabled} />
+    const button = (
+        <ComposerSendButton onClick={handleClick} disabled={sendDisabled} sending={sending} />
+    )
     if (!sendDisabled || !disabledReason) return button
 
     // The span keeps the tooltip reachable: a disabled button emits no pointer events.

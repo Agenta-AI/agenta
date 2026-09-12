@@ -1,8 +1,10 @@
+import {createEntityDraftState} from "@agenta/entities/shared"
 import {
     createBatchFetcher,
     deleteValueAtPath,
     getValueAtPath,
     getValueAtStringPath,
+    isValidUUID,
     parsePath,
     setValueAtPath,
 } from "@agenta/shared/utils"
@@ -13,10 +15,7 @@ import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {isValidUUID} from "@/oss/lib/helpers/validators"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
-
-import {createEntityDraftState} from "../shared/createEntityDraftState"
 
 import {atomFamilyRegistry} from "./atomCleanup"
 import {buildDeleteColumnValueUpdates, getColumnValueFromRecord} from "./columnPathUtils"

@@ -1,6 +1,11 @@
 import {memo, useMemo, useState} from "react"
 
-import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
+import {
+    getMessageTraceId,
+    getMessageUsage,
+    isPendingSendFailed,
+    PENDING_SEND_FAILED_NOTE,
+} from "@agenta/chat/assets"
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {
     AttachmentCard,
@@ -65,7 +70,7 @@ const ReasoningFold = ({
                 type="button"
                 onClick={() => setManual(!open)}
                 aria-expanded={open}
-                className="text-colorTextSecondary -ml-1 flex w-fit items-center gap-1 rounded px-1 py-0.5 text-xs italic"
+                className="text-colorTextSecondary -ml-1 flex w-fit cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-xs italic"
             >
                 <ChevronRight
                     className={`size-3 transition-transform ${open ? "rotate-90" : ""}`}
@@ -113,7 +118,7 @@ const RunErrorCallout = ({text, onRetry}: {text: string; onRetry?: () => void}) 
                     <button
                         type="button"
                         onClick={() => setExpanded((v) => !v)}
-                        className="text-colorError -ml-1 rounded px-1 py-0.5 text-[11px] font-medium"
+                        className="text-colorError -ml-1 cursor-pointer rounded px-1 py-0.5 text-[11px] font-medium"
                     >
                         {expanded ? "Show less" : "Show more"}
                     </button>
@@ -334,12 +339,32 @@ const TurnRowInner = ({
         ) || turn.status.showError
 
     // Desktop parity: a long pasted message clamps behind "Show more" rather than burying its reply.
-    const content = turn.isUser ? (
+    const userBody = turn.isUser ? (
         <CollapsibleMessageBody stateKey={messageBodyKey(turn.message.id)}>
             {body}
         </CollapsibleMessageBody>
     ) : (
         body
+    )
+
+    // A send the server refused after the composer had already cleared. The row keeps the text so
+    // it is not lost; this says why it is sitting there with no answer coming.
+    const failureNote = isPendingSendFailed(turn.message) ? (
+        <div
+            data-pending-send-failed="true"
+            role="status"
+            className="mt-1 text-[11px] leading-4 opacity-80"
+        >
+            {PENDING_SEND_FAILED_NOTE}
+        </div>
+    ) : null
+    const content = failureNote ? (
+        <div className="flex min-w-0 max-w-full flex-col">
+            {userBody}
+            {failureNote}
+        </div>
+    ) : (
+        userBody
     )
 
     return (
@@ -358,7 +383,9 @@ const TurnRowInner = ({
                         : "min-w-0 max-w-full overflow-hidden text-xs",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
-                content={hasBubbleContent ? content : null}
+                // A refused file-only send has no words to paint, but its failure still has to be
+                // said, or the cards sit there looking like an upload that worked.
+                content={hasBubbleContent ? content : failureNote}
                 header={attachments}
             />
             {/* The turn's information and actions, revealed on hover or keyboard focus — the same

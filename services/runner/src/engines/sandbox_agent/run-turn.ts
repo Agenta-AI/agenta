@@ -12,6 +12,10 @@ import {
   type ToolCallbackContext,
 } from "../../protocol.ts";
 import { sandboxVisibleSecretValues, seedForRun } from "../../redaction.ts";
+import {
+  observeSubscription,
+  thrownFields,
+} from "../../subscription-events.ts";
 import { startPlatformCredentialLease } from "../../sessions/auth.ts";
 import {
   ApprovalResponder,
@@ -62,6 +66,9 @@ import {
   type AcpPromptBlock,
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
+import {
+  recoverSubscriptionAuthFailure,
+} from "./subscription-recovery.ts";
 import {
   classifyRunError,
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
@@ -240,6 +247,56 @@ export async function runTurn(
   // stop this turn's relay on EVERY exit path (a cleared sink must never orphan it).
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
   let activeTurn: CurrentTurn | undefined;
+  /**
+   * Ask the subscription recovery what to do about a failure, or undefined when this run carries
+   * no subscription and when the failure is not about the login.
+   *
+   * Two call sites reach it, and BOTH are load-bearing. Pi does not throw a provider refusal: it
+   * records the refusal in its own transcript and ends the turn cleanly, so the ordinary path is
+   * the swallowed-error branch below and the `catch` is the exception. With the swallowed branch
+   * unwired, a dead sign-in surfaces as an HTTP 500 carrying Pi's internal sentence.
+   *
+   * IT NEVER REJECTS. The recovery reads and writes the login file, on Daytona through the
+   * sandbox's file API, and a sandbox that died mid-turn makes that throw. Both call sites run
+   * where a rejection would escape before the trace is flushed — one of them from inside the
+   * `catch` itself, which would replace the run's real error with a filesystem one. A recovery
+   * that cannot complete is simply no recovery: the turn keeps the classification it already had.
+   */
+  const subscriptionRecovery = async (
+    err: unknown,
+  ): Promise<
+    Awaited<ReturnType<typeof recoverSubscriptionAuthFailure>> | undefined
+  > => {
+    const subscription = plan.credentials.subscription;
+    const home = plan.credentials.subscriptionHome;
+    if (!subscription || !home || !env.subscriptionPublish) return undefined;
+    return recoverSubscriptionAuthFailure({
+      err,
+      subscription,
+      state: env.subscriptionPublish,
+      home,
+      isDaytona: plan.isDaytona,
+      sandbox: env.sandbox as never,
+      api: {
+        apiBase: apiBase(),
+        authorization: credential(),
+        log: logger,
+      },
+      // A recovered login is published by the session's one publisher, never by a second path.
+      ...(env.subscriptionPublisher
+        ? { publish: env.subscriptionPublisher.reconcile }
+        : {}),
+      log: logger,
+    }).catch((thrown) => {
+      observeSubscription(logger, "subscription.recovery", {
+        connection: subscription.id,
+        decision: "recover",
+        verdict: "threw",
+        ...thrownFields(thrown),
+      });
+      return undefined;
+    });
+  };
   const harnessTrace = createHarnessTracePort({
     env,
     request: () => request,
@@ -392,6 +449,7 @@ export async function runTurn(
       harness: plan.harness,
       model: env.model,
       skills: plan.workspace.skillDirs.map((s) => s.name),
+      skillsDropped: plan.workspace.skillsDropped,
       traceparent: request.context?.propagation?.traceparent,
       baggage: request.context?.propagation?.baggage,
       endpoint: otlpTarget.endpoint,
@@ -480,6 +538,19 @@ export async function runTurn(
           },
         ];
       }
+    }
+
+    // Add current context after cold-history replay / warm-tail selection and attachments.
+    // Keep it out of request.messages and persisted user input so replay cannot duplicate it.
+    if (
+      request.turnContext !== undefined &&
+      typeof request.turnContext !== "string"
+    ) {
+      throw new Error("turnContext must be a string when provided.");
+    }
+    const turnContext = request.turnContext?.trim();
+    if (turnContext) {
+      promptBlocks.unshift({ type: "text", text: turnContext });
     }
 
     const sessionTurnClient = deps.appendSessionTurn ?? appendSessionTurn;
@@ -1479,7 +1550,13 @@ export async function runTurn(
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {
-      const classified = classifyRunError(
+      // THE ORDINARY PATH FOR A SUBSCRIPTION AUTH FAILURE ON PI. Pi does not throw a provider
+      // refusal; it writes the refusal into its transcript and ends the turn with `end_turn`, so
+      // the `catch` below never sees it. The recovery therefore has to run here as well.
+      const swallowedRecovery = await subscriptionRecovery(
+        new Error(swallowedPiError),
+      );
+      const classified = swallowedRecovery?.classified ?? classifyRunError(
         new Error(swallowedPiError),
         plan.harness,
         request.modelConnection?.provider,
@@ -1589,7 +1666,7 @@ export async function runTurn(
       traceId: resultTraceId,
     } as AgentRunResult;
   } catch (err) {
-    const classified = classifyRunError(
+    let classified = classifyRunError(
       err,
       plan.harness,
       request.modelConnection?.provider,
@@ -1602,6 +1679,12 @@ export async function runTurn(
         daytonaCredentialFresh: reportCredentialRace,
       },
     );
+    // A hosted subscription run has no vault key, so the generic "add a key" advice would send the
+    // user after something this run never uses. The runner asks the provider whether the login is
+    // really dead and asks the API whether a newer one exists, so the frame that goes out carries
+    // subscription copy: either "sign in again" or "the sign-in was renewed, send it again".
+    const recovery = await subscriptionRecovery(err);
+    if (recovery) classified = recovery.classified;
     const error = classified.message;
     await harnessTrace.cancelBeforeDrain();
     const traceFinish = await harnessTrace.finish();

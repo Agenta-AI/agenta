@@ -1,0 +1,44 @@
+---
+title: "Agent traces and usage"
+sidebar_label: "Traces and usage"
+description: "Find an agent trace and interpret harness, model, tool, token, and cost spans."
+sidebar_position: 18
+---
+
+Every invocation can return trace context in headers, response fields, and stream events.
+
+| Location      | Value                              |
+| ------------- | ---------------------------------- |
+| Header        | `x-ag-trace-id` and `x-ag-span-id` |
+| JSON response | `trace_id` and `span_id`           |
+| Agenta stream | `done.data.traceId`                |
+| Vercel stream | `finish.messageMetadata.traceId`   |
+
+Store `trace_id` with your application's session or job record. The session ID groups turns; the trace ID identifies one invocation.
+
+## Fetch a trace
+
+```bash
+curl \
+  "$AGENTA_HOST/api/traces/019d952f000000000000000000000003" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY"
+```
+
+The response contains a nested span tree. Span names can repeat, so sibling values can be arrays. See [Tracing](/reference/api-guide/tracing) for complete query and response schemas.
+
+## Agent spans
+
+| `ag.type.span`              | Work recorded         |
+| --------------------------- | --------------------- |
+| `workflow`                  | Root invoke operation |
+| `agent`                     | Harness loop          |
+| `llm`, `chat`, `completion` | Model request         |
+| `tool`                      | Tool execution        |
+
+Inspect errors on the narrowest failed span before the root summary. Tool spans can distinguish a permission denial, client pause, remote integration error, and sandbox execution failure.
+
+## Usage
+
+Streaming runs can emit a `usage` event with `input`, `output`, `total`, and `cost`. Vercel output places usage in `finish.messageMetadata.usage`. Provider reporting varies, so fields can be absent even when the run succeeds.
+
+Use trace links when one workflow invokes another. A reference-tool child has its own execution context while preserving correlation to the parent.

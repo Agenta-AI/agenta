@@ -284,6 +284,13 @@ const VARS: Record<string, [string, string]> = {
         color(p.composer.sendDisabledFg.light),
         color(p.composer.sendDisabledFg.dark),
     ],
+    // ── Run-status dots, under their desktop `--ag-run-status-*` names ──
+    // The nav rail already paints a blocked session with `--ag-run-status-warning`, and the
+    // sessions list has to agree with it. The semantic `colorWarning` is a TEXT amber (#8a6400),
+    // dark enough to read as brown at 7px; these are the dot hues.
+    "ag-run-status-success": [color(p.runStatus.success.light), color(p.runStatus.success.dark)],
+    "ag-run-status-warning": [color(p.runStatus.warning.light), color(p.runStatus.warning.dark)],
+    "ag-run-status-default": [color(p.runStatus.default.light), color(p.runStatus.default.dark)],
     "ag-colorText": [color(p.text.primary.light), color(p.text.primary.dark)],
     "ag-colorTextSecondary": [color(p.text.secondary.light), color(p.text.secondary.dark)],
     "ag-colorFillSecondary": [color(p.fill.secondary.light), color(p.fill.secondary.dark)],

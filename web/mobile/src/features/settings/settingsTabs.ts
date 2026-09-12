@@ -11,7 +11,6 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "secrets",
     "webhooks",
     "tools",
-    "triggers",
     "organizationGeneral",
     "workspace",
     "organization",
@@ -33,7 +32,6 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
     // `=== "ee"` misses.
     const enterprise = isEE()
     const billingEnabled = isBillingEnabled()
-    // One env var gates BOTH tabs, matching the desktop's useSettingsAccess.
     const toolsEnabled = isToolsEnabled()
 
     return useMemo(
@@ -42,7 +40,6 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             // a subscription, not only report against one.
             billingEnabled,
             canShowTools: toolsEnabled,
-            canShowTriggers: toolsEnabled,
             // Channels live on the agent page here, not in settings: this app has no channels
             // settings page, and `AVAILABLE_SETTINGS_TABS` lists none, so the flag stays off.
             canShowChannels: false,
@@ -75,9 +72,7 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     const requested = fromQuery ?? fromPath
 
     if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey)) return "preferences"
-    if ((requested === "tools" || requested === "triggers") && !access.canShowTools) {
-        return "preferences"
-    }
+    if (requested === "tools" && !access.canShowTools) return "preferences"
     if (requested === "billing" && !access.billingEnabled) return "preferences"
     return requested as SettingsTabKey
 }

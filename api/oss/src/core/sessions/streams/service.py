@@ -56,6 +56,7 @@ from oss.src.dbs.redis.sessions.locks import (
 
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
+    SessionNameSource,
     SessionHeartbeatRequest,
     SessionHeartbeatResult,
     SessionStream,
@@ -1011,6 +1012,7 @@ class SessionStreamsService:
         user_id: Optional[UUID],
         session_id: str,
         header: SessionStreamHeaderEdit,
+        name_source: SessionNameSource = SessionNameSource.manual,
     ) -> Optional[SessionStream]:
         """The rename edit: full-PUT {name, description} onto the merged stream row.
 
@@ -1018,6 +1020,13 @@ class SessionStreamsService:
         the runner's write path. Creates the row if the session has never heartbeat/run
         yet (a caller may name a session before its first turn), mirroring
         `_start_turn`'s create-or-update pattern.
+
+        `name_source` says where the name came from, and it rides all the way down to the
+        DAO rather than being checked here. An automatic rename over a name a person
+        controls is refused, and that refusal has to be decided against the row the write
+        locks; a check at this layer would be a read-then-write with a rename-shaped hole in
+        the middle. The create arm needs no such check, because a row that does not exist
+        holds no name to protect, and the concurrent-create arm re-enters the guarded update.
         """
         _validate_session_id(session_id)
         updated = await self._dao.update_header(
@@ -1025,6 +1034,7 @@ class SessionStreamsService:
             user_id=user_id,
             session_id=session_id,
             header=header,
+            name_source=name_source,
         )
         if updated is None:
             try:
@@ -1035,16 +1045,18 @@ class SessionStreamsService:
                         session_id=session_id,
                         name=header.name,
                         description=header.description,
+                        name_source=name_source,
                     ),
                 )
             except SessionStreamAlreadyExists:
                 # A concurrent first touch (heartbeat/rename) won the race; the row now
-                # exists — apply the header edit onto it.
+                # exists — apply the header edit onto it, under the same guard.
                 updated = await self._dao.update_header(
                     project_id=project_id,
                     user_id=user_id,
                     session_id=session_id,
                     header=header,
+                    name_source=name_source,
                 )
 
         if updated is not None:

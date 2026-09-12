@@ -2,6 +2,8 @@
 
 ## Current phase
 
+2026-09-10: follow-up fixes for #6733 (picker renders behind the drawer) and #6734 (attach anchored on a stale revision) are on PR #6743 (`fix/custom-secret-attach-drawer`, base `release/v0.116.0`). Both were verified live on an isolated EE dev stack built from the branch: the picker draws above the drawer on desktop and `/m`, an attach from a tab on an older revision lands on the head and keeps the head's edits, a head whose attachments changed refuses with a reload message, and the chat `request_secret` flow attaches, settles, and resumes. See the plan's follow-up section.
+
 Implementation and independent review are complete. Runtime, SDK, runner, shared entity, shared UI, desktop, and mobile paths are present in the isolated feature worktree. The real-application request, resume, and targeted recovery checks passed. The remaining runtime matrix is listed below.
 
 ## Shipped decisions
@@ -15,6 +17,18 @@ Implementation and independent review are complete. Runtime, SDK, runner, shared
 - Save, adoption, settlement, and resume form one ordered host transaction. Retry after partial save reuses the saved vault entry.
 - V1 uses existing secret-edit, agent-edit, and run permissions. It adds no role system.
 - Runtime values travel only in typed `sandboxCredentials` and participate in existing redaction and credential lifecycle controls.
+
+## 2026-09-07: `request_secret` ships through the build kit overlay
+
+`request_secret` is now a reserved static tool embed in the playground build kit
+(`api/oss/src/core/workflows/build_kit.py`), next to `request_connection` and
+`request_input`. Every playground agent gets the tool the same way it gets the other two,
+and no agent has to embed it by hand.
+
+The usage rules moved with the tool. The guidance about opening the secret setup flow,
+never asking for a pasted credential, and stopping after a cancellation now lives in the
+`request_secret` description in `api/oss/src/core/workflows/static_catalog.py`. An agent
+that cannot see the tool no longer reads instructions about it.
 
 ## Validation evidence
 

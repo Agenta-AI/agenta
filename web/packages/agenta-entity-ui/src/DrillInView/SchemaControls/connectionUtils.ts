@@ -42,7 +42,11 @@ export interface ConnectionFields {
     provider: string | null
     /** Credential mode. Defaults to "agenta" (the project default). */
     mode: ConnectionMode
-    /** Named connection slug; only meaningful when mode === "agenta". */
+    /**
+     * The connection record this run uses. On an `agenta` connection it names a stored key; on a
+     * `self_managed` one it names a stored SUBSCRIPTION sign-in. Null on a self-managed run that
+     * uses whatever login the deployment mounted, which is the pre-subscription behaviour.
+     */
     slug: string | null
 }
 
@@ -113,8 +117,9 @@ const FORM_MANAGED_KEYS = new Set(["model", "provider", "connection"])
  *
  * Always returns the structured object (never a bare string): the picker always produces a
  * ModelRef. The `connection` is emitted only when it carries non-default info (a `self_managed`
- * mode, or an `agenta` slug); the `slug` is emitted only for an agenta connection. Extra keys on
- * the prior object (e.g. `extras`) ride through.
+ * mode, or a slug); a slug rides along in EITHER mode — under `agenta` it names a stored key, under
+ * `self_managed` it names a stored subscription sign-in. Extra keys on the prior object (e.g.
+ * `extras`) ride through.
  */
 export function composeModelValue({
     modelId,
@@ -140,7 +145,7 @@ export function composeModelValue({
     const isDefaultConnection = mode === "agenta" && !slug
     if (!isDefaultConnection) {
         const connection: Record<string, unknown> = {mode}
-        if (mode === "agenta" && slug) connection.slug = slug
+        if (slug) connection.slug = slug
         result.connection = connection
     }
 

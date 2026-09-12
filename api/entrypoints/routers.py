@@ -82,6 +82,8 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
+from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.core.webhooks.service import WebhooksService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.events.service import EventsService
@@ -127,6 +129,9 @@ from oss.src.apis.fastapi.applications.router import ApplicationsRouter
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
+from oss.src.apis.fastapi.skills.router import SkillsRouter
+from oss.src.core.skills.service import SkillsService
+from oss.src.core.skills.import_service import SkillImportService
 from oss.src.apis.fastapi.workflows.router import SimpleWorkflowsRouter
 from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
@@ -214,6 +219,7 @@ from oss.src.dbs.redis.shared.engine import get_lock_engine
 from oss.src.dbs.postgres.sessions.turns.dbes import SessionTurnDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
 from oss.src.core.sessions.turns.service import SessionTurnsService
+from oss.src.core.sessions.context import make_session_context_resolver
 
 # Interactions
 from oss.src.dbs.postgres.sessions.interactions.dbes import SessionInteractionDBE  # noqa: F401
@@ -648,6 +654,11 @@ vault_service = VaultService(
     secrets_dao=secrets_dao,
 )
 
+subscription_login_service = SubscriptionLoginService(
+    vault_service=vault_service,
+    runner_client=SubscriptionLoginRunnerClient(),
+)
+
 provider_probe_service = ProviderProbeService()
 
 
@@ -1004,6 +1015,7 @@ _t_routers = time.perf_counter()
 
 secrets = VaultRouter(
     vault_service=vault_service,
+    subscription_login_service=subscription_login_service,
 )
 
 providers = ProvidersRouter(
@@ -1074,6 +1086,20 @@ workflows = WorkflowsRouter(
 
 simple_workflows = SimpleWorkflowsRouter(
     simple_workflows_service=simple_workflows_service,
+)
+
+skills_service = SkillsService(
+    workflows_service=workflows_service,
+    simple_workflows_service=simple_workflows_service,
+)
+
+skill_import_service = SkillImportService(
+    simple_workflows_service=simple_workflows_service,
+)
+
+skills = SkillsRouter(
+    skills_service=skills_service,
+    import_service=skill_import_service,
 )
 
 evaluators = EvaluatorsRouter(
@@ -1290,6 +1316,12 @@ session_inputs_service = SessionInputsService(
 )
 workflows_service.set_session_continuation_resumer(
     session_commands_service.resume_recoverable_continuation
+)
+workflows_service.set_session_context_resolver(
+    make_session_context_resolver(
+        streams_service=session_streams_service,
+        turns_service=session_turns_service,
+    )
 )
 
 sessions = SessionsRouter(
@@ -1584,6 +1616,19 @@ app.include_router(
     router=simple_workflows.router,
     prefix="/preview/simple/workflows",
     tags=["Workflows"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=skills.router,
+    prefix="/skills",
+    tags=["Skills"],
+)
+
+app.include_router(
+    router=skills.router,
+    prefix="/preview/skills",
+    tags=["Skills"],
     include_in_schema=False,
 )
 

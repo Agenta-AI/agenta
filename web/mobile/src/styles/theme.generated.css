@@ -45,7 +45,7 @@
     --colorErrorBorder: #d94c4a;
     --controlItemBgHover: rgba(36, 36, 36, 0.02);
     --controlItemBgActive: #f0efed;
-    --colorBgSpotlight: rgba(36, 36, 36, 0.9);
+    --colorBgSpotlight: #242424;
     --colorTextLightSolid: #ffffff;
     --colorSplit: #f0efed;
     --colorInfo: #113955;
@@ -121,6 +121,9 @@
     --ag-composer-placeholder: #848b8c;
     --ag-send-disabled-bg: #f0efed;
     --ag-send-disabled-fg: #a3a19f;
+    --ag-run-status-success: #12B76A;
+    --ag-run-status-warning: #F79009;
+    --ag-run-status-default: #98A2B3;
     --ag-colorText: #242424;
     --ag-colorTextSecondary: #676770;
     --ag-colorFillSecondary: rgba(36, 36, 36, 0.06);
@@ -250,6 +253,9 @@
     --ag-composer-placeholder: #7e828a;
     --ag-send-disabled-bg: #26282c;
     --ag-send-disabled-fg: #6e7176;
+    --ag-run-status-success: #12B76A;
+    --ag-run-status-warning: #F79009;
+    --ag-run-status-default: #98A2B3;
     --ag-colorText: rgba(255, 255, 255, 0.85);
     --ag-colorTextSecondary: rgba(255, 255, 255, 0.65);
     --ag-colorFillSecondary: rgba(255, 255, 255, 0.12);

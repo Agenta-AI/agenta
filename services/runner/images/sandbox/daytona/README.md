@@ -31,7 +31,20 @@ standalone `pi` CLI that the adapter launches.
 
 The snapshot recipe therefore:
 
-- installs `@earendil-works/pi-coding-agent@0.80.6`;
+- runs the shared tool recipe `services/runner/images/sandbox/install-agent-tools.sh` and its
+  hash-pinned Python lock `agent-requirements.txt`, both embedded (gzip, base64, one `RUN`
+  line each) because the Daytona build has no repo context. To change the Python set, edit the
+  package list, then regenerate the lock with
+  `uv pip compile --python-version 3.11 --generate-hashes --no-header --no-annotate requirements.in -o agent-requirements.txt`;
+  the install runs with `--require-hashes`, so a hand-edited pin without a hash fails the build. The same file runs in both runner
+  Dockerfiles, so the local sandbox and the Daytona sandbox ship one tool list: the everyday shell
+  tools, `gh` from GitHub's apt repo, `uv`, `fd` 10.4.2 (Pi's `find` builtin needs a flag Debian's
+  8.6 lacks), `ffmpeg`, poppler, tesseract, the node toolchain (`typescript` 5, `ts-node`,
+  `prettier`, `eslint`, `bun`, the `playwright` CLI), a pinned Python package set for documents,
+  data, and the web, and one headless Chromium installed by Playwright under
+  `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` and linked as `chromium`. Every section of the
+  script asserts its own pin and fails the build otherwise; the pins live at the top of that file;
+- installs `@earendil-works/pi-coding-agent@0.85.1`;
 - fails the build unless `pi --version` succeeds;
 - reinstalls the private Pi ACP adapter at `pi-acp@0.0.29` through
   `sandbox-agent install-agent`, rather than installing a global package that the daemon
@@ -48,14 +61,8 @@ The snapshot recipe therefore:
   `services/runner/src/engines/sandbox_agent/codex-acp-patch.json` (shared with the runner
   image build), the step verifies its own write, and the build fails loudly if the preset
   drifts;
-- verifies that the Claude, Codex, and OpenCode binaries are still present;
-- installs the FUSE and geesefs dependencies used for durable remote working directories;
-- installs `python3` and `typescript`/`ts-node` for the shared custom-code evaluator runtimes; and
-- installs the everyday command-line tools an agent reaches for unprompted: `unzip`, `zip`,
-  `python-is-python3` (which puts a plain `python` on PATH), `ripgrep`, `fd-find`, `jq`, `procps`,
-  `file`, and `tree`, and symlinks `fdfind` to `fd` because Debian ships the binary under the
-  other name. Without them a task as ordinary as "read this zip" or a first search of the working
-  directory costs the agent several failed shell calls and the operator several approval prompts.
+- verifies that the Claude, Codex, and OpenCode binaries are still present; and
+- installs the FUSE and geesefs dependencies used for durable remote working directories.
 
 The Pi CLI and Pi ACP adapter are separate dependencies. Keep both pins explicit. The CLI
 runs the agent; the adapter translates Pi events and dialogs onto ACP. In particular, the

@@ -99,17 +99,21 @@ def test_tools_defaults_to_an_empty_map():
 # --- C20 to C23: validation --------------------------------------------------------
 
 
-def test_a_missing_default_is_rejected():
-    # C20. Without a default there is no answer for a catalog tool the entry never names.
-    with pytest.raises(ToolConfigurationError):
-        parse_tool_config(_entry(policy={"permissions": {"tools": {}}}))
+def test_a_missing_default_means_inherit():
+    # C20, relaxed. A catalog tool the entry never names still needs an answer, and
+    # `inherit` is one: it defers to the agent-wide runner mode. Refusing the entry instead
+    # failed every invoke of an agent whose saved entry was written without the field. The
+    # tolerance cases live in test_saved_entry_tolerance.py.
+    config = parse_tool_config(_entry(policy={"permissions": {"tools": {}}}))
+    assert config.policy.permissions.default == "inherit"
 
 
-def test_a_missing_policy_is_rejected():
-    with pytest.raises(ToolConfigurationError):
-        parse_tool_config(
-            {key: value for key, value in _ENTRY.items() if key != "policy"}
-        )
+def test_a_missing_policy_means_inherit():
+    config = parse_tool_config(
+        {key: value for key, value in _ENTRY.items() if key != "policy"}
+    )
+    assert config.policy.permissions.default == "inherit"
+    assert config.policy.permissions.tools == {}
 
 
 @pytest.mark.parametrize(
