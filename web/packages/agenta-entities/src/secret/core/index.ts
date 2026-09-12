@@ -16,7 +16,6 @@ export {
     isAgentDeploymentProviderKind,
     resolveAgentModelSelection,
     selectableAgentHarnesses,
-    soleAgentHarnessProviderFamily,
     subscriptionConnectionCandidates,
 } from "./agentModelCandidates"
 
@@ -32,6 +31,7 @@ export type {
     Header,
     LegacyLifecycleDto,
     NamedSecretRow,
+    ProviderVaultRow,
     SecretDto,
     SecretResponseDto,
     StandardProviderDto,
@@ -43,6 +43,7 @@ export type {
 export {
     CustomProviderKind,
     CustomSecretFormat,
+    LlmEndpointProtocol,
     McpStandardProviderKind,
     PROVIDER_KINDS,
     PROVIDER_LABELS,
@@ -82,6 +83,7 @@ export {
     catalogEntryForKind,
     credentialFieldsForKind,
     deploymentForProviderKind,
+    endpointProtocolFieldForKind,
     providerTitleForKind,
     secretKindForProviderKind,
     toProviderCredentials,
@@ -99,6 +101,9 @@ export type {
 export {
     bareModelId,
     buildConnectionPayload,
+    customRouteFamily,
+    declaredEndpointProtocol,
+    soleAgentHarnessProviderFamily,
     buildModelOptions,
     modelDisplayOrder,
     connectionPolicyForSave,
@@ -149,9 +154,16 @@ export {
     subscriptionPlanName,
 } from "./subscriptionPairs"
 
-export type {ProviderFieldAttributes, ProviderFieldConfig} from "./providerFields"
+export type {
+    ProviderChoiceFieldConfig,
+    ProviderChoiceOption,
+    ProviderFieldAttributes,
+    ProviderFieldConfig,
+} from "./providerFields"
 export {
     CUSTOM_PROVIDER_KIND_FAMILIES,
+    DEFAULT_ENDPOINT_PROTOCOL,
+    ENDPOINT_PROTOCOL_FIELD,
     PROVIDER_AUTH_REQUIREMENTS,
     fieldNoteForKind,
     PROVIDER_FIELDS,
