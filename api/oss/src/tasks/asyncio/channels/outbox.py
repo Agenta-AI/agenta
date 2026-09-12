@@ -22,11 +22,12 @@ from oss.src.core.channels.render.dtos import RenderItem
 from oss.src.core.channels.render.render import render_indicator, render_turn_result
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelConnectionNotFound, ChannelSpaceNotFound
-from oss.src.core.channels.utils import compose_idempotency_key, compose_outbox_key
+from oss.src.core.channels.utils import compose_outbox_key
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.tasks.asyncio.sessions.streaming import deserialize_turn_event
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
+from oss.src.core.shared.dtos import Status
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -125,8 +126,16 @@ class ChannelsOutboxWorker:
             turn_id=turn_id,
             item_index=0,
         )
-        if event.state is not ChannelDeliveryState.CREATED:
+        if event.state not in (
+            ChannelDeliveryState.CREATED,
+            ChannelDeliveryState.FAILED,
+        ):
             return  # already sent — redelivery of turn-started, no second post
+        if event.data and event.data.external_locator:
+            # The indicator landed (the receipt proves it); this FAILED marks a
+            # later edit of the same row. A redelivered turn-started must not
+            # write the indicator back over an answer the platform may hold.
+            return
 
         item = render_indicator(capabilities=capabilities)
 
@@ -251,47 +260,63 @@ class ChannelsOutboxWorker:
     ) -> None:
         content = [part.model_dump(exclude_none=True) for part in item.parts]
 
-        idempotency_key = compose_idempotency_key(
-            key=event.key, updated_at=event.updated_at
-        )
+        # One wire token per (row, content): a retry of the same content after a
+        # FAILED write reuses it, so a post the platform accepted but whose reply
+        # timed out is never duplicated; an edit to new content mints a new one.
+        idempotency_key = _delivery_key(event.key, content)
 
         adapter = self.channels_service.adapter_registry.get(connection.channel)
 
         has_receipt = bool(event.data.external_locator)
         can_edit = capabilities.rendering.controls.update
 
-        if has_receipt and can_edit:
-            receipt = await adapter.edit_message(
-                connection=connection,
-                external_locator=event.data.external_locator,
-                content=content,
-                idempotency_key=idempotency_key,
+        try:
+            if has_receipt and can_edit:
+                receipt = await adapter.edit_message(
+                    connection=connection,
+                    external_locator=event.data.external_locator,
+                    content=content,
+                    idempotency_key=idempotency_key,
+                )
+            elif has_receipt:
+                # controls.update is false: post a NEW message rather than an
+                # edit — the old receipt is superseded.
+                receipt = await adapter.post_message(
+                    connection=connection,
+                    locator=event.data.external_locator,
+                    content=content,
+                    idempotency_key=idempotency_key,
+                )
+            else:
+                # First post for this item: no receipt exists yet, so the target
+                # comes from the THREAD's locator (team/channel/thread_ts). An
+                # empty locator here KeyError'd inside the Slack adapter and the
+                # first-ever reply on any thread silently never reached Slack.
+                receipt = await adapter.post_message(
+                    connection=connection,
+                    locator=thread.data.external_locator or {},
+                    content=content,
+                    idempotency_key=idempotency_key,
+                )
+        except Exception as exc:
+            # The row said CREATED forever after a rejected post, which reads
+            # as "not attempted yet" from outside (F87). Write the failure
+            # down with the platform's reason, then let the caller's retry
+            # and logging see the error as before.
+            await self.channels_service.channels_dao.transition_outbox_event(
+                project_id=project_id,
+                event_id=event.id,
+                state=ChannelDeliveryState.FAILED,
+                status=Status(code="delivery_failed", message=str(exc)[:500]),
             )
-        elif has_receipt:
-            # controls.update is false: post a NEW message rather than an
-            # edit — the old receipt is superseded.
-            receipt = await adapter.post_message(
-                connection=connection,
-                locator=event.data.external_locator,
-                content=content,
-                idempotency_key=idempotency_key,
-            )
-        else:
-            # First post for this item: no receipt exists yet, so the target
-            # comes from the THREAD's locator (team/channel/thread_ts). An
-            # empty locator here KeyError'd inside the Slack adapter and the
-            # first-ever reply on any thread silently never reached Slack.
-            receipt = await adapter.post_message(
-                connection=connection,
-                locator=thread.data.external_locator or {},
-                content=content,
-                idempotency_key=idempotency_key,
-            )
+            raise
 
         await self.channels_service.channels_dao.transition_outbox_event(
             project_id=project_id,
             event_id=event.id,
             state=ChannelDeliveryState.SENT,
+            # a success after a FAILED attempt replaces the failure it recorded
+            status=Status(code="sent"),
             data=ChannelOutboxEventData(
                 external_locator=receipt,
                 processed={"content": content},
@@ -431,3 +456,12 @@ class ChannelsOutboxStreamWorker(StreamConsumer):
                 # left un-acked: pending, retried on the next read
 
         return len(processed_ids), processed_ids
+
+
+def _delivery_key(event_key: UUID, content: List[Dict]) -> UUID:
+    """The idempotency token for one (outbox row, content) pair."""
+    from uuid import uuid5
+
+    from oss.src.core.channels.utils import canonical_json
+
+    return uuid5(event_key, canonical_json(content))

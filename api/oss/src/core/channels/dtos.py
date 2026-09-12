@@ -507,6 +507,12 @@ class ChannelConnectionCreate(Slug, Header, Metadata):
 
 
 class ChannelConnectionEdit(Identifier, Header, Metadata):
+    """An edit names what changes. Every field is optional, and an omitted
+    field keeps its stored value: the service layers the fields the caller
+    sent over the existing row (`data` merges key by key) before the write.
+    A plain rename once nulled the whole data blob and bricked the connection
+    (F98)."""
+
     # channel and external_key are dropped: repointing a connection at a
     # different installation is a different row, not an edit of this one.
     slug: Optional[str] = None
@@ -514,7 +520,7 @@ class ChannelConnectionEdit(Identifier, Header, Metadata):
     # present only to rotate: re-verified, then replaces the secret row's
     # contents without moving external_key
     credentials: Optional[Dict[str, Any]] = None
-    flags: ChannelConnectionFlags = Field(default_factory=ChannelConnectionFlags)
+    flags: Optional[ChannelConnectionFlags] = None
 
 
 class ChannelConnectionQuery(BaseModel):
@@ -546,9 +552,51 @@ class ChannelAgentCreate(Slug, Header, Metadata):
     flags: ChannelAgentFlags = Field(default_factory=ChannelAgentFlags)
 
 
+class ChannelAgentDataEdit(BaseModel):
+    """`ChannelAgentData` for an edit: both fields optional, and an omitted one
+    keeps its stored value. `policy: null` clears the policy on purpose."""
+
+    references: Optional[Dict[str, Reference]] = None
+    policy: Optional[ChannelPolicy] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_full_data(cls, value: Any) -> Any:
+        # a caller holding a complete ChannelAgentData may pass it as the edit
+        if isinstance(value, ChannelAgentData):
+            return value.model_dump()
+        return value
+
+    @model_validator(mode="after")
+    def _reject_explicit_null_references(self) -> "ChannelAgentDataEdit":
+        # omitting references keeps the stored ones; sending `references: null`
+        # would wipe the agent's only runnable target, which the merged
+        # ChannelAgentData then rejects as a confusing downstream error. Refuse
+        # it here, at the edit boundary. `policy: null` stays allowed (it clears).
+        if "references" in self.model_fields_set and self.references is None:
+            raise ValueError(
+                "references cannot be null on an edit; omit it to keep the "
+                "stored workflow, or name a new one"
+            )
+        return self
+
+    @field_validator("references")
+    @classmethod
+    def _references_must_be_resolvable(
+        cls, references: Optional[Dict[str, Reference]]
+    ) -> Optional[Dict[str, Reference]]:
+        if references is None:
+            return None
+        return ChannelAgentData._references_must_be_resolvable(references)
+
+
 class ChannelAgentEdit(Identifier, Header, Metadata):
-    data: ChannelAgentData
-    flags: ChannelAgentFlags = Field(default_factory=ChannelAgentFlags)
+    """Same contract as the connection edit: an omitted field keeps its stored
+    value. A policy-only agent edit once reset `is_default` and muted the whole
+    connection (F91)."""
+
+    data: Optional[ChannelAgentDataEdit] = None
+    flags: Optional[ChannelAgentFlags] = None
 
 
 class ChannelAgentQuery(BaseModel):

@@ -8,6 +8,8 @@ from sqlalchemy.exc import IntegrityError
 from oss.src.core.channels.dtos import (
     ChannelAgent,
     ChannelAgentCreate,
+    ChannelAgentData,
+    ChannelAgentDataEdit,
     ChannelAgentEdit,
     ChannelAgentQuery,
     ChannelCapabilities,
@@ -443,6 +445,8 @@ class ChannelsService:
         if existing is None:
             return None
 
+        connection = _layer_connection_edit(existing=existing, edit=connection)
+
         if connection.credentials:
             adapter = self.adapter_registry.get(existing.channel)
             verify_target = ChannelConnectionCreate(
@@ -758,11 +762,18 @@ class ChannelsService:
         #
         agent: ChannelAgentEdit,
     ) -> Optional[ChannelAgent]:
+        existing = await self.channels_dao.fetch_agent(
+            project_id=project_id,
+            agent_id=agent.id,
+        )
+        if existing is None:
+            return None
+
         return await self.channels_dao.edit_agent(
             project_id=project_id,
             user_id=user_id,
             #
-            agent=agent,
+            agent=_layer_agent_edit(existing=existing, edit=agent),
         )
 
     async def delete_agent(
@@ -1856,6 +1867,71 @@ def _filter_thread_events(
         if key == thread_key or stored.id == event_id:
             kept.append(stored)
     return kept
+
+
+def _layer_connection_edit(
+    *, existing: ChannelConnection, edit: ChannelConnectionEdit
+) -> ChannelConnectionEdit:
+    """The edit the DAO writes: the stored row with the sent fields laid over
+    it. `data` merges key by key, so a rename keeps the credential reference
+    and the locator; `flags` merges field by field."""
+    sent = edit.model_dump(exclude_unset=True)
+    existing_data = existing.data if isinstance(existing.data, dict) else {}
+    merged = {
+        "id": existing.id,
+        "slug": existing.slug,
+        "name": existing.name,
+        "description": existing.description,
+        "tags": existing.tags,
+        "meta": existing.meta,
+        "data": {**existing_data, **(edit.data or {})}
+        if "data" in sent
+        else dict(existing_data),
+        "credentials": edit.credentials,
+        "flags": (
+            existing.flags.model_copy(update=edit.flags.model_dump(exclude_unset=True))
+            if edit.flags is not None
+            else existing.flags
+        ),
+    }
+    for field in ("slug", "name", "description", "tags", "meta"):
+        if field in sent:
+            merged[field] = sent[field]
+    return ChannelConnectionEdit(**merged)
+
+
+def _layer_agent_edit(
+    *, existing: ChannelAgent, edit: ChannelAgentEdit
+) -> ChannelAgentEdit:
+    """Same rule for an agent: an omitted `data`, `flags`, or header field keeps
+    its stored value. Within `data`, an omitted policy keeps the stored one."""
+    sent = edit.model_dump(exclude_unset=True)
+    data = existing.data
+    if edit.data is not None:
+        data_sent = edit.data.model_dump(exclude_unset=True)
+        data = existing.data.model_copy(
+            update={k: getattr(edit.data, k) for k in data_sent}
+        )
+        # the merged data must still be a complete, valid agent data
+        data = ChannelAgentData.model_validate(data.model_dump(mode="json"))
+    flags = existing.flags
+    if edit.flags is not None:
+        flags = existing.flags.model_copy(
+            update=edit.flags.model_dump(exclude_unset=True)
+        )
+    merged = {
+        "id": existing.id,
+        "name": existing.name,
+        "description": existing.description,
+        "tags": existing.tags,
+        "meta": existing.meta,
+        "data": ChannelAgentDataEdit(references=data.references, policy=data.policy),
+        "flags": flags,
+    }
+    for field in ("name", "description", "tags", "meta"):
+        if field in sent:
+            merged[field] = sent[field]
+    return ChannelAgentEdit(**merged)
 
 
 def _first_text(content: List[dict]) -> str:

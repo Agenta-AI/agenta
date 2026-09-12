@@ -125,6 +125,7 @@ class FakeChannelsDAO(ChannelsDAOInterface):
                 updated = row.model_copy(
                     update={
                         "state": state,
+                        "status": status if status is not None else row.status,
                         "data": data if data is not None else row.data,
                         "updated_at": datetime.now(timezone.utc),
                     }
@@ -1087,3 +1088,154 @@ async def test_a_fold_still_empty_after_the_re_reads_leaves_the_indicator_alone(
         "empty" in record.message and record.levelname == "ERROR"
         for record in caplog.records
     )
+
+
+class _RefusingAdapter(WellBehavedFakeAdapter):
+    """The platform rejects every post, the way Slack answers `channel_not_found`."""
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        raise RuntimeError("channel_not_found")
+
+
+@pytest.mark.asyncio
+async def test_a_rejected_post_is_written_down_as_failed_with_the_reason():
+    """The row said CREATED forever after a rejected post, indistinguishable
+    from one the worker had not reached yet (F87)."""
+    channels_dao = FakeChannelsDAO()
+    service = ChannelsService(
+        channels_dao=channels_dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={"fake": _RefusingAdapter()}),
+    )
+    worker = ChannelsOutboxWorker(
+        channels_service=service,
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(FakeRecordsDAO()),
+    )
+    connection = channels_dao.seed_connection(channel="fake")
+    space = channels_dao.seed_space(connection_id=connection.id)
+    thread = channels_dao.seed_thread(
+        space_id=space.id,
+        session_id="s-failed",
+        external_locator={"channel": "C1", "thread_ts": "42.1"},
+    )
+
+    with pytest.raises(RuntimeError):
+        await worker.on_turn_started(
+            project_id=PROJECT_ID, thread=thread, turn_id="turn-failed"
+        )
+
+    (row,) = channels_dao.outbox.values()
+    assert row.state is ChannelDeliveryState.FAILED
+    assert row.status is not None and row.status.code == "delivery_failed"
+    assert "channel_not_found" in (row.status.message or "")
+
+
+class _FlakyAdapter(WellBehavedFakeAdapter):
+    """Rejects the first post, accepts the second, and records every token."""
+
+    def __init__(self):
+        super().__init__()
+        self.tokens: List = []
+        self.calls = 0
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        self.calls += 1
+        self.tokens.append(idempotency_key)
+        if self.calls == 1:
+            raise RuntimeError("ratelimited")
+        return await super().post_message(
+            connection=connection,
+            locator=locator,
+            content=content,
+            idempotency_key=idempotency_key,
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_redelivered_start_never_writes_the_indicator_over_a_failed_answer():
+    """Item zero carries the indicator and then the answer. When the answer's
+    edit fails after the indicator landed, the row is FAILED with a receipt;
+    a redelivered turn-started must leave it alone, or it edits the message
+    the platform may already show as the answer back to the indicator."""
+    channels_dao = FakeChannelsDAO()
+    adapter = _FlakyAdapter()
+    adapter.calls = 1  # the indicator already went out; the next post succeeds
+    service = ChannelsService(
+        channels_dao=channels_dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={"fake": adapter}),
+    )
+    worker = ChannelsOutboxWorker(
+        channels_service=service,
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(FakeRecordsDAO()),
+    )
+    connection = channels_dao.seed_connection(channel="fake")
+    space = channels_dao.seed_space(connection_id=connection.id)
+    thread = channels_dao.seed_thread(
+        space_id=space.id,
+        session_id="s-answer-failed",
+        external_locator={"channel": "C1", "thread_ts": "42.1"},
+    )
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-af"
+    )
+    (row,) = channels_dao.outbox.values()
+    assert row.state is ChannelDeliveryState.SENT
+    assert row.data.external_locator  # the receipt
+    # the answer edit failed later: the row is FAILED but keeps its receipt
+    await channels_dao.transition_outbox_event(
+        project_id=PROJECT_ID,
+        event_id=row.id,
+        state=ChannelDeliveryState.FAILED,
+    )
+    calls_before = adapter.calls
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-af"
+    )
+
+    (row,) = channels_dao.outbox.values()
+    assert row.state is ChannelDeliveryState.FAILED
+    assert adapter.calls == calls_before
+
+
+async def test_a_failed_post_retries_with_the_same_token_and_ends_sent():
+    """A retry of the same content reuses its idempotency token, so a post the
+    platform accepted but whose reply timed out is never duplicated; the row
+    that was FAILED ends SENT, and the failure it recorded is replaced."""
+    channels_dao = FakeChannelsDAO()
+    adapter = _FlakyAdapter()
+    service = ChannelsService(
+        channels_dao=channels_dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={"fake": adapter}),
+    )
+    worker = ChannelsOutboxWorker(
+        channels_service=service,
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(FakeRecordsDAO()),
+    )
+    connection = channels_dao.seed_connection(channel="fake")
+    space = channels_dao.seed_space(connection_id=connection.id)
+    thread = channels_dao.seed_thread(
+        space_id=space.id,
+        session_id="s-retry",
+        external_locator={"channel": "C1", "thread_ts": "42.1"},
+    )
+
+    with pytest.raises(RuntimeError):
+        await worker.on_turn_started(
+            project_id=PROJECT_ID, thread=thread, turn_id="turn-retry"
+        )
+    (row,) = channels_dao.outbox.values()
+    assert row.state is ChannelDeliveryState.FAILED
+
+    # the platform redelivers turn-started: the FAILED row is attempted again
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-retry"
+    )
+
+    (row,) = channels_dao.outbox.values()
+    assert row.state is ChannelDeliveryState.SENT
+    assert row.status is not None and row.status.code == "sent"
+    assert adapter.calls == 2
+    assert adapter.tokens[0] == adapter.tokens[1]
