@@ -32,7 +32,11 @@ import {
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
-import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
+import {
+    draftConfigChangeSignalAtom,
+    openAgentConfigSectionAtom,
+    projectIdAtom,
+} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -75,6 +79,7 @@ import {
 } from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
+import {registerMcpServerDraft} from "./agentTemplate/mcpEndpointRegistration"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
@@ -194,6 +199,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // The integration whose permission drawer is open, addressed by provider and integration.
     const [permissionTarget, setPermissionTarget] = useState<GatewayConnectionTarget | null>(null)
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
+    const projectId = useAtomValue(projectIdAtom)
+    // An MCP server is routed by the gateway under its own name, so saving one must first register
+    // the endpoint row that knows its URL (D35). A failure aborts the save.
+    const prepareItemCommit = useCallback(
+        async (kind: ItemKind, item: Record<string, unknown>) =>
+            kind === "mcp" ? registerMcpServerDraft(item, projectId) : item,
+        [projectId],
+    )
     const {
         editing,
         draft,
@@ -204,10 +217,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         openEdit,
         closeEditor,
         commitDraft,
+        commitError,
+        committing,
         removeItem,
         draftInvalid,
         draftUnchanged,
-    } = useConfigItemDrawer({config, onChange})
+    } = useConfigItemDrawer({config, onChange, prepareCommit: prepareItemCommit})
 
     // Instructions file editor (a file list — one AGENTS.md today). Draft + Save like the item drawer.
     const [editingInstruction, setEditingInstruction] = useState<{filename: string} | null>(null)
@@ -1338,6 +1353,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                       ? undefined
                                       : "Changes apply to this agent configuration"
                               }
+                              error={commitError}
+                              saving={committing}
                               width={def.drawerWidth?.(draft)}
                               contentFlush={Boolean(def.formFlush?.(draft))}
                               onCancel={closeEditor}
