@@ -224,3 +224,34 @@ def test_allow_insecure_canonical_wins_over_legacy_alias(monkeypatch):
         monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
         monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
         importlib.reload(env)
+
+
+# ---------------------------------------------------------------------------
+# End-to-end: the env var itself, not a monkeypatched module constant, drives
+# the refusal. Every other SSRF test in this repo pins `_WEBHOOK_ALLOW_INSECURE`
+# directly (see `tests/pytest/utils/egress.py`), which proves the guard's logic
+# but not that AGENTA_INSECURE_EGRESS_ALLOWED=false — the value every shared
+# deployment now sets — actually reaches it.
+# ---------------------------------------------------------------------------
+
+
+def test_insecure_egress_allowed_false_blocks_private_address_end_to_end(monkeypatch):
+    from oss.src.utils import env
+
+    monkeypatch.setenv("AGENTA_INSECURE_EGRESS_ALLOWED", "false")
+    monkeypatch.delenv("AGENTA_WEBHOOKS_ALLOW_INSECURE", raising=False)
+    monkeypatch.delenv("AGENTA_WEBHOOK_ALLOW_INSECURE", raising=False)
+    try:
+        importlib.reload(env)
+        from oss.src.core.webhooks import utils as webhook_utils
+
+        importlib.reload(webhook_utils)
+        assert webhook_utils._WEBHOOK_ALLOW_INSECURE is False
+        with pytest.raises(ValueError, match="blocked IP"):
+            webhook_utils.resolve_validated_webhook_ip("https://10.0.0.5/hook")
+    finally:
+        monkeypatch.delenv("AGENTA_INSECURE_EGRESS_ALLOWED", raising=False)
+        importlib.reload(env)
+        from oss.src.core.webhooks import utils as webhook_utils
+
+        importlib.reload(webhook_utils)

@@ -19,6 +19,10 @@ def _clean_env(monkeypatch):
     """Start each test from a known-empty config, with no ambient request credential."""
     for name in _ENV_VARS:
         monkeypatch.delenv(name, raising=False)
+    import agenta as ag
+
+    if ag.tracing is not None:
+        monkeypatch.setattr(ag.tracing, "otlp_url", None)
     # No per-request tracing context by default; tests opt in explicitly.
     monkeypatch.setattr(
         "agenta.sdk.engines.tracing.propagation.inject",

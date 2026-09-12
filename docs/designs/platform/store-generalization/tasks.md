@@ -8,7 +8,7 @@
 - [x] **Break clean** — no dual-read, no legacy alias. Delete old names in the same
       commit that adds new names.
 - [x] `AGENTA_MOUNTS_TUNNEL_API` stays — runner-side tunnel discovery, not a store
-      credential var.
+      credential var. (Superseded: later removed outright.)
 - [x] `seaweedfs.enabled` toggle name stays — bundle-or-external service toggle, not
       a store credential var.
 - [x] Prefix change: `<project_id>/<mount_id>/` → `mounts/<project_id>/<mount_id>/`.
@@ -64,7 +64,7 @@ In both `hosting/docker-compose/oss/docker-compose.dev.yml` and
       Update both the per-service `environment:` blocks (api, worker-*, sandbox-agent
       variants) and the `seaweedfs` service startup script that inlines the access/secret
       keys into `s3.json` and maps `WEED_JWT_FILER_SIGNING_KEY` from the secret.
-- [ ] Leave `AGENTA_MOUNTS_TUNNEL_API` untouched.
+- [x] Leave `AGENTA_MOUNTS_TUNNEL_API` untouched. (Superseded: later removed outright.)
 
 ## 6. Helm — rename env vars and secret keys
 

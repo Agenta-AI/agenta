@@ -963,6 +963,7 @@ async function acquireEnvironmentOnce(
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              storeEndpoint,
               log: logger,
               signal,
             })) ?? undefined);
@@ -1035,6 +1036,7 @@ async function acquireEnvironmentOnce(
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              storeEndpoint,
               log: logger,
               signal,
             })) ?? undefined);
