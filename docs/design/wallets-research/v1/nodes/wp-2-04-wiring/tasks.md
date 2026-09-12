@@ -10,8 +10,10 @@ Fork point: the reviewed `IM-2-01` merge, on both branches. Each item is one rev
    used to register the two streams. This is the precedent, including where the EE import sits.
 3. `api/ee/src/core/wallets/runtime.py` — the singleton shape to copy, and why the settlement
    port and the wallets service are the same object.
-4. `api/oss/src/core/gateways/llms/providers/mock/adapter.py` — the mock the acceptance test
-   relays through, and the usage it reports.
+4. `api/oss/src/core/gateways/llms/catalog.py` and
+   `api/oss/src/core/gateways/llms/providers/mock/adapter.py` — which namespaces serve `mock`,
+   what `env.mock_gateways.enabled` gates, and the usage the mock reports. Only the `builtin`
+   arm is admitted or charged.
 5. `api/ee/tests/pytest/acceptance/wallets/` — the acceptance layout and fixtures this test
    joins, including how it gets an organization with a wallet.
 
@@ -30,16 +32,19 @@ Fork point: the reviewed `IM-2-01` merge, on both branches. Each item is one rev
 
 ## Acceptance
 
-1. Add `ee/tests/pytest/acceptance/gateways/test_gateway_wallet_chain.py`: one relay through
-   the mock adapter, with the flag on, asserting one measurement row, one debit posting, and a
-   balance lower by the posted amount.
+1. Add `ee/tests/pytest/acceptance/gateways/test_gateway_wallet_chain.py`: one `builtin/mock`
+   relay with the flag on, asserting one measurement row, one debit posting, and a balance
+   lower by the posted amount. Name the namespace in every test name — `mock` exists under
+   both `builtin` and `standard` and the two behave differently here.
 2. Add the repetition case: two identical relays produce two measurements and two postings.
    Write the assertion so a future reader sees why this differs from redelivery.
-3. Add the refusal case: an organization at its floor gets a 403, the mock records no call,
-   and no measurement row appears.
-4. Add the no-run case: a direct API-key relay produces a measurement whose references carry
+3. Add the refusal case: an organization at its floor gets a 403 on a `builtin/mock` relay,
+   the mock records no call, and no measurement row appears.
+4. Add the scope case: that same organization relays successfully through `standard/mock`,
+   with no admission and no charge.
+5. Add the no-run case: a direct API-key relay produces a measurement whose references carry
    no `gateway_run_id` at all.
-5. Extend the measurement integration suite so a gateway-produced command, not a fake, travels
+6. Extend the measurement integration suite so a gateway-produced command, not a fake, travels
    the chain.
 
 ## Close

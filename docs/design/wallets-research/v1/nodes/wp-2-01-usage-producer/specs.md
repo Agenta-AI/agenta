@@ -51,15 +51,20 @@ where it is needed.
 `VAULT`, and both of them are on the customer's own credential — which is correct, and is
 exactly why `SecretOrigin.LOCAL` has no producer today.
 
-So the stamp does not belong in the resolver. **It belongs in `_outcome_from`, which knows the
-target.** The payer is a property of the namespace, not of whether a secret happened to be
-looked up: a `builtin` target is one whose account we own, per D30, and that is true whether it
-resolved a platform key, an ambient credential, or nothing at all. `_outcome_from` sets
-`origin=SecretOrigin.LOCAL` for a `builtin` target, and otherwise carries the resolved secret's
-origin as it does today.
+So the stamp does not belong in the resolver. **It belongs in `_outcome_from`, which is where
+the outcome is assembled — but that function does not currently receive the target, so this
+package adds a `target` parameter to it.** The payer is a property of the namespace, not of
+whether a secret happened to be looked up: a `builtin` target is one whose account we own, per
+D30, and that is true whether it resolved a platform key, an ambient credential, or nothing at
+all. `_outcome_from` sets `origin=SecretOrigin.LOCAL` for a `builtin` target, and otherwise
+carries the resolved secret's origin as it does today.
 
-Without this, `WP-2-02`'s charge predicate is unsatisfiable and Wave 2 bills nothing. It is the
-single highest-risk line in the wave, which is why `IM-2-01` checks it by name.
+The stamp is not load-bearing, and that is deliberate. `WP-2-02` decides chargeability on the
+namespace and uses `secret_origin` only to veto a `vault`-funded call, so a `builtin`
+measurement that arrives with no origin is still charged. What the stamp buys is an audit trail
+that says who paid without the reader having to re-derive it from the namespace. Building the
+charge predicate the other way round — a positive test for `LOCAL` — would put every charge in
+the system behind this one line, which is why `WP-2-02` does not.
 
 ## Files
 
@@ -82,7 +87,7 @@ On `feat/add-wallets`:
 | --- | --- |
 | `api/ee/src/core/measurements/ingress.py` | edited — `MeasurementUsageSink.record` gets its body |
 | `api/ee/tests/pytest/unit/measurements/test_measurements_ingress.py` | new |
-| `api/ee/tests/pytest/integration/measurements/test_measurements_integration.py` | edited — a sink-produced command travels the existing chain |
+| `api/ee/tests/pytest/integration/measurements/test_measurements_ingress_integration.py` | new — a sink-produced command travels the existing chain |
 
 ## Interfaces
 
@@ -118,8 +123,8 @@ The mapping the EE sink applies, which is the seam's whole payload:
 | `agent_id` | `None` — the LLM plane has no agent identity, and inventing one here would be a guess |
 | `gateway_kind` | `target.plane.value` |
 | `resource_key` | `f"{target.plane.value}:{target.provider}:{target.model}"` |
-| `resource_locator` | `{"provider": target.provider, "model": target.model, "endpoint_id": str(target.endpoint_id)}` |
-| `endpoint_id` | `str(target.endpoint_id)` |
+| `resource_locator` | `{"provider": target.provider, "model": target.model, "endpoint_id": str(target.endpoint_id) if target.endpoint_id else None}` |
+| `endpoint_id` | `str(target.endpoint_id)` when there is one, else `None` |
 | `endpoint_kind` | `target.namespace` — `builtin`, `standard` or `custom` |
 | `secret_origin` | `outcome.origin` |
 | `start_time`, `end_time` | derived from `outcome.duration_ms` and the emission instant |
@@ -134,9 +139,12 @@ Three conversions are load-bearing and easy to get wrong.
 decide whether a restricted credit may fund a posting, so the wrong string silently breaks
 restricted-credit selection rather than looking wrong.
 
-`GatewayTarget.endpoint_id` is a `UUID` and `MeasurementCommandV1.endpoint_id` is a `str`.
-Pydantic rejects the one for the other; `entities.md`'s worked example carries an opaque
-string.
+`GatewayTarget.endpoint_id` is an `Optional[UUID]` and `MeasurementCommandV1.endpoint_id` is
+an `Optional[str]`. Pydantic rejects the one for the other, so it needs converting — and it
+needs converting conditionally, because only a `custom` target sets it. `_resolve_target`
+leaves it unset on the `standard` and `builtin` arms, so an unguarded `str()` writes the
+literal `"None"` into an optional field on every chargeable call, where absence is meaningful
+and `entities.md`'s worked example carries an opaque string.
 
 `references` is a map of grouped objects in `entities.md` and in the Wave 1 builders, not a
 flat bag of keys. The run goes under `workflow`, the ceiling under `admission`, and neither is
@@ -151,8 +159,10 @@ is written in.
 
 Gateway branch: the proxy-level drain test named above; a parametrised normalisation test with
 one real usage payload per protocol, including one with a cached slice and one with none; a
-test that `record` still returns normally when the sink raises; a test that
-`SecretOrigin.LOCAL` is produced for a platform-owned key and `VAULT` for a customer's.
+test that `record` still returns normally when the sink raises; and a test that a `builtin`
+target's outcome carries `LOCAL` while a `standard` target's carries the resolved secret's
+`VAULT`. The second of those is about the namespace, not about which key answered: `builtin`
+resolves no key at all.
 
 Wallet branch: unit tests that one `record` call produces exactly one command with the mapping
 above, asserting the three conversions by value rather than by construction — `resource_key`

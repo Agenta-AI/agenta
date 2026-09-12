@@ -37,7 +37,7 @@ On `feat/add-wallets`:
 | --- | --- |
 | `api/ee/src/core/measurements/runtime.py` | new — the sink and publisher singletons, mirroring `wallets/runtime.py` |
 | `api/ee/tests/pytest/acceptance/gateways/test_gateway_wallet_chain.py` | new — one real relay, one measurement, one posting, one moved balance |
-| `api/ee/tests/pytest/integration/measurements/test_measurements_integration.py` | edited — the gateway-produced command end to end |
+| `api/ee/tests/pytest/integration/measurements/test_measurements_integration.py` | edited — the gateway-produced command end to end, after `WP-2-02`'s vocabulary change has merged |
 
 ## Interfaces
 
@@ -96,15 +96,25 @@ reference is absent, not that it is empty.
 Unit: the app builds with both ports null when the flag is off, and with both bound when it is
 on. This is two tests and they are the ones to write first.
 
-Acceptance, with the flag on, against the gateway's own mock adapter so no provider is
-contacted: one relay produces exactly one `measurements` row with the expected components
+Acceptance, with the flag on, through the **`builtin` namespace's** mock provider, so no real
+provider is contacted and the call is one we would have paid for. The namespace matters and
+must appear in every test name: `mock` exists in both `builtin` and `standard`, and a
+`standard/mock` relay is neither admitted nor charged, so a test that says only "the mock
+adapter" passes or fails for reasons its reader cannot see.
+
+One `builtin` relay produces exactly one `measurements` row with the expected components
 including the cache split, exactly one `wallet_debits` posting, and a general balance lower by
 the posted amount. A second, identical relay produces a second measurement and a second
 posting, because two calls are two charges — the idempotency spine covers redelivery of one
 call, not repetition of two.
 
 Acceptance, refusal: an organization whose general balance is at its floor receives a 403 with
-`code="policy_denied"`, the mock adapter records no call, and no measurement row appears.
+`code="policy_denied"` on a `builtin` relay, the mock provider records no call, and no
+measurement row appears.
+
+Acceptance, scope: that same spent organization relays successfully through `standard/mock`,
+which is never admitted and never charged. This is the test that keeps a customer's own
+credential from being rationed by our balance.
 
 ## Explicit exclusions
 

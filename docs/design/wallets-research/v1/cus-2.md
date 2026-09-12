@@ -9,10 +9,10 @@ work. It owns four things and nothing else:
 
 - **The fixture pricing.** `ee/src/core/measurements/pricing.py` and every reference to
   `calculate_fake_charge` go, once `WP-2-02`'s rate card is in place.
-- **The fake producers.** `api/ee/tests/pytest/acceptance/wallets/fakes/` stops being the
-  production measurement source. What survives is whatever a test still needs to build a
-  deterministic measurement without standing up a gateway, and it moves under the test
-  utilities that own that job.
+- **The fake producers.** The fake LLM producer is superseded by the real one and goes. The
+  fake MCP producer is not: Wave 2 built no MCP producer, so it remains the only thing that
+  emits an MCP measurement and the only thing the MCP charge can be tested against. It moves
+  under the test utilities and stays, with a comment saying what still owes a replacement.
 - **The vocabulary collisions.** `seams.md` under "Three live meanings of one word" and
   "Mechanical collisions to fix before anyone writes code" lists conflicts that were left to
   this point deliberately. The one that binds here is the word *credit*: the production

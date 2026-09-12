@@ -107,8 +107,11 @@ graph-review question rather than deciding it in a worktree.
    enforces the admission boolean and carries the ceiling without enforcing it — what the
    ceiling would enforce, and on what evidence, is open-design item 17. No node in this wave
    shrinks a caller's parameters to fit a balance.
-5. **A call paid on the customer's own credential is never charged.** `secret_origin`
-   decides, one stamp, for models, tools and sandboxes alike.
+5. **A call paid on the customer's own credential is never charged.** In Wave 2 the namespace
+   decides and `secret_origin` vetoes: a `vault`-funded call is never charged whatever
+   namespace it arrived through. The single connection-derived stamp `seams.md` envisages,
+   covering models, tools and sandbox time alike, arrives with the sandbox sink; on the LLM
+   plane today the stamp is derived from the namespace instead.
 6. **Cache reads are priced separately from fresh input, from the first emission.** Not
    because Wave 2 prices them differently today, but because the gateway cannot reconstruct
    the split retroactively and two of the three protocols already report it.
@@ -123,9 +126,10 @@ graph-review question rather than deciding it in a worktree.
 - Integration tests: a gateway call against the mock adapter produces exactly one measurement
   row and one debit posting, and a replay of either message produces no second financial
   effect.
-- Acceptance, against a local deployment with the flag on: a real request through
-  `/gateways/llms/...` moves a real balance, and an organization at its floor is refused
-  before the provider is contacted.
+- Acceptance, against a local deployment with the flag on: a request through the `builtin`
+  namespace moves a real balance, an organization at its floor is refused before the provider
+  is contacted, and a `standard` request succeeds against that same spent wallet because the
+  customer's own credential is not ours to ration.
 - The wallet-owned fakes under `api/ee/tests/pytest/acceptance/wallets/fakes/` are retired as
   the production producer and survive only where a test needs a deterministic measurement
   without a gateway.

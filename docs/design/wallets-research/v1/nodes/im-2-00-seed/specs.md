@@ -15,7 +15,7 @@ import these names, so a shape corrected after the fork is a conflict in four wo
 | The cache split is a superset of every protocol | check each of the three protocols' usage payloads against the four token fields; a protocol whose accounting cannot be expressed is a blocker |
 | `check` changed its return type and nothing else | the allow/reject boundary tests assert the same thing they did before |
 | No envelope was redesigned | `MeasurementCommandV1` and `DebitCommandV1` differ from Wave 1 by exactly one additive optional field, `secret_origin` |
-| `record`'s new arguments are optional and gated | `list_models` and both denial paths still compile and still publish an audit event; the sink-gating condition is written where the signature is |
+| `record`'s new arguments are optional and gated | `list_models` and both denial paths still compile and still publish an audit event; the sink-gating condition is written beside the signature as a comment, and nothing calls a sink yet, because no collaborator exists until `WP-2-01` |
 | Tests pass | `oss/tests/pytest/unit/gateways` and `ee/tests/pytest/unit` |
 
 ## Output
