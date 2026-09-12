@@ -24,8 +24,14 @@ class WalletError(Exception):
 
 
 class WalletGeneralBalanceNotFoundError(WalletError):
-    """The organization has no general (`wallet_credit_id IS NULL`) balance row.
-    Provisioning that row is an explicit out-of-scope job for this package."""
+    """The organization has no general (`wallet_credit_id IS NULL`) balance row, and one
+    could not be provisioned on the spot.
+
+    Every wallet write path now provisions the row lazily before locking it, so this is a
+    defensive invariant rather than a routine outcome: reaching it means the row is
+    neither present nor insertable. It is terminal for a stream consumer — redelivering
+    the same posting cannot make an uninsertable row appear — so `DebitWorker` logs and
+    ACKs instead of leaving the message pending forever."""
 
     def __init__(self, organization_id: UUID):
         self.organization_id = organization_id
@@ -306,12 +312,14 @@ class WalletsDAOInterface(ABC):
         *,
         organization_id: UUID,
         floor_musd: int = 0,
-    ) -> None:
+    ) -> "WalletBalanceDTO":
         """Idempotently insert the organization's general (`wallet_credit_id IS NULL`)
-        balance row at `balance_musd=0`. Calling this twice (retry, concurrent creation)
-        must insert nothing on the second call — implementations rely on the partial
-        unique index `uq_wallet_balances_org_general` as the actual guard, not on an
-        application-level check-then-insert."""
+        balance row at `balance_musd=0`, and return the row that then exists. Calling this
+        twice (retry, concurrent creation) must insert nothing on the second call —
+        implementations rely on the partial unique index `uq_wallet_balances_org_general`
+        as the actual guard, not on an application-level check-then-insert. The returned
+        row is the existing one on that second call, not the one the caller proposed, so
+        `floor_musd` is applied only when the row is genuinely new."""
         raise NotImplementedError
 
     @abstractmethod

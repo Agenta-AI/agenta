@@ -11,6 +11,7 @@ from orjson import dumps
 
 from ee.src.core.wallets.errors import SettlementUnavailableError
 from ee.src.core.wallets.streaming import serialize_debit_command
+from ee.src.core.wallets.types import WalletGeneralBalanceNotFoundError
 from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 from ee.tests.pytest.utils.wallets.builders import build_debit_command
 from ee.tests.pytest.utils.wallets.fakes import FakeWalletSettlementPort
@@ -160,6 +161,47 @@ async def test_ack_ordering_strictly_follows_committed_transaction():
     ]  # only the message whose settle() committed is ACKed
     assert b"1-0" not in processed_ids
     assert calls_seen == ["gw_fails", "gw_ok"]  # settle() was still attempted for both
+
+
+@pytest.mark.asyncio
+async def test_missing_general_balance_is_terminal_and_acks():
+    """Open-designs item 14: settlement provisions a missing general balance row itself,
+    so this error means the row is neither present nor insertable. Retrying the same
+    posting cannot change that, and treating it as retryable wedged the message in the
+    pending list forever. Terminal: logged and ACKed, charge dropped."""
+    org_id = uuid4()
+    port = FakeWalletSettlementPort()
+    port.raise_next = WalletGeneralBalanceNotFoundError(org_id)
+    worker = _make_worker(settlement_port=port)
+    command = build_debit_command(
+        organization_id=org_id, idempotency_key="gw_unprovisioned_org"
+    )
+
+    count, processed_ids = await worker.process_batch([_entry(command)])
+
+    assert count == 1
+    assert processed_ids == [b"1-0"]  # ACKed, not left pending for infinite redelivery
+    assert len(port.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_missing_general_balance_does_not_block_the_rest_of_the_batch():
+    org_id = uuid4()
+    port = FakeWalletSettlementPort()
+    port.raise_next = WalletGeneralBalanceNotFoundError(org_id)
+    worker = _make_worker(settlement_port=port)
+    poison = build_debit_command(
+        organization_id=org_id, idempotency_key="gw_unprovisioned_org"
+    )
+    healthy = build_debit_command(idempotency_key="gw_healthy")
+
+    count, processed_ids = await worker.process_batch(
+        [_entry(poison, msg_id=b"1-0"), _entry(healthy, msg_id=b"1-1")]
+    )
+
+    assert count == 2
+    assert processed_ids == [b"1-0", b"1-1"]
+    assert port.effects[(healthy.organization_id, "gw_healthy")] == 1
 
 
 @pytest.mark.asyncio

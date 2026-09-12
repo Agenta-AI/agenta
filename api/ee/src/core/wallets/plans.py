@@ -48,6 +48,14 @@ _FLOOR_MUSD_BY_PLAN: dict = {
 }
 
 
+# The floor a general balance row starts at when it is provisioned on a path that does not
+# know the organization's plan — the settlement, award, plan-change and admission paths,
+# which provision lazily to close the flag gap (open-designs item 14). It equals every
+# known plan's floor above, so no plan lookup is worth dragging onto those paths; a later
+# `apply_plan_change` rewrites the floor from the incoming plan regardless.
+LAZY_PROVISION_FLOOR_MUSD = 0
+
+
 def floor_musd_for_plan(*, plan: str) -> int:
     """The general balance's plan-dependent deficit floor. 0 for every known plan today
     (see module docstring); an unrecognized plan slug also floors at 0 rather than
