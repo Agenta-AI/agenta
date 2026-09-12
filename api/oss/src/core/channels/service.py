@@ -1143,6 +1143,24 @@ class ChannelsService:
 
         return thread
 
+    async def set_pending_choice(
+        self,
+        *,
+        project_id: UUID,
+        thread_id: UUID,
+        pending_choice: Optional[ChannelPendingChoice],
+    ) -> Optional[ChannelThread]:
+        """Overwrite the thread's single pending-choice slot; None clears it.
+
+        The one write path for the slot, so the dispatchers never reach the
+        DAO directly: the outbox sets a card's choice here, the inbox clears
+        it once the answer went through."""
+        return await self.channels_dao.set_pending_choice(
+            project_id=project_id,
+            thread_id=thread_id,
+            pending_choice=pending_choice,
+        )
+
     # --- capability + policy: adapter reads, no persistence --------------- #
 
     async def fetch_capabilities(
@@ -1302,13 +1320,27 @@ class ChannelsService:
         if space.deleted_at is not None or not space.flags.is_active:
             return None
 
-        agent = await self._addressed_agent(
+        agent = await self._agent_awaiting_answer(
             project_id=project_id,
-            connection_id=connection_id,
             space=space,
             event=event,
             capabilities=capabilities,
         )
+        if agent is None:
+            agent = await self._agent_holding_thread(
+                project_id=project_id,
+                space=space,
+                event=event,
+                capabilities=capabilities,
+            )
+        if agent is None:
+            agent = await self._addressed_agent(
+                project_id=project_id,
+                connection_id=connection_id,
+                space=space,
+                event=event,
+                capabilities=capabilities,
+            )
         # archiving a connection cascades deleted_at onto its agents; without
         # this an archived bot stays off the configuration surface but keeps
         # answering. A deactivated agent refuses exactly like an absent one.
@@ -1454,12 +1486,97 @@ class ChannelsService:
                 ),
             )
 
+        answered_interaction_id = (
+            pending_choice.interaction_id
+            if resolved_token is not None and pending_choice is not None
+            else None
+        )
+
         return ChannelResolution(
             space=space,
             agent=agent,
             thread=thread,
             policy=policy,
+            answered_interaction_id=answered_interaction_id,
+            resolved_token=resolved_token,
             resolved_choice=resolved_choice,
+        )
+
+    async def _agent_awaiting_answer(
+        self,
+        *,
+        project_id: UUID,
+        space: ChannelSpace,
+        event: ChannelInboxEvent,
+        capabilities: ChannelCapabilities,
+    ) -> Optional[ChannelAgent]:
+        """The agent whose open question this message answers, if any. A typed
+        "Approve" carries no agent, and the default agent is the wrong one in a
+        room with several: the thread that holds the pending choice knows."""
+        candidate = _first_text(event.data.processed.content)
+        if not candidate.strip():
+            return None
+        if space.kind is ChannelSpaceKind.PRIVATE:
+            thread_key = space.external_key
+        else:
+            try:
+                thread_key = compose_external_key(
+                    capabilities, ChannelKeyGrain.THREAD, event.data.external_locator
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                return None
+        waiting = await self.channels_dao.fetch_thread_awaiting_choice(
+            project_id=project_id,
+            space_id=space.id,
+            external_key=thread_key,
+        )
+        if waiting is None:
+            return None
+        token = resolve_pending_choice(
+            pending_choice=waiting.data.pending_choice, candidate=candidate
+        )
+        if token is None:
+            return None
+        return await self.channels_dao.fetch_agent(
+            project_id=project_id, agent_id=waiting.agent_id
+        )
+
+    async def _agent_holding_thread(
+        self,
+        *,
+        project_id: UUID,
+        space: ChannelSpace,
+        event: ChannelInboxEvent,
+        capabilities: ChannelCapabilities,
+    ) -> Optional[ChannelAgent]:
+        """The agent whose open conversation this message continues. A reply
+        without a sigil in a thread a specialist opened belongs to that
+        specialist; the default agent would have no thread there and drop it.
+        A sigil always wins, so naming another agent still switches."""
+        named = _parse_sigil(
+            content=event.data.processed.content,
+            sigil=capabilities.addressing.sigils.agent,
+        )
+        if named is not None:
+            return None
+        if space.kind is ChannelSpaceKind.PRIVATE:
+            thread_key = space.external_key
+        else:
+            try:
+                thread_key = compose_external_key(
+                    capabilities, ChannelKeyGrain.THREAD, event.data.external_locator
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                return None
+        thread = await self.channels_dao.fetch_active_thread(
+            project_id=project_id,
+            space_id=space.id,
+            external_key=thread_key,
+        )
+        if thread is None:
+            return None
+        return await self.channels_dao.fetch_agent(
+            project_id=project_id, agent_id=thread.agent_id
         )
 
     async def _addressed_agent(
@@ -1755,7 +1872,8 @@ def resolve_pending_choice(
     one function to the same token — that equality is the whole mechanism.
 
     Tried in order: exact token match (a click, or Agenta's token-as-message),
-    then a 1-based index into the current choice list (a numbered reply).
+    then the label without case (a typed answer), then a 1-based index into
+    the current choice list (a numbered reply).
     `None` covers every non-answer uniformly: no pending choice at all, a
     superseded one (it was overwritten wholesale, so its tokens are simply
     gone), an unknown token, or ordinary text that never meant to answer
@@ -1771,6 +1889,13 @@ def resolve_pending_choice(
 
     for choice in pending_choice.choices:
         if choice.token == candidate:
+            return choice.token
+
+    # a typed answer in the agent's own words ("Approve", "deny"): the label,
+    # compared without case, since a person types it rather than clicks it
+    lowered = candidate.lower()
+    for choice in pending_choice.choices:
+        if choice.label.strip().lower() == lowered:
             return choice.token
 
     if candidate.isdigit():

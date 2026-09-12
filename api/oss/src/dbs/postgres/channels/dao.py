@@ -1069,6 +1069,70 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
 
+    async def fetch_active_thread(
+        self,
+        *,
+        project_id: UUID,
+        #
+        space_id: UUID,
+        external_key: Optional[UUID],
+    ) -> Optional[ChannelThread]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(ChannelThreadDBE)
+                .where(
+                    ChannelThreadDBE.project_id == project_id,
+                    ChannelThreadDBE.space_id == space_id,
+                    ChannelThreadDBE.external_key == external_key,
+                    ChannelThreadDBE.flags["is_active"].astext == "true",
+                )
+                .order_by(ChannelThreadDBE.created_at.desc())
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            thread_dbe = result.scalars().first()
+            if not thread_dbe:
+                return None
+            return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
+
+    async def fetch_thread_awaiting_choice(
+        self,
+        *,
+        project_id: UUID,
+        #
+        space_id: UUID,
+        external_key: Optional[UUID],
+    ) -> Optional[ChannelThread]:
+        """The active thread under this key, whichever agent holds it, that has
+        a pending choice. A typed answer carries no agent, so the agent that
+        asked is found through the question it left open."""
+        async with self.engine.session() as session:
+            stmt = (
+                select(ChannelThreadDBE)
+                .where(
+                    ChannelThreadDBE.project_id == project_id,
+                    ChannelThreadDBE.space_id == space_id,
+                    ChannelThreadDBE.external_key == external_key,
+                    # JSON `null` passes a bare IS NOT NULL, and a cleared choice
+                    # is written as JSON null; exclude it, and inactive rows,
+                    # BEFORE the limit, or a newer cleared/closed row can hide an
+                    # older thread that is genuinely still waiting.
+                    # a cleared choice is stored as JSON null, which passes a
+                    # bare IS NOT NULL; compare the text form, which `json`
+                    # supports where `<>` on the json value itself does not.
+                    ChannelThreadDBE.data["pending_choice"].astext.isnot(None),
+                    ChannelThreadDBE.data["pending_choice"].astext != "null",
+                    ChannelThreadDBE.flags["is_active"].astext == "true",
+                )
+                .order_by(ChannelThreadDBE.created_at.desc())
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            thread_dbe = result.scalars().first()
+            if not thread_dbe:
+                return None
+            return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
+
     async def query_threads(
         self,
         *,

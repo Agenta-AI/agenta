@@ -1167,8 +1167,20 @@ _channels_inbox_broker = ProducerOnlyRedisStreamBroker(
     approximate=True,
 )
 
+
+async def _respond_channel_interaction(*, project_id, user_id, interaction_id, answer):
+    """A channel's approval answer goes to the turn that parked, like a click
+    in the playground does; the continuation runs in the same session."""
+    await _interactions_dispatcher.respond_many(
+        project_id=project_id,
+        user_id=user_id,
+        interaction_answers=[(interaction_id, answer)],
+    )
+
+
 _channels_inbox_dispatcher = InboxDispatcher(
     channels_service=channels_service,
+    respond_interaction_fn=_respond_channel_interaction,
     workflows_service=workflows_service,
     identity_service=channels_identity_service,
     streams_service=session_streams_service,

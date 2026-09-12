@@ -225,7 +225,7 @@ class ChannelsOutboxWorker:
             if item.choice:
                 # written here, not at send time -- a choice is state on the
                 # thread from the moment it renders, independent of delivery.
-                await self.channels_service.channels_dao.set_pending_choice(
+                await self.channels_service.set_pending_choice(
                     project_id=project_id,
                     thread_id=thread.id,
                     pending_choice=ChannelPendingChoice(
@@ -234,6 +234,7 @@ class ChannelsOutboxWorker:
                             for o in item.choice
                         ],
                         posted_at=datetime.now(timezone.utc),
+                        interaction_id=item.interaction_id,
                     ),
                 )
 

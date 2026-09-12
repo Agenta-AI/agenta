@@ -956,3 +956,65 @@ class TestIdentityAttribution:
         )
 
         assert "user_id" not in invoke_fn.await_args.kwargs
+
+
+class TestApprovalAnswer:
+    """A resolution that names a parked interaction is an answer, not a prompt."""
+
+    def _answering_resolution(self):
+        resolution = _make_resolution()
+        return resolution.model_copy(
+            update={
+                "answered_interaction_id": "11111111-1111-4111-8111-111111111111",
+                "resolved_token": "approve",
+                "resolved_choice": "Approve",
+            }
+        )
+
+    async def test_the_answer_reaches_the_respond_path_and_opens_no_turn(self):
+        event = _make_event()
+        resolution = self._answering_resolution()
+        channels_service = _make_channels_service(resolution=resolution)
+        channels_service.set_pending_choice = AsyncMock()
+        invoke_fn = AsyncMock()
+        respond_fn = AsyncMock()
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
+            respond_interaction_fn=respond_fn,
+        )
+
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        respond_fn.assert_awaited_once()
+        kwargs = respond_fn.call_args.kwargs
+        assert str(kwargs["interaction_id"]) == "11111111-1111-4111-8111-111111111111"
+        assert kwargs["answer"] == {"approved": True, "message": "Approve"}
+        # answered once: the pending choice is cleared so a second click is inert
+        channels_service.set_pending_choice.assert_awaited_once()
+        assert (
+            channels_service.set_pending_choice.call_args.kwargs["pending_choice"]
+            is None
+        )
+        channels_service.compose_input.assert_not_called()
+        channels_service.open_turn.assert_not_called()
+        invoke_fn.assert_not_called()
+
+    async def test_without_a_respond_path_the_click_is_dropped_not_run(self):
+        event = _make_event()
+        channels_service = _make_channels_service(
+            resolution=self._answering_resolution()
+        )
+        invoke_fn = AsyncMock()
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=invoke_fn
+        )
+
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        channels_service.open_turn.assert_not_called()
+        invoke_fn.assert_not_called()
