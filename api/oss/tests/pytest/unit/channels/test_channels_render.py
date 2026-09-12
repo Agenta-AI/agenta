@@ -90,7 +90,7 @@ def test_pending_interaction_renders_as_card_with_buttons_when_supported():
         "messages": [],
         "stop_reason": "paused",
         "pending_interaction": {
-            "id": "int-1",
+            "id": "0a6f5f2e-1e0c-4a7b-9c5d-1c0d9b2f3e41",
             "tool": "delete_file",
             "payload": {
                 "toolCall": {"name": "delete_file", "arguments": {"path": "/x"}}
@@ -121,7 +121,7 @@ def test_pending_interaction_degrades_to_numbered_text_when_buttons_unsupported(
         "messages": [],
         "stop_reason": "paused",
         "pending_interaction": {
-            "id": "int-1",
+            "id": "0a6f5f2e-1e0c-4a7b-9c5d-1c0d9b2f3e41",
             "tool": "delete_file",
             "payload": {"toolCall": {"name": "delete_file"}},
         },
@@ -146,7 +146,11 @@ def test_pending_interaction_degrades_to_numbered_text_when_option_count_exceeds
     folded = {
         "messages": [],
         "stop_reason": "paused",
-        "pending_interaction": {"id": "int-1", "tool": "t", "payload": {}},
+        "pending_interaction": {
+            "id": "0a6f5f2e-1e0c-4a7b-9c5d-1c0d9b2f3e41",
+            "tool": "t",
+            "payload": {},
+        },
     }
 
     # two options (approve/deny), buttons.max == 1 -> exceeds the ceiling
@@ -181,7 +185,7 @@ def test_no_raw_acp_payload_string_appears_verbatim():
         "messages": [],
         "stop_reason": "paused",
         "pending_interaction": {
-            "id": "int-1",
+            "id": "0a6f5f2e-1e0c-4a7b-9c5d-1c0d9b2f3e41",
             "tool": "delete_file",
             "payload": {
                 "toolCall": {"name": "delete_file", "arguments": {"path": "/x"}},
@@ -213,7 +217,11 @@ def test_the_approval_card_names_the_interaction_it_answers():
     folded = {
         "messages": [],
         "stop_reason": "paused",
-        "pending_interaction": {"id": "int-9", "tool": "delete_file", "payload": {}},
+        "pending_interaction": {
+            "id": "7c1d2e3f-4a5b-4c6d-8e9f-0a1b2c3d4e5f",
+            "tool": "delete_file",
+            "payload": {},
+        },
     }
 
     (item,) = render_turn_result(
@@ -221,4 +229,27 @@ def test_the_approval_card_names_the_interaction_it_answers():
     )
 
     assert item.choice is not None
-    assert item.interaction_id == "int-9"
+    assert item.interaction_id == "7c1d2e3f-4a5b-4c6d-8e9f-0a1b2c3d4e5f"
+
+
+def test_pending_interaction_with_a_malformed_id_renders_no_resumable_choice():
+    """The inbox answers a card with `UUID(interaction_id)`. A card carrying an
+    id that cannot parse would fail at dispatch and leave the choice pending,
+    so the card renders without a choice to resolve against."""
+    from oss.src.core.channels.dtos import ChannelCapabilities
+    from oss.src.core.channels.render.render import render_turn_result
+
+    folded = {
+        "messages": [],
+        "stop_reason": "paused",
+        "pending_interaction": {"id": "int-9", "tool": "delete_file", "payload": {}},
+    }
+
+    (item,) = render_turn_result(
+        capabilities=ChannelCapabilities(channel="mock"), folded=folded
+    )
+
+    assert item.interaction_id is None
+    assert item.choice is None
+    assert item.parts[0].type == "card"
+    assert item.parts[0].tool == "delete_file"
