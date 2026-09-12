@@ -19,6 +19,7 @@ overrides:
   postcss@<8.5.10: '>=8.5.10 <9'
   sharp: 0.35.4
   fast-uri: 3.1.6
+  js-yaml: 4.3.2
   next@<15.5.18: '>=15.5.18 <16.0.0'
   vite: ^8.0.16
   '@tanstack/query-core': 5.100.9
@@ -276,8 +277,8 @@ importers:
         specifier: ^0.11.0
         version: 0.11.0(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.6))(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
       js-yaml:
-        specifier: ^4.3.1
-        version: 4.3.1
+        specifier: 4.3.2
+        version: 4.3.2
       jsonrepair:
         specifier: ^3.13.3
         version: 3.14.0
@@ -833,8 +834,8 @@ importers:
         specifier: ^1.14.8
         version: 1.15.4
       js-yaml:
-        specifier: ^4.3.1
-        version: 4.3.1
+        specifier: 4.3.2
+        version: 4.3.2
       jsonrepair:
         specifier: ^3.13.3
         version: 3.14.0
@@ -1411,8 +1412,8 @@ importers:
         specifier: ^1.0.1
         version: 1.0.1(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))
       js-yaml:
-        specifier: ^4.3.1
-        version: 4.3.1
+        specifier: 4.3.2
+        version: 4.3.2
       jsonrepair:
         specifier: ^3.13.3
         version: 3.14.0
@@ -1486,8 +1487,8 @@ importers:
         specifier: '>=0.9.0'
         version: 0.11.0(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.6))(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
       js-yaml:
-        specifier: ^4.3.1
-        version: 4.3.1
+        specifier: 4.3.2
+        version: 4.3.2
       lodash:
         specifier: ^4.17.23
         version: 4.18.1
@@ -1821,8 +1822,8 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       js-yaml:
-        specifier: ^4.3.1
-        version: 4.3.1
+        specifier: 4.3.2
+        version: 4.3.2
       json5:
         specifier: ^2.2.3
         version: 2.2.3
@@ -2516,8 +2517,8 @@ importers:
         specifier: ^0.11.0
         version: 0.11.0(@tanstack/query-core@5.100.9)(@tanstack/react-query@5.100.9(react@19.2.6))(jotai@2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6))(react@19.2.6)
       js-yaml:
-        specifier: ^4.3.1
-        version: 4.3.1
+        specifier: 4.3.2
+        version: 4.3.2
       json5:
         specifier: ^2.2.3
         version: 2.2.3
@@ -9092,12 +9093,8 @@ packages:
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
-  js-yaml@4.2.0:
-    resolution: {integrity: sha512-ePWsvanv0DWuDRsW8dnt+R4jQ31SCRCQ7hhNcPXZPsoBZiemuZNYGf7adZdqX2D86j6rvKp3RpCxVTSb8WQlOw==}
-    hasBin: true
-
-  js-yaml@4.3.1:
-    resolution: {integrity: sha512-CY6crGq313MX8GkwvB7tzgp99vjQxY1++5y10/BKN/GUfHqWaOGQMNZkBvqSzsZKWk/ijwHlWzzkLulsGHhjWQ==}
+  js-yaml@4.3.2:
+    resolution: {integrity: sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==}
     hasBin: true
 
   jsdom@26.1.0:
@@ -13025,7 +13022,7 @@ snapshots:
       globals: 13.24.0
       ignore: 5.3.2
       import-fresh: 3.3.1
-      js-yaml: 4.3.1
+      js-yaml: 4.3.2
       minimatch: 3.1.5
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -13039,7 +13036,7 @@ snapshots:
       globals: 14.0.0
       ignore: 5.3.2
       import-fresh: 3.3.1
-      js-yaml: 4.2.0
+      js-yaml: 4.3.2
       minimatch: 3.1.5
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -16858,7 +16855,7 @@ snapshots:
     dependencies:
       env-paths: 2.2.1
       import-fresh: 3.3.1
-      js-yaml: 4.3.1
+      js-yaml: 4.3.2
       parse-json: 5.2.0
     optionalDependencies:
       typescript: 5.9.3
@@ -17744,7 +17741,7 @@ snapshots:
       imurmurhash: 0.1.4
       is-glob: 4.0.3
       is-path-inside: 3.0.3
-      js-yaml: 4.3.1
+      js-yaml: 4.3.2
       json-stable-stringify-without-jsonify: 1.0.1
       levn: 0.4.1
       lodash.merge: 4.6.2
@@ -18724,11 +18721,7 @@ snapshots:
 
   js-tokens@4.0.0: {}
 
-  js-yaml@4.2.0:
-    dependencies:
-      argparse: 2.0.1
-
-  js-yaml@4.3.1:
+  js-yaml@4.3.2:
     dependencies:
       argparse: 2.0.1
 
