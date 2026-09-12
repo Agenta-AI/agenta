@@ -1,9 +1,9 @@
 import {useMemo, useState} from "react"
 
+import {createApiKey} from "@agenta/settings"
 import {Button, Input, Switch, Typography, message} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
-import {createApiKey} from "@/oss/services/apiKeys/api"
 import {useOrgData} from "@/oss/state/org"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {projectIdAtom} from "@/oss/state/project"
