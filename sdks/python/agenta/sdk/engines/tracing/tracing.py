@@ -17,6 +17,7 @@ from opentelemetry.sdk.trace import Span, SpanLimits, Tracer, TracerProvider
 from opentelemetry.sdk.resources import Resource
 
 
+from agenta.sdk.utils.helpers import strip_trailing_api_segment
 from agenta.sdk.utils.singleton import Singleton
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import get_module_logger
@@ -384,7 +385,7 @@ class Tracing(metaclass=Singleton):
             )
 
         api_url = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_url
-        web_url = api_url.replace("/api", "") if api_url else None
+        web_url = strip_trailing_api_segment(api_url) if api_url else None
 
         (organization_id, workspace_id, project_id) = (
             ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.resolve_scopes()

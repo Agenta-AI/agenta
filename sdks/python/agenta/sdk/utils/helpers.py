@@ -2,6 +2,7 @@ import os
 import importlib.metadata
 import re
 from typing import Dict, Tuple
+from urllib.parse import urlsplit, urlunsplit
 
 
 def get_current_version():
@@ -45,6 +46,24 @@ def parse_url(url: str) -> str:
         return url
 
     return url
+
+
+def strip_trailing_api_segment(url: str) -> str:
+    """Return the origin of an API base URL.
+
+    Only a trailing ``/api`` *path* segment is removed. Scheme, host, and port
+    stay intact, so a host literally named ``api`` (``http://api:8000``) is not
+    cut inside the authority the way ``str.rsplit("/api")`` / ``str.replace``
+    would.
+    """
+
+    parsed = urlsplit(url)
+    path = parsed.path.rstrip("/")
+    if path.endswith("/api"):
+        path = path[: -len("/api")]
+    return urlunsplit(
+        (parsed.scheme, parsed.netloc, path, parsed.query, parsed.fragment)
+    ).rstrip("/")
 
 
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
