@@ -146,6 +146,58 @@ async def test_edit_endpoint_replaces_data_and_flags_wholesale(seeded_project):
     assert refetched.data.models.allowlist == ["gpt-4o-mini"]
 
 
+async def test_edit_endpoint_round_trips_provider_key(seeded_project):
+    """The provider survives an edit of unrelated fields, and an edit can also set it.
+
+    `provider_key` is the field without which the endpoint cannot resolve at all: a resolve
+    against a provider-less endpoint is refused. It used to be absent from `LLMEndpointEdit`
+    entirely, so the edit path discarded a `provider_key` in the body without saying so and an
+    endpoint saved without one could only be repaired by deleting and recreating it.
+    """
+    dao = LLMEndpointsDAO(engine=get_transactions_engine())
+    project_id = seeded_project["project_id"]
+    user_id = seeded_project["user_id"]
+
+    created = await dao.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint=_create_dto(slug="acme-provider"),
+    )
+    assert created.provider_key == "azure"
+
+    # An edit that says nothing about the provider preserves it, unlike `data` and `flags`,
+    # which this PUT replaces wholesale.
+    edited = await dao.edit_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint=LLMEndpointEdit(
+            id=created.id,
+            name="Acme Azure renamed",
+            data=LLMEndpointData(models=LLMModelFilter(allowlist=["gpt-4o-mini"])),
+        ),
+    )
+    assert edited.provider_key == "azure"
+    refetched = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
+    assert refetched.provider_key == "azure"
+
+    # And an edit that names one applies it.
+    edited = await dao.edit_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint=LLMEndpointEdit(
+            id=created.id,
+            provider_key="openai",
+            data=LLMEndpointData(models=LLMModelFilter(allowlist=["gpt-4o-mini"])),
+        ),
+    )
+    assert edited.provider_key == "openai"
+    refetched = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
+    assert refetched.provider_key == "openai"
+
+
 async def test_delete_endpoint_is_idempotent(seeded_project):
     dao = LLMEndpointsDAO(engine=get_transactions_engine())
     project_id = seeded_project["project_id"]

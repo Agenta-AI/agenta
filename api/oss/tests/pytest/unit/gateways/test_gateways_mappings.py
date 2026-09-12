@@ -14,6 +14,7 @@ from oss.src.core.gateways.llms.dtos import (
     LLMDeploymentKind,
     LLMEndpointCreate,
     LLMEndpointData,
+    LLMEndpointEdit,
     LLMEndpointFlags,
     LLMEndpointRoute,
     LLMEndpointSettings,
@@ -31,6 +32,7 @@ from oss.src.core.gateways.mcps.dtos import (
 from oss.src.dbs.postgres.gateways.llms.mappings import (
     map_llm_endpoint_create_to_dbe,
     map_llm_endpoint_dbe_to_dto,
+    map_llm_endpoint_edit_to_dbe,
 )
 from oss.src.dbs.postgres.gateways.mcps.mappings import (
     map_mcp_endpoint_create_to_dbe,
@@ -142,6 +144,63 @@ def test_llm_endpoint_create_round_trips_through_dbe():
     assert endpoint.tags == create.tags
     assert endpoint.meta == create.meta
     assert endpoint.created_by_id == user_id
+
+
+# --- provider_key on the edit path -------------------------------------------- #
+#
+# provider_key is the one field a PUT does not clear when omitted. It is also the field
+# without which an endpoint cannot resolve at all, and before it existed on `LLMEndpointEdit`
+# the edit path silently discarded it: the 200 said nothing, and an endpoint saved without a
+# provider could only be repaired by deleting and recreating it.
+
+
+def _stored_endpoint(provider_key):
+    dbe = map_llm_endpoint_create_to_dbe(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        dto=LLMEndpointCreate(
+            slug="acme-openai",
+            name="Acme OpenAI",
+            provider_key=provider_key,
+            deployment_kind=LLMDeploymentKind.CUSTOM,
+            data=LLMEndpointData(models=LLMModelFilter(allowlist=["gpt-4o"])),
+        ),
+    )
+    return _stamp_lifecycle(dbe)
+
+
+def _edit(endpoint_id, **fields):
+    return LLMEndpointEdit(id=endpoint_id, name="Acme OpenAI", **fields)
+
+
+def test_edit_sets_a_provider_key_on_an_endpoint_that_had_none():
+    dbe = _stored_endpoint(None)
+
+    edited = map_llm_endpoint_edit_to_dbe(
+        dbe=dbe, user_id=uuid4(), dto=_edit(dbe.id, provider_key="openai")
+    )
+
+    assert map_llm_endpoint_dbe_to_dto(dbe=edited).provider_key == "openai"
+
+
+def test_edit_replaces_an_existing_provider_key():
+    dbe = _stored_endpoint("openai")
+
+    edited = map_llm_endpoint_edit_to_dbe(
+        dbe=dbe, user_id=uuid4(), dto=_edit(dbe.id, provider_key="anthropic")
+    )
+
+    assert map_llm_endpoint_dbe_to_dto(dbe=edited).provider_key == "anthropic"
+
+
+def test_edit_omitting_provider_key_preserves_the_stored_one():
+    """Every other field is a full overwrite; a request that says nothing about the provider
+    must not be able to strip the only field that lets the endpoint resolve."""
+    dbe = _stored_endpoint("openai")
+
+    edited = map_llm_endpoint_edit_to_dbe(dbe=dbe, user_id=uuid4(), dto=_edit(dbe.id))
+
+    assert map_llm_endpoint_dbe_to_dto(dbe=edited).provider_key == "openai"
 
 
 # --- MCP endpoint round-trip --------------------------------------------------- #

@@ -83,6 +83,11 @@ class LLMEndpointCreate(Slug, Header, Metadata):
 
 
 class LLMEndpointEdit(Identifier, Header, Metadata):
+    # Editable, unlike `deployment_kind`: an endpoint saved without a provider cannot resolve
+    # at all, and before this field existed the edit path silently discarded a `provider_key`
+    # in the body, so the only way to add one was to delete the endpoint and recreate it.
+    # Omitting it preserves the stored value (see `map_llm_endpoint_edit_to_dbe`).
+    provider_key: Optional[str] = None
     secret_id: Optional[UUID] = None
     #
     data: LLMEndpointData = Field(default_factory=LLMEndpointData)

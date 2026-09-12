@@ -406,19 +406,17 @@ not yet observable.
    something that was never registered. Either the page creates the endpoint or the resolver falls
    back to the secret. Nothing else on this list can be verified through the product until this
    lands.
-2. **OR27 — the SDK resolver must preserve the error body.** A control-plane refusal loses its
-   `code` at one `if` in `sdk/agents/platform/connections.py`, which turns every gateway refusal
-   into a generic 500. `qa.md` calls that a regression, and it is the cheapest fix on the list.
-3. **OR31a — Pi has no `MCP servers` row.** Pi is the one harness whose gateway LLM leg works, so
+2. **OR31a — Pi has no `MCP servers` row.** Pi is the one harness whose gateway LLM leg works, so
    this is what blocks the MCP half of the QA procedure on every harness.
-4. **OR31b — Claude Code is offerable on an OpenAI-compatible endpoint it cannot use.** The
+3. **OR31b — Claude Code is offerable on an OpenAI-compatible endpoint it cannot use.** The
    configuration surface must consult the same capability table the SDK enforces.
-5. **OR31c — Codex cannot use a custom gateway model key.** Its model catalogue is fixed, so a
+4. **OR31c — Codex cannot use a custom gateway model key.** Its model catalogue is fixed, so a
    gateway model offered under Codex is a dead end rather than a misconfiguration.
-6. **OR29 and OR30 — the endpoint update path and the resolve route.** `PUT` drops
-   `provider_key`, and two `ValueError`s on resolve escape as generic 500s. Both are data-integrity
-   and typed-refusal work on the same seam, and they are last only because the paths above reach
-   users first.
+
+What remains is all dashboard work. The three runtime findings this wave opened with are closed:
+the resolve route now refuses with the shared envelope and the SDK resolver carries it (OR27), the
+edit path round-trips `provider_key` (OR29), and the two untyped resolve failures are typed 422s
+(OR30). See the closed record in `open-reviews.md`.
 
 OR23 and OR28 sit alongside rather than in this order: OR23 is Claude Code's native MCP exchange
 under the automated matrix, and OR28 is per-harness preservation of the refusal envelope, which is

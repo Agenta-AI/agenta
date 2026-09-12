@@ -28,7 +28,9 @@ from oss.src.core.gateways.llms.interfaces import (
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
 from oss.src.core.gateways.llms.types import (
+    LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
+    LLMEndpointProviderMissingError,
     LLMModelNotAllowedError,
 )
 from oss.src.core.gateways.policy.dtos import (
@@ -349,6 +351,46 @@ async def test_resolve_agent_connection_returns_standard_metadata_without_readin
     assert resolved.namespace == GatewayEndpointNamespace.STANDARD
     assert resolved.name == "openai"
     assert resolver.resolve_calls == []
+
+
+@pytest.mark.asyncio
+async def test_resolve_agent_connection_without_a_provider_or_a_slug_is_typed():
+    """A bare `ValueError` here reached the caller as a generic 500 with nothing to act on.
+
+    The typed refusal is what the boundary maps to a 422 envelope; the required
+    `provider_key` field on `LLMGatewayConnectionResolution` remains the invariant underneath.
+    """
+    with pytest.raises(LLMConnectionProviderRequiredError):
+        await _service().resolve_agent_connection(
+            scope=_scope(), model="gpt-4o", provider_key=None, connection_slug=None
+        )
+
+
+@pytest.mark.asyncio
+async def test_resolve_agent_connection_of_a_provider_less_endpoint_is_typed():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(slug="acme", provider_key=None)
+
+    with pytest.raises(LLMEndpointProviderMissingError) as raised:
+        await _service(dao=dao).resolve_agent_connection(
+            scope=_scope(), model="gpt-4o", provider_key=None, connection_slug="acme"
+        )
+
+    # The message has to name the endpoint the operator must repair.
+    assert "custom/acme" in raised.value.message
+
+
+@pytest.mark.asyncio
+async def test_resolve_agent_connection_of_a_provider_less_endpoint_accepts_a_request_provider():
+    """The request's own provider still satisfies the route, so nothing new is refused."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(slug="acme", provider_key=None)
+
+    resolved = await _service(dao=dao).resolve_agent_connection(
+        scope=_scope(), model="gpt-4o", provider_key="openai", connection_slug="acme"
+    )
+
+    assert resolved.provider_key == "openai"
 
 
 @pytest.mark.asyncio

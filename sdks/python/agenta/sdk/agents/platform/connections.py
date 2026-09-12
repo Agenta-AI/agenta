@@ -37,6 +37,7 @@ from ..connections import (
     ConnectionResolutionError,
     EndpointResolutionError,
     Endpoint,
+    GatewayConnectionRefusedError,
     InvalidConnectionConfigurationError,
     MissingCredentialError,
     MissingProviderError,
@@ -1040,8 +1041,17 @@ class VaultConnectionResolver:
             log.warning(
                 "agent: gateway connection resolution HTTP %s", response.status_code
             )
-            raise ConnectionResolutionError(
-                f"connection resolution failed (HTTP {response.status_code})"
+            # Read the body, not just the status. The gateway refuses with the shared
+            # `{code, message, retryable, next_step, details}` envelope, and reducing that to
+            # a status number was the whole reason a missing endpoint reached the person
+            # running the agent as an unknown-invoke-error 500 with nothing to act on.
+            try:
+                body = response.json()
+            except Exception:  # pylint: disable=broad-except
+                body = None
+            raise GatewayConnectionRefusedError.from_response(
+                status_code=response.status_code,
+                body=body,
             )
 
         data = response.json()

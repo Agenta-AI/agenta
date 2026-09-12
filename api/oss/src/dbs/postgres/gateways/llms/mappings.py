@@ -82,9 +82,15 @@ def map_llm_endpoint_edit_to_dbe(
     #
     dto: LLMEndpointEdit,
 ) -> LLMEndpointDBE:
-    """Full PUT over the editable surface (§4.3): data, flags, header, secret_id.
-    provider_key and deployment_kind are absent from LLMEndpointEdit and therefore
-    untouched here."""
+    """Full PUT over the editable surface (§4.3): data, flags, header, secret_id,
+    provider_key. deployment_kind is absent from LLMEndpointEdit and therefore untouched.
+
+    provider_key is the one field the PUT does not clear when omitted. Every other field is a
+    full overwrite, but a request that says nothing about the provider must not be able to
+    strip the only field that lets the endpoint resolve, and there is no product path for
+    un-setting it."""
+    if dto.provider_key is not None:
+        dbe.provider_key = dto.provider_key
     dbe.name = dto.name
     dbe.description = dto.description
     dbe.secret_id = dto.secret_id

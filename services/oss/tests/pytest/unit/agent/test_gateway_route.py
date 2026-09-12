@@ -16,6 +16,7 @@ import pytest
 
 from agenta.sdk.agents import AgentResult, AgentTemplate, ResolvedToolSet
 from agenta.sdk.agents.connections import (
+    GatewayConnectionRefusedError,
     MissingCredentialError,
     ModelRef,
     RuntimeAuthContext,
@@ -23,7 +24,7 @@ from agenta.sdk.agents.connections import (
 from agenta.sdk.agents.platform import connection as platform_connection
 from agenta.sdk.agents.platform import connections as platform_connections
 from agenta.sdk.agents.platform import resolve_connection
-from agenta.sdk.models.workflows import WorkflowServiceRequest
+from agenta.sdk.models.workflows import WorkflowServiceRequest, failure_code_of
 
 from oss.src.agent import app
 
@@ -148,3 +149,65 @@ async def test_connection_refusal_keeps_its_status_code(monkeypatch, fake_backen
         )
 
     assert excinfo.value.status_code == 422
+
+
+async def test_a_control_plane_refusal_reaches_the_caller_with_its_code(
+    monkeypatch, fake_backend
+):
+    """OR27: the gateway's `code` and message survive the service, not just the status.
+
+    The resolver used to read only the HTTP status of a refusal, so an endpoint that did not
+    exist reached the person running the agent as an unknown-invoke-error 500 with no code and
+    no sentence they could act on. Both normalizers that build an error response from a raised
+    exception read `failure_code_of`, so asserting it here pins what the browser receives.
+    """
+
+    refusal = GatewayConnectionRefusedError.from_response(
+        status_code=404,
+        body={
+            "detail": {
+                "code": "endpoint_not_found",
+                "message": "LLM endpoint not found: custom/absent-gw",
+                "retryable": False,
+                "next_step": "Register the endpoint, or name one that already exists.",
+                "details": {"target": "custom/absent-gw"},
+            }
+        },
+    )
+
+    async def _resolve(*, model, context):
+        raise refusal
+
+    async def _tools(tools, **_kw):
+        return ResolvedToolSet(tool_callback=None)
+
+    async def _no_mcp(mcp_servers, **_kw):
+        return []
+
+    backend = fake_backend(result=AgentResult(output="unused"))
+    monkeypatch.setattr(app, "resolve_tools", _tools)
+    monkeypatch.setattr(app, "resolve_mcp_servers", _no_mcp)
+    monkeypatch.setattr(app, "resolve_connection", _resolve)
+    monkeypatch.setattr(app, "trace_context", lambda: None)
+    monkeypatch.setattr(app, "record_usage", lambda usage: None)
+    monkeypatch.setattr(app, "select_backend", lambda selection: backend)
+    monkeypatch.setattr(
+        app,
+        "_default_agent_template",
+        lambda: AgentTemplate(instructions="x", model="m"),
+    )
+
+    with pytest.raises(GatewayConnectionRefusedError) as excinfo:
+        await app._agent(
+            request=WorkflowServiceRequest(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters={"agent": {"harness": {"kind": "pi_core"}}},
+        )
+
+    error = excinfo.value
+    # What the normalizer puts on the status: a client error, the gateway's own failure code,
+    # and the gateway's sentence as the message, never "connection resolution failed (HTTP 404)".
+    assert error.status_code == 422
+    assert failure_code_of(error) == "endpoint_not_found"
+    assert str(error) == "LLM endpoint not found: custom/absent-gw"
+    assert error.error_detail["next_step"]
