@@ -725,6 +725,24 @@ const uniqueBySession = (refs: readonly SessionSidebarRef[]): SessionSidebarRef[
 }
 
 /**
+ * The ids the SERVER lists for this scope, pins and pages included. A host reconciles its local
+ * rows against it: a session the server carries no longer needs the local seam, and a local row
+ * that outlived its server twin would resurface the session whenever it aged out of the window.
+ */
+export const sidebarServerSessionIdsAtomFamily = atomFamily((scopeId: string) =>
+    atom<ReadonlySet<string>>((get) => {
+        const ids = new Set<string>()
+        for (const row of get(sidebarPinnedSessionsQueryAtomFamily(scopeId)).data ?? [])
+            ids.add(row.session_id)
+        for (const row of get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? [])
+            ids.add(row.session_id)
+        for (const row of get(sidebarSessionsOlderQueryAtomFamily(scopeId)).data?.rows ?? [])
+            ids.add(row.session_id)
+        return ids
+    }),
+)
+
+/**
  * Pinned sessions first, then the rest by activity.
  *
  * Pins are pulled to the top rather than left in place because a pinned conversation is one you

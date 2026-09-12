@@ -584,6 +584,10 @@ export const useAgentChatQueue = ({
         queued: [...(server?.queued ?? []), ...queued],
         /** Sent-but-not-yet-saved user rows; merge with `mergePendingSendEchoRows`. */
         pendingSendRows: echoes.rows,
+        /** A send of this mount is on its way: admitted, not yet named by the runner or refused.
+         * The server-owned path never moves `useChat`'s `status` off "ready", so this is the only
+         * local evidence a turn was just submitted. */
+        sendInFlight: echoes.inFlight,
         submit,
         steer,
         removeQueued,
