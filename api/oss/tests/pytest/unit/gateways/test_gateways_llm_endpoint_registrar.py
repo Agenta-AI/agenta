@@ -47,11 +47,13 @@ def _custom_provider_secret(
     secret_id: UUID = None,
     models=("my-model",),
     version="2024-08-01",
+    provider_slug: str = "my-gateway",
 ) -> SecretResponseDTO:
     data = {
         "kind": kind,
         "provider": {"url": BASE_URL, "version": version, "key": "sk-gw"},
         "models": [{"slug": model} for model in models],
+        "provider_slug": provider_slug,
     }
     if protocol is not None:
         data["protocol"] = protocol
@@ -182,7 +184,73 @@ def test_the_mapping_carries_the_address_the_models_and_the_identity():
     assert endpoint.secret_id == secret_id
     assert endpoint.data.route.base_url == BASE_URL
     assert endpoint.data.route.api_version == "2024-08-01"
+    assert endpoint.data.models.allowlist == [
+        "my-gateway/custom/my-model",
+        "my-gateway/custom/my-other-model",
+        "my-model",
+        "my-other-model",
+    ]
+
+
+def test_the_allowlist_admits_both_spellings_of_every_listed_model():
+    """Agenta addresses the model by its qualified key, a direct HTTP caller by the bare
+    slug the upstream knows; both reach the same endpoint, so both must pass."""
+    secret = _custom_provider_secret(models=("my-model", "my-other-model"))
+
+    allowlist = map_custom_provider_secret_to_endpoint(secret).data.models.allowlist
+
+    assert secret.data.model_keys == [
+        "my-gateway/custom/my-model",
+        "my-gateway/custom/my-other-model",
+    ]
+    assert allowlist == [
+        "my-gateway/custom/my-model",
+        "my-gateway/custom/my-other-model",
+        "my-model",
+        "my-other-model",
+    ]
+
+
+def test_the_allowlist_repeats_no_spelling_and_keeps_a_stable_order():
+    secret = _custom_provider_secret(models=("my-model", "my-model"))
+
+    allowlist = map_custom_provider_secret_to_endpoint(secret).data.models.allowlist
+
+    assert allowlist == ["my-gateway/custom/my-model", "my-model"]
+
+
+def test_the_allowlist_leaves_out_a_model_the_operator_did_not_list():
+    endpoint = map_custom_provider_secret_to_endpoint(
+        _custom_provider_secret(models=("my-model",))
+    )
+
+    allowlist = endpoint.data.models.allowlist
+
+    assert "my-unlisted-model" not in allowlist
+    assert "my-gateway/custom/my-unlisted-model" not in allowlist
+    assert not endpoint.data.models.allows("my-unlisted-model")
+    assert not endpoint.data.models.allows("my-gateway/custom/my-unlisted-model")
+
+
+def test_the_allowlist_falls_back_to_the_bare_slugs_without_model_keys():
+    """A secret written before the qualified keys existed still allows its own models."""
+    secret = _custom_provider_secret(models=("my-model", "my-other-model"))
+    secret.data.model_keys = None
+
+    endpoint = map_custom_provider_secret_to_endpoint(secret)
+
     assert endpoint.data.models.allowlist == ["my-model", "my-other-model"]
+
+
+def test_an_empty_model_list_maps_to_an_empty_allowlist_and_not_to_none():
+    """`allowlist=[]` allows no model; `allowlist=None` would allow every model, which an
+    operator who listed none never asked for."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        _custom_provider_secret(models=())
+    )
+
+    assert endpoint.data.models.allowlist == []
+    assert not endpoint.data.models.allows("my-model")
 
 
 def test_the_mapping_ignores_a_secret_that_names_no_endpoint():

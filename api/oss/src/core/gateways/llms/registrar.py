@@ -5,7 +5,7 @@ routable endpoint under the same slug the SDK sends as `connection_slug`. It wor
 `LLMEndpointsDAOInterface` alone, which depends on nothing in secrets.
 """
 
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from oss.src.core.gateways.llms.dtos import (
@@ -17,7 +17,7 @@ from oss.src.core.gateways.llms.dtos import (
     LLMModelFilter,
 )
 from oss.src.core.gateways.llms.interfaces import LLMEndpointsDAOInterface
-from oss.src.core.secrets.dtos import SecretResponseDTO
+from oss.src.core.secrets.dtos import SecretDataDTO, SecretResponseDTO
 from oss.src.core.secrets.enums import (
     LLMCustomProviderKind,
     LLMEndpointProtocol,
@@ -48,6 +48,31 @@ def custom_provider_deployment_kind(
 ) -> LLMDeploymentKind:
     """The deployment an endpoint of this custom-provider kind is reached through."""
     return CUSTOM_PROVIDER_DEPLOYMENT_KINDS.get(kind, LLMDeploymentKind.CUSTOM)
+
+
+def custom_provider_model_allowlist(data: SecretDataDTO) -> List[str]:
+    """Every spelling of the models the operator listed, and nothing else.
+
+    One model is addressed by two names, and both must pass: the qualified
+    `<provider_slug>/<kind>/<model slug>` key the secret carries, which is how Agenta
+    addresses the model internally, and the bare model slug, which is the name the
+    upstream itself knows and what a direct caller of
+    `/gateways/llms/custom/<slug>/v1/chat/completions` sends. `GatewayEndpointFilter.allows`
+    is exact membership, so a spelling missing here is a refusal.
+
+    An empty list stays empty on purpose: `allowlist=[]` allows no model, while
+    `allowlist=None` would allow every model, so an operator who listed none must not end
+    up with an unrestricted endpoint.
+    """
+    qualified_keys = list(getattr(data, "model_keys", None) or [])
+    bare_slugs = [model.slug for model in (getattr(data, "models", None) or [])]
+
+    allowlist: List[str] = []
+    for name in qualified_keys + bare_slugs:
+        if name not in allowlist:
+            allowlist.append(name)
+
+    return allowlist
 
 
 def map_custom_provider_secret_to_endpoint(
@@ -83,7 +108,7 @@ def map_custom_provider_secret_to_endpoint(
                 api_version=getattr(provider, "version", None),
             ),
             models=LLMModelFilter(
-                allowlist=[model.slug for model in (data.models or [])],
+                allowlist=custom_provider_model_allowlist(data),
             ),
         ),
     )

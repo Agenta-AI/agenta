@@ -25,6 +25,7 @@ from oss.src.core.gateways.llms.interfaces import (
     LLMRelayResult,
     LLMUpstreamInterface,
 )
+from oss.src.core.gateways.llms.registrar import map_custom_provider_secret_to_endpoint
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
 from oss.src.core.gateways.llms.types import (
@@ -494,6 +495,93 @@ async def test_disallowed_model_is_refused_on_every_door_before_the_secret(proto
             body=body,
             headers={},
             protocol=protocol,
+        )
+
+    assert resolver.resolve_calls == []
+
+
+def _registered_custom_provider_models() -> LLMModelFilter:
+    """The model filter the vault registrar writes for a one-model custom provider."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        SecretResponseDTO(
+            id=uuid4(),
+            slug="gw-provider-a-d36033501df1",
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data={
+                # A literal IP keeps the custom_provider URL validator happy.
+                "kind": "custom",
+                "provider": {"url": "https://93.184.216.34/v1", "key": "sk-gw"},
+                "models": [{"slug": "mock/echo"}],
+                "provider_slug": "gw-provider-a",
+            },
+            header={"name": "gw-provider-a"},
+        )
+    )
+    return endpoint.data.models
+
+
+def test_a_registered_custom_provider_allows_both_spellings_of_its_model():
+    models = _registered_custom_provider_models()
+
+    assert models.allows("gw-provider-a/custom/mock/echo")
+    assert models.allows("mock/echo")
+    assert not models.allows("gw-provider-a/custom/mock/other")
+
+
+@pytest.mark.asyncio
+async def test_a_qualified_model_key_is_relayed_and_not_refused_as_not_allowed():
+    """The playground sends Agenta's qualified model key in the body; the registered
+    allowlist holds it, so the call relays instead of returning `model_not_allowed`."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["gw-provider-a-d36033501df1"] = _custom_row(
+        slug="gw-provider-a-d36033501df1",
+        models=_registered_custom_provider_models(),
+    )
+    resolver = _MockResolver(secret=_secret())
+    adapter_result = LLMRelayResult(
+        status_code=200, headers={}, body=_one_chunk_body(b"{}")
+    )
+    registry = LLMUpstreamRegistry(
+        adapters={"relay": _MockAdapter(result=adapter_result)}
+    )
+
+    body = json.dumps(
+        {"model": "gw-provider-a/custom/mock/echo", "messages": []}
+    ).encode()
+
+    result = await _service(
+        dao=dao, resolver=resolver, registry=registry
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name="gw-provider-a-d36033501df1",
+        body=body,
+        headers={},
+    )
+
+    assert result is adapter_result
+
+
+@pytest.mark.asyncio
+async def test_an_unlisted_model_is_still_refused_on_a_registered_custom_provider():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["gw-provider-a-d36033501df1"] = _custom_row(
+        slug="gw-provider-a-d36033501df1",
+        models=_registered_custom_provider_models(),
+    )
+    resolver = _MockResolver(secret=_secret())
+
+    body = json.dumps(
+        {"model": "gw-provider-a/custom/mock/other", "messages": []}
+    ).encode()
+
+    with pytest.raises(LLMModelNotAllowedError):
+        await _service(dao=dao, resolver=resolver).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name="gw-provider-a-d36033501df1",
+            body=body,
+            headers={},
         )
 
     assert resolver.resolve_calls == []
