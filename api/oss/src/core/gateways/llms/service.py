@@ -107,6 +107,11 @@ class _ResolvedLlmTarget:
         )
 
 
+async def _replay_body(payload: bytes) -> AsyncIterator[bytes]:
+    """An already-consumed body, handed back as the iterator the caller expects."""
+    yield payload
+
+
 def _parse_call_context(body: bytes, protocol: LLMProtocol) -> LLMCallContext:
     """Extract model and streaming fields without coupling the core to the API layer."""
     try:
@@ -402,9 +407,30 @@ class LLMGatewayService:
             ) from e
 
         # Both paths record after the drain, never before: every adapter fills
-        # `result.usage` while its body generator runs, and the proxy is what advances
-        # it — reading usage here would record None on every call (§8).
-        result.body = self._drain_and_record(
+        # `result.usage` while its body generator runs, so reading usage here would record
+        # None on every call (§8). WHO does the draining is what differs, and it has to,
+        # because only one of the two callers drains at all.
+        if context.stream:
+            # Starlette iterates a `StreamingResponse` to exhaustion, so the drain belongs
+            # to the caller and the record rides its end.
+            result.body = self._drain_and_record(
+                body=result.body,
+                scope=scope,
+                target=policy_target,
+                decision=decision,
+                result=result,
+                secret=secret,
+            )
+            return result
+
+        # A non-streaming caller builds a plain `Response` from one chunk and stops, so
+        # nothing ever advances the generator past its first yield. Deferring the record to
+        # a `finally` that only runs when an abandoned generator is finalised put the whole
+        # default path outside the audit trail: `policy.record` ran at garbage collection,
+        # after the request, with `result.usage` still unset because the adapter assigns it
+        # on the statement AFTER its yield (OR33). Drain here instead, while the call is
+        # still the call.
+        result.body = await self._drain_now_and_record(
             body=result.body,
             scope=scope,
             target=policy_target,
@@ -506,6 +532,38 @@ class LLMGatewayService:
             owner=secret.owner if secret is not None else None,
             origin=secret.origin if secret is not None else None,
         )
+
+    async def _drain_now_and_record(
+        self,
+        *,
+        body: AsyncIterator[bytes],
+        scope: AuthScope,
+        target: GatewayTarget,
+        decision: PolicyDecision,
+        result: LLMRelayResult,
+        secret: Optional[ResolvedSecret],
+    ) -> AsyncIterator[bytes]:
+        """Consume a non-streaming body now, record the call, and hand back the bytes.
+
+        Byte-preserving: the chunks are concatenated and replayed as one, which is what the
+        caller reads anyway — and what it used to read was only the FIRST chunk, so an
+        adapter that answered in more than one truncated its own response.
+        """
+        chunks: List[bytes] = []
+        try:
+            async for chunk in body:
+                chunks.append(chunk)
+        finally:
+            # In a `finally` for the same reason the streaming drain is: a body that failed
+            # part-way is still a call that happened, and it records whatever usage the
+            # adapter had reached.
+            await self.policy.record(
+                scope=scope,
+                target=target,
+                decision=decision,
+                outcome=self._outcome_from(result=result, secret=secret),
+            )
+        return _replay_body(b"".join(chunks))
 
     async def _drain_and_record(
         self,
