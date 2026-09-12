@@ -1,10 +1,16 @@
 # Wave 1: managed-gateway measurement and wallet debit kernel
 
-**Status:** planned; not yet started. Wave 1 takes the application from checkpoint 0 to checkpoint 1.
+**Status:** code-complete and switched off. Every node in the graph is delivered, the unit suites
+and the integration suites pass, and nothing runs in production until `AGENTA_WALLETS_ENABLED` is
+turned on. Wave 1 takes the application from checkpoint 0 to checkpoint 1; checkpoint 1 itself is
+reached when the acceptance procedure in
+[nodes/im-1-02-pipeline/acceptance.md](nodes/im-1-02-pipeline/acceptance.md) has been run against a
+deployment with the flag on.
 
 **Fork point:** `IM-1-00` reviewed and merged `WP-1-00` (contract seed) at commit `659e7ac5db1e0d0987acdc1beb654ea2becfc14b`
 (merging `WP-1-00` commit `676a96e054940b166461a43217de81214aaf8cff`) on `wallets/im-1-00-seed`. `WP-1-01`
-and `WP-1-02` fork from this commit; neither may fork before it exists.
+and `WP-1-02` forked from this commit. The branch was later squashed and rebased onto
+`feat/add-gateways`, so these commits are no longer reachable from its history.
 
 ## Checkpoint boundary
 
@@ -37,7 +43,9 @@ safe.
   `wallet_balances` live together in core.
 - Tables are EE-only. **Delivered migration ids** (superseding the reserved numbers below): `core_ee`
   `ee0000000004` (`down_revision = "ee0000000003"`), `tracing_ee` `ee0000000002`
-  (`down_revision = "ee0000000001"`, unchanged from the original plan).
+  (`down_revision = "ee0000000001"`, unchanged from the original plan). `WP-1-04` later added
+  `core_ee` `ee0000000005` (the general-balance backfill), which is the current `core_ee` head; the
+  `tracing_ee` head is `ee0000000002`.
 
   Node planning reserved `core_ee` `ee0000000006` after `ee0000000005`, expecting the sandbox-metering
   Track B/C migrations to occupy `ee0000000004`/`ee0000000005` first. Those two revisions exist only
@@ -69,11 +77,19 @@ deliveries of the same posting key.
 ## Completion evidence
 
 - Unit tests cover the non-strict `check`, two message serializers, worker acknowledgement order, amount boundary,
-  duplicate delivery, restricted-credit selection, split debit, and allowed deficit.
+  duplicate delivery, restricted-credit selection, split debit, and allowed deficit. **Delivered:**
+  126 pass.
 - Real-Postgres integration tests prove all debit and balance changes commit or roll back together and
-  concurrent deliveries cannot overspend one credit.
+  concurrent deliveries cannot overspend one credit. **Delivered and run** on 12 September 2026
+  against a throwaway Postgres 17 and Redis 8 at `core_ee` head `ee0000000005` / `tracing_ee`
+  `ee0000000002`: the concurrency guarantee, the migration invariants, the debit-worker duplicate
+  guard and the measurement chain all pass. Three of the sixteen fail, and two of those three are a
+  real defect in `WalletsDAO.award_credit`. A fourth failure sits outside these suites: the repo's
+  lifecycle-column convention test rejects the `measurements` tables. All four are recorded in
+  [nodes/im-1-02-pipeline/acceptance.md](nodes/im-1-02-pipeline/acceptance.md) §9.
 - Local deployment acceptance uses fake built-in LLM and MCP calls only. It confirms both chains reach
-  one measurement and one idempotent core settlement per gateway call.
+  one measurement and one idempotent core settlement per gateway call. **Not yet run**; it needs a
+  deployment with the flag on.
 
 The detailed node graph is in [wps-1.md](wps-1.md), [ims-1.md](ims-1.md), and [cus-1.md](cus-1.md).
 
@@ -106,18 +122,21 @@ migration beyond `ee0000000005` (`core_ee` head remains `ee0000000005`):
   new catalog row, not a new code path.
 
 Both worktrees are documented in `nodes/im-1-02-pipeline/acceptance.md`, including the
-integration test suites that were WRITTEN BUT NOT RUN (the review worktrees are not
-allowed to touch the shared EE dev stack) and how to run them against a real deployment.
+integration suites they added and the results of running them. Those results matter here:
+`WP-1-05`'s signup grant does not work. `WalletsDAO.award_credit` inserts a credit's balance
+row before the credit itself in one flush, so it violates its own foreign key on every first
+delivery. See §9 of the acceptance document for the evidence and the fix.
 
 ## Feature flag
 
 Everything above ships switched off. `AGENTA_WALLETS_ENABLED` (EE only, `env.wallets.enabled`,
 default `false`) gates every write the wallet performs, because the wave is code-complete
-but not yet proven end to end against a real deployment: several of its integration suites
-were written and never run, and the load-bearing call site sits on the signup path, where
+but not yet proven end to end against a real deployment. The integration suites have since
+run and found a defect that vindicates the flag: `WalletsDAO.award_credit` fails its own
+foreign key, and the load-bearing call site sits on the signup path, where
 `_provision_wallet_general_balance` and `_award_signup_grant` both re-raise and the signup
-flow deletes the new user when provisioning fails. An unfinished ledger there would cost
-real signups.
+flow deletes the new user when provisioning fails. With the flag on and that defect
+unfixed, every signup would fail. Fix `award_credit` before turning the flag on.
 
 While the flag is off:
 
@@ -130,11 +149,21 @@ While the flag is off:
   table, so their consumers never start and naming either one in `AGENTA_WORKER_STREAMS`
   is rejected instead of silently ignored.
 
-The migrations are unconditional: the tables and the backfill in `ee0000000005` land with
-the branch whether the flag is on or not. Turning the flag on therefore needs no schema
-step, but organizations provisioned while it was off hold no balance row until the
-backfill is re-run for them, since the backfill only covers organizations that predate the
-migration.
+**The migrations are unconditional, and that makes the flag a one-way door.** The tables and
+the `ee0000000005` backfill land with the branch whether the flag is on or not, so turning
+the flag on needs no schema step. But the backfill runs once, at migration time, and covers
+only the organizations that existed then. Every organization created while
+`AGENTA_WALLETS_ENABLED` was `false` is skipped by `provision_signup_subscription` and
+`provision_user_subscription` and therefore holds no `wallet_balances` general row at all.
+Those organizations do not heal themselves when the flag is turned on: their first debit
+raises `WalletGeneralBalanceNotFoundError`, which `DebitWorker` treats as retryable, so the
+message redelivers indefinitely — the poison-message gap that `WP-1-04` closed for the
+signup path but that reopens for any organization provisioned with the flag off. Enabling
+the flag later therefore requires one of two things first: re-running the `ee0000000005`
+backfill against the gap (it is `ON CONFLICT DO NOTHING`, so it is safe to re-run), or
+adding lazy provisioning so the settlement path creates a missing general balance row on
+demand. Decide which before the flag is turned on, not after. Recorded as an open item in
+[open-designs.md](open-designs.md).
 
-Turning the flag on changes no behaviour described in this document. The guards are
-early-returns around calls that already existed; nothing else reads the flag.
+Apart from that gap, turning the flag on changes no behaviour described in this document.
+The guards are early-returns around calls that already existed; nothing else reads the flag.

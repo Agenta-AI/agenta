@@ -63,16 +63,25 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 1 | Open | Canonical resource taxonomy and debit fields for vendor pass-through and platform-capacity resources. |
 | 3 | Open | Immutable cancellation, expiry, clawback, refund, and plan-change history. |
 | 5 | Open | Subscription allowance, rollover, credit line, and auto-recharge policy. |
-| 6 | Open | LLM/MCP/SBX chargeable measurements and their collector-provided representation. |
+| 6 | Decided for LLM and MCP | LLM/MCP/SBX chargeable measurements and their collector-provided representation. |
 | 8 | Blocked | Provider-cost proof/reconciliation and commercial confirmation needed before launch. |
 | 9 | Decided | Existing `records`, new gateway `measurements`, existing periodic `meters`, and wallet entities have distinct boundaries. |
 | 10 | Open | Gateway/wallet write path: concurrency, adaptive exposure, idempotency, L1/L2, and recovery. |
 | 11 | Open | Restricted-credit applicability, selection order, and admission. |
 | 12 | Open | Store classes, same-database co-location units, financial-history authority, and cross-store recovery. |
 | 13 | Open | Whether earned value expires at all, and what decides spend order between lots. |
+| 14 | Open | How an organization provisioned while `AGENTA_WALLETS_ENABLED` was off gets its balance row. |
 
 Items 2, 4, and 7 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
+
+**What Wave 1 closed, and what it did not.** Wave 1 delivered the measurement and settlement
+mechanism, so item 6 closes for LLM and MCP. It did not decide a single policy question above it.
+Items 3, 5, 11 and 13 each now have working machinery underneath an unresolved rule — proration
+runs, restricted credits are selected, grants expire at twelve months — and a mechanism that works
+is not a policy that was chosen. Item 10's concurrency guarantee is proved by a passing test; its
+exposure, L1/L2 and recovery questions are untouched. Item 12 records a Wave 1 placement and
+nothing beyond it. Read each item's own Decision section rather than inferring from the code.
 
 ## 1. Canonical resource taxonomy and schema
 
@@ -295,7 +304,7 @@ _Unresolved._
 
 ## 6. Metering and billing entities for LLM, MCP, and SBX
 
-**Status:** Open
+**Status:** Decided for LLM and MCP; SBX still open.
 
 ### Context
 
@@ -394,7 +403,29 @@ boundary whenever it applies the delta atomically. Whether the later collector i
 
 ### Decision
 
-_Unresolved: define the entities and example rows before defining operations or columns._
+**Decided for LLM and MCP by `entities.md` and the delivered Wave 1 migrations.** The five
+questions above are answered, each with an example row, in `entities.md` §3 and §5, and the answers
+are now schema rather than proposal:
+
+- A collector's post-hoc measurement is one `measurements` row in `tracing_ee`, with its optional
+  metric key/value pairs as `measurement_values` child rows under `UNIQUE (measurement_id, key)`.
+  The parent and every child are inserted in one transaction.
+- Wallet value is separate: `wallet_credits` and `wallet_debits` are the immutable records and
+  `wallet_balances` is the mutable projection the admission read uses.
+- A measurement refers to a wallet change through the `streams:debits` message alone. There is no
+  foreign key either way, and the chargeable metrics are not duplicated onto the posting.
+- The measurement header columns and the `data.references` split are exactly as `entities.md` §4
+  and §5 selection 2 state; nothing was widened into a column during implementation.
+- Resource times are `start_time`/`end_time`; row lifecycle stays in `created_at`/`updated_at`/
+  `deleted_at`. No year/month/day fields exist on a measurement.
+
+`ee0000000002_add_measurements.py` is the migration that fixes this, and the measurement worker is
+the operation that writes it.
+
+**Still open for SBX.** Sandbox measurement is explicitly outside Wave 1 (`out-of-scope.md`), and
+`addendum-sandbox-metering.md` is the comparison that has to be settled before an SBX measurement
+shape is chosen. Nothing in the delivered schema forbids it: an SBX measurement would be
+`measurements` rows with their own metric keys. That it fits is not the same as it being decided.
 
 ---
 
@@ -576,7 +607,13 @@ _Decided above._
 
 ## 10. Gateway/wallet write-path stress test: concurrency, volume, and recovery
 
-**Status:** Open
+**Status:** Open. One part of it is now proved rather than argued: the organization
+general-balance row lock does serialize competing settlements. Two concurrent deliveries
+against one credit cannot overspend it, and cannot drive the balance negative, measured
+against a real Postgres on 12 September 2026 by
+`test_wallets_settlement_concurrency_postgres.py::test_competing_deliveries_cannot_overspend_one_credit`.
+That is the locking strategy, not the volume, exposure, L1/L2 or recovery questions this
+item asks about; those are untouched.
 
 ### Context
 
@@ -1244,3 +1281,63 @@ been issued, so nothing is stranded yet and no rule has been published.
 _Unresolved. Deferred deliberately: the weighted-heuristic option needs a product judgement
 about what a user should be told about their own balance, and the expiry question needs a
 position on whether earned value is payment or promotion._
+
+---
+
+## 14. Organizations provisioned while the wallet flag was off
+
+**Status:** Open
+
+### Context
+
+Wave 1 ships switched off behind `AGENTA_WALLETS_ENABLED`, but its migrations are
+unconditional. `ee0000000004` creates the wallet tables and `ee0000000005` backfills the
+general `wallet_balances` row for every organization that existed when the migration ran.
+Both land whether the flag is on or off.
+
+The two facts do not compose. While the flag is off,
+`provision_signup_subscription` and `provision_user_subscription` skip
+`WalletsService.provision_general_balance`, so each new organization is created without a
+general balance row. The backfill has already run and will not run again, so nothing ever
+gives those organizations one.
+
+The day the flag is turned on, the gap is silent until the first debit for such an
+organization. `WalletsService.settle` then raises `WalletGeneralBalanceNotFoundError`,
+which `DebitWorker` catches under its broad retryable handler, so the message redelivers
+forever. This is the same poison-message gap `WP-1-04` closed for the signup path,
+reopened by the flag for every organization created in the meantime. It wedges redelivery
+for that one message; it corrupts nothing and does not block other messages.
+
+### Decision needed
+
+Decide which of these happens before the flag is ever turned on, and where it is recorded:
+
+1. **Re-run the backfill against the gap.** `ee0000000005` inserts with
+   `ON CONFLICT DO NOTHING`, so it is safe to re-run, but a second run of a migration
+   already at head is an operational procedure rather than a schema step, and needs a
+   written one.
+2. **Provision lazily.** Have the settlement path create a missing general balance row on
+   demand, under the same partial unique index that makes provisioning idempotent. This
+   removes the gap permanently, for this flag flip and any future one, at the cost of a
+   write on a path that is otherwise a read plus a settle.
+3. **Make the error terminal.** Reclassify `WalletGeneralBalanceNotFoundError` as terminal
+   and alerted instead of infinitely retryable. This stops the wedge but drops the charge,
+   so it is a complement to 1 or 2, not a substitute.
+
+### Why it matters
+
+The gap grows for as long as the flag stays off, and it is invisible while it grows: no
+error, no log line, no failing test, because nothing reads a wallet balance until the flag
+is on. Every organization created in that window is a charge that will be dropped or a
+worker that will spin.
+
+### Current direction
+
+Option 2, with option 3 alongside it. Lazy provisioning is the only remedy that does not
+depend on somebody remembering an operational step at flag-flip time, and a terminal
+classification is worth having regardless, since infinite silent retry is the wrong
+response to any unprovisioned organization.
+
+### Decision
+
+_Unresolved._

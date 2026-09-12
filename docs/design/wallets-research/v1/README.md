@@ -1,7 +1,14 @@
 # Wallets, v1
 
 Everything gathered on credits, metering and billing, from four independent efforts that
-never read each other. Nothing here has been implemented.
+never read each other.
+
+Wave 1 is implemented. The measurement and wallet-debit pipeline, wallet provisioning,
+plan-change proration and the grant catalog all ship on this branch, switched off behind
+`AGENTA_WALLETS_ENABLED`. [wave-1.md](wave-1.md) records what was delivered and
+[nodes/im-1-02-pipeline/acceptance.md](nodes/im-1-02-pipeline/acceptance.md) is the
+procedure for verifying it on a deployment. Everything outside Wave 1 — SBX, live
+providers, L1 exposure, rollups, store separation — is still design only.
 
 ## Reading order
 
@@ -55,6 +62,9 @@ disagrees with it about a table, a column, or a name, it wins.
 
 Documents under `prior-work/` are verbatim archives and keep whatever names and framing
 they were written with. Documents written for this branch do not.
+
+The branch carrying all of this was squashed and rebased onto `feat/add-gateways` on
+12 September 2026, so its per-node commit history no longer matches the node graph below.
 
 **No schedules.** Duration estimates have been removed from every document above
 `prior-work/`. Phases and their ordering stand, because the dependencies are real and
