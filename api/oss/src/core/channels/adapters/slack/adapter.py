@@ -311,7 +311,10 @@ class SlackAdapter(ChannelAdapterInterface):
                 content=content,
                 sender={"id": event.get("user") or ""},
             ),
-            addressed=bool(agent or command or event.get("type") == "app_mention"),
+            # A command alone is not a mention: the COMMAND trigger admits it,
+            # or not, on its own; folding it in here let `!new` through a
+            # mention-only policy.
+            addressed=bool(agent or event.get("type") == "app_mention"),
         )
 
     # --- egress --- #

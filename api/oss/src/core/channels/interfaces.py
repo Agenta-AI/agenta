@@ -443,6 +443,20 @@ class ChannelsDAOInterface(ABC):
         ...
 
     @abstractmethod
+    async def fetch_active_thread(
+        self,
+        *,
+        project_id: UUID,
+        #
+        space_id: UUID,
+        external_key: Optional[UUID],
+    ) -> Optional[ChannelThread]:
+        """The newest active thread under this key, whichever agent holds it;
+        None when no conversation is open there. A reply without a sigil
+        continues the conversation that is open, not the default agent's."""
+        ...
+
+    @abstractmethod
     async def fetch_thread_awaiting_choice(
         self,
         *,
