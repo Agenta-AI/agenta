@@ -79,6 +79,7 @@ def _make_fake_dao():
     dao.count_grants = AsyncMock(return_value=0)
     dao.fetch_current_thread = AsyncMock(return_value=None)
     dao.fetch_thread_awaiting_choice = AsyncMock(return_value=None)
+    dao.fetch_active_thread = AsyncMock(return_value=None)
     dao.create_thread = AsyncMock()
     # resolve() attaches the event to its space before any refusal path
     dao.attach_event_to_space = AsyncMock(return_value=None)
@@ -1669,6 +1670,67 @@ class TestApprovalAnswers:
         assert result.answered_interaction_id == "int-7"
         dao.fetch_agent.assert_awaited_with(project_id=ANY, agent_id=asking_agent.id)
         dao.create_thread.assert_not_awaited()
+
+    async def test_a_plain_reply_continues_the_specialists_thread(self):
+        """`~deployer` opened this thread; a later reply with no sigil belongs
+        to the deployer, not to the default agent, whose lookup under this key
+        finds no thread and would drop the reply."""
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        default_agent = _make_agent(
+            slug="default", flags=ChannelAgentFlags(is_default=True)
+        )
+        specialist = _make_agent(slug="deployer")
+        key = compose_external_key(capabilities, ChannelKeyGrain.THREAD, _LOCATOR)
+        held = _active_thread(space=space, agent=specialist, external_key=key)
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_default_agent = AsyncMock(return_value=default_agent)
+        dao.fetch_active_thread = AsyncMock(return_value=held)
+        dao.fetch_agent = AsyncMock(return_value=specialist)
+        dao.fetch_current_thread = AsyncMock(return_value=held)
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(
+            text="and then deploy it", space_kind=ChannelSpaceKind.TOPIC
+        )
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        assert result.agent.id == specialist.id
+        assert result.thread.id == held.id
+        dao.fetch_agent.assert_awaited_with(project_id=ANY, agent_id=specialist.id)
+        dao.create_thread.assert_not_awaited()
+
+    async def test_a_sigil_switches_agents_inside_a_held_thread(self):
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        specialist = _make_agent(slug="deployer")
+        other = _make_agent(slug="triage")
+        key = compose_external_key(capabilities, ChannelKeyGrain.THREAD, _LOCATOR)
+        held = _active_thread(space=space, agent=specialist, external_key=key)
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_active_thread = AsyncMock(return_value=held)
+        dao.fetch_agent_by_slug = AsyncMock(return_value=other)
+        dao.count_grants = AsyncMock(return_value=0)
+        dao.create_thread = AsyncMock(
+            return_value=_active_thread(space=space, agent=other, external_key=key)
+        )
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(text="~triage take over", space_kind=ChannelSpaceKind.TOPIC)
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        assert result.agent.id == other.id
+        dao.fetch_active_thread.assert_not_awaited()
 
     async def test_ordinary_text_does_not_hijack_the_asking_agent(self):
         adapter = WellBehavedFakeAdapter()
