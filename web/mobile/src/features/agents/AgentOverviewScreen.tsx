@@ -107,7 +107,6 @@ export const AgentOverviewScreen = ({
                             agentName={name}
                             base={base}
                             agentNames={agentNames}
-                            usage={<UsageCard appId={agentId} />}
                             channels={
                                 <AgentChannelsCard
                                     appId={agentId}
@@ -115,8 +114,6 @@ export const AgentOverviewScreen = ({
                                     resolveAgentName={resolveAgentName}
                                 />
                             }
-                            sessionsHref={`${base}/sessions`}
-                            automationSessionsHref={`${base}/sessions?mode=${sessionRouteModes.automation}`}
                             verbs={verbs}
                             onEditConfig={onEditConfig}
                         />
