@@ -516,6 +516,19 @@
     "workerStreams":      { "$ref": "#/$defs/component" },
     "workerQueues":       { "$ref": "#/$defs/component" },
     "cron":               { "$ref": "#/$defs/component" },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "NetworkPolicy for the bundled data stores. The bundled PostgreSQL is not covered: the Bitnami subchart renders its own policy, which allows every source by default, and policies are additive, so a narrower one from this chart would take nothing away. Restrict it with postgresql.primary.networkPolicy.allowExternal and .extraIngress instead.",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Default false. When true, the chart renders one NetworkPolicy per bundled data store it deploys (the volatile Redis, the durable Redis, SeaweedFS). Each one lets in only pods of this release, in the same namespace, on that store's port, and denies every other ingress to those pods. Egress is left alone. A cluster whose CNI does not implement NetworkPolicy ignores these objects." },
+        "extraIngressFrom": {
+          "type": "array",
+          "description": "Extra `from:` entries added to every store policy, in the shape the NetworkPolicy spec uses (podSelector, namespaceSelector, ipBlock). Use it for a client the release does not own, such as the Google Cloud load balancer health checker on 130.211.0.0/22 and 35.191.0.0/16 when a store is published through an Ingress.",
+          "items": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
     "nameOverride":     { "type": "string" },
     "fullnameOverride": { "type": "string" }
   },

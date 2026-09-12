@@ -203,6 +203,21 @@ redisDurable:
 #       maxUnavailable: 0
 
 # ================================================================== #
+# networkPolicy — lock the bundled data stores down to this release.
+# Off by default. When on, the chart renders one NetworkPolicy per
+# bundled store it deploys (redis-volatile, redis-durable, seaweedfs).
+# The bundled PostgreSQL is not covered; the Bitnami subchart owns its
+# own policy. See hosting/kubernetes/README.md.
+# ================================================================== #
+# networkPolicy:
+#   enabled: false
+#   extraIngressFrom:            # raw NetworkPolicy `from:` entries
+#     - ipBlock:
+#         cidr: 130.211.0.0/22   # Google Cloud health checkers
+#     - ipBlock:
+#         cidr: 35.191.0.0/16
+
+# ================================================================== #
 # workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md
 # `streams`/`queues` = selector lists; empty ⇒ all loops in that kind.
 # ================================================================== #

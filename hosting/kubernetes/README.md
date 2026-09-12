@@ -207,6 +207,73 @@ The keys work on every workload: `api`, `services`, `web`, `webMobile`, `cron`,
 `workerStreams`, `workerQueues`, `agentRunner`, `supertokens`, `redisVolatile`,
 `redisDurable`, `store.seaweedfs` and `alembic`.
 
+## Restricting the bundled data stores
+
+Nothing stops one pod in the namespace from reaching the bundled Redis instances
+or the bundled SeaweedFS, because by default no NetworkPolicy selects them. Turn
+one on per store:
+
+```yaml
+networkPolicy:
+  enabled: true
+```
+
+The chart then renders one NetworkPolicy per bundled store it deploys:
+`redis-volatile`, `redis-durable` and `seaweedfs`. Each policy selects that
+store's pods and allows ingress only from pods of this release, in the same
+namespace, on that store's port. A pod that a NetworkPolicy selects accepts
+nothing else, so that single rule is also the default deny for every other
+source and port. Egress is left alone.
+
+Read the policies back before you trust them. A cluster whose CNI does not
+implement NetworkPolicy accepts the objects and ignores them, with no event and
+no warning. GKE needs network policy enforcement or Dataplane V2 turned on for
+the cluster.
+
+To let in a client the release does not own, add raw `from:` entries. They are
+appended to every store policy, on that store's port:
+
+```yaml
+networkPolicy:
+  enabled: true
+  extraIngressFrom:
+    - ipBlock:
+        cidr: 130.211.0.0/22   # Google Cloud load balancer health checkers
+    - ipBlock:
+        cidr: 35.191.0.0/16
+```
+
+Those two ranges are the ones to add when you publish the bundled store through
+an Ingress, as in the SeaweedFS section below: the health check comes from the
+load balancer, not from a pod. Health probes from the kubelet are a different
+thing. They start on the node, and the common CNIs let node traffic through
+regardless of pod policy.
+
+The bundled PostgreSQL is not covered. The Bitnami subchart renders its own
+NetworkPolicy, and that one allows every source on port 5432. Policies are
+additive, so a narrower policy from this chart would take nothing away. Restrict
+it through the subchart's own values instead:
+
+```yaml
+postgresql:
+  primary:
+    networkPolicy:
+      allowExternal: false
+      extraIngress:
+        - ports:
+            - port: 5432
+          from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: '{{ .Release.Name }}'
+```
+
+`allowExternal: false` narrows the subchart's rule to pods labelled
+`<release>-postgresql-client: "true"`, which the Agenta workloads do not carry.
+The `extraIngress` entry above is what lets them back in. The subchart renders
+that value as a template, so the quoted `.Release.Name` expression resolves to
+the release name.
+
 ## GKE Autopilot
 
 Autopilot rejects the `SYS_ADMIN` capability and a hostPath mount of
