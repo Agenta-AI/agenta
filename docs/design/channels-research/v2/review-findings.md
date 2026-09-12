@@ -2199,7 +2199,7 @@
 - Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6646 (slug+name derivation, honest conflict, secret cleanup).
 - Category: `Correctness`
 - Summary: `channel_connections.slug` is NOT NULL, the web create form sends no
@@ -2225,7 +2225,7 @@
 - Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6646 (unsigned shape-strict url_verification echo).
 - Category: `Correctness`
 - Summary: Slack registers an events URL only after posting a `url_verification`
@@ -2264,7 +2264,7 @@
 - Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6646 (workflow_variant key; write-time validation).
 - Category: `Correctness`
 - Summary: `AgentFormDrawer` writes `references: {main: {id}}`. The workflows
@@ -2380,7 +2380,7 @@
 - Origin: `wave-6 CU-C (live deploy, 2026-08-14)`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6646 (space_kind carried into the stored event).
 - Category: `Correctness`
 - Summary: The adapter classifies the space (`classify_space_kind`), and the
@@ -2472,7 +2472,7 @@
 - Origin: `wave-6 CU-C (live QA, 2026-08-17)`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6647 (trigger gate at dispatch; default triggers).
 - Category: `Correctness`
 - Summary: `resolve_policy` computes a trigger set (`utils.py:153-165`, returned
@@ -2504,7 +2504,7 @@
 - Origin: `wave-6 CU-C (live QA, 2026-08-17)`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6647 (forwardfill scoped to the thread).
 - Category: `Correctness`
 - Summary: `select_forwardfill_range` takes its offset from
@@ -2597,7 +2597,7 @@
 - Origin: `wave-6 CU-C (live QA, 2026-08-17)`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6649 (FAILED written with the reason).
 - Category: `Robustness`
 - Summary: `ChannelDeliveryState` already declares `FAILED` and `ABANDONED`
@@ -2630,7 +2630,7 @@
 - Origin: `wave-6 CU-C (live QA, 2026-08-17)`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6647 (a DM is one conversation; reply top-level).
 - Category: `Correctness`
 - Summary: Every reply posts with the inbound message's `thread_ts`
@@ -2700,7 +2700,7 @@
 - Origin: `wave-6 CU-C (live QA, 2026-08-17)`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6649 (omitted-means-unchanged agent edit).
 - Category: `Correctness`
 - Summary: `ChannelAgentEdit.flags` has a `default_factory`
@@ -2779,7 +2779,7 @@
 - Origin: `wave-6 CU-C (live QA, 2026-08-17)`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6647 (system subtypes dropped in the adapter).
 - Category: `Correctness`
 - Summary: Slack delivers `channel_join` as an ordinary `message` event with a
@@ -2892,7 +2892,7 @@
 - Origin: `wave-6 CU-C (live QA, 2026-08-17)`
 - Severity: `P0`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6649 (omitted-means-unchanged connection edit; data merges).
 - Category: `Correctness`
 - Summary: `edit_connection` stores the caller's `data` verbatim —
@@ -2977,7 +2977,7 @@
 - Origin: `wave-6 CU-C (live QA, 2026-08-17)`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `resolved`
+- Status: `partial` (the approval loop works under THREAD scope; under `session_scope: message` the pending choice is never loaded and `ask` is not refused at registration, so that configuration stays unsupported)
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6650 + #6653 (full loop live on the Agenta channel: card renders, approve resumes the parked turn, the tool runs, the answer posts back; routed to the agent that asked).
 - Category: `Correctness`
 - Summary: Two defects that together make the approval surface unusable.
