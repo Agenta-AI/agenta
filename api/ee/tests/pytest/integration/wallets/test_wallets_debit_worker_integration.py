@@ -5,6 +5,7 @@ Requires a reachable core Postgres (`AGENTA_POSTGRES_URI_CORE` or equivalent) an
 Redis; `conftest.py` skips this module otherwise.
 """
 
+import asyncio
 from uuid import uuid4
 
 import pytest
@@ -45,11 +46,11 @@ async def _fresh_engine_per_test():
 
 @pytest.fixture
 async def wallet_schema():
-    command.upgrade(alembic_cfg, REVISION)
+    await asyncio.to_thread(command.upgrade, alembic_cfg, REVISION)
     try:
         yield
     finally:
-        command.downgrade(alembic_cfg, DOWN_REVISION)
+        await asyncio.to_thread(command.downgrade, alembic_cfg, DOWN_REVISION)
 
 
 @pytest.fixture

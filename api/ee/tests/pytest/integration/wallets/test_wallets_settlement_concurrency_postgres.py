@@ -49,11 +49,11 @@ async def _fresh_engine_per_test():
 
 @pytest.fixture
 async def wallet_schema():
-    command.upgrade(alembic_cfg, REVISION)
+    await asyncio.to_thread(command.upgrade, alembic_cfg, REVISION)
     try:
         yield
     finally:
-        command.downgrade(alembic_cfg, DOWN_REVISION)
+        await asyncio.to_thread(command.downgrade, alembic_cfg, DOWN_REVISION)
 
 
 async def _seed_wallet(*, organization_id, credit_id):
