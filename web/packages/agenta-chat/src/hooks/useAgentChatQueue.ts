@@ -425,7 +425,11 @@ export const useAgentChatQueue = ({
     )
 
     const steer = useCallback(
-        async (item: {text: string; fileParts?: FileUIPart[]}) => {
+        async (item: {
+            text: string
+            fileParts?: FileUIPart[]
+            stagedFiles?: ComposerAttachment[]
+        }) => {
             const capabilities = server?.resolveCapabilities
                 ? await server.resolveCapabilities()
                 : server?.capabilities

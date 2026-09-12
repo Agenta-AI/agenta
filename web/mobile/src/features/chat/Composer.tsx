@@ -12,9 +12,10 @@ import {
 import {
     stagedFilesToParts,
     useChatSlashCommands,
-    useComposerAttachments,
     useComposerDraft,
     useVoiceComposer,
+    type ComposerAttachment,
+    type useComposerAttachments,
 } from "@agenta/chat/hooks"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
@@ -39,6 +40,7 @@ import {useMotionPresets} from "@/lib/motion/presets"
 export const Composer = ({
     entityId,
     sessionId,
+    attachments,
     onSend,
     onSteer,
     disabled = false,
@@ -55,8 +57,19 @@ export const Composer = ({
     /** The agent revision the `/` palette reads and writes (model, permissions, skills). */
     entityId: string
     sessionId: string
-    onSend: (input: {text: string; parts?: FileUIPart[]}) => void | Promise<void>
-    onSteer?: (input: {text: string; parts?: FileUIPart[]}) => void | Promise<void>
+    /** Owned by the screen, not here: a refusal that arrives after the send resolved restores the
+     * tray from outside this component (`restoreRefusedSend`), the same division the desktop uses. */
+    attachments: ReturnType<typeof useComposerAttachments>
+    onSend: (input: {
+        text: string
+        parts?: FileUIPart[]
+        stagedFiles?: ComposerAttachment[]
+    }) => void | Promise<void>
+    onSteer?: (input: {
+        text: string
+        parts?: FileUIPart[]
+        stagedFiles?: ComposerAttachment[]
+    }) => void | Promise<void>
     /** No resolvable agent yet, or the screen is still hydrating. */
     disabled?: boolean
     /** The run is parked on the user (pending approval) — sends will queue. */
@@ -76,7 +89,6 @@ export const Composer = ({
     /** Starts a fresh session — the palette offers no /new row without it. */
     onNewSession?: () => void
 }) => {
-    const attachments = useComposerAttachments({sessionId})
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
     const richInputRef = inputRef ?? ownInputRef
     // A tab switch is a route change here, so the whole composer unmounts — the per-session
@@ -177,16 +189,21 @@ export const Composer = ({
             // `stagedFilesToParts` THROWS on a file whose upload hasn't settled — reachable via
             // Enter, which the send button's `sendDisabled` guard doesn't cover.
             const parts = outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
-            if (policy === "steer" && onSteer) await onSteer({text, parts})
-            else await onSend({text, parts})
+            // The message leaves the composer HERE, before the send can fail: draft and tray go
+            // now, and every refusal path puts them back afterwards (the catch below for an early
+            // one, the screen's `restoreRefusedSend` for a late one). Clearing after the await let
+            // a late refusal restore the tray first and this cleanup then remove it (#6697).
             draft.clearDraft()
-            attachments.clearAttachments(staged.map((file) => file.uid))
+            attachments.clearAttachments(outbound.map((file) => file.uid))
+            if (policy === "steer" && onSteer) await onSteer({text, parts, stagedFiles: outbound})
+            else await onSend({text, parts, stagedFiles: outbound})
         } catch {
             // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so an
             // uncaught rejection would leave the user with no message, no error, and no idea a
-            // send even failed. Keep the attachments staged, put the text back, and say so
-            // through the composer's own inline channel.
-            richInputRef.current?.setMarkdown(text)
+            // send even failed. Put the text and the tray back, and say so through the
+            // composer's own inline channel.
+            void richInputRef.current?.setMarkdown(text)
+            attachments.restoreAttachments(outbound)
             attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
         }
     }
