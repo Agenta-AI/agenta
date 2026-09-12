@@ -12,6 +12,7 @@ Self-skips via `conftest.py` when `env.postgres.uri_core` is unreachable. WRITTE
 RUN — see `docs/design/wallets-research/v1/nodes/im-1-02-pipeline/acceptance.md`.
 """
 
+import asyncio
 import uuid
 
 import pytest
@@ -98,7 +99,8 @@ async def _general_balance_row_count(session, *, organization_id) -> int:
 
 
 async def test_backfill_inserts_general_balance_for_organization_without_one():
-    command.upgrade(alembic_cfg, DOWN_REVISION)  # wallet tables exist, no backfill yet
+    # wallet tables exist, no backfill yet
+    await asyncio.to_thread(command.upgrade, alembic_cfg, DOWN_REVISION)
     engine = get_transactions_engine()
     organization_ids, user_ids = [], []
 
@@ -116,7 +118,7 @@ async def test_backfill_inserts_general_balance_for_organization_without_one():
                 == 0
             )
 
-        command.upgrade(alembic_cfg, BACKFILL_REVISION)
+        await asyncio.to_thread(command.upgrade, alembic_cfg, BACKFILL_REVISION)
 
         async with engine.session() as session:
             assert (
@@ -141,11 +143,11 @@ async def test_backfill_inserts_general_balance_for_organization_without_one():
             await _cleanup(
                 session, organization_ids=organization_ids, user_ids=user_ids
             )
-        command.downgrade(alembic_cfg, DOWN_REVISION)
+        await asyncio.to_thread(command.downgrade, alembic_cfg, DOWN_REVISION)
 
 
 async def test_backfill_is_idempotent_on_rerun():
-    command.upgrade(alembic_cfg, DOWN_REVISION)
+    await asyncio.to_thread(command.upgrade, alembic_cfg, DOWN_REVISION)
     engine = get_transactions_engine()
     organization_ids, user_ids = [], []
 
@@ -155,7 +157,7 @@ async def test_backfill_is_idempotent_on_rerun():
             organization_ids.append(organization_id)
             user_ids.append(user_id)
 
-        command.upgrade(alembic_cfg, BACKFILL_REVISION)
+        await asyncio.to_thread(command.upgrade, alembic_cfg, BACKFILL_REVISION)
 
         # Alembic itself won't re-apply an already-applied revision, so the idempotency
         # test is re-executing the migration's own SELECT-then-INSERT a second time,
@@ -208,14 +210,14 @@ async def test_backfill_is_idempotent_on_rerun():
             await _cleanup(
                 session, organization_ids=organization_ids, user_ids=user_ids
             )
-        command.downgrade(alembic_cfg, DOWN_REVISION)
+        await asyncio.to_thread(command.downgrade, alembic_cfg, DOWN_REVISION)
 
 
 async def test_backfill_does_not_touch_an_already_provisioned_organization():
     """An organization whose general row was already created (e.g. by
     `WalletsService.provision_general_balance` on a live cutover racing this migration)
     keeps its existing row untouched — the backfill only fills the gap."""
-    command.upgrade(alembic_cfg, DOWN_REVISION)
+    await asyncio.to_thread(command.upgrade, alembic_cfg, DOWN_REVISION)
     engine = get_transactions_engine()
     organization_ids, user_ids = [], []
 
@@ -240,7 +242,7 @@ async def test_backfill_does_not_touch_an_already_provisioned_organization():
                 },
             )
 
-        command.upgrade(alembic_cfg, BACKFILL_REVISION)
+        await asyncio.to_thread(command.upgrade, alembic_cfg, BACKFILL_REVISION)
 
         async with engine.session() as session:
             assert (
@@ -266,4 +268,4 @@ async def test_backfill_does_not_touch_an_already_provisioned_organization():
             await _cleanup(
                 session, organization_ids=organization_ids, user_ids=user_ids
             )
-        command.downgrade(alembic_cfg, DOWN_REVISION)
+        await asyncio.to_thread(command.downgrade, alembic_cfg, DOWN_REVISION)
