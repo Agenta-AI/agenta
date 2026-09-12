@@ -413,6 +413,69 @@ async def test_acquire_releases_the_legacy_key_when_cancelled_mid_claim(fake_red
     )
 
 
+async def test_acquire_releases_the_primary_key_when_cancelled_mid_claim(fake_redis):
+    """The mirror of the legacy case: the primary SET has the same window.
+
+    Cancellation between Redis applying the primary write and the reply arriving leaves
+    that key held for its whole TTL, so callers read a blocked result while nobody is
+    inside the section.
+    """
+    lock_key, legacy_key = locking._lock_keys(
+        namespace="eval", key="run", project_id=PROJECT_A
+    )
+    assert legacy_key is not None
+
+    real_set = fake_redis.set
+    applied = asyncio.Event()
+
+    async def set_then_suspend(name, *args, **kwargs):
+        result = await real_set(name, *args, **kwargs)
+        if name == lock_key:
+            applied.set()
+            await asyncio.sleep(3600)
+        return result
+
+    with patch.object(locking._lock_engine, "set", side_effect=set_then_suspend):
+        task = asyncio.create_task(
+            locking.acquire_lock(
+                namespace="eval", key="run", project_id=PROJECT_A, ttl=90
+            )
+        )
+        await asyncio.wait_for(applied.wait(), timeout=5)
+        assert await fake_redis.get(lock_key) is not None
+
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    # Neither generation's key is left behind.
+    assert await fake_redis.get(lock_key) is None
+    assert await fake_redis.get(legacy_key) is None
+
+    assert (
+        await locking.acquire_lock(
+            namespace="eval", key="run", project_id=PROJECT_A, ttl=5
+        )
+        is not None
+    )
+
+
+async def test_a_refused_primary_claim_leaves_the_holders_key_alone(fake_redis):
+    """Marking the primary obligation early must not delete another holder's key."""
+    lock_key, _ = locking._lock_keys(
+        namespace="eval", key="run", project_id=PROJECT_A
+    )
+
+    await fake_redis.set(lock_key, b"another-pod-owner", nx=True, ex=30)
+
+    assert (
+        await locking.acquire_lock(namespace="eval", key="run", project_id=PROJECT_A)
+        is None
+    )
+
+    assert await fake_redis.get(lock_key) == b"another-pod-owner"
+
+
 async def test_a_refused_legacy_claim_leaves_the_holders_key_alone(fake_redis):
     """Marking the obligation before the await must not delete someone else's key.
 
