@@ -180,6 +180,7 @@ from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
+from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
 from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
@@ -650,6 +651,11 @@ connections_dao = ConnectionsDAO(engine=_transactions_engine)
 mounts_dao = MountsDAO(engine=_transactions_engine)
 session_attachments_dao = SessionAttachmentsDAO(engine=_transactions_engine)
 
+# Built here rather than beside the other gateway wiring below: the vault holds the
+# endpoint registrar, and the gateway service holds a resolver built over the vault, so the
+# DAO has to exist before VaultService does.
+llm_endpoints_dao = LLMEndpointsDAO(engine=_transactions_engine)
+
 # SERVICES ---------------------------------------------------------------------
 
 _t_daos_done = time.perf_counter() - _t_daos
@@ -658,6 +664,9 @@ _t_services = time.perf_counter()
 
 vault_service = VaultService(
     secrets_dao=secrets_dao,
+    llm_endpoint_registrar=LLMEndpointRegistrar(
+        llm_endpoints_dao=llm_endpoints_dao,
+    ),
 )
 
 subscription_login_service = SubscriptionLoginService(
@@ -1154,8 +1163,8 @@ triggers = TriggersRouter(
     dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
-# Gateway storage and policy services.
-llm_endpoints_dao = LLMEndpointsDAO(engine=_transactions_engine)
+# Gateway storage and policy services. `llm_endpoints_dao` is built earlier, beside the
+# other DAOs, because the vault's endpoint registrar takes it.
 mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
 
 secrets_resolver = SecretsResolver(

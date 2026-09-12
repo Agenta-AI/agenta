@@ -10,6 +10,7 @@ from oss.src.core.secrets.managed import (
 
 from oss.src.core.secrets.enums import (
     SecretKind,
+    LLMEndpointProtocol,
     LLMStandardProviderKind,
     MCPStandardProviderKind,
     LLMCustomProviderKind,
@@ -84,6 +85,9 @@ class CustomProviderDTO(BaseModel):
     provider: CustomProviderSettingsDTO
     models: List[CustomModelSettingsDTO]
     harnesses: Optional[List[str]] = None
+    # Not a credential: it describes the endpoint's wire shape, so it is never redacted.
+    # None means OpenAI-compatible, which is what every record written before it assumed.
+    protocol: Optional[LLMEndpointProtocol] = None
 
     # fields will be filled at runtime
     provider_slug: Optional[str] = None
