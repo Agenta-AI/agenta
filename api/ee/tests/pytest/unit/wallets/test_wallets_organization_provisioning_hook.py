@@ -15,6 +15,14 @@ from uuid import uuid4
 import pytest
 
 import ee.src.core.organizations.service as organizations_service_module
+from oss.src.utils.env import env
+
+
+@pytest.fixture(autouse=True)
+def _wallets_enabled(monkeypatch):
+    """The wallet ships behind AGENTA_WALLETS_ENABLED, default off; every call site
+    guarded by it is a no-op otherwise. These tests cover the flag-on behaviour."""
+    monkeypatch.setattr(env.wallets, "enabled", True)
 
 
 class _RecordingWalletsService:
@@ -225,3 +233,65 @@ class _AwaitableNone:
             return None
 
         return _coro().__await__()
+
+
+@pytest.mark.asyncio
+async def test_provision_signup_subscription_skips_wallet_when_flag_off(monkeypatch):
+    """AGENTA_WALLETS_ENABLED off (the default) must keep both wallet hooks out of the
+    signup path entirely. Both re-raise, and the signup flow deletes the new user when
+    this coroutine fails, so an unfinished wallet would cost real signups; skipping also
+    means no balance row or grant is written that a corrected ledger has to undo."""
+    monkeypatch.setattr(env.wallets, "enabled", False)
+
+    provisioned = []
+    awarded = []
+
+    async def _fake_provision_wallet_general_balance(*, organization_id, plan):
+        provisioned.append(organization_id)
+
+    async def _fake_award_signup_grant(*, organization_id):
+        awarded.append(organization_id)
+
+    class _FakeSubscription:
+        plan = "cloud_v0_hobby"
+        anchor = None
+
+    class _FakeSubscriptionService:
+        async def provision_subscription(
+            self, *, organization_id, organization_name, organization_email
+        ):
+            return _FakeSubscription()
+
+    class _FakeOrganization:
+        id = uuid4()
+        name = "acme"
+
+    monkeypatch.setattr(
+        organizations_service_module,
+        "_provision_wallet_general_balance",
+        _fake_provision_wallet_general_balance,
+    )
+    monkeypatch.setattr(
+        organizations_service_module,
+        "_award_signup_grant",
+        _fake_award_signup_grant,
+    )
+    monkeypatch.setattr(
+        organizations_service_module,
+        "_subscription_service",
+        _FakeSubscriptionService(),
+    )
+
+    async def _fake_check_entitlements(*, key, delta, scope):
+        return None
+
+    monkeypatch.setattr(
+        organizations_service_module, "check_entitlements", _fake_check_entitlements
+    )
+
+    await organizations_service_module.provision_signup_subscription(
+        _FakeOrganization(), organization_email="user@example.com"
+    )
+
+    assert provisioned == []
+    assert awarded == []

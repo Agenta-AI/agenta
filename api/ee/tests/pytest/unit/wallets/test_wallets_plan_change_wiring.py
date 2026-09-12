@@ -13,6 +13,14 @@ import pytest
 import ee.src.core.subscriptions.service as subscriptions_service_module
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.subscriptions.types import Event, SubscriptionDTO
+from oss.src.utils.env import env
+
+
+@pytest.fixture(autouse=True)
+def _wallets_enabled(monkeypatch):
+    """The wallet ships behind AGENTA_WALLETS_ENABLED, default off; every call site
+    guarded by it is a no-op otherwise. These tests cover the flag-on behaviour."""
+    monkeypatch.setattr(env.wallets, "enabled", True)
 
 
 class _FakeSubscriptionsDAO:
