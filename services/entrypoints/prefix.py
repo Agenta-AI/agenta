@@ -30,14 +30,26 @@ class ServicesPrefixStripMiddleware:
 
     def _strip(self, scope):
         path = scope.get("path", "")
-        changed = False
+        stripped = 0
         while path == self.prefix or path.startswith(self.prefix + "/"):
             path = path[len(self.prefix) :] or "/"
-            changed = True
-        if not changed:
+            stripped += 1
+        if not stripped:
             return scope
         scope = dict(scope)
         scope["path"] = path
-        if isinstance(scope.get("raw_path"), (bytes, bytearray)):
-            scope["raw_path"] = path.encode("utf-8")
+        raw = scope.get("raw_path")
+        if isinstance(raw, (bytes, bytearray)):
+            # Keep the wire bytes: drop the consumed prefix from the front of the
+            # original encoded path instead of re-encoding the decoded one, so a
+            # percent-encoded segment such as caf%C3%A9 reaches the app unchanged.
+            raw_prefix = self.prefix.encode("utf-8")
+            raw_path = bytes(raw)
+            for _ in range(stripped):
+                if raw_path == raw_prefix or raw_path.startswith(raw_prefix + b"/"):
+                    raw_path = raw_path[len(raw_prefix) :] or b"/"
+                else:
+                    raw_path = path.encode("utf-8")
+                    break
+            scope["raw_path"] = raw_path
         return scope
