@@ -41,17 +41,17 @@ const selectTriggerVariants = cva(
         // antd greys only the placeholder TEXT; the root keeps the foreground colour.
         "[&[data-placeholder]_[data-slot=select-value]]:text-placeholder",
         // antd's error state colours the border AND the text/arrow/placeholder, + red focus glow.
-        "aria-[invalid=true]:border-error aria-[invalid=true]:text-error aria-[invalid=true]:focus:shadow-[0_0_0_2px_var(--ag-errorOutline)] aria-[invalid=true]:data-[state=open]:shadow-[0_0_0_2px_var(--ag-errorOutline)]",
+        "aria-[invalid=true]:border-error aria-[invalid=true]:text-error aria-[invalid=true]:shadow-[0_0_0_3px_var(--ag-errorOutline)]",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0",
     ],
     {
         variants: {
             variant: {
-                // Focus glow (antd controlOutline) on: Radix Select button (focus / data-open)
+                // Focus glow (the neutral ring) on: Radix Select button (focus / data-open)
                 // AND the Combobox div-trigger (has a focused input inside).
                 default:
-                    "bg-background border-border hover:border-btn-primary-hover focus:border-primary data-[state=open]:border-primary focus:shadow-[0_0_0_2px_var(--ag-controlOutline)] data-[state=open]:shadow-[0_0_0_2px_var(--ag-controlOutline)] [&:has(:focus)]:border-primary [&:has(:focus)]:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
-                filled: "bg-muted border-transparent hover:bg-secondary focus:bg-background focus:border-primary focus:shadow-[0_0_0_2px_var(--ag-controlOutline)] data-[state=open]:shadow-[0_0_0_2px_var(--ag-controlOutline)] [&:has(:focus)]:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
+                    "bg-background border-border focus:border-ring data-[state=open]:border-ring focus:shadow-[0_0_0_3px_var(--ag-controlOutline)] data-[state=open]:shadow-[0_0_0_3px_var(--ag-controlOutline)] [&:has(:focus)]:border-ring [&:has(:focus)]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
+                filled: "bg-muted border-transparent hover:bg-secondary focus:bg-background focus:border-ring focus:shadow-[0_0_0_3px_var(--ag-controlOutline)] data-[state=open]:shadow-[0_0_0_3px_var(--ag-controlOutline)] [&:has(:focus)]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
                 // Transparent, not `border-0`: antd keeps a 1px transparent border so the
                 // content box stays identical to the outlined variant.
                 ghost: "bg-transparent border-transparent",

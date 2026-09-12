@@ -92,7 +92,7 @@
     --ag-surface-inspector-shadow: -8px 0 24px rgba(16, 18, 22, 0.08);
     --ag-sidebar-bg: #f6f5f3;
     --ag-shell-line: #e5e5e3;
-    --ring: #242424;
+    --ring: #a3a19f;
     --placeholder: #a3a19f;
     --focus-ring: #e5e5e3;
     --disabled: #a3a19f;
@@ -112,8 +112,9 @@
     --btn-link: #5e5e08;
     --btn-link-hover: #242424;
     --btn-link-active: #1e1c1d;
-    --ag-controlOutline: rgba(217, 217, 44, 0.35);
-    --ag-errorOutline: rgba(217, 76, 74, 0.12);
+    --ag-ring: #a3a19f;
+    --ag-controlOutline: rgba(163, 161, 159, 0.5);
+    --ag-errorOutline: rgba(217, 76, 74, 0.2);
     --ag-colorFillQuaternary: rgba(36, 36, 36, 0.02);
     --switch-handle-shadow: 0 2px 4px 0 rgba(0, 35, 11, 0.2);
     --ag-composer-border: #e5e5e3;
@@ -224,7 +225,7 @@
     --ag-surface-inspector-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
     --ag-sidebar-bg: #101010;
     --ag-shell-line: #2c2c2c;
-    --ring: #f2f25c;
+    --ring: rgba(255, 255, 255, 0.45);
     --placeholder: rgba(255, 255, 255, 0.38);
     --focus-ring: #57572a;
     --disabled: rgba(255, 255, 255, 0.25);
@@ -244,8 +245,9 @@
     --btn-link: #8ccfff;
     --btn-link-hover: #b0deff;
     --btn-link-active: #54b5fa;
-    --ag-controlOutline: rgba(251, 251, 96, 0.29);
-    --ag-errorOutline: rgba(238, 38, 56, 0.11);
+    --ag-ring: rgba(255, 255, 255, 0.45);
+    --ag-controlOutline: rgba(255, 255, 255, 0.25);
+    --ag-errorOutline: rgba(238, 38, 56, 0.4);
     --ag-colorFillQuaternary: rgba(255, 255, 255, 0.04);
     --switch-handle-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.45);
     --ag-composer-border: #2a2c30;

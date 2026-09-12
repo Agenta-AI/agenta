@@ -17,12 +17,12 @@ const buttonVariants = cva(
         // antd is gone and preflight is switched back on — see antd-inventory/GOTCHAS.md.
         "box-border border-solid font-[inherit] py-0",
         "group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap",
-        // Weight 400, not Nova's 500 — a deliberate house deviation.
+        // Weight 400, not shadcn's 500 — a house choice.
         "border border-transparent bg-clip-padding font-normal",
         "cursor-pointer select-none transition-all",
-        // Nova focus ring; color-mix because Tailwind v3 can't alpha-modify a `var()` colour.
-        "outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-[color:color-mix(in_srgb,var(--ag-colorPrimary)_50%,transparent)]",
-        // Nova press nudge, skipped on menu/popover triggers.
+        // The shared 3px control outline.
+        "outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-[color:var(--ag-controlOutline)]",
+        // Press nudge, skipped on menu/popover triggers.
         "active:[&:not([aria-haspopup])]:translate-y-px",
         "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
         "aria-invalid:border-error aria-invalid:ring-[3px] aria-invalid:ring-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)]",
