@@ -9,9 +9,11 @@ name, consumer group, and StreamConsumer subclass unchanged (see
 oss/src/tasks/asyncio/shared/consumer.py) — this entrypoint only decides which
 loops share this process, via asyncio.gather.
 
-`measurements`/`debits` are wallet streams (EE only): they are omitted from
-ALL_STREAMS entirely in an OSS build, so an unset AGENTA_WORKER_STREAMS never
-tries to build a worker that needs ee.* imports.
+`measurements`/`debits` are wallet streams (EE only, and only when
+AGENTA_WALLETS_ENABLED is on): they are omitted from ALL_STREAMS entirely
+otherwise, so an unset AGENTA_WORKER_STREAMS never tries to build a worker that
+needs ee.* imports, and naming one explicitly while the wallet is off is
+rejected rather than silently started.
 
 Replaces the removed single-loop stream entrypoints; this is now the sole
 stream-consumer entrypoint.
@@ -73,9 +75,11 @@ if is_ee():
 log = get_module_logger(__name__)
 
 # measurements/debits are wallet (EE-only) streams — excluded from ALL_STREAMS in an
-# OSS build so the default (unset AGENTA_WORKER_STREAMS) selection never needs ee.*.
+# OSS build so the default (unset AGENTA_WORKER_STREAMS) selection never needs ee.*,
+# and excluded while the wallet is off so no debit is settled against a ledger that
+# is not finished.
 ALL_STREAMS = ("records", "events", "spans") + (
-    ("measurements", "debits") if is_ee() else ()
+    ("measurements", "debits") if is_ee() and env.wallets.enabled else ()
 )
 
 # Bound the stream so acked entries are trimmed; without this it grows unbounded.
@@ -233,7 +237,7 @@ async def main_async() -> int:
             "records": _build_records_worker,
             "events": _build_events_worker,
         }
-        if is_ee():
+        if is_ee() and env.wallets.enabled:
             builders["measurements"] = _build_measurements_worker
             builders["debits"] = _build_debits_worker
 
