@@ -182,6 +182,27 @@ redisDurable:
 #                              #   agentRunner.providers.default: daytona
 
 # ================================================================== #
+# Graceful rollouts — per-workload, all unset by default.
+# A managed load balancer keeps sending requests to a pod for a few
+# seconds after Kubernetes removes it from the endpoints, so a pod that
+# exits at once answers them with 502. Hold the pod open with a preStop
+# hook, give it room with a grace period, and keep a spare pod during
+# the rollout with a strategy. See hosting/kubernetes/README.md.
+# The keys work on api, services, web, webMobile, cron, workerStreams,
+# workerQueues, agentRunner, supertokens, redisVolatile, redisDurable,
+# store.seaweedfs and alembic. `strategy` is for Deployments only.
+# ================================================================== #
+# api:
+#   terminationGracePeriodSeconds: 45
+#   lifecycle:
+#     preStop:
+#       sleep:
+#         seconds: 10   # needs Kubernetes 1.30+; use an exec hook below 1.30
+#   strategy:
+#     rollingUpdate:
+#       maxUnavailable: 0
+
+# ================================================================== #
 # workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md
 # `streams`/`queues` = selector lists; empty ⇒ all loops in that kind.
 # ================================================================== #

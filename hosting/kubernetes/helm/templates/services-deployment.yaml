@@ -11,6 +11,10 @@ metadata:
     app.kubernetes.io/component: services
 spec:
   replicas: {{ include "agenta.services.replicas" . }}
+  {{- with $services.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
@@ -23,6 +27,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $services "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $services.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $services.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -113,6 +120,10 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          {{- with $services.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $services.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

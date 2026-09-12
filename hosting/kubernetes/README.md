@@ -163,6 +163,50 @@ ingress:
 For TLS that you manage yourself, `ingress.tls` is a list in the shape the
 Ingress spec uses. Any non-empty list also switches the derived URLs to https.
 
+## Graceful rollouts
+
+A managed load balancer keeps sending requests to a pod for a few seconds after
+Kubernetes removes it from the endpoints. On GKE the endpoint group needs that
+long to notice. A pod that exits as soon as it gets the TERM signal answers those
+requests with a 502, so every rollout drops a few requests. Three optional keys
+per workload close the window, and all three are unset by default:
+
+```yaml
+api:
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0     # add the new pod before removing the old one
+  lifecycle:
+    preStop:
+      sleep:
+        seconds: 10         # keep answering while the load balancer catches up
+  terminationGracePeriodSeconds: 45
+```
+
+`strategy` is rendered verbatim under the Deployment's `spec.strategy`.
+`lifecycle` is rendered verbatim under the container's `lifecycle`, so any hook
+the Kubernetes spec accepts works. `terminationGracePeriodSeconds` is rendered on
+the pod spec.
+
+Four things to get right:
+
+- The grace period must be longer than the preStop delay plus the time the
+  process needs to drain. The KILL signal lands at the end of the grace period
+  whatever the hook is still doing.
+- `preStop: {sleep: ...}` needs Kubernetes 1.30 or later. Below that, use
+  `preStop: {exec: {command: ["sh", "-c", "sleep 10"]}}`, and note that the image
+  must have that shell.
+- `strategy` is for Deployments. The durable Redis and SeaweedFS are
+  StatefulSets and the migration is a Job; neither has a `spec.strategy`, so the
+  chart does not render one there. `lifecycle` and
+  `terminationGracePeriodSeconds` do work on all of them.
+- `maxUnavailable: 0` needs room for one more pod than you run today. On a full
+  cluster the rollout waits for a node instead of starting.
+
+The keys work on every workload: `api`, `services`, `web`, `webMobile`, `cron`,
+`workerStreams`, `workerQueues`, `agentRunner`, `supertokens`, `redisVolatile`,
+`redisDurable`, `store.seaweedfs` and `alembic`.
+
 ## GKE Autopilot
 
 Autopilot rejects the `SYS_ADMIN` capability and a hostPath mount of

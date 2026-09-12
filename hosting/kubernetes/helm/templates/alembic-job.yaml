@@ -44,6 +44,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $alembic "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $alembic.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $alembic.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -89,6 +92,10 @@ spec:
             {{- end }}
           {{- with $alembic.envFrom }}
           envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $alembic.lifecycle }}
+          lifecycle:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- with $alembic.resources }}
