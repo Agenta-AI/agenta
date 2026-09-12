@@ -78,6 +78,7 @@ const COMMON_CONFIG: NextConfig = {
             "@agenta/ui",
             "@agenta/entities",
             "@agenta/entity-ui",
+            "@agenta/automation-ui",
             "@agenta/playground",
             "@agenta/playground-ui",
             "@agenta/annotation",
@@ -106,10 +107,13 @@ const COMMON_CONFIG: NextConfig = {
         "@agenta/settings-ui",
         "@agenta/entities",
         "@agenta/entity-ui",
+        "@agenta/automation-ui",
         "@agenta/playground",
         "@agenta/playground-ui",
         "@agenta/annotation",
         "@agenta/annotation-ui",
+        "@agenta/skills",
+        "@agenta/skills-ui",
         ...(!isDevelopment
             ? [
                   "rc-util",

@@ -1,6 +1,6 @@
 {
     "name": "@agenta/mobile",
-    "version": "0.115.4",
+    "version": "0.118.1",
     "private": true,
     "engines": {
         "node": "24.x"
@@ -22,6 +22,7 @@
     "dependencies": {
         "@agenta/auth": "workspace:../packages/agenta-auth",
         "@agenta/auth-ui": "workspace:../packages/agenta-auth-ui",
+        "@agenta/automation-ui": "workspace:../packages/agenta-automation-ui",
         "@agenta/chat": "workspace:../packages/agenta-chat",
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
@@ -38,11 +39,14 @@
         "@agenta/settings": "workspace:../packages/agenta-settings",
         "@agenta/settings-ui": "workspace:../packages/agenta-settings-ui",
         "@agenta/shared": "workspace:../packages/agenta-shared",
+        "@agenta/skills": "workspace:../packages/agenta-skills",
+        "@agenta/skills-ui": "workspace:../packages/agenta-skills-ui",
         "@agenta/ui": "workspace:../packages/agenta-ui",
         "@ai-sdk/react": "3.0.0-beta.153",
         "@phosphor-icons/react": "^2.1.10",
         "@streamdown/code": "^1.1.1",
         "@streamdown/math": "^1.0.2",
+        "@swc/helpers": "0.5.23",
         "@tanstack/react-query": "^5.90.21",
         "ai": "6.0.0-beta.150",
         "class-variance-authority": "^0.7.1",
@@ -52,7 +56,7 @@
         "jotai-tanstack-query": "^0.11.0",
         "lucide-react": "^0.479.0",
         "motion": "^12.0.0",
-        "next": "16.3.0",
+        "next": "16.3.1",
         "radix-ui": "^1.6.2",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",

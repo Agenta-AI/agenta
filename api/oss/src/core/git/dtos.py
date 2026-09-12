@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List
+from typing import Dict, Literal, Optional, List
 from uuid import UUID
 from datetime import datetime
 
@@ -15,6 +15,7 @@ from oss.src.core.shared.dtos import (
     Commit,
     FolderScope,
     Reference,
+    Windowing,
 )
 
 
@@ -78,6 +79,31 @@ class RevisionCreate(Slug, Header, Metadata):
 
 class RevisionEdit(Identifier, Header, Metadata):
     pass
+
+
+class RevisionGrouping(BaseModel):
+    by: Literal["artifact", "variant"]
+    get: Literal["latest"]
+
+
+def validate_revision_grouping(
+    *,
+    grouping: Optional[RevisionGrouping],
+    artifact_refs: Optional[List[Reference]],
+    variant_refs: Optional[List[Reference]],
+    revision_refs: Optional[List[Reference]],
+    windowing: Optional[Windowing],
+) -> None:
+    if not grouping:
+        return
+    if windowing:
+        raise ValueError("grouping cannot be combined with windowing")
+    if revision_refs:
+        raise ValueError("grouping cannot be combined with revision references")
+    if grouping.by == "artifact" and not artifact_refs:
+        raise ValueError("artifact grouping requires artifact references")
+    if grouping.by == "variant" and not (artifact_refs or variant_refs):
+        raise ValueError("variant grouping requires artifact or variant references")
 
 
 class RevisionQuery(Header, Metadata):

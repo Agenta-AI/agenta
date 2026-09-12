@@ -89,6 +89,17 @@
             "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": [".tsbuildinfo"]
         },
+        "@agenta/automation-ui#build": {
+            "dependsOn": [
+                "@agenta/shared#build",
+                "@agenta/ui#build",
+                "@agenta/entities#build",
+                "@agenta/entity-ui#build",
+                "@agenta/sessions-ui#build"
+            ],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": [".tsbuildinfo"]
+        },
         "@agenta/sessions-ui#build": {
             "dependsOn": [
                 "@agenta/shared#build",
@@ -193,6 +204,10 @@
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "eslint.config.*"],
             "outputs": []
         },
+        "@agenta/automation-ui#lint": {
+            "inputs": ["src/**/*.ts", "src/**/*.tsx", "eslint.config.*"],
+            "outputs": []
+        },
         "@agenta/sessions-ui#lint": {
             "inputs": ["src/**/*.ts", "src/**/*.tsx", "eslint.config.*"],
             "outputs": []
@@ -272,6 +287,17 @@
         },
         "@agenta/sessions#types:check": {
             "dependsOn": ["@agenta/shared#types:check", "@agenta/entities#types:check"],
+            "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
+            "outputs": []
+        },
+        "@agenta/automation-ui#types:check": {
+            "dependsOn": [
+                "@agenta/shared#types:check",
+                "@agenta/ui#types:check",
+                "@agenta/entities#types:check",
+                "@agenta/entity-ui#types:check",
+                "@agenta/sessions-ui#types:check"
+            ],
             "inputs": ["src/**", "tsconfig.json", "../tsconfig.base.json", "../css-modules.d.ts"],
             "outputs": []
         },

@@ -1,8 +1,15 @@
 import {createContext, memo, useContext, type ReactNode} from "react"
 
+import {
+    BlockedChatLink,
+    decodeDriveHref,
+    isExternalHref,
+    isProtocolRelativeHref,
+    withExplicitRelativeLinks,
+} from "@agenta/entity-ui/drive"
 import {code} from "@streamdown/code"
 import {math} from "@streamdown/math"
-import {Streamdown, type Components, type ThemeInput} from "streamdown"
+import {defaultRehypePlugins, Streamdown, type Components, type ThemeInput} from "streamdown"
 
 /** Host-supplied renderer for a code span / relative href that may name an agent file. */
 export interface ChatMarkdownLinkResolver {
@@ -15,6 +22,9 @@ export type UseChatMarkdownLinkResolver = () => ChatMarkdownLinkResolver | null
 
 // Context (not a prop) so the components map below can stay module-scope and identity-stable.
 const LinkResolverContext = createContext<UseChatMarkdownLinkResolver | null>(null)
+
+/** Publishes a resolver to {@link chatMarkdownComponents} outside a full `ChatMarkdown` render. */
+export const ChatMarkdownLinkResolverProvider = LinkResolverContext.Provider
 
 /**
  * Token-free structural rules every surface needs. Streamdown emits one <span> per Shiki line but
@@ -58,10 +68,6 @@ const InlineCode = ({className, children}: {className?: string; children?: React
     return <ResolvedSpan useResolver={useResolver} value={text} fallback={fallback} />
 }
 
-/** Any `scheme:` URL, protocol-relative `//host`, or in-page `#fragment` stays a plain link. */
-const isExternalHref = (href?: string): boolean =>
-    !href || /^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)
-
 /** Only real anchor attributes — Streamdown also passes renderer internals we must not spread. */
 interface AnchorProps {
     href?: string
@@ -87,12 +93,23 @@ const DriveLink = ({href, ...rest}: AnchorProps) => {
         <ExternalLink href={href} {...rest} />
     )
     if (!useResolver || !href) return fallback
-    return <ResolvedSpan useResolver={useResolver} value={href} fallback={fallback} />
+    // Harden percent-encodes the href through `new URL()`; drive paths are raw.
+    return (
+        <ResolvedSpan useResolver={useResolver} value={decodeDriveHref(href)} fallback={fallback} />
+    )
 }
 
-/** Split so an ordinary URL costs nothing: only a relative href subscribes to the resolver. */
+/** Split so an ordinary URL costs nothing: only a relative href subscribes to the resolver.
+ *
+ * The host check runs FIRST, on the raw href, before anything here can normalise or decode it. A
+ * target that names a host is refused outright and rendered the way harden renders the targets it
+ * refuses (#6666); nothing downstream ever sees it. */
 const Anchor = ({href, title, className, children}: AnchorProps) =>
-    isExternalHref(href) ? (
+    isProtocolRelativeHref(href) ? (
+        <BlockedChatLink href={href} className={className}>
+            {children}
+        </BlockedChatLink>
+    ) : isExternalHref(href) ? (
         <ExternalLink href={href} title={title} className={className}>
             {children}
         </ExternalLink>
@@ -102,8 +119,9 @@ const Anchor = ({href, title, className, children}: AnchorProps) =>
         </DriveLink>
     )
 
-/** Module-scope: fresh literals would churn Streamdown's prop identity on every streamed token. */
-const MD_COMPONENTS: Components = {
+/** Module-scope: fresh literals would churn Streamdown's prop identity on every streamed token.
+ * Exported so the link gates can be asserted without driving a full Streamdown render. */
+export const chatMarkdownComponents: Components = {
     inlineCode: ({className, children}) => (
         <InlineCode className={className}>{children}</InlineCode>
     ),
@@ -113,6 +131,9 @@ const MD_COMPONENTS: Components = {
         </Anchor>
     ),
 }
+
+/** Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults. */
+export const MD_REHYPE_PLUGINS = withExplicitRelativeLinks(defaultRehypePlugins)
 
 /** KaTeX math ($…$ / $$…$$) + Shiki-highlighted fences; both tree-shaken plugin packages. */
 const MD_PLUGINS = {math, code}
@@ -141,6 +162,7 @@ export interface ChatMarkdownProps {
  *
  * Sanitization is Streamdown's default rehype pipeline (`rehype-raw → rehype-sanitize (GitHub
  * schema) → rehype-harden`): document-affecting tags, handlers, and javascript: URLs are stripped.
+ * `Anchor` adds the one gate harden does not apply, on a target that resolves to a host (#6666).
  *
  * Memoized on props so settled parts of a streaming message skip re-parsing on every token.
  */
@@ -156,7 +178,8 @@ const ChatMarkdown = ({
             className={[CHAT_MARKDOWN_STRUCTURAL_CLASS, baseClassName, className]
                 .filter(Boolean)
                 .join(" ")}
-            components={MD_COMPONENTS}
+            components={chatMarkdownComponents}
+            rehypePlugins={MD_REHYPE_PLUGINS}
             plugins={MD_PLUGINS}
             controls={MD_CONTROLS}
             shikiTheme={SHIKI_THEMES}

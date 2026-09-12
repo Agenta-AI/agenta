@@ -455,3 +455,27 @@ async def test_reference_and_gateway_share_one_callback():
     call_refs = {spec.call_ref for spec in resolved.tool_specs}
     assert "workflow.variant.wf" in call_refs
     assert resolved.tool_callback is not None
+
+
+async def test_identical_reserved_client_tools_collapse_to_one():
+    # A revision saved before `request_secret` joined the build kit may carry its own copy of
+    # the tool, and the playground overlay merges by embed slug or by name, so an inline copy
+    # survives beside the kit's entry. Two identical copies are one tool, not a name clash.
+    spec = ClientToolConfig(
+        name="request_secret",
+        description="Pause the run and ask the user to configure a custom secret.",
+        input_schema={"type": "object", "properties": {"name": {"type": "string"}}},
+    )
+    resolved = await ToolResolver().resolve([spec, spec.model_copy()])
+    names = [tool.name for tool in resolved.tool_specs]
+    assert names == ["request_secret"]
+
+
+async def test_different_tools_sharing_a_reserved_name_are_still_refused():
+    with pytest.raises(DuplicateToolNameError):
+        await ToolResolver().resolve(
+            [
+                ClientToolConfig(name="request_input", description="one"),
+                ClientToolConfig(name="request_input", description="two"),
+            ]
+        )

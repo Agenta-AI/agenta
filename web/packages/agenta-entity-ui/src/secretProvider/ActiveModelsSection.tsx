@@ -71,7 +71,10 @@ const ActiveModelsSection = ({
     const matching = useMemo(() => {
         const term = search.trim().toLowerCase()
         if (!term) return options
-        return options.filter((option) => option.id.toLowerCase().includes(term))
+        return options.filter(
+            (option) =>
+                option.id.toLowerCase().includes(term) || option.name?.toLowerCase().includes(term),
+        )
     }, [options, search])
 
     const {truncated, visibleCount} = modelListView({total: matching.length, showAll})
@@ -138,8 +141,15 @@ const ActiveModelsSection = ({
                                     checked={option.checked}
                                     onCheckedChange={(next) => onToggle(option.id, next === true)}
                                 />
-                                <span className="min-w-0 flex-1 truncate font-mono text-field-sm text-colorText">
-                                    {option.id}
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-field-sm text-colorText">
+                                        {option.name ?? option.id}
+                                    </span>
+                                    {option.name ? (
+                                        <span className="block truncate font-mono text-field-xs text-colorTextTertiary">
+                                            {option.id}
+                                        </span>
+                                    ) : null}
                                 </span>
                                 {option.isDefault ? (
                                     <Tag size="small" tone="default" label="recommended" />
