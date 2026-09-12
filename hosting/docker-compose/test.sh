@@ -232,7 +232,10 @@ log_destination() {
 }
 
 prepare_log() {
-    [[ "$want_logs" == true ]] || return
+    # `return 0`, not a bare `return`: a bare one inherits the failed `[[ ]]` status, and under
+    # `set -e` that aborted the whole script right after the install step whenever --logs was
+    # absent — no test output, exit 1, and nothing saying why.
+    [[ "$want_logs" == true ]] || return 0
     : > "$(log_destination "$1")"
 }
 
