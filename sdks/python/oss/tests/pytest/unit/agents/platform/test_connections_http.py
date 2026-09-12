@@ -1351,9 +1351,10 @@ async def test_subscription_resolves_to_runtime_provided_with_the_login(
     assert resolved.subscription.version == 3
     assert resolved.subscription.generation == 1
     assert resolved.subscription.login == _READY_LOGIN
-    # A named self-managed connection reads the vault, exactly like an `agenta` one.
-    assert capture["method"] == "GET"
-    assert capture["url"] == "https://api.x/api/secrets/"
+    # A named self-managed connection resolves through the gateway, exactly like an
+    # `agenta` one: the vault read moved behind `POST /gateways/llms/resolve`.
+    assert capture["method"] == "POST"
+    assert capture["url"] == "https://api.x/api/gateways/llms/resolve"
 
 
 @pytest.mark.parametrize("harness", ["codex", "claude_code", None])

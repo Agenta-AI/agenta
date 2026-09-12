@@ -26,13 +26,6 @@ export interface PiModelProviderOverride {
 
 const PROVIDER_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
-const LOOPBACK_HOSTNAMES = new Set([
-  "localhost",
-  "127.0.0.1",
-  "::1",
-  "host.docker.internal",
-]);
-
 function isSafeHeader(name: string, value: string): boolean {
   return HTTP_FIELD_NAME.test(name) && !/[\r\n]/.test(value);
 }
@@ -72,16 +65,12 @@ export function validatePiModelProviderOverride(
         typeof headerValue === "string" &&
         headerValue.length > 0,
     );
-  // Plain HTTP is permitted only to loopback, matching `run-plan.ts`'s
-  // `isEffectiveSecureEndpoint` and the Python SDK's `_require_effective_https`: a
-  // gateway credential is still a bearer credential, and a remote plaintext hop would
-  // put it on the wire in cleartext.
-  const insecureLoopbackGatewayRoute =
-    url.protocol === "http:" &&
-    hasGatewayCredential &&
-    LOOPBACK_HOSTNAMES.has(url.hostname.replace(/^\[|\]$/g, "").toLowerCase());
+  // Plain HTTP is permitted only for an Agenta gateway route, which the gateway
+  // credential header identifies: a self-hosted runner reaches the gateway over the
+  // deployment's internal network (`http://api:8000`), which never leaves the cluster.
   if (
-    (url.protocol !== "https:" && !insecureLoopbackGatewayRoute) ||
+    (url.protocol !== "https:" &&
+      !(url.protocol === "http:" && hasGatewayCredential)) ||
     !url.hostname ||
     url.username ||
     url.password ||
@@ -89,7 +78,7 @@ export function validatePiModelProviderOverride(
     url.hash
   ) {
     throw new Error(
-      "model provider override baseUrl must be HTTPS, or a loopback HTTP Agenta gateway route, without credentials, query, or fragment",
+      "model provider override baseUrl must be HTTPS, or an HTTP Agenta gateway route, without credentials, query, or fragment",
     );
   }
 
