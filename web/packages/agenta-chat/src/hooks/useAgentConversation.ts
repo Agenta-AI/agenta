@@ -174,6 +174,12 @@ export interface AgentConversation {
     turns: TurnViewModel[]
     /** Send a user message (routes through the queue: sends now, or holds while busy/paused). */
     send: (input: SendInput) => Promise<void>
+    /**
+     * A send this mount admitted is still on its way: the runner has neither named its turn nor
+     * refused it. `status` stays "ready" on the server-owned send path, so a skin that wants to
+     * show work from the moment the message leaves the composer reads this alongside it.
+     */
+    sendInFlight: boolean
     /** Prevent an approval decision still being recorded from starting its delayed resume. */
     voidPendingResume: () => void
     /** Abort the in-flight stream and tag the last assistant turn as user-stopped. */
@@ -770,6 +776,7 @@ export const useAgentConversation = ({
         cancelEdit,
         commitEdit,
         pendingSendRows,
+        sendInFlight,
     } = useAgentChatQueue({
         status,
         messages,
@@ -961,10 +968,11 @@ export const useAgentConversation = ({
 
     // Publish this session's run state (single source of truth for session-list status dots).
     // Precedence error > awaiting approval > running > idle.
+    // `sendInFlight` too: the dot goes live when the message leaves, not when a poll notices.
     const runStatus = deriveSessionRunStatus({
         error: !!errorBoundary.runError,
         hitlPending,
-        busy: busy || acceptedRunPending || ownsContinuation,
+        busy: busy || acceptedRunPending || ownsContinuation || sendInFlight,
     })
     useEffect(() => {
         setSessionStatus({id: sessionId, status: runStatus})
@@ -1332,6 +1340,7 @@ export const useAgentConversation = ({
         connectionWarning: errorBoundary.connectionWarning,
         turns,
         send,
+        sendInFlight,
         voidPendingResume,
         stop: handleStop,
         regenerate: regenerateTurn,

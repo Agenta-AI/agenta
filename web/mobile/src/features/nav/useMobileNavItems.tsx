@@ -39,6 +39,8 @@ import {
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 
+import {useSyncLocalSessionRefs} from "./localSessionRefs"
+
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
 
@@ -110,6 +112,8 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
  * forking a component.
  */
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
+    // Sessions this client created ride the shared local seam until the server lists them.
+    useSyncLocalSessionRefs(MOBILE_NAV_SCOPE_ID)
     const rawSource = useAtomValue(mobileSessionsEntity.activeSourceAtom)
     const loadMoreSessions = useSetAtom(loadMoreSidebarSessionsAtomFamily(MOBILE_NAV_SCOPE_ID))
     const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))

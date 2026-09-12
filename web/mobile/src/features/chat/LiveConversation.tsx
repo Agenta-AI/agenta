@@ -29,7 +29,11 @@ import {
     type TurnViewModel,
 } from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
-import {cancelSessionExecution} from "@agenta/entities/session"
+import {
+    cancelSessionExecution,
+    isSessionFresh,
+    registerLocalSessionAtom,
+} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
@@ -192,7 +196,25 @@ export const LiveConversation = ({
     const sendPendingTask = useSetAtom(sendPendingTaskAtom)
     const failPendingTask = useSetAtom(failPendingTaskAtom)
     const pendingTaskError = pendingTask?.delivery === "failed"
-    const {isHydrating, revalidate, send, stop, voidPendingResume} = conversation
+    const {
+        isHydrating,
+        revalidate,
+        send: sendToConversation,
+        stop,
+        voidPendingResume,
+    } = conversation
+    // A fresh session becomes real on the server only once this first message is admitted, which
+    // can take seconds on a cold runner. Note it locally first, so the rail lists it now (#6776).
+    const registerLocalSession = useSetAtom(registerLocalSessionAtom)
+    const send = useCallback(
+        async (input: Parameters<typeof sendToConversation>[0]) => {
+            if (isSessionFresh(sessionId)) {
+                registerLocalSession({sessionId, agentId: agentId ?? null, name: input.text})
+            }
+            await sendToConversation(input)
+        },
+        [agentId, registerLocalSession, sendToConversation, sessionId],
+    )
     useEffect(() => {
         if (!pendingTask || pendingTask.delivery) return
         const decision = pendingTaskDecision({
@@ -240,7 +262,11 @@ export const LiveConversation = ({
         readerReady: conversation.readerReady,
         ownedContinuation: conversation.acceptedRunPending,
     })
-    const showingTurnActivity = streamingHere || remoteTurn.showActivity
+    // `sendInFlight` covers the gap the other two cannot: the message has left the composer, and
+    // neither `useChat` (the server-owned path never moves its status) nor liveness (a poll away)
+    // knows yet. Without it the pulse arrived a runner accept plus a poll after the send (#6778).
+    const showingTurnActivity =
+        streamingHere || conversation.sendInFlight || remoteTurn.showActivity
     const streamingHereRef = useRef(streamingHere)
     streamingHereRef.current = streamingHere
     const hitlPendingRef = useRef(conversation.hitlPending)
@@ -784,7 +810,7 @@ export const LiveConversation = ({
                                 // An open edit rewrites its held message instead of sending. The
                                 // input clears on submit, so the displaced draft goes back after.
                                 if (!conversation.editingId) {
-                                    await conversation.send({text, parts})
+                                    await send({text, parts})
                                     return
                                 }
                                 const draft = await conversation.commitEdit({
