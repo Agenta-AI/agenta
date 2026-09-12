@@ -1203,12 +1203,16 @@ class CodexAgentTemplate(HarnessAgentTemplate):
         credential_mode: Optional[str] = None
         gateway_base_url: Optional[str] = None
         gateway_header: Optional[str] = None
+        gateway_model: Optional[str] = None
         if self.resolved_connection is not None:
             credential_mode = self.resolved_connection.credential_mode
             if self.resolved_connection.gateway_credentials is not None:
                 gateway_header = self.resolved_connection.gateway_credentials.header
                 if self.resolved_connection.endpoint is not None:
                     gateway_base_url = self.resolved_connection.endpoint.base_url
+                    # The SAME id `wire_model_connection` puts on the wire, so the model the
+                    # config declares and the model the runner would ask for are one string.
+                    gateway_model = self.resolved_connection.model
         elif (
             self.model_ref is not None
             and self.model_ref.connection is not None
@@ -1225,6 +1229,7 @@ class CodexAgentTemplate(HarnessAgentTemplate):
             credential_mode=credential_mode,
             gateway_base_url=gateway_base_url,
             gateway_header=gateway_header,
+            model=gateway_model,
         )
         if not files:
             return {}

@@ -87,6 +87,7 @@ import {
 } from "./daytona-secret-provider.ts";
 import type { DaytonaSecretLease } from "./daytona-secrets.ts";
 import { errorEventWithDetail } from "../../gateway-error.ts";
+import { codexConfigPinnedModel } from "./codex-assets.ts";
 import { probeMcpServerHandshakes } from "./mcp-handshake.ts";
 import { buildSessionMcpServers, validateUserMcpServers } from "./mcp.ts";
 import { applyModel } from "./model.ts";
@@ -1450,12 +1451,28 @@ async function acquireEnvironmentOnce(
       piModelConfig && piModelConfig.models.length > 0
         ? `${piModelsJsonProviderId(piModelConfig)}/${piModelConfig.models[0].id}`
         : request.model;
-    environment.model = await (deps.applyModel ?? applyModel)(
-      environment.session,
-      wantedModel,
-      logger,
-      { strict: strictModel },
-    );
+    // A Codex run whose config DECLARES the model has already selected it: codex-acp took the
+    // config's id as the thread's model and advertised it as the session's first option, so the
+    // change `applyModel` would ask for is a no-op against a catalogue check that used to refuse
+    // it outright (OR31d). Skipping the call is the smaller edit than relying on that no-op, and
+    // the span is still labelled, with the id the config pinned rather than one nobody applied.
+    const pinnedCodexModel =
+      plan.acpAgent === "codex"
+        ? codexConfigPinnedModel(plan.workspace.harnessFiles)
+        : undefined;
+    if (pinnedCodexModel) {
+      environment.model = pinnedCodexModel;
+      logger(
+        `[codex] model pinned by config, skipping model change: ${pinnedCodexModel}`,
+      );
+    } else {
+      environment.model = await (deps.applyModel ?? applyModel)(
+        environment.session,
+        wantedModel,
+        logger,
+        { strict: strictModel },
+      );
+    }
     if (plan.acpAgent === "codex") {
       const mode = resolveCodexMode(request.harnessMode);
       await (deps.applyCodexMode ?? applyCodexMode)(
