@@ -1,7 +1,7 @@
 """add channels
 
-Revision ID: oss000000029
-Revises: oss000000028
+Revision ID: oss000000030
+Revises: oss000000029
 Create Date: 2026-08-07 00:00:00.000000
 
 Every channels table lands in this one revision, `channel_identity_links`
@@ -18,8 +18,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
 
-revision: str = "oss000000029"
-down_revision: Union[str, None] = "oss000000028"
+revision: str = "oss000000030"
+down_revision: Union[str, None] = "oss000000029"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
