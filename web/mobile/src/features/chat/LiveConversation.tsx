@@ -63,7 +63,11 @@ import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {cancelledStopAction} from "./stopHereState"
 import {TurnRow} from "./TurnRow"
-import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
+import {
+    deriveMobileRemoteTurnPresentation,
+    showTrailingWorkingPulse,
+    showTurnWorkingPulse,
+} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
@@ -625,6 +629,9 @@ export const LiveConversation = ({
                         workflowId={agentId}
                         key={turn.message.id}
                         turn={turn}
+                        working={showTurnWorkingPulse(turn, {
+                            waitingForInput: conversation.hitlPending,
+                        })}
                         onClientToolOutput={conversation.sendToolOutput}
                         onRewind={handleRewind}
                         sessionId={sessionId}

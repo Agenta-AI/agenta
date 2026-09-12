@@ -39,6 +39,7 @@ import {AssistantMarkdown} from "./AssistantMarkdown"
 import {continuationRetryAction} from "./continuationRetry"
 import {isLiveReasoningPart, isLiveTextItem} from "./markdownStream"
 import {ToolLine} from "./ToolLine"
+import {TurnStatusLine} from "./TurnStatusLine"
 
 type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
 
@@ -188,12 +189,18 @@ const downloadAttachment = (url: string, name: string) => {
  */
 const TurnRowInner = ({
     turn,
+    working = false,
     onClientToolOutput,
     onRewind,
     sessionId,
     workflowId,
 }: {
     turn: TurnViewModel
+    /** The run is still working on this turn: keep the pulse under its content, so reasoning,
+     * tool runs and the pauses between paragraphs never read as a finished reply (#6548). Only
+     * the turn being generated gets it, and only once it has content — before that the loading
+     * bubble is the indicator. See `showTurnWorkingPulse`. */
+    working?: boolean
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
      * the read-only transcript screen has no engine to settle into — and it passes no client-tool
      * predicate either, so it never produces one of these items to begin with. */
@@ -296,6 +303,10 @@ const TurnRowInner = ({
                     )}
                 />
             ) : null}
+            {/* Under the content, in the content's own column: the desktop's meta line. The
+                trailing line after the list covers the gap before this turn exists, and the
+                loading bubble covers it while it is empty, so exactly one pulse shows at a time. */}
+            {working ? <TurnStatusLine working waitingForInput={false} className="h-5" /> : null}
         </div>
     )
 

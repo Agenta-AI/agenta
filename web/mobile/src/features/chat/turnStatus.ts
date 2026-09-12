@@ -16,6 +16,20 @@ export const showTrailingWorkingPulse = (
     turns: {isUser: boolean; isStreamingTurn: boolean}[],
 ): boolean => streaming && !turns.some((turn) => !turn.isUser && turn.isStreamingTurn)
 
+/**
+ * Should this turn carry the working pulse under its content?
+ *
+ * The turn being generated shows its own loading bubble until it has content, and nothing after
+ * that — so reasoning, tool runs and the pauses between paragraphs read as an idle agent for most
+ * of a run (#6548). The desktop keeps a working line under the streaming turn for the WHOLE busy
+ * period; this is that rule. A parked run (a pending approval) hands the line to the hourglass
+ * instead, which the trailing status line renders.
+ */
+export const showTurnWorkingPulse = (
+    turn: {isUser: boolean; isStreamingTurn: boolean; status: {hasContent: boolean}},
+    {waitingForInput}: {waitingForInput: boolean},
+): boolean => !turn.isUser && turn.isStreamingTurn && turn.status.hasContent && !waitingForInput
+
 export const showRunningElsewhere = ({
     running,
     localStatus,
