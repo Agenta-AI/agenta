@@ -164,7 +164,10 @@
         "passwordPolicy":   { "type": "string", "enum": ["none", "basic", "strong"], "description": "SUPERTOKENS_PASSWORD_POLICY." },
         "passwordMinLength":{ "type": ["integer", "string"], "description": "SUPERTOKENS_PASSWORD_MIN_LENGTH." },
         "passwordMaxLength":{ "type": ["integer", "string"], "description": "SUPERTOKENS_PASSWORD_MAX_LENGTH." },
-        "passwordRegex":    { "type": "string", "description": "SUPERTOKENS_PASSWORD_REGEX." }
+        "passwordRegex":    { "type": "string", "description": "SUPERTOKENS_PASSWORD_REGEX." },
+        "terminationGracePeriodSeconds": { "$ref": "#/$defs/terminationGracePeriodSeconds" },
+        "lifecycle":        { "$ref": "#/$defs/containerLifecycle" },
+        "strategy":         { "$ref": "#/$defs/workloadStrategy" }
       }
     },
     "secrets": {
@@ -310,7 +313,9 @@
                 "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
               }
             },
-            "persistence": { "type": "object", "additionalProperties": true }
+            "persistence": { "type": "object", "additionalProperties": true },
+            "terminationGracePeriodSeconds": { "$ref": "#/$defs/terminationGracePeriodSeconds" },
+            "lifecycle":   { "$ref": "#/$defs/containerLifecycle" }
           }
         }
       }
@@ -329,6 +334,9 @@
         "host":        { "type": "string", "description": "AGENTA_RUNNER_HOST, the runner's bind address. Default 0.0.0.0. The runner itself defaults to 127.0.0.1, which the kubelet cannot reach, so the probes would fail forever." },
         "port":        { "type": ["integer", "string"], "description": "AGENTA_RUNNER_PORT and the container port. Default 8765." },
         "replicas":    { "type": "integer", "minimum": 0 },
+        "terminationGracePeriodSeconds": { "$ref": "#/$defs/terminationGracePeriodSeconds" },
+        "lifecycle":   { "$ref": "#/$defs/containerLifecycle" },
+        "strategy":    { "$ref": "#/$defs/workloadStrategy" },
         "fuse": {
           "type": "object",
           "additionalProperties": false,
@@ -435,7 +443,9 @@
         "activeDeadlineSeconds":   { "type": "integer" },
         "backoffLimit":            { "type": "integer" },
         "ttlSecondsAfterFinished": { "type": "integer" },
-        "resources":               { "type": "object", "additionalProperties": true }
+        "resources":               { "type": "object", "additionalProperties": true },
+        "terminationGracePeriodSeconds": { "$ref": "#/$defs/terminationGracePeriodSeconds" },
+        "lifecycle":               { "$ref": "#/$defs/containerLifecycle" }
       }
     },
     "docker": {
@@ -506,10 +516,42 @@
     "workerStreams":      { "$ref": "#/$defs/component" },
     "workerQueues":       { "$ref": "#/$defs/component" },
     "cron":               { "$ref": "#/$defs/component" },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "NetworkPolicy for the bundled data stores. The bundled PostgreSQL is not covered: the Bitnami subchart renders its own policy, which allows every source by default, and policies are additive, so a narrower one from this chart would take nothing away. Restrict it with postgresql.primary.networkPolicy.allowExternal and .extraIngress instead.",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Default false. When true, the chart renders one NetworkPolicy per bundled data store it deploys (the volatile Redis, the durable Redis, SeaweedFS). Each one lets in only pods of this release, in the same namespace, on that store's port, and denies every other ingress to those pods. Policies are additive, so that deny holds only while no other policy selects the same pods. Egress is left alone. A cluster whose CNI does not implement NetworkPolicy ignores these objects." },
+        "extraIngressFrom": {
+          "type": "array",
+          "description": "Extra `from:` entries added to every store policy, in the shape the NetworkPolicy spec uses (podSelector, namespaceSelector, ipBlock). Use it for a client the release does not own, such as the Google Cloud load balancer health checker on 130.211.0.0/22 and 35.191.0.0/16 when a store is published through an Ingress.",
+          "items": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
     "nameOverride":     { "type": "string" },
     "fullnameOverride": { "type": "string" }
   },
   "$defs": {
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Seconds Kubernetes waits between the TERM signal and the KILL signal. Rendered on the pod spec only when set. A preStop hook must fit inside this window: the KILL lands at the end of it whatever the hook is still doing."
+    },
+    "containerLifecycle": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Container lifecycle hooks, rendered verbatim under the container's `lifecycle:`. A preStop hook holds the pod open while a managed load balancer notices the endpoint is gone, for example `preStop: {sleep: {seconds: 10}}` (Kubernetes 1.30 and later) or `preStop: {exec: {command: [\"sh\", \"-c\", \"sleep 10\"]}}`."
+    },
+    "workloadStrategy": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Rendered verbatim under the Deployment's `spec.strategy`. `{rollingUpdate: {maxUnavailable: 0}}` makes a rollout add the new pod before it removes the old one. Deployments only: the chart's StatefulSets (the durable Redis, SeaweedFS) and the migration Job have no spec.strategy and ignore it.",
+      "properties": {
+        "type": { "type": "string", "enum": ["RollingUpdate", "Recreate"] },
+        "rollingUpdate": { "type": "object", "additionalProperties": true }
+      }
+    },
     "ingressPath": {
       "type": "object",
       "additionalProperties": false,
@@ -559,6 +601,9 @@
           }
         },
         "resources":   { "type": "object", "additionalProperties": true },
+        "terminationGracePeriodSeconds": { "$ref": "#/$defs/terminationGracePeriodSeconds" },
+        "lifecycle":   { "$ref": "#/$defs/containerLifecycle" },
+        "strategy":    { "$ref": "#/$defs/workloadStrategy" },
         "extraEnv":    { "$ref": "#/$defs/rawEnvList" },
         "envFrom":     { "$ref": "#/$defs/envFromList" },
         "env":         { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
@@ -586,6 +631,9 @@
         "persistence":     { "type": "object", "additionalProperties": true },
         "image":           { "type": "object", "additionalProperties": true },
         "resources":       { "type": "object", "additionalProperties": true },
+        "terminationGracePeriodSeconds": { "$ref": "#/$defs/terminationGracePeriodSeconds" },
+        "lifecycle":       { "$ref": "#/$defs/containerLifecycle" },
+        "strategy":        { "$ref": "#/$defs/workloadStrategy" },
         "external": {
           "type": "object",
           "additionalProperties": false,

@@ -90,6 +90,24 @@ misspelled one and falls back to the default. Render the chart and read the
 Keep the default `post` with the bundled PostgreSQL, whose StatefulSet does not
 exist yet at pre-install time and would deadlock the Job.
 
+On the first install in the pre phase the Job names no ServiceAccount. It runs
+before the release's own ServiceAccount is applied, and Kubernetes refuses a pod
+that names a ServiceAccount which does not exist, so the Job never starts one and
+the install sits in pending-install. The migration reaches PostgreSQL only and
+needs no Kubernetes API access, so on that one install its pod takes the
+namespace's default ServiceAccount and mounts no token.
+
+Every later upgrade names the ServiceAccount again. By then the first install has
+created it, and naming it keeps the identity you configured on it. That matters
+if you annotate it, because `serviceAccount.annotations` is where a GKE release
+binds the workload identity that reaches Cloud SQL with IAM auth.
+
+So the first install is the one case with no named identity for the migration. If
+the migration itself needs one, or a cluster policy requires a named
+ServiceAccount, create the ServiceAccount yourself and set
+`serviceAccount.create: false` with `serviceAccount.name`. The chart names that
+one in every phase, because it exists before the install starts.
+
 ## A managed ingress (GKE)
 
 ```yaml
@@ -162,6 +180,123 @@ ingress:
 
 For TLS that you manage yourself, `ingress.tls` is a list in the shape the
 Ingress spec uses. Any non-empty list also switches the derived URLs to https.
+
+## Graceful rollouts
+
+A managed load balancer keeps sending requests to a pod for a few seconds after
+Kubernetes removes it from the endpoints. On GKE the endpoint group needs that
+long to notice. A pod that exits as soon as it gets the TERM signal answers those
+requests with a 502, so every rollout drops a few requests. Three optional keys
+per workload close the window, and all three are unset by default:
+
+```yaml
+api:
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0     # add the new pod before removing the old one
+  lifecycle:
+    preStop:
+      sleep:
+        seconds: 10         # keep answering while the load balancer catches up
+  terminationGracePeriodSeconds: 45
+```
+
+`strategy` is rendered verbatim under the Deployment's `spec.strategy`.
+`lifecycle` is rendered verbatim under the container's `lifecycle`, so any hook
+the Kubernetes spec accepts works. `terminationGracePeriodSeconds` is rendered on
+the pod spec.
+
+Four things to get right:
+
+- The grace period must be longer than the preStop delay plus the time the
+  process needs to drain. The KILL signal lands at the end of the grace period
+  whatever the hook is still doing.
+- `preStop: {sleep: ...}` needs Kubernetes 1.30 or later. Below that, use
+  `preStop: {exec: {command: ["sh", "-c", "sleep 10"]}}`, and note that the image
+  must have that shell.
+- `strategy` is for Deployments. The durable Redis and SeaweedFS are
+  StatefulSets and the migration is a Job; neither has a `spec.strategy`, so the
+  chart does not render one there. `lifecycle` and
+  `terminationGracePeriodSeconds` do work on all of them.
+- `maxUnavailable: 0` needs room for one more pod than you run today. On a full
+  cluster the rollout waits for a node instead of starting.
+
+The keys work on every workload: `api`, `services`, `web`, `webMobile`, `cron`,
+`workerStreams`, `workerQueues`, `agentRunner`, `supertokens`, `redisVolatile`,
+`redisDurable`, `store.seaweedfs` and `alembic`.
+
+## Restricting the bundled data stores
+
+Nothing stops one pod in the namespace from reaching the bundled Redis instances
+or the bundled SeaweedFS, because by default no NetworkPolicy selects them. Turn
+one on per store:
+
+```yaml
+networkPolicy:
+  enabled: true
+```
+
+The chart then renders one NetworkPolicy per bundled store it deploys:
+`redis-volatile`, `redis-durable` and `seaweedfs`. Each policy selects that
+store's pods and allows ingress only from pods of this release, in the same
+namespace, on that store's port. Selecting a pod turns off its default
+allow-everything, so that single rule is also the deny for every other source
+and port. Egress is left alone.
+
+Policies are additive, so this deny holds only while no other policy selects the
+same pods. A namespace-wide allow policy, which is a common way to start, still
+lets its own sources in. These policies take nothing away from one that is
+already there. Check what else selects the store pods before you count the store
+as locked down.
+
+Read the policies back before you trust them. A cluster whose CNI does not
+implement NetworkPolicy accepts the objects and ignores them, with no event and
+no warning. GKE needs network policy enforcement or Dataplane V2 turned on for
+the cluster.
+
+To let in a client the release does not own, add raw `from:` entries. They are
+appended to every store policy, on that store's port:
+
+```yaml
+networkPolicy:
+  enabled: true
+  extraIngressFrom:
+    - ipBlock:
+        cidr: 130.211.0.0/22   # Google Cloud load balancer health checkers
+    - ipBlock:
+        cidr: 35.191.0.0/16
+```
+
+Those two ranges are the ones to add when you publish the bundled store through
+an Ingress, as in the SeaweedFS section below: the health check comes from the
+load balancer, not from a pod. Health probes from the kubelet are a different
+thing. They start on the node, and the common CNIs let node traffic through
+regardless of pod policy.
+
+The bundled PostgreSQL is not covered. The Bitnami subchart renders its own
+NetworkPolicy, and that one allows every source on port 5432. Policies are
+additive, so a narrower policy from this chart would take nothing away. Restrict
+it through the subchart's own values instead:
+
+```yaml
+postgresql:
+  primary:
+    networkPolicy:
+      allowExternal: false
+      extraIngress:
+        - ports:
+            - port: 5432
+          from:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: '{{ .Release.Name }}'
+```
+
+`allowExternal: false` narrows the subchart's rule to pods labelled
+`<release>-postgresql-client: "true"`, which the Agenta workloads do not carry.
+The `extraIngress` entry above is what lets them back in. The subchart renders
+that value as a template, so the quoted `.Release.Name` expression resolves to
+the release name.
 
 ## GKE Autopilot
 

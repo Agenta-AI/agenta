@@ -10,6 +10,10 @@ metadata:
     app.kubernetes.io/component: redis-volatile
 spec:
   replicas: 1
+  {{- with $redisVolatile.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
@@ -22,6 +26,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $redisVolatile "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $redisVolatile.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $redisVolatile.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -78,6 +85,10 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 5
+          {{- with $redisVolatile.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $redisVolatile.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

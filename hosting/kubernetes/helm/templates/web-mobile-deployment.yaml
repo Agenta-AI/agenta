@@ -11,6 +11,10 @@ metadata:
     app.kubernetes.io/component: web-mobile
 spec:
   replicas: {{ include "agenta.webMobile.replicas" . }}
+  {{- with $webMobile.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
@@ -23,6 +27,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $webMobile "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $webMobile.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $webMobile.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -114,6 +121,10 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          {{- with $webMobile.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $webMobile.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

@@ -11,6 +11,10 @@ metadata:
     app.kubernetes.io/component: worker-queues
 spec:
   replicas: {{ include "agenta.workerQueues.replicas" . }}
+  {{- with $workerQueues.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
@@ -23,6 +27,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $workerQueues "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $workerQueues.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $workerQueues.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -67,6 +74,10 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 3
+          {{- with $workerQueues.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $workerQueues.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

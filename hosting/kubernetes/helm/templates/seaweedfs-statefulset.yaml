@@ -29,6 +29,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $seaweedfs "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $seaweedfs.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $seaweedfs.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -106,6 +109,10 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 5
+          {{- with $seaweedfs.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $seaweedfs.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

@@ -43,7 +43,46 @@ spec:
         app.kubernetes.io/component: alembic
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
+      {{- /* On a FRESH INSTALL in the pre phase this Job runs before any release resource is
+             applied, so the ServiceAccount the chart creates does not exist yet. A pod that
+             names a missing ServiceAccount is refused ("serviceaccount <name> not found"),
+             the Job never starts a pod, and `helm install` sits in pending-install until it
+             times out.
+
+             The migration talks to PostgreSQL only and needs no Kubernetes API access, so on
+             that one install the Job names no ServiceAccount at all. The pod lands on the
+             namespace's default ServiceAccount, which Kubernetes creates with the namespace,
+             and mounts no token.
+
+             Two cases keep naming the ServiceAccount, because there it already exists:
+
+             - An UPGRADE. The first install created the ServiceAccount, so the pre-upgrade
+               hook can name it. Naming it also keeps the identity the operator configured.
+               serviceAccount.annotations is how a GKE release binds the workload identity
+               that reaches Cloud SQL with IAM auth, and a controller that patches pull
+               secrets onto ServiceAccounts patches this one. Falling back to the namespace's
+               default ServiceAccount on every upgrade would drop both.
+             - An operator-supplied ServiceAccount (serviceAccount.create: false), which
+               exists before the install.
+
+             So a fresh install that needs a named identity for the migration itself must
+             pre-create the ServiceAccount and set serviceAccount.create: false. A cluster
+             that requires a named ServiceAccount by policy needs the same. The README
+             section "An external PostgreSQL" says so.
+
+             Making the ServiceAccount itself a pre-install hook would also work on a fresh
+             install, and is wrong afterwards: a hook resource leaves the release manifest, so
+             the delete policy governs its lifetime, and switching alembic.hookPhase later
+             flips the object between hook and tracked resource, which breaks the next
+             `helm upgrade` on ownership metadata. */}}
+      {{- if and .Release.IsInstall (eq (include "agenta.alembic.hookPhase" .) "pre") (eq (include "agenta.serviceAccount.create" .) "true") }}
+      automountServiceAccountToken: false
+      {{- else }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- end }}
+      {{- if hasKey $alembic "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $alembic.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $alembic.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -89,6 +128,10 @@ spec:
             {{- end }}
           {{- with $alembic.envFrom }}
           envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $alembic.lifecycle }}
+          lifecycle:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- with $alembic.resources }}
