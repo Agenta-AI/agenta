@@ -5,7 +5,7 @@ never read each other.
 
 Wave 1 is implemented. The measurement and wallet-debit pipeline, wallet provisioning,
 plan-change proration and the grant catalog all ship on this branch, switched off behind
-`AGENTA_WALLETS_ENABLED`. [wave-1.md](wave-1.md) records what was delivered and
+`AGENTA_WALLETS_ENABLED`. Wave 2, the seam to the gateway, is specified and not implemented. [wave-1.md](wave-1.md) records what was delivered and
 [nodes/im-1-02-pipeline/acceptance.md](nodes/im-1-02-pipeline/acceptance.md) is the
 procedure for verifying it on a deployment. Everything outside Wave 1 — SBX, live
 providers, L1 exposure, rollups, store separation — is still design only.
@@ -24,6 +24,9 @@ disagrees with it about a table, a column, or a name, it wins.
 2. **[wave-1.md](wave-1.md)** — the checkpoint boundary, fixed inputs, the replay invariant,
    and the completion evidence. Its graph is in [wps-1.md](wps-1.md), [ims-1.md](ims-1.md)
    and [cus-1.md](cus-1.md), with per-node specifications under [nodes/](nodes/).
+2b. **[wave-2.md](wave-2.md)** — the gateway–wallet seam, planned and not implemented. Its
+   graph is in [wps-2.md](wps-2.md), [ims-2.md](ims-2.md) and [cus-2.md](cus-2.md). It spans
+   two branches; read [seams.md](seams.md) before it.
 3. **[preflight.md](preflight.md)** — the graph and specification review `waves.md` requires
    before any node work starts. Read it before forking a worktree.
 4. **[entities.md](entities.md)** — the data model: what each entity is and is not, an example
