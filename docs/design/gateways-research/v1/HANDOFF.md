@@ -35,9 +35,10 @@ The remaining documents are the design itself: `decisions.md`, `architecture.md`
 ## Current state
 
 The branch is mergeable on `main` as of 2026-09-12. Unit suites and the automated acceptance and
-integration suites are green. The dashboard product path is partly working: two harnesses complete
-a gateway LLM turn, no harness completes the MCP leg, and every one of them needs an endpoint
-created through the API before it can run at all.
+integration suites are green. **The dashboard product path works end to end as of 2026-09-13**: a
+provider created in the dashboard registers its gateway endpoint, and Pi and Claude Code each
+complete both a gateway LLM turn and a gateway MCP tool call, with no API call standing in for any
+step.
 
 - **Green.** API gateway acceptance, the mock matrix, API gateway integration, SDK MCP-routing
   acceptance, services gateway-tool integration, and runner gateway-credential acceptance. The
@@ -45,23 +46,65 @@ created through the API before it can run at all.
 - **Green since.** The services acceptance suite `test_agent_gateway_route.py` passes all 27
   cells, the nine Claude ones included. They failed because the mock MCP server never answered
   `initialize`, so no spec-compliant client could finish a handshake against it. This was OR23.
-- **Not working.** The dashboard cannot register a gateway endpoint, because the AI providers page
-  creates a secret and not an endpoint. Four findings are open: **OR26** (no dashboard path
-  registers the endpoint the resolver asks for; the withdrawn half of that entry was a `qa.md`
-  procedure defect rather than a missing `builtin/mock` control), **OR31** (the provider form
-  offers no protocol choice, Codex is a dead end on any custom endpoint, the `MCP servers` section
-  is hidden whenever Pi is selected, and `Add MCP server` discards the URL it asks for), **OR28**
-  (no harness preserves the refusal envelope) and **OR32** (a server that fails its MCP handshake
-  vanishes from the run, which reports success). OR26 and OR31 are dashboard work; OR28 and OR32
-  are runner and agent-service work.
+- **Wave 4 closed, 2026-09-13.** **OR26**: the vault registers and deregisters the LLM endpoint
+  alongside the `custom_provider` secret. It closed server-side rather than in the browser because
+  the endpoint is keyed on a slug the vault derives and the payload builder does not know, and
+  because the SDK, direct API callers and the test fixtures write that secret without passing
+  through any frontend. **OR31a**: the provider form declares its protocol (`openai` or
+  `anthropic`), which becomes the endpoint's `provider_key`, and the harness control filters on it.
+  **OR31b**: Pi declares the `mcp.user_servers` capability, so the panel renders the `MCP servers`
+  row; the gate was always a capability rather than a frontend harness list. **OR31c**:
+  `Add MCP server` registers the custom MCP endpoint that carries its URL and writes the derived
+  slug back onto the config item.
+- **Reclassified, not closed. OR31d — Codex on a custom endpoint.** The refusal is not a Codex
+  limitation. The runner holds no model list; the `Allowed values` text comes from the
+  `sandbox-agent` client's pre-check against the options `codex-acp` advertised, and `codex-acp`
+  accepts an unknown model id declared in `$CODEX_HOME/config.toml` and then advertises it as the
+  session's first option. The repair is one scalar in
+  `sdks/python/agenta/sdk/agents/adapters/codex_settings.py` plus one branch in
+  `services/runner/src/engines/sandbox_agent/environment.ts`. **It is runner and SDK work, owned
+  elsewhere, and no turn has been run against it.** The entry's proposed remedy, withholding Codex
+  from custom endpoints, does not follow: Codex's custom-surface family is `openai`, so the OR31a
+  filter already offers it on an OpenAI-compatible endpoint and withholds it from an Anthropic one.
 - **Closed since.** **OR23** (the mock MCP server answers the `initialize` handshake, which is
   what the nine Claude cells were failing on, and both mock tiers now emit one error envelope),
   **OR27** (the resolve route refuses with the shared
   `{code, message, retryable, next_step, details}` envelope and the SDK resolver carries it, so a
-  refusal reaches the user as a 422 with a code and a sentence), **OR29** (the edit path
-  round-trips `provider_key`; the measured mechanism was that it could not set the field, not
-  that it destroyed one, and the closed record says so) and **OR30** (both untyped resolve
-  failures are typed 422s).
+  refusal reaches the user as a 422 with a code and a sentence), **OR28** (every harness preserves
+  the refusal envelope, and a refusal a harness folded into its answer fails the run), **OR29** (the
+  edit path round-trips `provider_key`; the measured mechanism was that it could not set the field,
+  not that it destroyed one, and the closed record says so), **OR30** (both untyped resolve failures
+  are typed 422s) and **OR32** (a failed MCP handshake rides a non-fatal `mcp_server_failed`
+  notice instead of vanishing).
+- **Open.** Two defects found in passing during the 2026-09-13 QA, both outside the gateway work:
+  **OR34** (the AI providers drawer closes itself after about 45 seconds with no interaction and
+  discards the form) and **OR35** (the API keys page offers no way to create a key).
+
+## The live evidence, 2026-09-13
+
+Measured on the deployed stack (compose project `agenta-ee-dev-gateways`, EE, development mode),
+from the dashboard, in a disposable project, through an isolated browser. The per-harness table is
+in `implementation-status.md`.
+
+- Saving a provider registers one endpoint row, read back at
+  `POST /gateways/llms/endpoints/query`, with a slug matching the secret, a `provider_key` following
+  the declared protocol, and an allowlist carrying both the bare model slug and Agenta's qualified
+  `<provider slug>/<kind>/<model slug>` key.
+- Editing a provider's protocol updates that row in place, same id and slug, with no duplicate.
+  Deleting the provider removes the row.
+- The `Harnesses` control disables Claude Code with "Incompatible with this provider" on an
+  OpenAI-compatible endpoint and enables it on an Anthropic one. Pi and Codex are the reverse.
+- Pi completes a turn through `POST /gateways/llms/custom/<slug>/v1/chat/completions`, `200`.
+  Claude Code completes a turn through `POST /gateways/llms/custom/<slug>/v1/messages?beta=true`,
+  `200`.
+- On the MCP leg, for both Pi and Claude Code, the `tools/call` reaches the mock and the assistant
+  turn ends with the mock's round-trip confirmation, `mock MCP echo: <marker>`.
+
+Two preconditions make the MCP cells pass, and `qa.md` step 4 now names them. The prompt must carry
+an acceptance marker matching `MCP-ACCEPTANCE-[A-Za-z0-9_-]+`, which `_mcp_marker` in the mock
+adapter reads. On the Anthropic Messages path the server must be named `mock-mcp`, because
+`_default_mcp_echo_tool` returns the hardcoded tool name `mcp__mock-mcp__echo` for that protocol.
+Without them the cell looks like a product failure when it is not.
 
 ## How to deploy and test
 
@@ -110,8 +153,9 @@ because the shared `agenta-ee-dev-*:latest` tags are what every other stack recr
    The other suites follow the same shape with `--api -i`, `--sdk -a`, `--services -a`,
    `--services -i` and `--runner -a`. `implementation-status.md` names the target of each.
 
-7. **Manual QA.** Follow `qa.md`. It now carries the API call that stands in for the missing
-   endpoint-creation control, and it names the two defects that gate its MCP step.
+7. **Manual QA.** Follow `qa.md`. Provider creation registers the endpoint on its own; the API call
+   in step 2 is a fallback for a stack that predates that change. Step 4 names the two preconditions
+   the MCP cells need.
 
 ## Relationship to PR #6050
 
@@ -126,8 +170,14 @@ does not exist on this one.
 
 ## Next steps
 
-Wave 4 in `plan.md`, in this order: OR26 (the dashboard must register a gateway endpoint), then
-the three OR31 surfaces (the provider form's missing protocol choice, Pi's hidden `MCP servers`
-section, Codex offered a model key its catalogue rejects), then OR32 (a failed MCP handshake must
-reach the run). OR26 and OR31 are dashboard work; OR32 is runner and agent-service work, as is
-OR28, which runs alongside rather than in that sequence.
+Wave 4 is done. What remains from it is OR31d, which is not dashboard work: the SDK's Codex settings
+writer must pin the resolved model id in `$CODEX_HOME/config.toml` for a gateway-routed run, and the
+runner must stop setting the model that is already the session default. Whoever takes it should run
+a turn first, because the mechanism is read off the pinned `codex-acp` bundle and has never been
+measured.
+
+OR34 and OR35 are settings-page defects with no gateway component. They block a fresh operator from
+configuring a provider or minting a key, so they are worth filing outside this document set.
+
+Everything else is "After C3" in `plan.md`: usage recording and the wallet that prices it (WP11 and
+WP22, which ship together), and per-endpoint configuration (WP21).
