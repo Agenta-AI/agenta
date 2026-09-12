@@ -47,7 +47,21 @@ export type StandardProviderDto = AgentaApi.StandardProviderDto & {
 export type McpStandardProviderDto = AgentaApi.McpStandardProviderDto
 export type CustomProviderDto = AgentaApi.CustomProviderDto & {
     harnesses?: string[] | null
+    protocol?: LlmEndpointProtocol | null
 }
+
+/**
+ * The wire protocol a custom endpoint speaks, and therefore the provider family it belongs to.
+ *
+ * Only the family changes behaviour: the relay serves `/v1/chat/completions`, `/v1/responses` and
+ * `/v1/messages` on every custom endpoint, and the harness picks the suffix. Absent on records
+ * written before the field existed, which the resolver already reads as `openai`.
+ */
+export const LlmEndpointProtocol = {
+    Openai: "openai",
+    Anthropic: "anthropic",
+} as const
+export type LlmEndpointProtocol = (typeof LlmEndpointProtocol)[keyof typeof LlmEndpointProtocol]
 
 export type CustomSecretDto = AgentaApi.CustomSecretDto
 export type CustomSecretSettingsDto = AgentaApi.CustomSecretSettingsDto
@@ -72,6 +86,17 @@ export type CustomSecretContent = CustomSecretSettingsDto["content"]
 export interface AgentSecretBinding {
     secret: {slug: string}
     binding: {type: "env"; name: string}
+}
+
+/**
+ * A vault row carrying the custom-provider fields the generated client does not declare yet.
+ *
+ * `LlmProvider` lives in `@agenta/shared` and stays free of this domain's wire additions, so the
+ * secret entity widens it here — the same way `CustomProviderDto` is widened above.
+ */
+export interface ProviderVaultRow extends LlmProvider {
+    /** Declared endpoint protocol on a `custom_provider` row; absent means the row declares none. */
+    protocol?: LlmEndpointProtocol
 }
 
 export interface NamedSecretRow extends LlmProvider {
