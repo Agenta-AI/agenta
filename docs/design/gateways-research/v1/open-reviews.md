@@ -122,7 +122,7 @@ Tests: `api/oss/tests/pytest/unit/gateways/test_gateways_llm_endpoint_registrar.
 `test_an_unlisted_model_is_still_refused_on_a_registered_custom_provider` in
 `api/oss/tests/pytest/unit/gateways/test_gateways_llm_service.py`.
 
-### OR31. The dashboard offers harness and route combinations the runtime refuses — CLOSED on the dashboard, and the Codex part was reclassified
+### OR31. The dashboard offers harness and route combinations the runtime refuses — CLOSED, and the Codex part was reclassified before it closed
 
 Four places let the operator build a configuration that cannot run, with no warning at
 configuration time and no explanation at run time. Three were dashboard defects and are closed. The
@@ -205,22 +205,57 @@ row it resolves cannot drift. An existing slug is updated rather than duplicated
 backend's own message instead of saving a config item that cannot run. This is what D35 already
 required. Test: `web/packages/agenta-entity-ui/tests/unit/mcpEndpointRegistration.test.ts`.
 
-**(d) Codex on a custom endpoint — RECLASSIFIED, and the conclusion above is wrong.** The refusal is
-not a Codex limitation. The runner holds no model list of its own. The `Allowed values` text comes
-from the `sandbox-agent` client's pre-check against the config options `codex-acp` advertised, which
-come in turn from the codex binary's baked model table. But `codex-acp` accepts an unknown model id
-declared in `$CODEX_HOME/config.toml` and then advertises it as the session's first model option, so
-the pre-check passes. The repair is one scalar in
-`sdks/python/agenta/sdk/agents/adapters/codex_settings.py`, which already writes the whole
-`model_providers` block for a gateway route and deliberately omits the model, plus one branch in
-`services/runner/src/engines/sandbox_agent/environment.ts`. That is runner and SDK work, owned
-elsewhere, and no turn has been run against it, so it is read off the pinned harness bundle rather
-than measured.
+**(d) Codex on a custom endpoint — RECLASSIFIED, then CLOSED, and both the conclusion and the
+remedy above were wrong.** The refusal is not a Codex limitation. The runner holds no model list of
+its own. The `Allowed values` text comes from the `sandbox-agent` client's pre-check against the
+config options `codex-acp` advertised, which come in turn from the codex binary's baked model table.
+Both are checks on a model CHANGE. `codex-acp` accepts an unknown model id DECLARED in
+`$CODEX_HOME/config.toml`, takes it verbatim as the thread's model, and unshifts it onto the front
+of the selectable options — so the same id that cannot be switched to is accepted when it is
+declared.
 
-The entry's proposed remedy does not follow from that. It asked the `Harnesses` control to stop
-offering Codex on a custom endpoint. Codex's custom-surface family is `openai`, so the OR31a
-protocol filter already offers Codex on an OpenAI-compatible endpoint and withholds it from an
-Anthropic one, which is the correct end state for that control whatever the model pin does.
+The entry's proposed remedy did not follow from the finding. It asked the `Harnesses` control to
+stop offering Codex on a custom endpoint, which this fix would then have had to undo. Codex's
+custom-surface family is `openai`, so the OR31a protocol filter already offers Codex on an
+OpenAI-compatible endpoint and withholds it from an Anthropic one, which is the correct end state
+for that control whatever the model pin does.
+
+The fix is the pin. `codex_settings.py`, which already writes the whole `model_providers` block for
+a gateway route and deliberately omitted the model, now writes the model scalar beside
+`model_provider` — on gateway-routed managed runs only, since a managed run on a first-party
+provider already asks for an id the catalogue knows. The id written is the one
+`wire_model_connection` puts on the wire, so the config's model and the model the runner would ask
+for are one string. `environment.ts` then skips the model change, because a declared model is
+already selected and the call is the only thing left that can fail. It reads the pin out of the
+rendered config rather than re-deriving the condition from the request, so it cannot decide a model
+was pinned on a run where it was not.
+
+The `<provider>/<kind>/<model>` prefix is deliberately left alone: the bare slug is equally absent
+from Codex's catalogue, so stripping it fixes nothing on its own.
+
+**Measured live on 2026-09-13**, on `agenta-ee-dev-gateways`, driving the product endpoint with a
+custom endpoint auto-registered exactly as the provider form writes it. Before: `500`, `model
+'<slug>/openai/echo' is not available on this run … Allowed values: gpt-5.6-sol, gpt-5.6-terra,
+gpt-5.6-luna, gpt-5.5, gpt-5.2`. After: `200`, and the turn ends with the mock's round-trip
+confirmation `mock MCP echo: <marker>`. The nine Codex cells of
+`services/oss/tests/pytest/acceptance/test_agent_gateway_route.py` still pass, so the harness's
+own catalogue ids are unaffected.
+
+Two caveats the pin carries, neither a failure. Codex prepends one line to its first answer —
+`Warning: Model metadata for <id> not found. Defaulting to fallback metadata` — because an
+unlisted id has no baked metadata; `model_context_window` is the config key that would silence it,
+and it is not written here because no honest value for an arbitrary custom model is available.
+And `createModelId` defaults an unknown model to `medium` reasoning effort with no
+`supportedReasoningEfforts`, so the session advertises no thought-level option and anything setting
+thought level for Codex must tolerate its absence.
+
+Tests: `test_gateway_route_declares_the_model_codex_would_refuse_to_switch_to`,
+`test_a_non_gateway_managed_run_still_leaves_the_model_to_the_runner` and
+`test_a_gateway_run_with_no_resolved_model_writes_no_model_scalar` in
+`sdks/python/oss/tests/pytest/unit/agents/adapters/test_codex_settings_layers.py`; the
+`codexConfigPinnedModel` and "a Codex run whose config declares the model" blocks in
+`services/runner/tests/unit/sandbox-agent-model.test.ts`, the second of which drives the whole
+engine and asserts the session is never asked to change model.
 
 **Measured live on 2026-09-13**, on `agenta-ee-dev-gateways`, from the dashboard, with no API call
 standing in for any step. The `Harnesses` control disables Claude Code with "Incompatible with this
