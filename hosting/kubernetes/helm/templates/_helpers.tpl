@@ -233,17 +233,29 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/* ================================================================
+   Does the release create the ServiceAccount?
+
+   `default true $sa.create` would treat an explicit
+   `serviceAccount.create: false` as unset and still say true. Use
+   hasKey, so an explicit false is honored and true applies only when
+   the key is omitted.
+
+   serviceaccount.yaml, agenta.serviceAccountName and the migration Job
+   all read this one helper, so they cannot disagree about who owns the
+   ServiceAccount. A disagreement would point pods at a name the chart
+   never created.
+   ================================================================ */}}
+{{- define "agenta.serviceAccount.create" -}}
+{{- $sa := default dict .Values.serviceAccount -}}
+{{- if hasKey $sa "create" -}}{{- $sa.create -}}{{- else }}true{{- end }}
+{{- end }}
+
+{{/* ================================================================
    ServiceAccount name
    ================================================================ */}}
 {{- define "agenta.serviceAccountName" -}}
 {{- $sa := default dict .Values.serviceAccount -}}
-{{- /* See serviceaccount.yaml: `default true` would silently override
-       an explicit `serviceAccount.create: false`. Use hasKey so the
-       helper agrees with the template — otherwise pods would mount a
-       SA name the template never created. */ -}}
-{{- $create := true -}}
-{{- if hasKey $sa "create" -}}{{- $create = $sa.create -}}{{- end -}}
-{{- if $create }}
+{{- if eq (include "agenta.serviceAccount.create" .) "true" }}
 {{- default (include "agenta.fullname" .) $sa.name }}
 {{- else }}
 {{- default "default" $sa.name }}

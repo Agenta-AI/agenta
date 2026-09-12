@@ -90,6 +90,16 @@ misspelled one and falls back to the default. Render the chart and read the
 Keep the default `post` with the bundled PostgreSQL, whose StatefulSet does not
 exist yet at pre-install time and would deadlock the Job.
 
+In the pre phase the Job names no ServiceAccount. It runs before the release's
+own ServiceAccount is applied, and Kubernetes refuses a pod that names a
+ServiceAccount which does not exist, so the Job never starts one and the install
+sits in pending-install. The migration reaches PostgreSQL only and needs no
+Kubernetes API access, so its pod takes the namespace's default ServiceAccount
+and mounts no token. If a cluster policy requires a named ServiceAccount,
+create one yourself and set `serviceAccount.create: false` with
+`serviceAccount.name`. The chart keeps naming that one, because it already
+exists when the hook runs.
+
 ## A managed ingress (GKE)
 
 ```yaml
