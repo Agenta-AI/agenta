@@ -53,10 +53,14 @@ has not been exercised against `TransactionsEngine` under load.
 > `ThreadPoolExecutor`/`asyncio.run` bridge) no longer exists; there is nothing left to be unsafe
 > across a thread boundary.
 
-**All integration tests in this wave are WRITTEN BUT NOT RUN.** The review worktree is not allowed
-to touch the shared EE dev stack, so every suite below needs a real Postgres + Redis run on the
-deployment this procedure stands up. Run them in this order — the first is the one that matters
-most:
+**The integration tests have now been run.** They were written during the wave and executed for
+the first time on 12 September 2026, against a throwaway Postgres and Redis rather than this
+procedure's full stack — none of them needs the API or the workers running. Thirteen of sixteen
+wallet tests pass, both measurement tests pass, and three fail; two of the three failures are a
+real defect in the production signup-grant path. Results, the infrastructure recipe, and the three
+failures are in step 9 below.
+
+The order below is still the order to run them in, and it is still the order of what matters:
 
 1. `ee/tests/pytest/integration/wallets/test_wallets_settlement_concurrency_postgres.py::test_competing_deliveries_cannot_overspend_one_credit`
    — **run this first.** It is the concurrency guarantee itself: proves competing deliveries cannot
@@ -450,11 +454,42 @@ was never retried, or an organization created through a path this wave did not f
 remedy (b), reclassifying `WalletGeneralBalanceNotFoundError` as terminal/alerted, was not
 taken and remains open for a future wave if that residual risk needs closing too.
 
-## 9. Pytest commands for the suites that could not be run in the review worktree
+## 9. Pytest commands for the integration suites, and the results of the first run
 
-These need Postgres + Redis and were WRITTEN BUT NOT RUN during review (the review
-worktree is not allowed to touch the shared EE dev stack). Run each individually against
-YOUR local stack's database, from `api/`:
+These need a Postgres and a Redis. They do **not** need the API, the workers, or anything
+else from step 0 — they drive the DAOs and the worker bodies in-process. You can therefore
+run them against two throwaway containers instead of a full stack, which is how the first
+run was done.
+
+### Standing up just the two containers
+
+Anything reachable works, as long as three environment variables point at it:
+`POSTGRES_URI_CORE`, `POSTGRES_URI_TRACING` and `REDIS_URI`. The conftests TCP-probe those
+and `pytest.skip` when unreachable, so **a skipped test is a misconfigured environment, not
+a pass.** Four things are easy to get wrong:
+
+- **The databases must exist before the migrations run.** `api/ee/databases/postgres/init-db-ee.sql`
+  creates `agenta_ee_core`, `agenta_ee_tracing` and `agenta_ee_supertokens`; mount it as the
+  Postgres image's init script rather than creating them by hand.
+- **The migration runner does not work outside its container as shipped.**
+  `ee/databases/postgres/migrations/{core,tracing}/utils.py` read `env.alembic.cfg_path_*`,
+  which default to `/app/...`, and those two `alembic.ini` files hardcode
+  `script_location = /app/...`. Copy both files somewhere writable, rewrite the paths, and
+  point `ALEMBIC_CFG_PATH_CORE` and `ALEMBIC_CFG_PATH_TRACING` at the copies. The four
+  post-alignment chains resolve their own location from `__file__` and need no override.
+  Then, from `api/`, with `AGENTA_LICENSE=ee`:
+  `uv run --no-sync python -m ee.databases.postgres.migrations.runner`. Expect `core_ee`
+  `ee0000000005` and `tracing_ee` `ee0000000002`.
+- **Downgrade `core_ee` to `ee0000000003` before running the wallet tests.** Every wallet
+  fixture upgrades to `ee0000000004` and downgrades to `ee0000000003` itself. Left at head,
+  the fixture's upgrade is a no-op and `test_migration_upgrade_downgrade_upgrade_round_trip`
+  fails its opening assertion that the tables do not yet exist.
+- **Pass `-n 0`.** `api/pytest.ini` carries `addopts = -n auto`, which fans these tests out
+  over one worker per core against a single database. They share schema state and will
+  interfere. Any CI wiring for these files needs the same flag.
+
+Run each command with `AGENTA_LICENSE=ee AGENTA_WALLETS_ENABLED=true`, the three URIs, and
+`-n 0`, from `api/`:
 
 ```bash
 # 1. MOST IMPORTANT — the concurrency guarantee itself: proves competing deliveries
@@ -489,6 +524,98 @@ uv run --no-sync python -m pytest \
 uv run --no-sync python -m pytest \
   ee/tests/pytest/integration/wallets/test_wallets_grants_postgres.py -v
 ```
+
+### First-run results, 12 September 2026
+
+Postgres 17 and Redis 8, throwaway containers, `core_ee` at `ee0000000005` and `tracing_ee`
+at `ee0000000002` before the per-fixture downgrade, `-n 0`, no skips anywhere:
+
+| Suite | Result |
+| --- | --- |
+| (1) settlement concurrency, the one that matters | 1 passed |
+| (2) `test_wallets_migration_postgres.py` | 7 passed |
+| (3) debit worker duplicate delivery | 1 passed |
+| (4) `measurements/test_measurements_integration.py` | 2 passed |
+| (5) backfill migration | 3 passed |
+| (5) provisioning | 1 passed, 1 failed |
+| (6) grants | 2 failed |
+| whole `integration/wallets/` directory | 13 passed, 3 failed |
+| whole `integration/measurements/` directory | 2 passed |
+| unit control, `unit/wallets/` + `unit/measurements/` | 126 passed |
+
+**The four priority suites all pass.** The general-balance row lock does serialize
+settlement, the schema enforces its invariants, the replay guard engages against a real
+engine, and the measurement chain converges after a transient publish failure.
+
+One test-harness defect had to be fixed before any of this could run at all: every fixture
+and several test bodies called the synchronous `alembic.command.upgrade` from inside an
+`async def`, and `core_ee/env.py` ends in `asyncio.run(...)`, which raises
+`RuntimeError: asyncio.run() cannot be called from a running event loop`. Sixteen tests
+errored out before touching the database, and always had. The calls are now dispatched
+with `asyncio.to_thread`. `core_ee/env.py` is untouched and identical to `main`.
+
+### The three failures
+
+Two are one production defect. One is a test that expired.
+
+**`WalletsDAO.award_credit` violates its own foreign key on every first delivery.** Both
+`test_wallets_grants_postgres.py` failures are this, raising
+
+```text
+asyncpg.exceptions.ForeignKeyViolationError: insert or update on table "wallet_balances"
+violates foreign key constraint "wallet_balances_wallet_credit_id_fkey"
+DETAIL:  Key (wallet_credit_id)=(...) is not present in table "wallet_credits".
+```
+
+`award_credit` calls `session.add(credit)`, `session.add(balance)`, then one `flush()`.
+There is no `relationship()` between `WalletCreditDBE` and `WalletBalanceDBE`, only a
+table-level `ForeignKeyConstraint` — and a table-level constraint orders DDL, not the
+unit-of-work flush between two independent mappers. SQLAlchemy emits the `wallet_balances`
+insert first, every time. This is not a test artefact: it is the signup-grant path, so the
+`signup` grant cannot ever have been awarded successfully. A `flush()` between the two adds,
+or a real `relationship()`, fixes it. `apply_plan_change` mints a credit and its balance row
+the same way and may carry the same latent bug; its test fails earlier, for the unrelated
+reason below, so it has not been reached.
+
+**`test_apply_plan_change_mints_credit_and_debits_outgoing_against_real_db` has a hardcoded
+date.** It fails `assert found_credit is not None`. The test seeds a `plan_allowance` credit
+with `end_time` set to a `PERIOD_END` constant of 1 February 2026, then expects
+`get_active_plan_allowance_credit` to return it. That DAO method filters on
+`or_(end_time.is_(None), end_time > func.now())` using the database clock, so a credit that
+expired seven months ago is correctly excluded. The test could only ever have passed before
+1 February 2026. The fix is two-part, and the second half is the interesting one:
+`apply_plan_change` and `award_credit` both accept an injectable `now`, but
+`get_active_plan_allowance_credit` reads `func.now()` instead, so the DAO cannot be exercised
+at a fixed logical time by any caller.
+
+### And one failure outside these suites: the lifecycle-column convention
+
+`oss/tests/pytest/unit/models/test_lifecycle_conventions.py::test_lifecycle_columns_complete_and_nullable`
+fails on this branch:
+
+```text
+AssertionError: measurements is missing lifecycle columns:
+{'created_by_id', 'updated_by_id', 'deleted_by_id'}
+```
+
+The repo's standard is that a table either has none of the six lifecycle columns or all six,
+fully nullable, with no foreign keys on the three actor columns. The wallet tables comply,
+because `WalletCreditDBA`, `WalletDebitDBA` and `WalletBalanceDBA` all inherit
+`LifecycleDBA`. The measurement tables do not: `ee/src/dbs/postgres/measurements/dbes.py`
+declares `created_at`, `updated_at` and `deleted_at` by hand on `measurements`, and only
+`created_at` on `measurement_values`, so both tables carry some lifecycle columns and are
+missing the rest.
+
+This one is easy to miss and worth knowing about. The convention test only imports the OSS
+model modules, so it passes when run alone. It fails as soon as anything else in the same
+process imports the EE measurement models — which is what happens in any run that covers
+both `ee/tests/pytest/unit` and `oss/tests/pytest/unit`. Measured on 12 September 2026, that
+combined run is `1 failed, 4620 passed, 176 skipped`, and this is the one failure.
+
+Either inherit `LifecycleDBA` on both measurement tables and add the three nullable actor
+columns to `ee0000000002_add_measurements.py`, or state the exemption where the convention is
+defined. An immutable gateway-minted observation arguably has no actor, which is a reasonable
+argument for the exemption — but it has to be written down rather than left as a failing test.
 
 **Failure meaning, per suite:**
 - (1) failing means two concurrent settlements can both read the same stale credit
@@ -527,7 +654,8 @@ cd api && uv run --no-sync python -m pytest ee/tests/pytest/unit/wallets/ ee/tes
 # review result (IM-1-02): 80 passed, 0 failed, 0 skipped
 # review result (WP-1-04, adds the check-is-async and B1/B2/B3 unit tests): 103 passed, 0 failed, 0 skipped
 # review result (WP-1-05, adds real allowance/floor proration tests + the grant-catalog/award tests): 122 passed, 0 failed, 0 skipped
+# after the feature-flag gating commit (adds 4 flag-behaviour tests): 126 passed, 0 failed, 0 skipped
 
 cd api && uv run --no-sync ruff format --check . && uv run --no-sync ruff check .
-# review result: both clean
+# review result: both clean; re-verified 12 September 2026, 1785 files formatted, all checks passed
 ```

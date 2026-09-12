@@ -673,12 +673,24 @@ The delivered migration ids are `core_ee` `ee0000000004` (`down_revision = "ee00
 branches and do not resolve on this base's `core_ee` chain, whose head was `ee0000000003`. This is
 an approved deviation, not a drift — see `ee0000000004_add_wallet_tables.py`'s own docstring. The
 sandbox-metering drafts must renumber past `ee0000000004` when they land; `wave-1.md` and
-`preflight.md` record the same correction.
+`preflight.md` record the same correction. `WP-1-04` then added `core_ee` `ee0000000005`
+(`ee0000000005_backfill_wallet_general_balances.py`), which backfills the general `wallet_balances`
+row for pre-existing organizations and is the current `core_ee` head. It adds no table and no
+column, so nothing in this document's schema changes with it.
 
 The delivered streams are `streams:measurements` (consumer group `worker-measurements`) and
 `streams:debits` (consumer group `worker-debits`), both `MAXLEN 100_000` (approximate trimming),
-registered in `api/entrypoints/worker_streams.py` and gated into `ALL_STREAMS` only when `is_ee()`.
+registered in `api/entrypoints/worker_streams.py` and gated into `ALL_STREAMS` only when `is_ee()`
+is true and `AGENTA_WALLETS_ENABLED` is on (see `wave-1.md`, Feature flag).
 The debit idempotency key the measurement worker mints is `"measurement:{measurement_id}"`. Wave 1
 pricing is an explicit fixture (`PRICING_VERSION = "wallet-v1-fake-1"` in
 `ee/src/core/measurements/pricing.py`), chargeable only when `endpoint_kind == "managed"` — it is
 not the versioned production pricing configuration this document describes elsewhere.
+
+The `check(delta)` this document names throughout is the design operation, not the delivered
+signature. Wave 1 has no admission control and no hold, so what shipped is
+`check(*, organization_id) -> bool`: an `async` read of the committed general balance against its
+floor, with no amount argument at all. The `amount_musd` parameter the first implementation carried
+and never read was removed in `WP-1-04`. An amount returns to that signature only when an L1
+exposure estimate gives it meaning, with reservation semantics behind it — see `open-designs.md`
+items 10 and 11.

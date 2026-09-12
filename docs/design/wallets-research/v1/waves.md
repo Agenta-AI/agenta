@@ -30,9 +30,11 @@ acceptance tests run there, not as a prerequisite of every WP. Unit tests remain
 
 ## Current status
 
-The relational/lifecycle wallet foundation is checkpoint 0. Wave 1 is planned to reach checkpoint 1;
-its graph and per-node specifications/tasks are in [wave-1.md](wave-1.md). Gateway measurements, raw
-metrics, and charge calculation are gateway-owned; the wallet receives a gateway-decided debit command.
-The selected direction is a two-stream Redis chain: `streams:measurements` feeds the measurement worker
-and `streams:debits` feeds the wallet worker. Existing ACP `records` keeps its name. The Wave 1 slice
-uses fake built-in LLM and MCP gateways. It is planning only until its graph/specification review closes.
+The relational/lifecycle wallet foundation is checkpoint 0. Wave 1 is code-complete and switched
+off behind `AGENTA_WALLETS_ENABLED`; its graph, per-node specifications and delivered result are in
+[wave-1.md](wave-1.md). Gateway measurements, raw metrics, and charge calculation are gateway-owned;
+the wallet receives a gateway-decided debit command. The delivered direction is a two-stream Redis
+chain: `streams:measurements` feeds the measurement worker and `streams:debits` feeds the wallet
+worker. Existing ACP `records` keeps its name. The Wave 1 slice uses fake built-in LLM and MCP
+gateways. Checkpoint 1 closes when the acceptance procedure has run against a deployment with the
+flag on.
