@@ -100,6 +100,50 @@ present for all three harnesses.
 
 ## Closed review record
 
+### OR33. A non-streaming relay never recorded its call — CLOSED, and the reading held
+
+Raised from the wallets side as a reading of the code, not a reproduction, while specifying the
+usage hand-off that Wave 2 hangs off `GatewayPolicyService.record`. The reading held, and the
+first test written against it failed on all three protocols.
+
+**What happened.** `LLMGatewayService` recorded in a `finally` after the body generator
+terminated, which is right for a stream because Starlette iterates a `StreamingResponse` to
+exhaustion. The non-streaming caller does not iterate: `LLMGatewayProxy._relay` takes one chunk
+with `anext` and builds a plain `Response`. The generator was left suspended at its `yield` and
+never closed, so the `finally` — and `policy.record`, and the `gateways.called` audit event —
+ran only when the abandoned generator was finalised, at garbage collection, outside the request.
+`result.usage` was still `None` when it did, because `_single_chunk_body` assigns usage on the
+statement AFTER its yield. Non-streaming is the default (`stream` defaults to `False`), so this
+was every ordinary call, and it was invisible precisely because the thing it dropped is the
+event you would look at.
+
+**Why neither suite caught it.** `test_gateways_llm_service.py` drains the body by
+comprehension, which is the contract the service honours; the proxy's own tests run against a
+mock service and never reach the recording. The defect lived in the seam, where both layers look
+right in isolation.
+
+**The repair.** The candidate offered two, and the choice belonged to whoever owns the relay. The
+narrower one — assigning usage before the yield — fixes the value but not the timing: the record
+would still wait for garbage collection. So the service now branches on `context.stream`, which
+it already parses. A stream keeps today's arrangement exactly. A non-streaming call is drained by
+the service, recorded while the call is still the call, and handed back as a replay of the bytes
+it consumed. `duration_ms` is unchanged and still unpopulated; that is a separate gap on
+`GatewayOutcome`, as is the absence of any cached-token field on `GatewayUsage`.
+
+One thing improved on the way past. The drained chunks are joined, so an adapter whose
+non-streaming answer arrives in more than one chunk no longer reaches the caller as its first
+chunk alone. The relay adapter coalesces with `aread()` and was never affected; the guarantee is
+for every other adapter.
+
+Tests: `api/oss/tests/pytest/unit/gateways/test_gateways_llm_nonstreaming_drain.py`, which
+composes the real service, the real relay adapter and the real proxy over an `httpx.MockTransport`
+upstream and asserts, for chat completions, responses and messages alike, that `policy.record`
+has been called once with a populated `usage` by the time the response exists. Verified to fail
+on all three before the change (`record_calls == []`). Beside it,
+`test_a_multi_chunk_non_streaming_body_is_joined_not_truncated` pins the join at the service
+level, and `test_successful_non_streaming_call_records_before_it_returns` replaces the case that
+encoded the old, caller-drains contract.
+
 ### OR28. Harness compatibility of the typed refusal — CLOSED, and one harness was worse than recorded
 
 The finding's three rows were measured before OR27 closed, and re-measuring them was the first
