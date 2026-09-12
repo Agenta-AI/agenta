@@ -66,7 +66,7 @@ def test_inspect_default_parses_into_the_runtime_selection():
     assert config.sandbox_permission is None
     assert config.harness == "pi_core"
     assert config.sandbox == "local"
-    assert config.permission_default == "allow_reads"
+    assert config.permission_default == "allow"
 
 
 def _authoring_extra_tools(tools: list) -> list:

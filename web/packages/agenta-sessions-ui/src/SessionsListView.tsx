@@ -76,10 +76,10 @@ const SessionsListRow = ({
 
     const onSelect = useCallback(
         (key: string) => {
-            if (key === "rename" && onRename) {
-                rename.start()
-                return
-            }
+            // Deferred, not run here: the editor must not mount inside the menu's focus trap.
+            // See `SessionRowContextMenu`. The row's kebab calls this too, where nothing defers
+            // it — the returned function is simply dropped and the menu's own close focuses it.
+            if (key === "rename" && onRename) return () => rename.start()
             onMenuSelect?.(vm, key)
         },
         [onMenuSelect, onRename, rename, vm],

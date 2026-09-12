@@ -97,6 +97,74 @@ def test_stop_approval_durable_path_requires_late_answer_refusal():
     assert "late answer was refused" in verdict["why"]
 
 
+def test_stop_approval_names_the_missing_idempotency_key_behind_a_422():
+    """A 422 on the late answer is the cell's own bug, so the verdict has to say which one.
+
+    The durable approval path validates `Idempotency-Key` before it decides whether the
+    execution is still continuable, so an answer sent without that header returns 422 and can
+    never reach the 409 this cell asserts. That read as a product FAIL on staging during the
+    v0.117.0 release run until somebody re-ran it by hand with the header.
+    """
+    unexpected = _stop_approval_evidence(durable_stop="on", late_status=422)
+
+    verdict = sc._judge_stop_approval(unexpected, pending_found=True)
+
+    assert verdict["pass"] is False
+    assert "Idempotency-Key" in verdict["why"]
+
+
+def test_stop_approval_sends_an_idempotency_key_on_the_late_answer():
+    """The late answer must carry the header a real browser always sends."""
+    calls: list[dict] = []
+    original = {
+        name: getattr(sc, name)
+        for name in (
+            "invoke",
+            "interactions",
+            "session_stream",
+            "cancel",
+            "assert_command_settled",
+            "api",
+            "assistant_message",
+            "sandbox_ids",
+        )
+    }
+    original_sleep = sc.time.sleep
+
+    class _Response:
+        status_code = 409
+        text = "execution_terminal"
+
+    def _fake_api(method, path, **kw):
+        calls.append({"method": method, "path": path, "headers": kw.get("headers")})
+        return _Response()
+
+    try:
+        sc.time.sleep = lambda _s: None
+        sc.invoke = lambda *a, **k: {
+            "turn_id": "turn-1",
+            "text": a[1][0]["parts"][0]["text"],
+        }
+        sc.interactions = lambda _sid: [{"id": "interaction-1", "status": "pending"}]
+        sc.session_stream = lambda _sid: {"turn_id": "turn-1"}
+        sc.cancel = lambda *a, **k: {"status": 200, "body": {}}
+        sc.assert_command_settled = lambda *a, **k: {"settled": True, "why": None}
+        sc.api = _fake_api
+        sc.assistant_message = lambda _t: {"role": "assistant", "parts": []}
+        sc.sandbox_ids = lambda _sid: ["sandbox-1"]
+
+        args = type("Args", (), {"durable_stop": "auto"})()
+        evidence, _ = sc.cell_stop_approval({}, [], args, sc.NullHooks())
+    finally:
+        sc.time.sleep = original_sleep
+        for name, fn in original.items():
+            setattr(sc, name, fn)
+
+    late = next(c for c in calls if c["path"].endswith("/respond"))
+    assert late["headers"]["Idempotency-Key"] == "stop-approval-late-interaction-1"
+    assert evidence["late_answer"]["status"] == 409
+
+
 def test_stop_approval_legacy_path_requires_and_records_late_answer_acceptance():
     accepted = _stop_approval_evidence(durable_stop="off", late_status=200)
     refused = _stop_approval_evidence(durable_stop="off", late_status=409)

@@ -272,7 +272,7 @@ export async function runSilentTurn(
     log: () => {},
     createLocalCwd: (durable?: string) => durable ?? cwd,
     createDaytonaCwd: (durable?: string) => durable ?? cwd,
-    resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
+    resolveSkillDirs: () => ({ skills: [], dropped: [], cleanup: () => {} }),
     buildDaemonEnv: () => ({}),
     resolveDaemonBinary: () => "/bin/sandbox-agent",
     buildSandboxProvider: () => ({ provider: true }) as any,

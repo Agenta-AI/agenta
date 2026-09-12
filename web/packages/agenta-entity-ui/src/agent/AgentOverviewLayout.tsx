@@ -10,6 +10,13 @@ export interface AgentOverviewLayoutProps {
     rail: ReactNode
     /** Host spacing — the stacked gap below lg is content rhythm, not layout. */
     className?: string
+    /**
+     * Who scrolls. `frame` (default): this frame is the one scroller and both columns move
+     * together. `columns`: the frame stays put and each column owns its own height — the host
+     * gives one child of `main` a `min-h-0 flex-1 overflow-y-auto` and that is what scrolls,
+     * with everything above it (a composer, a tab rail) pinned.
+     */
+    scroll?: "frame" | "columns"
 }
 
 /**
@@ -27,16 +34,38 @@ export interface AgentOverviewLayoutProps {
  * height (the desktop page asks the layout for its full-height frame, mobile's `ScreenScaffold`
  * takes `fill`), or `flex-1` has no space to resolve against.
  */
-export const AgentOverviewLayout = ({main, rail, className}: AgentOverviewLayoutProps) => (
-    <div
-        className={clsx(
-            "flex min-h-0 w-full flex-1 flex-col items-start gap-10 overflow-y-auto lg:flex-row",
-            className,
-        )}
-    >
-        <div className="flex w-full min-w-0 flex-col gap-6 lg:flex-1">{main}</div>
-        <div className="flex w-full shrink-0 grow-0 flex-col lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px]">
-            {rail}
+export const AgentOverviewLayout = ({
+    main,
+    rail,
+    className,
+    scroll = "frame",
+}: AgentOverviewLayoutProps) => {
+    const columns = scroll === "columns"
+    return (
+        <div
+            className={clsx(
+                "flex min-h-0 w-full flex-1 flex-col gap-10 lg:flex-row",
+                // Stretched, so a column has the frame's height to hand down to its scroller.
+                columns ? "items-stretch overflow-hidden" : "items-start overflow-y-auto",
+                className,
+            )}
+        >
+            <div
+                className={clsx(
+                    "flex w-full min-w-0 flex-col gap-6 lg:flex-1",
+                    columns && "min-h-0 flex-1",
+                )}
+            >
+                {main}
+            </div>
+            <div
+                className={clsx(
+                    "flex w-full shrink-0 grow-0 flex-col lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px]",
+                    columns && "min-h-0 overflow-y-auto",
+                )}
+            >
+                {rail}
+            </div>
         </div>
-    </div>
-)
+    )
+}

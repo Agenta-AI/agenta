@@ -1,0 +1,43 @@
+{{- /* Optional public route to the bundled SeaweedFS S3 gateway.
+
+       A Daytona sandbox runs outside the cluster, so it cannot reach the store through the
+       in-cluster Service name. Expose the gateway on a hostname here, then point
+       store.endpointUrl at that hostname so every pod hands out the same URL.
+
+       Off by default: the store is internal unless the operator asks for this. Only renders
+       when the bundled SeaweedFS is deployed, because it is the only backend the chart owns. */ -}}
+{{- $store := default dict .Values.store -}}
+{{- $seaweedfs := default dict $store.seaweedfs -}}
+{{- $ingress := default dict $seaweedfs.ingress -}}
+{{- if and (eq (include "agenta.seaweedfs.enabled" .) "true") $ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "agenta.fullname" . }}-seaweedfs
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: seaweedfs
+  {{- with $ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with $ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ required "store.seaweedfs.ingress.host is required when store.seaweedfs.ingress.enabled=true" $ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "agenta.fullname" . }}-seaweedfs
+                port:
+                  name: s3
+{{- end }}

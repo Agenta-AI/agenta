@@ -51,8 +51,7 @@ export interface SidebarEntityReorder {
     /** Zone the HEADINGS arrange in; absent leaves them fixed. */
     groupZone?: string
     /** The id a heading is SAVED under, or `undefined` to leave that heading fixed. Defaults to
-     * the group key — agent headings map `agent:<id>` to the bare agent id, so they share the
-     * Agents group's zone, and headings that are not agents opt out entirely. */
+     * the group key; headings that are not agents opt out entirely. */
     groupId?: (groupKey: string) => string | undefined
     /** Zone a heading's rows arrange in; `undefined` leaves that heading's rows fixed. */
     rowZone?: (groupKey: string) => string | undefined
@@ -83,6 +82,10 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     childMatchPaths?: (ref: TRef) => string[]
     /** Shown (muted, disabled) when the group is open but has no items. */
     emptyLabel?: string
+    /** Render NOTHING once the source is READY with no rows AND names no empty label of its own
+     * (a filter that matched nothing names one). Only safe for a group with no collapse control.
+     * Idle, loading and error still show a row. */
+    hideWhenEmpty?: boolean
     /** Cap on rendered rows; overflow adds a "Show all" row. Defaults to 5. */
     maxItems?: number
     /** Zone this entity's rows arrange in, for an UNGROUPED list. Absent leaves them fixed. */
@@ -131,6 +134,7 @@ export interface SidebarEntity {
     childLink: (ref: SidebarEntityRef, projectURL: string) => string
     childMatchLinks?: (ref: SidebarEntityRef, projectURL: string) => string[]
     emptyLabel?: string
+    hideWhenEmpty?: boolean
     maxItems: number
     dragZone?: string
     showAllLink?: (projectURL: string) => string

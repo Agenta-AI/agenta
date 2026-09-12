@@ -76,7 +76,9 @@ describe("subscription rows from the runner's live pairs", () => {
         })
         const rows = rowsFor(pairs)
 
-        expect(rows.map((row) => [row.name, row.key])).toEqual([["ChatGPT", "subscription:openai"]])
+        expect(rows.map((row) => [row.name, row.key])).toEqual([
+            ["ChatGPT (deployment login)", "subscription:openai"],
+        ])
         expect(harnessSections(rows[0]).map((section) => [section.label, section.iconKey])).toEqual(
             [
                 ["Codex", "codex"],
@@ -94,7 +96,7 @@ describe("subscription rows from the runner's live pairs", () => {
         })
         const rows = rowsFor(pairs)
 
-        expect(rows.map((row) => row.name)).toEqual(["ChatGPT"])
+        expect(rows.map((row) => row.name)).toEqual(["ChatGPT (deployment login)"])
         expect(harnessSections(rows[0]).map((section) => section.label)).toEqual(["Codex", "Pi"])
     })
 
@@ -105,7 +107,9 @@ describe("subscription rows from the runner's live pairs", () => {
         })
         const rows = rowsFor(pairs)
 
-        expect(rows.map((row) => [row.name, row.key])).toEqual([["ChatGPT", "subscription:openai"]])
+        expect(rows.map((row) => [row.name, row.key])).toEqual([
+            ["ChatGPT (deployment login)", "subscription:openai"],
+        ])
         expect(harnessSections(rows[0]).map((section) => section.label)).toEqual(["Pi"])
     })
 
@@ -115,7 +119,10 @@ describe("subscription rows from the runner's live pairs", () => {
         })
         const rows = rowsFor(pairs)
 
-        expect(rows.map((row) => row.name)).toEqual(["Claude", "ChatGPT"])
+        expect(rows.map((row) => row.name)).toEqual([
+            "Claude (deployment login)",
+            "ChatGPT (deployment login)",
+        ])
         expect(rows.flatMap((row) => row.models.map((model) => model.modelId))).toEqual([
             "anthropic/claude-fable-5",
             "openai/gpt-5.6-sol",
@@ -127,7 +134,10 @@ describe("subscription rows from the runner's live pairs", () => {
             claude: {state: "ready"},
             codex: {state: "ready"},
         })
-        expect(rowsFor(pairs).map((row) => row.name)).toEqual(["Claude", "ChatGPT"])
+        expect(rowsFor(pairs).map((row) => row.name)).toEqual([
+            "Claude (deployment login)",
+            "ChatGPT (deployment login)",
+        ])
     })
 
     it("offers only what the runner reports ready", () => {
@@ -136,7 +146,7 @@ describe("subscription rows from the runner's live pairs", () => {
             codex: {state: "ready"},
             claude: {state: "login_missing"},
         })
-        expect(rowsFor(pairs).map((row) => row.name)).toEqual(["ChatGPT"])
+        expect(rowsFor(pairs).map((row) => row.name)).toEqual(["ChatGPT (deployment login)"])
     })
 
     it("spells each pair's models the way ITS harness does", () => {
@@ -195,6 +205,6 @@ describe("subscription rows from the runner's live pairs", () => {
     it("lets the live answer REMOVE a row the static mapping would have shown", () => {
         // Only Codex is signed in, so the Claude plan the static map assumes is not offered.
         const pairs = subscriptionPairsFrom({codex: {state: "ready"}})
-        expect(rowsFor(pairs).map((row) => row.name)).toEqual(["ChatGPT"])
+        expect(rowsFor(pairs).map((row) => row.name)).toEqual(["ChatGPT (deployment login)"])
     })
 })

@@ -3,11 +3,14 @@ import {describe, expect, it} from "vitest"
 import {pinnedSessionListArgs} from "../../src/state/useSessionsList"
 
 describe("pinnedSessionListArgs", () => {
-    // A pin is an explicit user request and overrides the surface's origin filter — a pinned
-    // automation session must still show in human (exclude-trigger) mode (P2-8). It also needs
-    // the `trigger` expansion added regardless of the surface's own policy: a human-mode surface
-    // never requests it, so a pinned automation row's name would otherwise never resolve and
-    // fall back to "Missing schedule".
+    // A pin is an explicit user request and overrides the surface's own narrowing. The origin
+    // filter — a pinned automation session must still show in human (exclude-trigger) mode
+    // (P2-8) — and, for the same reason, the activity window (which would silently hide a pin
+    // older than it), the archive-only view (which would empty the group of every live pin), and
+    // `includeArchived` (an archived pin is still a pin). Everything else the surface asked for
+    // stays. It also needs the `trigger` expansion added regardless of the surface's own policy:
+    // a human-mode surface never requests it, so a pinned automation row's name would otherwise
+    // never resolve and fall back to "Missing schedule".
     it("overrides the origin policy to 'all' and adds the trigger expansion, keeping every other shared filter", () => {
         const shared = {
             originPolicy: "exclude-trigger" as const,
@@ -16,11 +19,16 @@ describe("pinnedSessionListArgs", () => {
             agentId: "agent-1",
             status: "live" as const,
             includeArchived: false,
+            archivedOnly: true,
+            activityFloor: "2026-09-01T00:00:00Z",
             waitingSessionIds: ["waiting-1"],
         }
         expect(pinnedSessionListArgs(shared, ["pin-1", "pin-2"])).toEqual({
             ...shared,
             originPolicy: "all",
+            activityFloor: undefined,
+            archivedOnly: false,
+            includeArchived: true,
             expansions: ["last_message", "trigger"],
             sessionIds: ["pin-1", "pin-2"],
             enabled: true,
@@ -35,6 +43,9 @@ describe("pinnedSessionListArgs", () => {
         expect(pinnedSessionListArgs(shared, ["pin-1"])).toEqual({
             ...shared,
             originPolicy: "all",
+            activityFloor: undefined,
+            archivedOnly: false,
+            includeArchived: true,
             expansions: ["last_message", "trigger"],
             sessionIds: ["pin-1"],
             enabled: true,
@@ -46,6 +57,9 @@ describe("pinnedSessionListArgs", () => {
         expect(pinnedSessionListArgs(shared, [])).toEqual({
             ...shared,
             originPolicy: "all",
+            activityFloor: undefined,
+            archivedOnly: false,
+            includeArchived: true,
             expansions: ["trigger"],
             sessionIds: [],
             enabled: false,
