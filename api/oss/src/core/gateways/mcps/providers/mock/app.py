@@ -7,7 +7,10 @@ the runner's internal tool server (services/runner/src/tools/tool-mcp-http.ts), 
 session id, no SSE leg. `GET`/`DELETE` answer `405`.
 
 Delegates every POST straight to `MockMCPAdapter` so both tiers share one
-implementation of the control convention.
+implementation of the control convention, including the opening handshake and the
+JSON-RPC error an unknown method gets. Both tiers therefore answer any given
+request with the same bytes, which is the only way a client debugged against one
+can be trusted against the other.
 """
 
 import json
@@ -23,6 +26,8 @@ from oss.src.core.gateways.mcps.dtos import (
 from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
 from oss.src.core.gateways.mcps.types import MCPUpstreamError
 from oss.src.utils.env import env
+
+_INTERNAL_ERROR = -32603  # JSON-RPC 2.0
 
 app = FastAPI(title="agenta-mock-mcp-gateway")
 _adapter = MockMCPAdapter()
@@ -87,10 +92,17 @@ async def relay(request: Request) -> Response:
             headers=dict(request.headers),
         )
     except MCPUpstreamError as exc:
-        return Response(
+        # The adapter answers an unknown method with a JSON-RPC error rather than raising, so
+        # this is a genuine transport failure. It still speaks JSON-RPC, because a client that
+        # reached this tier over a socket must not have to parse a different shape than the
+        # in-process tier sends. A bare `text/plain` string here was that divergence.
+        return JSONResponse(
             status_code=exc.status_code or 502,
-            content=b"mock upstream request failed",
-            media_type="text/plain",
+            content={
+                "jsonrpc": "2.0",
+                "id": payload.get("id"),
+                "error": {"code": _INTERNAL_ERROR, "message": exc.message},
+            },
         )
 
     if result.status_code == 202:
