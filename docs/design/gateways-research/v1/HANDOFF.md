@@ -35,8 +35,9 @@ The remaining documents are the design itself: `decisions.md`, `architecture.md`
 ## Current state
 
 The branch is mergeable on `main` as of 2026-09-12. Unit suites and the automated acceptance and
-integration suites are green, with one exception. The dashboard product path does not work for any
-harness.
+integration suites are green. The dashboard product path is partly working: two harnesses complete
+a gateway LLM turn, no harness completes the MCP leg, and every one of them needs an endpoint
+created through the API before it can run at all.
 
 - **Green.** API gateway acceptance, the mock matrix, API gateway integration, SDK MCP-routing
   acceptance, services gateway-tool integration, and runner gateway-credential acceptance. The
@@ -44,11 +45,15 @@ harness.
 - **Green since.** The services acceptance suite `test_agent_gateway_route.py` passes all 27
   cells, the nine Claude ones included. They failed because the mock MCP server never answered
   `initialize`, so no spec-compliant client could finish a handshake against it. This was OR23.
-- **Not working.** The dashboard cannot reach the gateway LLM plane at all, because the AI
-  providers page creates a secret and not an endpoint. Open findings: **OR26** (no dashboard path
-  to any gateway LLM route), **OR28** (per-harness preservation of the refusal envelope),
-  **OR31** (the dashboard offers harness and route combinations the runtime refuses, and Pi has
-  no `MCP servers` row). All three are dashboard work.
+- **Not working.** The dashboard cannot register a gateway endpoint, because the AI providers page
+  creates a secret and not an endpoint. Four findings are open: **OR26** (no dashboard path
+  registers the endpoint the resolver asks for; the withdrawn half of that entry was a `qa.md`
+  procedure defect rather than a missing `builtin/mock` control), **OR31** (the provider form
+  offers no protocol choice, Codex is a dead end on any custom endpoint, the `MCP servers` section
+  is hidden whenever Pi is selected, and `Add MCP server` discards the URL it asks for), **OR28**
+  (no harness preserves the refusal envelope) and **OR32** (a server that fails its MCP handshake
+  vanishes from the run, which reports success). OR26 and OR31 are dashboard work; OR28 and OR32
+  are runner and agent-service work.
 - **Closed since.** **OR23** (the mock MCP server answers the `initialize` handshake, which is
   what the nine Claude cells were failing on, and both mock tiers now emit one error envelope),
   **OR27** (the resolve route refuses with the shared
@@ -121,7 +126,8 @@ does not exist on this one.
 
 ## Next steps
 
-Wave 4 in `plan.md`, in this order: OR26 (the dashboard must produce a gateway endpoint), then the
-three OR31 surfaces (Pi's missing `MCP servers` row, Claude Code offered on an endpoint it cannot
-use, Codex offered a model key its catalogue rejects). All of it is dashboard work now, since the
-wave's runtime findings are closed. OR28 runs alongside rather than in that sequence.
+Wave 4 in `plan.md`, in this order: OR26 (the dashboard must register a gateway endpoint), then
+the three OR31 surfaces (the provider form's missing protocol choice, Pi's hidden `MCP servers`
+section, Codex offered a model key its catalogue rejects), then OR32 (a failed MCP handshake must
+reach the run). OR26 and OR31 are dashboard work; OR32 is runner and agent-service work, as is
+OR28, which runs alongside rather than in that sequence.
