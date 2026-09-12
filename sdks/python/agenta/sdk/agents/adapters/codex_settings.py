@@ -161,6 +161,7 @@ def build_codex_settings_files(
     credential_mode: Optional[str] = None,
     gateway_base_url: Optional[str] = None,
     gateway_header: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> List[Dict[str, str]]:
     """Build the Codex ``config.toml`` as one generic ``harnessFiles`` entry, or ``[]`` if none.
 
@@ -184,7 +185,9 @@ def build_codex_settings_files(
 
     ``gateway_base_url``/``gateway_header`` (D31/D36) carry a gateway route onto the managed
     provider table (see ``_render_managed_provider_table``); both are ignored on a subscription
-    run, which never renders the table at all.
+    run, which never renders the table at all. ``model`` is written as a top-level scalar on a
+    gateway-routed managed run, and only there — see the comment beside it for why Codex needs
+    the model declared rather than set.
 
     Returns ``[{"path": ".codex/config.toml", "content": <toml str>}]`` or ``[]``.
     """
@@ -197,6 +200,20 @@ def build_codex_settings_files(
     if managed:
         scalars["model_provider"] = MANAGED_PROVIDER_ID
 
+    # DECLARE the model rather than leaving the runner to SET it (OR31d). Codex validates a
+    # model change against a baked five-entry catalogue, so an Agenta model key — qualified
+    # (`<provider slug>/<kind>/<model slug>`) or bare — was refused before the request left the
+    # process, and every gateway-routed Codex run died on its first turn. An id declared here
+    # is accepted instead: codex-acp takes the config's `model` verbatim as the thread's model
+    # and advertises it as the session's first selectable option, so the catalogue check passes
+    # on a value the catalogue never held.
+    #
+    # Gateway-routed runs only. A managed run on a first-party provider already asks for an id
+    # the catalogue knows, and pinning there would take model selection away from the runner
+    # for no gain.
+    if managed and gateway_base_url and model:
+        scalars["model"] = model
+
     approval_policy = _get(harness_permissions, "approval_policy")
     if isinstance(approval_policy, str) and approval_policy in APPROVAL_POLICIES:
         scalars["approval_policy"] = approval_policy
@@ -208,8 +225,6 @@ def build_codex_settings_files(
     sandbox_rules = _rules_from_sandbox_permission(sandbox_permission)
     if "sandbox_mode" not in scalars and "sandbox_mode" in sandbox_rules:
         scalars["sandbox_mode"] = sandbox_rules["sandbox_mode"]
-
-    # The model is not written here; it rides the wire ``model`` field for the runner to apply.
 
     # A subscription run with nothing authored or derived stays fileless (byte-identical to before).
     # A managed run always has at least the `model_provider` scalar, so it always writes the file.

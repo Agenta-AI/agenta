@@ -13,6 +13,12 @@ import {
   ModelNotSettableError,
   pickModel,
 } from "../../src/engines/sandbox_agent/model.ts";
+import {
+  CODEX_CONFIG_PATH,
+  codexConfigPinnedModel,
+} from "../../src/engines/sandbox_agent/codex-assets.ts";
+import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
+import { fakeHarness } from "../utils/sandbox-agent-harness.ts";
 
 describe("pickModel", () => {
   it("matches exact ids first", () => {
@@ -207,5 +213,131 @@ describe("applyModel", () => {
       undefined,
     );
     assert.match(logs[0], /using harness default/);
+  });
+});
+
+describe("codexConfigPinnedModel", () => {
+  // OR31d. A Codex run whose config DECLARES the model has already selected it, so the model
+  // change the runner would ask for is both redundant and the only thing that can still fail
+  // against the baked catalogue. The runner reads the rendered file rather than re-deriving
+  // the condition, so it cannot believe a model was pinned on a run where it was not.
+  const gatewayConfig = [
+    {
+      path: CODEX_CONFIG_PATH,
+      content:
+        'model_provider = "agenta-openai"\n' +
+        'model = "acme/openai/echo"\n' +
+        "\n[model_providers.agenta-openai]\n" +
+        'name = "Agenta"\n',
+    },
+  ];
+
+  it("reads the declared model id", () => {
+    assert.equal(codexConfigPinnedModel(gatewayConfig), "acme/openai/echo");
+  });
+
+  it("does not mistake model_provider for the model", () => {
+    assert.equal(
+      codexConfigPinnedModel([
+        {
+          path: CODEX_CONFIG_PATH,
+          content:
+            'model_provider = "agenta-openai"\napproval_policy = "never"\n',
+        },
+      ]),
+      undefined,
+    );
+  });
+
+  it("ignores a model key nested inside the provider table", () => {
+    assert.equal(
+      codexConfigPinnedModel([
+        {
+          path: CODEX_CONFIG_PATH,
+          content:
+            'model_provider = "agenta-openai"\n\n[model_providers.agenta-openai]\n' +
+            '  model = "indented, not top level"\n',
+        },
+      ]),
+      undefined,
+    );
+  });
+
+  it("says nothing for a run with no harness files, or none of Codex's", () => {
+    assert.equal(codexConfigPinnedModel(undefined), undefined);
+    assert.equal(codexConfigPinnedModel([]), undefined);
+    assert.equal(
+      codexConfigPinnedModel([
+        { path: ".claude/settings.json", content: '{"model": "sonnet"}' },
+      ]),
+      undefined,
+    );
+  });
+
+  it("treats an empty declaration as no declaration", () => {
+    assert.equal(
+      codexConfigPinnedModel([
+        { path: CODEX_CONFIG_PATH, content: 'model = ""\n' },
+      ]),
+      undefined,
+    );
+  });
+});
+
+describe("a Codex run whose config declares the model", () => {
+  const pinnedConfig = [
+    {
+      path: CODEX_CONFIG_PATH,
+      content:
+        'model_provider = "agenta-openai"\nmodel = "acme/openai/echo"\n' +
+        '\n[model_providers.agenta-openai]\nname = "Agenta"\n',
+    },
+  ];
+
+  it("does not ask the session to change model, and labels the span with the pin", async () => {
+    const { calls, deps, logs } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "codex",
+        messages: [{ role: "user", content: "hello" }],
+        model: "acme/openai/echo",
+        harnessFiles: pinnedConfig,
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    // The change is what the catalogue check refuses; the declaration already selected it.
+    assert.deepEqual(calls.applyModelArgs, []);
+    assert.equal(result.model, "acme/openai/echo");
+    assert.ok(
+      logs.some((line) => line.includes("model pinned by config")),
+      logs.join("\n"),
+    );
+  });
+
+  it("still applies the model when the config declares none", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "codex",
+        messages: [{ role: "user", content: "hello" }],
+        model: "gpt-5.5",
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      calls.applyModelArgs.map((call) => call.model),
+      ["gpt-5.5"],
+    );
   });
 });
