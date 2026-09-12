@@ -8,6 +8,7 @@ from agenta.sdk.agents.connections import (
     AmbiguousConnectionError,
     ConnectionNotFoundError,
     ConnectionResolutionError,
+    GatewayConnectionRefusedError,
     InvalidConnectionConfigurationError,
     MissingCredentialError,
     MissingProviderError,
@@ -1090,6 +1091,129 @@ async def test_resolve_fails_loud_on_http_error(fake_http, connection):
         await VaultConnectionResolver(connection).resolve(
             model=_model("missing"), context=_context()
         )
+
+
+# The control-plane refusal envelope, end to end through the resolver. The resolver used to
+# read only `response.status_code`, so an endpoint that simply did not exist reached the person
+# running the agent as an unknown-invoke-error 500 carrying neither a code nor a message they
+# could act on.
+_NOT_FOUND_ENVELOPE = {
+    "code": "endpoint_not_found",
+    "message": "LLM endpoint not found: custom/absent-gw",
+    "retryable": False,
+    "next_step": "Register the endpoint, or name one that already exists.",
+    "details": {"target": "custom/absent-gw"},
+}
+
+
+async def test_a_404_envelope_survives_into_the_typed_refusal(fake_http, connection):
+    fake_http(connections, status=404, payload={"detail": _NOT_FOUND_ENVELOPE})
+
+    with pytest.raises(GatewayConnectionRefusedError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("absent-gw"), context=_context()
+        )
+
+    error = raised.value
+    # `failure_code` becomes the gateway's own code, so a client branches on the real cause.
+    assert error.failure_code == "endpoint_not_found"
+    assert str(error) == _NOT_FOUND_ENVELOPE["message"]
+    # A refusal from our own control plane reads as a client error, like every other
+    # resolution failure, while the gateway's own status stays available for diagnosis.
+    assert error.status_code == 422
+    assert error.gateway_status == 404
+    assert error.error_detail == _NOT_FOUND_ENVELOPE
+
+
+async def test_a_422_envelope_survives_into_the_typed_refusal(fake_http, connection):
+    envelope = {
+        "code": "gateway_provider_required",
+        "message": (
+            "A gateway connection needs a provider or a connection name; "
+            "the request carried only a model."
+        ),
+        "retryable": False,
+        "next_step": "Send a provider_key, or name the connection to resolve.",
+    }
+    fake_http(connections, status=422, payload={"detail": envelope})
+
+    with pytest.raises(GatewayConnectionRefusedError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("absent-gw"), context=_context()
+        )
+
+    error = raised.value
+    assert error.failure_code == "gateway_provider_required"
+    assert str(error) == envelope["message"]
+    assert error.status_code == 422
+    assert error.error_detail == envelope
+
+
+async def test_a_bare_string_detail_still_carries_a_code_and_the_message(
+    fake_http, connection
+):
+    """A route that has not adopted the envelope must still beat a status number.
+
+    There is no code to recover here, so the class's own slug stands in — but the gateway's
+    sentence reaches the user, which is the half that tells them what to fix.
+    """
+    fake_http(
+        connections,
+        status=404,
+        payload={"detail": "LLM endpoint not found: custom/absent-gw"},
+    )
+
+    with pytest.raises(GatewayConnectionRefusedError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("absent-gw"), context=_context()
+        )
+
+    error = raised.value
+    assert error.failure_code == "gateway_connection_refused"
+    assert str(error) == "LLM endpoint not found: custom/absent-gw"
+    assert error.error_detail == {
+        "code": "gateway_connection_refused",
+        "message": "LLM endpoint not found: custom/absent-gw",
+        "retryable": False,
+    }
+
+
+async def test_a_control_plane_fault_keeps_a_server_status(fake_http, connection):
+    """A 5xx is the one case that IS a server fault, so it must not be reported as a 422."""
+    fake_http(
+        connections,
+        status=500,
+        payload={
+            "detail": {
+                "message": "An unexpected error occurred. Please try again later.",
+                "operation_id": "resolve_agent_connection",
+            }
+        },
+    )
+
+    with pytest.raises(GatewayConnectionRefusedError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("absent-gw"), context=_context()
+        )
+
+    error = raised.value
+    assert error.status_code == 502
+    assert error.gateway_status == 500
+    assert str(error) == "An unexpected error occurred. Please try again later."
+    assert error.failure_code == "gateway_connection_refused"
+
+
+async def test_an_unreadable_refusal_body_still_names_the_status(fake_http, connection):
+    """No JSON, no detail: the old message is the floor, never a traceback."""
+    fake_http(connections, status=403, payload={})
+
+    with pytest.raises(GatewayConnectionRefusedError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model("absent-gw"), context=_context()
+        )
+
+    assert str(raised.value) == "connection resolution failed (HTTP 403)"
+    assert raised.value.error_detail["code"] == "gateway_connection_refused"
 
 
 async def test_resolve_fails_loud_on_network_exception(fake_http, connection):

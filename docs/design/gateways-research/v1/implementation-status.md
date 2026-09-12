@@ -45,7 +45,7 @@ Measured on the branch squashed onto `main`, deployed as an EE development stack
 | --- | --- |
 | API acceptance, `oss/tests/pytest/acceptance/gateways/` | 40 passed |
 | API acceptance, the mock matrix alone | 21 passed |
-| API integration, `oss/tests/pytest/integration/gateways/` | 22 passed |
+| API integration, `oss/tests/pytest/integration/gateways/` | 23 passed |
 | SDK acceptance, `test_mcp_gateway_routing_acceptance.py` | 2 passed |
 | Services integration, `test_gateway_http.py` | 11 passed |
 | Runner acceptance, `gateway-credentials-no-provider-secret.test.ts` | 23 passed |

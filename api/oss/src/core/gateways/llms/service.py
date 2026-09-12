@@ -33,7 +33,9 @@ from oss.src.core.gateways.llms.interfaces import (
 )
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry, select_upstream
 from oss.src.core.gateways.llms.types import (
+    LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
+    LLMEndpointProviderMissingError,
     LLMModelNotAllowedError,
     LLMUpstreamError,
 )
@@ -241,7 +243,13 @@ class LLMGatewayService:
         provider_key: Optional[str],
         connection_slug: Optional[str],
     ) -> LLMGatewayConnectionResolution:
-        """Resolve an agent connection to public gateway route metadata."""
+        """Resolve an agent connection to public gateway route metadata.
+
+        Both refusals here are typed rather than bare `ValueError`s: this is the seam every
+        resolve request passes through, and a bare raise reached the caller as a generic 500
+        with nothing to act on. `LLMGatewayConnectionResolution.provider_key` stays a required
+        field, so the invariant no construction path can dodge is still enforced underneath.
+        """
         if connection_slug:
             custom = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
                 project_id=scope.project_id, slug=connection_slug
@@ -259,7 +267,7 @@ class LLMGatewayService:
             namespace = GatewayEndpointNamespace.STANDARD
             name = provider_key
         else:
-            raise ValueError("an unnamed gateway connection requires a provider")
+            raise LLMConnectionProviderRequiredError()
 
         target = await self._resolve_target(
             project_id=scope.project_id, namespace=namespace, name=name
@@ -267,7 +275,9 @@ class LLMGatewayService:
         self._check_active(target=target)
         resolved_provider = target.provider_key or provider_key
         if not resolved_provider:
-            raise ValueError("gateway endpoint has no provider")
+            raise LLMEndpointProviderMissingError(
+                namespace=target.namespace, name=target.name
+            )
         if target.deployment_kind == LLMDeploymentKind.MOCK:
             resolved_provider = "anthropic" if model.startswith("claude-") else "openai"
 
