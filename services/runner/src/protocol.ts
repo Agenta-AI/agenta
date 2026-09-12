@@ -458,6 +458,19 @@ export type AgentEvent =
       reasonCode: string;
       workingPath?: string;
     }
+  // A configured MCP server that did NOT join this run. Non-fatal by construction: the turn goes
+  // on without that server's tools, and this event is the only thing that says so. Emitted once
+  // per failed server per turn; a server that connected emits nothing, so the stream stays quiet
+  // on the healthy path. See `engines/sandbox_agent/mcp-handshake.ts`.
+  | {
+      type: "mcp_server_failed";
+      serverName: string;
+      /** Stable string code, never a display string. See `McpHandshakeReasonCode`. */
+      reasonCode: string;
+      /** The handshake's HTTP status, when the server answered at all. */
+      status?: number;
+      message: string;
+    }
   | {
       type: "usage";
       input?: number;

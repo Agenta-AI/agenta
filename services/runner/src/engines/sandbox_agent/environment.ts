@@ -86,6 +86,7 @@ import {
   takeDaytonaSecretLease,
 } from "./daytona-secret-provider.ts";
 import type { DaytonaSecretLease } from "./daytona-secrets.ts";
+import { probeMcpServerHandshakes } from "./mcp-handshake.ts";
 import { buildSessionMcpServers, validateUserMcpServers } from "./mcp.ts";
 import { applyModel } from "./model.ts";
 import {
@@ -1281,6 +1282,16 @@ async function acquireEnvironmentOnce(
     });
     // Close the internal gateway-tool MCP server (if one started) when the session is destroyed.
     environment.closeToolMcp = sessionMcp.close;
+
+    // Preflight each configured MCP server's handshake, so a server that cannot connect is a
+    // reported server rather than a silently absent one (see `mcp-handshake.ts`). Probes the
+    // REQUEST's servers, not the materialized list: on a Daytona Secrets run the materialized
+    // credentials are placeholders the gateway would rightly refuse, and the probe would then
+    // report a failure that the run does not have.
+    environment.mcpHandshakeFailures = await probeMcpServerHandshakes(
+      request.mcpServers,
+      { signal: mcpAbort.signal, log: logger },
+    );
 
     // Shared session-init payload for both the createSession and continuity-resume paths below.
     // Built as a plain variable (not an inline object literal at the call site) so the extra

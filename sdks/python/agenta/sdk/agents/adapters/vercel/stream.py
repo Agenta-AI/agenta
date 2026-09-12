@@ -349,6 +349,9 @@ async def _agent_run_to_vercel_parts_impl(
             elif etype == "attachment_delivery":
                 content_parts_emitted += 1
                 yield _attachment_delivery_part(data)
+            elif etype == "mcp_server_failed":
+                content_parts_emitted += 1
+                yield _mcp_server_failed_part(data)
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
@@ -651,6 +654,9 @@ async def _agent_stream_to_vercel_stream_impl(
             elif etype == "attachment_delivery":
                 content_parts_emitted += 1
                 yield _attachment_delivery_part(data)
+            elif etype == "mcp_server_failed":
+                content_parts_emitted += 1
+                yield _mcp_server_failed_part(data)
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
@@ -962,6 +968,20 @@ def _as_text(value: Any) -> str:
     if value is None:
         return ""
     return value if isinstance(value, str) else str(value)
+
+
+def _mcp_server_failed_part(data: Dict[str, Any]) -> Dict[str, Any]:
+    """An MCP server that did not join the run, as a non-fatal data part.
+
+    A notice, not an error: the turn ran and succeeded, it just ran without that server's
+    tools. Emitting it as an `error` part would end the message on the client.
+    """
+    notice = {
+        key: data[key]
+        for key in ("serverName", "reasonCode", "status", "message")
+        if data.get(key) is not None
+    }
+    return {"type": "data-mcp-server-failed", "data": notice}
 
 
 def _attachment_delivery_part(data: Dict[str, Any]) -> Dict[str, Any]:
