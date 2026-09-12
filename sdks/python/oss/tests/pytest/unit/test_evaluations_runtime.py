@@ -12,6 +12,7 @@ from agenta.sdk.evaluations.runtime.models import (
     PlannedCell,
     ResolvedSourceItem,
     ScenarioBinding,
+    WorkflowExecutionRequest,
 )
 from agenta.sdk.evaluations.runtime.planner import EvaluationPlanner
 from agenta.sdk.evaluations.runtime.processor import (
@@ -1623,6 +1624,41 @@ async def test_sdk_preview_evaluate_processes_all_scenarios_in_one_slice(monkeyp
 
 async def _async(value):
     return value
+
+
+@pytest.mark.asyncio
+async def test_sdk_workflow_runner_forces_batch_mode(monkeypatch):
+    captured = {}
+
+    async def fake_invoke_application(*, request):
+        captured["request"] = request
+        return SimpleNamespace(
+            data=SimpleNamespace(outputs={"answer": "ok"}),
+            trace_id="trace-1",
+        )
+
+    monkeypatch.setattr(runtime_adapters, "invoke_application", fake_invoke_application)
+
+    result = await runtime_adapters.SDKWorkflowRunner().execute(
+        request=WorkflowExecutionRequest(
+            step=EvaluationStep(key="application", type="invocation", origin="custom"),
+            cell=PlannedCell(
+                run_id=uuid4(),
+                scenario_id=uuid4(),
+                step_key="application",
+                repeat_idx=0,
+                step_type="invocation",
+                step_origin="custom",
+                status=EvaluationStatus.QUEUED,
+            ),
+            source=ResolvedSourceItem(kind="testcase", step_key="testset"),
+            revision={"slug": "application"},
+        )
+    )
+
+    assert captured["request"].flags == {"stream": False}
+    assert result.status == EvaluationStatus.SUCCESS
+    assert result.outputs == {"answer": "ok"}
 
 
 @pytest.mark.asyncio

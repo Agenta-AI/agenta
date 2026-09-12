@@ -3031,6 +3031,7 @@ class WorkflowsService:
             project_id=str(project_id),
         )
 
+        gateway_run_id = uuid4().hex
         # The grant lets the run's vault reads receive write-only secret values in
         # plaintext. It normally rides the credential `/access/permissions/check` re-mints,
         # but a service running with auth middleware disabled uses this token directly.
@@ -3039,10 +3040,13 @@ class WorkflowsService:
             project_id=str(project_id),
             workspace_id=str(project.workspace_id),
             organization_id=str(project.organization_id),
+            gateway_run_id=gateway_run_id,
             grants=[SECRET_RESOLVE_GRANT],
         )
 
         credentials = f"Secret {secret_token}"
+
+        request.meta = {**(request.meta or {}), "gateway_run_id": gateway_run_id}
 
         await self._ensure_request_revision(
             project_id=project_id,

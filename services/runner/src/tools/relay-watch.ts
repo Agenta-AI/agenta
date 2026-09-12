@@ -16,6 +16,8 @@
  * scripts/build-extension.mjs fails the build if this module's symbols appear in the
  * extension bundle).
  */
+import { readdirSync } from "node:fs";
+
 import { relayEnvFlag } from "./relay-protocol.ts";
 import { createRelayDirWatch } from "./relay-client.ts";
 
@@ -125,10 +127,22 @@ export function localRelayActivitySource(
     isHealthy: () => !closed,
     wait: async ({ timeoutMs }) => {
       if (closed) return "closed";
-      // The inner watch resolves a wait cut short by close() as "timeout"; the closed
-      // flag remaps it (and any later wait) to "closed" for the activity-source contract.
-      const outcome = await dirWatch.wait(timeoutMs);
-      return closed ? "closed" : outcome;
+      const deadline = Date.now() + timeoutMs;
+      // A directory watch is advisory: macOS may replay the directory's creation and all
+      // platforms may report our own response-file writes. Treat a notification as a wake only
+      // after observing an inbound request, otherwise keep the caller's original deadline.
+      while (!closed) {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) return "timeout";
+        // FSEvents can coalesce a real creation for seconds. A short poll only exists while a
+        // relay wait is parked, and makes the watch an acceleration rather than a correctness
+        // dependency on every local platform.
+        const outcome = await dirWatch.wait(Math.min(remaining, 100));
+        if (closed) return "closed";
+        if (hasRelayRequest(dir)) return "activity";
+        if (outcome === "timeout" && Date.now() >= deadline) return "timeout";
+      }
+      return "closed";
     },
     close: () => {
       if (closed) return;
@@ -138,12 +152,20 @@ export function localRelayActivitySource(
   };
 }
 
+function hasRelayRequest(dir: string): boolean {
+  try {
+    return readdirSync(dir).some((name) => name.endsWith(".req.json"));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The in-sandbox watch script (plan decision 4, hardening list). Plain CommonJS for
  * `node -e`. Argv only — the relay dir is NEVER interpolated into this source (a path
  * with quotes, whitespace, newlines, or shell metacharacters must be safe; runProcess
  * passes argv directly with no shell). Order matters: arm `fs.watch` FIRST, then the
- * sync readdir check (a file landing during either fires the already-armed watch), then
+ * sync readdir check (a file landing during either is observed by the already-armed watch), then
  * the interval + window timer. `finish()` is idempotent, guards not-yet-assigned
  * handles, never calls process.exit() and never writes stdout: it just releases every
  * handle so the event loop drains and the process exits 0 — the exec COMPLETION is the
@@ -155,6 +177,12 @@ const fs = require("fs");
 const dir = process.argv[1];
 const windowMs = Number(process.argv[2]);
 const readdirPollMs = Number(process.argv[3]);
+// macOS FSEvents may coalesce an actual file creation for several seconds. The native watch is
+// still armed first, but cap its correctness fallback so a local development sandbox wakes
+// promptly. Linux sandbox containers retain their configured cadence.
+const effectiveReaddirPollMs = process.platform === "darwin"
+  ? Math.min(readdirPollMs, 100)
+  : readdirPollMs;
 let finished = false;
 let watcher;
 let interval;
@@ -171,8 +199,14 @@ function finish() {
   if (timer) clearTimeout(timer);
 }
 try {
-  watcher = fs.watch(dir, finish);
-  watcher.on("error", finish);
+  watcher = fs.watch(dir, function () {
+    if (hasReq()) finish();
+  });
+  watcher.on("error", function () {
+    // A watcher failure does not mean a request arrived. Let the periodic readdir keep the
+    // bounded window alive; a missing directory may appear before the timer expires.
+    try { watcher.close(); } catch (e) {}
+  });
 } catch (e) {}
 function hasReq() {
   try {
@@ -187,7 +221,7 @@ if (hasReq()) finish();
 if (!finished) {
   interval = setInterval(function () {
     if (hasReq()) finish();
-  }, readdirPollMs);
+  }, effectiveReaddirPollMs);
   timer = setTimeout(finish, windowMs);
 }
 `;

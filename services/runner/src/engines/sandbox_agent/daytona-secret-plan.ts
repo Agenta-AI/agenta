@@ -115,6 +115,8 @@ const PUBLIC_MODEL_ENVIRONMENT_BINDINGS = new Set([
 
 // These credentials must be read locally by the provider SDK and therefore cannot use
 // Daytona's outbound HTTP substitution. No opaque provider key belongs in this allowlist.
+//
+// Offline standalone-SDK resolvers use these credentials locally.
 const LOCAL_USE_MODEL_CREDENTIAL_BINDINGS = new Set([
   "AWS_ACCESS_KEY_ID",
   "AWS_SECRET_ACCESS_KEY",

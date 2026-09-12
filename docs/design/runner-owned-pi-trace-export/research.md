@@ -127,4 +127,3 @@ not need the second token or the added wire field because Pi receives no credent
   exact usage.
 - `docs/design/agent-workflows/documentation/adapters/claude-code.md` documents runner-side ACP
   reconstruction for a harness that does not self-instrument.
-

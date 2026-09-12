@@ -15,6 +15,9 @@ class EventType(str, Enum):
 
     WEBHOOKS_SUBSCRIPTIONS_TESTED = "webhooks.subscriptions.tested"
 
+    # One event per allowed or denied gateway relay.
+    GATEWAYS_CALLED = "gateways.called"
+
     # Tracing reads
     TRACES_FETCHED = "traces.fetched"
     TRACES_QUERIED = "traces.queried"

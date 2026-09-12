@@ -27,6 +27,8 @@ import type {
   PiBuiltinModel,
   PiBuiltinRegistry,
 } from "./pi-builtin-registry.ts";
+import { GATEWAY_CREDENTIALS_VALUE_ENV } from "./run-plan.ts";
+import { GATEWAY_PLACEHOLDER_API_KEY } from "../../extensions/model-provider-override.ts";
 
 /** The API dialect this builder emits. The only value v1 supports (design Decision 1). */
 export type PiProviderApi = "openai-completions";
@@ -53,10 +55,20 @@ export interface PiModelConfigPlan {
   api: PiProviderApi;
   /** The custom endpoint base URL (e.g. https://host/v1). */
   baseUrl: string;
-  /** The env var Pi reads the key from; the file carries only `$OPENAI_API_KEY`. */
+  /** The non-secret or env-indirected value Pi requires to mark the model selectable. */
+  apiKey: string;
+  /**
+   * The env var Pi reads the actual provider key from on a direct managed route; the file
+   * carries only `$OPENAI_API_KEY`, never the key value.
+   */
   apiKeyEnv: typeof OPENAI_API_KEY_ENV;
   /** The exact selected model(s). v1 registers exactly one. */
   models: Array<{ id: string }>;
+  /**
+   * Gateway credentials use `$ENV_VAR` indirection so raw values never reach this file.
+   * Absent when the connection is not gateway-routed.
+   */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -258,13 +270,13 @@ export function isPiModelConfigApplicable(request: AgentRunRequest): boolean {
  * the request is INCOMPLETE and throws `PiModelConfigError`:
  *   - a non-empty connection slug;
  *   - an endpoint base URL;
- *   - credential mode "env";
- *   - `OPENAI_API_KEY` present in the materialized model environment (`secrets` — on a Daytona
- *     Secrets run this includes the opaque credential BINDINGS, whose in-sandbox value is the
- *     Daytona placeholder);
+ *   - credential mode "env", OR "none" with a gateway credential;
+ *   - `OPENAI_API_KEY` present in the materialized model environment when credential mode is
+ *     "env" (`secrets` — on a Daytona Secrets run this includes the opaque credential BINDINGS,
+ *     whose in-sandbox value is the Daytona placeholder);
  *   - a model id.
  *
- * The plan holds only the env var NAME; the raw key never enters it.
+ * The plan holds only an env-var reference for a provider key; the raw key never enters it.
  */
 export function buildPiModelConfigPlan(
   request: AgentRunRequest,
@@ -277,13 +289,18 @@ export function buildPiModelConfigPlan(
   const baseUrl = request.modelConnection?.endpoint?.baseUrl?.trim();
   const model = request.model?.trim();
   const hasKey = !!secrets[OPENAI_API_KEY_ENV]?.trim();
+  const gatewayCredentials = request.modelConnection?.gatewayCredentials;
+  // Gateway routes use credential mode "none" with explicit gateway credentials.
+  const credentialModeOk =
+    credentialMode === "env" || (credentialMode === "none" && !!gatewayCredentials);
 
   const missing: string[] = [];
   if (!slug) missing.push("a connection slug");
   if (!baseUrl) missing.push("an endpoint base URL");
-  if (credentialMode !== "env")
+  if (!credentialModeOk)
     missing.push(`credential mode "env" (got "${credentialMode ?? "none"}")`);
-  if (!hasKey) missing.push(`${OPENAI_API_KEY_ENV} in the resolved secrets`);
+  if (credentialMode === "env" && !hasKey)
+    missing.push(`${OPENAI_API_KEY_ENV} in the resolved secrets`);
   if (!model) missing.push("a model id");
 
   if (missing.length > 0) {
@@ -310,8 +327,18 @@ export function buildPiModelConfigPlan(
     providerFamily: "openai",
     api: "openai-completions",
     baseUrl: baseUrl as string,
+    // Pi requires a non-empty apiKey to select any custom-provider model. On a gateway route
+    // the real authentication is X-AG-Credentials, so use a harmless literal rather than
+    // inventing or leaking a provider key. The API data plane gives X-AG-Credentials precedence
+    // over this provider-shaped Authorization header.
+    apiKey: gatewayCredentials
+      ? GATEWAY_PLACEHOLDER_API_KEY
+      : `$${OPENAI_API_KEY_ENV}`,
     apiKeyEnv: OPENAI_API_KEY_ENV,
     models: [{ id: modelId }],
+    ...(gatewayCredentials
+      ? { headers: { [gatewayCredentials.header]: `$${GATEWAY_CREDENTIALS_VALUE_ENV}` } }
+      : {}),
   };
 }
 
@@ -320,10 +347,12 @@ export function buildPiModelConfigPlan(
  * written — arbitrary existing providers are never merged into a run. Pretty printed with a
  * trailing newline.
  *
- * A custom-provider plan is keyed by connection slug and references its key as `$OPENAI_API_KEY`
- * (never the raw value). A registration plan is keyed by the BUILT-IN provider id and carries only
- * `models`, so Pi keeps that provider's built-in endpoint, dialect, credential, and every model it
- * already ships, and merely upserts the one requested id.
+ * A direct custom-provider plan is keyed by connection slug and references its key as
+ * `$OPENAI_API_KEY` (never the raw value). A gateway route uses a harmless selectable-model
+ * placeholder; its actual authentication stays in the dedicated header. A registration plan is
+ * keyed by the BUILT-IN provider id and carries only `models`, so Pi keeps that provider's
+ * built-in endpoint, dialect, credential, and every model it already ships, and merely upserts
+ * the one requested id.
  */
 export function serializePiModelsJson(plan: PiModelsJsonPlan): string {
   const block = isPiModelRegistrationPlan(plan)
@@ -331,7 +360,8 @@ export function serializePiModelsJson(plan: PiModelsJsonPlan): string {
     : {
         baseUrl: plan.baseUrl,
         api: plan.api,
-        apiKey: `$${plan.apiKeyEnv}`,
+        apiKey: plan.apiKey,
+        ...(plan.headers ? { headers: plan.headers } : {}),
         models: plan.models.map((model) => ({ id: model.id })),
       };
   const document = { providers: { [piModelsJsonProviderId(plan)]: block } };

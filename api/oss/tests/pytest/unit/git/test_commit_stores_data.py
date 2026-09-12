@@ -55,16 +55,55 @@ async def _exec(engine, sql, params=None):
 
 @pytest.fixture
 async def variant(engine):
-    """A fresh artifact and variant with NO revisions, borrowed onto a live project."""
-    result = await _exec(
-        engine,
-        "SELECT id FROM projects WHERE deleted_at IS NULL ORDER BY created_at LIMIT 1",
-    )
-    project_id = result.scalar_one_or_none()
-    if project_id is None:
-        pytest.skip("no project in the target database to attach the fixture to")
+    """An isolated project, artifact, and revisionless variant.
 
+    This suite runs with xdist. Borrowing the first project in a shared test
+    database allowed another worker's fixture teardown to delete the FK parent
+    midway through this fixture. Own the complete hierarchy instead.
+    """
+    user_id, organization_id, workspace_id, project_id = (uuid4() for _ in range(4))
     artifact_id, variant_id = uuid4(), uuid4()
+    await _exec(
+        engine,
+        "INSERT INTO users (id, uid, username, email) "
+        "VALUES (:id, :uid, :username, :email)",
+        {
+            "id": user_id,
+            "uid": str(user_id),
+            "username": f"git-store-{user_id.hex[:12]}",
+            "email": f"git-store-{user_id.hex[:12]}@example.com",
+        },
+    )
+    await _exec(
+        engine,
+        "INSERT INTO organizations (id, name, owner_id) VALUES (:id, :name, :owner_id)",
+        {
+            "id": organization_id,
+            "name": f"git-store-{organization_id.hex}",
+            "owner_id": user_id,
+        },
+    )
+    await _exec(
+        engine,
+        "INSERT INTO workspaces (id, name, organization_id) "
+        "VALUES (:id, :name, :organization_id)",
+        {
+            "id": workspace_id,
+            "name": f"git-store-{workspace_id.hex}",
+            "organization_id": organization_id,
+        },
+    )
+    await _exec(
+        engine,
+        "INSERT INTO projects (id, project_name, workspace_id, organization_id) "
+        "VALUES (:id, :project_name, :workspace_id, :organization_id)",
+        {
+            "id": project_id,
+            "project_name": f"git-store-{project_id.hex}",
+            "workspace_id": workspace_id,
+            "organization_id": organization_id,
+        },
+    )
     await _exec(
         engine,
         "INSERT INTO workflow_artifacts (id, project_id, slug, created_at) "
@@ -91,6 +130,12 @@ async def variant(engine):
         await _exec(
             engine, f"DELETE FROM {table} WHERE {column} = :target", {"target": target}
         )
+    await _exec(engine, "DELETE FROM projects WHERE id = :id", {"id": project_id})
+    await _exec(engine, "DELETE FROM workspaces WHERE id = :id", {"id": workspace_id})
+    await _exec(
+        engine, "DELETE FROM organizations WHERE id = :id", {"id": organization_id}
+    )
+    await _exec(engine, "DELETE FROM users WHERE id = :id", {"id": user_id})
 
 
 def _service(engine):

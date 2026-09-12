@@ -1,9 +1,8 @@
-"""Agenta-platform-backed connection resolution over the existing secrets API.
+"""Agenta-platform-backed connection resolution through the gateway core API.
 
-``VaultConnectionResolver`` is the connected-path ``ConnectionResolver`` adapter. It fetches
-``GET /secrets/`` with the caller's request auth, builds an in-memory catalog from existing
-``provider_key`` and ``custom_provider`` vault records, selects exactly one connection for the
-``ModelRef``, and returns a least-privilege ``ResolvedConnection`` plan.
+``VaultConnectionResolver`` is the connected-path ``ConnectionResolver`` adapter. It asks the
+gateway core API to select and validate a route; that core service owns the vault read. The
+returned DTO contains route metadata only, never a provider secret.
 
 There is deliberately no ``/vault/connections`` route here. The vault remains the existing
 ``/secrets`` store; connection is only a runtime read view inside the service/SDK agent path.
@@ -25,14 +24,20 @@ from ..capabilities import (
     HARNESS_CONNECTION_CAPABILITIES,
     PROVIDER_ENV_VARS,
 )
+from ..connections.endpoints import (
+    _REGION_ENV,
+    build_gateway_resolved_connection,
+    build_resolved_connection,
+    gateway_target,
+)
 from ..connections.credentials import credential_extras, secret_value_configured
-from ..connections.endpoints import build_resolved_connection
 from ..connections import (
     AmbiguousConnectionError,
     ConnectionNotFoundError,
     ConnectionResolutionError,
     EndpointResolutionError,
     Endpoint,
+    InvalidConnectionConfigurationError,
     MissingCredentialError,
     MissingProviderError,
     ModelRef,
@@ -208,7 +213,7 @@ def _credential_channels(
             ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"),
             ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"),
         ]
-    if candidate.deployment in ("vertex_ai", "vertex"):
+    if candidate.deployment in {"vertex", "vertex_ai"}:
         return [("GOOGLE_APPLICATION_CREDENTIALS",)]
     if candidate.deployment == "azure":
         return [("AZURE_OPENAI_API_KEY",)]
@@ -366,22 +371,22 @@ class _ConnectionCandidate:
         the model name. Matching and stripping must agree, or a connection matches but resolves
         to a model the upstream does not know.
         """
-        values = _ordered_model_lookup_values(model, self.deployment)
-        prefix = f"{self.deployment}/"
-        for key in values:
-            if key in self.model_keys:
-                matching_slugs = [
-                    slug
-                    for slug in self.model_slugs
-                    if key == slug or key.endswith(f"/{slug}")
-                ]
-                if matching_slugs:
-                    return max(matching_slugs, key=len)
-                # Persisted legacy records may carry model_keys without the saved model list.
-                parts = key.split("/", 2)
-                return parts[2] if len(parts) == 3 else model.model
+        for key in _ordered_model_lookup_values(model, self.deployment):
+            if key not in self.model_keys:
+                continue
+            matching_slugs = [
+                slug
+                for slug in self.model_slugs
+                if key == slug or key.endswith(f"/{slug}")
+            ]
+            if matching_slugs:
+                return max(matching_slugs, key=len)
+            # Persisted legacy records may carry model_keys without the saved model list.
+            parts = key.split("/", 2)
+            return parts[2] if len(parts) == 3 else model.model
         if model.model in self.model_slugs:
             return model.model
+        prefix = f"{self.deployment}/"
         if model.model.startswith(prefix):
             stripped = model.model[len(prefix) :]
             # The strip runs before the fallback, so an id spelled ``custom/<model>`` would
@@ -461,7 +466,8 @@ class _ConnectionCandidate:
         )
 
     def resolved_env(self, provider: str) -> Dict[str, str]:
-        env = dict(self.env)
+        # Region is endpoint addressing, not a credential.
+        env = {k: v for k, v in self.env.items() if k not in _REGION_ENV}
         env_var = _provider_env_var(provider) or _provider_env_var(self.provider)
         # Bedrock's key is a bearer token with its own channel below — never the family's
         # API-key env var (a bedrock key in ANTHROPIC_API_KEY would mis-auth the direct API).
@@ -540,7 +546,11 @@ def _custom_provider_candidate(
         return None
 
     env = _normalized_extra_env(extras)
-    region = env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION")
+    region = (
+        env.get("AWS_REGION")
+        or env.get("AWS_DEFAULT_REGION")
+        or env.get("GOOGLE_CLOUD_LOCATION")
+    )
     raw_url = _stripped(settings.get("url"))
     endpoint_blocked = False
     if raw_url:
@@ -851,7 +861,12 @@ def _choose_named(
 
 
 def _resolve_from_secrets(
-    *, secrets: Sequence[Any], model: ModelRef, harness: Optional[str] = None
+    *,
+    secrets: Sequence[Any],
+    model: ModelRef,
+    harness: Optional[str] = None,
+    gateway_base_url: Optional[str] = None,
+    gateway_credentials_value: Optional[str] = None,
 ) -> ResolvedConnection:
     connection = model.connection
     # A bare Claude alias (haiku/sonnet/opus + [1m]) or a dated claude-* id is unambiguously
@@ -911,6 +926,14 @@ def _resolve_from_secrets(
             write_only_redacted=False,
             env={**chosen.env, **fallback},
         )
+    if chosen.deployment in {"vertex", "vertex_ai"} and chosen.env.get(
+        "GOOGLE_CLOUD_API_KEY"
+    ):
+        # Same rejection `build_resolved_connection` made for the offline path: out of scope
+        # regardless of routing.
+        raise InvalidConnectionConfigurationError(
+            "Vertex API-key authentication is not supported by the agent connection contract"
+        )
     # A chosen custom connection must carry a usable base URL. Failing here (rather than
     # returning endpoint=None) keeps the harness from falling back to a provider default and
     # silently ignoring the user's routing choice (design Decision 4). The error names the slug
@@ -923,13 +946,32 @@ def _resolve_from_secrets(
     resolved_model = chosen.selected_model_id(model)
     if not env:
         raise MissingCredentialError(provider=provider, slug=chosen.slug)
-    return build_resolved_connection(
+
+    # Live requests always supply both values. This direct path is only for offline
+    # and recorded-replay resolution, where no gateway credential can be minted.
+    if not gateway_base_url or not gateway_credentials_value:
+        return build_resolved_connection(
+            provider=provider,
+            model=resolved_model,
+            deployment=chosen.deployment,
+            credential_mode="env",
+            values=env,
+            endpoint=chosen.endpoint,
+            input_modalities=model_input_modalities(
+                harness, resolved_model, provider=provider
+            ),
+        )
+    namespace, name = gateway_target(
+        kind=chosen.kind, provider=provider, slug=chosen.slug
+    )
+    return build_gateway_resolved_connection(
         provider=provider,
         model=resolved_model,
         deployment=chosen.deployment,
-        credential_mode="env",
-        values=env,
-        endpoint=chosen.endpoint,
+        namespace=namespace,
+        name=name,
+        gateway_base_url=gateway_base_url,
+        gateway_credentials_value=gateway_credentials_value,
         # A miss means workspace-only downstream; do not guess.
         input_modalities=model_input_modalities(
             harness, resolved_model, provider=provider
@@ -970,35 +1012,105 @@ class VaultConnectionResolver:
                 "no Agenta backend configured for connection resolution"
             )
 
+        # Resolved once and reused for both the request header and the gateway-credentials
+        # field, so they cannot diverge across the two reads (the same precedent as the
+        # gateway tool resolver's ToolCallback).
+        authorization = self._connection.authorization()
+
         try:
             async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
-                response = await client.get(
-                    f"{api_base}/secrets/",
-                    headers=self._connection.headers(),
+                response = await client.post(
+                    f"{api_base}/gateways/llms/resolve",
+                    headers=self._connection.headers(authorization=authorization),
+                    json={
+                        "model": model.model,
+                        "provider_key": model.provider,
+                        "connection_slug": model.connection.slug,
+                    },
                 )
         except Exception as exc:  # pylint: disable=broad-except
             log.warning(
-                "agent: secrets fetch for connection resolution failed", exc_info=True
+                "agent: gateway connection resolution request failed", exc_info=True
             )
             raise ConnectionResolutionError(
                 "connection resolution request failed"
             ) from exc
 
         if response.status_code >= 400:
-            log.warning("agent: vault secrets fetch HTTP %s", response.status_code)
+            log.warning(
+                "agent: gateway connection resolution HTTP %s", response.status_code
+            )
             raise ConnectionResolutionError(
                 f"connection resolution failed (HTTP {response.status_code})"
             )
 
-        data = response.json() or []
-        if not isinstance(data, list):
-            raise ConnectionResolutionError("connection resolution returned a non-list")
-        return _resolve_from_secrets(secrets=data, model=model, harness=context.harness)
+        data = response.json()
+        if data is None:
+            data = {}
+        # Keep the in-memory/static resolver's list shape as a test/replay compatibility
+        # path. A live API always returns the non-secret ``connection`` object above.
+        if isinstance(data, list):
+            return _resolve_from_secrets(
+                secrets=data,
+                model=model,
+                harness=context.harness,
+                gateway_base_url=self._connection.gateway_base_url(),
+                gateway_credentials_value=authorization,
+            )
+        resolved = data.get("connection") if isinstance(data, dict) else None
+        if not isinstance(resolved, dict):
+            raise ConnectionResolutionError(
+                "connection resolution returned an invalid response"
+            )
+        provider = resolved.get("provider_key")
+        deployment = resolved.get("deployment_kind")
+        namespace = resolved.get("namespace")
+        name = resolved.get("name")
+        resolved_model = resolved.get("model")
+        if not all(
+            isinstance(value, str) and value
+            for value in (provider, deployment, namespace, name, resolved_model)
+        ):
+            raise ConnectionResolutionError(
+                "connection resolution returned incomplete route metadata"
+            )
+        gateway_base_url = self._connection.gateway_base_url()
+        if not gateway_base_url or not authorization:
+            raise ConnectionResolutionError(
+                "no Agenta backend configured for gateway connection resolution"
+            )
+        return build_gateway_resolved_connection(
+            provider=provider,
+            model=resolved_model,
+            deployment=deployment,
+            namespace=namespace,
+            name=name,
+            gateway_base_url=gateway_base_url,
+            gateway_credentials_value=authorization,
+            input_modalities=model_input_modalities(
+                context.harness, resolved_model, provider=provider
+            ),
+        )
 
 
 class _StaticSecretsResolver:
-    def __init__(self, secrets: Sequence[Any]) -> None:
+    """The offline stand-in for the live ``GET /secrets/`` fetch (self_managed short-circuit,
+    and a recorded-replay test's substitute for the vault). ``gateway_base_url`` /
+    ``gateway_credentials_value`` default to ``None``, which is correct for the self_managed
+    caller (it never reaches the gateway-building branch); a caller resolving an ``agenta``
+    connection offline must supply both, the same as :class:`VaultConnectionResolver` does.
+    """
+
+    def __init__(
+        self,
+        secrets: Sequence[Any],
+        *,
+        gateway_base_url: Optional[str] = None,
+        gateway_credentials_value: Optional[str] = None,
+    ) -> None:
         self._secrets = secrets
+        self._gateway_base_url = gateway_base_url
+        self._gateway_credentials_value = gateway_credentials_value
 
     async def resolve(
         self,
@@ -1007,5 +1119,9 @@ class _StaticSecretsResolver:
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
         return _resolve_from_secrets(
-            secrets=self._secrets, model=model, harness=context.harness
+            secrets=self._secrets,
+            model=model,
+            harness=context.harness,
+            gateway_base_url=self._gateway_base_url,
+            gateway_credentials_value=self._gateway_credentials_value,
         )

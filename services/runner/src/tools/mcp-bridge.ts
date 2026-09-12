@@ -26,21 +26,6 @@ import { startInternalToolMcpServer } from "./tool-mcp-http.ts";
 
 export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
 
-/**
- * Pi-family refusal for an external user-declared HTTP MCP server. The Pi runtime delivers
- * tools through the bundled Agenta extension, not over ACP MCP (`buildSessionMcpServers` returns
- * `[]` for Pi), so a user MCP server attached to a Pi run would be DROPPED — silently, with no
- * log and an HTTP 200. That is exactly the silent-drop F-032 forbids. The `run-plan.ts` gate
- * refuses it up front (the way the stdio-MCP and code-tool gates do) so the failure is loud
- * instead of a "successful" empty run. Both non-Pi harnesses accept HTTP MCP: Claude Code and,
- * since v0.108.0, codex. Naming only Claude here sent codex users looking for a harness they
- * were already allowed to use.
- */
-export const PI_USER_MCP_UNSUPPORTED_MESSAGE =
-  "User MCPs are not supported on the Pi harness (Pi delivers tools through its bundled " +
-  "extension, not MCP). Use the claude or codex harness for a user MCP server, or remove " +
-  "mcpServers.";
-
 // The ACP `McpServerStdio` shape lives in `engines/sandbox_agent/mcp.ts` (ACP entry
 // materialization), produced only by the internal in-sandbox shim constructor there. This
 // module is the LOCAL HTTP channel and deliberately exports no stdio entry type.

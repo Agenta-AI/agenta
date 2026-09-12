@@ -63,6 +63,38 @@ class MCPConnection(BaseModel):
         return self
 
 
+class MCPGatewayConnection(BaseModel):
+    """Select a platform-managed MCP gateway route.
+
+    Gateway routes own their upstream configuration and credentials. The agent
+    declares only the public route identity, so upstream URLs and secrets never
+    enter the runner configuration.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["gateway"] = "gateway"
+    namespace: Literal["builtin", "standard", "custom"]
+    provider: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    slug: Optional[str] = Field(default=None, min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def _validate_route_identity(self) -> "MCPGatewayConnection":
+        if self.namespace == "custom":
+            if not self.slug or self.provider:
+                raise ValueError("custom gateway MCP routes require slug only")
+        elif not self.provider or self.slug:
+            raise ValueError(
+                f"{self.namespace} gateway MCP routes require provider only"
+            )
+        return self
+
+
+MCPServerConnection = Annotated[
+    Union[MCPConnection, MCPGatewayConnection], Field(discriminator="type")
+]
+
+
 class MCPToolPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -91,7 +123,7 @@ class MCPServerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$")
-    connection: MCPConnection
+    connection: MCPServerConnection
     policy: MCPPolicy = Field(default_factory=MCPPolicy)
 
     @field_validator("name")

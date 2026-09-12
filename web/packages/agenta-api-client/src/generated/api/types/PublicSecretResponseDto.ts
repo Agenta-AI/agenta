@@ -20,6 +20,7 @@ export interface PublicSecretResponseDto {
 export namespace PublicSecretResponseDto {
     export type Data =
         | AgentaApi.StandardProviderDto
+        | AgentaApi.McpStandardProviderDto
         | AgentaApi.CustomProviderDto
         | AgentaApi.SsoProviderDto
         | AgentaApi.WebhookProviderDto
