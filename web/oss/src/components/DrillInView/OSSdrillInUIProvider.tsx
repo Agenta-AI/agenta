@@ -31,6 +31,7 @@ import {
 } from "@agenta/entity-ui/drill-in"
 import {useLLMProviderConfig} from "@agenta/entity-ui/secretProvider"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
+import {useSkillsBridge} from "@agenta/skills-ui"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {getDefaultStore} from "jotai"
@@ -80,6 +81,8 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
     )
     // Deployment policy never changes at runtime; a stable identity keeps the context value stable.
     const deployment = useMemo(() => ({isCloud: isDemo()}), [])
+    // Registry-backed "Add skill" flow for the agent config panel.
+    const skills = useSkillsBridge()
 
     // Stable context value: every DrillInUIContext consumer re-renders when this identity changes.
     const components = useMemo(
@@ -89,13 +92,14 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
                 EditorProvider,
                 SharedEditor,
                 workflowReference,
+                skills,
                 openTrace,
                 deployment,
                 permissions,
                 // Rich concrete components vs the context's index-signature slots (pre-existing gap)
             }) as DrillInUIComponents,
         // openTrace is a module-level const (stable) — no dep needed.
-        [llmProviderConfig, workflowReference, deployment, permissions],
+        [llmProviderConfig, workflowReference, skills, deployment, permissions],
     )
 
     return (

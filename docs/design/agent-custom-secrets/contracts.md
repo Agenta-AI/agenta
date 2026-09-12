@@ -94,4 +94,4 @@ The host adopts the committed revision before auto-resume. A resume failure rema
 
 The Secret form controller is shared by Settings and `request_secret`. The attachment drawer is shared by the **Advanced** configuration flow and the request dock. It receives bindings, requested metadata, edit identity, permission state, and a `commitBinding` callback. Agent settings render the section inside the existing **Advanced** drawer.
 
-The shared platform instructions tell harnesses to use configured variables for authentication, never inspect or print their values, call `request_secret` when available, and never ask users to paste credentials into chat. `request_connection` remains for integration connections.
+The `request_secret` tool description carries its own usage rules: open the secret setup flow when a needed credential is missing, never ask the user to paste a credential into chat, never inspect or print a configured value, and stop the affected operation if the user cancels. The playground build kit embeds the tool for every agent, so the rules reach only agents that hold it. `request_connection` remains for integration connections.

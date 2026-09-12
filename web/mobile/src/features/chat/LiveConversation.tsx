@@ -61,14 +61,9 @@ import {ConnectModelStrip} from "./ConnectModelStrip"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
-import {StopButton} from "./StopButton"
 import {cancelledStopAction} from "./stopHereState"
 import {TurnRow} from "./TurnRow"
-import {
-    deriveMobileRemoteTurnPresentation,
-    showRunningElsewhere,
-    showTrailingWorkingPulse,
-} from "./turnStatus"
+import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
@@ -682,20 +677,6 @@ export const LiveConversation = ({
                                     />
                                 </ContentRail>
                             </div>
-                        ) : null}
-                        {showRunningElsewhere({
-                            running: remoteTurn.showRemoteStop,
-                            localStatus: conversation.runStatus,
-                        }) && !streamingHere ? (
-                            <ContentRail>
-                                <div className="flex justify-end pb-2">
-                                    <StopButton
-                                        key={sessionTurnId ?? sessionId}
-                                        sessionId={sessionId}
-                                        projectId={projectId}
-                                    />
-                                </div>
-                            </ContentRail>
                         ) : null}
                         {conversation.connectionWarning ? (
                             <ContentRail>

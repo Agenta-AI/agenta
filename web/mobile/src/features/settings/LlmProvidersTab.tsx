@@ -1,15 +1,15 @@
 import {AIProvidersPage} from "@agenta/settings-ui"
 
-import {ConfirmSheet} from "./ConfirmSheet"
+import {ConfirmModal} from "./ConfirmModal"
 
 /**
  * Mobile binding: the same AI-providers page the desktop renders, with this app's bottom
- * sheet as the removal confirmation.
+ * modal as the removal confirmation.
  */
 export const LlmProvidersTab = () => (
     <AIProvidersPage
         renderRemoveDialog={({connection, open, pending, error, onConfirm, onClose}) => (
-            <ConfirmSheet
+            <ConfirmModal
                 open={open}
                 title="Are you sure you want to delete?"
                 description="This action is not reversible. Agents and prompts using this connection stop working."

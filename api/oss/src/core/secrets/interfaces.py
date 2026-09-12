@@ -54,9 +54,10 @@ class SecretsDAOInterface:
         # Called with the row as it stands under the write lock, before the update is
         # applied. Every decision that reads stored state belongs here: a check made
         # against a snapshot read earlier is a check against a row another writer can
-        # still have replaced. It may raise to refuse the update.
+        # still have replaced. It may raise to refuse the update, and it may return None
+        # to leave the row untouched: no write, no commit.
         resolve_update: Optional[
-            Callable[[SecretResponseDTO, UpdateSecretDTO], UpdateSecretDTO]
+            Callable[[SecretResponseDTO, UpdateSecretDTO], Optional[UpdateSecretDTO]]
         ] = None,
     ) -> Optional[SecretResponseDTO]:
         raise NotImplementedError

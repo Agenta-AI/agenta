@@ -13,6 +13,7 @@ import {
     sessionFiltersActiveExceptAgentAtom,
     sessionSearchAtom,
     sessionShowArchivedAtom,
+    sessionArchivedOnlyAtom,
     sessionShowTriggeredAtom,
     sessionStatusFilterAtom,
 } from "./filters"
@@ -46,6 +47,17 @@ export function pinnedSessionListArgs(
     return {
         ...shared,
         originPolicy: "all",
+        // For the same reason as the origin above: a pin outranks the surface's own narrowing.
+        // Both of these would otherwise drop rows the reader explicitly asked to keep — the
+        // activity window silently hides a pin older than it (and the mobile list defaults that
+        // window to seven days), and the archive-only view empties the group of every live pin.
+        // The pin set is already the exact id list, so neither narrows anything worth keeping.
+        activityFloor: undefined,
+        archivedOnly: false,
+        // And archived pins are still pins. You cannot pin an archived session (the shared menu
+        // drops the verb), but you can archive a pinned one — and with the surface's default
+        // `includeArchived: false` the row then vanished from the group instead of staying put.
+        includeArchived: true,
         expansions: Array.from(new Set<SessionExpansion>([...shared.expansions, "trigger"])),
         sessionIds: pinnedIds,
         enabled: pinnedIds.length > 0,
@@ -72,6 +84,13 @@ export interface UseSessionsListArgs {
      * did not choose.
      */
     agentId?: string | null
+    /**
+     * ISO lower bound on last activity — the "Last activity" facet.
+     *
+     * A hook argument rather than a shared atom, because the surfaces want different defaults for
+     * it: an atom would have applied one surface's window to the other.
+     */
+    activityFloor?: string
 }
 
 /**
@@ -88,6 +107,7 @@ export interface UseSessionsListArgs {
  */
 export const useSessionsList = ({
     agentId: scopedAgentId,
+    activityFloor,
     defaultPolicy,
     automationPolicy,
 }: UseSessionsListArgs) => {
@@ -97,6 +117,7 @@ export const useSessionsList = ({
     const agentId = scopedAgentId ?? agentFilter
     const status = useAtomValue(sessionStatusFilterAtom)
     const includeArchived = useAtomValue(sessionShowArchivedAtom)
+    const archivedOnly = useAtomValue(sessionArchivedOnlyAtom)
     const showTriggered = useAtomValue(sessionShowTriggeredAtom)
     const projectFiltersActive = useAtomValue(sessionFiltersActiveAtom)
     const scopedFiltersActive = useAtomValue(sessionFiltersActiveExceptAgentAtom)
@@ -122,13 +143,19 @@ export const useSessionsList = ({
         agentId,
         status,
         includeArchived,
+        archivedOnly,
+        activityFloor,
         waitingSessionIds: waitingIds,
     }
     const pinnedQuery = useSessionList(pinnedSessionListArgs(shared, pinnedIds))
-    const listQuery = useSessionList({
-        ...shared,
-        excludeSessionIds: pinnedIds,
-    })
+    // NOT `excludeSessionIds: pinnedIds`. The pin set is part of the query key, so pushing it down
+    // re-keyed the main list on every pin — a refetch, and `keepPreviousData` marking the rows a
+    // previous query's, which the view dims. Pinning one row visibly reloaded the whole page.
+    //
+    // Nothing is listed twice without it: `recentRows` below already drops pinned ids from this
+    // query's rows, on the same frame as the toggle. The cost is that a page can render one row
+    // short when it happens to contain a pinned one, which the top-up already handles.
+    const listQuery = useSessionList(shared)
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
     // Memoized: `rowsFromPages` mints a new array per call, and an unstable array here would
@@ -207,7 +234,10 @@ export const useSessionsList = ({
             isLoadingNext: isFetchingNextPage,
             loadNext: () => void fetchNextPage(),
         },
-        isPending: listQuery.isPending || (pinnedIds.length > 0 && pinnedQuery.isPending),
+        // The MAIN list only. The pinned query's first fetch starts the moment you pin your first
+        // session, and folding it in here threw the whole table back to its skeleton at exactly
+        // that moment. The pins group arrives a beat later instead, above rows that never left.
+        isPending: listQuery.isPending,
         /**
          * These rows answer a PREVIOUS query, not the current one.
          *
@@ -217,7 +247,10 @@ export const useSessionsList = ({
          * view cannot tell the two apart, so it presented one query's results as the answer to
          * another, and rendered "No sessions yet" over a list that had simply not settled.
          */
-        isPlaceholder: listQuery.isPlaceholderData || pinnedQuery.isPlaceholderData,
+        // The MAIN list only, for the same reason as `isPending`. The pinned query re-keys on
+        // every pin (its ids ARE its key), and dimming the whole table because a two-row group is
+        // resolving is the reload this flag exists to avoid.
+        isPlaceholder: listQuery.isPlaceholderData,
         isError: listQuery.isError || pinnedQuery.isError,
         refetch,
         /** Distinct sessions with an open gate — the rail's "Waiting" count. */
@@ -233,11 +266,13 @@ export const useSessionFilters = () => {
     const agentId = useAtomValue(sessionAgentFilterAtom)
     const status = useAtomValue(sessionStatusFilterAtom)
     const includeArchived = useAtomValue(sessionShowArchivedAtom)
+    const archivedOnly = useAtomValue(sessionArchivedOnlyAtom)
     const mode = useAtomValue(sessionShowTriggeredAtom)
     const setSearch = useSetAtom(sessionSearchAtom)
     const setAgentId = useSetAtom(sessionAgentFilterAtom)
     const setStatus = useSetAtom(sessionStatusFilterAtom)
     const setIncludeArchived = useSetAtom(sessionShowArchivedAtom)
+    const setArchivedOnly = useSetAtom(sessionArchivedOnlyAtom)
     const setMode = useSetAtom(sessionShowTriggeredAtom)
     const reset = useSetAtom(resetSessionFiltersAtom)
     return {
@@ -245,12 +280,14 @@ export const useSessionFilters = () => {
         agentId,
         status,
         includeArchived,
+        archivedOnly,
         /** True = the automations mode: the list shows trigger-started sessions INSTEAD. */
         mode,
         setSearch,
         setAgentId,
         setStatus,
         setIncludeArchived,
+        setArchivedOnly,
         setMode,
         reset,
     }

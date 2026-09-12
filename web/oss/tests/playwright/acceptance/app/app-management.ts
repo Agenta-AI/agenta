@@ -70,7 +70,10 @@ const tests = () => {
                 // The actions dropdown trigger (MoreOutlined icon) is the only button in the
                 // data row. AntD Tooltip title does not become an accessible name, so we locate
                 // the row by text and click its button directly.
-                const appRow = page.locator(".ant-table-row").filter({hasText: appName}).first()
+                const appRow = page
+                    .locator(".avt-row, .ant-table-row")
+                    .filter({hasText: appName})
+                    .first()
                 await appRow.hover()
                 await appRow.getByRole("button").click()
                 await page.getByRole("menuitem", {name: "Archive"}).click()
@@ -121,7 +124,10 @@ const tests = () => {
             await scenarios.when(
                 "the user renames an existing app with a new unique name",
                 async () => {
-                    const appRow = page.locator(".ant-table-row").filter({hasText: appName}).first()
+                    const appRow = page
+                        .locator(".avt-row, .ant-table-row")
+                        .filter({hasText: appName})
+                        .first()
                     await appRow.hover()
                     await appRow.getByRole("button").click()
                     const renameItem = page.getByRole("menuitem", {name: /rename/i})

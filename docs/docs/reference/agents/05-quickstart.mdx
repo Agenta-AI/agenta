@@ -1,0 +1,56 @@
+---
+title: "Quickstart"
+sidebar_label: "Quickstart"
+description: "Invoke a stored Agenta agent, read its stream, and continue its session."
+sidebar_position: 2
+---
+
+This example invokes an existing workflow revision. You need an Agenta host, project ID, API key, and workflow revision ID.
+
+```bash
+export AGENTA_HOST="https://eu.cloud.agenta.ai"
+export PROJECT_ID="019d952f-0000-0000-0000-000000000000"
+export REVISION_ID="019d952f-0000-0000-0000-000000000002"
+```
+
+## Run the first turn
+
+```bash
+curl -iN -X POST \
+  "$AGENTA_HOST/services/agent/v0/invoke?project_id=$PROJECT_ID" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d "{
+    \"references\": {\"workflow_revision\": {\"id\": \"$REVISION_ID\"}},
+    \"data\": {\"inputs\": {\"messages\": [
+      {\"role\": \"user\", \"content\": \"Inspect the project and explain how to run its tests.\"}
+    ]}}
+  }"
+```
+
+Response headers include `x-ag-session-id`, `x-ag-trace-id`, and `x-ag-span-id`. Each SSE `data:` line contains an Agenta event. A final `done` event reports the stop reason.
+
+## Continue the session
+
+Send another request with the same revision and `session_id`:
+
+```json
+{
+  "session_id": "<x-ag-session-id from the first response>",
+  "references": {
+    "workflow_revision": { "id": "019d952f-0000-0000-0000-000000000002" }
+  },
+  "data": {
+    "inputs": {
+      "messages": [
+        { "role": "user", "content": "Now run the smallest relevant test." }
+      ]
+    }
+  }
+}
+```
+
+If a turn pauses, answer its pending interaction before continuing. See [Tools and interactions](/reference/agents/tools-and-interactions). To stop an active execution, call `POST /api/sessions/{session_id}/cancel`.
+
+For a non-streaming result, send `Accept: application/json`. For Vercel AI SDK frames, also send `x-ag-messages-format: vercel`.

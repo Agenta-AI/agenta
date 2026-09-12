@@ -39,6 +39,11 @@ export interface SecretFormProps {
     controller: SecretFormController
     /** Attachment flows accept readable text secrets only. */
     textOnly?: boolean
+    /**
+     * Layer for the select popups. They portal to <body> at z-50, so a host drawer above that
+     * (the attach and create drawers sit at 1000 and 1100) hides them unless told the layer.
+     */
+    popupZIndex?: number
 }
 
 const formatOptions = [
@@ -60,7 +65,8 @@ const HintText = ({children}: {children: React.ReactNode}) => (
     <span className="text-xs text-colorTextSecondary">{children}</span>
 )
 
-export function SecretForm({controller, textOnly = false}: SecretFormProps) {
+export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFormProps) {
+    const popupStyle = popupZIndex != null ? {zIndex: popupZIndex} : undefined
     const {
         isEditing,
         name,
@@ -251,7 +257,7 @@ export function SecretForm({controller, textOnly = false}: SecretFormProps) {
                                             <SelectTrigger className="font-mono" aria-label="Value">
                                                 <SelectValue />
                                             </SelectTrigger>
-                                            <SelectContent>
+                                            <SelectContent style={popupStyle}>
                                                 <SelectItem value="true">true</SelectItem>
                                                 <SelectItem value="false">false</SelectItem>
                                             </SelectContent>
@@ -283,7 +289,7 @@ export function SecretForm({controller, textOnly = false}: SecretFormProps) {
                                                 <TypeChip variant={type} />
                                             </SelectValue>
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent style={popupStyle}>
                                             {PRIMITIVE_TYPES.map((t) => (
                                                 <SelectItem key={t} value={t}>
                                                     {t}
