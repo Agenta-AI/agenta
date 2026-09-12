@@ -33,6 +33,6 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "vitest": "^4.1.11",
-    "wrangler": "4.113.0"
+    "wrangler": "4.131.1"
   }
 }
