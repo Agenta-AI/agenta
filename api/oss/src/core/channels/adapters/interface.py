@@ -67,6 +67,27 @@ class ChannelAdapterInterface(ABC):
 
         return False
 
+    async def activate_connection(
+        self,
+        *,
+        connection: ChannelConnection,
+        credentials: Dict[str, Any],
+    ) -> None:
+        """Run any platform setup call that WRITES, after the row is stored.
+
+        This is the inverted half of verify_connection: `verify_connection`
+        proves a credential before anything is written, and this registers the
+        connection with the platform once the row exists. Telegram's setWebhook
+        lives here — it points the bot at our per-bot ingress URL, so it must
+        run only after the row (and its stored secret) exist to receive the
+        first update. `credentials` carries the plaintext the create path still
+        holds, since the stored row keeps only a vault reference; the public
+        ingress URL is a deployment fact the adapter reads for itself.
+        Defaults to nothing: a channel with no write-time setup does nothing
+        here."""
+
+        return None
+
     # --- ingress ---
 
     @abstractmethod

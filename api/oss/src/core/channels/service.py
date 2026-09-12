@@ -56,6 +56,7 @@ from oss.src.core.channels.types import (
     ChannelAgentNotFound,
     ChannelConnectionIdentityConflict,
     ChannelConnectionNotFound,
+    ChannelConnectionVerificationFailed,
     ChannelGrantRuleInvalid,
     ChannelsError,
     ChannelSpaceNotFound,
@@ -136,6 +137,18 @@ class ChannelsService:
                 "signing_secret": one_time_secret,
             }
 
+        # Telegram verifies each webhook by a secret token it echoes back. We
+        # mint it here, so it is vaulted with the bot token and hydrated on
+        # every ingress for verify_signature to check. A caller-supplied one
+        # (rotation, tests) is kept as given.
+        if connection.channel == "telegram" and not (connection.credentials or {}).get(
+            "webhook_secret"
+        ):
+            connection.credentials = {
+                **(connection.credentials or {}),
+                "webhook_secret": token_secrets.token_urlsafe(32),
+            }
+
         discovered = await adapter.verify_connection(
             connection=connection,
             credentials=connection.credentials or {},
@@ -171,6 +184,10 @@ class ChannelsService:
             locator_input=locator_input,
             credential_secret_id=credential_secret_id,
         )
+        # The plaintext is about to be discarded from the row; keep it in hand
+        # for the post-store activation, which is the only place a WRITE-time
+        # platform call (Telegram's setWebhook) can run against a stored row.
+        activation_credentials = dict(connection.credentials or {})
         connection.credentials = None
 
         try:
@@ -189,6 +206,41 @@ class ChannelsService:
                 )
             raise _connection_conflict(
                 channel=connection.channel, slug=connection.slug, error=e
+            ) from e
+
+        # Register the connection with the platform now that the row exists.
+        # No-op for every channel whose setup is read-only; Telegram points its
+        # webhook at our per-bot ingress here. It runs after the row is stored
+        # because the call writes on the platform's side and the first update it
+        # triggers must find a row (and its secret) to verify against.
+        #
+        # A failure here means the connection can never receive events, so it is
+        # not a live connection: roll the row and its vault secret back and fail
+        # the create, rather than leaving a connection that looks ready but is
+        # deaf. A caller retries by creating again.
+        try:
+            await adapter.activate_connection(
+                connection=created,
+                credentials=activation_credentials,
+            )
+        except Exception as e:
+            await self.channels_dao.delete_connection(
+                project_id=project_id, connection_id=created.id
+            )
+            if credential_secret_id is not None:
+                await self._discard_credential_secret(
+                    project_id=project_id, secret_id=credential_secret_id
+                )
+            log.warning(
+                "channels: activate_connection failed for channel=%s slug=%s: %s — "
+                "rolled back the connection",
+                connection.channel,
+                connection.slug,
+                e,
+            )
+            raise ChannelConnectionVerificationFailed(
+                channel=connection.channel,
+                message=f"could not register the connection with the platform: {e}",
             ) from e
 
         if one_time_secret is None:
@@ -447,6 +499,7 @@ class ChannelsService:
 
         connection = _layer_connection_edit(existing=existing, edit=connection)
 
+        rotated_credentials = bool(connection.credentials)
         if connection.credentials:
             adapter = self.adapter_registry.get(existing.channel)
             verify_target = ChannelConnectionCreate(
@@ -484,7 +537,7 @@ class ChannelsService:
         connection.credentials = None
 
         try:
-            return await self.channels_dao.edit_connection(
+            edited = await self.channels_dao.edit_connection(
                 project_id=project_id,
                 user_id=user_id,
                 #
@@ -494,6 +547,58 @@ class ChannelsService:
             raise _connection_conflict(
                 channel=existing.channel, slug=connection.slug, error=e
             ) from e
+
+        # A credential rotation re-verifies and stores the new token, but the
+        # platform still points at the old one until we re-register. Telegram's
+        # setWebhook is the only WRITE-time platform call, so a rotated bot token
+        # has no webhook and cannot deliver updates until this runs. It is gated
+        # on the telegram channel for the same reason the mint above is: no other
+        # channel has a write-time setup call, and hydrating a secret to feed a
+        # no-op would be wasted work.
+        #
+        # setWebhook is idempotent and the per-bot ingress URL never moves, so a
+        # failed call leaves the prior working webhook in place; there is no
+        # corrupt state to roll back. Surface the failure so the rotation is not
+        # silently deaf.
+        if (
+            edited is not None
+            and rotated_credentials
+            and existing.channel == "telegram"
+        ):
+            adapter = self.adapter_registry.get(existing.channel)
+            hydrated = await self._hydrate_connection(
+                project_id=project_id, connection=edited
+            )
+            hydrated_data = (
+                hydrated.data if hydrated and isinstance(hydrated.data, dict) else {}
+            )
+            activation_credentials = {
+                field: hydrated_data[field]
+                for field in ("bot_token", "webhook_secret", "signing_secret")
+                if field in hydrated_data
+            }
+            try:
+                await adapter.activate_connection(
+                    connection=hydrated,
+                    credentials=activation_credentials,
+                )
+            except Exception as e:
+                log.warning(
+                    "channels: re-activation after credential rotation failed for "
+                    "channel=%s slug=%s: %s",
+                    existing.channel,
+                    connection.slug,
+                    e,
+                )
+                raise ChannelConnectionVerificationFailed(
+                    channel=existing.channel,
+                    message=(
+                        "the credential was stored but could not be re-registered "
+                        f"with the platform: {e}"
+                    ),
+                ) from e
+
+        return edited
 
     async def archive_connection(
         self,

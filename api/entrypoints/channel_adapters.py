@@ -7,6 +7,7 @@ from oss.src.core.channels.adapters.bridge.adapter import BridgeAdapter
 from oss.src.core.channels.adapters.mock.adapter import MockAdapter
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
+from oss.src.core.channels.adapters.telegram.adapter import TelegramAdapter
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.services.api_key_service import use_api_key
 
@@ -28,6 +29,7 @@ def build_channel_adapter_registry() -> ChannelAdapterRegistry:
     return ChannelAdapterRegistry(
         adapters={
             "slack": SlackAdapter(),
+            "telegram": TelegramAdapter(),
             "mock": MockAdapter(),
             "bridge": BridgeAdapter(),
             "agenta": AgentaAdapter(

@@ -87,6 +87,13 @@ _PUBLIC_ENDPOINTS = (
     "/api/channels/slack/events/",
     "/preview/channels/slack/events/",
     "/api/preview/channels/slack/events/",
+    # Telegram carries the bot in the path, so these are prefixes matched by
+    # startswith: the per-bot token segment follows. The stored webhook secret,
+    # checked in the adapter, is what actually authorises the update.
+    "/channels/telegram/events/",
+    "/api/channels/telegram/events/",
+    "/preview/channels/telegram/events/",
+    "/api/preview/channels/telegram/events/",
     "/channels/bridge/events/",
     "/api/channels/bridge/events/",
     "/preview/channels/bridge/events/",

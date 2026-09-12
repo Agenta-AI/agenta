@@ -266,7 +266,7 @@ class SlackAdapter(ChannelAdapterInterface):
 
         # Edits and deletions arrive as message subtypes whose author lives in
         # the NESTED event["message"], not on the outer event. Our own
-        # indicator edit ("Working…" -> answer, chat.update) therefore read as
+        # indicator edit ("Thinking…" -> answer, chat.update) therefore read as
         # authorless human input, rooted a phantom thread off the edit's
         # synthetic ts, and ran a real turn whose post was edited in turn -- a
         # self-sustaining bot-echo cascade. No edit-processing path exists, so

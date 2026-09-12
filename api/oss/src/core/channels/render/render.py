@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 from oss.src.core.channels.dtos import ChannelCapabilities
 from oss.src.core.channels.render.dtos import RenderChoiceOption, RenderItem, RenderPart
 
-INDICATOR_TEXT = "Working…"
+INDICATOR_TEXT = "Thinking…"
 
 
 def render_indicator(*, capabilities: ChannelCapabilities) -> RenderItem:
@@ -15,6 +15,7 @@ def render_indicator(*, capabilities: ChannelCapabilities) -> RenderItem:
                 type="text",
                 text=INDICATOR_TEXT,
                 format=capabilities.rendering.text.format,
+                indicator=True,
             )
         ]
     )
