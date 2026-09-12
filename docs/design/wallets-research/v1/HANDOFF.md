@@ -128,42 +128,51 @@ credit, and it alone is enough to catch a broken locking strategy.
 
 ## Next step
 
-Write the Wave 2 specifications in the same format the Wave 1 nodes use: one
-`nodes/<node>/specs.md` stating the boundary, the prerequisites, and the owned code and
-schema, paired with one `nodes/<node>/tasks.md` giving the ordered work and what to read
-first. Follow the process in `waves.md`: name both checkpoints and the target before naming
-the wave, close the design gate, then break the work into a dependency graph of independently
-executable nodes. Run the graph and the specifications through a preflight review, as
-`preflight.md` did for Wave 1, before forking any worktree.
+**Wave 2 is written.** [wave-2.md](wave-2.md) has the checkpoint boundary, the fixed inputs,
+the invariants and the completion evidence; the graph is in [wps-2.md](wps-2.md),
+[ims-2.md](ims-2.md) and [cus-2.md](cus-2.md), with a specification and a task list per node
+under [nodes/](nodes/). Nothing in it is implemented.
 
-## Next work package
+What has not happened is the preflight review `waves.md` requires before any worktree forks.
+Wave 1's is in [preflight.md](preflight.md) and is the shape this one must take: read the graph
+and every specification cold, and write down every blocker and every gap with its disposition.
+Four questions are the ones most likely to come back as blockers, and all four are already in
+`open-designs.md` as items 16 to 19: who owns the rate card, what the admission ceiling
+enforces, what unit a provider-declared cost is stored in, and what keeps the card in step with
+the model catalogue.
 
-Wave 2 has no specifications yet. When they are written, they must cover the following.
+One fact about scope, before anyone estimates this wave's value. Charging follows the
+namespace, per the gateway's D30: only `builtin` is a target whose account we own, and
+`builtin_llm_endpoint` today serves `agenta` and `mock` behind `env.mock_gateways.enabled` and
+nothing else. Every real model reaches the gateway through `standard`, on the customer's own
+credential, which is deliberately not charged. **Wave 2 therefore delivers a complete,
+tested charging path and no revenue.** The first platform-funded `builtin` provider is a
+gateway-wave deliverable, not a wallet one, and until it exists there is nothing real to bill.
 
-- **The flag and backfill gap**, from item 14 of `open-designs.md`. It is the only open item
-  that prevents the existing code from being turned on, so it comes first and may deserve its
-  own cleanup node rather than waiting for a work package.
-- **The real measurement producer.** Replace the wallet-owned fake gateways with the gateway's
-  own emission into `streams:measurements`. `seams.md`, under "The line between the gateway and
-  the wallet", lists the four facts the gateway has to carry from its first day, because none
-  can be added retroactively: the principal on every emission including the run, the credential
-  origin and owner so a call paid on a customer's own key is not billed as ours, the raw
-  measurement with cache reads separate from fresh input, and a decision point before dispatch
-  even while it always answers yes.
-- **The rate card and the conversion.** The same section of `seams.md` places pricing with the
-  wallet rather than the gateway. It decides the number and the gateway enforces it. The unit,
-  the price list, and who converts credits to money are all wallet-owned.
-- **Admission.** Call `check()` before dispatch. Note that the current predicate is non-strict:
-  it rejects on committed balance against a floor and reserves nothing. Item 2 of
-  `open-designs.md` holds that question, and a strict check with reservation semantics would
-  reintroduce an amount parameter deliberately.
-- **The vocabulary collisions.** `seams.md`, under "Three live meanings of one word" and
-  "Mechanical collisions to fix before anyone writes code", lists the naming and mechanical
-  conflicts between the four efforts that have to be resolved before code is written rather
-  than during review.
-- **What nobody owns yet.** The section of `seams.md` with that heading names two items that
-  no design currently claims: reconciliation against the provider invoice, and the success
-  criterion for a funded tier. Wave 2 should either claim them or record why it does not.
+Two more facts about the gateway side should be settled before `WP-2-01` forks, because the
+wave leans on both. The non-streaming relay path may never drain its body generator, in which case
+usage is never recorded at all — `WP-2-01`'s first task is a test that settles it. And
+`SecretOrigin.LOCAL` is never produced in production code today. A `builtin` target resolves no
+secret at all, so its origin is `None`, and the resolver's two call sites both stamp `VAULT`
+on the customer's own credential, correctly. Every charge decision reads that stamp, so
+`WP-2-01` has to produce `LOCAL` where the payer is us — in `_outcome_from`, from the
+namespace, not in the resolver.
+
+Wave 2 spans two branches. Roughly half its files are on `feat/add-gateways` and half on this
+one, and every node specification says which. Merge order within a node is always gateway
+first: the wallet side imports gateway-declared ports.
+
+## What Wave 2 does not cover
+
+- **The manual acceptance run for Wave 1.** Sections 0 through 8 of
+  `nodes/im-1-02-pipeline/acceptance.md`, against a local deployment with the flag on. That is
+  what declares checkpoint 1, and it is independent of everything in Wave 2.
+- **Item 15**, the value the dark-window organizations missed. It is a one-off backfill over an
+  already-idempotent entry point, not a work package.
+- **What nobody owns yet.** `seams.md` names two things no design claims: reconciliation
+  against the provider invoice, and the success criterion for a funded tier. Wave 2 claims
+  neither. Item 18 makes reconciliation possible later by not rounding a provider's figure away
+  at capture; the funded tier is untouched.
 
 The sandbox class, live providers, layer-one exposure estimates, rollups, and store separation
 are all still design only. `out-of-scope.md` records the condition that reopens each deferral.

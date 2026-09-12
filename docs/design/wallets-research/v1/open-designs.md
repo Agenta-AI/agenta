@@ -72,6 +72,10 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 13 | Open | Whether earned value expires at all, and what decides spend order between lots. |
 | 14 | Decided | How an organization provisioned while `AGENTA_WALLETS_ENABLED` was off gets its balance row. |
 | 15 | Open | What, if anything, restores the value those organizations also missed. |
+| 16 | Open | Which design owns the rate card, and who reviews a change to a price. |
+| 17 | Open | What the admission ceiling enforces, and on what evidence. |
+| 18 | Open | The unit and rounding of a provider-declared cost. |
+| 19 | Open | How the rate card stays in step with the model catalogue. |
 
 Items 2, 4, 7, and 14 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
@@ -1430,6 +1434,223 @@ is not an activity.
 The amount, and whether a dark-window organization deserves the grant at all, are product
 questions rather than engineering ones. This item fixes the mechanism and where it runs; it
 does not decide the number.
+
+### Decision
+
+_Unresolved._
+
+## 16. Which design owns the rate card
+
+**Status:** Open
+
+### Context
+
+Two documents on this branch disagree about who owns pricing, and Wave 2 has to build against
+one of them.
+
+`seams.md`, under "The line between the gateway and the wallet", says pricing belongs to the
+wallet: "What is that worth in credits — wallet, from the rate card", and "the accounting half
+of §7.4 is now wrong in the other direction: it gives pricing to the gateway. Pricing belongs
+here, with the rate card."
+
+`wave-1.md`, under "Fixed inputs", says the opposite and is what shipped: "Gateway code owns
+provider/metric interpretation and the final positive `amount_musd`. Wallet code never derives
+price from tokens, duration, or provider data." `DebitCommandV1` was designed around that — it
+carries an amount and no metrics, precisely so the wallet cannot second-guess the number.
+
+In the code as it stands, neither is literally true. `calculate_fake_charge` lives in
+`ee/src/core/measurements/pricing.py`, on this branch, and runs inside a wallet-branch worker,
+while its docstring calls the result "gateway-owned".
+
+### Decision needed
+
+Who owns the rate card's contents, and therefore who reviews a change to a price.
+
+1. **The gateway.** Its keys are gateway vocabulary — provider, model, and the metric names a
+   provider reports — and it has to move whenever the model catalogue moves. A price change is
+   then a gateway-branch change.
+2. **The wallet.** Pricing is a commercial function and the wallet owns everything else
+   commercial: the unit, the lots, the balance, the conversion to money. A price change is
+   then a wallet-branch change.
+3. **Split along the line the two documents actually agree on.** The gateway owns the *keys* —
+   which models exist, what metrics they report, what a call resolved to — and the wallet owns
+   the *unit and the arithmetic*: micro-dollars, how a measurement becomes an amount, and how
+   an amount becomes money. The table itself is wallet-branch code keyed by gateway vocabulary,
+   and a new model is a gateway event that obliges a rate.
+
+### Why it matters
+
+Only for review and for where the file lives. The mechanism is the same under all three: a
+versioned table, read off the request path, stamped on the debit. But an unowned price list is
+one nobody updates, and the failure mode is silent — an unpriced model is a call nobody
+charges for.
+
+### Current direction
+
+Option 3. It is the only one that survives reading both documents: `seams.md` is right that
+the unit and the conversion are wallet-owned, and `wave-1.md` is right that the wallet must
+not interpret provider metrics. Splitting at the key boundary gives each its own half and
+leaves `DebitCommandV1` exactly as designed. `WP-2-02` builds the table on the wallet branch
+under this reading; if the decision goes the other way the file moves and nothing else changes.
+
+### Decision
+
+_Unresolved._
+
+## 17. What the admission ceiling enforces
+
+**Status:** Open
+
+### Context
+
+`seams.md` describes the seam's first call as "an authorization call before dispatch that
+returns a spending ceiling". `WP-2-00` gives `SpendAdmission` a `ceiling_musd`, and `WP-2-03`
+enforces the boolean beside it and carries the number without enforcing it.
+
+That is deliberate but it is not obviously right. A ceiling nothing enforces is a field a
+future reader will either delete or misuse.
+
+The reason Wave 2 does not enforce it: the only cost knowable before dispatch is an upper bound
+the caller declared, `max_output_tokens` or its per-protocol equivalents. Pricing that bound
+needs the rate card on the request path, which invariant 7 forbids, and refusing on it refuses
+calls that would have cost a fraction of the bound. A caller who declares a large bound out of
+habit would be refused while a caller who declares none would not be, which is the wrong
+incentive to build in.
+
+### Decision needed
+
+What, eventually, enforces the ceiling.
+
+1. **Nothing. Delete it.** Admission stays a boolean and the ceiling never existed. Honest, and
+   it forecloses the reservation work item 2 holds open.
+2. **The caller's declared bound, priced.** Refuse when `max_output_tokens × the card's output
+   rate` exceeds the ceiling. Cheap, uses only a number the caller chose, needs the card on the
+   request path, and over-refuses.
+3. **A reservation.** Admission holds an estimate against the balance and settlement releases
+   it. This is item 2's strict admission, it reintroduces an amount parameter deliberately, and
+   it is a wave of its own.
+
+### Why it matters
+
+Without any of the three, an organization can overspend its floor by the cost of every call
+already in flight. Wave 2 makes that measurable for the first time — every measurement carries
+the ceiling its call was admitted under — and how far balances actually go below their floor is
+the evidence this decision needs and nobody currently has.
+
+### Current direction
+
+Carry it in Wave 2, decide after. Run with the boolean enforced and the ceiling recorded, then
+read the distribution of how much a posting exceeded the ceiling it was admitted under. If the
+tail is small, option 1 and admission stays a boolean forever. If it is not, option 3, and the
+ceiling is already where a reservation would put its number. Option 2 is a poor middle: it
+costs a request-path dependency on the price list and buys an over-refusal.
+
+### Decision
+
+_Unresolved._
+
+## 18. The unit and rounding of a provider-declared cost
+
+**Status:** Open
+
+### Context
+
+Three places in this design carry money, in three shapes.
+
+`GatewayUsage.cost` on the gateway branch is `Optional[float]`, with no declared unit and no
+declared currency. Nothing in production sets it; only the mock adapter does, to `0.0`.
+
+`MeasurementComponentV1.cost_musd` on this branch is `Optional[int]`, in micro-dollars, and the
+Wave 1 fakes fill it by multiplying a token count by a fractional rate and rounding.
+
+`wallet_debits.amount_musd` is an integer count of micro-dollars and is the only one of the
+three that is authoritative about anything.
+
+The first two describe the same thing — what the provider says the call cost us — in units that
+do not convert cleanly. A float of dollars at a provider's price for a thousand tokens is
+routinely smaller than one micro-dollar.
+
+### Decision needed
+
+What a provider-declared cost is stored as, and where it rounds.
+
+1. **Drop it.** The rate card decides what we charge; what the provider said it cost is item
+   8's reconciliation problem, not a field on a measurement. Fewest moving parts.
+2. **Keep it as the provider's own number, stored exactly.** A decimal string, or an integer in
+   a much smaller unit such as nano-dollars, with no rounding at capture. Reconciliation later
+   compares exact figures against an invoice.
+3. **Convert at capture to `cost_musd`.** What happens now. It loses sub-micro-dollar
+   precision on every component, and those are the common case for token pricing.
+
+### Why it matters
+
+Reconciliation against the provider invoice — item 8, and named in `seams.md` as something
+nobody owns — is impossible with option 3's rounding and trivial with option 2's. And a float
+in a financial path is the defect the whole design chose an integer unit to avoid.
+
+### Current direction
+
+Option 2 for capture, eventually, with the exact value stored beside the charged amount rather
+than instead of it. Sub-micro-dollar components are the norm, not the edge, and a number we
+rounded at capture cannot be un-rounded when the invoice arrives.
+
+That needs a field `MeasurementComponentV1` does not have, and Wave 2 adds exactly one envelope
+field, which is `secret_origin`. So Wave 2's behaviour is neither option: `WP-2-01` writes no
+`cost_musd` at all rather than a rounded one, since nothing in production sets
+`GatewayUsage.cost` today and a rounded figure would be worse than an absent one. Resolving
+this item is what adds the field.
+
+### Decision
+
+_Unresolved._
+
+## 19. How the rate card stays in step with the model catalogue
+
+**Status:** Open
+
+### Context
+
+The gateway's `standard` namespace is generated from the SDK's `supported_llm_models` in
+`sdks/python/agenta/sdk/utils/assets.py`. Models are added there without any price, and nothing
+connects that list to a rate card.
+
+`builtin`, which is the only chargeable namespace, is narrower and stranger:
+`builtin_llm_endpoint` serves `agenta` and `mock` only, only when `env.mock_gateways.enabled`
+is set, against a three-entry allowlist. So the drift this item is about is not yet real — there
+is almost nothing to price — and the moment a platform-funded provider is added to `builtin`, it
+becomes real all at once.
+
+`WP-2-02` therefore has an unpriced-model path: no rate, no charge, one error log. That is the
+right default — a guessed price is worse than a missed charge — but it is a silent revenue hole
+whose only alarm is a log line, and the hole opens every time somebody adds a model.
+
+### Decision needed
+
+What keeps the card and the catalogue in step.
+
+1. **Nothing but the log.** Somebody notices. This is the status quo of option-less designs and
+   it is how the `local_secrets` counter drifted until it was removed.
+2. **A test that fails when the catalogue has a chargeable model the card does not price.** A
+   new model then cannot merge without a rate, and the rate is reviewed with the model.
+3. **Generate the card from litellm's cost map.** litellm is already a dependency and
+   `api/oss/src/core/tracing/utils/trees.py` already prices tokens through
+   `litellm.cost_calculator.cost_per_token`. Snapshot it at build time into a versioned file;
+   never look it up live, because a price that changes underneath a running system cannot be
+   versioned or reproduced.
+
+### Why it matters
+
+Every unpriced model is free inference at our expense, and the gap is invisible from the
+outside: the call succeeds, the measurement is written, and no debit follows. The cost of
+getting this wrong is zero today and proportional to `builtin`'s traffic the day after a real
+provider lands there, which is exactly the kind of deadline that arrives without warning.
+
+### Current direction
+
+Options 2 and 3 together. Generate the card from litellm's snapshot so the numbers are not
+transcribed by hand, and add the test so a model that the snapshot does not price cannot reach
+the `builtin` namespace unnoticed. Option 2 alone is enough to be safe; option 3 is what makes
+it maintainable.
 
 ### Decision
 
