@@ -287,7 +287,7 @@ from the start (Mahmoud), and Option 1 for groups (setup tells users to disable 
 - Binding service now composes the account key from the hosted capabilities (chat id scope,
   sender user), matching the inbox worker, and hands the store a ready key. 8 tests.
 - Tables: channel_telegram_bind_tokens, channel_telegram_chat_bindings (migration
-  oss000000030, applied to the channels stack DB). Globally keyed (looked up without a project).
+  oss000000031, applied to the channels stack DB). Globally keyed (looked up without a project).
 - TelegramBindingDAO: atomic consume_token_and_bind (guarded token consume + chat binding +
   account link, all one transaction, concurrent-safe via ON CONFLICT).
 - Smoke-tested end to end against Postgres: issue, consume+bind, account link with the worker
