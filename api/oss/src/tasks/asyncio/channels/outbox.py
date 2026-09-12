@@ -169,6 +169,11 @@ class ChannelsOutboxWorker:
             ChannelDeliveryState.FAILED,
         ):
             return  # already sent — redelivery of turn-started, no second post
+        if event.data and event.data.external_locator:
+            # The indicator landed (the receipt proves it); this FAILED marks a
+            # later edit of the same row. A redelivered turn-started must not
+            # write the indicator back over an answer the platform may hold.
+            return
 
         item = render_indicator(capabilities=capabilities)
 
