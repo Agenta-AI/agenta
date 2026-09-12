@@ -443,6 +443,9 @@ class SubscriptionsService:
         and be treated as one replay — an accepted Wave-1 limitation, not a correctness
         claim for the general case.
         """
+        if not env.wallets.enabled:
+            return
+
         period_start, period_end = billing_period_bounds(now=now, anchor=anchor)
         idempotency_key = (
             f"plan_change:{subscription_id or 'none'}:{period_start.isoformat()}"

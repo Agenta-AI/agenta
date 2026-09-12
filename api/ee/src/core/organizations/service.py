@@ -1067,9 +1067,14 @@ async def provision_signup_subscription(
         organization_email=organization_email,
     )
 
-    plan = subscription.plan if subscription is not None else get_default_plan()
-    await _provision_wallet_general_balance(organization_id=organization.id, plan=plan)
-    await _award_signup_grant(organization_id=organization.id)
+    # Both helpers re-raise, and the signup path deletes the new user when this
+    # coroutine fails, so an unfinished wallet must not run here.
+    if env.wallets.enabled:
+        plan = subscription.plan if subscription is not None else get_default_plan()
+        await _provision_wallet_general_balance(
+            organization_id=organization.id, plan=plan
+        )
+        await _award_signup_grant(organization_id=organization.id)
 
 
 async def provision_user_subscription(organization: OrganizationDB) -> None:
@@ -1099,4 +1104,7 @@ async def provision_user_subscription(organization: OrganizationDB) -> None:
         scope=scope_from(organization_id=organization.id),
     )
 
-    await _provision_wallet_general_balance(organization_id=organization.id, plan=plan)
+    if env.wallets.enabled:
+        await _provision_wallet_general_balance(
+            organization_id=organization.id, plan=plan
+        )

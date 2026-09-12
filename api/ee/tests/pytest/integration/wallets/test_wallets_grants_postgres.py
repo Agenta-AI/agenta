@@ -33,6 +33,7 @@ from ee.databases.postgres.migrations.core_ee.utils import alembic_cfg
 from ee.src.core.wallets.grants import compose_award_idempotency_key
 from ee.src.dbs.postgres.wallets.dao import WalletsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+from oss.src.utils.env import env
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
@@ -77,6 +78,13 @@ async def _cleanup(organization_id: uuid.UUID):
             text("DELETE FROM wallet_credits WHERE organization_id = :organization_id"),
             {"organization_id": organization_id},
         )
+
+
+@pytest.fixture(autouse=True)
+def _wallets_enabled(monkeypatch):
+    """The wallet ships behind AGENTA_WALLETS_ENABLED, default off; every call site
+    guarded by it is a no-op otherwise. These tests cover the flag-on behaviour."""
+    monkeypatch.setattr(env.wallets, "enabled", True)
 
 
 async def test_award_credit_is_idempotent_against_real_conflict(wallet_schema):

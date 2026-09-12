@@ -31,7 +31,8 @@ safe.
   (consumer group `worker-debits`); both use the current compressed JSON `data` envelope and bounded
   approximate `MAXLEN` trimming, delivered at `MAXLEN 100_000` for each stream
   (`ee/src/core/wallets/streaming.py`). Both are registered in `api/entrypoints/worker_streams.py`,
-  included in `ALL_STREAMS` only when `is_ee()` is true.
+  included in `ALL_STREAMS` only when `is_ee()` is true and the wallet feature flag is on
+  (see [Feature flag](#feature-flag)).
 - `measurements` live in tracing. Authoritative `wallet_credits`, `wallet_debits`, and
   `wallet_balances` live together in core.
 - Tables are EE-only. **Delivered migration ids** (superseding the reserved numbers below): `core_ee`
@@ -107,3 +108,33 @@ migration beyond `ee0000000005` (`core_ee` head remains `ee0000000005`):
 Both worktrees are documented in `nodes/im-1-02-pipeline/acceptance.md`, including the
 integration test suites that were WRITTEN BUT NOT RUN (the review worktrees are not
 allowed to touch the shared EE dev stack) and how to run them against a real deployment.
+
+## Feature flag
+
+Everything above ships switched off. `AGENTA_WALLETS_ENABLED` (EE only, `env.wallets.enabled`,
+default `false`) gates every write the wallet performs, because the wave is code-complete
+but not yet proven end to end against a real deployment: several of its integration suites
+were written and never run, and the load-bearing call site sits on the signup path, where
+`_provision_wallet_general_balance` and `_award_signup_grant` both re-raise and the signup
+flow deletes the new user when provisioning fails. An unfinished ledger there would cost
+real signups.
+
+While the flag is off:
+
+- `provision_signup_subscription` and `provision_user_subscription` skip wallet
+  provisioning and the signup grant, so no `wallet_balances` row and no `signup_grant`
+  credit are written.
+- `SubscriptionsService._apply_wallet_plan_change` returns immediately, so a mid-period
+  plan change is not prorated.
+- `measurements` and `debits` are absent from `ALL_STREAMS` and from the worker builder
+  table, so their consumers never start and naming either one in `AGENTA_WORKER_STREAMS`
+  is rejected instead of silently ignored.
+
+The migrations are unconditional: the tables and the backfill in `ee0000000005` land with
+the branch whether the flag is on or not. Turning the flag on therefore needs no schema
+step, but organizations provisioned while it was off hold no balance row until the
+backfill is re-run for them, since the backfill only covers organizations that predate the
+migration.
+
+Turning the flag on changes no behaviour described in this document. The guards are
+early-returns around calls that already existed; nothing else reads the flag.

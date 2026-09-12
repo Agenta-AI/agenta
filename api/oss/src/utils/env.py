@@ -1931,6 +1931,27 @@ class TriggersConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Wallets
+# ---------------------------------------------------------------------------
+
+
+class WalletsConfig(BaseModel):
+    """Master switch for the credit wallet (EE only).
+
+    Off until the ledger works end to end. While off, an organization gets no
+    balance row and no signup grant, mid-period plan changes are not prorated,
+    and the `measurements`/`debits` stream consumers are not started — so no
+    row is written that a later, corrected implementation would have to undo.
+    Turning it on changes no behaviour for organizations provisioned while it
+    was off until they are backfilled (core_ee ee0000000005).
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_WALLETS_ENABLED", default=False)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # Auth — derived flags. Kept as a convenience facade reading from
 # identity.* (OIDC) and agenta.access.email_disabled (email).
 # ---------------------------------------------------------------------------
@@ -2020,6 +2041,7 @@ class EnvironSettings(BaseModel):
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
     triggers: TriggersConfig = TriggersConfig()
+    wallets: WalletsConfig = WalletsConfig()
 
     model_config = ConfigDict(extra="ignore")
 
