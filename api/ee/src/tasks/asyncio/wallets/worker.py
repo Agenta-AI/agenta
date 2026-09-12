@@ -17,6 +17,7 @@ from ee.src.core.wallets.contracts import STREAM_DEBITS
 from ee.src.core.wallets.errors import WalletTerminalError
 from ee.src.core.wallets.interfaces import WalletSettlementPort
 from ee.src.core.wallets.streaming import deserialize_debit_command
+from ee.src.core.wallets.types import WalletGeneralBalanceNotFoundError
 
 log = get_module_logger(__name__)
 
@@ -60,10 +61,11 @@ class DebitWorker(StreamConsumer):
         """Per message: deserialize, settle, ACK only after settlement succeeds.
 
         A malformed or unsupported-version envelope is terminal — logged and ACKed, since
-        retry cannot help. A duplicate delivery is a normal successful settlement replay
-        (the settlement port itself is idempotent on `idempotency_key`): no error, ACK. A
-        core transaction, database, or Redis error while settling is retryable — the
-        message is left pending for normal consumer-group redelivery.
+        retry cannot help. So is a missing, unprovisionable general balance row. A
+        duplicate delivery is a normal successful settlement replay (the settlement port
+        itself is idempotent on `idempotency_key`): no error, ACK. A core transaction,
+        database, or Redis error while settling is retryable — the message is left pending
+        for normal consumer-group redelivery.
         """
         processed_ids: List[bytes] = []
 
@@ -88,6 +90,22 @@ class DebitWorker(StreamConsumer):
 
             try:
                 await self.settlement_port.settle(command)
+            except WalletGeneralBalanceNotFoundError:
+                # Terminal, not retryable. The settlement path provisions a missing
+                # general balance row itself, so this means the row is neither present
+                # nor insertable — redelivering the same posting cannot change that, and
+                # treating it as retryable wedges this message in the pending list
+                # forever (open-designs item 14). ACK and drop the charge, loudly: there
+                # is no dead-letter stream here, so this log line is the record.
+                log.error(
+                    "[WALLETS] No general balance for organization and none could be "
+                    "provisioned, ACKing without retry — this debit is dropped",
+                    msg_id=repr(msg_id),
+                    organization_id=str(command.organization_id),
+                    idempotency_key=command.idempotency_key,
+                )
+                processed_ids.append(msg_id)
+                continue
             except Exception:
                 log.error(
                     "[WALLETS] Failed to settle debit, leaving pending",

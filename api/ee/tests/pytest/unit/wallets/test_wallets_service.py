@@ -3,11 +3,14 @@ adapter) against the in-memory `FakeWalletsDAO` — no Postgres, no event loop c
 """
 
 import inspect
+from uuid import uuid4
 
 import pytest
 
 from ee.src.core.wallets.interfaces import WalletCheckPort, WalletSettlementPort
+from ee.src.core.wallets.plans import LAZY_PROVISION_FLOOR_MUSD
 from ee.src.core.wallets.service import WalletsService
+from ee.src.core.wallets.types import WalletGeneralBalanceNotFoundError
 from ee.tests.pytest.utils.wallets.builders import (
     build_credit_candidate,
     build_credit_wallet_balance,
@@ -106,16 +109,55 @@ async def test_check_rejects_when_balance_below_floor():
 
 
 @pytest.mark.asyncio
-async def test_check_allows_when_organization_has_no_wallet_provisioned():
+async def test_check_provisions_a_missing_general_balance_and_answers_from_it():
+    """An organization created while `AGENTA_WALLETS_ENABLED` was off has no general
+    balance row (open-designs item 14). `check` provisions one at the lazy floor and then
+    answers from it — which is a rejection, because an organization with no credits is at
+    its floor. The old behavior, allowing because "nothing to reject against", let those
+    organizations spend without a wallet."""
+    organization_id = uuid4()
     dao = FakeWalletsDAO(general_balance=None)
     service = WalletsService(wallets_dao=dao)
 
-    assert (
-        await service.check(
-            organization_id=build_general_wallet_balance().organization_id,
-        )
-        is True
-    )
+    allowed = await service.check(organization_id=organization_id)
+
+    assert allowed is False
+    assert dao.provision_calls == 1
+    assert dao.general_balance is not None
+    assert dao.general_balance.organization_id == organization_id
+    assert dao.general_balance.balance_musd == 0
+    assert dao.general_balance.floor_musd == LAZY_PROVISION_FLOOR_MUSD
+
+
+@pytest.mark.asyncio
+async def test_check_provisions_at_most_once_per_organization():
+    dao = FakeWalletsDAO(general_balance=None)
+    service = WalletsService(wallets_dao=dao)
+    organization_id = uuid4()
+
+    await service.check(organization_id=organization_id)
+    first_row = dao.general_balance
+    await service.check(organization_id=organization_id)
+
+    # The second call reads the row the first one wrote; it does not provision again.
+    assert dao.provision_calls == 1
+    assert dao.general_balance is first_row
+
+
+@pytest.mark.asyncio
+async def test_check_writes_no_debit_when_it_provisions():
+    """The port's contract is that `check` writes no debit, reservation, hold or
+    allocation. Provisioning a zero-balance projection row is none of those, and nothing
+    else moves."""
+    dao = FakeWalletsDAO(general_balance=None)
+    service = WalletsService(wallets_dao=dao)
+
+    await service.check(organization_id=uuid4())
+
+    assert dao.settle_calls == 0
+    assert dao.debits == []
+    assert dao.awards == {}
+    assert dao.general_balance.balance_musd == 0
 
 
 @pytest.mark.asyncio
@@ -178,3 +220,52 @@ async def test_settle_replay_is_a_no_op_second_write():
     assert (
         dao.general_balance.balance_musd == balance_after_first
     )  # ...and no second write
+
+
+@pytest.mark.asyncio
+async def test_settle_provisions_a_missing_general_balance_rather_than_raising():
+    """The settlement path is where the flag gap used to surface: a posting for an
+    organization created while `AGENTA_WALLETS_ENABLED` was off raised
+    `WalletGeneralBalanceNotFoundError` and the worker retried it forever. It now
+    provisions the row and settles against it (open-designs item 14)."""
+    dao = FakeWalletsDAO(general_balance=None)
+    service = WalletsService(wallets_dao=dao)
+    organization_id = uuid4()
+    command = build_debit_command(
+        organization_id=organization_id,
+        idempotency_key="gw_first_posting_for_unprovisioned_org",
+        amount_musd=250,
+    )
+
+    await service.settle(command)
+
+    assert dao.general_balance is not None
+    assert dao.general_balance.organization_id == organization_id
+    # No credit funds it, so the whole amount is a deficit against the general balance.
+    assert dao.general_balance.balance_musd == -250
+    assert [debit.amount_musd for debit in dao.debits] == [250]
+
+
+@pytest.mark.asyncio
+async def test_settle_still_raises_when_the_row_cannot_be_provisioned():
+    """The defensive invariant survives: when the row is neither present nor insertable,
+    `settle` raises, and `DebitWorker` treats that as terminal."""
+    dao = FakeWalletsDAO(general_balance=None, can_provision=False)
+    service = WalletsService(wallets_dao=dao)
+
+    with pytest.raises(WalletGeneralBalanceNotFoundError):
+        await service.settle(build_debit_command(organization_id=uuid4()))
+
+
+@pytest.mark.asyncio
+async def test_award_provisions_a_missing_general_balance():
+    dao = FakeWalletsDAO(general_balance=None)
+    service = WalletsService(wallets_dao=dao)
+    organization_id = uuid4()
+
+    credit = await service.award(
+        organization_id=organization_id, activity_code="signup"
+    )
+
+    assert dao.general_balance is not None
+    assert dao.general_balance.balance_musd == credit.amount_musd

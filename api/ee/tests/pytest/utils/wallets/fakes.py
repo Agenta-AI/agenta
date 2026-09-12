@@ -32,8 +32,12 @@ class FakeWalletsDAO(WalletsDAOInterface):
         *,
         general_balance: Optional[WalletBalanceDTO] = None,
         credits: Optional[List[Tuple[CreditCandidateDTO, WalletBalanceDTO]]] = None,
+        can_provision: bool = True,
     ):
         self.general_balance = general_balance
+        # False simulates the real DAO's defensive branch: the general balance row is
+        # neither present nor insertable, so the write paths raise instead of healing.
+        self.can_provision = can_provision
         # wallet_credit_id -> (candidate snapshot, balance row)
         self._credits: Dict[UUID, Tuple[CreditCandidateDTO, WalletBalanceDTO]] = {
             candidate.wallet_credit_id: (candidate, balance)
@@ -48,6 +52,19 @@ class FakeWalletsDAO(WalletsDAOInterface):
         # `data.references.award_idempotency_key` lookup.
         self.awards: Dict[str, WalletCreditDTO] = {}
         self.award_calls = 0
+
+    async def _lock_general_balance(self, *, organization_id: UUID) -> WalletBalanceDTO:
+        """Mirrors `WalletsDAO._lock_general_balance`: every write path opens with this,
+        and it provisions the row when it is missing rather than raising."""
+        if self.general_balance is not None:
+            return self.general_balance
+
+        if not self.can_provision:
+            from ee.src.core.wallets.types import WalletGeneralBalanceNotFoundError
+
+            raise WalletGeneralBalanceNotFoundError(organization_id)
+
+        return await self.provision_general_balance(organization_id=organization_id)
 
     async def get_general_balance(
         self,
@@ -68,6 +85,8 @@ class FakeWalletsDAO(WalletsDAOInterface):
         command: DebitCommandV1,
     ) -> List[WalletDebitDTO]:
         self.settle_calls += 1
+
+        await self._lock_general_balance(organization_id=command.organization_id)
 
         existing = [
             debit
@@ -129,14 +148,17 @@ class FakeWalletsDAO(WalletsDAOInterface):
         *,
         organization_id: UUID,
         floor_musd: int = 0,
-    ) -> None:
+    ) -> WalletBalanceDTO:
         self.provision_calls += 1
 
         if (
             self.general_balance is not None
             and self.general_balance.organization_id == organization_id
         ):
-            return  # already provisioned — idempotent no-op, mirrors ON CONFLICT DO NOTHING
+            # Already provisioned — idempotent no-op returning the row that exists, not
+            # the one proposed. Mirrors the real DAO's ON CONFLICT DO NOTHING plus
+            # read-back.
+            return self.general_balance
 
         self.general_balance = WalletBalanceDTO(
             id=uuid_utils.uuid7(),
@@ -145,6 +167,8 @@ class FakeWalletsDAO(WalletsDAOInterface):
             balance_musd=0,
             floor_musd=floor_musd,
         )
+
+        return self.general_balance
 
     async def get_active_plan_allowance_credit(
         self,
@@ -188,10 +212,7 @@ class FakeWalletsDAO(WalletsDAOInterface):
         if key in self.plan_changes:
             return self.plan_changes[key].model_copy(update={"replayed": True})
 
-        if self.general_balance is None:
-            from ee.src.core.wallets.types import WalletGeneralBalanceNotFoundError
-
-            raise WalletGeneralBalanceNotFoundError(organization_id)
+        await self._lock_general_balance(organization_id=organization_id)
 
         applied_outgoing = 0
         outgoing_debit_id = None
@@ -289,10 +310,7 @@ class FakeWalletsDAO(WalletsDAOInterface):
         if existing is not None:
             return existing
 
-        if self.general_balance is None:
-            from ee.src.core.wallets.types import WalletGeneralBalanceNotFoundError
-
-            raise WalletGeneralBalanceNotFoundError(organization_id)
+        await self._lock_general_balance(organization_id=organization_id)
 
         credit_id = uuid_utils.uuid7()
         credit = WalletCreditDTO(

@@ -20,6 +20,7 @@ from ee.src.core.wallets.grants import (
 )
 from ee.src.core.wallets.interfaces import WalletCheckPort, WalletSettlementPort
 from ee.src.core.wallets.plans import (
+    LAZY_PROVISION_FLOOR_MUSD,
     PLAN_ALLOWANCE_CREDIT_KIND,
     PLAN_ALLOWANCE_PRIORITY,
     allowance_musd_for_plan,
@@ -43,8 +44,22 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         )
 
         if general is None:
-            # No wallet provisioned for this organization: nothing to reject against.
-            return True
+            # An organization created while `AGENTA_WALLETS_ENABLED` was off has no
+            # general balance row and nothing else will ever give it one: the
+            # `ee0000000005` backfill ran once, at migration time. Provision it here, on
+            # the first admission read, rather than leaving admission to answer from a
+            # row that does not exist — open-designs item 14.
+            #
+            # This stays within the port's write-free contract in the sense that matters:
+            # `check` still writes no debit, reservation, hold or allocation. It writes a
+            # zero-balance projection row, idempotently, and then answers from it. That
+            # answer is a rejection for an organization with no credits, which is the
+            # correct reading of the wallet and the whole reason the missing row was a
+            # gap rather than a permission to spend.
+            general = await self.wallets_dao.provision_general_balance(
+                organization_id=organization_id,
+                floor_musd=LAZY_PROVISION_FLOOR_MUSD,
+            )
 
         floor = general.floor_musd if general.floor_musd is not None else 0
 
