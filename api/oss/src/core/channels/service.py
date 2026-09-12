@@ -1328,6 +1328,24 @@ class ChannelsService:
 
         return thread
 
+    async def set_pending_choice(
+        self,
+        *,
+        project_id: UUID,
+        thread_id: UUID,
+        pending_choice: Optional[ChannelPendingChoice],
+    ) -> Optional[ChannelThread]:
+        """Overwrite the thread's single pending-choice slot; None clears it.
+
+        The one write path for the slot, so the dispatchers never reach the
+        DAO directly: the outbox sets a card's choice here, the inbox clears
+        it once the answer went through."""
+        return await self.channels_dao.set_pending_choice(
+            project_id=project_id,
+            thread_id=thread_id,
+            pending_choice=pending_choice,
+        )
+
     # --- capability + policy: adapter reads, no persistence --------------- #
 
     async def fetch_capabilities(
@@ -1787,6 +1805,10 @@ class ChannelsService:
                     project_id=project_id,
                     connection_id=resolution.space.connection_id,
                 )
+                if connection is None:
+                    raise ChannelConnectionNotFound(
+                        connection_id=resolution.space.connection_id
+                    )
                 capabilities = await self.fetch_capabilities(
                     channel=connection.channel, connection=connection
                 )

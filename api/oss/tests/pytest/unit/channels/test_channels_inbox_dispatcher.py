@@ -975,8 +975,7 @@ class TestApprovalAnswer:
         event = _make_event()
         resolution = self._answering_resolution()
         channels_service = _make_channels_service(resolution=resolution)
-        channels_service.channels_dao = MagicMock()
-        channels_service.channels_dao.set_pending_choice = AsyncMock()
+        channels_service.set_pending_choice = AsyncMock()
         invoke_fn = AsyncMock()
         respond_fn = AsyncMock()
         dispatcher = InboxDispatcher(
@@ -994,11 +993,9 @@ class TestApprovalAnswer:
         assert str(kwargs["interaction_id"]) == "11111111-1111-4111-8111-111111111111"
         assert kwargs["answer"] == {"approved": True, "message": "Approve"}
         # answered once: the pending choice is cleared so a second click is inert
-        channels_service.channels_dao.set_pending_choice.assert_awaited_once()
+        channels_service.set_pending_choice.assert_awaited_once()
         assert (
-            channels_service.channels_dao.set_pending_choice.call_args.kwargs[
-                "pending_choice"
-            ]
+            channels_service.set_pending_choice.call_args.kwargs["pending_choice"]
             is None
         )
         channels_service.compose_input.assert_not_called()

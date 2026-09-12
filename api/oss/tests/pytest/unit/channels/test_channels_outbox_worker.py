@@ -258,6 +258,9 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def fetch_current_thread(self, **kwargs):
         raise NotImplementedError
 
+    async def fetch_thread_awaiting_choice(self, **kwargs):
+        raise NotImplementedError
+
     async def close_thread(self, **kwargs):
         raise NotImplementedError
 
@@ -653,7 +656,10 @@ async def test_pending_interaction_writes_the_thread_s_pending_choice(
         session_id=session_id,
         turn_id="turn-choice-1",
         record_type="interaction_request",
-        attributes={"id": "int-1", "payload": {"toolCall": {"name": "delete_file"}}},
+        attributes={
+            "id": "int-1",
+            "payload": {"toolCall": {"name": "delete_file"}},
+        },
     )
     records_dao.seed(
         session_id=session_id,

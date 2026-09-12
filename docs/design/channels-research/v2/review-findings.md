@@ -2949,7 +2949,7 @@
 - Origin: `wave-6 CU-C (live QA, 2026-08-17)`
 - Severity: `P0`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6650 + #6653 (approval answer via the sessions respond path; card renders on a park; approve/deny/typed/numbered all resolve; refusing `ask` under message scope stays a minor follow-up).
 - Category: `Security`
 - Summary: A channel turn passes **no permission mode at all** — the request
@@ -2977,7 +2977,7 @@
 - Origin: `wave-6 CU-C (live QA, 2026-08-17)`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Resolution: [takeover 2026-09-08] RESOLVED in PR #6650 + #6653 (full loop live on the Agenta channel: card renders, approve resumes the parked turn, the tool runs, the answer posts back; routed to the agent that asked).
 - Category: `Correctness`
 - Summary: Two defects that together make the approval surface unusable.
