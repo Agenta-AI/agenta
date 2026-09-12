@@ -5,6 +5,7 @@ import {
     deriveMobileRemoteTurnPresentation,
     showRunningElsewhere,
     showTrailingWorkingPulse,
+    showTurnWorkingPulse,
 } from "@/features/chat/turnStatus"
 
 const userTurn = {isUser: true, isStreamingTurn: false}
@@ -28,6 +29,38 @@ describe("showTrailingWorkingPulse", () => {
     it("shows nothing when the run is not active", () => {
         expect(showTrailingWorkingPulse(false, [userTurn, settledAssistant])).toBe(false)
         expect(showTrailingWorkingPulse(false, [])).toBe(false)
+    })
+})
+
+describe("showTurnWorkingPulse", () => {
+    const withContent = (
+        turn: {isUser: boolean; isStreamingTurn: boolean},
+        hasContent: boolean,
+    ) => ({
+        ...turn,
+        status: {hasContent},
+    })
+    const live = {waitingForInput: false}
+
+    // The regression (#6548): the pulse vanished the moment the reply had any content, so the
+    // rest of the run — reasoning, tool calls, pauses between paragraphs — read as idle.
+    it("keeps the pulse on the streaming turn once it has content", () => {
+        expect(showTurnWorkingPulse(withContent(streamingAssistant, true), live)).toBe(true)
+    })
+
+    it("leaves an empty streaming turn to its loading bubble", () => {
+        expect(showTurnWorkingPulse(withContent(streamingAssistant, false), live)).toBe(false)
+    })
+
+    it("never marks a user turn or a settled turn", () => {
+        expect(showTurnWorkingPulse(withContent(userTurn, true), live)).toBe(false)
+        expect(showTurnWorkingPulse(withContent(settledAssistant, true), live)).toBe(false)
+    })
+
+    it("yields to the hourglass while the run is parked on the user", () => {
+        expect(
+            showTurnWorkingPulse(withContent(streamingAssistant, true), {waitingForInput: true}),
+        ).toBe(false)
     })
 })
 

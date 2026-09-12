@@ -11,9 +11,13 @@ import {Hourglass} from "lucide-react"
 export const TurnStatusLine = ({
     working,
     waitingForInput,
+    className,
 }: {
     working: boolean
     waitingForInput: boolean
+    /** Sizes the pulse for where it sits: the trailing line keeps the bubble height, a line under
+     * a turn's own content sits tighter. */
+    className?: string
 }) => {
     if (waitingForInput) {
         return (
@@ -30,7 +34,7 @@ export const TurnStatusLine = ({
     if (working) {
         return (
             <span role="status" aria-label="Agent is working" className="px-1 py-0.5">
-                <ChatTypingDots />
+                <ChatTypingDots className={className} />
             </span>
         )
     }
