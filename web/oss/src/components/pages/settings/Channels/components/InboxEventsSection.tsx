@@ -1,12 +1,12 @@
 import {useMemo, useState} from "react"
 
+import {formatDay} from "@agenta/shared/utils/dateTime"
 import type {AgentaApi} from "@agentaai/api-client"
 import {Tray} from "@phosphor-icons/react"
 import {Input, Table, Tag} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue} from "jotai"
 
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {channelInboxEventsQueryAtomFamily} from "@/oss/state/channels"
 
 import {ChannelsEmptyState, ChannelsSectionHeader} from "./ChannelsSection"

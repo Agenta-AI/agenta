@@ -1,10 +1,10 @@
 import {useMemo} from "react"
 
+import {formatDay} from "@agenta/shared/utils/dateTime"
 import {PlugsConnected} from "@phosphor-icons/react"
 import {Button, Table, Tag, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {useChannelConnectionsQuery} from "@/oss/state/channels"
 import type {ChannelConnection} from "@/oss/state/channels/schemas"
 
