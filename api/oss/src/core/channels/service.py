@@ -1531,6 +1531,10 @@ class ChannelsService:
                     project_id=project_id,
                     connection_id=resolution.space.connection_id,
                 )
+                if connection is None:
+                    raise ChannelConnectionNotFound(
+                        connection_id=resolution.space.connection_id
+                    )
                 capabilities = await self.fetch_capabilities(
                     channel=connection.channel, connection=connection
                 )
