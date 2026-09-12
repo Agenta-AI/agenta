@@ -1,6 +1,10 @@
 import {PreferencesPage, type ThemePickerProps} from "@agenta/settings-ui"
 import {desktopEscapeHref, writeClassicModeCookie} from "@agenta/shared/hooks"
-import {classicModeEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {
+    channelDebugEnabledAtom,
+    classicModeEnabledAtom,
+    playgroundInspectorEnabledAtom,
+} from "@agenta/shared/state"
 import {useAtom} from "jotai"
 
 /**
@@ -10,6 +14,7 @@ import {useAtom} from "jotai"
 export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
     const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
+    const [channelDebug, setChannelDebug] = useAtom(channelDebugEnabledAtom)
 
     const onClassicModeChange = (enabled: boolean) => {
         setClassicMode(enabled)
@@ -38,6 +43,15 @@ export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
                         "Show controls for inspecting Playground sessions and individual turns.",
                     enabled: inspector,
                     onChange: setInspector,
+                    badge: "DEBUG",
+                },
+                {
+                    key: "channel-debug",
+                    title: "Channel debug",
+                    description:
+                        "Show channel spaces, threads and raw inbox/outbox events on the Channels settings page.",
+                    enabled: channelDebug,
+                    onChange: setChannelDebug,
                     badge: "DEBUG",
                 },
             ]}

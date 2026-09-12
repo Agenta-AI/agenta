@@ -186,6 +186,18 @@ class ChannelAdapterInterface(ABC):
         """Edit in place — the indicator becoming the answer. Offered only
         where the declaration says `rendering.controls.update`."""
 
+    async def signal_activity(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+    ) -> None:
+        """The platform's own "the bot is working" signal (Telegram's typing
+        action), sent again every few seconds while a turn runs. Best-effort
+        and optional: a platform without one leaves this a no-op."""
+
+        return None
+
     # --- discovery ---
 
     @abstractmethod

@@ -1,9 +1,17 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from oss.src.core.channels.dtos import ChannelCapabilities
 from oss.src.core.channels.render.dtos import RenderChoiceOption, RenderItem, RenderPart
+from oss.src.core.channels.render.markdown_html import markdown_to_telegram_html_chunks
 
 INDICATOR_TEXT = "Thinking…"
+# The turn ended and nothing came back: said out loud in the chat, so a failed
+# run is never a placeholder that sits there forever.
+NO_ANSWER_TEXT = (
+    "The agent run failed and produced no answer. Check the session in Agenta."
+)
+# Appended to a partial answer while the turn is still running.
+PROGRESS_CURSOR = " …"
 
 
 def render_indicator(*, capabilities: ChannelCapabilities) -> RenderItem:
@@ -14,11 +22,68 @@ def render_indicator(*, capabilities: ChannelCapabilities) -> RenderItem:
             RenderPart(
                 type="text",
                 text=INDICATOR_TEXT,
-                format=capabilities.rendering.text.format,
+                # plain: the adapter escapes it; only rendered answers are html
+                format=_plain_or_declared(capabilities),
                 indicator=True,
             )
         ]
     )
+
+
+def render_thinking(*, capabilities: ChannelCapabilities, tick: int) -> RenderItem:
+    """The indicator with its dots moving (one to three), edited in place
+    while the turn has produced no text yet."""
+
+    dots = "." * (tick % 3 + 1)
+    return RenderItem(
+        parts=[
+            RenderPart(
+                type="text",
+                text=f"Thinking{dots}",
+                format=_plain_or_declared(capabilities),
+                indicator=True,
+            )
+        ]
+    )
+
+
+def render_progress(*, capabilities: ChannelCapabilities, text: str) -> RenderItem:
+    """The answer so far, edited into the indicator while the turn runs. One
+    item only: the first message's worth, with a cursor; the full result is
+    posted when the turn ends."""
+
+    max_chars = capabilities.rendering.text.max_chars
+    budget = max_chars - len(PROGRESS_CURSOR) if max_chars else 0
+    first = _render_text(capabilities, text, max_chars=budget)[0].parts[0]
+    return RenderItem(
+        parts=[
+            RenderPart(
+                type="text",
+                text=f"{first.text}{PROGRESS_CURSOR}",
+                format=first.format,
+            )
+        ]
+    )
+
+
+def render_no_answer(*, capabilities: ChannelCapabilities) -> RenderItem:
+    return RenderItem(
+        parts=[
+            RenderPart(
+                type="text",
+                text=NO_ANSWER_TEXT,
+                format=_plain_or_declared(capabilities),
+            )
+        ]
+    )
+
+
+def _plain_or_declared(capabilities: ChannelCapabilities) -> str:
+    """html channels escape plain parts themselves; markdown/plain channels
+    take the declared format as before."""
+
+    declared = capabilities.rendering.text.format
+    return "plain" if declared == "html" else declared
 
 
 def render_turn_result(
@@ -39,7 +104,7 @@ def render_turn_result(
     if folded.get("stop_reason") == "paused" and pending_interaction is not None:
         return [_render_pending_interaction(capabilities, pending_interaction)]
 
-    text = _extract_answer_text(folded.get("messages") or [])
+    text = extract_answer_text(folded.get("messages") or [])
 
     return _render_text(capabilities, text)
 
@@ -102,7 +167,7 @@ def _render_pending_interaction(
     )
 
 
-def _extract_answer_text(messages: List[Dict[str, Any]]) -> str:
+def extract_answer_text(messages: List[Dict[str, Any]]) -> str:
     """Only what fold() already surfaced as message content — never a raw
     thought/usage event."""
 
@@ -124,20 +189,20 @@ def _extract_answer_text(messages: List[Dict[str, Any]]) -> str:
 def _render_text(
     capabilities: ChannelCapabilities,
     text: str,
+    *,
+    max_chars: Optional[int] = None,
 ) -> List[RenderItem]:
-    max_chars = capabilities.rendering.text.max_chars
-    chunks = _split_text(text, max_chars) if max_chars else [text]
+    declared = capabilities.rendering.text.format
+    limit = capabilities.rendering.text.max_chars if max_chars is None else max_chars
+    if declared == "html":
+        # The agent wrote Markdown; the html channel gets it rendered into its
+        # tag set, chunked between blocks so no message holds a half tag.
+        chunks = markdown_to_telegram_html_chunks(text, limit)
+    else:
+        chunks = _split_text(text, limit) if limit else [text]
 
     return [
-        RenderItem(
-            parts=[
-                RenderPart(
-                    type="text",
-                    text=chunk,
-                    format=capabilities.rendering.text.format,
-                )
-            ]
-        )
+        RenderItem(parts=[RenderPart(type="text", text=chunk, format=declared)])
         for chunk in chunks
     ]
 

@@ -2,12 +2,17 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * Same contract as the connection edit: an omitted field keeps its stored
+ * value. A policy-only agent edit once reset `is_default` and muted the whole
+ * connection (F91).
+ */
 export interface ChannelAgentEdit {
-    flags?: AgentaApi.ChannelAgentFlags | undefined;
+    flags?: (AgentaApi.ChannelAgentFlags | null) | undefined;
     tags?: (Record<string, AgentaApi.LabelJsonInput | null> | null) | undefined;
     meta?: (Record<string, AgentaApi.FullJsonInput | null> | null) | undefined;
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
     id?: (string | null) | undefined;
-    data: AgentaApi.ChannelAgentData;
+    data?: (AgentaApi.ChannelAgentDataEdit | null) | undefined;
 }

@@ -18,9 +18,12 @@ export const channelConnectionSchema = z
             .object({
                 is_active: z.boolean().optional(),
                 is_verified: z.boolean().optional(),
+                is_hosted: z.boolean().optional(),
             })
+            .passthrough()
             .optional(),
         created_at: z.string().nullable().optional(),
+        deleted_at: z.string().nullable().optional(),
     })
     .passthrough()
 

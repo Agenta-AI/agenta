@@ -2,7 +2,7 @@ import {useMemo} from "react"
 
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {PlugsConnected} from "@phosphor-icons/react"
-import {Button, Table, Tag, Typography} from "antd"
+import {Table, Tag, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
 import {useChannelConnectionsQuery} from "@/oss/state/channels"
@@ -67,12 +67,7 @@ export default function ConnectionsSection() {
             <ChannelsSectionHeader
                 icon={<PlugsConnected size={16} />}
                 title="Connections"
-                description="Installed channel apps. Connections are created from the platform's existing install flow."
-                actions={
-                    <Button size="small" href="/settings?tab=triggers">
-                        Manage connections
-                    </Button>
-                }
+                description="Installed channel apps. Each is connected from an agent's page and answers as that agent."
             />
             <Table<ChannelConnection>
                 className="ph-no-capture"

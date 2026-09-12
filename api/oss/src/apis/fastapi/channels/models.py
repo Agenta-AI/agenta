@@ -128,3 +128,20 @@ class TelegramHostedBindLinkResponse(BaseModel):
     url: str
     # How long the link stays valid, in seconds.
     expires_in_seconds: int
+    # The project's hosted Telegram connection the link binds chats to. The
+    # UI polls this connection's bindings to learn when /start completed.
+    connection_id: UUID
+
+
+class TelegramHostedBinding(BaseModel):
+    # The Telegram chat bound to the connection (a private chat in v1).
+    chat_id: str
+    connection_id: UUID
+
+
+class TelegramHostedBindingsResponse(BaseModel):
+    # The chats a /start has bound to the connection. Empty until the first
+    # bind completes, which is how the connect UI tells "link minted" apart
+    # from "chat connected".
+    count: int
+    bindings: List[TelegramHostedBinding]

@@ -54,6 +54,18 @@ from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
 from .contract.fakes import WellBehavedFakeAdapter
 
 
+def _without_attribution(content):
+    """The turn content minus the "From <who> (...):" parts compose_input
+    puts before each message, for tests about the words themselves."""
+    return [
+        part
+        for part in content
+        if not (
+            part.get("type") == "text" and str(part.get("text", "")).startswith("From ")
+        )
+    ]
+
+
 _LOCATOR = {"team": "T1", "channel": "C1", "thread_ts": "1000.1"}
 
 
@@ -844,7 +856,10 @@ class TestComposeInput:
             event_id=addressing_event.id,
         )
 
-        assert turn_input.content == addressing_event.data.processed.content
+        assert (
+            _without_attribution(turn_input.content)
+            == addressing_event.data.processed.content
+        )
 
     async def test_resolved_choice_reaches_the_agent_without_touching_the_log(self):
         """The seam this package moved: `resolve()` no longer rewrites the
@@ -897,7 +912,7 @@ class TestComposeInput:
             event_id=addressing_event.id,
         )
 
-        assert turn_input.content == [
+        assert _without_attribution(turn_input.content) == [
             {"type": "text", "text": "hey"},
             {"type": "text", "text": "Approve"},
         ]
@@ -1423,7 +1438,7 @@ class TestForwardfillIsThreadScoped:
             project_id=uuid4(), resolution=resolution, event_id=addressing.id
         )
 
-        texts = [part["text"] for part in turn_input.content]
+        texts = [part["text"] for part in _without_attribution(turn_input.content)]
         assert texts == ["earlier in this thread", "~triage now"]
 
 
@@ -1786,3 +1801,75 @@ class TestApprovalAnswers:
         assert result is not None
         assert result.agent.id == default_agent.id
         assert result.answered_interaction_id is None
+
+
+# --- the connection's sender allow-list ("Allowed users") -------------------- #
+
+
+@pytest.mark.asyncio
+async def test_an_allow_list_drops_senders_outside_it_and_empty_means_everyone():
+    from oss.src.core.channels.service import _sender_allowed
+
+    def conn(allowed):
+        return ChannelConnection(
+            id=uuid4(),
+            slug="c",
+            channel="agenta",
+            external_key=uuid4(),
+            data={"allowed_senders": allowed} if allowed is not None else {},
+            flags=ChannelConnectionFlags(is_verified=True),
+        )
+
+    event = _make_event()  # sender id "U1"
+    assert _sender_allowed(conn(None), event) is True
+    assert _sender_allowed(conn([]), event) is True
+    assert _sender_allowed(conn(["U1"]), event) is True
+    assert _sender_allowed(conn([8883745180]), _make_event()) is False
+    assert _sender_allowed(conn(["U2", "U3"]), event) is False
+
+
+@pytest.mark.asyncio
+async def test_resolve_returns_none_for_a_sender_outside_the_allow_list():
+    dao = _make_fake_dao()
+    dao.fetch_connection = AsyncMock(
+        return_value=ChannelConnection(
+            id=uuid4(),
+            slug="conn-1",
+            channel="agenta",
+            external_key=uuid4(),
+            data={"allowed_senders": ["someone-else"]},
+            flags=ChannelConnectionFlags(is_verified=True),
+        )
+    )
+    adapter = MagicMock()
+    adapter.fetch_capabilities = AsyncMock()
+    service = _make_service(dao=dao, adapter=adapter)
+    result = await service.resolve(
+        project_id=uuid4(), connection_id=uuid4(), event=_make_event()
+    )
+    assert result is None
+    dao.get_or_create_space.assert_not_awaited()  # dropped before provisioning
+
+
+# --- who is speaking ---------------------------------------------------------- #
+
+
+def test_attribution_names_the_sender_by_name_username_or_id():
+    from oss.src.core.channels.service import _attribution_part
+
+    assert _attribution_part(
+        {"id": 1000001, "name": "Test User", "username": "testuser"},
+        channel="telegram_hosted",
+    ) == {"type": "text", "text": "From Test User (@testuser, Telegram id 1000001):"}
+    assert _attribution_part(
+        {"id": 42, "username": "testuser"}, channel="telegram"
+    ) == {
+        "type": "text",
+        "text": "From @testuser (Telegram id 42):",
+    }
+    assert _attribution_part({"id": "U1"}, channel="slack") == {
+        "type": "text",
+        "text": "From user U1 (Slack id U1):",
+    }
+    assert _attribution_part({}, channel="slack") is None
+    assert _attribution_part({"id": ""}, channel="agenta") is None

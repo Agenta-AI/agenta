@@ -1,6 +1,7 @@
 import {PreferencesPage} from "@agenta/settings-ui"
 import {
     agentaChannelSurfaceEnabledAtom,
+    channelDebugEnabledAtom,
     classicModeEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "@agenta/shared/state"
@@ -19,6 +20,7 @@ const Preferences = () => {
     const [agentaChannelSurfaceEnabled, setAgentaChannelSurfaceEnabled] = useAtom(
         agentaChannelSurfaceEnabledAtom,
     )
+    const [channelDebugEnabled, setChannelDebugEnabled] = useAtom(channelDebugEnabledAtom)
 
     return (
         <PreferencesPage
@@ -50,6 +52,15 @@ const Preferences = () => {
                     description: "Show the temporary in-browser channel conversation probe.",
                     enabled: agentaChannelSurfaceEnabled,
                     onChange: setAgentaChannelSurfaceEnabled,
+                    badge: "DEBUG",
+                },
+                {
+                    key: "channel-debug",
+                    title: "Channel debug",
+                    description:
+                        "Show channel spaces, threads and raw inbox/outbox events on the Channels settings page.",
+                    enabled: channelDebugEnabled,
+                    onChange: setChannelDebugEnabled,
                     badge: "DEBUG",
                 },
             ]}

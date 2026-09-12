@@ -8,6 +8,7 @@ export {userAtom, setUserAtom} from "./user"
 export {
     activeUserIdAtom,
     agentaChannelSurfaceEnabledAtom,
+    channelDebugEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "./featureFlags"
 export {

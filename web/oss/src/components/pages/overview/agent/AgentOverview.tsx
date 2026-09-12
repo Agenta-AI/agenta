@@ -15,6 +15,8 @@ import UsageSummary from "@/oss/components/UsageSummary"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 
+import AgentChannelsCard from "./AgentChannelsCard"
+
 interface Props {
     appId: string
     /** Used only in the composer's placeholder, so a null name degrades to a generic prompt. */
@@ -69,6 +71,7 @@ const AgentOverview = ({appId, agentName}: Props) => {
     return (
         <AgentOverviewBody
             agentId={appId}
+            channels={<AgentChannelsCard appId={appId} agentName={agentName ?? undefined} />}
             sessionsHref={sessionsHref ?? ""}
             automationSessionsHref={automationSessionsHref}
             onEditConfig={openConfig}

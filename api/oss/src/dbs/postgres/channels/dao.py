@@ -190,6 +190,11 @@ class ChannelsDAO(ChannelsDAOInterface):
             if not connection_dbe:
                 return None
 
+            if connection_dbe.deleted_at is not None:
+                # Already archived: keep the original instant so the agents archived
+                # with it (same timestamp) still come back on unarchive.
+                return map_connection_dbe_to_dto(connection_dbe=connection_dbe)
+
             now = datetime.now(timezone.utc)
 
             connection_dbe.deleted_at = now
@@ -230,9 +235,27 @@ class ChannelsDAO(ChannelsDAOInterface):
             if not connection_dbe:
                 return None
 
+            archived_at = connection_dbe.deleted_at
+
             connection_dbe.deleted_at = None
             connection_dbe.deleted_by_id = None
             connection_dbe.updated_by_id = user_id
+
+            # The mirror of archive's cascade: the agents archived together with
+            # the connection (same instant) come back with it. An agent deleted
+            # on its own, earlier, stays deleted. Without this, a reconnect
+            # after a disconnect recreates the "default" agent and trips the
+            # (connection, slug) unique key on the archived row.
+            if archived_at is not None:
+                await session.execute(
+                    update(ChannelAgentDBE)
+                    .where(
+                        ChannelAgentDBE.project_id == project_id,
+                        ChannelAgentDBE.connection_id == connection_id,
+                        ChannelAgentDBE.deleted_at == archived_at,
+                    )
+                    .values(deleted_at=None, deleted_by_id=None, updated_by_id=user_id)
+                )
 
             await session.commit()
             await session.refresh(connection_dbe)
