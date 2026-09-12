@@ -151,6 +151,19 @@ class LLMCustomProviderKind(str, Enum):
     GEMINI = "gemini"
 
 
+class LLMEndpointProtocol(str, Enum):
+    """The provider family a custom endpoint speaks, i.e. its request/response shape.
+
+    Chat-completions vs responses is deliberately absent: the relay serves
+    `/v1/chat/completions`, `/v1/responses` and `/v1/messages` on every custom endpoint and
+    the harness picks the suffix. Only openai-vs-anthropic changes behaviour. A record
+    written before this field existed has no value and is read as OpenAI-compatible.
+    """
+
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+
+
 # Compatibility names for the existing public Python client.
 StandardProviderKind = LLMStandardProviderKind
 CustomProviderKind = LLMCustomProviderKind
