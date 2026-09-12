@@ -21,15 +21,12 @@ from agenta.sdk.engines.running.errors import (
     InvalidInterfaceURIV0Error,
     MissingConfigurationParameterV0Error,
 )
+from agenta.sdk.utils.embeds import has_embed_markers as _has_embed_markers
 
 # Internal embeds resolution defaults (not user-configurable)
-_EMBEDS_MAX_CHECKS = 20
 _EMBEDS_MAX_DEPTH = 10
 _EMBEDS_MAX_COUNT = 100
 _EMBEDS_ERROR_POLICY = "exception"
-
-# The embed marker key used in configuration dicts
-_AG_EMBED_MARKER = "@ag.embed"
 
 
 def _is_custom_hook_uri(uri: Optional[str]) -> bool:
@@ -98,36 +95,6 @@ def _validate_executable_reference_families(refs: Dict[str, Any]) -> None:
             "Provide exactly one of workflow, application, or evaluator "
             f"references; got {', '.join(populated)}."
         )
-
-
-def _has_embed_markers(config: Any, _depth: int = 0) -> bool:
-    """Check if a configuration contains any @ag.embed markers.
-
-    Traverses the config recursively to detect object embeds (dict keys)
-    or string embeds (substring tokens).
-
-    Args:
-        config: Configuration value to inspect
-        _depth: Current recursion depth (guards against pathological inputs)
-
-    Returns:
-        True if any embed markers are found, False otherwise
-    """
-    if _depth > _EMBEDS_MAX_CHECKS:
-        return False
-
-    if isinstance(config, dict):
-        if _AG_EMBED_MARKER in config:
-            return True
-        return any(_has_embed_markers(v, _depth + 1) for v in config.values())
-
-    if isinstance(config, list):
-        return any(_has_embed_markers(item, _depth + 1) for item in config)
-
-    if isinstance(config, str):
-        return _AG_EMBED_MARKER in config
-
-    return False
 
 
 async def resolve_revision(
