@@ -27,7 +27,7 @@ workspace 01a080e0-77d0-7893-937a-8317bd847299.
 Key code:
 - Backend Telegram: api/oss/src/core/channels/adapters/telegram/ (custom) and
   adapters/telegram_hosted/ (hosted); core/channels/telegram_binding.py +
-  dbs/postgres/channels/telegram_bind_dao.py + migration oss000000030;
+  dbs/postgres/channels/telegram_bind_dao.py + migration oss000000031;
   apis/fastapi/channels/ingress.py (hosted branch) + router.py (bind-link endpoint);
   core/channels/service.py (ensure_hosted_telegram_connection, retarget, disconnect release).
 - Frontend: web/packages/agenta-settings-ui/src/channels/ (ChannelsPage, ChannelConnectFlow,
