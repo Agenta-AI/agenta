@@ -110,6 +110,20 @@ function readJsonResponse(raw: string): JsonRpcResponse {
   }
 }
 
+/**
+ * A request the MCP server answered badly, carrying the HTTP status so a caller can say WHICH
+ * refusal it was. A bare `Error` loses that, and the status is the one thing an operator looks up.
+ */
+export class PiMcpRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+    this.name = "PiMcpRequestError";
+  }
+}
+
 class PiHttpMcpClient {
   private nextId = 1;
   private sessionId: string | undefined;
@@ -138,13 +152,13 @@ class PiHttpMcpClient {
       }),
     });
     if (!response.ok) {
-      throw new Error(`MCP ${method} failed (${response.status})`);
+      throw new PiMcpRequestError(`MCP ${method} failed (${response.status})`, response.status);
     }
     const sessionId = response.headers.get("mcp-session-id");
     if (sessionId) this.sessionId = sessionId;
     const payload = readJsonResponse(await response.text());
     if (payload.error) {
-      throw new Error(payload.error.message ?? `MCP ${method} failed`);
+      throw new PiMcpRequestError(payload.error.message ?? `MCP ${method} failed`, response.status);
     }
     return payload.result;
   }
@@ -215,9 +229,25 @@ export async function registerPiGatewayMcpTools(
 ): Promise<void> {
   const servers = parsePiGatewayMcpConfig(raw);
   const registered = new Set((pi.getAllTools?.() ?? []).map((tool) => tool.name));
+  let connected = 0;
   for (const server of servers) {
     const client = new PiHttpMcpClient(server);
-    const tools = await client.discover();
+    let tools: PiMcpTool[];
+    try {
+      tools = await client.discover();
+    } catch (error) {
+      // NON-FATAL, per server. Pi used to let a failed handshake escape `before_agent_start` and
+      // kill the whole turn, which is both harsher than the ACP harnesses (they run on without
+      // the server) and less informative: the person saw a generic run failure, never the server
+      // name. The runner's acquire-time probe is what tells them; this is the operator's log line.
+      const status = error instanceof PiMcpRequestError ? error.status : undefined;
+      log(
+        `[mcp] warn: server '${server.name}' failed its handshake: ` +
+          `status=${status ?? "none"} reason=${error instanceof Error ? error.message : String(error)}`,
+      );
+      continue;
+    }
+    connected += 1;
     for (const tool of tools) {
       if (!allowsTool(server, tool.name)) continue;
       const name = piMcpToolName(server.name, tool.name);
@@ -238,7 +268,9 @@ export async function registerPiGatewayMcpTools(
       });
     }
   }
-  if (servers.length > 0) log(`registered gateway MCP tools from ${servers.length} server(s)`);
+  if (servers.length > 0) {
+    log(`registered gateway MCP tools from ${connected}/${servers.length} server(s)`);
+  }
 }
 
 export function serializePiGatewayMcpConfig(servers: PiGatewayMcpServer[]): string {
