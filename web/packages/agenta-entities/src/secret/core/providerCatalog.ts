@@ -13,7 +13,13 @@
 
 import {llmAvailableProviders} from "@agenta/shared/utils"
 
-import {PROVIDER_FIELDS, fieldNoteForKind, type ProviderFieldConfig} from "./providerFields"
+import {
+    ENDPOINT_PROTOCOL_FIELD,
+    PROVIDER_FIELDS,
+    fieldNoteForKind,
+    type ProviderChoiceFieldConfig,
+    type ProviderFieldConfig,
+} from "./providerFields"
 import {getEnvNameMap} from "./transforms"
 import {PROVIDER_LABELS, SecretKind} from "./types"
 
@@ -188,6 +194,16 @@ export const credentialFieldsForKind = (kind: string): ProviderFieldConfig[] => 
     }
     return [...fields].sort((a, b) => rank(a) - rank(b))
 }
+
+/**
+ * The kinds whose card declares a protocol. Only the OpenAI-compatible endpoint: every other
+ * credential-set kind is a named cloud deployment whose protocol its own surface fixes.
+ */
+const PROTOCOL_FIELD_KINDS: readonly string[] = ["custom"]
+
+/** The protocol control a kind's card renders, or null for the kinds that declare nothing. */
+export const endpointProtocolFieldForKind = (kind: string): ProviderChoiceFieldConfig | null =>
+    PROTOCOL_FIELD_KINDS.includes(kind) ? ENDPOINT_PROTOCOL_FIELD : null
 
 /**
  * Fields a kind stores but does not render, and which a save must therefore carry back out.

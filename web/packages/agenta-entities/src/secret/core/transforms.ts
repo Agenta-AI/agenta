@@ -16,6 +16,7 @@ import type {LlmProvider} from "@agenta/shared/types"
 
 import {SUBSCRIPTION_PROVIDER_KIND, subscriptionProviderName} from "./subscriptionConnections"
 import {
+    LlmEndpointProtocol,
     PROVIDER_KINDS,
     SecretKind,
     McpStandardProviderKind,
@@ -24,6 +25,7 @@ import {
     type CustomProviderDto,
     type CustomSecretDto,
     type NamedSecretRow,
+    type ProviderVaultRow,
     type SecretResponseDto,
     type StandardProviderDto,
     type McpStandardProviderDto,
@@ -106,7 +108,13 @@ const modelNames = (models: {slug: string; extras?: Record<string, unknown> | nu
         ),
     )
 
-export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => {
+/** The declared protocol on a custom-provider row, or undefined where the record declares none. */
+const storedProtocol = (data: CustomProviderDto): LlmEndpointProtocol | undefined =>
+    data.protocol === LlmEndpointProtocol.Anthropic || data.protocol === LlmEndpointProtocol.Openai
+        ? data.protocol
+        : undefined
+
+export const transformSecret = (secrets: SecretResponseDto[]): ProviderVaultRow[] => {
     return secrets.reduce((acc, secret) => {
         if (secret.kind === SecretKind.ProviderKey) {
             const data = secret.data as StandardProviderDto | McpStandardProviderDto
@@ -164,6 +172,7 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 modelNames: modelNames(data.models),
                 modelKeys: data.model_keys ?? undefined,
                 harnesses: data.harnesses ?? undefined,
+                protocol: storedProtocol(data),
                 version: data.provider.version ?? "",
                 created_at: secret.lifecycle?.created_at ?? "",
             })
@@ -224,7 +233,7 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
             acc.push(row)
         }
         return acc
-    }, [] as LlmProvider[])
+    }, [] as ProviderVaultRow[])
 }
 
 /**
@@ -268,7 +277,7 @@ export const transformStandardProviderPayloadData = (
  * Transform a form-shaped `LlmProvider` into a `CreateSecretDto` suitable
  * for POST/PUT against `/secrets/`.
  */
-export const transformCustomProviderPayloadData = (values: LlmProvider): CreateSecretDto => {
+export const transformCustomProviderPayloadData = (values: ProviderVaultRow): CreateSecretDto => {
     const providerInput = values.provider?.trim() ?? ""
     const providerKind = providerInput
         ? (PROVIDER_KINDS[providerInput] ??
@@ -307,6 +316,7 @@ export const transformCustomProviderPayloadData = (values: LlmProvider): CreateS
                             : {}),
                     })) ?? [],
                 ...(values.harnesses ? {harnesses: values.harnesses} : {}),
+                ...(values.protocol ? {protocol: values.protocol} : {}),
             } as CustomProviderDto,
         },
     }
