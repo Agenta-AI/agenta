@@ -466,7 +466,47 @@ class TestResolveRouting:
 
         assert result is not None
         assert created["thread"].external_key == event.id
-        dao.fetch_current_thread.assert_not_called()
+        # the lookup runs under the event's own key, so a redelivery of this
+        # event finds this thread instead of minting another
+        assert dao.fetch_current_thread.call_args.kwargs["external_key"] == event.id
+
+    async def test_message_scope_redelivery_reuses_the_events_own_thread(self):
+        """The trigger ledger deduplicates on (thread, event); a redelivered
+        event that minted a second thread row would slip past it and run the
+        turn twice."""
+
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        agent = _make_agent(
+            slug="triage",
+            policy=ChannelPolicy(session_scope=ChannelSessionScope.MESSAGE),
+        )
+        event = _make_event(text="~triage do it")
+        existing = ChannelThread(
+            id=uuid4(),
+            space_id=space.id,
+            agent_id=agent.id,
+            external_key=event.id,
+            session_id=str(uuid4()),
+            data=ChannelThreadData(external_locator={}),
+            flags=ChannelThreadFlags(),
+        )
+
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_agent_by_slug = AsyncMock(return_value=agent)
+        dao.count_grants = AsyncMock(return_value=0)
+        dao.fetch_current_thread = AsyncMock(return_value=existing)
+
+        service = _make_service(dao=dao, adapter=adapter)
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        assert result.thread.id == existing.id
+        dao.create_thread.assert_not_called()
 
 
 def _pending_choice(*pairs):
