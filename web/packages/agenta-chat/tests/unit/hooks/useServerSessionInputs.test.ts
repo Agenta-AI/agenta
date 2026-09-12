@@ -587,7 +587,9 @@ describe("useServerSessionInputs", () => {
         async (interaction, policy) => {
             const {closeFreshResponse, inputRef} = await setupRunningElsewhereAdmission()
             const text = `say ${interaction}`
-            act(() => inputRef.current?.setMarkdown(text))
+            act(() => {
+                inputRef.current?.setMarkdown(text)
+            })
             await waitFor(() => expect(inputRef.current?.getMarkdown()).toBe(text))
 
             if (interaction === "Enter") {
@@ -617,7 +619,9 @@ describe("useServerSessionInputs", () => {
 
     it("keeps the draft and shows the failure card when admission is refused elsewhere", async () => {
         const {closeFreshResponse, inputRef} = await setupRunningElsewhereAdmission({refuse: true})
-        act(() => inputRef.current?.setMarkdown("keep this draft"))
+        act(() => {
+            inputRef.current?.setMarkdown("keep this draft")
+        })
         fireEvent.click(await screen.findByRole("button", {name: "Queue"}))
 
         await screen.findByTitle("Message wasn't sent — try again.")

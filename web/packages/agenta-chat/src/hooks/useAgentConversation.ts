@@ -101,6 +101,7 @@ import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
 import {useApprovalDock, type ApprovalDock} from "./useApprovalDock"
+import type {ComposerAttachment} from "./useComposerAttachments"
 import {useFileActivityDetector} from "./useFileActivityDetector"
 import {useMountGeneration} from "./useMountGeneration"
 import {useServerSessionInputs} from "./useServerSessionInputs"
@@ -118,6 +119,11 @@ export interface SendInput {
     files?: File[]
     /** Prebuilt file parts (server-uploaded attachment references) — appended after `files`. */
     parts?: FileUIPart[]
+    /**
+     * The composer entries behind `parts`. Carried with the send so a refusal can put them back
+     * in the tray; without them a refused send with files can only keep its transcript row.
+     */
+    stagedFiles?: ComposerAttachment[]
 }
 
 /** The pure scan result of a rewind request; the skin renders any confirm UI and then calls
@@ -150,8 +156,9 @@ export interface UseAgentConversationArgs {
     sharedReaderRunning?: boolean
     /** Timestamp of the liveness snapshot behind `sharedReaderRunning`. */
     sharedReaderLivenessUpdatedAt?: number
-    /** Hand a late-refused send back to the composer; return whether it took the text. */
-    restoreRefusedSend?: (message: {text: string}) => boolean | Promise<boolean>
+    /** Hand a late-refused send back to the composer; return whether it took the text (and the
+     * staged files it carried). See `restoreRefusedSend` in `@agenta/chat/assets`. */
+    restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
      * silently folded every client tool into the plain "used N tools" group, leaving the run
@@ -1214,7 +1221,7 @@ export const useAgentConversation = ({
     }, [sessionId])
 
     const send = useCallback(
-        async ({text, files, parts}: SendInput) => {
+        async ({text, files, parts, stagedFiles}: SendInput) => {
             const trimmed = text.trim()
             const fileObjs = files ?? []
             const refParts = parts ?? []
@@ -1232,7 +1239,7 @@ export const useAgentConversation = ({
             clearSessionTurnId(sessionId)
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the release gate.
-            await submit({text: trimmed, fileParts})
+            await submit({text: trimmed, fileParts, stagedFiles})
             // The message left the composer — drop its persisted draft (per-session store).
             composerDraftBySession.delete(sessionId)
         },
@@ -1240,14 +1247,14 @@ export const useAgentConversation = ({
     )
 
     const steerInput = useCallback(
-        async ({text, files, parts}: SendInput) => {
+        async ({text, files, parts, stagedFiles}: SendInput) => {
             const trimmed = text.trim()
             const fileObjs = files ?? []
             const refParts = parts ?? []
             if (!trimmed && fileObjs.length === 0 && refParts.length === 0) return
             const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
             const merged = [...(encoded?.parts ?? []), ...refParts]
-            await steer({text: trimmed, fileParts: merged.length ? merged : undefined})
+            await steer({text: trimmed, fileParts: merged.length ? merged : undefined, stagedFiles})
             composerDraftBySession.delete(sessionId)
         },
         [sessionId, steer],
