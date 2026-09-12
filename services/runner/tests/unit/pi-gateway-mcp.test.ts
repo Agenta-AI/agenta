@@ -96,4 +96,46 @@ describe("Pi gateway MCP extension", () => {
       /MCP tool name collision/,
     );
   });
+  it("keeps the turn alive when a server fails its handshake, naming it in the log", async () => {
+    // OR32. Pi used to let the refusal escape `before_agent_start` and kill the whole turn: the
+    // person saw a generic run failure and never the server name. One broken server must cost
+    // only its own tools, exactly as it does on the ACP harnesses.
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      if (String(url).includes("/broken")) {
+        return new Response("not implemented", { status: 501 });
+      }
+      const result = { tools: [{ name: "echo", inputSchema: { type: "object" } }] };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result }), { status: 200 });
+    }) as typeof fetch;
+    const raw = serializePiGatewayMcpConfig([
+      {
+        name: "broken",
+        url: "https://api.example.test/gateways/mcps/custom/broken",
+        headers: { "X-AG-Credentials": "short-lived-gateway-token" },
+        policy: { tools: { mode: "all" } },
+      },
+      {
+        name: "healthy",
+        url: "https://api.example.test/gateways/mcps/custom/healthy",
+        headers: { "X-AG-Credentials": "short-lived-gateway-token" },
+        policy: { tools: { mode: "all" } },
+      },
+    ]);
+    const registered: string[] = [];
+    const logs: string[] = [];
+    await registerPiGatewayMcpTools(
+      { registerTool: (tool: any) => registered.push(tool.name), getAllTools: () => [] },
+      raw,
+      (message) => logs.push(message),
+    );
+
+    assert.deepEqual(registered, ["mcp__healthy__echo"]);
+    assert.ok(
+      logs.some((line) =>
+        line.startsWith("[mcp] warn: server 'broken' failed its handshake: status=501"),
+      ),
+      logs.join("\n"),
+    );
+    assert.ok(logs.some((line) => line.includes("from 1/2 server(s)")), logs.join("\n"));
+  });
 });
