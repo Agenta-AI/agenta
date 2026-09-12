@@ -5,6 +5,10 @@ The graph/specification review that `waves.md` requires before any node work sta
 Verified against `origin/main` on 14 August 2026. Four blockers, four gaps, and the facts a
 node will otherwise have to rediscover.
 
+The dispositions below were written at planning time and are updated here with what the
+delivered implementation actually did. Where a delivered fact contradicts the review text
+further down, the disposition table wins; the review text is kept as the evidence it was.
+
 ---
 
 ## Disposition after Wave 1 planning review
@@ -12,13 +16,14 @@ node will otherwise have to rediscover.
 | Finding | Disposition |
 | --- | --- |
 | B1 | Resolved: `entities.md` is canonical; item 9 is decided; existing `records`, new `measurements`, existing `meters`, and `wallet_*` are the only Wave 1 vocabulary. |
-| B2 | Resolved, then corrected post-implementation: wallet tables are EE-only. Planning reserved `core_ee` `ee0000000006` after `ee0000000005`, expecting sandbox-metering Track B/C to occupy `ee0000000004`/`ee0000000005` first; those revisions exist only on unmerged sandbox-metering draft branches and do not resolve on this base's `core_ee` chain (head `ee0000000003`). **Delivered as an approved deviation:** `core_ee` `ee0000000004` (`down_revision = "ee0000000003"`). The sandbox-metering drafts must renumber past `ee0000000004` when they land. Measurements use `tracing_ee` revision `ee0000000002` after `ee0000000001`, unchanged from the plan. |
-| B3 | Resolved: `WP-1-01` implements the non-strict no-hold `check` and its tests. |
+| B2 | Resolved, then corrected post-implementation: wallet tables are EE-only. Planning reserved `core_ee` `ee0000000006` after `ee0000000005`, expecting sandbox-metering Track B/C to occupy `ee0000000004`/`ee0000000005` first; those revisions exist only on unmerged sandbox-metering draft branches and do not resolve on this base's `core_ee` chain (head `ee0000000003`). **Delivered as an approved deviation:** `core_ee` `ee0000000004` (`down_revision = "ee0000000003"`). The sandbox-metering drafts must renumber past `ee0000000004` when they land. Measurements use `tracing_ee` revision `ee0000000002` after `ee0000000001`, unchanged from the plan. `WP-1-04` later added `core_ee` `ee0000000005`, the general-balance backfill, which is the current `core_ee` head. |
+| B3 | Resolved: `WP-1-01` implements the non-strict no-hold `check` and its tests. Delivered as `check(*, organization_id) -> bool`: `WP-1-04` dropped the `amount_musd` parameter the first implementation carried and never read, and made the call `async` end to end. The checkpoint boundary keeps the check; it is an account-level read against the floor, not admission control. |
 | B4 | Resolved: fake LLM/MCP paths are wallet-owned acceptance-test support under `api/ee/tests/pytest/acceptance/wallets/fakes/`; they do not edit the gateway-wave fake-provider paths. |
-| G1 | Resolved: `WP-1-00` and reviewed `IM-1-00` create the seed DTO/port commit before implementation worktrees fork. |
-| G3 | Resolved: `WP-1-02` exclusively owns `api/entrypoints/worker_streams.py`; `WP-1-03` implements only the already-registered worker body. |
-| G2 | Resolved: each WP now names its owned paths, migration chain/revision, exact contract, operation order, exclusions, and unit/integration proof. The seed also provides the worker/factory seam that keeps registration independently mergeable. |
+| G1 | Resolved: `WP-1-00` and reviewed `IM-1-00` create the seed DTO/port commit before implementation worktrees fork. The delivered envelopes are `MeasurementCommandV1`/`DebitCommandV1` in `ee/src/core/wallets/contracts.py`, and the three implementation packages built against them unchanged. |
+| G3 | Resolved: `WP-1-02` exclusively owns `api/entrypoints/worker_streams.py`; `WP-1-03` implements only the already-registered worker body. Delivered with a second gate: both streams enter `ALL_STREAMS` only when `is_ee()` is true and `AGENTA_WALLETS_ENABLED` is on, so naming either one in `AGENTA_WORKER_STREAMS` while the flag is off is rejected rather than ignored. |
+| G2 | Resolved: each WP now names its owned paths, migration chain/revision, exact contract, operation order, exclusions, and unit/integration proof. The seed also provides the worker/factory seam that keeps registration independently mergeable. The integration proof was written during the wave but not executed until 12 September 2026; see `nodes/im-1-02-pipeline/acceptance.md` §9 for what passed and the three failures it found. |
 | G4 | Resolved for Wave 1 by item 12’s explicit EE placement decision; the broader store-separation question remains open for a later wave. |
+| New, post-implementation | The feature flag `AGENTA_WALLETS_ENABLED` is not in this review, because it did not exist at planning time. It gates every wallet write while the migrations stay unconditional, which opens a gap this review never considered: organizations created while the flag is off hold no balance row. Tracked as `open-designs.md` item 14. |
 
 The following review text is retained as the evidence for the dispositions above.
 
