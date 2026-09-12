@@ -828,7 +828,12 @@ export const renameSessionAtomFamily = atomFamily((key: string) =>
         // Returned so a caller that revalidates a list next can await the header write first.
         const projectId = get(projectIdAtom)
         return projectId
-            ? setSessionHeader({sessionId: id, projectId, name: title.trim()}).catch(() => {})
+            ? setSessionHeader({
+                  sessionId: id,
+                  projectId,
+                  name: title.trim(),
+                  nameSource: "manual",
+              }).catch(() => {})
             : undefined
     }),
 )
@@ -858,7 +863,35 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
         })
         // Sync to the durable header so other devices/tabs see the label (mirrors rename).
         const projectId = get(projectIdAtom)
-        if (projectId) void setSessionHeader({sessionId: id, projectId, name: title})
+        // `nameSource: "automatic"` — this title is derived from the first message, not
+        // typed by the person, so it must not be remembered as a name they chose. The agent
+        // renames the session over it on the next turn, and that rename has to be allowed
+        // through.
+        //
+        // The server refuses this write when the person has already named the session on
+        // another device, which the local list has not seen yet. Drop the optimistic title
+        // when that happens, rather than showing a title the server rejected until the next
+        // list poll agrees.
+        if (projectId)
+            void setSessionHeader({
+                sessionId: id,
+                projectId,
+                name: title,
+                nameSource: "automatic",
+                // Only a REFUSAL clears the optimistic title. A refusal means the server
+                // holds a name a person chose, so this one is wrong. A network failure
+                // means nobody knows yet, and dropping the title then would blank the row
+                // for no reason.
+                onRefused: () => {
+                    const latest = get(sessionsByAppAtom)
+                    set(sessionsByAppAtom, {
+                        ...latest,
+                        [key]: (latest[key] ?? []).map((s) =>
+                            s.id === id && s.title === title ? {...s, title: undefined} : s,
+                        ),
+                    })
+                },
+            })
     }),
 )
 

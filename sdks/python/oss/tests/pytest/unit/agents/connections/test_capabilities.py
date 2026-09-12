@@ -173,13 +173,13 @@ def test_pi_models_are_a_subset_of_the_shared_catalog():
             assert provider not in supported_llm_models
 
 
-def test_pi_publishes_concrete_gpt_5_6_models_for_both_openai_providers():
-    expected = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
+def test_pi_publishes_current_models_for_both_openai_providers():
+    expected = ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
 
     for harness in ("pi_core",):
         models = HARNESS_CONNECTION_CAPABILITIES[harness].models
         for provider in ("openai", "openai-codex"):
-            assert models[provider][:3] == expected
+            assert models[provider][:4] == expected
             assert "gpt-5.6" not in models[provider]
 
 
@@ -204,3 +204,13 @@ def test_models_round_trip_as_a_plain_dict():
             assert isinstance(provider, str)
             assert isinstance(ids, list)
             assert all(isinstance(model_id, str) for model_id in ids)
+
+
+def test_hosted_subscription_pairs_need_no_new_capability():
+    # A hosted subscription run resolves to `self_managed` plus a provider family the harness
+    # already publishes. If either pair ever closed, every subscription run would fail the
+    # post-resolve capability check, so pin both.
+    for harness, provider in (("pi_core", "openai-codex"), ("codex", "openai")):
+        assert harness_allows_mode(harness, "self_managed") is True
+        assert harness_allows_provider(harness, provider) is True
+        assert harness_allows_pair(harness, provider, "direct") is True

@@ -10,10 +10,13 @@ import type {InlineRename} from "./useInlineRename"
  */
 const InlineRenameInput = ({
     rename,
+    ariaLabel = "Session name",
     className,
     inputRef,
 }: {
     rename: InlineRename
+    /** What the field is called. Names the entity being renamed, not the control. */
+    ariaLabel?: string
     className?: string
     /** For a host that has to re-claim focus after the input mounts (see the nav rail). */
     inputRef?: RefObject<HTMLInputElement | null>
@@ -22,7 +25,7 @@ const InlineRenameInput = ({
         ref={inputRef}
         autoFocus
         value={rename.draft}
-        aria-label="Session name"
+        aria-label={ariaLabel}
         onChange={(event) => rename.setDraft(event.target.value)}
         onBlur={() => void rename.commit()}
         onKeyDown={(event) => {

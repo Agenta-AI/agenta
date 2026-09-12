@@ -155,6 +155,9 @@
       "properties": {
         "enabled":          { "type": "boolean" },
         "apiKey":           { "type": "string", "description": "SUPERTOKENS_API_KEY via Secret." },
+        "env":              { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+        "extraEnv":         { "$ref": "#/$defs/rawEnvList" },
+        "envFrom":          { "$ref": "#/$defs/envFromList" },
         "uriCore":          { "type": "string", "description": "SUPERTOKENS_URI_CORE (override; ignored when bundled)." },
         "application":      { "type": "string", "description": "SUPERTOKENS_APPLICATION." },
         "tenant":           { "type": "string", "description": "SUPERTOKENS_TENANT." },
@@ -284,6 +287,20 @@
           "properties": {
             "enabled":     { "type": "boolean", "description": "Deploy the bundled SeaweedFS StatefulSet." },
             "port":        { "type": ["integer", "string"], "description": "SeaweedFS S3 gateway port (default 8333)." },
+            "ingress": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Optional public route to the bundled S3 gateway, for clients outside the cluster such as a Daytona sandbox. Set store.endpointUrl to the same hostname so every pod hands out that URL.",
+              "if": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] },
+              "then": { "required": ["host"] },
+              "properties": {
+                "enabled":     { "type": "boolean", "description": "Default false." },
+                "className":   { "type": "string", "description": "IngressClass name. Unset leaves the field out and the cluster default applies." },
+                "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+                "host":        { "type": "string", "description": "Hostname for the gateway, for example store.example.com. Required when enabled." },
+                "tls":         { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Passed through verbatim, in the shape the Ingress spec uses." }
+              }
+            },
             "image": {
               "type": "object",
               "additionalProperties": true,
@@ -307,6 +324,19 @@
         "externalUrl": { "type": "string", "description": "AGENTA_RUNNER_INTERNAL_URL override pointing at an external runner." },
         "piAgentDir":  { "type": "string", "description": "PI_CODING_AGENT_DIR for local Pi runs (default /pi-agent); unset means no Agenta extension for the run (the runner logs a warning)." },
         "logLevel":    { "type": "string", "description": "AGENTA_RUNNER_LOG_LEVEL read by the runner service." },
+        "extraEnv":    { "$ref": "#/$defs/rawEnvList", "description": "Raw env entries for the runner. Keep it to one key at a time: a local harness shares this container and can read /proc, which is why the runner's environment is narrow." },
+        "envFrom":     { "$ref": "#/$defs/envFromList", "description": "Whole Secrets or ConfigMaps on the runner. Discouraged: it defeats the narrow-environment guard in tests/test_runner_secret_absence.py." },
+        "host":        { "type": "string", "description": "AGENTA_RUNNER_HOST, the runner's bind address. Default 0.0.0.0. The runner itself defaults to 127.0.0.1, which the kubelet cannot reach, so the probes would fail forever." },
+        "port":        { "type": ["integer", "string"], "description": "AGENTA_RUNNER_PORT and the container port. Default 8765." },
+        "replicas":    { "type": "integer", "minimum": 0 },
+        "fuse": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "FUSE support for the runner's local sandboxes (geesefs mounts the store prefix on the node).",
+          "properties": {
+            "enabled": { "type": "boolean", "description": "Default true. When true and store.enabled is true, the runner container gets the SYS_ADMIN capability and a hostPath mount of /dev/fuse. Set false on a cluster that rejects either, such as GKE Autopilot, and run sandboxes on the Daytona provider instead." }
+          }
+        },
         "liveFrames":  { "type": "boolean", "description": "AGENTA_RUNNER_LIVE_FRAMES; temporary live-frame publication. Defaults to true." },
         "providers": {
           "type": "object",
@@ -398,6 +428,10 @@
         "autoMigrations":          { "type": ["boolean", "string"], "description": "ALEMBIC_AUTO_MIGRATIONS." },
         "cfgPathCore":             { "type": "string", "description": "ALEMBIC_CFG_PATH_CORE." },
         "cfgPathTracing":          { "type": "string", "description": "ALEMBIC_CFG_PATH_TRACING." },
+        "env":                     { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+        "extraEnv":                { "$ref": "#/$defs/rawEnvList" },
+        "envFrom":                 { "$ref": "#/$defs/envFromList" },
+        "hookPhase":               { "type": "string", "enum": ["post", "pre"], "description": "Helm hook phase for the migration Job. 'post' (default) renders post-install,post-upgrade and is required with the bundled PostgreSQL, which does not exist yet at pre-install time. 'pre' renders pre-install,pre-upgrade so the migrations finish before the app pods start; use it with an external database." },
         "activeDeadlineSeconds":   { "type": "integer" },
         "backoffLimit":            { "type": "integer" },
         "ttlSecondsAfterFinished": { "type": "integer" },
@@ -417,7 +451,7 @@
       "additionalProperties": true,
       "properties": {
         "enabled":     { "type": "boolean" },
-        "className":   { "type": "string", "description": "IngressClass name. Default 'traefik'." },
+        "className":   { "type": "string", "description": "IngressClass name. Unset means 'traefik'. An empty string leaves spec.ingressClassName out entirely, for a controller that ignores the field and routes by annotation instead (GKE reacts only to kubernetes.io/ingress.class)." },
         "host":        { "type": "string" },
         "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
         "tls":         { "type": "array", "items": { "type": "object", "additionalProperties": true } },
@@ -425,9 +459,28 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "api":      { "$ref": "#/$defs/ingressPath" },
-            "services": { "$ref": "#/$defs/ingressPath" },
-            "web":      { "$ref": "#/$defs/ingressPath" }
+            "api":       { "$ref": "#/$defs/ingressPath" },
+            "services":  { "$ref": "#/$defs/ingressPath" },
+            "webMobile": { "$ref": "#/$defs/ingressPath", "description": "Mobile web route. The mobile image is built with basePath /m, so keep path at /m unless you rebuild it; pathType is free to change (a managed ingress may need ImplementationSpecific)." },
+            "web":       { "$ref": "#/$defs/ingressPath" }
+          }
+        },
+        "extraPaths": {
+          "type": "array",
+          "description": "Extra routes on ingress.host, appended after the built-in api/services/webMobile/web paths. Use them to reach a Service the chart does not own, for example /llm in front of a gateway.",
+          "items": { "$ref": "#/$defs/ingressExtraPath" }
+        },
+        "extraHosts": {
+          "type": "array",
+          "description": "Extra ingress rules, one per hostname, each with its own path list.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["host", "paths"],
+            "properties": {
+              "host":  { "type": "string" },
+              "paths": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/ingressExtraPath" } }
+            }
           }
         }
       }
@@ -465,6 +518,28 @@
         "pathType": { "type": "string", "enum": ["Exact", "Prefix", "ImplementationSpecific"] }
       }
     },
+    "rawEnvList": {
+      "type": "array",
+      "description": "Raw Kubernetes env entries, rendered verbatim after the chart's own variables, so valueFrom works and a later entry wins. Use it to reach a Secret key the chart does not model.",
+      "items": { "type": "object", "additionalProperties": true, "required": ["name"], "properties": { "name": { "type": "string" } } }
+    },
+    "envFromList": {
+      "type": "array",
+      "description": "Raw Kubernetes envFrom entries (secretRef or configMapRef), rendered verbatim on the container.",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "ingressExtraPath": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "serviceName", "servicePort"],
+      "description": "One extra ingress route pointing at a Service the chart does not own. The Service must already exist in the release namespace.",
+      "properties": {
+        "path":        { "type": "string" },
+        "pathType":    { "type": "string", "enum": ["Exact", "Prefix", "ImplementationSpecific"], "description": "Default Prefix." },
+        "serviceName": { "type": "string" },
+        "servicePort": { "type": ["integer", "string"], "description": "A number renders as port.number, a string as port.name." }
+      }
+    },
     "component": {
       "type": "object",
       "additionalProperties": true,
@@ -484,9 +559,19 @@
           }
         },
         "resources":   { "type": "object", "additionalProperties": true },
+        "extraEnv":    { "$ref": "#/$defs/rawEnvList" },
+        "envFrom":     { "$ref": "#/$defs/envFromList" },
         "env":         { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
         "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
-        "labels":      { "type": "object", "additionalProperties": { "type": "string" } }
+        "labels":      { "type": "object", "additionalProperties": { "type": "string" } },
+        "service": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Knobs for the component's Service object.",
+          "properties": {
+            "annotations": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Annotations on the Service. GKE reads cloud.google.com/backend-config and cloud.google.com/neg here." }
+          }
+        }
       }
     },
     "bundledRedis": {

@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useRef, useState, type RefObject} from "react"
 
+import {getAudioContextCtor} from "./audioContext"
+
 /**
  * Records mic audio via MediaRecorder and hands back a `File` on stop (for the attachment tray).
  * This is the "voice message" mode — the actual audio, sent as an attachment, as opposed to
@@ -42,15 +44,6 @@ const pickMime = (): string => {
 
 const extForMime = (mime: string): string =>
     mime.includes("mp4") ? "m4a" : mime.includes("ogg") ? "ogg" : "webm"
-
-const getAudioContextCtor = (): typeof AudioContext | undefined => {
-    if (typeof window === "undefined") return undefined
-    const w = window as unknown as {
-        AudioContext?: typeof AudioContext
-        webkitAudioContext?: typeof AudioContext
-    }
-    return w.AudioContext ?? w.webkitAudioContext
-}
 
 export interface AudioRecorder {
     supported: boolean

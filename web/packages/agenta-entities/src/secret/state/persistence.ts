@@ -7,8 +7,8 @@
  * every secret-value field is replaced with a truthy sentinel, metadata
  * (names, ids, kinds, models, timestamps) is kept verbatim.
  *
- * The sentinel keeps presence semantics (`!!secret.key`) intact so consumers
- * like the agent playground's model-key badges paint correctly from disk.
+ * The sentinel keeps a restored row from looking blanked; `hasStoredKey`, not `!!key`, is the
+ * presence rule (a write-only record has no value to sentinel).
  * Because restored rows carry sentinels instead of real values,
  * `refetchOnRestore: "always"` is mandatory — exactly one background refetch
  * fires on restore regardless of age, replacing sentinels with live data.

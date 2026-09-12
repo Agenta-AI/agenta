@@ -29,7 +29,7 @@ export interface SessionListPanelProps {
     /** Host verb: the row context menu. Omit on touch surfaces that have no menu. */
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
-    /** Persists a rename; given it, a row renames in place instead of falling through. */
+    /** Supply it and a row renames in place from its menu; omit it and the entry is inert. */
     onRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
     /** Keep the pin affordance visible without hover — touch has none. */
     alwaysShowPin?: boolean

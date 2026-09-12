@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional, List
+from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID, uuid4
 
 from oss.src.core.events.utils import publish_revision_event
@@ -808,6 +809,8 @@ class EvaluatorsService:
         #
         include_archived: Optional[bool] = None,
         #
+        grouping: Optional[RevisionGrouping] = None,
+        #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluatorRevision]:
         workflow_revision_query = (
@@ -830,6 +833,8 @@ class EvaluatorsService:
             workflow_revision_refs=evaluator_revision_refs,
             #
             include_archived=include_archived,
+            #
+            grouping=grouping,
             #
             windowing=windowing,
         )

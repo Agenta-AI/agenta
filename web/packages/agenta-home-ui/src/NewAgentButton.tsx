@@ -75,11 +75,20 @@ export const NewAgentButton = ({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-w-[320px]">
                 <DropdownMenuItem onSelect={onCreateBlank}>
-                    <PlusIcon size={16} />
-                    <span className="flex flex-col py-0.5">
-                        <span className="text-sm text-colorText">Blank agent</span>
-                        <span className="text-xs text-colorTextTertiary">
-                            Configure model, instructions and tools yourself
+                    {/* A tile, like the templates under it: the entries are alternatives to each
+                        other, so they read as one list rather than a button above a list. */}
+                    <span
+                        aria-hidden
+                        className="flex size-7 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-colorTextSecondary"
+                    >
+                        <PlusIcon size={15} />
+                    </span>
+                    <span className="flex min-w-0 flex-col py-0.5">
+                        <span className="truncate text-sm text-colorText">New agent</span>
+                        {/* One line, like the template rows under it: a subtitle that wraps makes
+                            the first entry taller than every entry it is offered beside. */}
+                        <span className="truncate text-xs text-colorTextTertiary">
+                            Start with an empty agent and shape it in chat
                         </span>
                     </span>
                 </DropdownMenuItem>

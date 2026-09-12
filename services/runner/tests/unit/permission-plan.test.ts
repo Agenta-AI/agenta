@@ -214,6 +214,66 @@ describe("effectivePermission rule matching", () => {
     );
   });
 
+  describe.each(permissions.filter((permission) => permission !== undefined))(
+    "explicit spec permission %s",
+    (specPermission) => {
+      it.each(permissions.filter((permission) => permission !== undefined))(
+        "wins over matching legacy harness rule %s",
+        (rulePermission) => {
+          const gate: GateDescriptor = {
+            executor: "relay",
+            toolName: "commit_revision",
+            specPermission,
+            readOnlyHint: false,
+          };
+          const plan: PermissionPlan = {
+            default: "allow",
+            rules: [{ pattern: "commit_revision", permission: rulePermission }],
+          };
+
+          assert.equal(effectivePermission(gate, plan), specPermission);
+          assert.deepEqual(decide(gate, plan, { take: () => undefined }), {
+            kind: expectedVerdict("allow", specPermission, false, undefined),
+          });
+          if (specPermission === "deny") {
+            assert.deepEqual(decide(gate, plan, { take: () => "allow" }), {
+              kind: "deny",
+            });
+          }
+        },
+      );
+    },
+  );
+
+  it.each(modes)(
+    "falls back to general default %s without explicit policy or a matching rule",
+    (defaultMode) => {
+      const plan: PermissionPlan = {
+        default: defaultMode,
+        rules: [{ pattern: "other_tool", permission: "deny" }],
+      };
+      for (const readOnlyHint of hints) {
+        const gate: GateDescriptor = {
+          executor: "relay",
+          toolName: "commit_revision",
+          readOnlyHint,
+        };
+        assert.equal(
+          effectivePermission(gate, plan),
+          expectedPermission(defaultMode, undefined, readOnlyHint),
+        );
+        assert.deepEqual(decide(gate, plan, { take: () => undefined }), {
+          kind: expectedVerdict(
+            defaultMode,
+            undefined,
+            readOnlyHint,
+            undefined,
+          ),
+        });
+      }
+    },
+  );
+
   it("lets serverPermission beat rules", () => {
     assert.equal(
       effectivePermission(
