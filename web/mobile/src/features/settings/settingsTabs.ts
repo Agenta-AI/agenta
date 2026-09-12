@@ -40,6 +40,8 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             // a subscription, not only report against one.
             billingEnabled,
             canShowTools: toolsEnabled,
+            // No channels settings page in this app: the flag stays off here.
+            canShowChannels: false,
             canViewApiKeys: true,
             canViewEvents: true,
             isEE: enterprise,
