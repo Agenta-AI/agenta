@@ -31,10 +31,11 @@ export const ContextSync = () => {
     // someone a blank slate on every reload. A settled answer with no user IS a sign-out though,
     // and holding the old id there would show the next person on this browser the last one's
     // preferences.
+    // `uid`, not `id`: the desktop scopes these by `Session.getUserId()`.
     useEffect(() => {
         if (profilePending) return
-        setActiveUserId(user?.id ?? null)
-    }, [profilePending, user?.id, setActiveUserId])
+        setActiveUserId(user?.uid ?? null)
+    }, [profilePending, user?.uid, setActiveUserId])
 
     // Publish Classic mode as a cookie here too, or a switch flipped on /m would not stick.
     useClassicModeCookieSync()

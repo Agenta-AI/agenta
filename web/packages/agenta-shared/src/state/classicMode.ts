@@ -12,7 +12,9 @@ import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
-import {activeUserIdAtom} from "./featureFlags"
+import type {User} from "../types/user"
+
+import {ACTIVE_USER_ID_KEY, activeUserIdAtom} from "./featureFlags"
 import {userAtom} from "./user"
 
 /**
@@ -46,12 +48,14 @@ const parseBackendTimestamp = (raw: string): number =>
  *
  * Unknown or unparseable is "no", which lands on classic mode — the full app, and the status quo.
  */
-const simplifiedCohortAtom = atom((get) => {
-    const createdAt = get(userAtom)?.created_at
+const isSimplifiedCohort = (user: User | null): boolean => {
+    const createdAt = user?.created_at
     if (!createdAt) return false
     const created = parseBackendTimestamp(createdAt)
     return Number.isNaN(created) ? false : created >= SIMPLIFIED_SIGNUP_CUTOFF
-})
+}
+
+const simplifiedCohortAtom = atom((get) => isSimplifiedCohort(get(userAtom)))
 
 /**
  * The `agenta:onboarding:` prefix is load-bearing — these keys predate this module and hold every
@@ -59,6 +63,18 @@ const simplifiedCohortAtom = atom((get) => {
  * silently resets everyone to their signup-era default.
  */
 const onboardingScopedKey = (userId: string, key: string) => `agenta:onboarding:${userId}:${key}`
+
+/** `atomWithStorage` persists via JSON, so a stored boolean reads back as `"true"` / `"false"`. */
+const readStoredBoolean = (key: string): boolean | null => {
+    const raw = localStorage.getItem(key)
+    if (raw === null) return null
+    try {
+        const parsed = JSON.parse(raw)
+        return typeof parsed === "boolean" ? parsed : null
+    } catch {
+        return null
+    }
+}
 
 /**
  * Deliberately NOT `getOnInit`. It would read storage during the first render, which diverges
@@ -116,6 +132,71 @@ export const advancedNavHiddenAtom = atom((get) => {
     const override = get(navSimplifiedOverrideAtom)
     return override ?? get(navSimplifiedDefaultAtom)
 })
+
+/**
+ * The SETTLED preference, or `null` while it is still unknown. For effects that act on it.
+ *
+ * {@link advancedNavHiddenAtom} cannot answer this. Its override atom hydrates a tick after it
+ * mounts, and until then reports `null` — the same value a user with no explicit choice has. So
+ * during that tick an explicit "Classic mode on" is misread as "no choice", falls through to the
+ * signup-era default, and reads `true` for anyone in the simplified cohort. Both callers act
+ * irreversibly on that: one navigates to `/m`, the other writes the cookie the middleware reads
+ * on the next load. Neither survives to see the corrected value.
+ *
+ * Reading storage directly is exact instead. Effects run client-side and after hydration, so the
+ * `getOnInit` concern that shapes the atoms above does not apply here.
+ */
+export const readSettledAdvancedNavHidden = (user: User | null): boolean | null => {
+    if (typeof window === "undefined") return null
+    const userId = localStorage.getItem(ACTIVE_USER_ID_KEY)
+    if (!userId) return null
+
+    const override = readStoredBoolean(onboardingScopedKey(userId, "nav-simplified-override"))
+    if (override !== null) return override
+
+    if (readStoredBoolean(onboardingScopedKey(userId, "nav-simplified")) === true) return true
+
+    // Only the signup cohort is left to check, and that answer lives on the profile.
+    return user ? isSimplifiedCohort(user) : null
+}
+
+/**
+ * What the gate cookie should say, or `undefined` to leave it alone. `null` means "publish
+ * nothing" — clear it.
+ *
+ * Distinct from {@link readSettledAdvancedNavHidden}, and deliberately so. That one answers
+ * "which surface does this user get", where the signup-era default is as good an answer as a
+ * choice. The gates ask something narrower: both treat `"1"` as the user asking for the desktop
+ * app in as many words, and rank it ABOVE the device heuristic. Only an explicit choice earns
+ * that. An account that predates the switch has classic mode on because nobody ever turned it
+ * off, and publishing `"1"` for them tells the gate a phone should get the desktop app — which
+ * is how every pre-existing account lost `/m`.
+ *
+ * So classic-mode-ON publishes only from the override. The default answers UNKNOWN, and the
+ * device gate decides, exactly as it did before this preference existed.
+ *
+ * Simplified (`"0"`) has no such problem and publishes from any source: it is the cohort the
+ * default was built to route, and `/m` is where they belong however we learned it.
+ */
+export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | null | undefined => {
+    if (typeof window === "undefined") return undefined
+
+    // Storage, not `activeUserIdAtom`: that atom has no `getOnInit` and reads null on the first
+    // render of every page load. Treating that as a sign-out clears the cookie mid-session.
+    const userId = localStorage.getItem(ACTIVE_USER_ID_KEY)
+    if (!userId) return null
+
+    const override = readStoredBoolean(onboardingScopedKey(userId, "nav-simplified-override"))
+    if (override !== null) return override ? "0" : "1"
+
+    if (readStoredBoolean(onboardingScopedKey(userId, "nav-simplified")) === true) return "0"
+
+    // The cohort answer lives on the profile. Until it lands we know nothing new, and a stale
+    // cookie beats no cookie: clearing here would drop a correct answer on every reload.
+    if (!user) return undefined
+
+    return isSimplifiedCohort(user) ? "0" : null
+}
 
 /** The one atom both apps' Preferences pages bind their "Classic mode" switch to. */
 export const classicModeEnabledAtom = atom(

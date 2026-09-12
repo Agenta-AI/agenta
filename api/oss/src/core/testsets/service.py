@@ -1,4 +1,5 @@
 from typing import Dict, Optional, List, Any
+from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID, uuid4
 
 from oss.src.utils.logging import get_module_logger
@@ -937,6 +938,8 @@ class TestsetsService:
         include_archived: Optional[bool] = None,
         include_testcases: Optional[bool] = None,
         #
+        grouping: Optional[RevisionGrouping] = None,
+        #
         windowing: Optional[Windowing] = None,
     ) -> List[TestsetRevision]:
         revision_query = (
@@ -959,6 +962,8 @@ class TestsetsService:
             revision_refs=testset_revision_refs,
             #
             include_archived=include_archived,
+            #
+            grouping=grouping,
             #
             windowing=windowing,
         )

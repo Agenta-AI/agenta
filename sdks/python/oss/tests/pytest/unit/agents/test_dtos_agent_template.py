@@ -18,6 +18,7 @@ from agenta.sdk.agents import (
     BuiltinToolConfig,
     InvalidPermissionDefaultError,
 )
+from agenta.sdk.utils.types import AgentTemplateSchema, build_agent_v0_default
 
 _DEFAULTS = AgentTemplate(instructions="default-md", model="default-model", tools=["d"])
 
@@ -239,6 +240,34 @@ def test_run_selection_defaults():
         "local",
         "allow_reads",
     )
+
+
+@pytest.mark.parametrize("harness", ["pi_core", "claude", "codex"])
+def test_creation_default_allows_for_every_harness_without_changing_fallback(harness):
+    template = build_agent_v0_default()
+    template["harness"]["kind"] = harness
+    config = AgentTemplate.from_params({"agent": template})
+    assert config.harness == harness
+    assert config.permission_default == "allow"
+    assert AgentTemplateSchema().runner.permissions.default == "allow_reads"
+    del template["runner"]["permissions"]
+    assert (
+        AgentTemplate.from_params({"agent": template}).permission_default
+        == "allow_reads"
+    )
+
+
+@pytest.mark.parametrize("harness", ["pi_core", "claude", "codex"])
+@pytest.mark.parametrize("permission", ["allow", "ask", "deny", "allow_reads"])
+def test_existing_permission_survives_harness_selection(harness, permission):
+    template = build_agent_v0_default()
+    template["runner"]["permissions"]["default"] = permission
+    template["harness"]["kind"] = harness
+    assert (
+        AgentTemplate.from_params({"agent": template}).permission_default == permission
+    )
+    assert template["runner"]["permissions"]["default"] == permission
+    assert build_agent_v0_default()["runner"]["permissions"]["default"] == "allow"
 
 
 def test_run_selection_reads_envelope_sections_and_lowercases():

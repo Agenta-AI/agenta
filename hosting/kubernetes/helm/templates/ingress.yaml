@@ -4,7 +4,12 @@
 {{- $servicesEnabled := eq (include "agenta.services.enabled" .) "true" -}}
 {{- $webEnabled := eq (include "agenta.web.enabled" .) "true" -}}
 {{- $webMobileEnabled := eq (include "agenta.webMobile.enabled" .) "true" -}}
-{{- if and (eq (include "agenta.ingress.enabled" .) "true") (or $apiEnabled $servicesEnabled $webEnabled $webMobileEnabled) }}
+{{- $extraPaths := default (list) $ingress.extraPaths -}}
+{{- $extraHosts := default (list) $ingress.extraHosts -}}
+{{- /* The main host rule needs at least one path. Skip it, but still render the Ingress,
+       when the operator disabled every chart component and routes only extra hosts. */ -}}
+{{- $mainHostHasPaths := or $apiEnabled $servicesEnabled $webEnabled $webMobileEnabled (gt (len $extraPaths) 0) -}}
+{{- if and (eq (include "agenta.ingress.enabled" .) "true") (or $mainHostHasPaths (gt (len $extraHosts) 0)) }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -16,12 +21,17 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  ingressClassName: {{ include "agenta.ingress.className" . }}
+  {{- /* Omitted when ingress.className is an empty string, for a controller that ignores the
+         field and routes by annotation instead (GKE). */}}
+  {{- with (include "agenta.ingress.className" .) }}
+  ingressClassName: {{ . }}
+  {{- end }}
   {{- with $ingress.tls }}
   tls:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   rules:
+    {{- if $mainHostHasPaths }}
     - host: {{ include "agenta.ingress.host" . }}
       http:
         paths:
@@ -61,4 +71,21 @@ spec:
                 port:
                   name: http
           {{- end }}
+          {{- /* Extra routes on the same host, for a Service the chart does not own
+                 (for example /llm in front of a gateway). Appended after the built-in
+                 paths. */}}
+          {{- range $extraPaths }}
+          {{- include "agenta.ingress.extraPath" . | nindent 10 }}
+          {{- end }}
+    {{- end }}
+    {{- /* Extra hosts, each with its own path list. Use this for a second hostname
+           that must reach a Service in this namespace. */}}
+    {{- range $extraHosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          {{- include "agenta.ingress.extraPath" . | nindent 10 }}
+          {{- end }}
+    {{- end }}
 {{- end }}

@@ -250,6 +250,49 @@ describe("resolveGateEnabled", () => {
     })
 })
 
+describe("decideDesktopGate — Classic mode vs the device gate", () => {
+    /** A phone whose user has explicitly turned Classic mode on. */
+    const onPhone = (classic: string | undefined, overrides: Partial<GateInput> = {}) => {
+        const i = input({headers: docHeaders(MOBILE_UA), ...overrides})
+        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? classic : undefined)
+        return i
+    }
+
+    it("does not bounce a Classic-mode-on user off a phone", () => {
+        // The regression. The switch in /m writes this cookie and sends the user to /w. If the
+        // device check still fires they arrive and are thrown straight back, and on a phone that
+        // loop has no exit.
+        expect(decideDesktopGate(onPhone("1"))).toEqual({kind: "pass"})
+        expect(decideDesktopGate(onPhone("1", {pathname: "/w/ws1/p/pr1/settings"}))).toEqual({
+            kind: "pass",
+        })
+    })
+
+    it("still sends a phone to /m when Classic mode is off", () => {
+        expect(decideDesktopGate(onPhone("0", {pathname: "/w/ws1/p/pr1/agents"}))).toEqual({
+            kind: "redirect",
+            location: "/m/w/ws1/p/pr1/agents",
+        })
+    })
+
+    it("still sends a phone to /m when the preference is unknown", () => {
+        expect(decideDesktopGate(onPhone(undefined, {pathname: "/w/ws1/p/pr1/agents"}))).toEqual({
+            kind: "redirect",
+            location: "/m/w/ws1/p/pr1/agents",
+        })
+    })
+
+    it("ignores the cookie where the deployment turned the classic gate off", () => {
+        // The kill switch has to mean it: with no classic gate, the cookie carries no authority
+        // and the device gate is the only thing left.
+        expect(
+            decideDesktopGate(
+                onPhone("1", {classicGateEnabled: false, pathname: "/w/ws1/p/pr1/agents"}),
+            ),
+        ).toEqual({kind: "redirect", location: "/m/w/ws1/p/pr1/agents"})
+    })
+})
+
 describe("decideDesktopGate — classic mode", () => {
     /** A desktop browser whose user has Classic mode off, with the device gate switched off. */
     const classicOff = (
@@ -577,6 +620,66 @@ describe("decideMobileGate", () => {
             kind: "redirect",
             location: "/m/w/ws1/p/pr1/sessions",
         })
+    })
+
+    it("bounces a Classic-mode-ON user out of /m, phone included", () => {
+        // The switch says "full desktop app", so it outranks the device heuristic here exactly
+        // as `wantsClassic` does on the desktop half.
+        const i = input({
+            gateEnabled: true,
+            pathname: "/w/ws1/p/pr1/sessions/abc",
+            headers: docHeaders(MOBILE_UA),
+        })
+        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "1" : undefined)
+        expect(decideMobileGate(i)).toEqual({
+            kind: "redirect",
+            location: "/w/ws1/p/pr1/observability?session=abc",
+        })
+
+        // And the desktop half must keep them there, or the two gates loop.
+        expect(decideDesktopGate({...i, pathname: "/w/ws1/p/pr1/observability"})).toEqual({
+            kind: "pass",
+        })
+    })
+
+    it("bounces a Classic-mode-ON user out of /m with the device gate off", () => {
+        const i = input({
+            gateEnabled: false,
+            pathname: "/w/ws1/p/pr1/sessions",
+            headers: docHeaders(MOBILE_UA),
+        })
+        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "1" : undefined)
+        expect(decideMobileGate(i)).toEqual({kind: "redirect", location: "/w/ws1/p/pr1/sessions"})
+    })
+
+    it("keeps a Classic-mode-ON user on /m when they opted in or the classic gate is off", () => {
+        for (const overrides of [{}, {classicGateEnabled: false}]) {
+            const i = input({
+                gateEnabled: true,
+                pathname: "/w/ws1/p/pr1/sessions",
+                headers: docHeaders(MOBILE_UA),
+                ...overrides,
+            })
+            const optedIn = "classicGateEnabled" in overrides ? undefined : "1"
+            i.cookie = (name) =>
+                name === CLASSIC_MODE_COOKIE
+                    ? "1"
+                    : name === MOBILE_OPTIN_COOKIE
+                      ? optedIn
+                      : undefined
+            expect(decideMobileGate(i)).toEqual({kind: "pass"})
+        }
+    })
+
+    it("never bounces a Classic-mode-ON user off an OAuth landing", () => {
+        const i = input({
+            gateEnabled: true,
+            pathname: "/auth/callback/google",
+            search: "?code=abc",
+            headers: docHeaders(MOBILE_UA),
+        })
+        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "1" : undefined)
+        expect(decideMobileGate(i)).toEqual({kind: "pass"})
     })
 
     it("still bounces a desktop UA out of /m when the classic gate is disabled", () => {

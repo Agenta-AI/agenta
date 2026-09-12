@@ -1,0 +1,45 @@
+---
+title: "Sandboxes and security"
+sidebar_label: "Sandboxes and security"
+description: "Select an agent sandbox and declare its network, filesystem, and enforcement policy."
+sidebar_position: 17
+---
+
+The sandbox is where an agent reads and writes files, runs commands, and loads skill assets. Agenta supports `local` and `daytona`; a deployment can restrict either provider.
+
+```json
+{
+  "sandbox": {
+    "kind": "daytona",
+    "permissions": {
+      "network": {
+        "mode": "allowlist",
+        "allowlist": ["203.0.113.0/24"]
+      },
+      "filesystem": "readonly",
+      "enforcement": "strict"
+    },
+    "extras": {}
+  }
+}
+```
+
+## Permission fields
+
+| Field          | Values                          | Notes                                                       |
+| -------------- | ------------------------------- | ----------------------------------------------------------- |
+| `network.mode` | `on`, `off`, `allowlist`        | `allowlist` uses CIDR ranges in `network.allowlist`.        |
+| `filesystem`   | `on`, `readonly`, `off`, `null` | Currently declared but not enforced.                        |
+| `enforcement`  | `strict`, `best_effort`         | `strict` fails when the provider cannot apply the boundary. |
+
+An omitted `permissions` object means no declared boundary. It is not equivalent to an explicit deny policy.
+
+## Layers of control
+
+Sandbox permissions limit the environment. `runner.permissions` controls whether resolved tools execute. `harness.permissions` controls supported harness built-ins. Apply all three layers according to the task's risk.
+
+## Persistence
+
+A session can reuse its sandbox working directory across turns, but retention depends on provider and deployment configuration. Persist important outputs outside the sandbox using attachment or application storage APIs.
+
+For self-hosted deployments, the operator is responsible for network routing, runner isolation, sandbox provider credentials, retention, and host access. See the self-hosting guides for provider setup.

@@ -10,5 +10,5 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface SessionRecordQueryRequest {
     session_id: string;
-    windowing?: AgentaApi.SessionTranscriptWindowing | undefined;
+    windowing?: AgentaApi.SessionTranscriptWindowing | null;
 }

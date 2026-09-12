@@ -591,6 +591,49 @@ export interface ModelCredential {
  *   that may appear here.
  * - `credentials` are the secrets, each one typed as above.
  */
+/**
+ * The harness login a hosted subscription connection delivers, in Pi's own `auth.json` credential
+ * shape (`@earendil-works/pi-ai`, `utils/oauth/types.ts`). `expires` is absolute epoch
+ * milliseconds, which is what every comparison in this runner and in Pi reads.
+ *
+ * It is a CREDENTIAL. It never enters a log line, an error message, a trace, or a status body.
+ */
+export interface SubscriptionLogin {
+  type: string;
+  access: string;
+  refresh: string;
+  expires: number;
+  accountId?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * A hosted subscription connection delivered with the run, instead of an API key.
+ *
+ * `credentialMode` stays `runtime_provided` for these runs — the harness still authenticates from
+ * its own login file rather than an environment key — but the login no longer comes from an
+ * operator mount on the runner box. The API sends it here, the runner materializes it into a
+ * per-connection agent dir before the harness starts, and pushes a refreshed one back.
+ *
+ * The two counters are different questions and only one of them is identity:
+ *
+ * - `generation` changes when the USER signs in again, which invalidates every session built on
+ *   the old login. It is a session-fingerprint input.
+ * - `version` changes on every stored login change, a background refresh included. It is NOT a
+ *   fingerprint input, so a refresh keeps warm sessions warm. It is the version a push-back and a
+ *   failure report quote back to the API, so the API can answer whether this run used a stale one.
+ */
+export interface ModelConnectionSubscription {
+  /** The vault secret row's id. Also the per-connection agent-dir name; a path segment only. */
+  id: string;
+  slug: string;
+  /** The product family, e.g. `chatgpt`. */
+  provider: string;
+  version: number;
+  generation: number;
+  login: SubscriptionLogin;
+}
+
 export interface ModelConnection {
   provider: string;
   deployment: string;
@@ -603,6 +646,12 @@ export interface ModelConnection {
   credentialMode: "env" | "runtime_provided" | "none";
   environment?: Record<string, string>;
   credentials: ModelCredential[];
+  /**
+   * Present only for a hosted subscription run. Its presence is what separates the two
+   * `runtime_provided` shapes: WITH it the login rides the request and the run is allowed on
+   * Daytona; WITHOUT it the run reads the operator's own mount and stays local, unchanged.
+   */
+  subscription?: ModelConnectionSubscription;
 }
 
 /**
@@ -732,6 +781,10 @@ export interface AgentRunRequest {
    * guidance.
    */
   platformInstructions?: string;
+  /** SDK-rendered context for this turn, added to the harness prompt after history selection.
+   * Refreshed on warm continuations and excluded from environment identity and desired state.
+   */
+  turnContext?: string;
   /**
    * Compatibility input for SDKs deployed before `platformInstructions`. The new scalar field
    * wins when both are present so generated guidance is never delivered twice.

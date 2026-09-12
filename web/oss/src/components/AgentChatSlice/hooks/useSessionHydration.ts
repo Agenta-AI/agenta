@@ -6,6 +6,7 @@ import {
     reconcileInteractionRowStates,
     type SessionTranscript,
 } from "@agenta/chat/assets"
+import {useMountGeneration} from "@agenta/chat/hooks"
 import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
 import {
@@ -161,6 +162,12 @@ export const useSessionHydration = ({
      */
     pendingResumeRef: MutableRefObject<unknown>
 }) => {
+    // Declared FIRST, so its effect re-arms before any effect below can capture a generation.
+    // The session registry preserves the same `Chat` across a remount, so an adopter that outlived
+    // its mount still writes into the CURRENT transcript with a snapshot from before the remount,
+    // and passes its own watermark guard while doing so. Every asynchronous chain below captures a
+    // generation and re-checks it immediately before the adoption or persistence write.
+    const mount = useMountGeneration()
     // Cache-first — when this tab opens with no locally-cached messages (a session this browser
     // never ran, or after a storage clear), hydrate once from the server (`queryRecords` → v6
     // messages) and seed. Locally-cached sessions skip the fetch, so no regression for own runs.
@@ -187,7 +194,23 @@ export const useSessionHydration = ({
      * record log has grown past what we're rendering. Returns whether it adopted.
      */
     const adoptServerTranscript = useCallback(
-        (transcript: unknown, {armJump = true} = {}): boolean => {
+        (
+            transcript: unknown,
+            {
+                armJump = true,
+                generation,
+            }: {
+                armJump?: boolean
+                /**
+                 * The generation of the mount that STARTED the read this transcript came from.
+                 * Required, not optional: a caller that forgets one would fail open, and the whole
+                 * point is that an adopter which outlived its mount still holds a working
+                 * `setMessages` and a working persistence atom.
+                 */
+                generation: number
+            },
+        ): boolean => {
+            if (!mount.isCurrent(generation)) return false
             if (!isSessionTranscript(transcript)) return false
             const {messages: serverMsgs, recordCount, sequenceCursor, interactionRows} = transcript
             const adopt = shouldAdoptServerTranscript({
@@ -238,6 +261,7 @@ export const useSessionHydration = ({
         // on it. `armJump` (useCallback []) and `stickRef` (useRef) are stable for the life of the
         // conversation.
         [
+            mount,
             sessionId,
             messagesRef,
             busyRef,
@@ -295,6 +319,7 @@ export const useSessionHydration = ({
         // StrictMode's mount→unmount→mount cycle re-runs the fetch (the first run is cancelled)
         // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
+        const generation = mount.capture()
         // Post-restore revalidation: the first result may be the disk-restored log (paints
         // instantly); adopt the background refetch when it lands. The refetch can land BEFORE the
         // promise handler below runs (both are microtasks racing), and `messagesRef` only catches
@@ -304,7 +329,7 @@ export const useSessionHydration = ({
         readLog((fresh) => {
             if (cancelled) return
             // The restore said "no records" but the server has some — clear the notice.
-            if (adoptServerTranscript(fresh)) {
+            if (adoptServerTranscript(fresh, {generation})) {
                 adopted = true
                 setHydratedEmpty(false)
             }
@@ -319,7 +344,7 @@ export const useSessionHydration = ({
                     if (!adopted) setHydratedEmpty(true)
                     return
                 }
-                adoptServerTranscript(transcript)
+                adoptServerTranscript(transcript, {generation})
             })
             .finally(() => {
                 if (!cancelled) setIsHydrating(false)
@@ -327,7 +352,9 @@ export const useSessionHydration = ({
         return () => {
             cancelled = true
         }
-        // Seed once per mounted session tab; `sessionId` is stable for this instance.
+        // Seed once per mounted session tab; `sessionId` is stable for this instance. The adopter
+        // and the generation are read through the closure on purpose: adding them here would
+        // restart the hydration fetch whenever the adopter's identity changed.
     }, [sessionId, readLog])
 
     // SWR revalidate-on-open: a cached session paints instantly from localStorage; in the background
@@ -343,9 +370,10 @@ export const useSessionHydration = ({
         // As with the hydration effect above: no persistent ref, so StrictMode's double-mount
         // re-runs the revalidation rather than latching it out.
         let cancelled = false
+        const generation = mount.capture()
         const adopt = (transcript: SessionTranscript | null) => {
             if (cancelled) return
-            adoptServerTranscript(transcript)
+            adoptServerTranscript(transcript, {generation})
         }
         // The first result may itself be the disk-restored records log; the callback re-applies
         // the same guarded adoption when the guaranteed background revalidation lands.
@@ -353,7 +381,8 @@ export const useSessionHydration = ({
         return () => {
             cancelled = true
         }
-        // Once per mounted session tab; `sessionId` is stable for this instance.
+        // Once per mounted session tab; `sessionId` is stable for this instance, and the adopter
+        // is read through the closure for the same reason as the hydration effect above.
     }, [sessionId, readLog])
 
     // ── Follow a run happening somewhere else (#5530) ──────────────────────────
@@ -374,14 +403,15 @@ export const useSessionHydration = ({
         let cancelled = false
         let timer: ReturnType<typeof setTimeout> | undefined
         let delay = REMOTE_RUN_POLL_MS
+        const generation = mount.capture()
         const poll = async () => {
             let grew = false
             try {
                 const adopt = adoptServerTranscriptRef.current
                 const transcript = await readLog((fresh) => {
-                    if (!cancelled && adopt(fresh, {armJump: false})) grew = true
+                    if (!cancelled && adopt(fresh, {armJump: false, generation})) grew = true
                 })
-                if (!cancelled && adopt(transcript, {armJump: false})) grew = true
+                if (!cancelled && adopt(transcript, {armJump: false, generation})) grew = true
             } catch {
                 // `loadSessionMessages` already swallows + logs; keep polling regardless.
             } finally {
@@ -403,7 +433,7 @@ export const useSessionHydration = ({
         }
         // Deliberately NOT keyed on `adoptServerTranscript` — the poll reads it through the ref
         // above, so a re-render can't cancel a pending tick or reset the backoff.
-    }, [runningElsewhere, sessionId])
+    }, [runningElsewhere, sessionId, mount])
 
     // One final catch-up on the falling edge (#5624). The poll above dies with `runningElsewhere`,
     // discarding any pending tick, so a run that ends between ticks would leave the last records
@@ -414,16 +444,17 @@ export const useSessionHydration = ({
         prevRemoteRunRef.current = {sessionId, running: runningElsewhere}
         if (prev.sessionId !== sessionId || !prev.running || runningElsewhere) return
         let cancelled = false
+        const generation = mount.capture()
         const adopt = adoptServerTranscriptRef.current
         readLog((fresh) => {
-            if (!cancelled) adopt(fresh, {armJump: false})
+            if (!cancelled) adopt(fresh, {armJump: false, generation})
         }).then((transcript) => {
-            if (!cancelled) adopt(transcript, {armJump: false})
+            if (!cancelled) adopt(transcript, {armJump: false, generation})
         })
         return () => {
             cancelled = true
         }
-    }, [runningElsewhere, sessionId])
+    }, [runningElsewhere, sessionId, mount])
 
     // ── Stranded first send (#6042) ─────────────────────────────────────────────
     // A restored transcript whose tail is an unanswered user turn, with the backend idle and the
@@ -440,6 +471,7 @@ export const useSessionHydration = ({
         if (!hasStrandedTail(messagesRef.current)) return
         strandedCheckRef.current = "pending"
         let cancelled = false
+        const generation = mount.capture()
         let retryTimer: ReturnType<typeof setTimeout> | undefined
         let attempts = 0
         const check = () => {
@@ -457,6 +489,7 @@ export const useSessionHydration = ({
                         return
                     }
                     strandedCheckRef.current = "done"
+                    if (!mount.isCurrent(generation)) return
                     if (busyRef.current) return
                     if (records.length > 0) return
                     const current = messagesRef.current
@@ -474,7 +507,17 @@ export const useSessionHydration = ({
             // concluded.
             if (strandedCheckRef.current === "pending") strandedCheckRef.current = "idle"
         }
-    }, [isHydrating, busy, liveness, sessionId, messagesRef, busyRef, setMessages, persistMessages])
+    }, [
+        isHydrating,
+        busy,
+        liveness,
+        sessionId,
+        messagesRef,
+        busyRef,
+        setMessages,
+        persistMessages,
+        mount,
+    ])
 
     // ── Push counterpart to that poll: the session watch relay ─────────────────
     // The relay ticks whenever this session's durable records change — a turn resumed on another
@@ -490,6 +533,10 @@ export const useSessionHydration = ({
     const fetchSessionInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
     const refreshFromRecords = useCallback(
         async (transcript?: SessionTranscript): Promise<boolean> => {
+            // Captured before the read below, and re-checked inside `adoptServerTranscript`, which
+            // is where the write actually happens. `onExecuted` calls this from a run stream that
+            // outlives its mount, so the check must sit past the await, not before it.
+            const generation = mount.capture()
             const adoptOrConfirm = (candidate: unknown): boolean => {
                 if (!isSessionTranscript(candidate)) return false
                 const candidateWatermark = candidate.sequenceCursor ?? candidate.recordCount
@@ -498,7 +545,7 @@ export const useSessionHydration = ({
                         ? recordWatermarkRef.current
                         : sequenceWatermarkRef.current
                 return (
-                    adoptServerTranscriptRef.current(candidate, {armJump: false}) ||
+                    adoptServerTranscriptRef.current(candidate, {armJump: false, generation}) ||
                     (currentWatermark ?? 0) >= candidateWatermark
                 )
             }
@@ -539,6 +586,7 @@ export const useSessionHydration = ({
             return adoptOrConfirm(refreshed)
         },
         [
+            mount,
             sessionId,
             busyRef,
             pendingResumeRef,
@@ -549,7 +597,9 @@ export const useSessionHydration = ({
         ],
     )
     const applyInteractionStates = useCallback(
-        (rows: SessionInteractionRowStates) => {
+        (rows: SessionInteractionRowStates, generation: number) => {
+            // Same rule as adoption: the mount that started the read owns the write.
+            if (!mount.isCurrent(generation)) return
             if (
                 shouldSkipRecordsRefresh({
                     busy: busyRef.current,
@@ -569,6 +619,7 @@ export const useSessionHydration = ({
             })
         },
         [
+            mount,
             sessionId,
             busyRef,
             pendingResumeRef,
@@ -579,6 +630,7 @@ export const useSessionHydration = ({
         ],
     )
     const refreshFromInteractions = useCallback(async () => {
+        const generation = mount.capture()
         if (
             shouldSkipRecordsRefresh({
                 busy: busyRef.current,
@@ -589,11 +641,12 @@ export const useSessionHydration = ({
         try {
             await revalidateSessionInteractions(sessionId)
             const rows = await fetchSessionInteractionStates(sessionId)
-            applyInteractionStates(rows)
+            applyInteractionStates(rows, generation)
         } catch {
             // Best-effort fallback; the live relay or next interval can still converge.
         }
     }, [
+        mount,
         sessionId,
         busyRef,
         pendingResumeRef,
@@ -608,10 +661,18 @@ export const useSessionHydration = ({
                 void refreshFromInteractions()
                 return
             }
-            applyInteractionStates(pushed)
+            // Pushed, so it is applied in the same turn it arrives: the live generation IS the
+            // one that owns this write.
+            applyInteractionStates(pushed, mount.capture())
             void revalidateSessionInteractions(sessionId)
         },
-        [sessionId, applyInteractionStates, refreshFromInteractions, revalidateSessionInteractions],
+        [
+            mount,
+            sessionId,
+            applyInteractionStates,
+            refreshFromInteractions,
+            revalidateSessionInteractions,
+        ],
     )
     // `ready` fires on every connect — each tab activation, each return to the foreground. Records
     // can skip a duplicate mount read, but rows must always catch up because a response changes the

@@ -131,7 +131,7 @@ export const ToolLine = ({part}: {part: ToolUIPart}) => {
                     aria-expanded={open}
                     aria-controls={panelId}
                     // The `after` box is the ~44px touch target; the row's own chrome never grows.
-                    className="relative flex min-w-0 items-center gap-2 overflow-hidden border-0 bg-transparent px-0 py-0.5 text-left text-xs after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
+                    className="relative flex min-w-0 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-transparent px-0 py-0.5 text-left text-xs after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
                 >
                     {header}
                 </button>
