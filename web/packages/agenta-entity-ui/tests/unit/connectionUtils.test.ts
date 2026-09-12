@@ -43,6 +43,14 @@ const CAPABILITIES: HarnessCapabilitiesMap = {
             anthropic: ["anthropic/claude-opus-4-7"],
             gemini: ["gemini/gemini-2.5-pro"],
         },
+        // The shipped catalog publishes user MCP servers for Pi too: the Agenta Pi extension is
+        // Pi's MCP client and consumes registered gateway routes.
+        mcp: {
+            user_servers: {
+                connection_types: ["http"],
+                credentials: ["none", "header_secret_refs"],
+            },
+        },
     },
     claude: {
         providers: ["anthropic"],
@@ -197,7 +205,9 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
 describe("connectionUtils: capability gating (inspect-fed)", () => {
     it("shows external MCP authoring only when the harness publishes it", () => {
         expect(harnessSupportsUserMcp(CAPABILITIES, "claude")).toBe(true)
-        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_core")).toBe(false)
+        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_core")).toBe(true)
+        // A harness that publishes no `mcp` block at all still hides the section.
+        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_openai_compat")).toBe(false)
         expect(harnessSupportsUserMcp(null, "claude")).toBe(false)
     })
 
