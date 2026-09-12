@@ -1,7 +1,7 @@
 import re
 import secrets as token_secrets
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.exc import IntegrityError
 
@@ -44,6 +44,7 @@ from oss.src.core.channels.dtos import (
     ChannelThreadCreate,
     ChannelThreadData,
     ChannelThreadQuery,
+    ChannelTriggerKind,
     ChannelTriggerState,
     ChannelTurnInput,
 )
@@ -1339,26 +1340,34 @@ class ChannelsService:
         )
 
         # THREAD grain composes to None where the platform declares no thread
-        # fields (the no-threads case). MESSAGE scope always mints a fresh
-        # thread keyed on this event's own id, since "one session per
-        # message" is the point of that scope.
+        # fields (the no-threads case). MESSAGE scope keys the thread on this
+        # event's own id, since "one session per message" is the point of
+        # that scope; the lookup still runs so a redelivered event finds its
+        # own thread instead of minting a second one (and a second trigger).
         is_message_scope = policy.session_scope is ChannelSessionScope.MESSAGE
 
-        thread = None
         if is_message_scope:
             thread_key = event.id
         else:
-            thread_key = compose_external_key(
-                capabilities,
-                ChannelKeyGrain.THREAD,
-                event.data.external_locator,
-            )
-            thread = await self.channels_dao.fetch_current_thread(
-                project_id=project_id,
-                space_id=space.id,
-                external_key=thread_key,
-                agent_id=agent.id,
-            )
+            if space.kind is ChannelSpaceKind.PRIVATE:
+                # A DM is one conversation: every message in it continues the
+                # same thread, keyed on the space itself, and the reply goes
+                # out top-level (the locator carries no thread_ts). Keying a
+                # DM per message gave the agent no memory between messages
+                # and threaded every answer under the message it answered.
+                thread_key = space.external_key
+            else:
+                thread_key = compose_external_key(
+                    capabilities,
+                    ChannelKeyGrain.THREAD,
+                    event.data.external_locator,
+                )
+        thread = await self.channels_dao.fetch_current_thread(
+            project_id=project_id,
+            space_id=space.id,
+            external_key=thread_key,
+            agent_id=agent.id,
+        )
 
         # A click and a numbered reply converge here: both carry a candidate
         # string, and resolve_pending_choice treats them identically. A click
@@ -1395,6 +1404,26 @@ class ChannelsService:
                 None,
             )
 
+        # The trigger gate. Every message is stored (the fill reads it back
+        # as context), but only some open a turn: a DM, a reply inside a
+        # thread the agent already holds, an answer to a pending choice, or
+        # -- per the effective policy -- a mention, a command, a button.
+        if event.kind is ChannelEventKind.MESSAGE and not _is_trigger(
+            event=event,
+            space=space,
+            policy=policy,
+            thread=thread,
+            capabilities=capabilities,
+        ):
+            log.info(
+                "[CHANNELS] event=%s is not a trigger in space=%s (kind=%s) -- "
+                "stored, no turn",
+                event.id,
+                space.id,
+                space.kind.value,
+            )
+            return None
+
         if thread is None or not thread.flags.is_active:
             thread = await self.channels_dao.create_thread(
                 project_id=project_id,
@@ -1403,9 +1432,13 @@ class ChannelsService:
                     space_id=space.id,
                     agent_id=agent.id,
                     external_key=thread_key,
-                    session_id=str(thread_key or space.external_key),
+                    # a new thread row is a new conversation, `!new` included:
+                    # its session must not resume the closed row's
+                    session_id=str(uuid4()),
                     data=ChannelThreadData(
-                        external_locator=event.data.external_locator,
+                        external_locator=_reply_locator(
+                            space=space, event=event, capabilities=capabilities
+                        ),
                     ),
                 ),
             )
@@ -1463,6 +1496,7 @@ class ChannelsService:
         project_id: UUID,
         resolution: ChannelResolution,
         event_id: UUID,
+        capabilities: Optional[ChannelCapabilities] = None,
     ) -> ChannelTurnInput:
         """What the agent sees.
 
@@ -1485,6 +1519,31 @@ class ChannelsService:
         if not resolution.policy.forwardfill:
             # the turn takes the addressing event alone
             events = [stored for stored in events if stored.id == event_id]
+        else:
+            # The range is read per space (the offset is per thread), so a
+            # fresh thread in a busy channel would otherwise see the whole
+            # channel's history. Keep the thread's own messages: all of them
+            # in a DM, which is one conversation; only those under the same
+            # thread key elsewhere; the addressing event alone under message
+            # scope, where a thread is one message by definition.
+            if capabilities is None:
+                connection = await self.channels_dao.fetch_connection(
+                    project_id=project_id,
+                    connection_id=resolution.space.connection_id,
+                )
+                if connection is None:
+                    raise ChannelConnectionNotFound(
+                        connection_id=resolution.space.connection_id
+                    )
+                capabilities = await self.fetch_capabilities(
+                    channel=connection.channel, connection=connection
+                )
+            events = _filter_thread_events(
+                events,
+                event_id=event_id,
+                resolution=resolution,
+                capabilities=capabilities,
+            )
 
         content: List[dict] = []
         for stored in events:
@@ -1711,6 +1770,94 @@ def resolve_pending_choice(
     return None
 
 
+def _is_trigger(
+    *,
+    event: ChannelInboxEvent,
+    space: ChannelSpace,
+    policy: ChannelEffectivePolicy,
+    thread: Optional[ChannelThread],
+    capabilities: ChannelCapabilities,
+) -> bool:
+    """Does this stored message open a turn? See the gate in `resolve`. An
+    answer to a pending choice needs no case of its own: a choice is pending
+    only on an active thread, and an active thread admits the message."""
+    from oss.src.core.channels.commands import parse_command
+
+    if space.kind is ChannelSpaceKind.PRIVATE:
+        return True
+    if thread is not None and thread.flags.is_active:
+        return True
+    triggers = policy.triggers
+    content = event.data.processed.content
+    if ChannelTriggerKind.MENTION in triggers:
+        named = _parse_sigil(
+            content=content, sigil=capabilities.addressing.sigils.agent
+        )
+        if event.data.addressed or named is not None:
+            return True
+    if ChannelTriggerKind.COMMAND in triggers:
+        if parse_command(content=content, capabilities=capabilities) is not None:
+            return True
+    return False
+
+
+def _reply_locator(
+    *,
+    space: ChannelSpace,
+    event: ChannelInboxEvent,
+    capabilities: ChannelCapabilities,
+) -> Dict[str, Any]:
+    """Where the thread's replies go. In a DM the reply is top-level, so the
+    fields that belong to the platform's thread grain and not to its space
+    grain are dropped (Slack's `thread_ts`); elsewhere the event's locator."""
+    locator = dict(event.data.external_locator or {})
+    if space.kind is ChannelSpaceKind.PRIVATE:
+        keys = capabilities.identity.keys
+        thread_only = set(keys.get(ChannelKeyGrain.THREAD) or []) - set(
+            keys.get(ChannelKeyGrain.SPACE) or []
+        )
+        for field in thread_only:
+            locator.pop(field, None)
+    return locator
+
+
+def _filter_thread_events(
+    events: List[ChannelInboxEvent],
+    *,
+    event_id: UUID,
+    resolution: ChannelResolution,
+    capabilities: ChannelCapabilities,
+) -> List[ChannelInboxEvent]:
+    """The thread's own share of the space's range. Message scope first: a
+    thread is one message there, whatever the space kind. A DM keeps what
+    arrived since its current thread began, so `!new` really starts over.
+    Elsewhere, the events under the same thread key."""
+    if resolution.policy.session_scope is ChannelSessionScope.MESSAGE:
+        return [stored for stored in events if stored.id == event_id]
+    thread = resolution.thread
+    if resolution.space.kind is ChannelSpaceKind.PRIVATE:
+        since = thread.created_at
+        return [
+            stored
+            for stored in events
+            if stored.id == event_id
+            or since is None
+            or (stored.created_at is not None and stored.created_at >= since)
+        ]
+    thread_key = thread.external_key
+    kept = []
+    for stored in events:
+        try:
+            key = compose_external_key(
+                capabilities, ChannelKeyGrain.THREAD, stored.data.external_locator
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            key = None
+        if key == thread_key or stored.id == event_id:
+            kept.append(stored)
+    return kept
+
+
 def _first_text(content: List[dict]) -> str:
     for part in content:
         if isinstance(part, dict) and part.get("type") == "text":
@@ -1752,6 +1899,15 @@ def _channel_defaults(capabilities: ChannelCapabilities):
     )
 
     return ChannelPolicy(
+        # What runs a turn unless a level narrows it: being spoken to (a
+        # mention or an agent sigil), a command, or a button. A DM and a
+        # follow-up inside a thread the agent already answered in are
+        # admitted by `resolve` regardless -- they are addressed by nature.
+        triggers={
+            ChannelTriggerKind.MENTION,
+            ChannelTriggerKind.COMMAND,
+            ChannelTriggerKind.ACTION,
+        },
         session_scope=session_scope,
         backfill=capabilities.fill.backfill.supported,
         forwardfill=capabilities.fill.forwardfill.supported,

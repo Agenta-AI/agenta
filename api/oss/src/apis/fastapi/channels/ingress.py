@@ -263,6 +263,7 @@ class ChannelsIngressRouter:
                 # The adapter's classification. Dropping it made every space a
                 # `group`, so a kind-level grant ("allow in DMs") never matched.
                 space_kind=inbound.space_kind,
+                addressed=inbound.addressed,
             ),
         )
 

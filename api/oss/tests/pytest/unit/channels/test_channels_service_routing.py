@@ -113,7 +113,9 @@ def _make_service(*, dao, adapter):
     )
 
 
-def _make_event(*, event_id=None, text="~triage do it", space_kind=None):
+def _make_event(
+    *, event_id=None, text="~triage do it", space_kind=None, addressed=None
+):
     return ChannelInboxEvent(
         id=event_id or uuid4(),
         connection_id=uuid4(),
@@ -128,6 +130,7 @@ def _make_event(*, event_id=None, text="~triage do it", space_kind=None):
                 sender={"id": "U1"},
             ),
             space_kind=space_kind,
+            addressed=addressed,
         ),
     )
 
@@ -407,7 +410,10 @@ class TestResolveRouting:
         )
 
         service = _make_service(dao=dao, adapter=adapter)
-        event = _make_event(text="no sigil, just talk")
+        # addressed by the platform (an app_mention) with no sigil naming an agent:
+        # the default grant picks one. An unaddressed channel message would not
+        # open a turn at all -- see TestTriggerGate.
+        event = _make_event(text="no sigil, just talk", addressed=True)
 
         result = await service.resolve(
             project_id=uuid4(), connection_id=uuid4(), event=event
@@ -459,7 +465,47 @@ class TestResolveRouting:
 
         assert result is not None
         assert created["thread"].external_key == event.id
-        dao.fetch_current_thread.assert_not_called()
+        # the lookup runs under the event's own key, so a redelivery of this
+        # event finds this thread instead of minting another
+        assert dao.fetch_current_thread.call_args.kwargs["external_key"] == event.id
+
+    async def test_message_scope_redelivery_reuses_the_events_own_thread(self):
+        """The trigger ledger deduplicates on (thread, event); a redelivered
+        event that minted a second thread row would slip past it and run the
+        turn twice."""
+
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        agent = _make_agent(
+            slug="triage",
+            policy=ChannelPolicy(session_scope=ChannelSessionScope.MESSAGE),
+        )
+        event = _make_event(text="~triage do it")
+        existing = ChannelThread(
+            id=uuid4(),
+            space_id=space.id,
+            agent_id=agent.id,
+            external_key=event.id,
+            session_id=str(uuid4()),
+            data=ChannelThreadData(external_locator={}),
+            flags=ChannelThreadFlags(),
+        )
+
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_agent_by_slug = AsyncMock(return_value=agent)
+        dao.count_grants = AsyncMock(return_value=0)
+        dao.fetch_current_thread = AsyncMock(return_value=existing)
+
+        service = _make_service(dao=dao, adapter=adapter)
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        assert result.thread.id == existing.id
+        dao.create_thread.assert_not_called()
 
 
 def _pending_choice(*pairs):
@@ -676,7 +722,10 @@ class TestComposeInput:
             id=uuid4(),
             space_id=space.id,
             agent_id=agent.id,
-            external_key=uuid4(),
+            # keyed the way resolve() keys a real thread: from the locator
+            external_key=compose_external_key(
+                capabilities, ChannelKeyGrain.THREAD, _LOCATOR
+            ),
             session_id="sess-1",
             data=ChannelThreadData(),
             flags=ChannelThreadFlags(),
@@ -1220,3 +1269,310 @@ class TestLifecycleRefusals:
 
         assert result is None
         dao.query_matching_grants.assert_not_awaited()
+
+
+def _active_thread(*, space, agent, external_key):
+    return ChannelThread(
+        id=uuid4(),
+        space_id=space.id,
+        agent_id=agent.id,
+        external_key=external_key,
+        session_id="sess-existing",
+        data=ChannelThreadData(external_locator=_LOCATOR),
+        flags=ChannelThreadFlags(is_active=True),
+    )
+
+
+class TestTriggerGate:
+    """Every message is stored; only some open a turn. The channel defaults
+    admit a mention, a command, or a button. A DM and a reply inside a
+    thread the agent already holds are admitted by nature."""
+
+    def _dao_with_default_agent(self):
+        dao = _make_fake_dao()
+        agent = _make_agent(slug="triage", flags=ChannelAgentFlags(is_default=True))
+        dao.fetch_default_agent = AsyncMock(return_value=agent)
+        dao.fetch_agent = AsyncMock(return_value=agent)
+        dao.create_thread = AsyncMock(
+            side_effect=lambda **kw: ChannelThread(
+                id=uuid4(),
+                space_id=kw["thread"].space_id,
+                agent_id=kw["thread"].agent_id,
+                external_key=kw["thread"].external_key,
+                session_id=kw["thread"].session_id,
+                data=kw["thread"].data,
+                flags=ChannelThreadFlags(),
+            )
+        )
+        return dao, agent
+
+    async def test_an_unaddressed_channel_message_is_stored_but_opens_no_turn(self):
+        dao, _agent = self._dao_with_default_agent()
+        service = _make_service(dao=dao, adapter=WellBehavedFakeAdapter())
+        event = _make_event(text="just chatting", space_kind=ChannelSpaceKind.TOPIC)
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is None
+        dao.create_thread.assert_not_awaited()
+
+    async def test_a_platform_mention_opens_a_turn(self):
+        dao, agent = self._dao_with_default_agent()
+        service = _make_service(dao=dao, adapter=WellBehavedFakeAdapter())
+        event = _make_event(
+            text="what is the status?",
+            space_kind=ChannelSpaceKind.TOPIC,
+            addressed=True,
+        )
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None and result.agent.id == agent.id
+
+    async def test_a_command_opens_a_turn_without_a_mention(self):
+        dao, _agent = self._dao_with_default_agent()
+        service = _make_service(dao=dao, adapter=WellBehavedFakeAdapter())
+        event = _make_event(text="!new", space_kind=ChannelSpaceKind.TOPIC)
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+
+    async def test_a_reply_in_a_thread_the_agent_holds_opens_a_turn(self):
+        dao, agent = self._dao_with_default_agent()
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        thread_key = compose_external_key(
+            capabilities, ChannelKeyGrain.THREAD, _LOCATOR
+        )
+        dao.fetch_current_thread = AsyncMock(
+            return_value=_active_thread(
+                space=space, agent=agent, external_key=thread_key
+            )
+        )
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(
+            text="and one more thing", space_kind=ChannelSpaceKind.TOPIC
+        )
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        dao.create_thread.assert_not_awaited()
+
+    async def test_a_dm_opens_a_turn_and_is_one_conversation(self):
+        dao, _agent = self._dao_with_default_agent()
+        service = _make_service(dao=dao, adapter=WellBehavedFakeAdapter())
+        event = _make_event(text="hi there", space_kind=ChannelSpaceKind.PRIVATE)
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        # keyed on the DM itself, so the next message continues this thread
+        assert result.thread.external_key == result.space.external_key
+        # and the reply goes out top-level, not under the message it answers
+        assert "thread_ts" not in (result.thread.data.external_locator or {})
+        _, kwargs = dao.fetch_current_thread.call_args
+        assert kwargs["external_key"] == result.space.external_key
+
+
+class TestForwardfillIsThreadScoped:
+    async def test_a_fresh_thread_does_not_inherit_the_whole_channel(self):
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        dao = _make_fake_dao()
+        service = _make_service(dao=dao, adapter=adapter)
+        resolution = await TestComposeInput()._make_resolution(
+            forwardfill=True, dao=dao, capabilities=capabilities
+        )
+        addressing = _make_event(text="~triage now")
+        same_thread = _make_event(text="earlier in this thread")
+        other_thread = ChannelInboxEvent(
+            id=uuid4(),
+            connection_id=uuid4(),
+            external_id="evt-other",
+            kind=ChannelEventKind.MESSAGE,
+            origin=ChannelEventOrigin.PUSHED,
+            space_id=resolution.space.id,
+            data=ChannelInboxEventData(
+                external_locator={**_LOCATOR, "thread_ts": "9999.9"},
+                processed=ChannelInboxEventProcessed(
+                    content=[{"type": "text", "text": "unrelated thread"}],
+                    sender={"id": "U2"},
+                ),
+            ),
+        )
+        dao.query_events_since = AsyncMock(
+            return_value=[other_thread, same_thread, addressing]
+        )
+
+        turn_input = await service.compose_input(
+            project_id=uuid4(), resolution=resolution, event_id=addressing.id
+        )
+
+        texts = [part["text"] for part in turn_input.content]
+        assert texts == ["earlier in this thread", "~triage now"]
+
+
+class TestDmConversation:
+    """A DM is one conversation until `!new`, and `!new` really starts over."""
+
+    def _dao(self):
+        dao = _make_fake_dao()
+        agent = _make_agent(slug="triage", flags=ChannelAgentFlags(is_default=True))
+        dao.fetch_default_agent = AsyncMock(return_value=agent)
+        dao.fetch_agent = AsyncMock(return_value=agent)
+        created = []
+
+        async def _create_thread(**kw):
+            thread = ChannelThread(
+                id=uuid4(),
+                space_id=kw["thread"].space_id,
+                agent_id=kw["thread"].agent_id,
+                external_key=kw["thread"].external_key,
+                session_id=kw["thread"].session_id,
+                data=kw["thread"].data,
+                flags=ChannelThreadFlags(is_active=True),
+            )
+            created.append(thread)
+            return thread
+
+        dao.create_thread = AsyncMock(side_effect=_create_thread)
+        return dao, created
+
+    async def test_a_second_dm_message_continues_the_same_thread(self):
+        dao, created = self._dao()
+        service = _make_service(dao=dao, adapter=WellBehavedFakeAdapter())
+        first = _make_event(text="remember blue", space_kind=ChannelSpaceKind.PRIVATE)
+        one = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=first
+        )
+
+        # the DAO now holds the thread the first message created
+        dao.fetch_current_thread = AsyncMock(return_value=created[0])
+        second = _make_event(text="what color?", space_kind=ChannelSpaceKind.PRIVATE)
+        two = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=second
+        )
+
+        assert two.thread.id == one.thread.id
+        assert two.thread.session_id == one.thread.session_id
+        assert dao.create_thread.await_count == 1
+
+    async def test_after_new_the_next_message_gets_a_fresh_session(self):
+        dao, created = self._dao()
+        service = _make_service(dao=dao, adapter=WellBehavedFakeAdapter())
+        first = _make_event(text="hello", space_kind=ChannelSpaceKind.PRIVATE)
+        one = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=first
+        )
+
+        # `!new` closed the thread: the current row for the key is inactive
+        closed = created[0].model_copy(
+            update={"flags": ChannelThreadFlags(is_active=False)}
+        )
+        dao.fetch_current_thread = AsyncMock(return_value=closed)
+        again = _make_event(text="hello again", space_kind=ChannelSpaceKind.PRIVATE)
+        two = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=again
+        )
+
+        assert two.thread.id != one.thread.id
+        assert two.thread.session_id != one.thread.session_id
+        # same key, so the next message after this one continues the NEW thread
+        assert two.thread.external_key == one.thread.external_key
+
+    async def test_a_mention_inside_a_thread_the_agent_holds_still_opens_a_turn(self):
+        dao, _created = self._dao()
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        agent = await dao.fetch_default_agent()
+        # the sigil names this agent, so the slug lookup must find it
+        dao.fetch_agent_by_slug = AsyncMock(return_value=agent)
+        key = compose_external_key(capabilities, ChannelKeyGrain.THREAD, _LOCATOR)
+        dao.fetch_current_thread = AsyncMock(
+            return_value=_active_thread(space=space, agent=agent, external_key=key)
+        )
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(
+            text="~triage and this?", space_kind=ChannelSpaceKind.TOPIC, addressed=True
+        )
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        dao.create_thread.assert_not_awaited()
+
+
+class TestForwardfillScopeOrder:
+    async def test_message_scope_isolates_a_dm_message_too(self):
+        """Message scope means one message per turn, whatever the space kind."""
+        from datetime import datetime, timezone
+
+        from oss.src.core.channels.dtos import (
+            ChannelEffectivePolicy,
+            ChannelPolicyLevel,
+            ChannelResolution,
+            ChannelThreadFlags,
+        )
+        from oss.src.core.channels.service import _filter_thread_events
+
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities).model_copy(
+            update={"kind": ChannelSpaceKind.PRIVATE}
+        )
+        agent = _make_agent()
+        addressing = _make_event(text="second")
+        earlier = _make_event(text="first")
+        now = datetime.now(timezone.utc)
+        earlier = earlier.model_copy(update={"created_at": now})
+        addressing = addressing.model_copy(update={"created_at": now})
+        thread = ChannelThread(
+            id=uuid4(),
+            space_id=space.id,
+            agent_id=agent.id,
+            external_key=addressing.id,
+            session_id="s",
+            data=ChannelThreadData(),
+            flags=ChannelThreadFlags(),
+            created_at=now,
+        )
+        policy = ChannelEffectivePolicy(
+            triggers=set(),
+            session_scope=ChannelSessionScope.MESSAGE,
+            backfill=False,
+            forwardfill=True,
+            decided_by={
+                "triggers": ChannelPolicyLevel.CHANNEL,
+                "session_scope": ChannelPolicyLevel.CHANNEL,
+                "backfill": ChannelPolicyLevel.CHANNEL,
+                "forwardfill": ChannelPolicyLevel.CHANNEL,
+            },
+        )
+        resolution = ChannelResolution(
+            space=space, agent=agent, thread=thread, policy=policy
+        )
+
+        kept = _filter_thread_events(
+            [earlier, addressing],
+            event_id=addressing.id,
+            resolution=resolution,
+            capabilities=capabilities,
+        )
+
+        assert [e.id for e in kept] == [addressing.id]

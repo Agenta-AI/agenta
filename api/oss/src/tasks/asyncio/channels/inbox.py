@@ -350,6 +350,7 @@ class InboxDispatcher:
             project_id=project_id,
             resolution=resolution,
             event_id=event.id,
+            capabilities=capabilities,
         )
 
         turn_id = str(uuid4())
