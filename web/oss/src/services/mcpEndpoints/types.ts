@@ -15,9 +15,10 @@ export interface MCPEndpointRoute {
     headers?: Record<string, string> | null
 }
 
+// GatewayEndpointFilter in api/oss/src/core/gateways/dtos.py.
 export interface MCPToolFilter {
-    include?: string[] | null
-    exclude?: string[] | null
+    allowlist?: string[] | null
+    denylist?: string[] | null
 }
 
 export interface MCPEndpointSettings {

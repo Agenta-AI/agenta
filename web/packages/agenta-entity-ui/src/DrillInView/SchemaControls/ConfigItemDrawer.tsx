@@ -62,6 +62,10 @@ export interface ConfigItemDrawerProps {
     subtitle?: ReactNode
     /** Muted note shown on the left of the footer (e.g. the item's scope). */
     footerNote?: ReactNode
+    /** Why the last Save failed. Replaces the footer note until the next Save. */
+    error?: ReactNode
+    /** Save is in flight (an item whose save does async work before it commits). */
+    saving?: boolean
     /** Discard the draft and dismiss the drawer (Cancel / close button). */
     onCancel: () => void
     /** Commit the draft to the config. */
@@ -95,6 +99,8 @@ export function ConfigItemDrawer({
     badge,
     subtitle,
     footerNote,
+    error,
+    saving = false,
     onCancel,
     onSave,
     saveDisabled = false,
@@ -145,7 +151,11 @@ export function ConfigItemDrawer({
             extra={headerExtra ?? null}
             footer={
                 <div className="flex min-w-0 items-center justify-between gap-3">
-                    {footerNote ? (
+                    {error ? (
+                        <span role="alert" className="min-w-0 text-xs text-[var(--ag-colorError)]">
+                            {error}
+                        </span>
+                    ) : footerNote ? (
                         <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
                             {footerNote}
                         </span>
@@ -158,9 +168,9 @@ export function ConfigItemDrawer({
                         <Button
                             variant="default"
                             onClick={onSave}
-                            disabled={disabled || saveDisabled}
+                            disabled={disabled || saveDisabled || saving}
                         >
-                            {mode === "create" ? "Create" : "Save"}
+                            {saving ? "Saving…" : mode === "create" ? "Create" : "Save"}
                         </Button>
                     </div>
                 </div>
