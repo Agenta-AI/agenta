@@ -41,15 +41,17 @@ harness.
 - **Green.** API gateway acceptance, the mock matrix, API gateway integration, SDK MCP-routing
   acceptance, services gateway-tool integration, and runner gateway-credential acceptance. The
   per-suite counts are in `implementation-status.md`.
-- **Red.** The services acceptance suite `test_agent_gateway_route.py` fails its nine Claude
-  cells, one per LLM-namespace and MCP-namespace pair. Pi and Codex pass every cell. This is OR23,
-  now narrowed to Claude Code.
+- **Green since.** The services acceptance suite `test_agent_gateway_route.py` passes all 27
+  cells, the nine Claude ones included. They failed because the mock MCP server never answered
+  `initialize`, so no spec-compliant client could finish a handshake against it. This was OR23.
 - **Not working.** The dashboard cannot reach the gateway LLM plane at all, because the AI
-  providers page creates a secret and not an endpoint. Open findings: **OR23** (Claude Code native
-  MCP), **OR26** (no dashboard path to any gateway LLM route), **OR28** (per-harness preservation
-  of the refusal envelope), **OR31** (the dashboard offers harness and route combinations the
-  runtime refuses, and Pi has no `MCP servers` row).
-- **Closed since.** **OR27** (the resolve route refuses with the shared
+  providers page creates a secret and not an endpoint. Open findings: **OR26** (no dashboard path
+  to any gateway LLM route), **OR28** (per-harness preservation of the refusal envelope),
+  **OR31** (the dashboard offers harness and route combinations the runtime refuses, and Pi has
+  no `MCP servers` row). All three are dashboard work.
+- **Closed since.** **OR23** (the mock MCP server answers the `initialize` handshake, which is
+  what the nine Claude cells were failing on, and both mock tiers now emit one error envelope),
+  **OR27** (the resolve route refuses with the shared
   `{code, message, retryable, next_step, details}` envelope and the SDK resolver carries it, so a
   refusal reaches the user as a 422 with a code and a sentence), **OR29** (the edit path
   round-trips `provider_key`; the measured mechanism was that it could not set the field, not
@@ -122,5 +124,4 @@ does not exist on this one.
 Wave 4 in `plan.md`, in this order: OR26 (the dashboard must produce a gateway endpoint), then the
 three OR31 surfaces (Pi's missing `MCP servers` row, Claude Code offered on an endpoint it cannot
 use, Codex offered a model key its catalogue rejects). All of it is dashboard work now, since the
-wave's three runtime findings are closed. OR23 and OR28 run alongside rather than in that
-sequence.
+wave's runtime findings are closed. OR28 runs alongside rather than in that sequence.

@@ -28,11 +28,13 @@ explicit static field rewrite; all other supported routes preserve request bytes
 
 ## Harness MCP acceptance
 
-Pi executes `echo` through the builtin, standard, and custom mock routes in full-stack
-acceptance. Codex and Claude Code receive the gateway HTTP-MCP configuration, but neither has a
-deterministic native-MCP exchange with the generic mock LLM; their cases are named non-strict
-expected failures tracked in OR23. `builtin/agenta/run` is validated through an invocation-scoped
-agent/runner path rather than the HTTP mock matrix.
+All three harnesses execute `echo` through the builtin, standard, and custom mock routes in
+full-stack acceptance, 27 cells green. Codex and Claude Code used to fail because the mock MCP
+server answered only `server/discover`, `tools/list` and `tools/call`, so their native clients
+could not complete the `initialize` handshake every MCP session opens with; Pi passed because its
+extension calls `tools/list` directly. The mock now answers the handshake, and no per-harness
+captured fixture was needed. See OR23 in `open-reviews.md`. `builtin/agenta/run` is validated
+through an invocation-scoped agent/runner path rather than the HTTP mock matrix.
 
 ## Verified state as of 2026-09-12
 
@@ -49,12 +51,12 @@ Measured on the branch squashed onto `main`, deployed as an EE development stack
 | SDK acceptance, `test_mcp_gateway_routing_acceptance.py` | 2 passed |
 | Services integration, `test_gateway_http.py` | 11 passed |
 | Runner acceptance, `gateway-credentials-no-provider-secret.test.ts` | 23 passed |
-| Services acceptance, `test_agent_gateway_route.py` | 18 passed, 9 failed |
+| Services acceptance, `test_agent_gateway_route.py` | 27 passed |
 
-The nine failures are every Claude cell of
-`test_agent_harness_calls_echo_through_each_mock_mcp_gateway_route`, one per LLM-namespace and
-MCP-namespace pair, each returning a tool result with no echo marker. Every Pi and every Codex
-cell passes, which narrows OR23 to Claude Code alone on the automated path.
+`test_agent_harness_calls_echo_through_each_mock_mcp_gateway_route` covers every
+LLM-namespace and MCP-namespace pair on every harness: nine Pi, nine Codex, nine Claude. The nine
+Claude cells failed on this date and were fixed the same day by the mock MCP handshake change
+recorded in OR23.
 
 ### The dashboard product path
 
