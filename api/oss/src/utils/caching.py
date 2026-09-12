@@ -40,24 +40,50 @@ _cache_engine = get_cache_engine()
 # HELPERS ----------------------------------------------------------------------
 
 
+AGENTA_CACHE_SCOPE_WIDTH = 12  # minimum width of a scope segment
+
+
+def _scope(
+    value: Optional[str],
+    legacy_truncated: Optional[bool] = False,
+) -> str:
+    """One scope segment (`p:` or `u:`) of a cache key.
+
+    Scope segments used to be cut down to their last 12 characters. Two projects whose
+    ids share that suffix then shared every cache entry in every namespace — including
+    `check_permissions` and `check_action_access`, which decide authorization. Ids are
+    server-generated UUID4s so a caller cannot steer a collision, but one project reading
+    another's cached permission result is not a thing to leave to chance. The id is
+    carried whole now.
+
+    The padding stays: an absent or short id still produces the same fixed-width segment
+    it always did, so key shape is unchanged everywhere the id was not being cut.
+
+    `legacy_truncated` reproduces the pre-change shape and exists only so lock holders
+    can span a rolling deploy — see `oss.src.utils.locking`.
+    """
+    value = value or ""
+
+    if legacy_truncated and len(value) > AGENTA_CACHE_SCOPE_WIDTH:
+        value = value[-AGENTA_CACHE_SCOPE_WIDTH:]
+
+    return value + "-" * (AGENTA_CACHE_SCOPE_WIDTH - len(value))
+
+
 def _pack(
     namespace: Optional[str] = None,
     key: Optional[Union[str, dict]] = None,
     project_id: Optional[str] = None,
     user_id: Optional[str] = None,
     pattern: Optional[bool] = False,
+    legacy_truncated_scope: Optional[bool] = False,
 ) -> str:
-    if project_id:
-        project_id = project_id[-12:] if len(project_id) > 12 else project_id
-    else:
-        project_id = ""
-    project_id = project_id + "-" * (12 - len(project_id))
-
-    if user_id:
-        user_id = user_id[-12:] if len(user_id) > 12 else user_id
-        user_id = user_id + "-" * (12 - len(user_id))
-    else:
-        user_id = "*" if pattern else "-" * 12
+    project_id = _scope(project_id, legacy_truncated_scope)
+    # A pattern with no user scope matches every user, which the fixed-width padding
+    # cannot express — so the wildcard wins over the padded segment in that one case.
+    user_id = (
+        "*" if pattern and not user_id else _scope(user_id, legacy_truncated_scope)
+    )
 
     namespace = namespace or ("" if not pattern else "*")
 
