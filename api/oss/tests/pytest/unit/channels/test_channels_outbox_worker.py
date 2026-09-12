@@ -590,7 +590,7 @@ async def test_pending_interaction_renders_card_from_recorded_tool_call(
         turn_id="turn-5",
         record_type="interaction_request",
         attributes={
-            "id": "0a6f5f2e-1e0c-4a7b-9c5d-1c0d9b2f3e41",
+            "id": "int-1",
             "payload": {
                 "toolCall": {"name": "delete_file", "arguments": {"path": "/x"}}
             },
@@ -632,7 +632,7 @@ async def test_pending_interaction_writes_the_thread_s_pending_choice(
         turn_id="turn-choice-1",
         record_type="interaction_request",
         attributes={
-            "id": "0a6f5f2e-1e0c-4a7b-9c5d-1c0d9b2f3e41",
+            "id": "int-1",
             "payload": {"toolCall": {"name": "delete_file"}},
         },
     )
@@ -659,7 +659,7 @@ async def test_pending_interaction_writes_the_thread_s_pending_choice(
     # the parked interaction the answer must go to, so the click can resume it
     assert (
         stored.data.pending_choice.interaction_id
-        == "0a6f5f2e-1e0c-4a7b-9c5d-1c0d9b2f3e41"
+        == "int-1"
     )
 
 
@@ -682,7 +682,7 @@ async def test_a_second_rendered_choice_replaces_the_first_wholesale(
             turn_id=turn_id,
             record_type="interaction_request",
             attributes={
-                "id": "0a6f5f2e-1e0c-4a7b-9c5d-1c0d9b2f3e41",
+                "id": "int-1",
                 "payload": {"toolCall": {"name": "delete_file"}},
             },
         )

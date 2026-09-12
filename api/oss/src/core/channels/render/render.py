@@ -1,5 +1,4 @@
-from typing import Any, Dict, List, Optional
-from uuid import UUID
+from typing import Any, Dict, List
 
 from oss.src.core.channels.dtos import ChannelCapabilities
 from oss.src.core.channels.render.dtos import RenderChoiceOption, RenderItem, RenderPart
@@ -44,18 +43,6 @@ def render_turn_result(
     return _render_text(capabilities, text)
 
 
-def _interaction_id(value: Any) -> Optional[str]:
-    """The pending interaction's id as the string the inbox later parses with
-    `UUID(...)`; None for anything else, so a malformed id never produces a
-    card whose answer would fail at dispatch and leave the choice pending."""
-    if value is None:
-        return None
-    try:
-        return str(UUID(str(value)))
-    except (ValueError, AttributeError, TypeError):
-        return None
-
-
 def _render_pending_interaction(
     capabilities: ChannelCapabilities,
     pending_interaction: Dict[str, Any],
@@ -68,22 +55,8 @@ def _render_pending_interaction(
 
     tool = pending_interaction.get("tool")
     title = f"Approval needed: {tool}" if tool else "Approval needed"
-    interaction_id = _interaction_id(pending_interaction.get("id"))
-    if interaction_id is None:
-        # Nothing to resume against: a card with buttons would collect an
-        # answer no dispatch can deliver. Say what is pending, offer no choice.
-        return RenderItem(
-            parts=[
-                RenderPart(
-                    type="card",
-                    title=title,
-                    tool=tool,
-                    arguments=arguments if isinstance(arguments, dict) else None,
-                )
-            ],
-            choice=None,
-            interaction_id=None,
-        )
+    interaction_id = pending_interaction.get("id")
+    interaction_id = str(interaction_id) if interaction_id else None
 
     options = [("Approve", "approve"), ("Deny", "deny")]
     choice = [RenderChoiceOption(label=label, token=value) for label, value in options]
