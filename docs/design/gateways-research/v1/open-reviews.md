@@ -694,6 +694,15 @@ than an independent oracle, and no vector can detect a guard that is never calle
 the SDK and the runner only; `api/` has no golden-vector consumer, and
 `api/oss/src/core/webhooks/utils.py:12-21` is a third copy of the same six predicates.
 
+The acceptance suites that do exercise a real socket never run in CI. `AGENTA_GATEWAYS_MOCKS_ENABLED`
+is set in the two development compose files and in `hosting/docker-compose/test.sh` and nowhere else,
+so the PR preview has neither the flag nor the two mock containers. Ten tests across
+`api/oss/tests/pytest/acceptance/gateways/test_llm_gateway_proxy_acceptance.py`,
+`test_mcp_gateway_proxy_acceptance.py` and
+`sdks/python/oss/tests/pytest/acceptance/agents/test_mcp_gateway_routing_acceptance.py` skip there.
+They ran red before they were gated, so the gate costs no coverage, but it does mean every
+real-socket gateway test depends on somebody running the stack by hand.
+
 The missing test is one real path end to end: the real middleware, the real gateway service, a
 migrated database and a controlled upstream, driven with a second tenant present and with a
 sandbox-held credential.
