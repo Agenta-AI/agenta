@@ -32,8 +32,14 @@ const fadeMask = (left: boolean, right: boolean): string => {
 /** Footprint of the inline New session (+): the 28px button plus the 4px it sits off the last chip. */
 const INLINE_ADD_PX = 32
 
-/** Chips' own width. `scrollWidth` can't give it: the scroller is `flex-1`, so a strip with room to
- * spare reports `scrollWidth === clientWidth`, exactly like one filled to the millimetre. */
+/**
+ * The scroller's content width from LAYOUT geometry: the chips, plus the inline (+) while it is
+ * one of them. Never `scrollWidth`, for two reasons. The scroller is `flex-1`, so a strip with room
+ * to spare reports `scrollWidth === clientWidth`, exactly like one filled to the millimetre. And
+ * the chips are motion layout items: while one of their layout animations is in flight (the
+ * strip resized, a chip came or went) they sit on a translate that `scrollWidth` counts as
+ * overflow and offsets do not.
+ */
 const chipsWidth = (el: HTMLElement): number => {
     const first = el.firstElementChild as HTMLElement | null
     const last = el.lastElementChild as HTMLElement | null
@@ -99,13 +105,22 @@ export const SessionTabStrip = ({
     const measureFade = useCallback(() => {
         const el = stripElRef.current
         if (!el) return
-        const overflow = el.scrollWidth - el.clientWidth > 1
+        // ONE metric for every decision below. Reading overflow off `scrollWidth` and the un-pin
+        // slack off offsets let the two disagree whenever a chip layout animation was mid-flight:
+        // the translate made `scrollWidth` say overflow, so the (+) pinned; offsets then said
+        // there was room, so it came back inline; moving it re-projected the chips and the next
+        // measure — run synchronously from the effect below — flipped it again. Dozens of flips
+        // inside one commit chain, and React threw "Maximum update depth exceeded" (#6742).
+        const content = chipsWidth(el)
+        const overflow = content - el.clientWidth > 1
         const left = overflow && el.scrollLeft > 1
-        const right = overflow && el.scrollLeft < el.scrollWidth - el.clientWidth - 1
+        const right = overflow && el.scrollLeft < content - el.clientWidth - 1
         // Chips resize per frame while animating; bail on an unchanged mask to avoid re-rendering.
         setFade((prev) => (prev.left === left && prev.right === right ? prev : {left, right}))
-        // Pin once the chips overflow; un-pin once they leave the button's footprint spare.
-        const pin = pinAddRef.current ? el.clientWidth - chipsWidth(el) < INLINE_ADD_PX : overflow
+        // Pin once the chips overflow; un-pin once they leave the button's footprint spare. The
+        // pinned (+) sits outside the scroller, so `clientWidth` is already net of it: this is
+        // wider hysteresis than it reads, and the two states cannot each satisfy the other's rule.
+        const pin = pinAddRef.current ? el.clientWidth - content < INLINE_ADD_PX : overflow
         if (pin !== pinAddRef.current) {
             pinAddRef.current = pin
             setPinAdd(pin)
