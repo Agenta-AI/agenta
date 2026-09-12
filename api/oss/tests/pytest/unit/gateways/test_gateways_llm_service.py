@@ -667,7 +667,7 @@ async def test_ceiling_ignores_another_protocols_field_name():
 
 
 @pytest.mark.asyncio
-async def test_successful_non_streaming_call_records_after_relay():
+async def test_successful_non_streaming_call_records_before_it_returns():
     dao = _MockLlmEndpointsDAO()
     row = _custom_row(
         slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), secret_id=uuid4()
@@ -701,16 +701,58 @@ async def test_successful_non_streaming_call_records_after_relay():
     assert len(adapter.calls) == 1
     assert resolver.resolve_calls[0][2] == SecretMode.PROJECT_ONLY
 
-    # Adapters fill usage while the body generator runs, so recording waits for the
-    # drain here exactly as it does for a stream.
-    assert policy.record_calls == []
+    # Adapters fill usage while the body generator runs, so the recording still waits for
+    # the drain — but on this path the SERVICE is what drains, because the caller builds a
+    # plain `Response` from one chunk and never advances the generator to its end (OR33).
+    assert len(policy.record_calls) == 1
     assert [chunk async for chunk in result.body] == [b'{"ok": true}']
 
-    assert len(policy.record_calls) == 1
     outcome = policy.record_calls[0][3]
     assert outcome.status_code == 200
     assert outcome.usage.input_tokens == 3
     assert outcome.owner == secret.owner
+
+
+@pytest.mark.asyncio
+async def test_a_multi_chunk_non_streaming_body_is_joined_not_truncated():
+    """The caller reads one chunk, so the service must hand it all of them as one.
+
+    The relay adapter coalesces its own body with `aread()`, so this is the guarantee for
+    any OTHER adapter: before OR33 a non-streaming answer arriving in two chunks would have
+    reached the caller as its first chunk alone.
+    """
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), secret_id=uuid4()
+    )
+    resolver = _MockResolver(secret=_secret())
+    policy = _MockPolicy(allowed=True)
+
+    async def _two_chunks() -> AsyncIterator[bytes]:
+        yield b'{"ok":'
+        yield b" true}"
+
+    registry = LLMUpstreamRegistry(
+        adapters={
+            "relay": _MockAdapter(
+                result=LLMRelayResult(status_code=200, headers={}, body=_two_chunks())
+            )
+        }
+    )
+
+    body = json.dumps({"model": "gpt-4o", "messages": []}).encode()
+    result = await _service(
+        dao=dao, resolver=resolver, registry=registry, policy=policy
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name="acme",
+        body=body,
+        headers={},
+    )
+
+    assert [chunk async for chunk in result.body] == [b'{"ok": true}']
+    assert len(policy.record_calls) == 1
 
 
 @pytest.mark.asyncio
