@@ -14,8 +14,17 @@ Three tools, advertised by `tools/list` and dispatched by `tools/call`'s
             tool's own business failure is not a transport failure.
     slow    sleeps params.arguments.seconds (default 5), then a fixed result
 
-The mock deliberately implements only current MCP discovery and the tools
-declared below.
+Beyond the tools it answers the protocol's opening exchange — `initialize`, any
+notification, and `ping` — because a spec-compliant MCP client sends `initialize`
+first and cannot reach `tools/list` until it is answered. A mock that refused it
+was usable only by a client that skips the handshake.
+
+The conventions here are the runner's own MCP tool server's
+(`services/runner/src/tools/tool-mcp-http.ts`), deliberately: a request with no
+`id` is a notification and gets `202` and no body, `initialize` echoes the
+client's `protocolVersion`, and an unknown method is JSON-RPC error `-32601` at
+HTTP 200, never a transport failure. Two mock servers answering the same protocol
+differently is a trap for whoever debugs against them.
 """
 
 import asyncio
@@ -37,6 +46,7 @@ from oss.src.core.secrets.enums import SecretKind
 from oss.src.utils.env import env
 
 _PROTOCOL_VERSION = "2026-07-28"  # pinned per MCPCallContext's own docstring
+_METHOD_NOT_FOUND = -32601  # JSON-RPC 2.0
 _CACHE_TTL_MS = 300_000
 _SERVER_INFO = {"name": "agenta-mock-mcp", "version": "0.1.0"}
 
@@ -60,6 +70,15 @@ _TOOLS = [
         },
     },
 ]
+
+
+def _relay_result(response: Dict[str, Any]) -> MCPRelayResult:
+    """One JSON-RPC response out, so both mock tiers emit byte-identical bodies."""
+    return MCPRelayResult(
+        status_code=200,
+        headers={"content-type": "application/json"},
+        body=json.dumps(response).encode(),
+    )
 
 
 def _tool_result(text: str, *, is_error: bool = False) -> Dict[str, Any]:
@@ -87,6 +106,22 @@ async def _dispatch_tool_call(params: Dict[str, Any]) -> Dict[str, Any]:
         return _tool_result(f"slept {seconds}s", is_error=False)
 
     return _tool_result(f"unknown tool: {name}", is_error=True)
+
+
+def _initialize_result(params: Dict[str, Any]) -> Dict[str, Any]:
+    """The handshake answer, with the client's own protocol version echoed back.
+
+    A mock accepts whatever version the client opens with. Pinning ours here would make the
+    mock reject clients by version, which is a real server's job and never a fixture's.
+    """
+    requested = params.get("protocolVersion")
+    return {
+        "protocolVersion": (
+            requested if isinstance(requested, str) and requested else _PROTOCOL_VERSION
+        ),
+        "capabilities": {"tools": {}},
+        "serverInfo": _SERVER_INFO,
+    }
 
 
 def _discovery_result() -> Dict[str, Any]:
@@ -129,25 +164,39 @@ class MockMCPAdapter(MCPUpstreamInterface):
         method = payload.get("method") or context.method or ""
         request_id = payload.get("id")
 
-        if method == "server/discover":
+        # A JSON-RPC request with no id is a notification, and answering one is itself a
+        # protocol violation. `notifications/initialized` is the second call of every
+        # handshake, so this branch is on the happy path, not an edge case.
+        if request_id is None:
+            return MCPRelayResult(status_code=202, headers={}, body=b"")
+
+        if method == "initialize":
+            result = _initialize_result(payload.get("params") or {})
+        elif method == "ping":
+            result = {}
+        elif method == "server/discover":
             result = _discovery_result()
         elif method == "tools/list":
             result = _tools_list_result()
         elif method == "tools/call":
             result = await _dispatch_tool_call(payload.get("params") or {})
         else:
-            raise MCPUpstreamError(
-                target=route.url,
-                status_code=501,
-                detail=f"unsupported method: {method}",
+            # An unknown method is the server answering, not the transport failing, so it is
+            # a JSON-RPC error at HTTP 200. Raising here made the two tiers disagree: the
+            # in-process route answered 502 with a text detail while the socket route answered
+            # 501 with a bare string, so a client could not read one shape from either.
+            return _relay_result(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": _METHOD_NOT_FOUND,
+                        "message": f"method not found: {method}",
+                    },
+                }
             )
 
-        response = {"jsonrpc": "2.0", "id": request_id, "result": result}
-        return MCPRelayResult(
-            status_code=200,
-            headers={"content-type": "application/json"},
-            body=json.dumps(response).encode(),
-        )
+        return _relay_result({"jsonrpc": "2.0", "id": request_id, "result": result})
 
 
 def _secret_key(secret: ResolvedSecret | None) -> str | None:

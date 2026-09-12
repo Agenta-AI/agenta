@@ -2,30 +2,6 @@
 
 ## Active review findings
 
-### OR23. Deterministic native-MCP acceptance for Codex and Claude Code
-
-Pi's extension consumes the mock LLM's OpenAI tool-call response and now proves `echo` through
-the builtin, standard, and custom mock MCP routes. Codex and Claude Code receive the same HTTP
-MCP configuration, but their native MCP clients do not consume that generic response: Codex ends
-the turn without an MCP call, and Claude returns its system reminder. The gateway routes are
-therefore not automatically proven through either harness.
-
-Add a deterministic fixture based on a captured native exchange for each harness, then require
-the full-stack test to show MCP initialization, `tools/list`, `tools/call`, and the returned echo
-marker for every mock namespace. Until then, retain the named non-strict expected failures and
-run the dashboard procedure in `qa.md` with a real harness connection.
-
-**Observed on 2026-09-12.** The automated matrix now separates the two harnesses. Every Pi and
-every Codex cell of `test_agent_harness_calls_echo_through_each_mock_mcp_gateway_route` passes,
-and all nine Claude cells fail, one per LLM-namespace and MCP-namespace pair, with a tool result
-that carries no echo marker (`assert 'mock MCP tool call failed' == 'mock MCP echo …'`). So Codex
-is no longer part of this finding on the automated path and Claude Code is the whole of it. The
-escape hatch the entry relies on is also unavailable: the dashboard procedure in `qa.md` could not
-reach the MCP leg for **any** harness on that date, for the reasons recorded in OR26 and OR31, so
-"run the dashboard procedure with a real harness connection" is not currently an option.
-
----
-
 ### OR26. The dashboard cannot select or create any gateway LLM route
 
 `qa.md` step 2 asks the operator to select the builtin LLM mock route (`builtin/mock`) in the
@@ -230,6 +206,47 @@ Tests: `test_resolve_agent_connection_without_a_provider_or_a_slug_is_typed`,
 `test_resolve_without_a_provider_or_a_connection_refuses_with_a_code` and
 `test_resolve_of_a_provider_less_endpoint_refuses_with_a_code` in
 `api/oss/tests/pytest/unit/gateways/test_gateways_llm_router.py` for the envelope at the boundary.
+
+### OR23. Deterministic native-MCP acceptance for Codex and Claude Code — CLOSED, and the cause was the mock
+
+The finding read the symptom as a harness problem: Codex and Claude Code have native MCP clients
+that "do not consume that generic response", so the entry asked for a captured native exchange per
+harness. The cause was on our side, and one tier below where anyone was looking.
+
+`MockMCPAdapter` dispatched `server/discover`, `tools/list` and `tools/call`, and answered
+everything else with a transport failure. `initialize` and `notifications/initialized` are the
+first two calls of every MCP session, so no spec-compliant client could get past them. Pi passed
+only because its extension calls `tools/list` directly and skips the handshake. That also explains
+the shape of the failure: Claude's cells returned a tool result with no echo marker rather than a
+connection error, because the client gave up on the server, not on the route.
+
+Closed by making the mock answer the opening exchange: `initialize` (echoing the client's
+`protocolVersion`, with `capabilities.tools` and `serverInfo`), any notification (`202`, no body,
+since answering a notification is itself a protocol violation), and `ping`. An unknown method is
+now JSON-RPC error `-32601` at HTTP 200, which is the server answering rather than the transport
+failing. The conventions are lifted from the runner's own MCP tool server
+(`services/runner/src/tools/tool-mcp-http.ts`) so two mock servers cannot answer the same protocol
+two ways.
+
+The same change closes a divergence between the mock's two tiers, which would have misled whoever
+debugged this next. The in-process route answered an unknown method with `502` and a text detail
+while the socket route answered `501` with the bare string "mock upstream request failed". Both now
+emit the same JSON-RPC body, and the deployable app's remaining transport-failure path speaks
+JSON-RPC too.
+
+**Measured on 2026-09-12, after the fix.** `test_agent_harness_calls_echo_through_each_mock_mcp_gateway_route`
+is green on all 27 cells: nine Pi, nine Codex, and the nine Claude cells that were the whole of
+this finding. No captured native fixture was needed, and the non-strict expected failures the
+entry asked to retain can go.
+
+Tests: `test_initialize_completes_the_handshake`,
+`test_initialize_without_a_version_uses_the_pinned_one`,
+`test_initialized_notification_is_accepted_with_no_body`,
+`test_any_notification_is_accepted_rather_than_answered`, `test_ping_answers_an_empty_result` and
+`test_unrecognized_method_is_a_json_rpc_error_not_a_transport_failure` in
+`api/oss/tests/pytest/unit/gateways/test_mock_mcp_adapter.py`; the whole of
+`api/oss/tests/pytest/unit/gateways/test_mock_mcp_envelope_parity.py`, which drives both tiers with
+the same request and compares the bytes; and the acceptance matrix above.
 
 ### OR24. Plain-HTTP non-loopback deployments cannot use the gateway — CLOSED
 

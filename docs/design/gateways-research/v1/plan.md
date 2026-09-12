@@ -418,9 +418,10 @@ the resolve route now refuses with the shared envelope and the SDK resolver carr
 edit path round-trips `provider_key` (OR29), and the two untyped resolve failures are typed 422s
 (OR30). See the closed record in `open-reviews.md`.
 
-OR23 and OR28 sit alongside rather than in this order: OR23 is Claude Code's native MCP exchange
-under the automated matrix, and OR28 is per-harness preservation of the refusal envelope, which is
-WP25's remit.
+OR28 sits alongside rather than in this order: it is per-harness preservation of the refusal
+envelope, which is WP25's remit. OR23 is closed, and it was never the harness problem it was
+written up as: the mock MCP server refused `initialize`, so no spec-compliant client could
+handshake against it. The full acceptance matrix is green on all three harnesses.
 
 ---
 

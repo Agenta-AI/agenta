@@ -15,7 +15,6 @@ from oss.src.core.gateways.mcps.dtos import (
 )
 from oss.src.core.gateways.mcps.interfaces import MCPRelayResult
 from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
-from oss.src.core.gateways.mcps.types import MCPUpstreamError
 
 
 def _route() -> MCPResolvedRoute:
@@ -137,17 +136,133 @@ async def test_slow_tool_sleeps():
     assert payload["result"]["isError"] is False
 
 
+# --- the opening handshake ---------------------------------------------------- #
+#
+# A spec-compliant MCP client sends `initialize`, then `notifications/initialized`, and only
+# then reaches `tools/list`. The mock used to answer the first two with a transport failure, so
+# Claude Code and Codex could never finish a handshake against it and Pi passed only because
+# its extension calls `tools/list` directly.
+
+
 @pytest.mark.asyncio
-async def test_unrecognized_method_raises_upstream_error():
+async def test_initialize_completes_the_handshake():
     adapter = MockMCPAdapter()
 
-    with pytest.raises(MCPUpstreamError) as excinfo:
-        await adapter.relay(
-            route=_route(),
-            auth=_auth(),
-            context=MCPCallContext(method="resources/list"),
-            body=_rpc("resources/list"),
-            headers={},
-        )
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="initialize"),
+        body=_rpc(
+            "initialize",
+            params={
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "test-client", "version": "1.0"},
+            },
+        ),
+        headers={},
+    )
 
-    assert excinfo.value.status_code == 501
+    assert result.status_code == 200
+    payload = json.loads(result.body)
+    assert payload["id"] == 1
+    # The client's own version comes back: a fixture accepts whatever version it is opened
+    # with, because rejecting one is a real server's job.
+    assert payload["result"] == {
+        "protocolVersion": "2025-06-18",
+        "capabilities": {"tools": {}},
+        "serverInfo": {"name": "agenta-mock-mcp", "version": "0.1.0"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_initialize_without_a_version_uses_the_pinned_one():
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="initialize"),
+        body=_rpc("initialize", params={}),
+        headers={},
+    )
+
+    assert json.loads(result.body)["result"]["protocolVersion"] == "2026-07-28"
+
+
+@pytest.mark.asyncio
+async def test_initialized_notification_is_accepted_with_no_body():
+    adapter = MockMCPAdapter()
+    payload = json.dumps(
+        {"jsonrpc": "2.0", "method": "notifications/initialized"}
+    ).encode()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="notifications/initialized"),
+        body=payload,
+        headers={},
+    )
+
+    # Answering a notification is itself a protocol violation, so there is no body to read.
+    assert result.status_code == 202
+    assert result.body == b""
+
+
+@pytest.mark.asyncio
+async def test_any_notification_is_accepted_rather_than_answered():
+    """The rule is JSON-RPC's own: no `id` means no response, whatever the method."""
+    adapter = MockMCPAdapter()
+    payload = json.dumps(
+        {"jsonrpc": "2.0", "method": "notifications/cancelled"}
+    ).encode()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="notifications/cancelled"),
+        body=payload,
+        headers={},
+    )
+
+    assert result.status_code == 202
+    assert result.body == b""
+
+
+@pytest.mark.asyncio
+async def test_ping_answers_an_empty_result():
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="ping"),
+        body=_rpc("ping"),
+        headers={},
+    )
+
+    assert json.loads(result.body) == {"jsonrpc": "2.0", "id": 1, "result": {}}
+
+
+@pytest.mark.asyncio
+async def test_unrecognized_method_is_a_json_rpc_error_not_a_transport_failure():
+    """An unknown method is the server answering. Raising made the two tiers disagree: the
+    in-process route answered 502 with a text detail and the socket route 501 with a bare
+    string, so no client could read one shape from either."""
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="resources/list"),
+        body=_rpc("resources/list"),
+        headers={},
+    )
+
+    assert result.status_code == 200
+    assert json.loads(result.body) == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "error": {"code": -32601, "message": "method not found: resources/list"},
+    }
