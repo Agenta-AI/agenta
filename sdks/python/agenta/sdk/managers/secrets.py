@@ -11,6 +11,7 @@ from agenta.sdk.utils.assets import (
 )
 from agenta.sdk.engines.running.errors import (
     ConnectionModelMismatchV0Error,
+    InvalidSecretsV0Error,
     UnknownConnectionV0Error,
 )
 
@@ -104,6 +105,16 @@ class SecretsManager:
     ):
         data = secret.get("data", {})
         safe_url = _safe_api_base(data.get("provider", {}).get("url"))
+        legacy_slug = SecretsManager._stripped(data.get("provider_slug"))
+        provider_slug = SecretsManager._stripped(secret.get("slug")) or legacy_slug
+        model_keys = data.get("model_keys", [])
+        if provider_slug and legacy_slug and provider_slug != legacy_slug:
+            model_keys = [
+                f"{provider_slug}/{key.split('/', 1)[1]}"
+                if key.startswith(f"{legacy_slug}/")
+                else key
+                for key in model_keys
+            ]
         custom_secrets.append(
             {
                 "kind": secret.get("kind", ""),
@@ -112,7 +123,7 @@ class SecretsManager:
                 "slug": SecretsManager._stripped(secret.get("slug"))
                 or SecretsManager._stripped(data.get("provider_slug")),
                 "data": {
-                    "provider_slug": data.get("provider_slug"),
+                    "provider_slug": provider_slug,
                     "provider": {
                         "kind": data.get("kind", ""),
                         "extras": (
@@ -128,7 +139,7 @@ class SecretsManager:
                             else data.get("provider", {}).get("extras", {})
                         ),
                     },
-                    "models": data.get("model_keys", []),
+                    "models": model_keys,
                 },
             }
         )
@@ -330,7 +341,7 @@ class SecretsManager:
         # path already does — a loud InvalidSecrets in the caller — rather than calling out with
         # a mangled model name.
         if model not in (data.get("models") or []):
-            return None
+            raise InvalidSecretsV0Error(expected=data.get("models") or [], got=model)
 
         provider_settings = dict(
             model=SecretsManager._get_compatible_model(
@@ -389,6 +400,14 @@ class SecretsManager:
 
         # STEP 1b: return None in the case provider is None
         if not provider:
+            if "/custom/" in request_provider_model:
+                configured = [
+                    model
+                    for secret in secrets
+                    if secret.get("kind") == "custom_provider"
+                    for model in secret.get("data", {}).get("models", [])
+                ]
+                raise InvalidSecretsV0Error(expected=configured, got=model)
             return None
 
         # STEP 1c: get litellm compatible model
