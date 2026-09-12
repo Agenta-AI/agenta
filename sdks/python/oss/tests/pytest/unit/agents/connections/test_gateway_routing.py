@@ -15,6 +15,7 @@ from agenta.sdk.agents.connections.endpoints import (
     gateway_route,
     gateway_target,
 )
+from agenta.sdk.agents.connections.errors import GatewayInsecureEndpointError
 
 # Gateway target routing
 
@@ -93,8 +94,15 @@ def test_build_gateway_resolved_connection_carries_no_provider_secret():
 
 
 def test_build_gateway_resolved_connection_refuses_remote_http_api_route():
+    """The refusal stands, and it is typed (OR25).
+
+    This asserted a bare ``ValueError`` while the builder let pydantic's validator raise, which
+    reached the caller as an unhandled 500. The builder now raises
+    :class:`GatewayInsecureEndpointError` itself, so the assertion moves with it. The message
+    is still matched, because it is the string an operator reads.
+    """
     with pytest.raises(
-        ValueError, match="gateway credentials require an effective HTTPS"
+        GatewayInsecureEndpointError, match="require an effective HTTPS"
     ):
         build_gateway_resolved_connection(
             provider="openai",

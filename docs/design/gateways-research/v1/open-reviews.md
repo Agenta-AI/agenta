@@ -19,6 +19,73 @@ run the dashboard procedure in `qa.md` with a real harness connection.
 
 ## Closed review record
 
+### OR24. Plain-HTTP non-loopback deployments cannot use the gateway — CLOSED
+
+D37 exempts loopback from the https requirement and nothing else, which left a whole
+deployment shape unable to use a gateway at all: a self-hosted instance reached at a
+plain-http address that is not loopback (an IP, or a LAN name). Every gateway-routed
+resolution failed, because the bearer could not be sent to the deployment's own base URL.
+
+The two legs also disagreed about which URLs they would accept, so the shape was not merely
+refused, it was refused inconsistently. The SDK rejected a routable plain-http gateway while
+the runner accepted one, and the runner's loopback set omitted `host.docker.internal`, which
+the SDK has always treated as loopback. A connection could therefore pass the SDK and be
+refused inside the sandbox, or the reverse.
+
+Closed by `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED`, default off, following
+`AGENTA_INSECURE_EGRESS_ALLOWED`'s precedent of a named opt-in a trusted single-tenant
+deployment may set. It is deliberately narrow. It covers only our own credentials into our
+own gateway: a provider's secret (`opaque_http`) keeps D37's rule unconditionally, since the
+reason there is a host we do not control, and the Daytona credential-endpoint rules are
+untouched, since a remote sandbox dials across the internet. Both legs now read the same
+variable and share one loopback set, so they cannot answer differently.
+
+One implementation seam per leg, both holding the transport rule in a single place:
+`is_effective_https_endpoint` in `sdk/agents/connections/models.py`, and
+`isEffectiveSecureEndpoint` plus `gatewayInsecureHttpAllowed` in
+`engines/sandbox_agent/run-plan.ts`.
+
+Tests: `test_plain_http_to_a_routable_host_is_refused_with_the_flag_off`,
+`..._when_the_flag_is_unset`, `..._is_allowed_with_the_flag_on`,
+`test_the_opt_in_never_covers_a_provider_secret` and
+`test_the_opt_in_does_not_widen_https_or_loopback` in
+`sdks/python/oss/tests/pytest/unit/agents/test_gateway_credentials.py`; the
+`gateway credentials over plain http` block in
+`services/runner/tests/unit/gateway-credentials.test.ts`, which covers both flag states, the
+loopback exemption in all three states, and the provider-secret exclusion. The existing
+runner case that asserted a routable plain-http host was accepted is rewritten to assert the
+loopback route it was named for, since its old expectation was the disagreement itself.
+
+The tests set the variable explicitly in every case and the SDK root conftest strips it
+unless a case carries `allow_insecure_env`. `test.sh` sources the deployment env file with
+`set -a`, so a stack that enabled the flag would otherwise disable the default under test for
+the whole process — the same trap `AGENTA_INSECURE_EGRESS_ALLOWED` already documents.
+
+### OR25. HTTPS refusal surfaced as an unhandled 500 — CLOSED
+
+With the opt-in off, the refusal reached the caller as a pydantic `ValidationError` escaping
+`ResolvedConnection`, which the running normalizer could only report as
+`v1:sdk:unknown-workflow-invoke-error`, HTTP 500, with a traceback. An operator whose only
+mistake was serving the deployment over plain http saw a server fault and no way to act on it.
+
+Closed by `GatewayInsecureEndpointError` in `sdk/agents/connections/errors.py`, raised at
+`build_gateway_resolved_connection`, the one seam every gateway connection passes through. It
+follows the `EndpointResolutionError` precedent (`status_code = 422`, a message naming the
+variable that changes the answer) and carries `error_detail`, the same
+`{code, message, retryable, next_step, details}` envelope the runner recovers from a gateway
+data-plane refusal, so a caller reads one shape whichever side refused. `code` is
+`gateway_insecure_endpoint`, `retryable` is false, `next_step` names the flag, and `details`
+carries the gateway base URL, which is the deployment's own address and never a credential.
+
+The model validator keeps raising underneath it, deliberately: it is the invariant no
+construction path can dodge, while the typed error is what the real path produces.
+
+Test: `test_the_refusal_is_typed_and_names_the_flag` in
+`sdks/python/oss/tests/pytest/unit/agents/test_gateway_credentials.py`, which asserts the
+status, the failure code, every envelope field, and that the credential value appears nowhere
+in the body. `test_the_flag_lets_the_same_construction_succeed` and
+`test_an_https_gateway_never_consults_the_flag` pin the two paths that must not raise.
+
 ### OR18. SDK malformed error detail — CLOSED
 
 `result_from_wire()` now accepts `errorDetail` only when it is a JSON object. Any other value is

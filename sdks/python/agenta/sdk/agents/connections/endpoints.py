@@ -5,13 +5,18 @@ from __future__ import annotations
 from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlparse
 
-from .errors import InvalidConnectionConfigurationError
+from .errors import (
+    GatewayInsecureEndpointError,
+    InvalidConnectionConfigurationError,
+)
 from .models import (
     Endpoint,
     GatewayCredentials,
     ResolvedConnection,
     ResolvedCredential,
     ResolvedSubscription,
+    gateway_insecure_http_allowed,
+    is_effective_https_endpoint,
 )
 
 _DIRECT_ENDPOINTS: Dict[str, str] = {
@@ -219,21 +224,31 @@ def build_gateway_resolved_connection(
     is ``none`` — the gateway holds the provider's secret, not the harness. Our own
     credentials into the gateway ride ``gateway_credentials`` (``X-AG-Credentials``), never
     ``credentials``, which stays reserved for a provider's own secret (D36).
+
+    The transport check runs HERE as well as in ``ResolvedConnection``'s validator, and the
+    duplication is the point: the validator is the invariant no construction path can dodge,
+    but it can only raise a ``ValueError`` that reaches a caller as an unhandled 500. This
+    seam is the one every gateway connection passes through, so it is where the same refusal
+    becomes a typed, actionable error.
     """
+    route = gateway_route(
+        namespace=namespace,
+        name=name,
+        provider=provider,
+        gateway_base_url=gateway_base_url,
+    )
+    if not is_effective_https_endpoint(
+        route, allow_insecure_http=gateway_insecure_http_allowed()
+    ):
+        raise GatewayInsecureEndpointError(base_url=route)
+
     return ResolvedConnection(
         provider=provider,
         model=model,
         deployment=deployment,
         credential_mode="none",
         credentials=[],
-        endpoint=Endpoint(
-            base_url=gateway_route(
-                namespace=namespace,
-                name=name,
-                provider=provider,
-                gateway_base_url=gateway_base_url,
-            )
-        ),
+        endpoint=Endpoint(base_url=route),
         gateway_credentials=GatewayCredentials(value=gateway_credentials_value),
         input_modalities=input_modalities,
     )
