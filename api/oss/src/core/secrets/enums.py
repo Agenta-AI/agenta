@@ -8,6 +8,7 @@ class SecretKind(str, Enum):
     WEBHOOK_PROVIDER = "webhook_provider"
     CUSTOM_SECRET = "custom_secret"
     CHANNEL_SECRET = "channel_secret"
+    SUBSCRIPTION_PROVIDER = "subscription_provider"
 
 
 class ChannelSecretKind(str, Enum):
@@ -15,7 +16,6 @@ class ChannelSecretKind(str, Enum):
     TELEGRAM = "telegram"
     AGENTA = "agenta"
     BRIDGE = "bridge"
-    SUBSCRIPTION_PROVIDER = "subscription_provider"
 
 
 class SubscriptionProviderKind(str, Enum):
