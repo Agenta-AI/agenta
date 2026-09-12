@@ -21,6 +21,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isAgentaIngest } from "../../src/tracing/otel.ts";
 
 const TRACES = "/otlp/v1/traces";
+/** A third-party collector path, which must never be taken for Agenta ingest. */
+const FOREIGN = "/collector/v1/traces";
 const envKeys = ["AGENTA_API_URL", "AGENTA_API_INTERNAL_URL"] as const;
 const saved: Partial<Record<(typeof envKeys)[number], string | undefined>> = {};
 
@@ -86,6 +88,57 @@ describe("isAgentaIngest", () => {
   it("does not match a foreign host", () => {
     process.env.AGENTA_API_URL = "http://localhost/api";
     expect(isAgentaIngest(`http://jaeger.internal/api${TRACES}`)).toBe(false);
+  });
+
+  // The GKE regression: the SDK builds `<base without /api>/api/otlp/v1/traces`, so a base
+  // written without the `/api` suffix — the shape compose and the Helm chart document — was
+  // handed an endpoint the comparison called somebody else's collector.
+  describe.each([
+    ["no /api suffix", "http://agenta-api:8000"],
+    ["an /api suffix", "http://agenta-api:8000/api"],
+    ["a trailing slash", "http://agenta-api:8000/api/"],
+    ["a trailing slash and no /api", "http://agenta-api:8000/"],
+  ])("a base written with %s", (_shape, base) => {
+    beforeEach(() => {
+      process.env.AGENTA_API_INTERNAL_URL = base;
+      process.env.AGENTA_API_URL = "https://agenta.example.com/api";
+    });
+
+    it("accepts the root trace path", () => {
+      expect(isAgentaIngest(`http://agenta-api:8000${TRACES}`)).toBe(true);
+    });
+
+    it("accepts the /api trace path the SDK builds", () => {
+      expect(isAgentaIngest(`http://agenta-api:8000/api${TRACES}`)).toBe(true);
+    });
+
+    it("still rejects another host", () => {
+      expect(isAgentaIngest(`http://jaeger.internal/api${TRACES}`)).toBe(false);
+    });
+
+    it("still rejects another port on the same host", () => {
+      expect(isAgentaIngest(`http://agenta-api:4318/api${TRACES}`)).toBe(false);
+    });
+
+    it("still rejects another path on the same host and port", () => {
+      expect(isAgentaIngest(`http://agenta-api:8000${FOREIGN}`)).toBe(false);
+      expect(isAgentaIngest(`http://agenta-api:8000/proxy/api${TRACES}`)).toBe(
+        false,
+      );
+    });
+  });
+
+  it("accepts both trace paths on the public base too", () => {
+    process.env.AGENTA_API_URL = "https://agenta.example.com/api";
+    expect(isAgentaIngest(`https://agenta.example.com/api${TRACES}`)).toBe(
+      true,
+    );
+    expect(isAgentaIngest(`https://agenta.example.com${TRACES}`)).toBe(true);
+  });
+
+  it("accepts both trace paths on the built-in cloud base", () => {
+    expect(isAgentaIngest(`https://cloud.agenta.ai${TRACES}`)).toBe(true);
+    expect(isAgentaIngest(`https://cloud.agenta.ai/api${TRACES}`)).toBe(true);
   });
 
   it("rejects an unparseable endpoint rather than throwing", () => {

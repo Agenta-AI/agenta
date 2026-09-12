@@ -337,8 +337,9 @@ export function resolveOtlpTraceEndpoint(endpoint?: string): string {
  * unauthenticated spans, so those must still be sent.
  *
  * Both configured bases count, not only the one `defaultTarget` picked: a run can be handed the
- * public URL while the runner's own hop is internal. The full normalized ingest URL must match,
- * because a third-party collector may share the Agenta host behind a different proxy path.
+ * public URL while the runner's own hop is internal. The endpoint must equal one of the two
+ * ingest URLs a configured base serves (see `INGEST_TRACE_PATHS`), and nothing else: a
+ * third-party collector may share the Agenta host behind a different proxy path.
  */
 /**
  * Host names that all denote THIS deployment's own API host.
@@ -364,28 +365,57 @@ const LOCAL_HOST_ALIASES = new Set([
   "host.docker.internal",
 ]);
 
-export function isAgentaIngest(endpoint: string): boolean {
-  const normalize = (value: string): string | undefined => {
-    try {
-      const url = new URL(value);
-      const path = url.pathname.replace(/\/+$/, "") || "/";
-      const host = LOCAL_HOST_ALIASES.has(url.hostname)
-        ? "__local__"
-        : url.hostname;
-      const port = url.port ? `:${url.port}` : "";
-      return `${url.protocol}//${host}${port}${path}`;
-    } catch {
-      return undefined;
-    }
-  };
+/** One comparable spelling of a URL: scheme, host (local aliases folded), port, and path. */
+function normalizeIngestUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    const path = url.pathname.replace(/\/+$/, "") || "/";
+    const host = LOCAL_HOST_ALIASES.has(url.hostname)
+      ? "__local__"
+      : url.hostname;
+    const port = url.port ? `:${url.port}` : "";
+    return `${url.protocol}//${host}${port}${path}`;
+  } catch {
+    return undefined;
+  }
+}
 
-  const normalizedEndpoint = normalize(endpoint);
+/**
+ * The configured base with its trailing slashes and its trailing `/api` segment removed.
+ *
+ * An operator writes the same deployment three ways — `http://agenta-api:8000`,
+ * `http://agenta-api:8000/api`, and `http://agenta-api:8000/api/` — and all three must compare
+ * the same, because the api serves its routes at root and strips any number of leading `/api`
+ * segments (`api/oss/src/middlewares/prefix.py`). Stripping the suffix here is what lets the two
+ * accepted ingest paths below be built from one root.
+ */
+function ingestBaseRoot(base: string): string {
+  return base.replace(/\/+$/, "").replace(/\/api$/, "");
+}
+
+/**
+ * The two ingest paths every configured base serves.
+ *
+ * The runner's own fallback exporter builds `<base>/otlp/v1/traces`, but the endpoint on a
+ * dispatched run comes from the SDK, which builds `<base without /api>/api/otlp/v1/traces`
+ * (`sdks/python/agenta/sdk/utils/init.py`). So an operator who sets
+ * `AGENTA_API_INTERNAL_URL=http://agenta-api:8000` — the shape every compose file and the Helm
+ * chart document — is handed an endpoint with an extra `/api` segment on the wire. Accepting only
+ * one of the two paths called that endpoint a third-party collector, withheld the run credential,
+ * and turned every session call into an HTTP 401. Both paths reach the same api route, so both
+ * must be recognized.
+ */
+const INGEST_TRACE_PATHS = ["/otlp/v1/traces", "/api/otlp/v1/traces"] as const;
+
+export function isAgentaIngest(endpoint: string): boolean {
+  const normalizedEndpoint = normalizeIngestUrl(endpoint);
   if (!normalizedEndpoint) return false;
-  return configuredIngestBases().some(
-    (base) =>
-      normalize(`${base.replace(/\/+$/, "")}/otlp/v1/traces`) ===
-      normalizedEndpoint,
-  );
+  return configuredIngestBases().some((base) => {
+    const root = ingestBaseRoot(base);
+    return INGEST_TRACE_PATHS.some(
+      (path) => normalizeIngestUrl(`${root}${path}`) === normalizedEndpoint,
+    );
+  });
 }
 
 /** Hosts the platform rewrites to `host.docker.internal` before it dispatches a run. */
