@@ -17,6 +17,9 @@ disagrees with it about a table, a column, or a name, it wins.
 
 ### Planning the current wave
 
+0. **[HANDOFF.md](HANDOFF.md)** — start here when picking this branch up cold. What the branch
+   is, what each tracking file is for, the state of the code, how to run the tests, the open
+   items in priority order, and what Wave 2 must contain.
 1. **[waves.md](waves.md)** — the checkpoint-and-wave delivery model, and the node types.
 2. **[wave-1.md](wave-1.md)** — the checkpoint boundary, fixed inputs, the replay invariant,
    and the completion evidence. Its graph is in [wps-1.md](wps-1.md), [ims-1.md](ims-1.md)
