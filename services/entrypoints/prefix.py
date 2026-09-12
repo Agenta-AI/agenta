@@ -28,14 +28,29 @@ class ServicesPrefixStripMiddleware:
             scope = self._strip(scope)
         await self.app(scope, receive, send)
 
+    def _has_prefix(self, path: str) -> bool:
+        return path == self.prefix or path.startswith(self.prefix + "/")
+
     def _strip(self, scope):
         path = scope.get("path", "")
-        stripped = 0
-        while path == self.prefix or path.startswith(self.prefix + "/"):
-            path = path[len(self.prefix) :] or "/"
-            stripped += 1
+        # Starlette reads `path` as the full request path and `root_path` as the part a
+        # proxy or `--root-path` already accounts for: a router matches `path` minus
+        # `root_path`, and a Mount derives its child root from `root_path`. When the server
+        # runs with `--root-path /services`, one copy of the prefix in `path` belongs to the
+        # framework; stripping it leaves `root_path` stale and every mounted sub-app
+        # (`/agent/v0`, ...) answers 404. Strip only the copies beyond that one.
+        root_path = scope.get("root_path", "") or ""
+        keep = 1 if self._has_prefix(root_path) else 0
+        count = 0
+        probe = path
+        while self._has_prefix(probe):
+            probe = probe[len(self.prefix) :] or "/"
+            count += 1
+        stripped = max(count - keep, 0)
         if not stripped:
             return scope
+        for _ in range(stripped):
+            path = path[len(self.prefix) :] or "/"
         scope = dict(scope)
         scope["path"] = path
         raw = scope.get("raw_path")

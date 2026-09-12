@@ -66,3 +66,36 @@ def test_raw_path_keeps_the_wire_encoding():
     r = _app().get("/services/raw/caf%C3%A9")
     assert r.status_code == 200
     assert r.json()["raw_path"] == "/raw/caf%C3%A9"
+
+
+def _mounted_app(prefix=None) -> FastAPI:
+    """The real shape: sub-apps mounted under the root, as `entrypoints.main` does."""
+    app = FastAPI()
+    sub = FastAPI()
+
+    @sub.post("/invoke")
+    async def invoke():
+        return {"ok": True}
+
+    app.mount("/agent/v0", sub)
+    app.add_middleware(ServicesPrefixStripMiddleware, prefix=prefix)
+    return app
+
+
+def test_mounted_sub_app_routes_under_a_root_path():
+    """`uvicorn --root-path /services` (the dev compose): uvicorn prepends the root path
+    to every request path, so the framework owns one copy of the prefix in `path`, and
+    the strip must leave exactly that one."""
+    client = TestClient(_mounted_app(), root_path="/services")
+    assert client.post("/services/agent/v0/invoke").status_code == 200
+
+
+def test_double_prefix_under_a_root_path_still_routes():
+    client = TestClient(_mounted_app(), root_path="/services")
+    assert client.post("/services/services/agent/v0/invoke").status_code == 200
+
+
+def test_mounted_sub_app_routes_without_a_root_path():
+    client = TestClient(_mounted_app())
+    assert client.post("/services/agent/v0/invoke").status_code == 200
+    assert client.post("/agent/v0/invoke").status_code == 200
