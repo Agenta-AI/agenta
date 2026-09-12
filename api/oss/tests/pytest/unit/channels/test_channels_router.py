@@ -32,6 +32,7 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelThreadQueryRequest,
 )
 from oss.src.apis.fastapi.channels.router import ChannelsRouter
+from oss.src.apis.fastapi.channels.models import TelegramHostedBindLinkRequest
 from oss.src.core.channels.dtos import (
     ChannelAgent,
     ChannelAgentCreate,
@@ -326,6 +327,12 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
             lambda r, req: r.read_agenta_conversation(req, id=uuid4()),
             True,
         ),
+        (
+            lambda r, req: r.create_telegram_hosted_bind_link(
+                req, body=TelegramHostedBindLinkRequest(references={})
+            ),
+            False,
+        ),
     ],
 )
 async def test_route_rejects_without_permission(call, is_view_route):
@@ -389,6 +396,7 @@ async def test_permission_matrix_covers_every_registered_route():
         "query_channel_inbox_events",
         "query_channel_outbox_events",
         "read_agenta_conversation",
+        "create_telegram_hosted_bind_link",
     }
 
     assert registered_handlers == exercised
@@ -570,6 +578,7 @@ def test_trailing_slash_audit():
         "/catalog/channels/{channel}/setup/",
         "/catalog/channels/slack/install/",
         "/catalog/channels/slack/callback/",
+        "/catalog/channels/telegram_hosted/bind-link/",
     }
     item_or_action_paths = {
         "/connections/query",

@@ -247,3 +247,103 @@ external bot config on the owner's account, not a code change.
 - Images/voice: needs a scope decision + a vision-capable model.
 - UI: first pass built + visually verified; needs reconciliation with the existing Channels
   settings UI, real-data wiring, dark mode, and Storybook (needs Mahmoud's taste + data layer).
+
+## Lane 3 build started (2026-09-09, after Mahmoud's go-ahead)
+Mahmoud confirmed: one shared hosted bot configured via an env var (TELEGRAM_HOSTED_BOT_TOKEN),
+reuse the existing test bot for staging for now, and the UI picks the default agent before the
+link is generated. Images are out of scope this release.
+Built on branch channels/telegram-hosted (stacked on channels/telegram):
+- core/channels/telegram_binding.py: the TelegramBindingService (issue_bind_link,
+  consume_bind_token, resolve_bound_connection) with an injected TelegramBindingStore
+  Protocol. Opaque token (token_urlsafe, <=64 chars for Telegram's deep-link cap), 30-min TTL,
+  one-time consume, one-chat-one-project rule, replay-idempotent on the same project, atomic
+  consume+bind+account-link in the store. 8 unit tests, all green.
+Next increments: the Postgres binding table + DAO + migration; the HostedTelegramAdapter
+(channel key telegram_hosted, fixed ["project"] identity, shared transport); the ingress
+hosted-resolve branch; the bind-start router endpoint; env.py TELEGRAM_HOSTED_BOT_TOKEN.
+Live verification waits on the staging bot being pointed at the hosted webhook.
+
+## Lane 3 increment 2 (2026-09-09): env config + hosted capabilities
+- env.py: ChannelsTelegramConfig reads TELEGRAM_HOSTED_BOT_TOKEN and
+  TELEGRAM_HOSTED_WEBHOOK_SECRET; `enabled` is true only when both are set; exposed at
+  env.channels.telegram (mirrors env.channels.slack). Verified the import in the container.
+- adapters/telegram_hosted/capabilities.py: identity keys on ["project"], space/thread still
+  on the chat, rendering/fill/addressing identical to the custom bot, no paste-a-token setup.
+- Tests: hosted capability shape + env enabled-gating. 44 telegram unit tests green.
+Remaining lane-3 slice (built together, their contract is interdependent, then live-tested):
+the Postgres binding table + DAO (atomic consume+bind+account-link using compose_external_user_key
+with chat_id, matching the inbox worker), the HostedTelegramAdapter (deployment-token egress,
+deployment-secret verify_signature returning the project, no-op activation), the ingress
+hosted-resolve branch, and the bind-start router endpoint. Live verification needs the staging
+bot pointed at the hosted webhook (needs the bot's group privacy off and the custom connection
+removed first).
+
+## Group live QA PASSED (2026-09-09, after Mahmoud disabled group privacy)
+Created a group, added the bot. A plain message got no reply; an @mention got "GROUPOK" in
+~10s. Groups work end to end for the custom bot. Decision taken: keep QR in the hosted flow
+from the start (Mahmoud), and Option 1 for groups (setup tells users to disable group privacy).
+
+## Lane 3 increment 3 (2026-09-09): bind persistence, applied + smoke-tested live
+- Binding service now composes the account key from the hosted capabilities (chat id scope,
+  sender user), matching the inbox worker, and hands the store a ready key. 8 tests.
+- Tables: channel_telegram_bind_tokens, channel_telegram_chat_bindings (migration
+  oss000000031, applied to the channels stack DB). Globally keyed (looked up without a project).
+- TelegramBindingDAO: atomic consume_token_and_bind (guarded token consume + chat binding +
+  account link, all one transaction, concurrent-safe via ON CONFLICT).
+- Smoke-tested end to end against Postgres: issue, consume+bind, account link with the worker
+  key, resolve, replay idempotency, conflicting-project refusal. 763 channels unit tests green.
+Remaining lane-3 slice: HostedTelegramAdapter (deployment-token egress, deployment-secret
+verify returning project, no-op activation), ingress hosted-resolve branch, the bind-start
+router endpoint (returns the deep link + a QR), and wiring the binding service in the app.
+Then repoint the staging bot at the hosted webhook and live-test /start end to end.
+
+## Lane 3 hosted bot: LIVE END-TO-END TEST PASSED (2026-09-09)
+Completed the hosted slice (adapter, ingress hosted-resolve branch, bind-link endpoint,
+ensure-connection, wiring) and live-tested the whole tap-to-connect flow on the channels stack:
+- Configured the deployment env (test bot as the hosted bot) via the stack's local override:
+  TELEGRAM_HOSTED_BOT_TOKEN/WEBHOOK_SECRET/BOT_USERNAME; recreated api + both workers.
+- Pointed the bot webhook at /api/channels/telegram/events/<bot_id>/ with the deployment secret.
+- Created the hosted connection + agent for the QA project and minted a bind link.
+- Drove it from the QA Telegram account: "/start <token>" -> "You are connected." in 0.3s;
+  then a question -> the agent replied "HOSTEDOK" in 9s.
+- DB verified: chat binding row (bot, chat, project, connection), token consumed, and the
+  account identity link with the worker-matching key attributing the invoking user (the link
+  creator), so the agent answered as that user, not the agent owner.
+QR: the bind-link endpoint returns the deep-link url and expiry; the UI renders the QR from the
+url client-side (no backend QR dependency). Kept QR from the start per Mahmoud.
+The hosted bot is code-complete, unit-tested (871 channels+secrets), persistence proven against
+Postgres, and live-verified end to end. Branch channels/telegram-hosted.
+Note: this dev stack now runs the test bot as the hosted bot (local override, gitignored). The
+custom-bot PR #6679 is independent and already verified/merge-ready.
+
+## Hosted bot reviews addressed (2026-09-09)
+Codex (gpt-astra, xhigh) reviewed the hosted CODE and found two P1s and several P2/P3s; it even
+reproduced a cross-project race against Postgres. All fixed in commit 4e86104f18:
+- P1 group sender -> hosted flow drops non-private chats (v1 private-only; exact attribution).
+- P1 concurrent-bind race -> consume_token_and_bind validates binding ownership inside the
+  transaction and rolls back the loser; expiry added to the consume predicate. Re-proven against
+  Postgres under true concurrency: one wins, one refused, one binding, one link, one token used.
+- P2 fresh-link replay -> a fresh token on an already-connected chat is refused
+  (ChatAlreadyConnected), not a phantom success; a consumed token stays idempotent.
+- P2 reconnect -> ensure reuses and unarchives an archived hosted connection.
+- P2 username -> enabled requires a username; adapter strips a leading @.
+- P3 -> /start parser no longer crashes on whitespace.
+- simplify -> custom ingest path reuses _record_and_enqueue.
+CodeRabbit posted 4 findings on the PR; all addressed (the DTOs moved to models.py in
+e7ca80edf7; the other 3 were the same items Codex raised). All PR threads resolved.
+Live re-verified after the fixes: the bound chat still answers ("STILLWORKS", ~8s). 875
+channels+secrets unit tests pass. PR #6724 is reviewed, tested, and live-verified.
+Known v1 limits (documented, accepted): hosted is private chats only; a chat cannot be rebound
+to a different project until its binding is released (disconnect binding cleanup is a follow-up).
+
+## CI caught a real (env-dependent) test bug on the hosted PR (2026-09-09)
+run-api-unit-tests on #6724 failed on one of my tests: test_telegram_hosted_env
+test_enabled_needs_both_token_and_secret asserted that token+secret alone is "enabled".
+That contradicts the new username requirement, but it PASSED locally because the dev
+container has TELEGRAM_HOSTED_BOT_USERNAME set (from live testing), so the config's username
+defaulted to a truthy value and masked it. CI has no such var, so it failed. Fixed in
+e0a0f0361d: every hosted-config test now passes bot_token, webhook_secret, and bot_username
+explicitly, so the result does not depend on the ambient environment. Verified by running the
+suite with the three vars unset (simulating CI): 771 channels tests pass. The remaining
+api-unit reds are the known socket.gaierror infra flake on unrelated session DAO tests.
+Lesson: config tests must set every field explicitly; the dev container's env can hide a CI gap.

@@ -48,6 +48,8 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelThreadResponse,
     ChannelThreadsResponse,
     ChannelsCatalogResponse,
+    TelegramHostedBindLinkRequest,
+    TelegramHostedBindLinkResponse,
 )
 from oss.src.core.channels.adapters.bridge.adapter import build_bridge_create_document
 from oss.src.core.channels.adapters.slack import oauth as slack_oauth
@@ -158,9 +160,13 @@ class ChannelsRouter:
         *,
         channels_service: "ChannelsService",
         adapter_registry: "ChannelAdapterRegistry",
+        telegram_binding_service=None,
     ):
         self.channels_service = channels_service
         self.adapter_registry = adapter_registry
+        # Present only when the hosted Telegram bot is configured; the bind-link
+        # endpoint 404s otherwise.
+        self.telegram_binding_service = telegram_binding_service
 
         self.router = APIRouter()
 
@@ -205,6 +211,17 @@ class ChannelsRouter:
             self.slack_install_callback,
             methods=["GET"],
             operation_id="slack_install_callback",
+        )
+
+        # --- The hosted Telegram bot: tap-to-connect bind link ---------------- #
+        # The UI calls this to get the deep link (and its QR) that connects a
+        # chat to the chosen agent via the shared Agenta bot.
+        self.router.add_api_route(
+            "/catalog/channels/telegram_hosted/bind-link/",
+            self.create_telegram_hosted_bind_link,
+            methods=["POST"],
+            operation_id="create_telegram_hosted_bind_link",
+            response_model=TelegramHostedBindLinkResponse,
         )
 
         # --- Connections ------------------------------------------------------ #
@@ -484,6 +501,43 @@ class ChannelsRouter:
         )
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
+
+    @intercept_exceptions()
+    async def create_telegram_hosted_bind_link(
+        self,
+        request: Request,
+        *,
+        body: TelegramHostedBindLinkRequest,
+    ) -> TelegramHostedBindLinkResponse:
+        """Prepare the hosted Telegram connection and its agent, then mint the
+        one-time deep link the connect UI shows. 404 when the deployment has no
+        hosted bot configured."""
+
+        await self._check(request, Permission.EDIT_CHANNELS)
+
+        if self.telegram_binding_service is None:
+            raise HTTPException(
+                status_code=404,
+                detail="The hosted Telegram bot is not configured on this deployment.",
+            )
+
+        project_id = UUID(request.state.project_id)
+        user_id = UUID(str(request.state.user_id))
+
+        connection = await self.channels_service.ensure_hosted_telegram_connection(
+            project_id=project_id,
+            user_id=user_id,
+            references=body.references,
+        )
+        url = await self.telegram_binding_service.issue_bind_link(
+            project_id=project_id,
+            user_id=user_id,
+            connection_id=connection.id,
+        )
+        return TelegramHostedBindLinkResponse(
+            url=url,
+            expires_in_seconds=self.telegram_binding_service.ttl_seconds,
+        )
 
     # -----------------------------------------------------------------------
     # Catalog
@@ -803,6 +857,15 @@ class ChannelsRouter:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Channel connection not found",
+            )
+
+        # Disconnect frees any hosted chat bindings that point at this
+        # connection, so those chats can reconnect (to the same or a different
+        # project). A no-op for a connection with no bindings, so it is safe to
+        # call for every channel.
+        if self.telegram_binding_service is not None:
+            await self.telegram_binding_service.release_connection_bindings(
+                connection_id=connection_id
             )
 
         platform_notice = await self.channels_service.describe_connection_teardown(
