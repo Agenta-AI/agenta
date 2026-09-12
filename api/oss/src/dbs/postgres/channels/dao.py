@@ -1069,6 +1069,32 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
 
+    async def fetch_active_thread(
+        self,
+        *,
+        project_id: UUID,
+        #
+        space_id: UUID,
+        external_key: Optional[UUID],
+    ) -> Optional[ChannelThread]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(ChannelThreadDBE)
+                .where(
+                    ChannelThreadDBE.project_id == project_id,
+                    ChannelThreadDBE.space_id == space_id,
+                    ChannelThreadDBE.external_key == external_key,
+                    ChannelThreadDBE.flags["is_active"].astext == "true",
+                )
+                .order_by(ChannelThreadDBE.created_at.desc())
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            thread_dbe = result.scalars().first()
+            if not thread_dbe:
+                return None
+            return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
+
     async def fetch_thread_awaiting_choice(
         self,
         *,
