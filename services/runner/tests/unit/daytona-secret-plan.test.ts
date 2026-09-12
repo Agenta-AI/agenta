@@ -339,3 +339,23 @@ describe("Daytona Secret planning", () => {
     assert.equal(enabled.plan.credentials.daytonaSecretPlan?.candidates.length, 1);
   });
 });
+
+describe("Daytona Secret plan for a gateway connection (WP13 Phase 3)", () => {
+  it("is empty: no provider credentials to hide, since none were sent", () => {
+    const plan = buildDaytonaSecretPlan({
+      modelConnection: {
+        provider: "openai",
+        deployment: "custom",
+        credentialMode: "none",
+        credentials: [],
+        endpoint: { baseUrl: "https://gateway.example.com/gateways/llms/standard/openai" },
+        gatewayCredentials: {
+          header: "X-AG-Credentials",
+          value: "ApiKey mock-gateway-credentials",
+        },
+      },
+    });
+    assert.deepEqual(plan.candidates, []);
+    assert.deepEqual(plan.environment, {});
+  });
+});

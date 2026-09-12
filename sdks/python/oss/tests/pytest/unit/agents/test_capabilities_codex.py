@@ -1,4 +1,4 @@
-"""Codex capabilities allow managed and subscription OpenAI direct connections."""
+"""Codex capabilities allow managed and subscription OpenAI gateway connections."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def test_codex_connection_capabilities() -> None:
     assert harness_allows_mode("codex", "agenta") is True
     assert harness_allows_mode("codex", "self_managed") is True
     assert harness_allows_deployment("codex", "direct") is True
-    assert harness_allows_deployment("codex", "custom") is False
+    assert harness_allows_deployment("codex", "custom") is True
 
 
 def test_codex_milestone_one_model_sets() -> None:

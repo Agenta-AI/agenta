@@ -455,6 +455,7 @@ export interface RunSeedSource {
       binding?: { kind?: string; name?: string };
       usage?: string;
     }>;
+    gatewayCredentials?: { value?: string };
   };
   /** Resolved MCP servers: each connection's typed secret header credential values. */
   mcpServers?: Array<{
@@ -490,6 +491,7 @@ export function requestSecretValues(
           ),
       )
       .map((credential) => credential.value),
+    request.modelConnection?.gatewayCredentials?.value,
     ...(request.mcpServers ?? []).flatMap((server) =>
       (server.connection?.credentials ?? []).map(
         (credential) => credential.value,

@@ -349,6 +349,9 @@ async def _agent_run_to_vercel_parts_impl(
             elif etype == "attachment_delivery":
                 content_parts_emitted += 1
                 yield _attachment_delivery_part(data)
+            elif etype == "mcp_server_failed":
+                content_parts_emitted += 1
+                yield _mcp_server_failed_part(data)
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
@@ -356,6 +359,7 @@ async def _agent_run_to_vercel_parts_impl(
                 for part in _error_parts(
                     data.get("message", ""),
                     failure_code=_runner_failure_code(data.get("code")),
+                    error_detail=data.get("detail"),
                 ):
                     yield part
             elif etype == "turn":
@@ -651,6 +655,9 @@ async def _agent_stream_to_vercel_stream_impl(
             elif etype == "attachment_delivery":
                 content_parts_emitted += 1
                 yield _attachment_delivery_part(data)
+            elif etype == "mcp_server_failed":
+                content_parts_emitted += 1
+                yield _mcp_server_failed_part(data)
             elif etype == "usage":
                 usage = _usage_metadata(data)
             elif etype == "error":
@@ -658,6 +665,7 @@ async def _agent_stream_to_vercel_stream_impl(
                 for part in _error_parts(
                     data.get("message", ""),
                     failure_code=_runner_failure_code(data.get("code")),
+                    error_detail=data.get("detail"),
                 ):
                     yield part
             elif etype == "turn":
@@ -787,8 +795,7 @@ def _interaction_parts(
                 # The tool call was already surfaced (often by the tracing tool_call event, whose
                 # name is the ACP title/kind, and often with empty input on a cold-replay resume).
                 # Re-emit `tool-input-available` to refresh BOTH the stable `toolName` and the real
-                # args, instead of persisting the drift-prone name + `{}` input (HITL
-                # approve-empty-input / name-drift bug).
+                # args, instead of persisting a stale name with empty input.
                 yield {
                     "type": "tool-input-available",
                     "toolCallId": tool_call_id,
@@ -965,6 +972,20 @@ def _as_text(value: Any) -> str:
     return value if isinstance(value, str) else str(value)
 
 
+def _mcp_server_failed_part(data: Dict[str, Any]) -> Dict[str, Any]:
+    """An MCP server that did not join the run, as a non-fatal data part.
+
+    A notice, not an error: the turn ran and succeeded, it just ran without that server's
+    tools. Emitting it as an `error` part would end the message on the client.
+    """
+    notice = {
+        key: data[key]
+        for key in ("serverName", "reasonCode", "status", "message")
+        if data.get(key) is not None
+    }
+    return {"type": "data-mcp-server-failed", "data": notice}
+
+
 def _attachment_delivery_part(data: Dict[str, Any]) -> Dict[str, Any]:
     delivery = {
         key: data[key]
@@ -994,15 +1015,30 @@ def _error_parts(
     *,
     failure_code: Optional[str] = None,
     error: Optional[BaseException] = None,
+    error_detail: Optional[Dict[str, Any]] = None,
 ) -> Iterator[Dict[str, Any]]:
     resolved_code = failure_code or getattr(error, "failure_code", None)
     if not isinstance(resolved_code, str) or not resolved_code:
         resolved_code = AgentRunFailed.failure_code
     resolved_text = _as_text(error_text)
-    yield {
-        "type": "data-agent-error",
-        "data": {"code": resolved_code, "errorText": resolved_text},
-    }
+    # Include recovered gateway error details only when available. The live `error` event carries
+    # them in its own `detail` field; a raised terminal failure carries them on the exception.
+    resolved_detail = error_detail
+    if not resolved_detail:
+        resolved_detail = getattr(error, "error_detail", None)
+    # OR28: prefer the gateway's own code over the runner's generic one. A NAMED runner class
+    # (`starter_credits_exhausted`) answers a different question and wins; the generic fallback
+    # carries no information the gateway's code does not carry better.
+    if (
+        resolved_code == DEFAULT_RUNNER_FAILURE_CODE
+        and isinstance(resolved_detail, dict)
+        and _FAILURE_CODE.match(str(resolved_detail.get("code", "")))
+    ):
+        resolved_code = str(resolved_detail["code"])
+    data: Dict[str, Any] = {"code": resolved_code, "errorText": resolved_text}
+    if resolved_detail:
+        data["errorDetail"] = resolved_detail
+    yield {"type": "data-agent-error", "data": data}
     yield {"type": "error", "errorText": resolved_text}
 
 

@@ -347,7 +347,7 @@ PY
 name = "agenta-client"
 version = "${client_version}"
 description = "Fern-generated Python client for the Agenta API."
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.12,<3.14"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
     { name = "Juan Vega", email = "jp@agenta.ai" },

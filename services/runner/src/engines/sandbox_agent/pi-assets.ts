@@ -19,8 +19,14 @@ import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
 import { PI_TRACE_CONTROL_ENV } from "../../tracing/pi-spool-protocol.ts";
 import {
   encodePiModelProviderOverride,
+  GATEWAY_PLACEHOLDER_API_KEY,
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
 } from "../../extensions/model-provider-override.ts";
+import {
+  PI_GATEWAY_MCP_SERVERS_ENV,
+  piGatewayMcpServersFromWire,
+  serializePiGatewayMcpConfig,
+} from "../../extensions/pi-mcp.ts";
 import {
   advertisedToolSpecs,
   type AdvertisedToolSpec,
@@ -37,6 +43,7 @@ import {
   serializePiModelsJson,
   type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
+import { materializeGatewayHeaders } from "./run-plan.ts";
 import type {
   RunPlan,
   RunPlanCredentials,
@@ -496,12 +503,20 @@ export function buildPiExtensionEnv(
   // Point Pi's built-in provider at the resolved custom base URL via the Agenta extension
   // (`model-provider-override.ts`). Skipped when the managed OpenAI-compatible custom path
   // already routes this run through its own `models.json` provider (`pi-model-config.ts`) —
-  // two competing registrations for the same run would race for the provider.
+  // two competing registrations for the same run would race for the provider. A gateway-routed
+  // non-custom connection goes through the same override, which is how Pi receives the gateway
+  // credential header.
   const modelBaseUrl = request.modelConnection?.endpoint?.baseUrl;
   if (modelBaseUrl !== undefined && !isPiModelConfigApplicable(request)) {
+    const gatewayHeaders = materializeGatewayHeaders(request);
+    const isGatewayRoute = Object.keys(gatewayHeaders).length > 0;
     env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = encodePiModelProviderOverride({
       provider: request.modelConnection?.provider,
       baseUrl: modelBaseUrl,
+      ...(isGatewayRoute ? { headers: gatewayHeaders } : {}),
+      // credentialMode "none" leaves no real key anywhere; without SOME apiKey Pi may treat the
+      // model as unavailable for selection (see PiModelProviderOverride.apiKey).
+      ...(isGatewayRoute ? { apiKey: GATEWAY_PLACEHOLDER_API_KEY } : {}),
     });
   }
 
@@ -522,6 +537,10 @@ export function buildPiExtensionEnv(
       process.env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED;
     if (responseWatch !== undefined)
       env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED = responseWatch;
+  }
+  const mcpServers = piGatewayMcpServersFromWire(request.mcpServers);
+  if (mcpServers.length > 0) {
+    env[PI_GATEWAY_MCP_SERVERS_ENV] = serializePiGatewayMcpConfig(mcpServers);
   }
   // Only reached for a Pi run (environment-setup gates on `plan.isPi`), and every Pi run
   // activates all seven builtins.

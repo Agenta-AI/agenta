@@ -78,6 +78,31 @@ def _dump_json(source: Any) -> Any:
     return source
 
 
+def _response_outputs(response: Any) -> Any:
+    """Read workflow output from the batch-response envelope.
+
+    ``/invoke`` returns ``WorkflowServiceBatchResponse(data={outputs: ...})``.
+    Keep the direct attribute as a compatibility fallback for lightweight
+    adapters that have not adopted that envelope yet.
+    """
+    data = _read_field(response, "data")
+    outputs = _read_field(data, "outputs")
+    return outputs if outputs is not None else _read_field(response, "outputs")
+
+
+def _force_batch_mode(request: Any) -> None:
+    """Make an evaluation workflow invocation return one completed response."""
+    if request is None:
+        return
+
+    flags = _read_field(request, "flags")
+    batch_flags = {**(flags if isinstance(flags, dict) else {}), "stream": False}
+    if isinstance(request, dict):
+        request["flags"] = batch_flags
+    else:
+        request.flags = batch_flags
+
+
 class APIWorkflowServiceRunner:
     """API adapter from SDK runtime requests to the backend workflow service."""
 
@@ -101,6 +126,7 @@ class APIWorkflowServiceRunner:
             if self.request_builder
             else request.model_dump(mode="python", exclude_none=True)
         )
+        _force_batch_mode(kwargs.get("request"))
         response = await self.workflows_service.invoke_workflow(**kwargs)
         status = getattr(response, "status", None)
         status_code = getattr(status, "code", None)
@@ -122,7 +148,7 @@ class APIWorkflowServiceRunner:
             ),
             error=error,
             #
-            outputs=getattr(response, "outputs", None),
+            outputs=_response_outputs(response),
             #
             trace_id=getattr(response, "trace_id", None),
             span_id=getattr(response, "span_id", None),
@@ -475,6 +501,10 @@ class APIWorkflowRunner:
             if flags
             else None
         )
+        # An evaluation step consumes a completed value as the next step's
+        # input. It must therefore invoke the workflow in batch mode, even when
+        # the revision's interactive default is streaming.
+        flags = {**(flags or {}), "stream": False}
 
         testcase = request.source.testcase
         if hasattr(testcase, "model_dump"):
@@ -536,7 +566,7 @@ class APIWorkflowRunner:
             trace_id=getattr(response, "trace_id", None),
             span_id=getattr(response, "span_id", None),
             error=error,
-            outputs=getattr(response, "outputs", None),
+            outputs=_response_outputs(response),
         )
 
 

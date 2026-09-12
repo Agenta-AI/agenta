@@ -86,6 +86,9 @@ import {
   takeDaytonaSecretLease,
 } from "./daytona-secret-provider.ts";
 import type { DaytonaSecretLease } from "./daytona-secrets.ts";
+import { errorEventWithDetail } from "../../gateway-error.ts";
+import { codexConfigPinnedModel } from "./codex-assets.ts";
+import { probeMcpServerHandshakes } from "./mcp-handshake.ts";
 import { buildSessionMcpServers, validateUserMcpServers } from "./mcp.ts";
 import { applyModel } from "./model.ts";
 import {
@@ -420,7 +423,7 @@ function publishAcquireResult(
 ): AcquireEnvironmentResult {
   if (result.ok) return result;
   if (result.errorCode && result.errorCode !== "runner_error") {
-    emit?.({ type: "error", message: result.error, code: result.errorCode });
+    emit?.(errorEventWithDetail(result.error, result.errorCode));
   }
   return {
     ok: false,
@@ -963,6 +966,7 @@ async function acquireEnvironmentOnce(
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              storeEndpoint,
               log: logger,
               signal,
             })) ?? undefined);
@@ -1035,6 +1039,7 @@ async function acquireEnvironmentOnce(
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              storeEndpoint,
               log: logger,
               signal,
             })) ?? undefined);
@@ -1280,6 +1285,16 @@ async function acquireEnvironmentOnce(
     // Close the internal gateway-tool MCP server (if one started) when the session is destroyed.
     environment.closeToolMcp = sessionMcp.close;
 
+    // Preflight each configured MCP server's handshake, so a server that cannot connect is a
+    // reported server rather than a silently absent one (see `mcp-handshake.ts`). Probes the
+    // REQUEST's servers, not the materialized list: on a Daytona Secrets run the materialized
+    // credentials are placeholders the gateway would rightly refuse, and the probe would then
+    // report a failure that the run does not have.
+    environment.mcpHandshakeFailures = await probeMcpServerHandshakes(
+      request.mcpServers,
+      { signal: mcpAbort.signal, log: logger },
+    );
+
     // Shared session-init payload for both the createSession and continuity-resume paths below.
     // Built as a plain variable (not an inline object literal at the call site) so the extra
     // `_meta` key survives the daemon SDK's narrow `Omit<NewSessionRequest, "_meta">` types —
@@ -1436,12 +1451,28 @@ async function acquireEnvironmentOnce(
       piModelConfig && piModelConfig.models.length > 0
         ? `${piModelsJsonProviderId(piModelConfig)}/${piModelConfig.models[0].id}`
         : request.model;
-    environment.model = await (deps.applyModel ?? applyModel)(
-      environment.session,
-      wantedModel,
-      logger,
-      { strict: strictModel },
-    );
+    // A Codex run whose config DECLARES the model has already selected it: codex-acp took the
+    // config's id as the thread's model and advertised it as the session's first option, so the
+    // change `applyModel` would ask for is a no-op against a catalogue check that used to refuse
+    // it outright (OR31d). Skipping the call is the smaller edit than relying on that no-op, and
+    // the span is still labelled, with the id the config pinned rather than one nobody applied.
+    const pinnedCodexModel =
+      plan.acpAgent === "codex"
+        ? codexConfigPinnedModel(plan.workspace.harnessFiles)
+        : undefined;
+    if (pinnedCodexModel) {
+      environment.model = pinnedCodexModel;
+      logger(
+        `[codex] model pinned by config, skipping model change: ${pinnedCodexModel}`,
+      );
+    } else {
+      environment.model = await (deps.applyModel ?? applyModel)(
+        environment.session,
+        wantedModel,
+        logger,
+        { strict: strictModel },
+      );
+    }
     if (plan.acpAgent === "codex") {
       const mode = resolveCodexMode(request.harnessMode);
       await (deps.applyCodexMode ?? applyCodexMode)(

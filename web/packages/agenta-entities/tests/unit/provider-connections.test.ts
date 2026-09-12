@@ -6,6 +6,7 @@ import {
     connectionPolicyForSave,
     credentialSummary,
     credentialValuesFor,
+    declaredEndpointProtocol,
     defaultModelsFor,
     defaultNamePreview,
     doneState,
@@ -28,6 +29,7 @@ import {
     credentialFieldsForKind,
     secretKindForProviderKind,
 } from "../../src/secret/core/providerCatalog"
+import {transformSecret} from "../../src/secret/core/transforms"
 import {
     SecretKind,
     SecretManagementPolicy,
@@ -485,10 +487,11 @@ describe("harnessSupportsProviderKind", () => {
         expect(harnessSupportsProviderKind(capabilities, "pi_core", "bedrock")).toBe(false)
     })
 
-    // Deliberately coarse: the surface says the harness can speak to the endpoint at all, not which
-    // family the endpoint serves. Which harnesses a custom connection is OFFERED under by default is
-    // `effectiveHarnesses`, tested in @agenta/entity-ui's connectionPicker suite (#6692).
-    it("does not judge the family behind a deployment surface", () => {
+    // OR31a: this assertion used to read `true`. Consuming the `custom` surface was never enough —
+    // Claude Code publishes it for its own Anthropic gateway, so it was offered on an
+    // OpenAI-compatible endpoint and the run failed with a 422 the user never saw. The endpoint's
+    // DECLARED protocol is the missing fact; every other surface stays as coarse as it was.
+    it("judges the custom surface on the declared protocol, and no other surface", () => {
         const shipped: HarnessCapabilityMap = {
             claude: {
                 providers: ["anthropic"],
@@ -496,8 +499,149 @@ describe("harnessSupportsProviderKind", () => {
             },
         }
 
-        expect(harnessSupportsProviderKind(shipped, "claude", "custom")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom", "anthropic")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom", "openai")).toBe(false)
         expect(harnessSupportsProviderKind(shipped, "claude", "vertex_ai")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "claude", "vertex_ai", "openai")).toBe(true)
+    })
+
+    // An absent protocol is not a declaration of `openai`. Reading one into it would take Claude
+    // Code away from every Anthropic gateway saved before the field shipped — a bigger regression
+    // than the 422 this gating exists to prevent. Those records are judged per model in the picker.
+    it("narrows nothing on a custom endpoint that declares no protocol", () => {
+        const shipped: HarnessCapabilityMap = {
+            pi_core: {providers: ["openai", "anthropic"], deployments: ["direct", "custom"]},
+            claude: {providers: ["anthropic"], deployments: ["direct", "custom"]},
+        }
+
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom", null)).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom", "")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "pi_core", "custom")).toBe(true)
+        // The surface itself is still required: an undeclared protocol does not invent one.
+        expect(
+            harnessSupportsProviderKind(
+                {claude: {providers: ["anthropic"], deployments: ["direct"]}},
+                "claude",
+                "custom",
+            ),
+        ).toBe(false)
+    })
+
+    // The SDK's HARNESS_CUSTOM_DEPLOYMENT_PROVIDERS: pi_core -> openai, claude -> anthropic,
+    // codex -> openai. A custom endpoint is offerable exactly where the two agree.
+    it("matches each harness's custom family against the endpoint's protocol", () => {
+        const shipped: HarnessCapabilityMap = {
+            pi_core: {providers: ["openai", "anthropic"], deployments: ["direct", "custom"]},
+            claude: {providers: ["anthropic"], deployments: ["direct", "custom"]},
+            codex: {providers: ["openai"], deployments: ["direct", "custom"]},
+        }
+
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom", "openai")).toBe(false)
+        expect(harnessSupportsProviderKind(shipped, "claude", "custom", "anthropic")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "pi_core", "custom", "openai")).toBe(true)
+        expect(harnessSupportsProviderKind(shipped, "pi_core", "custom", "anthropic")).toBe(false)
+        expect(harnessSupportsProviderKind(shipped, "codex", "custom", "openai")).toBe(true)
+    })
+
+    // The protocol is a custom-endpoint fact. Passing one must not move any other kind, or a
+    // connection card that always sends its draft protocol would change Bedrock's answer.
+    it("ignores the protocol on every kind but custom", () => {
+        const shipped: HarnessCapabilityMap = {
+            pi_core: {providers: ["openai"], deployments: ["direct", "custom"]},
+            claude: {
+                providers: ["anthropic"],
+                deployments: ["direct", "bedrock", "vertex_ai", "sagemaker"],
+            },
+        }
+
+        for (const protocol of ["openai", "anthropic", undefined] as const) {
+            expect(harnessSupportsProviderKind(shipped, "pi_core", "openai", protocol)).toBe(true)
+            expect(harnessSupportsProviderKind(shipped, "claude", "openai", protocol)).toBe(false)
+            expect(harnessSupportsProviderKind(shipped, "claude", "anthropic", protocol)).toBe(true)
+            expect(harnessSupportsProviderKind(shipped, "claude", "bedrock", protocol)).toBe(true)
+            expect(harnessSupportsProviderKind(shipped, "claude", "vertex_ai", protocol)).toBe(true)
+            expect(harnessSupportsProviderKind(shipped, "claude", "sagemaker", protocol)).toBe(true)
+            expect(harnessSupportsProviderKind(shipped, "claude", "azure", protocol)).toBe(false)
+            expect(harnessSupportsProviderKind(shipped, "pi_core", "bedrock", protocol)).toBe(false)
+        }
+    })
+})
+
+describe("declaredEndpointProtocol", () => {
+    it("reports a record that declares none as declaring none", () => {
+        expect(declaredEndpointProtocol(undefined)).toBeNull()
+        expect(declaredEndpointProtocol(null)).toBeNull()
+        expect(declaredEndpointProtocol("")).toBeNull()
+        // Anything outside the two known protocols is no declaration either.
+        expect(declaredEndpointProtocol("grpc")).toBeNull()
+    })
+
+    it("reports a declared protocol as itself", () => {
+        expect(declaredEndpointProtocol("openai")).toBe("openai")
+        expect(declaredEndpointProtocol("anthropic")).toBe("anthropic")
+    })
+})
+
+describe("custom endpoint protocol", () => {
+    const draft = {
+        kind: "custom",
+        name: "Gateway",
+        credential: {apiKey: "sk-test", apiBaseUrl: "https://gw.example.com/v1"},
+    }
+
+    const dataOf = (payload: ReturnType<typeof buildConnectionPayload>) =>
+        payload.secret.data as {protocol?: string}
+
+    it("writes the declared protocol into the custom-provider payload", () => {
+        expect(
+            dataOf(buildConnectionPayload({...draft, protocol: "anthropic"}, "Gateway")),
+        ).toEqual(expect.objectContaining({protocol: "anthropic"}))
+        expect(dataOf(buildConnectionPayload({...draft, protocol: "openai"}, "Gateway"))).toEqual(
+            expect.objectContaining({protocol: "openai"}),
+        )
+    })
+
+    it("leaves the field out when the card declared none", () => {
+        expect(dataOf(buildConnectionPayload(draft, "Gateway"))).not.toHaveProperty("protocol")
+        expect(
+            buildConnectionPayload({kind: "openai", name: "", credential: {apiKey: "sk"}}, "OpenAI")
+                .secret.data,
+        ).not.toHaveProperty("protocol")
+    })
+
+    it("round-trips build -> transform -> connection", () => {
+        const payload = buildConnectionPayload({...draft, protocol: "anthropic"}, "Gateway")
+        const [row] = transformSecret([
+            {
+                id: "conn-9",
+                slug: "gateway",
+                kind: SecretKind.CustomProvider,
+                header: {name: "Gateway"},
+                data: payload.secret.data,
+                value_status: {configured: true},
+            } as unknown as Parameters<typeof transformSecret>[0][number],
+        ])
+
+        expect(row.protocol).toBe("anthropic")
+        expect(toProviderConnections([row])[0].protocol).toBe("anthropic")
+    })
+
+    it("reads a record written before the field as declaring nothing", () => {
+        const [row] = transformSecret([
+            {
+                id: "conn-10",
+                slug: "legacy",
+                kind: SecretKind.CustomProvider,
+                header: {name: "Legacy"},
+                data: {kind: "custom", provider: {url: "https://gw.example.com/v1"}, models: []},
+                value_status: {configured: true},
+            } as unknown as Parameters<typeof transformSecret>[0][number],
+        ])
+
+        expect(row.protocol).toBeUndefined()
+        expect(toProviderConnections([row])[0].protocol).toBeUndefined()
+        expect(declaredEndpointProtocol(toProviderConnections([row])[0].protocol)).toBeNull()
     })
 })
 

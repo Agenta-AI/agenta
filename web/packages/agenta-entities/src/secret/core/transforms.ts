@@ -16,27 +16,32 @@ import type {LlmProvider} from "@agenta/shared/types"
 
 import {SUBSCRIPTION_PROVIDER_KIND, subscriptionProviderName} from "./subscriptionConnections"
 import {
+    LlmEndpointProtocol,
     PROVIDER_KINDS,
     SecretKind,
+    McpStandardProviderKind,
     StandardProviderKind,
     type CreateSecretDto,
     type CustomProviderDto,
     type CustomSecretDto,
     type NamedSecretRow,
+    type ProviderVaultRow,
     type SecretResponseDto,
     type StandardProviderDto,
+    type McpStandardProviderDto,
 } from "./types"
 
 // ---------------------------------------------------------------------------
-// Provider ↔ env-var mapping (single source of truth)
+// Provider-key ↔ env-var mapping (single source of truth)
 //
 // Standard provider secrets surface in the app under their env-var name
 // (e.g. `OPENAI_API_KEY`). Keeping the kind → env mapping in one place
 // avoids drift between `transformSecret` (kind → env) and `getEnvNameMap`
-// (env → kind), and lets us surface unmapped providers explicitly.
+// (env → kind), and lets us surface unmapped providers explicitly. LLM and
+// MCP standard-provider keys use separate catalogues for that mapping.
 // ---------------------------------------------------------------------------
 
-const STANDARD_PROVIDER_ENV_BY_KIND: Partial<Record<StandardProviderKind, string>> = {
+const LLM_STANDARD_PROVIDER_ENV_BY_KIND: Partial<Record<StandardProviderKind, string>> = {
     [StandardProviderKind.Openai]: "OPENAI_API_KEY",
     [StandardProviderKind.Cohere]: "COHERE_API_KEY",
     [StandardProviderKind.Anyscale]: "ANYSCALE_API_KEY",
@@ -52,9 +57,14 @@ const STANDARD_PROVIDER_ENV_BY_KIND: Partial<Record<StandardProviderKind, string
     [StandardProviderKind.Minimax]: "MINIMAX_API_KEY",
 }
 
+const MCP_STANDARD_PROVIDER_ENV_BY_KIND: Record<McpStandardProviderKind, string> = {
+    [McpStandardProviderKind.Mock]: "MOCK_API_KEY",
+    [McpStandardProviderKind.Composio]: "COMPOSIO_API_KEY",
+}
+
 // Legacy aliases that map to the same canonical env var as their primary
 // counterpart. Used only in the reverse direction (env → kind).
-const STANDARD_PROVIDER_ENV_ALIASES: Record<string, StandardProviderKind> = {
+const LLM_STANDARD_PROVIDER_ENV_ALIASES: Record<string, StandardProviderKind> = {
     MISTRALAI_API_KEY: StandardProviderKind.Mistral,
 }
 
@@ -73,9 +83,10 @@ export const hasStoredKey = (provider: LlmProvider | null | undefined): boolean 
  * secrets have different wire shapes; both collapse into the common
  * `LlmProvider` representation here.
  *
- * Standard secrets whose `kind` isn't in `STANDARD_PROVIDER_ENV_BY_KIND`
- * are dropped (with a warning) — the app uses the env-var name as the
- * provider identity, so an unmapped kind would surface as a nameless row.
+ * Standard secrets whose `kind` isn't in `LLM_STANDARD_PROVIDER_ENV_BY_KIND`
+ * or `MCP_STANDARD_PROVIDER_ENV_BY_KIND` are dropped (with a warning) — the
+ * app uses the env-var name as the provider identity, so an unmapped kind
+ * would surface as a nameless row.
  */
 /**
  * The fields every row carries about its own value, whichever kind it is.
@@ -97,15 +108,23 @@ const modelNames = (models: {slug: string; extras?: Record<string, unknown> | nu
         ),
     )
 
-export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => {
+/** The declared protocol on a custom-provider row, or undefined where the record declares none. */
+const storedProtocol = (data: CustomProviderDto): LlmEndpointProtocol | undefined =>
+    data.protocol === LlmEndpointProtocol.Anthropic || data.protocol === LlmEndpointProtocol.Openai
+        ? data.protocol
+        : undefined
+
+export const transformSecret = (secrets: SecretResponseDto[]): ProviderVaultRow[] => {
     return secrets.reduce((acc, secret) => {
         if (secret.kind === SecretKind.ProviderKey) {
-            const data = secret.data as StandardProviderDto
+            const data = secret.data as StandardProviderDto | McpStandardProviderDto
 
             const provider = data.kind
-            const envName = STANDARD_PROVIDER_ENV_BY_KIND[provider as StandardProviderKind]
+            const envName =
+                LLM_STANDARD_PROVIDER_ENV_BY_KIND[provider as StandardProviderKind] ??
+                MCP_STANDARD_PROVIDER_ENV_BY_KIND[provider as McpStandardProviderKind]
             if (!envName) {
-                console.warn(`[vault] Unmapped standard provider kind "${provider}" — skipping.`)
+                console.warn(`[vault] Unmapped provider key kind "${provider}" — skipping.`)
                 return acc
             }
 
@@ -122,9 +141,9 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 type: secret.kind,
                 // Absent stays absent: no saved list means "use the defaults", which an empty
                 // array would misreport as "this connection offers no models".
-                models: data.models?.map((model) => model.slug),
-                modelNames: data.models ? modelNames(data.models) : undefined,
-                harnesses: data.harnesses ?? undefined,
+                models: "models" in data ? data.models?.map((model) => model.slug) : undefined,
+                modelNames: "models" in data && data.models ? modelNames(data.models) : undefined,
+                harnesses: "harnesses" in data ? (data.harnesses ?? undefined) : undefined,
                 created_at: secret.lifecycle?.created_at ?? undefined,
             })
         } else if (secret.kind === SecretKind.CustomProvider) {
@@ -153,6 +172,7 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 modelNames: modelNames(data.models),
                 modelKeys: data.model_keys ?? undefined,
                 harnesses: data.harnesses ?? undefined,
+                protocol: storedProtocol(data),
                 version: data.provider.version ?? "",
                 created_at: secret.lifecycle?.created_at ?? "",
             })
@@ -213,7 +233,7 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
             acc.push(row)
         }
         return acc
-    }, [] as LlmProvider[])
+    }, [] as ProviderVaultRow[])
 }
 
 /**
@@ -257,7 +277,7 @@ export const transformStandardProviderPayloadData = (
  * Transform a form-shaped `LlmProvider` into a `CreateSecretDto` suitable
  * for POST/PUT against `/secrets/`.
  */
-export const transformCustomProviderPayloadData = (values: LlmProvider): CreateSecretDto => {
+export const transformCustomProviderPayloadData = (values: ProviderVaultRow): CreateSecretDto => {
     const providerInput = values.provider?.trim() ?? ""
     const providerKind = providerInput
         ? (PROVIDER_KINDS[providerInput] ??
@@ -296,6 +316,7 @@ export const transformCustomProviderPayloadData = (values: LlmProvider): CreateS
                             : {}),
                     })) ?? [],
                 ...(values.harnesses ? {harnesses: values.harnesses} : {}),
+                ...(values.protocol ? {protocol: values.protocol} : {}),
             } as CustomProviderDto,
         },
     }
@@ -333,19 +354,19 @@ export const transformCustomSecretPayloadData = (values: NamedSecretRow): Create
 /**
  * Map the env-var name (e.g. `OPENAI_API_KEY`) used by `LlmProvider.name`
  * back to the canonical `StandardProviderKind` value used when creating
- * a standard provider secret. Derived from `STANDARD_PROVIDER_ENV_BY_KIND`
+ * an LLM standard provider secret. Derived from `LLM_STANDARD_PROVIDER_ENV_BY_KIND`
  * so the two directions can't drift.
  *
  * Returns `undefined` for unknown env-var names; the caller is expected
  * to throw a domain error in that case.
  */
 export const getEnvNameMap = (): Record<string, StandardProviderKind> => {
-    const reverse = Object.entries(STANDARD_PROVIDER_ENV_BY_KIND).reduce(
+    const reverse = Object.entries(LLM_STANDARD_PROVIDER_ENV_BY_KIND).reduce(
         (acc, [kind, env]) => {
             if (env) acc[env] = kind as StandardProviderKind
             return acc
         },
         {} as Record<string, StandardProviderKind>,
     )
-    return {...reverse, ...STANDARD_PROVIDER_ENV_ALIASES}
+    return {...reverse, ...LLM_STANDARD_PROVIDER_ENV_ALIASES}
 }

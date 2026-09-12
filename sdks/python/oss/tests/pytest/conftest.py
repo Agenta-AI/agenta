@@ -13,6 +13,12 @@ _EGRESS_FLAGS = (
     ("agenta.sdk.engines.running.handlers", "_HOOK_ALLOW_INSECURE"),
 )
 
+# The gateway transport opt-in is read from the environment at call time, so pinning it means
+# removing the variable rather than patching a module constant. `test.sh` sources the
+# deployment's env file with `set -a`, so a stack that enabled the flag would otherwise switch
+# off the HTTPS default for every test in the process.
+_INSECURE_ENV_VARS = ("AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED",)
+
 
 @pytest.fixture(autouse=True)
 def _secure_egress_by_default(request, monkeypatch):
@@ -22,3 +28,5 @@ def _secure_egress_by_default(request, monkeypatch):
 
     for module_name, attr in _EGRESS_FLAGS:
         monkeypatch.setattr(import_module(module_name), attr, False, raising=False)
+    for name in _INSECURE_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)

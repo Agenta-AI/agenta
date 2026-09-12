@@ -74,18 +74,44 @@ export function codexSqliteHomeDir(cwd: string): string {
  * custom provider (credentialMode "env" or "none"). A "runtime_provided" subscription run uses its
  * own mounted OAuth login instead, so it is excluded here.
  */
-export function isManagedCodexRun(
-  plan: CodexModePlan,
-): boolean {
+/** The path the SDK renders Codex's config at. Kept beside the readers of that file. */
+export const CODEX_CONFIG_PATH = ".codex/config.toml";
+
+// A top-level `model = "..."` line. Anchored per line so `model_provider = "..."`, which the
+// same file always carries, is not mistaken for it.
+const CODEX_CONFIG_MODEL_RE = /^model\s*=\s*"([^"]*)"/m;
+
+/**
+ * The model id this run's Codex config DECLARES, or undefined when it declares none.
+ *
+ * OR31d. Codex validates a model CHANGE against a baked five-entry catalogue, so asking it to
+ * switch to an Agenta model key was refused inside the client before any request left the
+ * process. The SDK now declares the id in `config.toml` instead, where codex-acp takes it
+ * verbatim and advertises it as the session's first option — which makes the runner's own
+ * `applyModel` call both redundant and the only thing that can still fail.
+ *
+ * Read from the rendered file rather than re-derived from the request, so the runner cannot
+ * decide the model was pinned on a run where it was not. The two sides agree by construction:
+ * whatever the SDK wrote is what this returns.
+ */
+export function codexConfigPinnedModel(
+  harnessFiles: Array<{ path: string; content: string }> | undefined,
+): string | undefined {
+  const config = harnessFiles?.find((file) => file.path === CODEX_CONFIG_PATH);
+  if (!config?.content) return undefined;
+  const match = CODEX_CONFIG_MODEL_RE.exec(config.content);
+  const model = match?.[1]?.trim();
+  return model || undefined;
+}
+
+export function isManagedCodexRun(plan: CodexModePlan): boolean {
   return (
     plan.acpAgent === "codex" &&
     plan.credentials.credentialMode !== "runtime_provided"
   );
 }
 
-export function isSubscriptionCodexRun(
-  plan: CodexModePlan,
-): boolean {
+export function isSubscriptionCodexRun(plan: CodexModePlan): boolean {
   return (
     plan.acpAgent === "codex" &&
     plan.credentials.credentialMode === "runtime_provided"
@@ -193,7 +219,9 @@ export async function symlinkCodexSubscriptionAuthFile(
 
   const mount = codexSubscriptionMountDir();
   if (!mount) {
-    log("codex subscription run has no CODEX_HOME mount; auth.json symlink not created");
+    log(
+      "codex subscription run has no CODEX_HOME mount; auth.json symlink not created",
+    );
     return;
   }
 

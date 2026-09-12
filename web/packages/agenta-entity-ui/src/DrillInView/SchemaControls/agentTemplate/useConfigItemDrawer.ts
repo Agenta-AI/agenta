@@ -19,9 +19,18 @@ export interface EditingState {
 export function useConfigItemDrawer({
     config,
     onChange,
+    prepareCommit,
 }: {
     config: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
+    /**
+     * Per-kind work a Save must complete BEFORE the item reaches the config (an MCP server
+     * registers its gateway endpoint). It returns the item to store, and a throw aborts the save.
+     */
+    prepareCommit?: (
+        kind: ItemKind,
+        draft: Record<string, unknown>,
+    ) => Promise<Record<string, unknown>>
 }) {
     const [editing, setEditing] = useState<EditingState | null>(null)
     const [draft, setDraft] = useState<Record<string, unknown>>({})
@@ -31,8 +40,13 @@ export function useConfigItemDrawer({
     // JSON is invalid. Reset when the open item changes — each editor is keyed/remounts and starts
     // valid.
     const [jsonInvalid, setJsonInvalid] = useState(false)
+    // A `prepareCommit` failure: shown in the drawer, which stays open with the draft intact.
+    const [commitError, setCommitError] = useState<string | null>(null)
+    const [committing, setCommitting] = useState(false)
     useEffect(() => {
         setJsonInvalid(false)
+        setCommitError(null)
+        setCommitting(false)
     }, [editing])
 
     const openCreate = useCallback((kind: ItemKind, seed: Record<string, unknown>) => {
@@ -56,12 +70,25 @@ export function useConfigItemDrawer({
 
     // Apply the drawer's draft to the config: append (create) or replace at index (edit).
     // The list transform is `itemListOps` so its preservation guarantee is unit-tested.
-    const commitDraft = useCallback(() => {
+    const commitDraft = useCallback(async () => {
         if (!editing) return
         const {field} = ITEM_KINDS[editing.kind]
-        onChange({...config, [field]: applyItemToList(fieldArray(field), editing, draft)})
+        let item = draft
+        if (prepareCommit) {
+            setCommitting(true)
+            setCommitError(null)
+            try {
+                item = await prepareCommit(editing.kind, draft)
+            } catch (error) {
+                setCommitError((error as Error)?.message || "Could not save this item.")
+                setCommitting(false)
+                return
+            }
+            setCommitting(false)
+        }
+        onChange({...config, [field]: applyItemToList(fieldArray(field), editing, item)})
         setEditing(null)
-    }, [editing, draft, config, onChange, fieldArray])
+    }, [editing, draft, config, onChange, fieldArray, prepareCommit])
 
     /** Drop one item by index from its kind's array. */
     const removeItem = useCallback(
@@ -92,6 +119,8 @@ export function useConfigItemDrawer({
         openEdit,
         closeEditor,
         commitDraft,
+        commitError,
+        committing,
         removeItem,
         draftInvalid,
         draftUnchanged,

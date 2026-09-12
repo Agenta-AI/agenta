@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from oss.src.utils.env import env
 from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 from oss.src.utils.helpers import get_slug_from_name_and_id
+from oss.src.utils.logging import get_module_logger
 from oss.src.core.secrets.enums import (
     STANDARD_PROVIDER_DISPLAY_NAMES,
     SUBSCRIPTION_PROVIDER_DISPLAY_NAMES,
@@ -13,7 +14,10 @@ from oss.src.core.secrets.enums import (
     StandardProviderKind,
     SubscriptionProviderKind,
 )
-from oss.src.core.secrets.interfaces import SecretsDAOInterface
+from oss.src.core.secrets.interfaces import (
+    LLMEndpointRegistrarInterface,
+    SecretsDAOInterface,
+)
 from oss.src.core.secrets.context import set_data_encryption_key
 from oss.src.core.secrets.redaction import (
     CREDENTIAL_EXTRAS_KEYS,
@@ -38,6 +42,9 @@ from oss.src.core.secrets.managed import (
     SecretManagementDTO,
     SecretManager,
 )
+
+
+log = get_module_logger(__name__)
 
 
 _BLANK_CREDENTIAL_VALUE_MESSAGE = (
@@ -375,8 +382,14 @@ def _carry_over_saved_policy(*, stored_data: Any, update_data: Any) -> None:
 
 
 class VaultService:
-    def __init__(self, secrets_dao: SecretsDAOInterface):
+    def __init__(
+        self,
+        secrets_dao: SecretsDAOInterface,
+        *,
+        llm_endpoint_registrar: Optional[LLMEndpointRegistrarInterface] = None,
+    ):
         self.secrets_dao = secrets_dao
+        self.llm_endpoint_registrar = llm_endpoint_registrar
         self._data_encryption_key = env.agenta.crypt_key
 
     async def create_secret(
@@ -385,12 +398,14 @@ class VaultService:
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
         create_secret_dto: CreateSecretDTO,
+        user_id: UUID | None = None,
     ):
         return await self._create_secret(
             project_id=project_id,
             organization_id=organization_id,
             create_secret_dto=create_secret_dto,
             management=None,
+            user_id=user_id,
         )
 
     async def create_managed_secret(
@@ -400,12 +415,14 @@ class VaultService:
         organization_id: UUID | None = None,
         create_secret_dto: CreateSecretDTO,
         management: SecretManagementDTO,
+        user_id: UUID | None = None,
     ):
         return await self._create_secret(
             project_id=project_id,
             organization_id=organization_id,
             create_secret_dto=create_secret_dto,
             management=management,
+            user_id=user_id,
         )
 
     async def _create_secret(
@@ -415,6 +432,7 @@ class VaultService:
         organization_id: UUID | None = None,
         create_secret_dto: CreateSecretDTO,
         management: SecretManagementDTO | None,
+        user_id: UUID | None = None,
     ):
         reject_server_owned_fields(secret=create_secret_dto.secret)
 
@@ -465,7 +483,74 @@ class VaultService:
 
         if project_id is not None:
             await invalidate_cache(project_id=str(project_id))
+
+        await self._register_llm_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            secret_dto=secret_dto,
+        )
+
         return secret_dto
+
+    async def _register_llm_endpoint(
+        self,
+        *,
+        project_id: UUID | None,
+        user_id: UUID | None,
+        secret_dto: Optional[SecretResponseDTO],
+    ) -> None:
+        """Keep the LLM gateway's endpoint for this connection in step with the vault.
+
+        Only a custom provider names an endpoint. A failure here is logged, never raised:
+        the credential is already stored, and a gateway problem must not make the vault
+        refuse writes.
+        """
+        if (
+            self.llm_endpoint_registrar is None
+            or project_id is None
+            or secret_dto is None
+            or secret_dto.kind != SecretKind.CUSTOM_PROVIDER
+        ):
+            return
+
+        try:
+            await self.llm_endpoint_registrar.register(
+                project_id=project_id,
+                user_id=user_id,
+                secret=secret_dto,
+            )
+        except Exception as exception:  # noqa: BLE001 - see the docstring.
+            log.warning(
+                "Could not register the LLM endpoint for a custom provider secret.",
+                secret_id=str(secret_dto.id),
+                exception=repr(exception),
+            )
+
+    async def _deregister_llm_endpoint(
+        self,
+        *,
+        project_id: UUID | None,
+        secret_dto: Optional[SecretResponseDTO],
+    ) -> None:
+        if (
+            self.llm_endpoint_registrar is None
+            or project_id is None
+            or secret_dto is None
+            or secret_dto.kind != SecretKind.CUSTOM_PROVIDER
+        ):
+            return
+
+        try:
+            await self.llm_endpoint_registrar.deregister(
+                project_id=project_id,
+                secret=secret_dto,
+            )
+        except Exception as exception:  # noqa: BLE001 - see `_register_llm_endpoint`.
+            log.warning(
+                "Could not deregister the LLM endpoint for a custom provider secret.",
+                secret_id=str(secret_dto.id),
+                exception=repr(exception),
+            )
 
     async def _name_and_slug_provider_key(
         self,
@@ -640,6 +725,15 @@ class VaultService:
 
         if project_id is not None:
             await invalidate_cache(project_id=str(project_id))
+
+        # The row the DAO returns already carries the slug and id the endpoint is keyed on,
+        # so registration needs no second read.
+        await self._register_llm_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            secret_dto=secret_dto,
+        )
+
         return secret_dto
 
     async def update_secret_atomically(
@@ -729,6 +823,14 @@ class VaultService:
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
     ) -> None:
+        # The DAO hands the row to `authorize_delete` under its write lock; capturing it
+        # there is what tells us which endpoint slug to drop, without a second read.
+        deleted: list[SecretResponseDTO] = []
+
+        def authorize_delete(stored_secret_dto: SecretResponseDTO) -> None:
+            _authorize_delete(stored_secret_dto)
+            deleted.append(stored_secret_dto)
+
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
@@ -736,8 +838,14 @@ class VaultService:
                 secret_id=secret_id,
                 project_id=project_id,
                 organization_id=organization_id,
-                authorize_delete=_authorize_delete,
+                authorize_delete=authorize_delete,
             )
 
         if project_id is not None:
             await invalidate_cache(project_id=str(project_id))
+
+        for stored_secret_dto in deleted:
+            await self._deregister_llm_endpoint(
+                project_id=project_id,
+                secret_dto=stored_secret_dto,
+            )

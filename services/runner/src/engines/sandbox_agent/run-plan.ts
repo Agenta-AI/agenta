@@ -15,7 +15,7 @@ import { executableToolSpecs } from "../../tools/public-spec.ts";
 import { attachmentCountError } from "../../sessions/attachments.ts";
 import { harnessKindOf } from "../../harness-kind.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
-import { PI_USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
+import { piGatewayMcpServersFromWire } from "../../extensions/pi-mcp.ts";
 import {
   INTERNAL_TOOL_MCP_SERVER_NAME,
   RESERVED_MCP_SERVER_NAME_MESSAGE,
@@ -324,8 +324,7 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  | { ok: true; plan: RunPlan }
-  | { ok: false; error: string };
+  { ok: true; plan: RunPlan } | { ok: false; error: string };
 
 // The five wire fields this change RETIRED. They are listed here so the runner can reject a
 // request that still sends them, rather than ignore them.
@@ -420,6 +419,82 @@ function defaultDaytonaCwd(durableCwd?: string): string {
   return durableCwd ?? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`;
 }
 
+// `host.docker.internal` is here for the same reason the Python SDK's `_LOOPBACK_HOSTNAMES`
+// carries it: Docker exposes the host loopback to a container under that fixed alias, so a
+// hop to it is the same hop. It was missing on this leg, which meant the SDK admitted a
+// connection the runner then refused — the run reached the sandbox and died there.
+const LOOPBACK_HOSTNAMES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "host.docker.internal",
+]);
+
+/** The deployment opt-in that lets OUR gateway credentials cross plain HTTP to a routable
+ * host. Mirrors the Python SDK's `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED`
+ * (`connections/models.py`): with the flag off both legs refuse, with it on both allow, so a
+ * run can never be admitted by one and stranded by the other. Default off, and deliberately
+ * not consulted for a provider's own secret — that rule stays HTTPS-or-loopback always.
+ * Read per call, because a container recreate is what changes it. */
+function gatewayInsecureHttpAllowed(): boolean {
+  const raw = (process.env.AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED ?? "")
+    .trim()
+    .toLowerCase();
+  return (
+    raw === "1" ||
+    raw === "true" ||
+    raw === "t" ||
+    raw === "y" ||
+    raw === "yes" ||
+    raw === "on" ||
+    raw === "enable" ||
+    raw === "enabled"
+  );
+}
+
+/** Mirrors the provider-credential transport rule in the Python SDK: HTTPS anywhere, or
+ * plain HTTP to loopback, which has no remote to leak a provider credential to. */
+function isEffectiveSecureEndpoint(baseUrl: string | undefined): boolean {
+  try {
+    const endpoint = new URL(baseUrl ?? "");
+    if (!endpoint.hostname) return false;
+    if (endpoint.protocol === "https:") return true;
+    return (
+      endpoint.protocol === "http:" &&
+      LOOPBACK_HOSTNAMES.has(endpoint.hostname.replace(/^\[|\]$/g, ""))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** The env var a gateway credential's raw value lands in, for a harness config file (Pi
+ * `models.json`, Codex `config.toml`) to reference by `$VAR` indirection rather than writing
+ * the secret to disk — the same pattern `apiKeyEnv` already uses for provider keys. */
+export const GATEWAY_CREDENTIALS_VALUE_ENV = "AGENTA_GATEWAY_CREDENTIALS_VALUE";
+
+const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+function isSafeHttpHeader(name: string, value: string): boolean {
+  return HTTP_FIELD_NAME.test(name) && !/[\r\n]/.test(value);
+}
+
+/** The gateway credentials as the header they belong in. The header counterpart of
+ * `materializeModelEnvironment`; validated there, materialized here. */
+export function materializeGatewayHeaders(
+  request: AgentRunRequest,
+): Record<string, string> {
+  const credentials = request.modelConnection?.gatewayCredentials;
+  if (
+    !credentials?.header?.trim() ||
+    !credentials.value ||
+    !isSafeHttpHeader(credentials.header, credentials.value)
+  ) {
+    return {};
+  }
+  return { [credentials.header]: credentials.value };
+}
+
 export function materializeModelEnvironment(
   request: AgentRunRequest,
 ):
@@ -483,19 +558,15 @@ export function materializeModelEnvironment(
         error: "modelConnection credential usage is invalid",
       };
     }
-    if (credential.usage === "opaque_http") {
-      try {
-        const endpoint = new URL(connection.endpoint?.baseUrl ?? "");
-        if (endpoint.protocol !== "https:" || !endpoint.hostname) {
-          throw new Error("invalid endpoint");
-        }
-      } catch {
-        return {
-          ok: false,
-          error:
-            "opaque_http model credentials require an effective HTTPS endpoint",
-        };
-      }
+    if (
+      credential.usage === "opaque_http" &&
+      !isEffectiveSecureEndpoint(connection.endpoint?.baseUrl)
+    ) {
+      return {
+        ok: false,
+        error:
+          "opaque_http model credentials require an effective HTTPS endpoint",
+      };
     }
     if (Object.hasOwn(environment, name)) {
       return {
@@ -504,6 +575,45 @@ export function materializeModelEnvironment(
       };
     }
     environment[name] = credential.value;
+  }
+
+  const gatewayCredentials = connection.gatewayCredentials;
+  if (gatewayCredentials !== undefined) {
+    if (
+      !gatewayCredentials.header?.trim() ||
+      !gatewayCredentials.value ||
+      !isSafeHttpHeader(gatewayCredentials.header, gatewayCredentials.value)
+    ) {
+      return {
+        ok: false,
+        error:
+          "gateway credentials require a valid header name and newline-free value",
+      };
+    }
+    // Gateway credentials are bearer credentials too, so the transport rule that guards a
+    // provider secret above guards them here. Without this the two legs disagreed: the SDK
+    // refused a plain-http routable gateway while the runner accepted one, which is the
+    // inconsistency `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` now resolves in both directions.
+    if (
+      !isEffectiveSecureEndpoint(connection.endpoint?.baseUrl) &&
+      !gatewayInsecureHttpAllowed()
+    ) {
+      return {
+        ok: false,
+        error:
+          "gateway credentials require an effective HTTPS endpoint; serve the deployment " +
+          "over HTTPS, or set AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED=true on a trusted " +
+          "single-tenant deployment",
+      };
+    }
+    // Gateway credentials replace provider credentials for a gateway-routed connection.
+    if (credentials.length > 0) {
+      return {
+        ok: false,
+        error:
+          "modelConnection cannot combine gateway credentials with provider credentials",
+      };
+    }
   }
 
   return {
@@ -671,7 +781,9 @@ export function buildRunPlan(
     }
   }
   const subscription =
-    requestCredentialMode === "runtime_provided" ? requestSubscription : undefined;
+    requestCredentialMode === "runtime_provided"
+      ? requestSubscription
+      : undefined;
 
   const materializedModel = materializeModelEnvironment(request);
   if (!materializedModel.ok) return materializedModel;
@@ -746,12 +858,21 @@ export function buildRunPlan(
     return { ok: false, error: CODE_TOOL_UNSUPPORTED_MESSAGE };
   }
 
-  // Pi delivers tools through its bundled extension, not over ACP MCP, so a user MCP server on
-  // a Pi run is DROPPED by `buildSessionMcpServers` (it returns [] for Pi). Dropping it silently
-  // (no log, HTTP 200) is the F-032 silent-drop bug. Refuse any external user MCP server
-  // on Pi up front with a Pi-specific message.
-  if (isPi && (request.mcpServers?.length ?? 0) > 0) {
-    return { ok: false, error: PI_USER_MCP_UNSUPPORTED_MESSAGE };
+  // Pi delivers tools through its bundled extension, not over ACP MCP, so a user MCP server it
+  // cannot express is DROPPED by `buildSessionMcpServers`, and dropping it silently (no log,
+  // HTTP 200) is the F-032 silent-drop bug. Pi's native extension CAN register HTTP MCP tools,
+  // but only for the already-resolved Agenta gateway route shape. Validate up front, before any
+  // run state is allocated, so an unsupported server fails loud here and a forged direct
+  // upstream URL cannot become a Pi extension input.
+  if (isPi) {
+    try {
+      piGatewayMcpServersFromWire(request.mcpServers);
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   // The internal gateway-tool channel's name is reserved on every transport: the Python

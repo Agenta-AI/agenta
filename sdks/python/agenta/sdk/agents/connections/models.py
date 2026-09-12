@@ -15,6 +15,7 @@ imports the ``.mcp`` / ``.skills`` / ``.tools`` subsystems), so keep it dependen
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import urlparse
 from uuid import UUID
@@ -34,6 +35,64 @@ ConnectionMode = Literal["agenta", "self_managed"]
 # login or a self-managed sidecar); ``none`` injects nothing and asserts no credential.
 CredentialMode = Literal["env", "runtime_provided", "none"]
 CredentialUsage = Literal["opaque_http", "local_use"]
+
+# Docker Desktop exposes the host loopback to containers under this fixed alias. It is used
+# only for local Compose development; every non-local hostname still requires HTTPS before a
+# bearer credential may be sent.
+_LOOPBACK_HOSTNAMES = frozenset(
+    {"localhost", "127.0.0.1", "::1", "host.docker.internal"}
+)
+
+
+def _is_loopback(hostname: Optional[str]) -> bool:
+    return (hostname or "").strip("[]").lower() in _LOOPBACK_HOSTNAMES
+
+
+# The deployment-level opt-in that lets gateway credentials cross a plain-http hop to a
+# ROUTABLE host. Default off: D37 keeps HTTPS, or a loopback hop with no remote to leak to,
+# as the rule for every bearer credential. It exists because a self-hosted deployment served
+# over plain http at an IP or a LAN name is otherwise unable to use a gateway-routed model at
+# all, and because the alternative operators reach for is widening the loopback set.
+#
+# Deliberately narrow: it applies ONLY to our own credentials into our own gateway, never to
+# a provider's secret (``opaque_http``), whose plaintext-hop rule is unchanged.
+INSECURE_HTTP_ENV_VAR = "AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED"
+
+_TRUTHY = frozenset({"true", "1", "t", "y", "yes", "on", "enable", "enabled"})
+
+
+def gateway_insecure_http_allowed() -> bool:
+    """Whether this deployment opted into plain-http gateway credentials.
+
+    Read at call time rather than cached at import: the value comes from a deployment's env
+    file, a container recreate is what changes it, and a test flips it per case.
+    """
+    return (os.getenv(INSECURE_HTTP_ENV_VAR) or "").strip().lower() in _TRUTHY
+
+
+def is_effective_https_endpoint(
+    base_url: Optional[str], *, allow_insecure_http: bool = False
+) -> bool:
+    """Whether ``base_url`` may carry a bearer credential.
+
+    The single implementation of the transport rule, so the model invariant and the typed
+    error raised at the gateway-construction seam cannot disagree about one URL. The runner's
+    ``isEffectiveSecureEndpoint`` (``run-plan.ts``) mirrors it on the TypeScript side.
+    """
+    parsed = urlparse(base_url or "")
+    scheme = parsed.scheme.lower()
+    if scheme == "https" and parsed.hostname:
+        return True
+    # A plaintext hop to a loopback host has no remote to leak the value to.
+    if scheme == "http" and _is_loopback(parsed.hostname):
+        return True
+    # The caller's explicit opt-in (see ``INSECURE_HTTP_ENV_VAR``), default off. A separate
+    # branch rather than a relaxed condition above, so the two defaults it must not touch —
+    # https anywhere, plain http to loopback — stay readable as themselves.
+    if scheme == "http" and parsed.hostname and allow_insecure_http:
+        return True
+    return False
+
 
 # Which deployment surface a provider is reached through. ``direct`` is the provider's own
 # API; custom-provider deployments preserve the vault ``data.kind`` value (for example
@@ -209,6 +268,36 @@ class ResolvedSubscription(BaseModel):
         ]
 
 
+class GatewayCredentials(BaseModel):
+    """OUR credentials for the gateway, bound to the header that carries them.
+
+    Deliberately not a member of the credential union above. A :class:`ResolvedCredential`
+    carries a *provider's* secret and authenticates the gateway to that provider; this
+    authenticates the caller as us, into the gateway. The two are never interchangeable, and
+    a header-bound value has no environment variable to materialize into — widening the union
+    would give a value that validates, crosses the wire and vanishes at the materialization
+    boundary.
+    """
+
+    header: str = "X-AG-Credentials"
+    value: str = Field(repr=False)
+
+    @model_validator(mode="after")
+    def _require_header_and_value(self) -> "GatewayCredentials":
+        if not self.header.strip():
+            raise ValueError("gateway credentials require a non-empty header name")
+        if not self.value:
+            raise ValueError("gateway credentials require a non-empty value")
+        return self
+
+    @field_serializer("value", when_used="always")
+    def _mask_value(self, value: str) -> str:
+        return "**********"
+
+    def to_wire(self) -> Dict[str, str]:
+        return {"header": self.header, "value": self.value}
+
+
 class ModelRef(BaseModel):
     """Model intent plus the credential connection, carried in the agent config.
 
@@ -288,6 +377,17 @@ class ResolvedConnection(BaseModel):
     # deliberately NOT a `credentials` entry: it is a credential FILE the harness owns, not an
     # environment variable Agenta binds, so the `credential_mode != env` rule below still holds.
     subscription: Optional[ResolvedSubscription] = Field(default=None, repr=False)
+    gateway_credentials: Optional[GatewayCredentials] = Field(default=None, repr=False)
+
+    def _require_effective_https(
+        self, subject: str, *, allow_insecure_http: bool = False
+    ) -> None:
+        base_url = self.endpoint.base_url if self.endpoint else None
+        if is_effective_https_endpoint(
+            base_url, allow_insecure_http=allow_insecure_http
+        ):
+            return
+        raise ValueError(f"{subject} require an effective HTTPS endpoint")
 
     @model_validator(mode="after")
     def _validate_credential_route(self) -> "ResolvedConnection":
@@ -305,12 +405,15 @@ class ResolvedConnection(BaseModel):
                 "a resolved subscription requires credential_mode 'runtime_provided'"
             )
         if any(item.usage == "opaque_http" for item in self.credentials):
-            base_url = self.endpoint.base_url if self.endpoint else None
-            parsed = urlparse(base_url or "")
-            if parsed.scheme.lower() != "https" or not parsed.hostname:
-                raise ValueError(
-                    "opaque_http model credentials require an effective HTTPS endpoint"
-                )
+            self._require_effective_https("opaque_http model credentials")
+        # Gateway credentials are still bearer credentials. Local development's normal API
+        # gateway is loopback HTTP (which _require_effective_https explicitly permits), but a
+        # remote plaintext route must never receive them unless the deployment says so.
+        if self.gateway_credentials is not None:
+            self._require_effective_https(
+                "gateway credentials",
+                allow_insecure_http=gateway_insecure_http_allowed(),
+            )
         return self
 
     def plaintext_environment(self) -> Dict[str, str]:
@@ -319,6 +422,16 @@ class ResolvedConnection(BaseModel):
         for credential in self.credentials:
             values[credential.binding.name] = credential.value
         return values
+
+    def plaintext_headers(self) -> Dict[str, str]:
+        """Materialize the gateway credentials at a local execution boundary.
+
+        The header counterpart of :meth:`plaintext_environment`, and the reason the gateway
+        credentials are their own field: they have no environment variable to land in.
+        """
+        if self.gateway_credentials is None:
+            return {}
+        return {self.gateway_credentials.header: self.gateway_credentials.value}
 
     def to_wire(self) -> Dict[str, Any]:
         """Serialize the consumer-owned model connection onto the trusted internal wire."""
@@ -338,6 +451,8 @@ class ResolvedConnection(BaseModel):
             wire["modelCapabilities"] = {"inputModalities": list(self.input_modalities)}
         if self.subscription is not None:
             wire["subscription"] = self.subscription.to_wire()
+        if self.gateway_credentials is not None:
+            wire["gatewayCredentials"] = self.gateway_credentials.to_wire()
         return wire
 
 

@@ -458,6 +458,19 @@ export type AgentEvent =
       reasonCode: string;
       workingPath?: string;
     }
+  // A configured MCP server that did NOT join this run. Non-fatal by construction: the turn goes
+  // on without that server's tools, and this event is the only thing that says so. Emitted once
+  // per failed server per turn; a server that connected emits nothing, so the stream stays quiet
+  // on the healthy path. See `engines/sandbox_agent/mcp-handshake.ts`.
+  | {
+      type: "mcp_server_failed";
+      serverName: string;
+      /** Stable string code, never a display string. See `McpHandshakeReasonCode`. */
+      reasonCode: string;
+      /** The handshake's HTTP status, when the server answered at all. */
+      status?: number;
+      message: string;
+    }
   | {
       type: "usage";
       input?: number;
@@ -487,6 +500,14 @@ export type AgentEvent =
        * Values: see `RunErrorCode` in engines/sandbox_agent/errors.ts.
        */
       code?: string;
+      /**
+       * The GATEWAY's own typed refusal, recovered from the harness's error text, when this
+       * failure was one. A different vocabulary from `code` above and a different question:
+       * `code` says what class of run failure this is, `detail.code` says what the gateway
+       * refused and what to do about it. Present only when the text still carried it — see
+       * `parseGatewayErrorDetail`. The terminal `AgentRunResult.errorDetail` is the same shape.
+       */
+      detail?: AgentErrorDetail;
     }
   // `traceId` is the run's observability trace id, stamped on the turn's terminal event so a
   // persisted transcript can link a replayed turn back to its trace (latency, full-trace view).
@@ -554,6 +575,20 @@ export interface ModelCredential {
   binding: ModelCredentialBinding;
   value: string;
   usage: "opaque_http" | "local_use";
+}
+
+/**
+ * OUR credentials for the gateway, bound to the header that carries them.
+ *
+ * Deliberately NOT a `ModelCredential` with a widened binding. A `ModelCredential` is a
+ * provider's secret and authenticates the gateway to that provider; this authenticates the
+ * caller as us, into the gateway. A header-bound value also has no environment variable to
+ * materialize into, so folding it into the credential union would produce a value that
+ * validates, crosses the wire, and then vanishes at `materializeModelEnvironment`.
+ */
+export interface GatewayCredentials {
+  header: string;
+  value: string;
 }
 
 /**
@@ -652,6 +687,9 @@ export interface ModelConnection {
    * Daytona; WITHOUT it the run reads the operator's own mount and stays local, unchanged.
    */
   subscription?: ModelConnectionSubscription;
+  /** Our own credentials for the gateway. Independent of `credentialMode`, which describes the
+   * provider's secret. Omitted when the model is not reached through a gateway. */
+  gatewayCredentials?: GatewayCredentials;
 }
 
 /**
@@ -866,6 +904,22 @@ export interface AgentRunRequest {
   streamId?: string;
 }
 
+/**
+ * The platform's agent-actionable error envelope (api/AGENTS.md "Domain-level exceptions"),
+ * carried onto the wire when a run's failure IS one — today, a gateway data-plane refusal
+ * (`model_not_allowed` / `endpoint_inactive` / `ceiling_exceeded` and siblings) relayed back
+ * through a harness's own error text. `code` is the stable lower-snake-case cause; `retryable`
+ * is about replaying the SAME request, never true for a policy/config refusal; `details` carries
+ * every error-specific field (never new top-level fields, matching the platform convention).
+ */
+export interface AgentErrorDetail {
+  code: string;
+  message: string;
+  retryable: boolean;
+  next_step?: string;
+  details?: Record<string, unknown>;
+}
+
 export interface AgentRunResult {
   ok: boolean;
   /** Final assistant text (what the playground renders). */
@@ -890,7 +944,15 @@ export interface AgentRunResult {
   model?: string;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
   traceId?: string;
+  /** Human-facing summary; unchanged shape. Every failure keeps this even when `errorDetail` is
+   * also present, so a caller reading only this field never regresses. */
   error?: string;
+  /**
+   * The same failure, structured, when the runner could recover a gateway refusal's cause from
+   * the harness's own error text (best-effort: absent when it could not — see
+   * `parseGatewayErrorDetail` in `gateway-error.ts`). Never present without `error`.
+   */
+  errorDetail?: AgentErrorDetail;
 }
 
 /**
