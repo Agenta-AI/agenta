@@ -10,6 +10,7 @@ import {CatalogDrawer} from "@agenta/entity-ui/gatewayTool"
 import {useLLMProviderConfig} from "@agenta/entity-ui/secretProvider"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {isEE} from "@agenta/shared/api"
+import {useSkillsBridge} from "@agenta/skills-ui"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {getDefaultStore, useSetAtom} from "jotai"
@@ -46,6 +47,9 @@ export const DrillInBridgeProvider = ({
             ? `${router.basePath}/w/${workspaceId}/p/${projectId}/agents`
             : null
 
+    // Registry-backed "Add skill" flow — without this /m keeps the inline-skill editor.
+    const skills = useSkillsBridge()
+
     const workflowReference = useMemo(
         () => ({
             ...baseWorkflowReference,
@@ -72,6 +76,7 @@ export const DrillInBridgeProvider = ({
                 EditorProvider,
                 SharedEditor,
                 workflowReference,
+                skills,
                 openTrace,
                 deployment,
                 permissions,
@@ -80,6 +85,7 @@ export const DrillInBridgeProvider = ({
         [
             llmProviderConfig,
             workflowReference,
+            skills,
             deployment,
             permissions,
             onWorkflowRevisionCommitted,

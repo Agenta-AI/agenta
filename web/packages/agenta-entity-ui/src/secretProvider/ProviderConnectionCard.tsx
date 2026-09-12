@@ -195,6 +195,11 @@ const ProviderConnectionCard = ({
         [discovered, probe, catalog.models],
     )
 
+    const availableNames = useMemo(
+        () => ({...(connection?.modelNames ?? {}), ...(probe?.discovery.model_names ?? {})}),
+        [connection?.modelNames, probe?.discovery.model_names],
+    )
+
     const effectiveChecked = useMemo(() => {
         if (checkedModels) return checkedModels
         // Untouched: Agenta's defaults, narrowed to what a live fetch actually offered.
@@ -225,8 +230,17 @@ const ProviderConnectionCard = ({
                 defaults: catalog.defaults,
                 discovered,
                 order: modelOrder,
+                names: availableNames,
             }),
-        [available, effectiveChecked, manualModels, catalog.defaults, discovered, modelOrder],
+        [
+            available,
+            effectiveChecked,
+            manualModels,
+            catalog.defaults,
+            discovered,
+            modelOrder,
+            availableNames,
+        ],
     )
 
     const harnessChoices = useMemo<HarnessChoice[]>(
@@ -318,6 +332,11 @@ const ProviderConnectionCard = ({
                     kind,
                     name,
                     credential,
+                    modelNames: Object.fromEntries(
+                        modelOptions.flatMap((option) =>
+                            option.checked && option.name ? [[option.id, option.name]] : [],
+                        ),
+                    ),
                     ...connectionPolicyForSave({
                         checkedModels,
                         modelIds: modelOptions

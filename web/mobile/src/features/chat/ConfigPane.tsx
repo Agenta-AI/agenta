@@ -1,3 +1,4 @@
+import {AutomationDrawer} from "@agenta/automation-ui"
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
@@ -50,6 +51,9 @@ export const ConfigPane = ({
                     storageHeader={
                         <StorageFilesHeader revisionId={entityId} sessionId={sessionId} />
                     }
+                    // The same automations editor the /m screens render, so a schedule opened
+                    // from an agent's panel is the surface it is opened from anywhere else.
+                    automationDrawer={<AutomationDrawer />}
                     header={
                         <AgentConfigHeader
                             revisionId={entityId}

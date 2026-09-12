@@ -49,6 +49,7 @@ import {
     getMountsClient,
     getSessionsClient,
     isAbortError,
+    isConflictError,
     projectScopedRequest,
 } from "./client"
 
@@ -741,8 +742,12 @@ export async function querySessionsPage({
     return parseSessionsQueryResponse(data, "[querySessionsPage]")
 }
 
-/** Temporary list-only adapter for callers that have not migrated to the page envelope. */
-export async function querySessions({
+/**
+ * The flat params above against the page envelope, so a caller that pages can read the
+ * server's cursor (`windowing.next` plus the boundary it belongs with) off the response.
+ * `querySessions` is this function with the envelope thrown away.
+ */
+export async function querySessionsFlatPage({
     projectId,
     references,
     includeEnded = true,
@@ -762,8 +767,8 @@ export async function querySessions({
     newest,
     oldest,
     order,
-}: QuerySessionsParams): Promise<SessionStream[] | null> {
-    const page = await querySessionsPage({
+}: QuerySessionsParams): Promise<SessionsQueryResponse | null> {
+    return querySessionsPage({
         projectId,
         session:
             search !== undefined || flags !== undefined || origin !== undefined
@@ -793,8 +798,16 @@ export async function querySessions({
         abortSignal,
         lowPriority,
     })
+}
+
+/** Temporary list-only adapter for callers that have not migrated to the page envelope. */
+export async function querySessions(params: QuerySessionsParams): Promise<SessionStream[] | null> {
+    const page = await querySessionsFlatPage(params)
     return page?.sessions ?? null
 }
+
+/** Where the name came from: a person typing one, or a program proposing one. */
+export type SessionNameSource = "manual" | "automatic"
 
 export interface SetSessionHeaderParams {
     sessionId: string
@@ -803,6 +816,20 @@ export interface SetSessionHeaderParams {
     description?: string
     appId?: string
     abortSignal?: AbortSignal
+    /**
+     * Say it on every call rather than leaning on the default. `"manual"` is a person
+     * typing a name and is remembered as theirs. `"automatic"` is a name a program
+     * proposed, such as the auto-title from a first message, and the server refuses one
+     * that would replace a name a person controls.
+     */
+    nameSource?: SessionNameSource
+    /**
+     * Called only when the server REFUSED the write, never when it merely failed. The
+     * distinction matters to a caller that shows a name optimistically: a refusal means the
+     * server has a different name and the optimistic one is wrong, while a network failure
+     * means nobody knows yet and dropping it would lose a name for no reason.
+     */
+    onRefused?: () => void
 }
 
 /**
@@ -817,6 +844,8 @@ export async function setSessionHeader({
     description,
     appId,
     abortSignal,
+    nameSource,
+    onRefused,
 }: SetSessionHeaderParams): Promise<boolean> {
     if (!projectId || !sessionId) return false
 
@@ -824,12 +853,25 @@ export async function setSessionHeader({
     if (name !== undefined) body.name = name
     if (description !== undefined) body.description = description
 
-    const data = await callFern("[setSessionHeader]", () =>
-        getSessionsClient().setSessionStreamHeader(
-            {session_id: sessionId, body},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
+    // `name_source` rides in the query string because that is where the endpoint reads it:
+    // the agent's rename tool has it fixed in its own path, so a model cannot put it in a
+    // body.
+    const request = projectScopedRequest(projectId, appId, abortSignal)
+    if (nameSource) request.queryParams.name_source = nameSource
+
+    // A 409 is the documented answer when an automatic name would replace one a person
+    // controls. It is an expected outcome rather than a fault, so it is not logged as one.
+    let refused = false
+    const data = await callFern(
+        "[setSessionHeader]",
+        () => getSessionsClient().setSessionStreamHeader({session_id: sessionId, body}, request),
+        (error) => {
+            if (!isConflictError(error)) return false
+            refused = true
+            return true
+        },
     )
+    if (refused) onRefused?.()
     return data !== null
 }
 

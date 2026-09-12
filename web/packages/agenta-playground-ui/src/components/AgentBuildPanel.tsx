@@ -34,6 +34,11 @@ export interface AgentBuildPanelProps {
     stickyHeaderTop?: number
     /** Operational section headers stick while their own section scrolls past. */
     sticky?: boolean
+    /**
+     * The automations create/edit drawer. Slotted like `storage`: the unified drawer lives in a
+     * package that depends on entity-ui, so the app mounts it and passes it down.
+     */
+    automationDrawer: ReactNode
     className?: string
 }
 
@@ -53,6 +58,7 @@ export const AgentBuildPanel = memo(
         storageHeader,
         stickyHeaderTop = 48,
         sticky = true,
+        automationDrawer,
         className,
     }: AgentBuildPanelProps) => {
         const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(revisionId))
@@ -91,6 +97,7 @@ export const AgentBuildPanel = memo(
                         sticky={sticky}
                         storage={storage}
                         storageHeader={storageHeader}
+                        automationDrawer={automationDrawer}
                     />
                 )}
             </div>

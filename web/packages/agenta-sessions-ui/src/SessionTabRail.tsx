@@ -191,18 +191,18 @@ const RailTab = ({
         consumedNonceRef.current = request.nonce
         startRename()
     }, [onRename, request, startRename, vm.id])
+    const handleMenuSelect = useCallback(
+        (key: string) => {
+            // Deferred, not run here: an input that mounts inside the menu's focus trap is
+            // blurred straight back out, and a blur commits. See `useDeferredMenuSelect`.
+            if (key === "rename" && onRename) return () => startRename()
+            onMenuSelect?.(vm, key)
+        },
+        [onMenuSelect, onRename, startRename, vm],
+    )
 
     const chip = (
-        <SessionRowContextMenu
-            entries={menuFor?.(vm)}
-            onSelect={(key) => {
-                if (key === "rename" && onRename) {
-                    startRename()
-                    return
-                }
-                onMenuSelect?.(vm, key)
-            }}
-        >
+        <SessionRowContextMenu entries={menuFor?.(vm)} onSelect={handleMenuSelect}>
             <SessionTab
                 active={active}
                 label={
@@ -283,7 +283,8 @@ const RailTab = ({
         </SessionRowContextMenu>
     )
 
-    const wrapper = clsx("mr-1.5 shrink-0", divided && TAB_DIVIDER)
+    // 5px = 2px + the 1px divider + 2px, so TAB_DIVIDER lands centred with clearance either side.
+    const wrapper = clsx("mr-[5px] shrink-0", divided && TAB_DIVIDER)
     return draggable ? (
         <SessionTabDragItem ref={ref} id={vm.id} className={wrapper}>
             {chip}
@@ -351,9 +352,11 @@ const moved = (ids: string[], index: number, direction: -1 | 1): string[] => {
 }
 
 /** The hairline the tab chips are "separated by" — see SessionTab's own note. Drawn in the gap
- *  left of a tab, so it never touches the chip's own fill. */
+ *  left of a tab, so it never touches the chip's own fill. The gap is 5px and the line sits 3px
+ *  in from this tab's edge, which clears 2px on each side of it; at the old -7px it landed 1px
+ *  PAST the previous chip's edge, so the chips read as touching. */
 const TAB_DIVIDER =
-    "relative before:absolute before:-left-[7px] before:top-1/2 before:h-3.5 before:w-px before:-translate-y-1/2 before:bg-colorBorderSecondary before:content-['']"
+    "relative before:absolute before:-left-[3px] before:top-1/2 before:h-3.5 before:w-px before:-translate-y-1/2 before:bg-colorBorderSecondary before:content-['']"
 
 /** The pending tab has no stream yet, so it wears the same idle chrome every quiet row does. */
 const IDLE_STATUS = sessionRowStatusMeta("idle")

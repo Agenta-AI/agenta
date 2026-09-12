@@ -182,6 +182,10 @@ class PlatformOp(BaseModel):
     context_bindings: Dict[str, str] = Field(default_factory=dict)
     # Where the model's args land in the request body (a dotted deep-set path; absent = the root).
     args_into: Optional[str] = None
+    # Static server-fixed body fields, emitted as ``call.body``. The runner overlays these on the
+    # model's args, so the model can never override them (e.g. the hardwired ``apply`` flag that
+    # keeps check_skill_updates read-only).
+    static_body: Optional[Dict[str, Any]] = None
     # Catalog hint for the runner's ``allow_reads`` policy; no hint counts as a write.
     read_only: bool = False
     # Per-op execution budget for long-running server-side handlers. Emitted as `timeoutMs`.
@@ -305,6 +309,7 @@ class PlatformOp(BaseModel):
         return ToolCall(
             method=self.method,
             path=self.path,
+            body=dict(self.static_body) if self.static_body else None,
             context=dict(self.context_bindings) or None,
             args_into=self.args_into,
         )
@@ -529,6 +534,67 @@ _DISCOVER_TOOLS_INPUT_SCHEMA: Dict[str, Any] = {
 
 # Workflows query (read): list the project's workflow artifacts, so an agent building or improving
 # agents can find what already exists. Filters mirror ``WorkflowQueryRequest`` (all optional).
+_SEARCH_SKILLS_DESCRIPTION = (
+    "Search the project's skill registry (name and description match; empty search lists "
+    "everything). Answers with each skill's slug, name, description, head version and "
+    "file count, plus the Agenta built-ins in a separate `builtin` block. To give this "
+    "agent a skill from the results, append an `@ag.embed` entry to `skills` via "
+    "`commit_revision` — the exact entry shape is documented in the configuration "
+    "reference's skills section (reference by `workflow.slug` to follow the latest "
+    "version; `workflow_revision` with `version` to pin)."
+)
+_SEARCH_SKILLS_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "search": {
+            "type": "string",
+            "description": "Case-insensitive match on skill name and description.",
+        },
+    },
+}
+
+# Skill update sync (read + gated write): the check endpoint never writes; the apply is a
+# write, so under the default policy the approval card IS the user prompt — no extra UI.
+_CHECK_SKILL_UPDATES_DESCRIPTION = (
+    "Check one imported skill against its upstream source, without changing anything. "
+    "Reports `update_available` (newer upstream content), `up_to_date`, `detached` "
+    "(edited in Agenta — updates never overwrite it), `missing_in_source`, or "
+    "`invalid_in_source`. Skill workflow ids come from `search_skills`; only skills "
+    "with an import origin can be checked. Use this when the user asks about skill "
+    "updates, or before proposing `apply_skill_update`; summarize what changed before "
+    "applying."
+)
+_CHECK_SKILL_UPDATES_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "skill_id": {
+            "type": "string",
+            "description": "The skill's workflow id (a UUID from `search_skills`).",
+        },
+    },
+    "required": ["skill_id"],
+}
+
+_APPLY_SKILL_UPDATE_DESCRIPTION = (
+    "Commit the upstream version of one imported skill as a new revision. Run "
+    "`check_skill_updates` first and tell the user what changed — this call needs the "
+    "user's approval, and the approval is their yes to updating. Skills edited in "
+    "Agenta report `detached` and are never overwritten; a concurrent edit reports "
+    "`conflict` instead of clobbering. Agents referencing the skill by slug "
+    "(follow-latest) pick the new version up on their next run; pinned references "
+    "keep their version until repinned."
+)
+_APPLY_SKILL_UPDATE_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "skill_id": {
+            "type": "string",
+            "description": "The skill's workflow id (a UUID from `search_skills`).",
+        },
+    },
+    "required": ["skill_id"],
+}
+
 _QUERY_WORKFLOWS_DESCRIPTION = (
     "Query the project's workflow artifacts (agents, prompts) with optional filters and "
     "pagination. Use it to find existing workflows before creating or referencing one."
@@ -1446,11 +1512,13 @@ _TEST_RUN_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["target", "inputs"],
 }
 
-_RENAME_SESSION_DESCRIPTION = """Name and describe the session you are running in, so a person scanning a long list of sessions can tell what this one is. Call it once you understand what the session is about, which is usually after the first exchange. Call it again later whenever the session has moved on and the name or the recap no longer fits.
+_RENAME_SESSION_DESCRIPTION = """Name and describe the session you are running in, so a person scanning a long list of sessions can tell what this one is. Name the session once, as soon as you understand what it is about, which is usually after the first exchange. After that, do not rename it. Rename it again only when the person asks you to.
 
 `name` is the general subject: what this session is about, as a short label a person can scan in a list. A few words. Not the latest step, and not a sentence.
 
 `description` is the current state: a short recap of what has happened and what is open, one to one and a half sentences, short enough to read inside a table cell.
+
+If a person named the session themselves, this tool refuses and gives you their name. Adopt that name and move on. Only when the person asks you for a different name, call it again with `replacing_name` and `replacing_revision` copied from that refusal. Those spend the request on one particular state of the session, so a rename the person has since overtaken or undone cannot take effect later.
 
 This renames the session you are in and no other one. It works only inside a session."""
 
@@ -1468,11 +1536,22 @@ _RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
             "type": "string",
             "maxLength": 300,
         },
+        "replacing_name": {
+            "type": "string",
+            "maxLength": 400,
+        },
+        "replacing_revision": {
+            "type": "integer",
+            # 0 is a real revision, not a missing one: a session whose title was filled from
+            # its first message and then kept by the person has a name nobody counted.
+            # Rejecting 0 here would make that one session impossible to rename on request.
+            "minimum": 0,
+        },
     },
     "required": ["name"],
 }
 
-_RENAME_AGENT_DESCRIPTION = """Name and describe yourself, so a person browsing the list of agents can tell what you are for. Call it once you understand your own purpose, which is usually right after your first task. Call it again if your purpose changes.
+_RENAME_AGENT_DESCRIPTION = """Name and describe yourself, so a person browsing the list of agents can tell what you are for. Rename yourself only while your name is still a placeholder such as "New agent" or "Untitled". Do it once you understand your own purpose, which is usually right after your first task. Once you have a real name, keep it. Rename yourself again only when the person asks you to.
 
 `name` is what you are for, as a short label a person can scan in a list. A few words.
 
@@ -1559,6 +1638,30 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             read_only=True,
         ),
         PlatformOp(
+            op="search_skills",
+            description=_SEARCH_SKILLS_DESCRIPTION,
+            method="POST",
+            path="/api/skills/query",
+            input_schema=_SEARCH_SKILLS_INPUT_SCHEMA,
+            read_only=True,
+        ),
+        PlatformOp(
+            op="check_skill_updates",
+            description=_CHECK_SKILL_UPDATES_DESCRIPTION,
+            method="POST",
+            path="/api/skills/{skill_id}/updates/check",
+            input_schema=_CHECK_SKILL_UPDATES_INPUT_SCHEMA,
+            read_only=True,
+        ),
+        PlatformOp(
+            op="apply_skill_update",
+            description=_APPLY_SKILL_UPDATE_DESCRIPTION,
+            method="POST",
+            path="/api/skills/{skill_id}/updates/apply",
+            input_schema=_APPLY_SKILL_UPDATE_INPUT_SCHEMA,
+            read_only=False,
+        ),
+        PlatformOp(
             op="query_spans",
             description=_QUERY_SPANS_DESCRIPTION,
             method="POST",
@@ -1570,7 +1673,12 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             op="rename_session",
             description=_RENAME_SESSION_DESCRIPTION,
             method="POST",
-            path="/api/sessions/streams/header?session_id={session_id}",
+            # `name_source=automatic` is fixed here, in code, and the model fills only the
+            # body, so an agent cannot claim a person chose the name. The endpoint refuses an
+            # automatic rename over a name a person controls, which is what stops a call the
+            # agent decided before the person renamed from replacing their name when it
+            # finally runs.
+            path="/api/sessions/streams/header?session_id={session_id}&name_source=automatic",
             input_schema=_RENAME_SESSION_INPUT_SCHEMA,
             context_bindings={"session_id": "$ctx.session.id"},
             read_only=False,

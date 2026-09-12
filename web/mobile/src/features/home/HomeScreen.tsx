@@ -1,144 +1,95 @@
 import {useMemo} from "react"
 
-import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {NextTriggersSection, useAgentActions} from "@agenta/entity-ui/agent"
-import {AgentsPanel, HomeOverview, UsageCard, type AgentsPanelEntry} from "@agenta/home-ui"
+import {
+    AGENT_TEMPLATES,
+    agentWorkflowsListQueryStateAtom,
+    invalidateWorkflowsListCache,
+    type Workflow,
+} from "@agenta/entities/workflow"
+import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue} from "jotai"
-import {AnimatePresence, motion} from "motion/react"
-import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {useMotionPresets} from "@/lib/motion/presets"
 
-import {NewAgentAction} from "../agents/NewAgentAction"
-import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
-import {FirstRunScreen} from "../onboarding/FirstRunScreen"
-import {resolveHomeSurface} from "../onboarding/homeSurface"
-import {FirstRunLoading} from "../onboarding/states/FirstRunStates"
-import {SessionAutomationDrawers} from "../sessions/SessionAutomationDrawers"
-import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
-import {HomeComposer} from "./HomeComposer"
-import {HomeSectionEmpty} from "./states/HomeStates"
+import {resolveHomeSurface} from "./homeSurface"
+import {HomeSkeleton} from "./states/HomeSkeleton"
+import {HomeListError, HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
+import {useHomeHandoff} from "./useHomeHandoff"
 
 /**
- * The project's home — the SHARED page (`@agenta/home-ui`), the same one the desktop app
- * renders: the hero, then what is in flight (sessions, automation runs), with what you could
- * start (agents, next triggers, usage) in the rail beside it at lg and beneath it on a phone.
+ * The project's home — one question, one composer, one list.
  *
- * The composer mints a session id, stashes the task and navigates to the chat route, which is
- * where the conversation engine lives — the first send is what creates the session server-side.
+ * The page's shape is the shared `HomeFocus` (`@agenta/home-ui`); only what this app alone owns
+ * arrives here — the routing verbs behind the composer and its designed states. What used to sit
+ * under it (sessions, automation runs, next triggers, usage) lives on the pages that own those
+ * things: as summaries here they made Home a table of contents rather than a place to start work.
  *
- * A project with no agents gets [[FirstRunScreen]] in this same frame instead. Home has nothing
- * to offer that user: its composer runs a task with an agent that already exists, so it does not
- * render at all, leaving one button on an empty page. See `homeSurface` for the decision.
+ * EVERY project gets this page, empty or not. With no agents it opens on the templates tab with
+ * the composer already describing one, which is the job the first-run hero used to do on a page
+ * of its own. `homeSurface` only decides whether we know enough to draw it yet.
  */
 export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; projectId: string}) => {
     useBindProjectContext(projectId)
     const project = useCurrentProject(workspaceId, projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
-    const router = useRouter()
-    const sessionMenu = useSessionRowMenu(base)
-    const newAgent = useNewAgentAction(base)
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
-    const presets = useMotionPresets()
-    // The shared agent verbs, same as the roster's cards and the overview header's kebab.
-    const agentActions = useAgentActions()
+    const handoff = useHomeHandoff(base)
     const surface = resolveHomeSurface({
         agentCount: agents.length,
         isPending: agentsQuery.isPending,
         isError: agentsQuery.isError,
     })
-    const agentNames = useMemo(
-        () => new Map(agents.map((agent) => [agent.id, agent.name || agent.slug || "Agent"])),
+
+    // Newest first. The list arrives in whatever order the query returns, which put agents made
+    // months ago above one created a minute earlier — and the head of this list is also what the
+    // composer binds by default.
+    const listAgents = useMemo<HomeListAgent[]>(
+        () =>
+            [...agents]
+                .sort(
+                    (a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? "") || 0,
+                )
+                .map((agent) => ({
+                    id: agent.id,
+                    name: agent.name || agent.slug || "Untitled agent",
+                    description: agent.description,
+                })),
         [agents],
     )
 
-    // Playground has no mobile surface, so that entry alone is not offered — the card renders
-    // without it rather than with a dead action.
-    const agentEntries = useMemo<AgentsPanelEntry[]>(
-        () =>
-            agents.map((agent) => {
-                const name = agent.name || agent.slug || "Untitled agent"
-                return {
-                    agent: {
-                        id: agent.id,
-                        name,
-                        description: agent.description,
-                        updatedAt: agent.updated_at ?? undefined,
-                    },
-                    createdAt: agent.created_at ?? undefined,
-                    onOpenOverview: () => void router.push(`${base}/agents/${agent.id}`),
-                    onRename: () => agentActions.rename({id: agent.id, name}),
-                    onArchive: () => agentActions.remove({id: agent.id, name}),
-                }
-            }),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [agents, base, agentActions],
-    )
-
-    // A first run swaps only the BODY: the shell, its header and the nav drawer stay put, so a
-    // user with no agents can still reach Settings — which is where they land if the key gate
-    // sends them there. The two pre-Home states crossfade into each other rather than popping;
-    // Home itself is left unanimated, exactly as it has always rendered.
-    const firstRunBody = (
-        <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-                key={surface}
-                variants={presets.crossfade}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-            >
-                {surface === "loading" ? <FirstRunLoading /> : <FirstRunScreen base={base} />}
-            </motion.div>
-        </AnimatePresence>
-    )
+    // The frame every screen here applies: the shared column plus a phone's own gutters below
+    // `lg`, widening to the page gutters above it. The deep top inset is Home's own — the centred
+    // column is the whole page, so it hangs rather than starting at the top. The skeleton takes
+    // the SAME frame, or the hold sits somewhere the page does not.
+    const frame = `${pageContentWidthClass} px-4 pb-12 pt-10 lg:px-16 lg:pb-16 lg:pt-[120px]`
 
     const homeBody = (
-        <HomeOverview
-            // The frame every screen here applies: the shared column plus a phone's
-            // own gutters below `lg`, widening to the page gutters above it — the
-            // desktop app's `PageLayout` gives its copy of this page the same box.
-            // No top inset below `lg`: this box is the scroller there, and a
-            // padding-top on a scroller pushes its `sticky` section headers down.
-            className={`${pageContentWidthClass} px-4 pb-6 lg:px-16 lg:pb-8 lg:pt-14`}
-            title="What do you want to do?"
-            action={
-                <NewAgentAction
-                    create={() => void newAgent.create()}
-                    createFromTemplate={newAgent.createFromTemplate}
-                    base={base}
-                    align="end"
-                    creating={newAgent.creating}
-                    error={newAgent.error}
-                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
-                />
+        <HomeFocus
+            className={frame}
+            agents={listAgents}
+            templates={AGENT_TEMPLATES}
+            attachments={handoff.attachments}
+            onStartTask={handoff.onStartTask}
+            onCreateFromPrompt={handoff.onCreateFromPrompt}
+            sending={handoff.sending}
+            templatesHref={`${base}/templates`}
+            loading={agentsQuery.isPending}
+            loadingSlot={<HomeListSkeleton />}
+            emptySlot={<HomeSectionEmpty text="Agents you create will show up here." />}
+            errorSlot={
+                agentsQuery.isError ? (
+                    // The list atom exposes no refetch; invalidating its cache is what re-runs it.
+                    <HomeListError onRetry={() => void invalidateWorkflowsListCache()} />
+                ) : undefined
             }
-            composer={agents.length > 0 ? <HomeComposer agents={agents} base={base} /> : null}
-            sessionsHref={`${base}/sessions`}
-            onOpenSession={sessionMenu.open}
-            sessionMenuFor={sessionMenu.menuFor}
-            onSessionMenuSelect={sessionMenu.onMenuSelect}
-            onSessionRenameRow={sessionMenu.onRenameRow}
-            alwaysShowPin
-            agentsPanel={
-                <AgentsPanel
-                    entries={agentEntries}
-                    loading={agentsQuery.isPending}
-                    allAgentsHref={`${base}/agents`}
-                    empty={<HomeSectionEmpty text="Agents you create will show up here." />}
-                />
-            }
-            triggersPanel={<NextTriggersSection agentNames={agentNames} />}
-            usagePanel={<UsageCard />}
         />
     )
 
@@ -156,12 +107,9 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                         </div>
                     }
                 >
-                    {surface === "home" ? homeBody : firstRunBody}
+                    {surface === "home" ? homeBody : <HomeSkeleton className={frame} />}
                 </ScreenScaffold>
             </AppShell>
-            {/* The automation-run rows' trigger drawers, at screen level so one survives its row
-                unmounting underneath it. */}
-            <SessionAutomationDrawers base={base} />
         </>
     )
 }

@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError
@@ -8,8 +8,10 @@ from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.core.secrets.enums import (
     STANDARD_PROVIDER_DISPLAY_NAMES,
+    SUBSCRIPTION_PROVIDER_DISPLAY_NAMES,
     SecretKind,
     StandardProviderKind,
+    SubscriptionProviderKind,
 )
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
 from oss.src.core.secrets.context import set_data_encryption_key
@@ -17,8 +19,13 @@ from oss.src.core.secrets.redaction import (
     CREDENTIAL_EXTRAS_KEYS,
     PRIMARY_CREDENTIAL_FIELDS,
 )
+from oss.src.core.secrets.types import (
+    ServerOwnedFieldNotWritable,
+    SubscriptionProviderConflict,
+)
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
+    subscription_provider_slug,
     SecretResponseDTO,
     SecretDTO,
     UpdateSecretPayloadDTO,
@@ -29,6 +36,7 @@ from oss.src.core.secrets.dtos import (
 from oss.src.core.secrets.managed import (
     ManagedSecretReadOnlyError,
     SecretManagementDTO,
+    SecretManager,
 )
 
 
@@ -82,6 +90,37 @@ def _secret_format(data: Any) -> Optional[str]:
     return str(getattr(fmt, "value", fmt))
 
 
+# Fields the server owns on a subscription connection. The sign-in routes are the only
+# writers: a create or an update that states one is refused, and one that omits it keeps
+# the stored value, so a rename does not reset the connection to "never signed in".
+SERVER_OWNED_DATA_FIELDS = {
+    SecretKind.SUBSCRIPTION_PROVIDER.value: (
+        "login",
+        "login_attempt",
+        "login_version",
+        "login_generation",
+        "login_state",
+        "login_error",
+    ),
+}
+
+
+def reject_server_owned_fields(*, secret: Any) -> None:
+    """Refuse a payload that states a field only the sign-in routes may write."""
+    if secret is None:
+        return
+
+    kind = getattr(secret, "kind", None)
+    owned = SERVER_OWNED_DATA_FIELDS.get(str(getattr(kind, "value", kind)), ())
+    if not owned:
+        return
+
+    stated = getattr(secret.data, "model_fields_set", set())
+    written = [field for field in owned if field in stated]
+    if written:
+        raise ServerOwnedFieldNotWritable(fields=written)
+
+
 def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) -> None:
     """Fill an update payload's omitted value field from the stored record.
 
@@ -112,7 +151,34 @@ def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) ->
                 if stored_value is not None:
                     setattr(update_container, field, stored_value)
 
+    _carry_over_saved_server_state(
+        kind=kind,
+        stored_data=stored_data,
+        update_data=update_data,
+    )
     _carry_over_saved_extras(stored_data=stored_data, update_data=update_data)
+
+
+def _carry_over_saved_server_state(
+    *,
+    kind: str,
+    stored_data: Any,
+    update_data: Any,
+) -> None:
+    """Keep-on-omit for the server-owned fields that live on the data object itself.
+
+    Omission is read from the payload's own field set, not from the value, because the
+    login write paths clear an attempt with an explicit null and that clear must survive.
+    """
+    for field in SERVER_OWNED_DATA_FIELDS.get(kind, ()):
+        if not hasattr(update_data, field):
+            continue
+        if field in update_data.model_fields_set:
+            continue
+
+        stored_value = getattr(stored_data, field, None)
+        if stored_value is not None:
+            setattr(update_data, field, stored_value)
 
 
 def _revalidate_merged_secret(*, secret: Any) -> UpdateSecretPayloadDTO:
@@ -191,6 +257,40 @@ def _resolve_update(
     stored_secret_dto: SecretResponseDTO,
     requested_update: UpdateSecretDTO,
 ) -> UpdateSecretDTO:
+    """Resolve a CALLER update: a managed row is read-only, every other row merges."""
+    if stored_secret_dto.management is not None:
+        raise ManagedSecretReadOnlyError()
+
+    return _merge_update(stored_secret_dto, requested_update)
+
+
+def _resolve_managed_update(manager: SecretManager):
+    """Resolve an update issued by a managed row's OWN manager.
+
+    The read-only rule exists so a caller cannot edit a row the platform owns. It must not
+    stop the owning manager itself from repairing that row: a seeded value can go stale
+    (the funded model of a starter-credits connection, say), and only the manager knows
+    the current one. The merge below is the same one every other update runs.
+    """
+
+    def resolve(
+        stored_secret_dto: SecretResponseDTO,
+        requested_update: UpdateSecretDTO,
+    ) -> UpdateSecretDTO:
+        management = stored_secret_dto.management
+
+        if management is None or management.manager != manager:
+            raise ManagedSecretReadOnlyError()
+
+        return _merge_update(stored_secret_dto, requested_update)
+
+    return resolve
+
+
+def _merge_update(
+    stored_secret_dto: SecretResponseDTO,
+    requested_update: UpdateSecretDTO,
+) -> UpdateSecretDTO:
     """Fill this update's omitted credential from the row UNDER THE WRITE LOCK.
 
     Called by the DAO inside the locked transaction rather than by the service before it,
@@ -202,9 +302,6 @@ def _resolve_update(
     another kind's or another provider's credential — and that decision reads the same
     stored row, so it belongs under the same lock.
     """
-    if stored_secret_dto.management is not None:
-        raise ManagedSecretReadOnlyError()
-
     resolved_update = requested_update.model_copy(deep=True)
     if resolved_update.secret is None:
         return UpdateSecretDTO.model_validate(resolved_update.model_dump(mode="python"))
@@ -319,6 +416,8 @@ class VaultService:
         create_secret_dto: CreateSecretDTO,
         management: SecretManagementDTO | None,
     ):
+        reject_server_owned_fields(secret=create_secret_dto.secret)
+
         # custom_secret and custom_provider are addressed by slug; derive one from the name when
         # absent so the record keeps its identity when the display name later changes.
         if (
@@ -335,6 +434,13 @@ class VaultService:
 
         if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
             await self._name_and_slug_provider_key(
+                project_id=project_id,
+                organization_id=organization_id,
+                create_secret_dto=create_secret_dto,
+            )
+
+        if create_secret_dto.secret.kind == SecretKind.SUBSCRIPTION_PROVIDER:
+            await self._name_and_slug_subscription_provider(
                 project_id=project_id,
                 organization_id=organization_id,
                 create_secret_dto=create_secret_dto,
@@ -401,6 +507,53 @@ class VaultService:
                 header.name,
                 uuid4(),
             )
+
+    async def _name_and_slug_subscription_provider(
+        self,
+        *,
+        project_id: UUID | None,
+        organization_id: UUID | None,
+        create_secret_dto: CreateSecretDTO,
+    ) -> None:
+        """Name and slug a new subscription connection, and refuse a duplicate provider.
+
+        One connection per provider per project is the whole model for now, so the slug is
+        the provider id itself and a second one is a conflict rather than a second row. The
+        unique index on (project_id, slug) would refuse it too, but as an integrity error
+        the caller cannot act on.
+        """
+        provider = create_secret_dto.secret.data.provider
+        provider_kind = SubscriptionProviderKind(getattr(provider, "value", provider))
+
+        with set_data_encryption_key(
+            data_encryption_key=self._data_encryption_key,
+        ):
+            secrets_dtos = await self.secrets_dao.list(
+                project_id=project_id,
+                organization_id=organization_id,
+            )
+
+        for secret_dto in secrets_dtos or []:
+            if secret_dto.kind != SecretKind.SUBSCRIPTION_PROVIDER:
+                continue
+            stored_provider = getattr(secret_dto.data, "provider", None)
+            if (
+                getattr(stored_provider, "value", stored_provider)
+                == provider_kind.value
+            ):
+                raise SubscriptionProviderConflict(provider=provider_kind.value)
+
+        header = create_secret_dto.header
+        if not header.name:
+            header.name = SUBSCRIPTION_PROVIDER_DISPLAY_NAMES[provider_kind]
+
+        # This is the storage identity, not the editable display identity. Keeping it canonical
+        # lets the database's (project_id, slug) unique index serialize concurrent creates.
+        create_secret_dto.slug = provider_kind.value
+
+        create_secret_dto.secret.data.provider_slug = subscription_provider_slug(
+            header.name
+        )
 
     async def get_secret_by_id(
         self,
@@ -471,6 +624,8 @@ class VaultService:
         organization_id: UUID | None = None,
         user_id: UUID | None = None,
     ):
+        reject_server_owned_fields(secret=update_secret_dto.secret)
+
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
@@ -486,6 +641,87 @@ class VaultService:
         if project_id is not None:
             await invalidate_cache(project_id=str(project_id))
         return secret_dto
+
+    async def update_secret_atomically(
+        self,
+        *,
+        secret_id: UUID,
+        project_id: UUID | None = None,
+        organization_id: UUID | None = None,
+        user_id: UUID | None = None,
+        resolve_update: Callable[[SecretResponseDTO], Optional[UpdateSecretDTO]],
+    ):
+        """Apply an update computed from the stored row under the DAO's write lock.
+
+        The subscription login writes decide WHAT to store by comparing the pushed login
+        with the stored one. Two runners can push at the same time, so that comparison has
+        to read the row the write commits, not a snapshot taken before it.
+
+        A resolver that returns None means the row already holds what the caller wanted.
+        Nothing is written and the project cache keeps its entry, so a device login poll
+        every two seconds does not evict every reader's view of the vault.
+        """
+        changed = False
+
+        def resolve(stored: SecretResponseDTO, _requested: UpdateSecretDTO):
+            nonlocal changed
+            update = resolve_update(stored)
+            changed = update is not None
+            return update
+
+        with set_data_encryption_key(
+            data_encryption_key=self._data_encryption_key,
+        ):
+            secret_dto = await self.secrets_dao.update(
+                secret_id=secret_id,
+                update_secret_dto=UpdateSecretDTO(),
+                project_id=project_id,
+                organization_id=organization_id,
+                user_id=user_id,
+                resolve_update=resolve,
+            )
+
+        if changed and project_id is not None:
+            await invalidate_cache(project_id=str(project_id))
+        return secret_dto
+
+    async def update_managed_secret(
+        self,
+        *,
+        secret_id: UUID,
+        update_secret_dto: UpdateSecretDTO,
+        manager: SecretManager,
+        project_id: UUID | None = None,
+        organization_id: UUID | None = None,
+    ):
+        """Rewrite a managed row on behalf of the manager that owns it.
+
+        Refuses any row another manager owns, and any unmanaged row: this path exists to
+        repair what the platform seeded, never to edit what a user saved.
+        """
+        with set_data_encryption_key(
+            data_encryption_key=self._data_encryption_key,
+        ):
+            secret_dto = await self.secrets_dao.update(
+                secret_id=secret_id,
+                update_secret_dto=update_secret_dto,
+                project_id=project_id,
+                organization_id=organization_id,
+                resolve_update=_resolve_managed_update(manager),
+            )
+
+        if project_id is not None:
+            await invalidate_cache(project_id=str(project_id))
+        return secret_dto
+
+    async def invalidate_secrets_cache(self, project_id: UUID) -> None:
+        """Drop this project's cached secrets list.
+
+        The vault owns list-cache invalidation so every writer goes through one path. A
+        reader that finds the cached list disagrees with the stored row needs the same door,
+        rather than reaching for the cache helper itself.
+        """
+        await invalidate_cache(project_id=str(project_id))
 
     async def delete_secret(
         self,

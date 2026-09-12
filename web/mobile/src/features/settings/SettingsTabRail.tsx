@@ -2,6 +2,7 @@ import {useMemo} from "react"
 
 import {getSettingsSidebarTabs, SETTINGS_SCOPES, type SettingsTabKey} from "@agenta/settings"
 
+import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
 import {cn} from "@/lib/utils"
 
 import {AVAILABLE_SETTINGS_TABS, useMobileSettingsAccess} from "./settingsTabs"
@@ -21,8 +22,10 @@ export const SettingsTabRail = ({
     const access = useMobileSettingsAccess()
 
     const groups = useMemo(() => {
-        const tabs = getSettingsSidebarTabs(access).filter(
-            (tab) => AVAILABLE_SETTINGS_TABS.includes(tab.key) && !tab.isHidden,
+        const tabs = withMobileSettingsLabels(
+            getSettingsSidebarTabs(access).filter(
+                (tab) => AVAILABLE_SETTINGS_TABS.includes(tab.key) && !tab.isHidden,
+            ),
         )
         return SETTINGS_SCOPES.map((scope) => ({
             ...scope,

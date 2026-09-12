@@ -307,3 +307,7 @@ e30afd32abeb0b51f22a0590b5bf44899978712b:.agents/skills/agent-release-gate/resou
 9e9fec16acda13e00567df1dee63b3485f7c4a10:.agents/skills/agent-release-gate/resources/qa-gate-runs/20260806-215437/results.json:generic-api-key:18
 9e9fec16acda13e00567df1dee63b3485f7c4a10:.agents/skills/agent-release-gate/resources/qa-gate-runs/20260806-215437/results.json:generic-api-key:94
 9e9fec16acda13e00567df1dee63b3485f7c4a10:.agents/skills/agent-release-gate/resources/qa-gate-runs/20260806-215512/results.json:generic-api-key:18
+# Upstream commit ids in a research doc's source table (the Pi and Hermes Agent repos), not
+# tokens. Regenerate these lines if that table moves — a fingerprint is anchored to its line.
+a7cf435e35ff3274b27e851fd49ec0385c1b2ddf:docs/design/hosted-subscription-connections/research/other-providers.md:sourcegraph-access-token:374
+a7cf435e35ff3274b27e851fd49ec0385c1b2ddf:docs/design/hosted-subscription-connections/research/other-providers.md:sourcegraph-access-token:375

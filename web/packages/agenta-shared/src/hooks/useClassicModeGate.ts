@@ -8,8 +8,13 @@ import {useEffect} from "react"
 import {useAtomValue} from "jotai"
 
 import {getEnv} from "../api/env"
-import {advancedNavHiddenAtom} from "../state/classicMode"
+import {
+    advancedNavHiddenAtom,
+    readSettledAdvancedNavHidden,
+    readSettledClassicModeCookie,
+} from "../state/classicMode"
 import {activeUserIdAtom} from "../state/featureFlags"
+import {userAtom} from "../state/user"
 import {
     CLASSIC_MODE_COOKIE,
     GATE_COOKIE_MAX_AGE,
@@ -55,24 +60,48 @@ export const writeClassicModeCookie = (classicModeEnabled: boolean) => {
 }
 
 /**
+ * The settled preference, or `null` while it is still unknown.
+ *
+ * The three atoms are subscribed for their re-renders, not their values: they fire when the user
+ * changes, when the profile lands, and when the switch is flipped. The VALUE comes from storage,
+ * which answers exactly. Cheap enough to read per render, and it returns a primitive, so the
+ * effects below still only re-run when the answer actually changes.
+ */
+const useSettledAdvancedNavHidden = (): boolean | null => {
+    useAtomValue(activeUserIdAtom)
+    useAtomValue(advancedNavHiddenAtom)
+    const user = useAtomValue(userAtom)
+
+    return readSettledAdvancedNavHidden(user)
+}
+
+/**
  * Publish the signed-in user's Classic mode preference as a cookie the middleware can read.
  *
  * Written only once a user is known — the preference is scoped by user id, and a cookie written
  * under nobody would decide which app the NEXT person on this browser gets. Cleared on sign-out
- * for the same reason.
+ * for the same reason, and cleared again when the answer is a bare default rather than a choice.
+ * `readSettledClassicModeCookie` draws that line and explains why the gates need it drawn.
  */
 export const useClassicModeCookieSync = () => {
-    const userId = useAtomValue(activeUserIdAtom)
-    const advancedNavHidden = useAtomValue(advancedNavHiddenAtom)
+    useAtomValue(activeUserIdAtom)
+    useAtomValue(advancedNavHiddenAtom)
+    const user = useAtomValue(userAtom)
+    // A primitive, so the effect still runs only when the answer actually changes.
+    const value = readSettledClassicModeCookie(user)
 
     useEffect(() => {
         if (typeof document === "undefined") return
-        if (!userId) {
+        // `undefined` is "nothing new to say" — leave whatever is there. `null` is a real
+        // answer: this browser has no preference to publish, so the gates fall back to the
+        // device heuristic.
+        if (value === undefined) return
+        if (value === null) {
             clearCookie(CLASSIC_MODE_COOKIE)
             return
         }
-        writeCookie(CLASSIC_MODE_COOKIE, advancedNavHidden ? "0" : "1")
-    }, [userId, advancedNavHidden])
+        writeCookie(CLASSIC_MODE_COOKIE, value)
+    }, [value])
 }
 
 /**
@@ -85,15 +114,22 @@ export const useClassicModeCookieSync = () => {
  * `location.replace`, not the router: `/m` is a different Next app behind the same origin, so
  * this is a document navigation whichever way it is spelled — and replace keeps the desktop URL
  * out of history, where Back would bounce off it.
+ *
+ * DELIBERATELY ONE-WAY. `/m` must not grow a mirror of this hook. The two apps are separate JS
+ * contexts sharing only storage, so each would redirect on a value the other cannot see, with
+ * nothing to arbitrate and nothing to break the cycle: any disagreement becomes an endless
+ * `/w` ↔ `/m` bounce instead of a stop. Leaving `/m` is the proxy's job — one cookie, and the
+ * desktop gate yields to it through `wantsClassic`.
  */
 export const useClassicModeRedirect = (enabled = true) => {
     const userId = useAtomValue(activeUserIdAtom)
-    const advancedNavHidden = useAtomValue(advancedNavHiddenAtom)
+    const advancedNavHidden = useSettledAdvancedNavHidden()
 
     useEffect(() => {
         if (!enabled || typeof window === "undefined") return
         if (!classicGateEnabled()) return
-        // No user means no preference to read — the atom reports the default, not a choice.
+        // No user means no preference to read, and `null` means it is not known yet. Redirecting
+        // on either is a navigation this effect cannot take back.
         if (!userId || !advancedNavHidden) return
 
         const {pathname, search} = window.location
@@ -106,7 +142,13 @@ export const useClassicModeRedirect = (enabled = true) => {
         if (readCookie(MOBILE_OPTOUT_COOKIE)) return
 
         const target = mobileRouteFor(pathname, search)
-        if (target) window.location.replace(target)
+        if (!target) return
+        // Publish before navigating, exactly as the Classic mode switch does. Relying on the
+        // sync effect above having already run makes this correct only by hook order; if the
+        // cookie is missing when `/m` is asked for, its proxy sees no preference, falls through
+        // to the device check, and bounces a desktop UA straight back here. That is a loop.
+        writeClassicModeCookie(false)
+        window.location.replace(target)
     }, [enabled, userId, advancedNavHidden])
 }
 
