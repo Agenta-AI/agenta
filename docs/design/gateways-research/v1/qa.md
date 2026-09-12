@@ -52,17 +52,21 @@ agent/run configuration:
    this step. It still traverses browser → API → runner → harness → gateway, which is what this
    procedure is for.
 
-   **Create one endpoint per protocol you intend to test.** A harness accepts or refuses the run on
-   the endpoint's declared `provider_key`: Claude Code needs `anthropic` and an Anthropic-protocol
-   model, and refuses an `openai` endpoint with
-   `422 provider 'openai' is not supported by harness 'claude'`. Codex refuses any custom gateway
-   model, whatever the endpoint declares, because it matches the full prefixed model key against a
-   fixed catalogue (OR31).
+   **Create one provider per protocol you intend to test.** A harness accepts or refuses the run on
+   the endpoint's declared `provider_key`, which the provider form's protocol field sets: Claude
+   Code needs `anthropic` and an Anthropic-protocol model, and refuses an `openai` endpoint with
+   `422 provider 'openai' is not supported by harness 'claude'`. The `Harnesses` control disables
+   the harnesses a declared protocol cannot serve, so an unrunnable pair is no longer offerable.
+   Codex is offered on an OpenAI-compatible endpoint, but the model pin that lets it accept a
+   gateway model key is runner and SDK work and has not shipped (OR31d), so record its refusal.
 
-   Save an `OpenAI-compatible endpoint` provider in Settings / AI providers, with the harnesses
-   you intend to test enabled. That writes a `custom_provider` secret and **does not** create the
-   gateway endpoint, so create it explicitly. Take the secret's id from
-   `GET /api/vault/v1/secrets/`, then, from the signed-in dashboard so the request carries your
+   Save a provider in Settings / AI providers with its protocol declared and the harnesses you
+   intend to test enabled. That writes a `custom_provider` secret and registers the matching gateway
+   endpoint under the same slug (OR26). Confirm it with
+   `POST /api/gateways/llms/endpoints/query`, which must return one row per provider.
+
+   If a stack predates that change, the endpoint can still be created by hand. Take the secret's id
+   from `GET /api/vault/v1/secrets/`, then, from the signed-in dashboard so the request carries your
    session:
 
    ```js
@@ -85,9 +89,9 @@ agent/run configuration:
    });
    ```
 
-   Confirm `POST /api/gateways/llms/endpoints/query` now returns one row. Set `provider_key` in the
-   endpoint body to the protocol the harness needs. Remove this step once OR26 is closed and the
-   providers page registers the endpoint itself.
+   Set `provider_key` in the endpoint body to the protocol the harness needs. Editing the provider
+   in the dashboard afterwards heals the row either way, because registration is an upsert on the
+   slug.
 
    Then use a prompt that produces an unmistakable echo response, for example
    `Reply with exactly: gateway-live-qa`.
@@ -96,13 +100,19 @@ agent/run configuration:
    expected mock response. This proves the browser → API → runner → harness → gateway path.
 4. Add an MCP server pointed at the mock MCP route — `<AGENTA_API_URL>/gateways/mcps/builtin/mock/mock`
    — and ask the agent to call its `echo` tool with a unique marker. There is no builtin MCP
-   catalogue to select from: `Add MCP server` is a free-form name, URL and authentication form. Two
-   known defects gate this step today, so record what happens rather than expecting a pass. The
-   supplied URL is discarded and the request goes out as `custom/<server name>`, and the
-   `MCP servers` section is hidden whenever Pi is selected (OR31). A server whose handshake fails
-   is dropped without a word in the transcript or the runner log, so check the gateway's own
-   request log before concluding that no call was made (OR32). Automated acceptance covers this
-   interaction for Pi and Codex; record the live result as product-path evidence.
+   catalogue to select from: `Add MCP server` is a free-form name, URL and authentication form.
+
+   **Two preconditions, or the cell fails for a reason that is not the product.** The mock only
+   echoes a prompt carrying an acceptance marker matching `MCP-ACCEPTANCE-[A-Za-z0-9_-]+`, which is
+   what `_mcp_marker` in the mock adapter reads; a plain-English prompt gets no echo back. And on
+   the Anthropic Messages path the server must be **named `mock-mcp`**, because
+   `_default_mcp_echo_tool` returns the hardcoded tool name `mcp__mock-mcp__echo` for that protocol,
+   so a server under any other name exposes a tool the harness cannot call.
+
+   The cell passes when the `tools/call` reaches the mock and the assistant turn ends with the
+   mock's round-trip confirmation, `mock MCP echo: <marker>`. A server whose handshake fails now
+   rides an `mcp_server_failed` notice rather than vanishing (OR32). Automated acceptance covers
+   this interaction for all three harnesses; record the live result as product-path evidence.
 5. Add an existing Agenta callback tool and the builtin Agenta MCP server. Confirm the tool list is
    scoped to the run and that the selected callback can be invoked.
 6. Induce a **typed gateway refusal** using the dashboard-supported configuration — preferably a
@@ -118,7 +128,7 @@ agent/run configuration:
 | --- | --- | --- | --- | --- |
 | Pi | echo response, on a custom endpoint of either protocol | echo tool result | record all visible fields | run link/id + screenshot |
 | Claude Code | echo response, on a custom endpoint declaring `anthropic` | echo tool result | record all visible fields | run link/id + screenshot |
-| Codex | no pass is available: it rejects every custom gateway model key (OR31). Record the refusal. | echo tool result | record all visible fields | run link/id + screenshot |
+| Codex | no pass is available yet: it refuses a model id nobody declared to it, and the config pin that fixes this is runner and SDK work (OR31d). Record the refusal. | echo tool result | record all visible fields | run link/id + screenshot |
 
 The required invariant is that every harness preserves the human message and the machine-readable
 gateway `code`. Pi or Claude Code may preserve the complete error envelope. Codex is expected to
