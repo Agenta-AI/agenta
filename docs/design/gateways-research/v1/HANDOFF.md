@@ -46,11 +46,15 @@ harness.
   now narrowed to Claude Code.
 - **Not working.** The dashboard cannot reach the gateway LLM plane at all, because the AI
   providers page creates a secret and not an endpoint. Open findings: **OR23** (Claude Code native
-  MCP), **OR26** (no dashboard path to any gateway LLM route), **OR27** (the SDK resolver discards
-  the refusal body, so no `code` reaches the user), **OR28** (per-harness preservation of the
-  refusal envelope), **OR29** (`PUT` drops `provider_key`), **OR30** (unhandled `ValueError`s on
-  resolve become generic 500s), **OR31** (the dashboard offers harness and route combinations the
+  MCP), **OR26** (no dashboard path to any gateway LLM route), **OR28** (per-harness preservation
+  of the refusal envelope), **OR31** (the dashboard offers harness and route combinations the
   runtime refuses, and Pi has no `MCP servers` row).
+- **Closed since.** **OR27** (the resolve route refuses with the shared
+  `{code, message, retryable, next_step, details}` envelope and the SDK resolver carries it, so a
+  refusal reaches the user as a 422 with a code and a sentence), **OR29** (the edit path
+  round-trips `provider_key`; the measured mechanism was that it could not set the field, not
+  that it destroyed one, and the closed record says so) and **OR30** (both untyped resolve
+  failures are typed 422s).
 
 ## How to deploy and test
 
@@ -115,8 +119,8 @@ does not exist on this one.
 
 ## Next steps
 
-Wave 4 in `plan.md`, in this order: OR26 (the dashboard must produce a gateway endpoint), OR27
-(the SDK resolver must preserve the refusal body), then the three OR31 surfaces (Pi's missing
-`MCP servers` row, Claude Code offered on an endpoint it cannot use, Codex offered a model key its
-catalogue rejects), then OR29 and OR30 (the endpoint update path and the resolve route's untyped
-failures). OR23 and OR28 run alongside rather than in that sequence.
+Wave 4 in `plan.md`, in this order: OR26 (the dashboard must produce a gateway endpoint), then the
+three OR31 surfaces (Pi's missing `MCP servers` row, Claude Code offered on an endpoint it cannot
+use, Codex offered a model key its catalogue rejects). All of it is dashboard work now, since the
+wave's three runtime findings are closed. OR23 and OR28 run alongside rather than in that
+sequence.

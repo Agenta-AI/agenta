@@ -60,38 +60,6 @@ OpenAI-compatible provider and then asserts `POST /gateways/llms/endpoints/query
 
 ---
 
-### OR27. A gateway control-plane refusal reaches the user with no code and no message
-
-This is OR25's failure shape, reopened on a different seam. OR25 closed the case where the
-insecure-endpoint refusal escaped as an unhandled `ValidationError` reported as
-`v1:sdk:unknown-workflow-invoke-error` at HTTP 500. A missing or disabled endpoint still does
-exactly that.
-
-`POST /gateways/llms/resolve` for an unregistered endpoint answers `404` with
-`{"detail":"LLM endpoint not found: custom/<slug>"}` — a bare string, not the
-`{code, message, retryable, next_step, details}` envelope OR25 established as the one shape a
-caller reads whichever side refused. `build_gateway_resolved_connection`'s caller in
-`sdk/agents/platform/connections.py` then discards even that, because it reads only the status and
-never the body. The running normalizer can therefore report only
-`v1:sdk:unknown-workflow-invoke-error`, HTTP 500,
-`message=connection resolution failed (HTTP 404)`, and the dashboard shows
-`Message wasn't sent — try again.` An operator whose only mistake was an endpoint that does not
-exist sees a server fault and no way to act on it, which is OR25's own description of the case it
-closed. `qa.md` calls a failure to surface `code` a gateway or runner regression, and by that rule
-this is one, on all three harnesses.
-
-Closure, two changes following the OR25 precedent, one per side. `LLMGatewayRouter`'s resolve
-route should refuse through `handle_gateway_exceptions` with the shared envelope, a `code` of
-`endpoint_not_found` and a `next_step` naming the endpoint to register. `ConnectionResolutionError`
-in `sdk/agents/platform/connections.py` should parse `error_detail` off the response and carry it
-rather than reducing every refusal to a status code. Proven by a case beside
-`test_the_refusal_is_typed_and_names_the_flag` in
-`sdks/python/oss/tests/pytest/unit/agents/test_gateway_credentials.py` asserting that a `404`
-body's `code` survives into the raised error, plus an API unit case on the resolve route asserting
-the envelope shape.
-
----
-
 ### OR28. Harness compatibility of the typed refusal: what each one preserves
 
 `qa.md` requires every harness to preserve the human message and the machine-readable `code`,
@@ -118,49 +86,6 @@ Closure: WP25 is the package that owns the trip back (`AgentErrorDetail` through
 and agent service). Proven per harness by extending the replay fixtures under
 `services/oss/tests/pytest/acceptance/` with a refusal case that asserts `code` appears in the
 agent-service response for Pi, Claude Code and Codex, rather than only in the transcript text.
-
----
-
-### OR29. `PUT` on an LLM endpoint silently drops `provider_key`
-
-`POST /gateways/llms/endpoints/` persists `provider_key` correctly. `PUT` on the same endpoint
-with the same field returns `200`, and a subsequent read shows no `provider_key` at all. Nothing
-in the response says the field was ignored.
-
-The consequence is not cosmetic. `resolve_agent_connection` computes
-`target.provider_key or provider_key` and, with neither present, raises
-`ValueError("gateway endpoint has no provider")` at `core/gateways/llms/service.py:270`. That
-`ValueError` is unhandled, so the caller receives HTTP 500 and the generic "An unexpected error
-occurred. Please try again later or contact support." An endpoint edited through the update path
-therefore breaks every run against it, and the only recovery is to delete and recreate it.
-
-Two defects in one. The update path must round-trip `provider_key`, and an endpoint that reaches
-resolve without a provider is a data-integrity violation that deserves a typed refusal rather than
-a generic 500.
-
-Closure: `LLMEndpointsDAO`'s update path plus the `edit_llm_endpoint` request DTO in
-`apis/fastapi/gateways/llms/router.py`. Proven by an integration case beside
-`api/oss/tests/pytest/integration/gateways/` that creates an endpoint with a `provider_key`, edits
-an unrelated field through `PUT`, and asserts the key is still readable and still resolves.
-
----
-
-### OR30. Two unhandled `ValueError`s on the resolve route become generic 500s
-
-Beyond OR29's case, `POST /gateways/llms/resolve` with only `model` and neither `provider_key` nor
-`connection_slug` raises `ValueError("an unnamed gateway connection requires a provider")`, also
-unhandled, also a generic 500. A request missing a required combination of fields is a client
-error and belongs at `422`, the status `EndpointResolutionError` and `GatewayInsecureEndpointError`
-already use.
-
-The pattern to follow is the one OR25 landed: keep the `ValueError` as the invariant no
-construction path can dodge, and put a typed error in front of it at the seam every request passes
-through. `handle_gateway_exceptions` already wraps this route, so the work is adding the cases
-rather than adding a mechanism.
-
-Closure: two new arms in `handle_gateway_exceptions` in `apis/fastapi/gateways/llms/router.py`.
-Proven by unit cases on the resolve route asserting `422` and an envelope `code` for a body with
-only `model`, and for an endpoint whose provider is missing.
 
 ---
 
@@ -203,6 +128,108 @@ harness/provider compatibility selector, plus a Playwright acceptance case asser
 ---
 
 ## Closed review record
+
+### OR27. A gateway control-plane refusal reaching the user with no code and no message — CLOSED
+
+Two changes, one per side, following the OR25 precedent.
+
+On the gateway, `gateway_error_envelope` in `apis/fastapi/gateways/exceptions.py` builds the
+shared `{code, message, retryable, next_step, details}` shape, and `handle_gateway_exceptions`
+now sends it as the HTTP `detail` for every refusal a caller must act on: the not-found error on
+both planes (`endpoint_not_found`) and the operator's switch (`endpoint_inactive`). `details`
+names the endpoint target and nothing else, because this body reaches the browser and the harness
+transcript. That arm is shared with the MCP management routes, so their `404` body changes shape
+too; one shape whichever side refused was the point, and nothing reads that `detail` (the web
+client's global handler reads `error.message`).
+
+On the SDK, `GatewayConnectionRefusedError` in `sdk/agents/connections/errors.py`, raised from
+`VaultConnectionResolver.resolve`, which now reads the response body instead of only its status.
+`from_response` tolerates every reachable shape, because all of them are: the envelope, a bare
+string `detail` from a route that has not adopted it, FastAPI's validation-error list, the generic
+object an intercepted server fault sends, and a body that is not JSON at all. `failure_code`
+becomes the gateway's own `code`, so `failure_code_of` carries it onto the status at both
+normalizer seams. A `5xx` keeps a server status, because that one genuinely is a server fault;
+every other refusal reads `422`, like every other resolution failure.
+
+Measured live on 2026-09-12, one turn whose connection slug was never registered. Before: HTTP
+`500`, `message=connection resolution failed (HTTP 404)`, no failure code. After: HTTP `422`,
+`message=LLM endpoint not found: custom/<slug>`, `failure_code=endpoint_not_found`.
+
+One thing is deliberately unchanged. `status.type` is still the generic
+`v1:sdk:unknown-workflow-invoke-error`, because the running normalizer uses one type for every
+exception that is not an `ErrorStatus`, and OR25 closed on those same terms. The status, the code
+and the message are what a caller acts on, and all three are now right.
+
+Tests: `test_a_404_envelope_survives_into_the_typed_refusal`,
+`test_a_422_envelope_survives_into_the_typed_refusal`,
+`test_a_bare_string_detail_still_carries_a_code_and_the_message`,
+`test_a_control_plane_fault_keeps_a_server_status` and
+`test_an_unreadable_refusal_body_still_names_the_status` in
+`sdks/python/oss/tests/pytest/unit/agents/platform/test_connections_http.py`, which is the file
+that owns the resolver's HTTP boundary and its fake-client fixture;
+`test_resolve_of_a_missing_endpoint_refuses_with_a_code` and
+`test_resolve_of_a_deactivated_endpoint_refuses_with_a_code` in
+`api/oss/tests/pytest/unit/gateways/test_gateways_llm_router.py`; and
+`test_a_control_plane_refusal_reaches_the_caller_with_its_code` in
+`services/oss/tests/pytest/unit/agent/test_gateway_route.py`, which pins what the normalizer puts
+on the status.
+
+### OR29. `PUT` on an LLM endpoint and `provider_key` — CLOSED, and the mechanism was different
+
+The finding's headline and its consequence both hold. Its diagnosis did not survive a second
+measurement, so the record is corrected here rather than repeated.
+
+`PUT` never destroyed a stored `provider_key`. `map_llm_endpoint_edit_to_dbe` left the column
+alone deliberately and said so in its docstring. What it did was silently ignore a `provider_key`
+in the request body, because `LLMEndpointEdit` had no such field and pydantic dropped the extra.
+Measured live on 2026-09-12: create with `provider_key=openai`, `PUT` the same body, read back,
+and the key is still `openai` and the slug still resolves `200`. Create with no provider, `PUT`
+one in, and the response is `200` with no provider anywhere. The QA run's helper created its
+endpoint without a `provider_key`, which is why the read after its edit showed none.
+
+So the defect is that the edit path cannot set the provider, not that it strips one. The dead end
+is the same either way: an endpoint saved without a provider fails every run against it, and
+recreating it was the only repair.
+
+Closed by `provider_key` on `LLMEndpointEdit` plus one conditional in
+`map_llm_endpoint_edit_to_dbe`. It is the only field this `PUT` does not overwrite when omitted.
+Every other field is a full replace, but a request that says nothing about the provider must not
+be able to strip the one field the endpoint cannot resolve without, and no product path un-sets
+it. The finding's second half, the resolve-time `500`, is closed as part of OR30.
+
+Tests: `test_edit_sets_a_provider_key_on_an_endpoint_that_had_none`,
+`test_edit_replaces_an_existing_provider_key` and
+`test_edit_omitting_provider_key_preserves_the_stored_one` in
+`api/oss/tests/pytest/unit/gateways/test_gateways_mappings.py`;
+`test_edit_endpoint_round_trips_provider_key` in
+`api/oss/tests/pytest/integration/gateways/test_gateways_llm_endpoints_dao.py`, which proves it
+against a real row; and `test_edit_endpoint_carries_provider_key_to_the_service` plus
+`test_edit_endpoint_omitting_provider_key_says_nothing_about_it` in
+`api/oss/tests/pytest/unit/gateways/test_gateways_llm_router.py` for the request DTO.
+
+### OR30. Two unhandled `ValueError`s on the resolve route — CLOSED
+
+`LLMConnectionProviderRequiredError` and `LLMEndpointProviderMissingError` in
+`core/gateways/llms/types.py`, raised at the two sites in `resolve_agent_connection`, with two new
+arms in `handle_gateway_exceptions` mapping both to `422` and the shared envelope, under the codes
+`gateway_provider_required` and `gateway_endpoint_provider_missing`. The provider-missing message
+names the endpoint, because repairing that row is the operator's next move.
+
+The invariant underneath is `LLMGatewayConnectionResolution.provider_key`, a required field: a
+provider-less resolution cannot be constructed whatever a caller does. The typed errors are the
+seam guard in front of it, which is the arrangement OR25 landed.
+
+Measured live on 2026-09-12. A body carrying only `model`, and a slug naming an endpoint with no
+provider, both answered `500` with "An unexpected error occurred". They now answer `422` with a
+code, a message and a `next_step`.
+
+Tests: `test_resolve_agent_connection_without_a_provider_or_a_slug_is_typed`,
+`test_resolve_agent_connection_of_a_provider_less_endpoint_is_typed` and
+`test_resolve_agent_connection_of_a_provider_less_endpoint_accepts_a_request_provider` in
+`api/oss/tests/pytest/unit/gateways/test_gateways_llm_service.py`; plus
+`test_resolve_without_a_provider_or_a_connection_refuses_with_a_code` and
+`test_resolve_of_a_provider_less_endpoint_refuses_with_a_code` in
+`api/oss/tests/pytest/unit/gateways/test_gateways_llm_router.py` for the envelope at the boundary.
 
 ### OR24. Plain-HTTP non-loopback deployments cannot use the gateway — CLOSED
 

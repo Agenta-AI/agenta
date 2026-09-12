@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
+from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import (
     LLMDeploymentKind,
     LLMEndpoint,
@@ -19,6 +20,12 @@ from oss.src.core.gateways.llms.dtos import (
     LLMGatewayConnectionResolution,
     LLMModelFilter,
 )
+from oss.src.core.gateways.llms.types import (
+    LLMConnectionProviderRequiredError,
+    LLMEndpointNotFoundError,
+    LLMEndpointProviderMissingError,
+)
+from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.utils.context import AuthScope
 
 
@@ -66,11 +73,14 @@ class MockLLMGatewayService:
             deployment_kind="custom",
             model="gpt-4o",
         )
+        self.resolve_raises = None
 
     async def resolve_agent_connection(
         self, *, scope, model, provider_key, connection_slug
     ):
         self.calls.append("resolve_agent_connection")
+        if self.resolve_raises is not None:
+            raise self.resolve_raises
         return self.resolve_return
 
     async def create_endpoint(self, *, project_id, user_id, endpoint):
@@ -372,3 +382,145 @@ def test_delete_endpoint_false_maps_to_404(client, service, allow):
     response = client.delete(f"/endpoints/{uuid4()}")
 
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# The resolve route's refusals are typed and carry the shared envelope
+# ---------------------------------------------------------------------------
+#
+# Every refusal a caller must act on answers with `{code, message, retryable, next_step,
+# details}` — the same shape the data plane produces and the SDK resolver carries to the
+# person running the agent. Two of these used to be bare `ValueError`s, so they reached the
+# caller as a generic 500 saying only "an unexpected error occurred".
+
+
+def _envelope_of(response):
+    detail = response.json()["detail"]
+    assert isinstance(detail, dict), f"refusal detail is not an envelope: {detail!r}"
+    return detail
+
+
+def test_resolve_without_a_provider_or_a_connection_refuses_with_a_code(
+    client, service, allow
+):
+    service.resolve_raises = LLMConnectionProviderRequiredError()
+
+    response = client.post("/resolve", json={"model": "gpt-4o"})
+
+    assert response.status_code == 422
+    envelope = _envelope_of(response)
+    assert envelope["code"] == "gateway_provider_required"
+    assert envelope["retryable"] is False
+    assert "provider" in envelope["message"]
+    assert envelope["next_step"]
+
+
+def test_resolve_of_a_provider_less_endpoint_refuses_with_a_code(
+    client, service, allow
+):
+    service.resolve_raises = LLMEndpointProviderMissingError(
+        namespace=GatewayEndpointNamespace.CUSTOM, name="acme-openai"
+    )
+
+    response = client.post(
+        "/resolve", json={"model": "gpt-4o", "connection_slug": "acme-openai"}
+    )
+
+    assert response.status_code == 422
+    envelope = _envelope_of(response)
+    assert envelope["code"] == "gateway_endpoint_provider_missing"
+    # The operator has to know WHICH endpoint to repair.
+    assert envelope["details"]["target"] == "custom/acme-openai"
+    assert envelope["next_step"]
+
+
+def test_resolve_of_a_missing_endpoint_refuses_with_a_code(client, service, allow):
+    service.resolve_raises = LLMEndpointNotFoundError(
+        namespace=GatewayEndpointNamespace.CUSTOM, name="absent-gw"
+    )
+
+    response = client.post(
+        "/resolve", json={"model": "gpt-4o", "connection_slug": "absent-gw"}
+    )
+
+    assert response.status_code == 404
+    envelope = _envelope_of(response)
+    assert envelope["code"] == "endpoint_not_found"
+    assert envelope["message"] == "LLM endpoint not found: custom/absent-gw"
+    assert envelope["details"]["target"] == "custom/absent-gw"
+    assert envelope["next_step"]
+
+
+def test_resolve_of_a_deactivated_endpoint_refuses_with_a_code(client, service, allow):
+    service.resolve_raises = GatewayEndpointInactiveError(target="custom/acme-openai")
+
+    response = client.post(
+        "/resolve", json={"model": "gpt-4o", "connection_slug": "acme-openai"}
+    )
+
+    assert response.status_code == 403
+    envelope = _envelope_of(response)
+    assert envelope["code"] == "endpoint_inactive"
+    assert envelope["details"] == {
+        "target": "custom/acme-openai",
+        "flag": "is_active",
+    }
+
+
+# ---------------------------------------------------------------------------
+# `PUT` round-trips provider_key
+# ---------------------------------------------------------------------------
+
+
+def test_edit_endpoint_carries_provider_key_to_the_service(client, service, allow):
+    """The edit request DTO used to have no `provider_key`, so pydantic dropped the field and
+    the 200 said nothing about it. An endpoint saved without a provider could then only be
+    repaired by deleting and recreating it."""
+    endpoint_id = uuid4()
+    service.fetch_return = _endpoint(endpoint_id)
+    service.edit_return = _endpoint(endpoint_id)
+    captured = {}
+
+    async def _edit(*, project_id, user_id, endpoint):
+        captured["endpoint"] = endpoint
+        return service.edit_return
+
+    service.edit_endpoint = _edit
+
+    response = client.put(
+        f"/endpoints/{endpoint_id}",
+        json={
+            "endpoint": {
+                "id": str(endpoint_id),
+                "provider_key": "openai",
+                "data": {},
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["endpoint"].provider_key == "openai"
+
+
+def test_edit_endpoint_omitting_provider_key_says_nothing_about_it(
+    client, service, allow
+):
+    """Omission must reach the DAO as `None`, which is what preserves the stored value."""
+    endpoint_id = uuid4()
+    service.fetch_return = _endpoint(endpoint_id)
+    service.edit_return = _endpoint(endpoint_id)
+    captured = {}
+
+    async def _edit(*, project_id, user_id, endpoint):
+        captured["endpoint"] = endpoint
+        return service.edit_return
+
+    service.edit_endpoint = _edit
+
+    response = client.put(
+        f"/endpoints/{endpoint_id}",
+        json={"endpoint": {"id": str(endpoint_id), "data": {}}},
+    )
+
+    assert response.status_code == 200
+    assert captured["endpoint"].provider_key is None
