@@ -355,7 +355,11 @@ async def test_updating_a_secret_whose_endpoint_row_is_missing_creates_it():
         secret.slug,
         secret.slug,
     ]
+    # Both spellings of each listed model: the qualified key Agenta addresses it by, and
+    # the bare slug the upstream itself knows.
     assert endpoints_dao.created[-1].data.models.allowlist == [
+        "Renamed gateway/custom/my-model",
+        "Renamed gateway/custom/my-other-model",
         "my-model",
         "my-other-model",
     ]
