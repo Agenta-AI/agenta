@@ -19,6 +19,7 @@ from oss.src.core.channels.dtos import (
     ChannelThreadQuery,
 )
 from oss.src.core.channels.render.dtos import RenderItem
+from oss.src.core.sessions.interactions.dtos import SessionInteractionStatus
 from oss.src.core.channels.render.render import render_indicator, render_turn_result
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelConnectionNotFound, ChannelSpaceNotFound
@@ -273,15 +274,25 @@ class ChannelsOutboxWorker:
         rows = await self.interactions_service.fetch_turn_interactions(
             project_id=project_id, session_id=session_id, turn_id=turn_id
         )
+        # Only an interaction still waiting can take an answer: a delayed park
+        # signal must not put a card back for one answered or cancelled
+        # elsewhere.
+        pending = [
+            row
+            for row in rows
+            if getattr(row, "status", None)
+            in (None, SessionInteractionStatus.pending, "pending")
+        ]
         if token:
-            for row in rows:
+            for row in pending:
                 if row.token == token:
                     return str(row.id)
-        # A turn can hold resolved interactions beside the open one, so a bare
-        # "first row" would answer the wrong interaction. Fall back only when
-        # there is exactly one.
-        if len(rows) == 1:
-            return str(rows[0].id)
+            # The card names a token; a row with another token is another
+            # question, never this one.
+            return None
+        # No token on the fold: fall back only when exactly one is open.
+        if len(pending) == 1:
+            return str(pending[0].id)
         return None
 
     # --- send: post or edit, then record the receipt ------------------------#

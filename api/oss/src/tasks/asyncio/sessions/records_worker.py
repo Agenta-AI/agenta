@@ -452,13 +452,29 @@ class RecordsWorker(StreamConsumer):
             # approval continuation's answer). Built from the committed
             # SessionRecords, not the raw stream messages. See
             # terminal_turns_in_batch.
+            unpublished = 0
             for session_id, turn_id in terminal_turns_in_batch(
                 [r for r in results if isinstance(r, SessionRecord)]
             ):
-                await publish_turn_ended(
+                published = await publish_turn_ended(
                     project_id=UUID(str(project_batch["project_id"])),
                     session_id=session_id,
                     turn_id=turn_id,
+                )
+                if not published:
+                    unpublished += 1
+            if unpublished:
+                # The rows are committed, but the only signal that renders a
+                # parked turn's card (or a continuation's answer) did not go
+                # out. Leave this project batch unacknowledged: the append is
+                # an upsert, so the redelivery re-publishes and writes nothing
+                # new.
+                held = set(committed_ids)
+                acked_ids = [msg_id for msg_id in acked_ids if msg_id not in held]
+                log.warning(
+                    "[RECORDS] turn_ended publish failed; batch left unacknowledged",
+                    project_id=str(project_batch["project_id"]),
+                    unpublished=unpublished,
                 )
 
             # Relay tee (M3): strictly post-append so a notified client that

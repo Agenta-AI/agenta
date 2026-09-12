@@ -423,14 +423,17 @@ class _FakeInteractionsService:
     """Maps the fold's ACP token to the SessionInteraction row id the respond
     path answers by -- one open approval per turn in these tests."""
 
-    def __init__(self, *, token="int-1", row_id="row-int-1"):
+    def __init__(self, *, token="int-1", row_id="row-int-1", rows=None):
         self._token = token
         self._row_id = row_id
+        self._rows = rows
 
     async def fetch_turn_interactions(self, *, project_id, session_id, turn_id):
         from types import SimpleNamespace
 
-        return [SimpleNamespace(id=self._row_id, token=self._token)]
+        if self._rows is not None:
+            return list(self._rows)
+        return [SimpleNamespace(id=self._row_id, token=self._token, status="pending")]
 
 
 @pytest.fixture
@@ -1266,3 +1269,71 @@ async def test_a_failed_post_retries_with_the_same_token_and_ends_sent():
     assert row.status is not None and row.status.code == "sent"
     assert adapter.calls == 2
     assert adapter.tokens[0] == adapter.tokens[1]
+
+
+def _interaction_row(row_id, token, status):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(id=row_id, token=token, status=status)
+
+
+def _resolver(rows):
+    return ChannelsOutboxWorker(
+        channels_service=None,
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(FakeRecordsDAO()),
+        interactions_service=_FakeInteractionsService(rows=rows),
+    )
+
+
+async def test_the_resolver_answers_only_a_pending_interaction_with_the_cards_token():
+    """A delayed park signal must not put a card back for an interaction that
+    was answered elsewhere, and a card's token names one question only."""
+    rows = [
+        _interaction_row("row-old", "int-old", "resolved"),
+        _interaction_row("row-open", "int-open", "pending"),
+    ]
+    worker = _resolver(rows)
+
+    assert (
+        await worker._resolve_interaction_row_id(
+            project_id=PROJECT_ID, session_id="s", turn_id="t", token="int-open"
+        )
+        == "row-open"
+    )
+    # the answered one, even by its own token
+    assert (
+        await worker._resolve_interaction_row_id(
+            project_id=PROJECT_ID, session_id="s", turn_id="t", token="int-old"
+        )
+        is None
+    )
+    # a token nothing open matches is another question, never the open one
+    assert (
+        await worker._resolve_interaction_row_id(
+            project_id=PROJECT_ID, session_id="s", turn_id="t", token="int-other"
+        )
+        is None
+    )
+
+
+async def test_the_resolver_falls_back_to_the_sole_pending_row_without_a_token():
+    rows = [
+        _interaction_row("row-old", "int-old", "cancelled"),
+        _interaction_row("row-open", "int-open", "pending"),
+    ]
+    worker = _resolver(rows)
+
+    assert (
+        await worker._resolve_interaction_row_id(
+            project_id=PROJECT_ID, session_id="s", turn_id="t", token=None
+        )
+        == "row-open"
+    )
+    rows.append(_interaction_row("row-open-2", "int-open-2", "pending"))
+    assert (
+        await worker._resolve_interaction_row_id(
+            project_id=PROJECT_ID, session_id="s", turn_id="t", token=None
+        )
+        is None
+    )
