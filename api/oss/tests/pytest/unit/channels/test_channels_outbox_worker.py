@@ -1163,6 +1163,53 @@ class _FlakyAdapter(WellBehavedFakeAdapter):
 
 
 @pytest.mark.asyncio
+async def test_a_redelivered_start_never_writes_the_indicator_over_a_failed_answer():
+    """Item zero carries the indicator and then the answer. When the answer's
+    edit fails after the indicator landed, the row is FAILED with a receipt;
+    a redelivered turn-started must leave it alone, or it edits the message
+    the platform may already show as the answer back to the indicator."""
+    channels_dao = FakeChannelsDAO()
+    adapter = _FlakyAdapter()
+    adapter.calls = 1  # the indicator already went out; the next post succeeds
+    service = ChannelsService(
+        channels_dao=channels_dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={"fake": adapter}),
+    )
+    worker = ChannelsOutboxWorker(
+        channels_service=service,
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(FakeRecordsDAO()),
+    )
+    connection = channels_dao.seed_connection(channel="fake")
+    space = channels_dao.seed_space(connection_id=connection.id)
+    thread = channels_dao.seed_thread(
+        space_id=space.id,
+        session_id="s-answer-failed",
+        external_locator={"channel": "C1", "thread_ts": "42.1"},
+    )
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-af"
+    )
+    (row,) = channels_dao.outbox.values()
+    assert row.state is ChannelDeliveryState.SENT
+    assert row.data.external_locator  # the receipt
+    # the answer edit failed later: the row is FAILED but keeps its receipt
+    await channels_dao.transition_outbox_event(
+        project_id=PROJECT_ID,
+        event_id=row.id,
+        state=ChannelDeliveryState.FAILED,
+    )
+    calls_before = adapter.calls
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-af"
+    )
+
+    (row,) = channels_dao.outbox.values()
+    assert row.state is ChannelDeliveryState.FAILED
+    assert adapter.calls == calls_before
+
+
 async def test_a_failed_post_retries_with_the_same_token_and_ends_sent():
     """A retry of the same content reuses its idempotency token, so a post the
     platform accepted but whose reply timed out is never duplicated; the row
