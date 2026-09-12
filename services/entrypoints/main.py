@@ -48,6 +48,7 @@ from oss.src.chat import chat_v0_app
 from oss.src.completion import completion_v0_app
 from oss.src.agent import agent_v0_app
 from entrypoints.legacy import register_legacy_routes
+from entrypoints.prefix import ServicesPrefixStripMiddleware
 
 
 ag.init()
@@ -141,6 +142,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Added last => outermost: a managed ingress forwards the public `/services` prefix
+# verbatim, so normalize the path before anything else looks at it.
+app.add_middleware(ServicesPrefixStripMiddleware)
 
 
 @app.get("/health")
