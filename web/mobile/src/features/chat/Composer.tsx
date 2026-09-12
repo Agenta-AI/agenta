@@ -322,6 +322,7 @@ export const Composer = ({
                             disabled={disabled}
                             composerDisabled={disabled}
                             dictating={dictating}
+                            dictationAnalyserRef={voice.dictationAnalyserRef}
                             placeholder={placeholder}
                             waitingOnUser={waitingOnUser}
                             streaming={stoppable}

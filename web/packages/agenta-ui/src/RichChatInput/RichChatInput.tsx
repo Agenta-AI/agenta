@@ -81,6 +81,11 @@ export interface RichChatInputProps {
     /** Speech is being dictated in. Locks editing for the duration so typing cannot interleave with
      * the incoming transcript and corrupt it. */
     dictating?: boolean
+    /**
+     * Shown in the hints' place while `dictating`. A ReactNode rather than an analyser, because
+     * the audio belongs to whoever owns the microphone — this only knows the row is free.
+     */
+    dictationWave?: ReactNode
     autoFocus?: boolean
     className?: string
     /** Leading slot in the footer (e.g. an attach-files button). */
@@ -102,6 +107,8 @@ export interface RichChatInputProps {
     /** Hide the built-in send button (keyboard-only). */
     hideSendButton?: boolean
     /** A stream is in flight — the send button becomes a Stop button. */
+    /** The send is in flight; the button spins and refuses a second press. */
+    sending?: boolean
     streaming?: boolean
     /** Disable the Stop control while its durable request is settling. */
     stopping?: boolean
@@ -111,6 +118,9 @@ export interface RichChatInputProps {
     busyActions?: {label: string; onSubmit: (markdown: string) => void}[]
     /** Min-height class for the editor area (default `min-h-[72px]`). */
     minHeightClassName?: string
+    /** How far the editor may grow before it scrolls itself. A surface with a page behind it
+     * wants a lower ceiling than a chat dock, which has nothing under it to push. */
+    maxHeightClassName?: string
     /** Visual density: `compact` (default, chat) or `comfortable` (hero-scale surfaces) —
      * pads the editor/footer without forking the component. */
     size?: "compact" | "comfortable"
@@ -164,6 +174,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             placeholder = "Type a message…",
             disabled = false,
             dictating = false,
+            dictationWave,
             autoFocus = false,
             className,
             prefix,
@@ -174,11 +185,13 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             sendForceEnabled,
             sendDisabled,
             hideSendButton,
+            sending,
             streaming,
             stopping,
             onStop,
             busyActions,
             minHeightClassName = "min-h-[72px]",
+            maxHeightClassName = "max-h-40",
             size = "compact",
             textSizeClassName = "text-xs",
             hideShortcutHints = false,
@@ -331,7 +344,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             aria-label="Chat message"
                             aria-placeholder={placeholder}
                             className={clsx(
-                                "max-h-40 overflow-y-auto break-words leading-relaxed text-[var(--ag-colorText)] outline-none",
+                                "overflow-y-auto break-words leading-relaxed text-[var(--ag-colorText)] outline-none",
+                                maxHeightClassName,
                                 comfortable ? "px-5 py-4" : "px-3 py-2.5",
                                 textSizeClassName,
                                 minHeightClassName,
@@ -360,7 +374,13 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         )}
                     >
                         {prefix}
-                        {hideShortcutHints ? null : (
+                        {/* The hints are UNMOUNTED for this, not just faded: kept mounted they
+                            still hold their width, and the wave was left drawing in whatever was
+                            left over instead of across the row. */}
+                        {dictating && dictationWave ? (
+                            <div className="flex min-w-0 flex-1 items-center">{dictationWave}</div>
+                        ) : null}
+                        {hideShortcutHints || (dictating && dictationWave) ? null : (
                             // The format hints are a focus-only aid: kept mounted (so their space
                             // never reflows the row) and faded in when the editor takes focus.
                             // Dictation hides them the same way — editing is locked while speech
@@ -388,6 +408,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                     forceEnabled={sendForceEnabled}
                                     disabled={disabled || sendDisabled}
                                     disabledReason={sendDisabledReason}
+                                    sending={sending}
                                     streaming={streaming}
                                     onStop={onStop}
                                     stopping={stopping}

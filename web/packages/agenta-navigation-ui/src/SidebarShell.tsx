@@ -110,9 +110,10 @@ const findAlwaysOpenKeys = (items: SidebarConfig[]) => {
 
     const visit = (nodes: SidebarConfig[]) => {
         nodes.forEach((item) => {
-            if (!item.submenu?.length) return
+            // Published even with NO children: a group that renders nothing when empty would
+            // otherwise unpublish itself, leave its gated source idle, and never fetch again.
             if (item.alwaysOpen) keys.push(item.key)
-            visit(item.submenu)
+            if (item.submenu?.length) visit(item.submenu)
         })
     }
 

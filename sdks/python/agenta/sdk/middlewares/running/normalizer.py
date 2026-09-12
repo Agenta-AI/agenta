@@ -8,6 +8,7 @@ from uuid import UUID
 
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.models.workflows import (
+    failure_code_of,
     WorkflowServiceStatus,
     WorkflowRequestData,
     WorkflowServiceResponseData,
@@ -213,12 +214,18 @@ class NormalizerMiddleware:
     ) -> WorkflowServiceBatchResponse:
         error_status = None
 
+        # The handler's own exceptions are caught HERE, not by the invoke routing layer, so a
+        # failure class named by the exception must be carried onto the status here too. Both
+        # sites read it through `failure_code_of` so they cannot answer differently.
+        failure_code = failure_code_of(exc)
+
         if isinstance(exc, ErrorStatus):
             error_status = WorkflowServiceStatus(
                 type=exc.type,
                 code=exc.code,
                 message=exc.message,
                 stacktrace=exc.stacktrace,
+                failure_code=failure_code,
             )
         else:
             type = "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error"
@@ -241,6 +248,7 @@ class NormalizerMiddleware:
                 code=code,
                 message=message,
                 stacktrace=stacktrace,
+                failure_code=failure_code,
             )
 
         trace_id, span_id, session_id = self._correlation_ids()

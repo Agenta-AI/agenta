@@ -8,6 +8,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    mountedSubscriptionName,
     subscriptionPairModels,
     subscriptionPairsFrom,
     subscriptionPlanName,
@@ -22,15 +23,27 @@ describe("subscriptionPairsFrom", () => {
         })
 
         expect(pairs.map((pair) => `${pair.name} · ${pair.harness}`)).toEqual([
-            "Claude · claude",
-            "ChatGPT · codex",
-            "ChatGPT · pi_core",
+            "Claude (deployment login) · claude",
+            "ChatGPT (deployment login) · codex",
+            "ChatGPT (deployment login) · pi_core",
         ])
     })
 
     it("names the plan a user pays for, not the company behind it", () => {
         expect(subscriptionPlanName("anthropic")).toBe("Claude")
         expect(subscriptionPlanName("openai")).toBe("ChatGPT")
+    })
+
+    it("says where a mounted login comes from, so a hosted row is not its twin", () => {
+        // A deployment can mount a ChatGPT login AND hold a hosted ChatGPT subscription. Both are
+        // subscription rows to the same plan with different model lists, so the plain plan name
+        // on both left the user choosing between two identical rows.
+        expect(mountedSubscriptionName("openai")).toBe("ChatGPT (deployment login)")
+        expect(mountedSubscriptionName("anthropic")).toBe("Claude (deployment login)")
+    })
+
+    it("qualifies an unknown family too, rather than falling back to a bare id", () => {
+        expect(mountedSubscriptionName("acme")).toBe("acme (deployment login)")
     })
 
     it("lists only the logins that work — a setup state is not a row", () => {
@@ -64,8 +77,8 @@ describe("subscriptionPairsFrom", () => {
         })
 
         expect(pairs.map((pair) => `${pair.name} · ${pair.harness}`)).toEqual([
-            "Claude · pi_core",
-            "ChatGPT · pi_core",
+            "Claude (deployment login) · pi_core",
+            "ChatGPT (deployment login) · pi_core",
         ])
         expect(new Set(pairs.map((pair) => pair.key)).size).toBe(2)
     })

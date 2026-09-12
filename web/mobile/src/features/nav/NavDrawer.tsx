@@ -44,7 +44,7 @@ export const NavDrawer = ({
                 <button
                     type="button"
                     aria-label="Open navigation"
-                    className="text-muted-foreground relative flex size-8 shrink-0 items-center justify-center after:absolute after:-inset-1.5 after:content-[''] lg:hidden"
+                    className="text-muted-foreground relative flex size-8 shrink-0 cursor-pointer items-center justify-center after:absolute after:-inset-1.5 after:content-[''] lg:hidden"
                 >
                     <ListIcon size={20} />
                 </button>

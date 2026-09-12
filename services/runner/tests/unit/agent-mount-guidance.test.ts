@@ -64,13 +64,19 @@ describe("the guidance for a mount that was ATTEMPTED and SKIPPED", () => {
   });
 
   it("forbids reporting the user's work as lost, which is what the user actually saw", () => {
-    assert.match(text, /do not tell the user that their saved work is missing or was deleted/);
+    assert.match(
+      text,
+      /do not tell the user that their saved work is missing or was deleted/,
+    );
     assert.match(text, /nothing has been lost/);
   });
 
   it("contradicts the history explicitly, because history is why the model looked", () => {
     // The heart of the design: absence cannot correct a transcript that shows the folder working.
-    assert.match(text, /If the conversation so far shows you reading or writing files there/);
+    assert.match(
+      text,
+      /If the conversation so far shows you reading or writing files there/,
+    );
   });
 
   it("names no path and no variable, because there is nothing to advertise", () => {
@@ -95,11 +101,17 @@ describe("the delivery channels carry either statement unchanged", () => {
 });
 
 describe("file citation guidance", () => {
-  it("requires a clickable full absolute path and rejects a bare basename", () => {
+  it("asks for a working-directory-relative link and rejects the shapes that do not open", () => {
+    // The client's link gate (`chatFileRefs.tsx`) resolves a path relative to the working
+    // directory and strips only leading and trailing slashes. An absolute sandbox path renders as
+    // inert text, and a bare basename cannot pick one file among several with that name.
     const text = fileCitationAppendix().text;
-    assert.match(text, /clickable Markdown link/);
-    assert.match(text, /full absolute path/);
-    assert.match(text, /Do not cite only a basename/);
+    assert.match(text, /Markdown link/);
+    assert.match(text, /relative to your working directory/);
+    assert.match(text, /agent-files\/report\.md/);
+    assert.match(text, /An absolute path does not open/);
+    assert.match(text, /bare basename/);
+    assert.doesNotMatch(text, /full absolute path/);
   });
 
   it("is included for every harness through the rendered instructions file", () => {
@@ -111,7 +123,7 @@ describe("file citation guidance", () => {
         agentMountSkipped: false,
         toolNames: [],
       });
-      assert.match(text ?? "", /full absolute path/);
+      assert.match(text ?? "", /relative to your working directory/);
     }
   });
 });

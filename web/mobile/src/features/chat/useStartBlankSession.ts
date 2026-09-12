@@ -1,6 +1,6 @@
 import {useCallback} from "react"
 
-import {markSessionFresh} from "@agenta/chat/state"
+import {composerDraftBySession, markSessionFresh} from "@agenta/chat/state"
 import {useRouter} from "next/router"
 
 import {newId} from "@/lib/ids"
@@ -15,17 +15,24 @@ import {newId} from "@/lib/ids"
  *
  * The `+` controls used to route to the agent's overview instead, which is a different intent: it
  * shows the agent and its existing sessions rather than opening an empty one to type into.
+ *
+ * A `draft` opens the session with that message already in the composer, unsent — the composer
+ * restores its per-session draft at mount, so seeding that map is all it takes. Deliberately not
+ * the Home hand-off (`pendingTask`), which SENDS what it carries: an automation's test run puts
+ * the instruction where the user can read and change it before committing to a run.
  */
 export const useStartBlankSession = (base: string) => {
     const router = useRouter()
     return useCallback(
-        (agentId: string) => {
+        (agentId: string, options?: {draft?: string}) => {
             const sessionId = newId()
             // Brand-new, never-run: the backend has no records for it yet. Without this the
             // conversation treats the empty hydration as a KNOWN session whose history was pruned
             // and shows "this session has no replayable history", which is alarming and false —
             // nothing was lost, it simply has not happened yet.
             markSessionFresh(sessionId)
+            const draft = options?.draft?.trim()
+            if (draft) composerDraftBySession.set(sessionId, draft)
             void router.push(`${base}/sessions/${sessionId}?agent=${agentId}`)
         },
         [base, router],
