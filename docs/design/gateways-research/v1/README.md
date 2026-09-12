@@ -34,6 +34,9 @@ Six claims anchor the design and constrain everything downstream:
 
 ## Reading order
 
+0. **[`HANDOFF.md`](HANDOFF.md)** — what the branch is, which file tracks what, the current
+   verified state and its open findings, and how to deploy and test it. Start here if you are
+   picking this up cold.
 1. **`decisions.md`** — what is settled, and the rationale load-bearing enough to constrain
    future work. Everything else assumes these.
 2. **`architecture.md`** — the shape: the two planes, where boundaries land relative to the
