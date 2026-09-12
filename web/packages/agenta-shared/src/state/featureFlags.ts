@@ -64,3 +64,6 @@ const userScopedFlagAtom = (key: string) => {
 
 /** Experimental switch for the Playground's session/turn inspector controls. */
 export const playgroundInspectorEnabledAtom = userScopedFlagAtom("playground-inspector")
+
+/** Temporary channel probe page, kept separate from the permanent Channels settings tab. */
+export const agentaChannelSurfaceEnabledAtom = userScopedFlagAtom("agenta-channel-surface")

@@ -3,7 +3,8 @@
 This backend hard-codes that it is the sandbox-agent engine. It reaches the same runner the deployed
 sidecar runs (HTTP when a ``url`` is set, otherwise a subprocess CLI), and the runner starts
 the sandbox-agent daemon, the ACP adapter, and the harness. Supports Pi, Claude, and Agenta (Pi with
-an opinion, which the runner drives on the same ``pi`` ACP agent plus forced skills). The
+an opinion, which the runner drives on the same ``pi`` ACP agent plus forced skills), Codex, and
+Mock (a deterministic, LLM-free, network-free stand-in the runner drives in-process). The
 ``sandbox`` axis (``local`` / ``daytona``) is a real runtime choice, so it stays a constructor
 arg.
 
@@ -140,13 +141,15 @@ class SandboxAgentSession(Session):
 
 
 class SandboxAgentBackend(Backend):
-    """The sandbox-agent engine: a harness over ACP through the TS runner. Pi, Claude, and Codex."""
+    """The sandbox-agent engine: a harness over ACP through the TS runner. Pi, Claude, Codex,
+    and Mock (the runner drives Mock in-process, no subprocess)."""
 
     supported_harnesses = frozenset(
         {
             HarnessKind.PI,
             HarnessKind.CLAUDE,
             HarnessKind.CODEX,
+            HarnessKind.MOCK,
         }
     )
 

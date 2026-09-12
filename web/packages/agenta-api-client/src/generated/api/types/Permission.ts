@@ -65,5 +65,8 @@ export const Permission = {
     ViewMounts: "view_mounts",
     EditMounts: "edit_mounts",
     UseMounts: "use_mounts",
+    ViewChannels: "view_channels",
+    EditChannels: "edit_channels",
+    RunChannels: "run_channels",
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];

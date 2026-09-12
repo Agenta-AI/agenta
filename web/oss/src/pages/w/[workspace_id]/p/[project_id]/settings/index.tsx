@@ -47,6 +47,10 @@ const Tools = dynamic(() => import("@/oss/components/pages/settings/Tools/Tools"
     ssr: false,
 })
 
+const Channels = dynamic(() => import("@/oss/components/pages/settings/Channels/Channels"), {
+    ssr: false,
+})
+
 const Organization = dynamic(() => import("@/oss/components/pages/settings/Organization"), {
     ssr: false,
 })
@@ -136,6 +140,11 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                 return {content: <Vault />, title: getSettingsTabLabel("secrets", settingsAccess)}
             case "tools":
                 return {content: <Tools />, title: getSettingsTabLabel("tools", settingsAccess)}
+            case "channels":
+                return {
+                    content: <Channels />,
+                    title: getSettingsTabLabel("channels", settingsAccess),
+                }
             case "apiKeys":
                 return {content: <APIKeys />, title: getSettingsTabLabel("apiKeys", settingsAccess)}
             case "billing":

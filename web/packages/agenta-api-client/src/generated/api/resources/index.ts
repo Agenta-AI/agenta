@@ -7,6 +7,8 @@ export * as applications from "./applications/index.js";
 export * from "./applications/types/index.js";
 export * from "./billing/client/requests/index.js";
 export * as billing from "./billing/index.js";
+export * from "./channels/client/requests/index.js";
+export * as channels from "./channels/index.js";
 export * from "./environments/client/requests/index.js";
 export * as environments from "./environments/index.js";
 export * from "./environments/types/index.js";

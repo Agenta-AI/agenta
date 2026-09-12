@@ -464,6 +464,10 @@ class ApplicationRevisionRetrieveRequest(BaseModel):
             "revision's `data` (for example, snippet references)."
         ),
     )
+    include_archived: Optional[bool] = Field(
+        default=None,
+        description="When false, an archived application, variant, or revision resolves to nothing.",
+    )
 
 
 class ApplicationRevisionDeployRequest(BaseModel):

@@ -1370,6 +1370,12 @@ class EvaluatorsRouter:
             evaluator_revision_ref=evaluator_revision_ref,
             #
             resolve=evaluator_revision_retrieve_request.resolve or False,
+            #
+            include_archived=(
+                evaluator_revision_retrieve_request.include_archived
+                if evaluator_revision_retrieve_request.include_archived is not None
+                else True
+            ),
         )
 
         if environment_lookup_requested and not evaluator_revision:

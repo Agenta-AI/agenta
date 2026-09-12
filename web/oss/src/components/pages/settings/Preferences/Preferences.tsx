@@ -1,5 +1,9 @@
 import {PreferencesPage} from "@agenta/settings-ui"
-import {classicModeEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {
+    agentaChannelSurfaceEnabledAtom,
+    classicModeEnabledAtom,
+    playgroundInspectorEnabledAtom,
+} from "@agenta/shared/state"
 import {useAtom} from "jotai"
 
 import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
@@ -11,6 +15,9 @@ const Preferences = () => {
     const [classicModeEnabled, setClassicModeEnabled] = useAtom(classicModeEnabledAtom)
     const [playgroundInspectorEnabled, setPlaygroundInspectorEnabled] = useAtom(
         playgroundInspectorEnabledAtom,
+    )
+    const [agentaChannelSurfaceEnabled, setAgentaChannelSurfaceEnabled] = useAtom(
+        agentaChannelSurfaceEnabledAtom,
     )
 
     return (
@@ -35,6 +42,14 @@ const Preferences = () => {
                         "Show controls for inspecting Playground sessions and individual turns.",
                     enabled: playgroundInspectorEnabled,
                     onChange: setPlaygroundInspectorEnabled,
+                    badge: "DEBUG",
+                },
+                {
+                    key: "agenta-channel-surface",
+                    title: "Agenta channel probe",
+                    description: "Show the temporary in-browser channel conversation probe.",
+                    enabled: agentaChannelSurfaceEnabled,
+                    onChange: setAgentaChannelSurfaceEnabled,
                     badge: "DEBUG",
                 },
             ]}

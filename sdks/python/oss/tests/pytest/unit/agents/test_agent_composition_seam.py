@@ -97,7 +97,7 @@ class _FakeSession(Session):
 
 class _FakeBackend(Backend):
     supported_harnesses = frozenset(
-        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.CODEX}
+        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.MOCK}
     )
 
     def __init__(self, *, output: str = "hi") -> None:
@@ -823,6 +823,50 @@ async def test_no_gateway_policy_leaves_the_run_request_field_absent():
         gateway_policy=backend.created_gateway_policies[0],
     )
     assert "gatewayPolicy" not in payload
+
+
+# --------------------------------------------------------------------------- #
+# mock harness: selecting it must reach MockHarness end to end, and a model set on
+# the run must not be rejected by the pre/post-resolve capability gate.
+# --------------------------------------------------------------------------- #
+async def test_mock_harness_reaches_mock_agent_template_through_the_handler():
+    backend = _FakeBackend()
+
+    async def _resolve(*, model, context):
+        return ResolvedConnection(
+            provider="mock",
+            model="mock-1",
+            deployment="direct",
+            credential_mode="runtime_provided",
+        )
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_resolve,
+    )
+    handler = make_agent_handler(comp)
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters={
+            "agent": {
+                "harness": {
+                    "kind": "mock",
+                    "extras": {"behavior": "echo", "kwargs": {"text": "hi"}},
+                },
+                "llm": "mock-1",
+            }
+        },
+    )
+
+    from agenta.sdk.agents.dtos import MockAgentTemplate
+
+    config = backend.created_configs[0]
+    assert isinstance(config, MockAgentTemplate)
+    assert config.behavior == "echo"
+    assert config.behavior_kwargs == {"text": "hi"}
+    assert config.wire_tools() == {}
 
 
 if __name__ == "__main__":
