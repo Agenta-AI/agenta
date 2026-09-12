@@ -462,9 +462,7 @@ async def test_acquire_releases_the_primary_key_when_cancelled_mid_claim(fake_re
 
 async def test_a_refused_primary_claim_leaves_the_holders_key_alone(fake_redis):
     """Marking the primary obligation early must not delete another holder's key."""
-    lock_key, _ = locking._lock_keys(
-        namespace="eval", key="run", project_id=PROJECT_A
-    )
+    lock_key, _ = locking._lock_keys(namespace="eval", key="run", project_id=PROJECT_A)
 
     await fake_redis.set(lock_key, b"another-pod-owner", nx=True, ex=30)
 
