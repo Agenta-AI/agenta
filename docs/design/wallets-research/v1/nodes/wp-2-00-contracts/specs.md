@@ -30,6 +30,7 @@ On `feat/add-gateways`:
 | `api/oss/src/core/gateways/policy/interfaces.py` | edited — add `SpendAdmissionInterface` and `UsageSinkInterface` beside `SecretsResolverInterface` |
 | `api/oss/src/core/gateways/policy/dtos.py` | edited — add `SpendAdmission` and `GatewayCallContext`; extend `GatewayUsage` |
 | `api/oss/src/core/gateways/policy/null.py` | new — `NullSpendAdmission` and `NullUsageSink` |
+| `api/oss/src/core/gateways/policy/service.py` | edited — two optional keywords on `record`, and the sink-gating rule as a comment |
 | `api/oss/tests/pytest/unit/gateways/test_gateways_seam_contracts.py` | new |
 
 On `feat/add-wallets`:
@@ -158,6 +159,11 @@ if context is not None and decision.allowed and (admission is None or admission.
 `context` is therefore `Optional[GatewayCallContext] = None` on `GatewayPolicyService.record`
 and non-optional on the sink itself, which only ever sees a call that had one.
 
+This package adds those two keywords to `record` and writes that condition into the file **as
+a comment**. It calls nothing: there is no `usage_sink` attribute until `WP-2-01` adds one to
+the constructor. Splitting it this way keeps the signature — which four nodes fork against —
+in the seed, and the behaviour with the node that owns the collaborator.
+
 On `feat/add-wallets`, in `api/ee/src/core/wallets/types.py`:
 
 ```python
@@ -219,7 +225,7 @@ classification is the argument for where it lives.
 | `SpendAdmission.ceiling_musd` | derived data, not policy | the wallet | per call, from a row that changes per settlement |
 | `GatewayCallContext.request_id` | per-call protocol context, and the idempotency spine | the gateway, minted per relay | per call |
 | `GatewayCallContext.run_id` | per-call protocol context | the platform, minted at invocation | per call |
-| `MeasurementCommandV1.secret_origin` | policy input — who paid | the gateway's secret resolver | per call |
+| `MeasurementCommandV1.secret_origin` | policy input — who paid | the gateway, from the target's namespace | per call |
 | component keys | routing key into the rate card | the rate card | never, without a rate-card version |
 | `WalletAdmissionDTO.ceiling_musd` | derived data | the wallet | per call |
 
@@ -243,6 +249,6 @@ the allow/reject boundary.
 
 ## Explicit exclusions
 
-No `relay_chat_completion` edit, no `GatewayPolicyService` constructor change, no
-`routers.py` edit, no rate card, no Redis publish, no `worker_streams.py` edit, no migration,
-and no change to either stream envelope.
+No `relay_chat_completion` edit, no `GatewayPolicyService` constructor change and no call to
+either port, no `routers.py` edit, no rate card, no Redis publish, no `worker_streams.py`
+edit, no migration, and no envelope change beyond the one additive field named above.

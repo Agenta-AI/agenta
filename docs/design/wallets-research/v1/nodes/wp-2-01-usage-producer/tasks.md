@@ -34,10 +34,10 @@ Fork point: the reviewed `IM-2-00` seed, on both branches. Each item is one revi
 2. Populate `outcome.duration_ms`, declared since the seed and never filled.
 3. Populate `target.provider` from `_ResolvedLlmTarget.provider_key` when building the policy
    target, so the measurement and the audit event both know which provider answered.
-4. Stamp `SecretOrigin.LOCAL` in `_outcome_from` when the target's namespace is `builtin`,
-   and leave the resolved secret's origin alone otherwise. Read "Who paid" in the
-   specification first: the resolver cannot do this, because a `builtin` target resolves no
-   secret at all. Every charge decision in the wave reads this one stamp.
+4. Add a `target` parameter to `_outcome_from` — it does not take one today — and stamp
+   `SecretOrigin.LOCAL` there when the target's namespace is `builtin`, leaving the resolved
+   secret's origin alone otherwise. Read "Who paid" in the specification first: the resolver
+   cannot do this, because a `builtin` target resolves no secret at all.
 5. Add usage to `build_gateway_call_attributes`. It reaches `record` today and is dropped.
 
 ## Gateway branch: the hand-off
@@ -71,8 +71,9 @@ Fork point: the reviewed `IM-2-00` seed, on both branches. Each item is one revi
    Each is a silent corruption rather than an error if it is wrong, and the first of them
    breaks restricted-credit selection downstream.
 5. Unit tests per the evidence list.
-6. Extend the measurement integration test so a sink-produced command reaches a persisted row
-   through the real worker.
+6. Add `test_measurements_ingress_integration.py` so a sink-produced command reaches a
+   persisted row through the real worker. A new file, not an edit to the existing module:
+   `WP-2-02` is changing that module's vocabulary in a parallel worktree off the same seed.
 
 ## Close
 
@@ -81,4 +82,4 @@ Fork point: the reviewed `IM-2-00` seed, on both branches. Each item is one revi
    `ee/tests/pytest/unit`, and the measurement integration suite. Record the counts.
 3. Confirm the diff contains no price, no admission call, and no composition-root edit.
 4. Hand `IM-2-01` the drain finding, the per-protocol normalisation table as implemented, and
-   the answer to whether `SecretOrigin.LOCAL` can be produced at all.
+   the namespace-to-origin mapping as implemented.
