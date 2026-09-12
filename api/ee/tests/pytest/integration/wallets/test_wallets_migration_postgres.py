@@ -7,6 +7,7 @@ same rationale in a sibling domain).
 Self-skips via `conftest.py` when `env.postgres.uri_core` is unreachable.
 """
 
+import asyncio
 import uuid
 
 import pytest
@@ -38,11 +39,11 @@ async def wallet_schema():
     """Apply the wallet migration for the test, and always leave the database exactly as
     found (downgraded back to `ee0000000003`) afterward — this DB may be shared with other
     work, and this package does not own deploying it."""
-    command.upgrade(alembic_cfg, REVISION)
+    await asyncio.to_thread(command.upgrade, alembic_cfg, REVISION)
     try:
         yield
     finally:
-        command.downgrade(alembic_cfg, DOWN_REVISION)
+        await asyncio.to_thread(command.downgrade, alembic_cfg, DOWN_REVISION)
 
 
 async def _table_exists(name: str) -> bool:
@@ -163,20 +164,20 @@ async def test_migration_upgrade_downgrade_upgrade_round_trip():
     for table in ("wallet_credits", "wallet_debits", "wallet_balances"):
         assert not await _table_exists(table)
 
-    command.upgrade(alembic_cfg, REVISION)
+    await asyncio.to_thread(command.upgrade, alembic_cfg, REVISION)
     try:
         for table in ("wallet_credits", "wallet_debits", "wallet_balances"):
             assert await _table_exists(table)
 
-        command.downgrade(alembic_cfg, DOWN_REVISION)
+        await asyncio.to_thread(command.downgrade, alembic_cfg, DOWN_REVISION)
         for table in ("wallet_credits", "wallet_debits", "wallet_balances"):
             assert not await _table_exists(table)
 
-        command.upgrade(alembic_cfg, REVISION)
+        await asyncio.to_thread(command.upgrade, alembic_cfg, REVISION)
         for table in ("wallet_credits", "wallet_debits", "wallet_balances"):
             assert await _table_exists(table)
     finally:
-        command.downgrade(alembic_cfg, DOWN_REVISION)
+        await asyncio.to_thread(command.downgrade, alembic_cfg, DOWN_REVISION)
 
 
 async def test_partial_unique_one_general_balance_row_per_organization(wallet_schema):

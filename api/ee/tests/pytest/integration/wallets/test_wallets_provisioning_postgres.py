@@ -9,6 +9,7 @@ Self-skips via `conftest.py` when `env.postgres.uri_core` is unreachable. WRITTE
 RUN — see `docs/design/wallets-research/v1/nodes/im-1-02-pipeline/acceptance.md`.
 """
 
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
@@ -44,11 +45,11 @@ async def _fresh_engine_per_test():
 
 @pytest.fixture
 async def wallet_schema():
-    command.upgrade(alembic_cfg, SCHEMA_REVISION)
+    await asyncio.to_thread(command.upgrade, alembic_cfg, SCHEMA_REVISION)
     try:
         yield
     finally:
-        command.downgrade(alembic_cfg, DOWN_REVISION)
+        await asyncio.to_thread(command.downgrade, alembic_cfg, DOWN_REVISION)
 
 
 async def _cleanup(organization_id: uuid.UUID):
