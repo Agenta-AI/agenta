@@ -279,9 +279,19 @@ class SubscriptionsService:
         subscription_id: Optional[str] = None,
         plan: Optional[str] = None,
         anchor: Optional[int] = None,
+        event_id: Optional[str] = None,
         # force: Optional[bool] = True,
         **kwargs,
     ) -> SubscriptionDTO:
+        """Apply one subscription lifecycle event.
+
+        `event_id` identifies the DELIVERY that carried this event — Stripe's own
+        `stripe_event.id` at the webhook boundary, which is stable across Stripe's
+        retries and distinct for two genuinely different changes. It is the wallet
+        proration's idempotency identity; see `_apply_wallet_plan_change`. The direct
+        (non-webhook) plan-switch and cancel routes have no such identifier and pass
+        none.
+        """
         log.info(
             "[billing] [internal] %s | %s | %s",
             organization_id,
@@ -415,6 +425,7 @@ class SubscriptionsService:
                 incoming_plan=subscription.plan,
                 outgoing_anchor=previous_anchor,
                 incoming_anchor=subscription.anchor,
+                event_id=event_id,
                 now=now,
             )
 
@@ -430,6 +441,7 @@ class SubscriptionsService:
         incoming_plan: str,
         outgoing_anchor: Optional[int],
         incoming_anchor: Optional[int],
+        event_id: Optional[str],
         now: datetime,
     ) -> None:
         """Prorate the wallet's plan-allowance credit for a mid-period plan change.
@@ -443,30 +455,37 @@ class SubscriptionsService:
         and sets its expiry. `SUBSCRIPTION_SWITCHED` never moves the anchor, so both
         windows are then the same window and the arithmetic is unchanged.
 
+        `idempotency_key` IDENTIFIES THE OCCURRENCE, and it has two shapes:
+
+        * `plan_change:{event_id}` whenever a delivery identifier reached us. Stripe
+          redelivers a retried event under the same `stripe_event.id`, which must be one
+          change, and gives two genuinely distinct changes different ids, which must both
+          apply. That is exactly the identity this key needs, so when it is present
+          nothing else belongs in the key — the same one-prefix-one-identifier shape as
+          `measurement:{measurement_id}` (`ee.src.tasks.asyncio.measurements.worker`).
+        * `plan_change:{subscription_id}:{incoming period start}` as the fallback, for the
+          direct plan-switch and cancel routes, which are synchronous user actions with no
+          delivery to identify. The incoming period is used because it is the one still
+          reconstructible from the stored subscription afterwards; the outgoing anchor is
+          overwritten by this same event.
+
+        The fallback still collides on TWO DIRECT SWITCHES IN ONE BILLING PERIOD for the
+        same subscription: the second is treated as a replay of the first and moves no
+        money. That residue is open-designs item 22 ("What identifies one plan change"),
+        and it is now the only case left — the webhook path, which is every Stripe-driven
+        change, is fully identified.
+
         Best-effort: logged and swallowed, never raised into the billing-webhook
         boundary. A wallet-side bug here must not block Stripe event acknowledgement
         (which would only cause Stripe to retry indefinitely) or roll back a subscription
-        change that already committed. `apply_plan_change` is itself idempotent
-        (`idempotency_key` below), so a later retry — of the webhook, or of a manual
-        reconciliation job — converges safely; this call does not need to be retried
-        from here.
-
-        `idempotency_key` is built from internal identifiers only, in the same
-        one-prefix-one-identifier shape as `measurement:{measurement_id}`
-        (`ee.src.tasks.asyncio.measurements.worker`): the subscription's own identity
-        (`subscription_id`) plus the INCOMING period's start, the internal identifier —
-        computed here, not passed in — of WHICH billing period this change lands in. The
-        incoming period is the one the subscription now carries, so it is the one a later
-        reconciliation pass can recompute from the stored subscription and thereby
-        recognise as a replay; the outgoing anchor is overwritten by this same event and
-        is unrecoverable afterwards, so a key built on it could never be reproduced. Two
-        calls land in the same period exactly when they are the same occurrence of a
-        mid-period change for that subscription; the plan name and the raw anchor
-        day-of-month are not identifiers and do not belong in the key. No
-        per-webhook-delivery event id is threaded through from the Stripe handler today,
-        so two genuinely distinct changes landing in the same billing period for the same
-        subscription would still collide and be treated as one replay — an accepted
-        Wave-1 limitation, not a correctness claim for the general case.
+        change that already committed. A SWALLOWED FAILURE IS NOT SELF-HEALING: the caller
+        runs this hook only when the plan actually changed, so a redelivery of the same
+        webhook finds the plan already changed and skips the hook entirely, and nothing
+        durable records that the proration is still owed. Only a reconciliation job — one
+        that compares subscriptions against wallet credits and re-drives the missing
+        change — recovers it, and no such job exists yet; that is the second half of
+        open-designs item 22. `apply_plan_change` being idempotent makes such a job safe
+        to run, which is not the same as making this call converge on its own.
         """
         if not env.wallets.enabled:
             return
@@ -481,7 +500,11 @@ class SubscriptionsService:
             incoming_period_start, incoming_period_end = billing_period_bounds(
                 now=now, anchor=incoming_anchor
             )
-            idempotency_key = f"plan_change:{subscription_id or 'none'}:{incoming_period_start.isoformat()}"
+            idempotency_key = (
+                f"plan_change:{event_id}"
+                if event_id
+                else f"plan_change:{subscription_id or 'none'}:{incoming_period_start.isoformat()}"
+            )
 
             await get_wallets_service().apply_plan_change(
                 organization_id=UUID(organization_id),

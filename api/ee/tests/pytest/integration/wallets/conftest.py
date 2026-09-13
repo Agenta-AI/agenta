@@ -95,11 +95,41 @@ def _skip_when_postgres_unreachable(request):
 #      exact property that makes dropping these tables lossless, it is checked rather than
 #      declared, and unlike an opt-in "yes this is a scratch database" variable it cannot
 #      be set once and then forgotten as the database fills up.
-#   2. After the test, it puts the chain back at the revision it was found at, instead of
+#   2. Immediately before EVERY downgrade, it re-checks — because an entry check alone
+#      only proves the database was clean when the suite started, and a live stack
+#      pointed at the same database can provision a balance or settle a debit during the
+#      test window, after the count was taken. `command.downgrade` is wrapped for the
+#      lifetime of each test, so the re-check sits at the destructive operation itself
+#      and covers all seven modules' fixtures, the calls made inline in test bodies, and
+#      the restore below. It has to be there rather than in this fixture's teardown:
+#      autouse conftest fixtures finalize LAST, so by the time this one runs the module's
+#      own `wallet_schema` teardown has already downgraded and the tables are already
+#      gone. A re-check here would inspect rubble.
+#   3. After the test, it puts the chain back at the revision it was found at, instead of
 #      leaving it wherever the module's own teardown stopped.
 #
+# The re-check cannot be the entry check repeated. By teardown the wallet tables
+# legitimately hold the rows the test itself just wrote, so "any row at all" would abort
+# every single run. What it asks instead is whether any wallet row belongs to a REAL
+# organization: the schema carries no foreign key from `wallet_*.organization_id` to
+# `organizations` precisely so these tests can mint synthetic owner ids, and they do, so
+# a wallet row that does join an `organizations` row was written by something other than
+# this suite. (`test_wallets_backfill_migration_postgres.py` is the one module that
+# inserts real `organizations` rows, and it deletes them and their balance rows in a
+# `finally` before its own downgrade.)
+#
+# A Postgres advisory lock was considered for this and rejected: advisory locks are
+# cooperative, the wallets service and `DebitWorker` never take one, so holding it would
+# exclude nothing except another copy of this suite — which `xdist_group` already
+# handles. The lock that would actually block an application write is `ACCESS EXCLUSIVE`
+# on the three tables, and holding that for the fixture lifetime would block the suite's
+# own writes. Detecting the intruder and refusing to drop is the mechanism that fits.
+#
 # It refuses rather than skipping, for the same reason `AGENTA_TESTS_REQUIRE_INFRA`
-# exists: a silent skip here would report green while proving nothing.
+# exists: a silent skip here would report green while proving nothing. A refusal at
+# downgrade time deliberately leaves the chain ABOVE where it was found — preserving the
+# tables is the entire point, so the restore is the thing sacrificed, and the message
+# says so.
 #
 # It deliberately does NOT normalize the chain downward before the test. A database found
 # above `ee0000000004` still fails `test_migration_upgrade_downgrade_upgrade_round_trip`,
@@ -161,6 +191,82 @@ async def _inspect_core_ee_chain() -> tuple[str | None, dict[str, int]]:
         await engine.dispose()
 
 
+async def _count_foreign_wallet_rows() -> dict[str, int]:
+    """Wallet rows owned by a real `organizations` row — that is, rows this suite did not
+    write. See the header: the suite mints synthetic organization ids that deliberately
+    match no `organizations` row, so a row that joins one came from somewhere else."""
+    engine = create_async_engine(url=env.postgres.uri_core)
+    try:
+        async with engine.connect() as connection:
+            organizations_exist = (
+                await connection.execute(
+                    text("SELECT to_regclass('public.organizations')")
+                )
+            ).scalar()
+            if not organizations_exist:
+                return {}
+
+            foreign: dict[str, int] = {}
+            for table in WALLET_TABLES:
+                exists = (
+                    await connection.execute(
+                        text(f"SELECT to_regclass('public.{table}')")
+                    )
+                ).scalar()
+                if not exists:
+                    continue
+                count = (
+                    await connection.execute(
+                        text(
+                            f"SELECT count(*) FROM {table} t"
+                            " JOIN organizations o ON o.id = t.organization_id"
+                        )
+                    )
+                ).scalar()
+                if count:
+                    foreign[table] = count
+            return foreign
+    finally:
+        await engine.dispose()
+
+
+def _guarded_downgrade(original_downgrade):
+    """Wrap `alembic.command.downgrade` so no downgrade runs while wallet rows belonging
+    to a real organization are present. Installed per test by the guard fixture."""
+
+    def downgrade(config, revision, *args, **kwargs):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+        else:
+            raise RuntimeError(
+                "alembic's command.downgrade must be dispatched with asyncio.to_thread:"
+                " core_ee/env.py ends in asyncio.run(), which cannot be called from a"
+                " running event loop."
+            )
+
+        foreign = asyncio.run(_count_foreign_wallet_rows())
+        if foreign:
+            inventory = ", ".join(
+                f"{table}={count}" for table, count in sorted(foreign.items())
+            )
+            _refuse(
+                "wallet rows owned by real organizations appeared while the test was"
+                f" running ({inventory}), so something else is writing to this database."
+                f" This run was walking the chain down to {revision}, which crosses"
+                " `ee0000000004` — and that downgrade DROPS the wallet tables, taking"
+                " those rows with them. The downgrade was refused, so the core_ee chain"
+                " is left where it stands rather than restored to where this run found"
+                " it: the rows matter more than the revision. Stop whatever is writing"
+                " here, or point POSTGRES_URI_CORE at a throwaway database."
+            )
+
+        return original_downgrade(config, revision, *args, **kwargs)
+
+    return downgrade
+
+
 def _refuse(message: str) -> None:
     pytest.fail(
         f"Refusing to run the wallet integration suite against {_core_database_label()}:"
@@ -195,7 +301,9 @@ async def _restore_core_ee_chain(found_revision: str) -> None:
 
 
 @pytest.fixture(autouse=True)
-async def _guard_disposable_database(request, _skip_when_postgres_unreachable):
+async def _guard_disposable_database(
+    request, monkeypatch, _skip_when_postgres_unreachable
+):
     if not request.node.get_closest_marker("integration"):
         yield
         return
@@ -225,6 +333,12 @@ async def _guard_disposable_database(request, _skip_when_postgres_unreachable):
             " destroy rows it did not create. Point POSTGRES_URI_CORE at a throwaway"
             " database."
         )
+
+    # From here until monkeypatch unwinds, every `command.downgrade` — the module
+    # fixtures', the ones test bodies make inline, and the restore below — re-checks for
+    # foreign wallet rows first. monkeypatch is set up as this fixture's dependency, so
+    # it finalizes after it and the wrapper is still installed during the restore.
+    monkeypatch.setattr(command, "downgrade", _guarded_downgrade(command.downgrade))
 
     try:
         yield

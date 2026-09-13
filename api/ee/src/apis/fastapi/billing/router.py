@@ -453,6 +453,11 @@ class BillingRouter:
                 subscription_id=subscription_id,
                 plan=plan,
                 anchor=anchor,
+                # Identifies THIS delivery: Stripe reuses the id when it retries an
+                # event and issues a new one for every distinct change, which is what
+                # the wallet proration's idempotency key needs (see
+                # `SubscriptionsService._apply_wallet_plan_change`).
+                event_id=_stripe_get(stripe_event, "id"),
             )
             if event == Event.SUBSCRIPTION_CANCELLED:
                 await self._reset_organization_flags(organization_id)

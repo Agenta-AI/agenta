@@ -1830,25 +1830,43 @@ _Unresolved._
 
 A mid-period plan change prorates the wallet's allowance credit, and that call is made
 idempotent by a key built in `_apply_wallet_plan_change`
-(`api/ee/src/core/subscriptions/service.py`):
+(`api/ee/src/core/subscriptions/service.py`). The key now takes one of two shapes:
 
 ```text
-plan_change:{subscription_id}:{period_start}
+plan_change:{stripe_event_id}                           every Stripe-driven change
+plan_change:{subscription_id}:{incoming period start}   the two direct routes
 ```
 
-`period_start` is the billing period the change lands in, computed from the subscription's
-anchor. Two calls collide exactly when they are two changes in the same period for the same
-subscription, and `apply_plan_change` then treats the second as a replay of the first and does
-nothing. The method's own docstring records this as an accepted Wave 1 limitation. It is written
-down in exactly one place, which is the code, and this register is where somebody looks for open
-questions.
+The first shape closes the question for the webhook path. Stripe's event id is one per
+delivery, stable across its retries and distinct for two genuinely different changes, and the
+webhook handler now threads it down (`api/ee/src/apis/fastapi/billing/router.py`). Every
+subscription created, paused, resumed, or deleted through Stripe keys on it.
 
-A worked failure. An organization upgrades from Pro to Business on the fourth of the month and
-downgrades to Free on the nineteenth. Both changes fall in the same billing period, so both
-produce the key `plan_change:sub_123:2026-09-01T00:00:00+00:00`. The upgrade prorates and mints
-its Business allowance. The downgrade is swallowed as a duplicate: the subscription is Free, the
-entitlements cache is invalidated, the customer is billed as Free, and the wallet still carries
-a Business allowance for the rest of the period.
+The second shape is the residue, and it is a fallback rather than an identity. The two direct
+routes, `switch_plans` and the direct cancel route in the same file, are synchronous user
+actions with no delivery to identify, so they pass no event id and fall back to the subscription
+plus the period. Two calls then collide exactly when they are two changes in the same billing
+period for the same subscription, and `apply_plan_change` treats the second as a replay of the
+first and moves no money.
+
+A worked failure. An organization subscribes to Pro on 1 April, so Stripe's anchor is the first
+and the wallet holds a $5 allowance for 1 April to 1 May. On 16 April the customer upgrades to
+Business in the app. That is the direct switch route, and `SUBSCRIPTION_SWITCHED` never moves
+the anchor, so the window is still 1 April to 1 May and the key is
+`plan_change:sub_123:2026-04-01T00:00:00+00:00`. Exactly half the window remains: $2.50 of Pro
+is clawed back, $25 of Business is minted, and the balance is $27.50. On 21 April the customer
+thinks better of it and switches back to Pro in the app. Same subscription, same unmoved anchor,
+same window, so the key is byte-identical. The credit minted on the 16th carries that key in
+`data.references.plan_change_idempotency_key`, the data access object finds it and returns the
+earlier result, and nothing moves. The customer is billed as Pro from the 21st and keeps a
+Business-tier allowance for the rest of April.
+
+Cancellation has a sharper version of the same fallback. The cancel branch sets
+`subscription_id` to `None` and the anchor to today, so the key is
+`plan_change:none:{today}` and every direct cancellation for an organization on a given day
+keys the same. The key is only ever matched within one organization (both replay lookups in
+`api/ee/src/dbs/postgres/wallets/dao.py` filter on `organization_id`), so this is not a
+cross-tenant collision, which is the first thing the shape suggests and worth saying plainly.
 
 A second problem lives at the same boundary and is not the same problem. The wallet hook runs
 only when the plan actually changed (`if subscription.plan != previous_plan`), and its exception
@@ -1860,20 +1878,23 @@ something that remembers.
 
 ### Decision needed
 
-What identifies a plan change, and what remembers one whose wallet side failed.
+What identifies a direct plan change, and what remembers a change whose wallet side failed. The
+webhook half is answered; these two are what is left.
 
-1. **Thread a per-delivery identifier from the webhook boundary.** Stripe's event id is one per
-   delivery and stable across retries, which is exactly the identity the key needs. It has to be
-   carried from the webhook handler down to `_apply_wallet_plan_change`, which no signature does
-   today. Closes the collision completely and makes the key mean "this occurrence" rather than
-   "some occurrence in this period".
-2. **Add the transition to the key.** `plan_change:{subscription_id}:{period_start}:{outgoing}:{incoming}`
-   separates the upgrade from the downgrade above without touching the webhook boundary. Cheap,
-   and still collides on two identical transitions in one period (Pro to Free, back to Pro, to
-   Free again), which is rarer but not impossible.
-3. **A durable pending record.** The subscription transaction writes a row saying the wallet
-   side is owed, and a retry drains it. This is the only option that also answers the second
-   problem, and it is the largest.
+1. **Mint an identifier at the direct routes.** A synchronous user action has no delivery id
+   only because nobody made one. `switch_plans` and the direct cancel route can generate one per
+   request and pass it as the event id, which puts both routes on the first key shape and closes
+   the collision the same way the webhook path closed it. It also removes the cancel route's
+   `none` subscription id from the key entirely.
+2. **Add the transition and the instant to the fallback key.** Keep the fallback and widen it,
+   for example with the outgoing and incoming plan names. Cheaper than option 1 and it still
+   collides on two identical transitions in one period (Pro to Business, back to Pro, to
+   Business again), which is rarer but not impossible.
+3. **A durable pending record, and a job that drains it.** The subscription transaction writes a
+   row saying the wallet side is owed, and a reconciliation pass re-drives it. This is the only
+   option that answers the second problem, and it is the largest. `apply_plan_change` being
+   idempotent is what makes such a job safe to run, which is not the same as making the original
+   call converge on its own.
 
 ### Why it matters
 
@@ -1882,15 +1903,18 @@ upgrade leaves them short of what they do. Neither is visible: no error surfaces
 subscription is correct, and only the wallet is wrong. Options 1 and 3 are independent and both
 are eventually needed, since a correct key still does nothing for a call that never ran.
 
+The residue is smaller than the original question but not empty, and it sits on the path a
+customer uses to change their own plan in the product rather than on a Stripe-internal one.
+
 Item 3 owns the event model for cancellation, expiry, clawback, refund, and plan-change history,
 which is where a durable pending record and the debits a plan change posts both belong.
 
 ### Current direction
 
-Option 1 for the key, because the identifier exists at the webhook boundary and everything else
-is a workaround for not having carried it down. Option 3 after it, on item 3's timetable rather
-than its own. Option 2 is a poor middle: it narrows the collision without closing it, and the
-work it saves is one parameter.
+Option 1 for the key, for the same reason the webhook path took it: an identifier per occurrence
+is the thing the key actually wants, and every alternative is a way of approximating one. Option
+3 after it, on item 3's timetable rather than its own. Option 2 is a poor middle: it narrows the
+collision without closing it, and the work it saves is one parameter.
 
 ### Decision
 

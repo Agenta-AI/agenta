@@ -155,12 +155,36 @@ GENERAL_CREDIT_KINDS = frozenset(
 RESTRICTED_CREDIT_KIND_PREFIX = "restricted:"
 
 
+def is_wellformed_credit_kind(credit_kind: str) -> bool:
+    """Whether `credit_kind` names something this module can act on: a general kind, or a
+    restricted kind carrying an actual prefix after `restricted:`.
+
+    A restricted kind with nothing after the colon is malformed, not universal. It is
+    called out separately because the naive reading runs the wrong way: every string
+    starts with the empty string, so an empty allowed prefix would make the one credit
+    kind whose entire job is to narrow what may be funded match every resource key
+    instead of none. Whitespace after the colon is left alone — `" llm:"` is a prefix that
+    happens to match nothing real, which is already the closed answer.
+    """
+    if credit_kind in GENERAL_CREDIT_KINDS:
+        return True
+
+    if credit_kind.startswith(RESTRICTED_CREDIT_KIND_PREFIX):
+        return credit_kind[len(RESTRICTED_CREDIT_KIND_PREFIX) :] != ""
+
+    return False
+
+
 def is_resource_eligible(*, credit_kind: str, resource_key: str) -> bool:
     if credit_kind in GENERAL_CREDIT_KINDS:
         return True
 
     if credit_kind.startswith(RESTRICTED_CREDIT_KIND_PREFIX):
         allowed_prefix = credit_kind[len(RESTRICTED_CREDIT_KIND_PREFIX) :]
+        if allowed_prefix == "":
+            # Fail closed: a restricted kind with an empty prefix funds nothing. Without
+            # this, `"".startswith` is vacuously true and the credit funds everything.
+            return False
         return resource_key.startswith(allowed_prefix)
 
     # Unconfigured credit_kind: fail closed rather than silently fund a posting.

@@ -507,8 +507,11 @@ for all streams.
 
 #### `streams:measurements`
 
-The API request publishes this best-effort message after it has the managed gateway result. It is the
-only producer-side loss boundary: if its `XADD` fails, no measurement and no charge are created.
+The API request will publish this best-effort message after it has the managed gateway result. Nothing
+publishes it on this branch: the only producers are the Wave 1 fakes under
+`api/ee/tests/pytest/acceptance/wallets/fakes/`, and wiring the real one is a gateway-wave deliverable,
+so no managed request is billed yet. It is the only producer-side loss boundary: if its `XADD` fails,
+no measurement and no charge are created.
 `organization_id` follows the existing events/records convention: it is optional on this envelope.
 When absent, the measurement worker resolves organization from `project_id` before it emits the debit
 message. The persisted measurement does not duplicate organization; project remains the analytics
@@ -553,9 +556,13 @@ component cost. Their metric-specific unit is encoded by the stable key. `resour
 
 The measurement worker validates the envelope, inserts exactly one immutable `measurements` row and its
 `measurement_values` under the gateway-supplied `measurement_id`, calculates the final charge, and
-publishes the second message. It ACKs the measurement message only after those actions complete. A
-malformed/unsupported version is logged and terminally ACKed—there is no way to safely price an
-envelope the worker cannot interpret.
+publishes the second message. It ACKs the measurement message only after those actions complete, with
+one deliberate exception: a chargeable measurement whose `project_id` resolves to no organization is
+persisted and then ACKed with no debit published. The worker cannot bill what it cannot attribute, and
+redelivering a project that will never resolve stalls the stream behind it, so the charge is dropped
+and logged—the same family of terminal drops as open-designs item 20. A malformed/unsupported version
+is logged and terminally ACKed—there is no way to safely price an envelope the worker cannot
+interpret.
 
 #### `streams:debits`
 
@@ -571,7 +578,7 @@ analytics fact that led to them.
   "organization_id": "org_7a...",
   "debit_kind": "gateway_usage",
   "amount_musd": 1020,
-  "pricing_version": "wallet-v1-fake-llm-1",
+  "pricing_version": "wallet-v1-fake-1",
   "resource_key": "llm:google:gemini-2.5-flash",
   "resource_locator": {
     "provider": "google",
