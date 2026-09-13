@@ -105,12 +105,22 @@ async def resolve_mcp(
     back to the direct dial with named secrets injected, unchanged.
     """
     platform_connection = connection or PlatformConnection()
+    server_configs = parse_mcp_server_configs(mcp_servers)
+
+    # NOT the platform authorization: this value crosses into the sandbox, so it is
+    # exchanged for one the API accepts on the gateway routes and nowhere else. Exchanged
+    # only when a server was actually declared — a run with no MCP server has nothing to
+    # hand a credential to, and should not pay a round trip to learn that.
+    gateway_credentials_value = (
+        await platform_connection.gateway_authorization() if server_configs else None
+    )
+
     return await MCPResolver(
         secret_provider=secret_provider or AgentaNamedSecretProvider(),
         missing_secret_policy=missing_secret_policy,
         gateway_base_url=platform_connection.gateway_base_url(),
-        gateway_credentials_value=platform_connection.authorization(),
-    ).resolve(parse_mcp_server_configs(mcp_servers))
+        gateway_credentials_value=gateway_credentials_value,
+    ).resolve(server_configs)
 
 
 async def resolve_connection(

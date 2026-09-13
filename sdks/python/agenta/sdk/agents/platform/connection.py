@@ -25,9 +25,21 @@ from __future__ import annotations
 import os
 from typing import Dict, Optional
 
+import httpx
+
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+
+class GatewayCredentialsError(RuntimeError):
+    """The backend would not issue a gateway-confined credential for this caller.
+
+    Raised rather than degraded to ``None``: falling back to the caller's own credential is
+    exactly the defect the exchange exists to remove, and a run with no credential at all
+    fails later with a message that names the wrong cause.
+    """
+
 
 # Budget for one backend round-trip (the tool catalog/connection check, the vault fetch).
 # Gateway tool resolution can call out to a provider (e.g. Composio) and exceed a few seconds,
@@ -139,6 +151,59 @@ class PlatformConnection:
     def authorization(self) -> Optional[str]:
         """The caller's Authorization: explicit, else the per-request context, else env key."""
         return self._authorization or _derive_authorization()
+
+    async def gateway_authorization(self) -> Optional[str]:
+        """The credential the SANDBOX may hold, exchanged for the one this process holds.
+
+        `authorization()` is the runtime's general-purpose credential: it reads the vault,
+        commits workflows and resolves tools, and the gateway exists precisely so nothing
+        with that reach travels into a sandbox. This asks the backend for a second value
+        with the same tenant scope and the same run, no grants, and an audience the API
+        accepts only on the gateway data plane.
+
+        ``None`` when no backend or no caller credential is configured — the offline and
+        standalone cases, where there is no gateway to be confined to either.
+        """
+        api_base = self.base_url()
+        authorization = self.authorization()
+        if not api_base or not authorization:
+            return None
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    f"{api_base}/gateways/credentials",
+                    headers=self.headers(authorization=authorization),
+                    json={},
+                )
+        except Exception as exc:  # pylint: disable=broad-except
+            log.warning("agent: gateway credential exchange failed", exc_info=True)
+            raise GatewayCredentialsError(
+                "gateway credential exchange request failed"
+            ) from exc
+
+        if response.status_code >= 400:
+            log.warning(
+                "agent: gateway credential exchange HTTP %s", response.status_code
+            )
+            raise GatewayCredentialsError(
+                f"gateway credential exchange refused with HTTP {response.status_code}"
+            )
+
+        try:
+            data = response.json() or {}
+        except Exception as exc:  # pylint: disable=broad-except
+            raise GatewayCredentialsError(
+                "gateway credential exchange returned an unreadable response"
+            ) from exc
+
+        credentials = data.get("credentials") if isinstance(data, dict) else None
+        if not isinstance(credentials, str) or not credentials:
+            raise GatewayCredentialsError(
+                "gateway credential exchange returned no credential"
+            )
+
+        return credentials
 
     def headers(
         self, *, json: bool = True, authorization: Optional[str] = None
