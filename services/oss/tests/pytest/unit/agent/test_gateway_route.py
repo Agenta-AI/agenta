@@ -34,6 +34,9 @@ _AGENT_SRC = Path(app.__file__).resolve().parent
 # the gateway rather than through provider-secret environment variables.
 _FORBIDDEN_NAMES = {"resolve_provider_keys", "resolve_secrets", "_PROVIDER_ENV_VARS"}
 
+# Synthetic stand-in for the gateway-audience credential the backend issues per run.
+GATEWAY_CREDENTIALS = "Secret synthetic-gateway-audience-token"
+
 
 def test_no_provider_secret_path_in_the_agent_service():
     """Grep-style guard: nothing under services/oss/src/agent can read a provider secret.
@@ -64,18 +67,12 @@ async def test_service_resolves_a_gateway_route_with_no_provider_secret(monkeypa
     )
 
     class _Response:
-        status_code = 200
+        def __init__(self, payload):
+            self.status_code = 200
+            self._payload = payload
 
         def json(self):
-            return {
-                "connection": {
-                    "namespace": "standard",
-                    "name": "openai",
-                    "provider_key": "openai",
-                    "deployment_kind": "direct",
-                    "model": "gpt-5.5",
-                }
-            }
+            return self._payload
 
     class _Client:
         def __init__(self, *args, **kwargs) -> None:
@@ -88,14 +85,28 @@ async def test_service_resolves_a_gateway_route_with_no_provider_secret(monkeypa
             return False
 
         async def post(self, url, headers=None, json=None):
-            assert url == "https://api.x/api/gateways/llms/resolve"
             assert headers["Authorization"] == "Access tok"
+            # The credential that crosses into the sandbox is exchanged for, never reused
+            # from, the caller's own.
+            if url.endswith("/gateways/credentials"):
+                return _Response({"credentials": GATEWAY_CREDENTIALS})
+            assert url == "https://api.x/api/gateways/llms/resolve"
             assert json == {
                 "model": "gpt-5.5",
                 "provider_key": "openai",
                 "connection_slug": None,
             }
-            return _Response()
+            return _Response(
+                {
+                    "connection": {
+                        "namespace": "standard",
+                        "name": "openai",
+                        "provider_key": "openai",
+                        "deployment_kind": "direct",
+                        "model": "gpt-5.5",
+                    }
+                }
+            )
 
     monkeypatch.setattr(platform_connections.httpx, "AsyncClient", _Client)
 
@@ -111,7 +122,7 @@ async def test_service_resolves_a_gateway_route_with_no_provider_secret(monkeypa
         == "https://api.x/api/gateways/llms/standard/openai/v1"
     )
     assert resolved.gateway_credentials is not None
-    assert resolved.gateway_credentials.value == "Access tok"
+    assert resolved.gateway_credentials.value == GATEWAY_CREDENTIALS
 
 
 async def test_connection_refusal_keeps_its_status_code(monkeypatch, fake_backend):

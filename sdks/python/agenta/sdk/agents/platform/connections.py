@@ -53,7 +53,7 @@ from ..connections import (
     WriteOnlySecretError,
 )
 from ..model_catalog import model_input_modalities
-from .connection import PlatformConnection
+from .connection import GatewayCredentialsError, PlatformConnection
 
 log = get_module_logger(__name__)
 
@@ -992,6 +992,18 @@ class VaultConnectionResolver:
     def __init__(self, connection: Optional[PlatformConnection] = None) -> None:
         self._connection = connection or PlatformConnection()
 
+    async def _gateway_credentials(self) -> Optional[str]:
+        """The gateway-confined credential this resolution hands to the sandbox.
+
+        A refusal surfaces as a resolution error rather than as a missing credential: the
+        run cannot reach a provider either way, and naming the exchange is what keeps the
+        operator from hunting a phantom "no backend configured" misconfiguration.
+        """
+        try:
+            return await self._connection.gateway_authorization()
+        except GatewayCredentialsError as exc:
+            raise ConnectionResolutionError(str(exc)) from exc
+
     async def resolve(
         self,
         *,
@@ -1057,6 +1069,12 @@ class VaultConnectionResolver:
         data = response.json()
         if data is None:
             data = {}
+
+        # NOT `authorization`. That value reads the vault in plaintext, and this one crosses
+        # into the sandbox, where the gateway's whole premise is that nothing able to reach a
+        # provider key lives there. Exchanged for a gateway-audience credential instead.
+        gateway_credentials_value = await self._gateway_credentials()
+
         # Keep the in-memory/static resolver's list shape as a test/replay compatibility
         # path. A live API always returns the non-secret ``connection`` object above.
         if isinstance(data, list):
@@ -1065,7 +1083,7 @@ class VaultConnectionResolver:
                 model=model,
                 harness=context.harness,
                 gateway_base_url=self._connection.gateway_base_url(),
-                gateway_credentials_value=authorization,
+                gateway_credentials_value=gateway_credentials_value,
             )
         resolved = data.get("connection") if isinstance(data, dict) else None
         if not isinstance(resolved, dict):
@@ -1085,7 +1103,7 @@ class VaultConnectionResolver:
                 "connection resolution returned incomplete route metadata"
             )
         gateway_base_url = self._connection.gateway_base_url()
-        if not gateway_base_url or not authorization:
+        if not gateway_base_url or not gateway_credentials_value:
             raise ConnectionResolutionError(
                 "no Agenta backend configured for gateway connection resolution"
             )
@@ -1096,7 +1114,7 @@ class VaultConnectionResolver:
             namespace=namespace,
             name=name,
             gateway_base_url=gateway_base_url,
-            gateway_credentials_value=authorization,
+            gateway_credentials_value=gateway_credentials_value,
             input_modalities=model_input_modalities(
                 context.harness, resolved_model, provider=provider
             ),

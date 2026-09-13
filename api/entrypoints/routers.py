@@ -200,6 +200,7 @@ from oss.src.core.gateways.mcps.providers.composio.standard import (
 from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
+from oss.src.apis.fastapi.gateways.credentials_router import GatewayCredentialsRouter
 from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
 from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
 from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
@@ -1236,6 +1237,7 @@ mcp_oauth_connect_service = MCPOAuthConnectService(
     secret_key=env.agenta.crypt_key,
 )
 
+gateway_credentials_router = GatewayCredentialsRouter()
 llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)
 llm_gateway_proxy = LLMGatewayProxy(llm_gateway_service=llm_gateway_service)
 mcp_gateway_router = MCPGatewayRouter(
@@ -1751,6 +1753,11 @@ app.include_router(
     include_in_schema=False,
 )
 
+app.include_router(
+    router=gateway_credentials_router.router,
+    prefix="/gateways",
+    tags=["Gateway"],
+)
 app.include_router(
     router=llm_gateway_router.router,
     prefix="/gateways/llms",

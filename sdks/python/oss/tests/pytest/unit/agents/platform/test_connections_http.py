@@ -22,6 +22,8 @@ from agenta.sdk.agents.connections import (
 from agenta.sdk.agents.platform import PlatformConnection, VaultConnectionResolver
 from agenta.sdk.agents.platform import connections
 
+from .conftest import GATEWAY_CREDENTIALS_VALUE
+
 # The `connection` fixture pins base_url to this host; the gateways mount under it, so every
 # routed resolution composes its gateway route against it.
 _GATEWAY_BASE = "https://api.x/api"
@@ -66,7 +68,9 @@ def _assert_routed_through_gateway(resolved, *, namespace: str, name: str) -> No
         namespace, name, resolved.provider
     )
     assert resolved.gateway_credentials is not None
-    assert resolved.gateway_credentials.value == "Access tok"
+    # The caller's own credential ("Access tok") reads the vault; what crosses into the
+    # sandbox is the gateway-audience value the backend issued in exchange for it.
+    assert resolved.gateway_credentials.value == GATEWAY_CREDENTIALS_VALUE
 
 
 def _model(
