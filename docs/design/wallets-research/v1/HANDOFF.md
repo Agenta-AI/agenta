@@ -22,7 +22,7 @@ gives, not the order below.
 | `waves.md` | The delivery model. It defines checkpoints, waves, and the three node types (work package, intermediate merge, cleanup). |
 | `wave-1.md` | What Wave 1 delivered. It carries the checkpoint boundary, the fixed inputs, the replay invariant, the completion evidence, and the feature-flag section. Start here for the state of the code. |
 | `preflight.md` | The review that Wave 1's graph and specifications had to pass before any node work began. It records four blockers and four gaps, and the disposition of each. |
-| `open-designs.md` | The register of design questions, fifteen of them, each self-contained. |
+| `open-designs.md` | The register of design questions, twenty-two of them, each self-contained. |
 | `entities.md` | The canonical data model. It is authoritative for every table, column, and name. Where any other document disagrees with it, it wins. |
 | `nodes/*/specs.md` and `nodes/*/tasks.md` | One pair per node in the Wave 1 graph. The specification states the boundary and the owned code; the task list is the ordered work. This is the format Wave 2 must also use. |
 | `nodes/im-1-02-pipeline/acceptance.md` | The verification procedure. Section 9 holds the test commands, the infrastructure recipe, and the results. Sections 0 through 8 are the manual acceptance run against a deployed stack. |
@@ -41,29 +41,45 @@ for none of it.
 The migrations land unconditionally, whether the flag is on or off. The `core_ee` head is
 `ee0000000005` and the `tracing_ee` head is `ee0000000002`.
 
-The unit and integration suites pass as of 12 September 2026, at those two migration heads,
-against a throwaway Postgres 17 and Redis 8. The counts below include the lazy-provisioning
-work that closed item 14.
+The unit and integration suites pass as of 13 September 2026, at those two migration heads,
+against a throwaway Postgres 17 and Redis 8. The integration run was repeated against the same
+containers to prove the fixtures restore what they found, and it reports no skips, because
+`AGENTA_TESTS_REQUIRE_INFRA` makes an unreachable dependency a failure instead.
 
 | Suite | Result |
 | --- | --- |
-| `ee/tests/pytest/unit/wallets/` plus `ee/tests/pytest/unit/measurements/` | 133 passed |
-| The whole of `ee/tests/pytest/unit` | 520 passed |
-| `integration/wallets/` and `integration/measurements/` together | 26 passed |
+| `ee/tests/pytest/unit/wallets/` plus `ee/tests/pytest/unit/measurements/` | 160 passed |
+| The whole of `ee/tests/pytest/unit` | 531 passed |
+| `oss/tests/pytest/unit/gateways` on this base | 654 passed |
+| `integration/wallets/` and `integration/measurements/` together | 26 passed, 0 skipped |
+
+All of these now run in CI. Before this branch no enterprise test ran there at all: every job
+pinned an OSS license, and the test runner then resolved the OSS tree only.
 
 The first integration run found four defects, two of them in production code. One of the two
 would have failed every signup the day the flag was turned on. All four are fixed. Section 9
 of the acceptance document records each defect, its cause, and the regression test that now
 pins it.
 
-An independent review of the branch since then found four more, all fixed and each pinned by a
-test. The plan-change hook read the subscription's anchor after the event had already
-overwritten it, so a cancellation prorated over a window starting today;
-`measurement_values.cost_musd` was a 32-bit column holding a micro-dollar amount, which
-overflows at about 2,147 dollars; neither worker enabled the shared consumer's reclaim pass, so
-an entry left pending by a retryable failure was never redelivered; and the `ee0000000005`
-backfill held every organization in memory at once. Three design questions the same review raised are recorded as
-items 20 to 22 of `open-designs.md` rather than fixed.
+An independent review of the branch since then, by Codex and by CodeRabbit, found more, all
+fixed and each pinned by a test. Neither worker enabled the shared consumer's reclaim pass, so
+an entry left pending by a retryable failure was never redelivered, which is exactly what both
+docstrings promised would happen. A month-end anchor selected a billing window that had already
+ended. The plan-change hook read the subscription's anchor after the event had overwritten it
+and prorated both sides of the change over that one window, so a cancellation clawed back
+nearly the whole allowance; there are two windows now, one for the outgoing allowance and one
+for the incoming. Two metric columns were 32-bit while every wallet money column is 64-bit.
+Two modules each declared a base class named `WalletError`, so catching the exported one missed
+the errors that mean a charge did not settle. An envelope whose JSON parsed to something other
+than an object retried forever instead of being rejected. A retried signup sized the wallet
+floor from the default plan rather than the plan the organization was on. The wallet test fakes
+did not scope credits to an organization, so they accepted selections the real data access
+object rejects. The `ee0000000005` backfill read every organization in one statement.
+
+Three design questions the same review raised are recorded as items 20 to 22 of
+`open-designs.md` rather than fixed: where a stream entry this pipeline cannot accept should
+go, whether expired credit value leaves the general balance, and what identifies one plan
+change.
 
 What has not been done is the manual acceptance run in sections 0 through 8 of the acceptance
 document. That needs a local deployment with the flag on, and it is what closes checkpoint 1.
