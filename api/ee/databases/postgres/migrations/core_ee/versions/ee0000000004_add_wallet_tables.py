@@ -4,9 +4,11 @@ Adds the EE core transactional wallet unit described in
 `docs/design/wallets-research/v1/entities.md`: immutable `wallet_credits` and
 `wallet_debits`, and mutable `wallet_balances` (one general row per organization, one row
 per credit). `organization_id` is a validated logical owner on every table — no
-organization foreign key, no cascade, ever. The non-null `wallet_credit_id` on
-`wallet_debits`/`wallet_balances` is a real restrict/no-delete foreign key to
-`wallet_credits`.
+organization foreign key, no cascade, ever. `wallet_credit_id` on
+`wallet_debits`/`wallet_balances` is nullable, and NULL carries meaning on both: a deficit
+debit is funded by no credit, and the general balance row is the one with
+`wallet_credit_id IS NULL`. When it is set it is a real restrict/no-delete foreign key to
+`wallet_credits`, so a credit can never be deleted out from under a debit or a balance.
 
 Deviation from `docs/design/wallets-research/v1/nodes/wp-1-01-core-wallet/specs.md`: that
 document names this revision `ee0000000006` with `down_revision = "ee0000000005"`. Those

@@ -8,9 +8,9 @@ Tracing DB (`AnalyticsEngine`), migration chain `tracing_ee`
 import uuid_utils.compat as uuid
 
 from sqlalchemy import (
+    BigInteger,
     Column,
     ForeignKey,
-    Integer,
     PrimaryKeyConstraint,
     String,
     TIMESTAMP,
@@ -76,8 +76,14 @@ class MeasurementValueDBE(Base, LifecycleDBA):
     )
 
     key = Column(String, nullable=False)
-    value = Column(Integer, nullable=False)
-    cost_musd = Column(Integer, nullable=True)
+    # Both metric columns are 64-bit. `cost_musd` is money and a millionth-of-a-dollar
+    # unit overflows a 32-bit column at ~2147 US dollars, which one component cost can
+    # exceed; `value` is whatever count the envelope carries (msec, tokens), which the
+    # contract does not bound either. An insert the column rejects now retries forever
+    # rather than being dropped (the worker's reclaim pass), and enough stuck entries
+    # starve the healthy ones behind them in the pending list.
+    value = Column(BigInteger, nullable=False)
+    cost_musd = Column(BigInteger, nullable=True)
 
     __table_args__ = (
         PrimaryKeyConstraint("id"),

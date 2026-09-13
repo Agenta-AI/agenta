@@ -67,14 +67,22 @@ class InMemoryOrganizationResolver(OrganizationResolverInterface):
 
 
 class InMemoryDebitPublisher:
-    """Captures every publish attempt; `fail_next` simulates one transient
-    Redis failure (the worker must leave the message pending, not ACK it)."""
+    """`attempts` records every call; `published` records only the calls that returned
+    True. `fail_next` simulates one transient Redis failure (the worker must leave the
+    message pending, not ACK it).
+
+    The two lists are separate because an empty `published` alone cannot tell "the worker
+    never tried to charge" from "the worker tried and Redis was down" — and only the
+    first of those is a pricing bug.
+    """
 
     def __init__(self) -> None:
         self.published: List[DebitCommandV1] = []
+        self.attempts: List[DebitCommandV1] = []
         self.fail_next: bool = False
 
     async def publish(self, command: DebitCommandV1) -> bool:
+        self.attempts.append(command)
         if self.fail_next:
             self.fail_next = False
             return False
@@ -83,13 +91,16 @@ class InMemoryDebitPublisher:
 
 
 class InMemoryMeasurementPublisher:
-    """Captures every publish attempt for the fakes' producer-side tests."""
+    """Producer-side counterpart of `InMemoryDebitPublisher`, with the same split:
+    `attempts` is every call, `published` is the ones that succeeded."""
 
     def __init__(self) -> None:
         self.published: List[MeasurementCommandV1] = []
+        self.attempts: List[MeasurementCommandV1] = []
         self.fail_next: bool = False
 
     async def publish(self, command: MeasurementCommandV1) -> bool:
+        self.attempts.append(command)
         if self.fail_next:
             self.fail_next = False
             return False

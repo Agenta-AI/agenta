@@ -269,3 +269,69 @@ async def test_award_provisions_a_missing_general_balance():
 
     assert dao.general_balance is not None
     assert dao.general_balance.balance_musd == credit.amount_musd
+
+
+# ---------------------------------------------------------------------------
+# The fake DAO's own guardrails.
+#
+# `FakeWalletsDAO` is the only DAO the unit suite exercises, so any production
+# constraint it drops turns into a green test for a settlement Postgres would refuse.
+# Organization ownership is the constraint that is easiest to lose, because
+# `CreditCandidateDTO` does not carry the column and `plan_settlement` has no way to
+# check it. These tests pin the scope the fake applies on the caller's behalf.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_settle_never_funds_a_debit_from_another_organizations_credit():
+    other_organization_id = uuid4()
+    foreign_candidate = build_credit_candidate(balance_musd=5_000)
+    dao = FakeWalletsDAO(
+        general_balance=build_general_wallet_balance(balance_musd=0),
+        credits=[
+            (
+                foreign_candidate,
+                build_credit_wallet_balance(
+                    organization_id=other_organization_id,
+                    wallet_credit_id=foreign_candidate.wallet_credit_id,
+                    balance_musd=foreign_candidate.balance_musd,
+                ),
+            )
+        ],
+    )
+    service = WalletsService(wallets_dao=dao)
+
+    await service.settle(
+        build_debit_command(
+            organization_id=dao.general_balance.organization_id, amount_musd=100
+        )
+    )
+
+    # One deficit debit, funded by nobody — not a debit against the other organization.
+    assert len(dao.debits) == 1
+    assert dao.debits[0].wallet_credit_id is None
+    assert dao.debits[0].amount_musd == 100
+
+
+@pytest.mark.asyncio
+async def test_active_plan_allowance_is_never_read_across_organizations():
+    other_organization_id = uuid4()
+    foreign_candidate = build_credit_candidate(credit_kind="plan_allowance")
+    dao = FakeWalletsDAO(
+        general_balance=build_general_wallet_balance(),
+        credits=[
+            (
+                foreign_candidate,
+                build_credit_wallet_balance(
+                    organization_id=other_organization_id,
+                    wallet_credit_id=foreign_candidate.wallet_credit_id,
+                ),
+            )
+        ],
+    )
+
+    found = await dao.get_active_plan_allowance_credit(
+        organization_id=dao.general_balance.organization_id
+    )
+
+    assert found is None

@@ -110,4 +110,10 @@ async def test_fake_result_unaffected_by_publish_failure():
 
     assert ok_result.published is True
     assert failed_result.published is False
-    assert ok_result.managed_result["text"] == failed_result.managed_result["text"]
+    # The whole result, not just `text`: usage is the half a billing-side change would
+    # most plausibly perturb, and comparing one key would not notice.
+    assert ok_result.managed_result == failed_result.managed_result
+    # The failed publish was still attempted — an empty `published` on its own would also
+    # be consistent with the gateway never having tried to measure the call at all.
+    assert len(failing_publisher.attempts) == 1
+    assert failing_publisher.published == []

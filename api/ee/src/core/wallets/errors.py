@@ -7,7 +7,14 @@ the stream entry pending for normal consumer-group redelivery).
 
 
 class WalletError(Exception):
-    """Base class for all wallet-domain errors."""
+    """Base class for all wallet-domain errors, stream-level and core alike.
+
+    Exactly one class carries this name, and every wallet-domain exception inherits from
+    it, directly or through the terminal/retryable split below. A second base of the same
+    name elsewhere in the package would make `except WalletError` catch only half the
+    taxonomy, and the half it missed would be the core errors that mean a charge did not
+    settle.
+    """
 
 
 class WalletTerminalError(WalletError):

@@ -53,6 +53,14 @@ def _deserialize(payload: bytes, model):
     except Exception as e:
         raise MalformedEnvelopeError(f"Could not decompress/parse envelope: {e}") from e
 
+    if not isinstance(raw, dict):
+        # `[]`, `"text"` and `1` all decompress and parse, then die on `.get` with an
+        # AttributeError, which is not a `WalletTerminalError` — so the worker would treat
+        # a payload no redelivery can fix as transient and leave it pending forever.
+        raise MalformedEnvelopeError(
+            f"Envelope is not a JSON object: {type(raw).__name__}"
+        )
+
     version = raw.get("version")
     if version != CONTRACT_VERSION:
         raise UnsupportedVersionError(version=version)
