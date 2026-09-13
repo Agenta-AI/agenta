@@ -15,6 +15,7 @@ import {PageTitle} from "@/components/PageTitle"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
+import {InspectSessionButton} from "./SessionInspectorSheet"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 
@@ -132,8 +133,9 @@ export const SessionTabs = ({
                 extra={
                     chatMaximized ? undefined : (
                         <>
-                            {/* Same slot and order as the desktop bar: history, then the files
-                                opener at the right edge the pane expands from. */}
+                            <InspectSessionButton sessionId={sessionId} />
+                            {/* Same slot and order as the desktop bar: inspector, history, then
+                                the files opener at the right edge the pane expands from. */}
                             <SessionHistoryMenu
                                 agentId={agentId}
                                 base={base}
