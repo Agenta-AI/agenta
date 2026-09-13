@@ -64,6 +64,16 @@ def _normalized(url: str) -> str:
     return url.rstrip("/")
 
 
+def same_issuer(one: str, other: str) -> bool:
+    """Whether two issuer identifiers name the same authorization server.
+
+    RFC 8414 s3.3 compares issuers as strings; the trailing slash is the one difference
+    real documents show, and `_normalized` is where that is decided for both this and
+    the discovery-time check below.
+    """
+    return _normalized(one) == _normalized(other)
+
+
 def _requires_https() -> bool:
     """The gateway's one egress switch, read per call so an operator's value is in force.
 

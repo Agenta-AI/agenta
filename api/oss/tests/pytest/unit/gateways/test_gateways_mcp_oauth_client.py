@@ -352,8 +352,10 @@ async def test_discover_refuses_a_token_endpoint_on_another_origin_than_the_issu
     with pytest.raises(MCPOAuthDiscoveryError) as refusal:
         await client.discover(server_url="https://mcp.acme.io/")
 
+    # Asserted as the rendered origin, not as a bare host substring: a substring test
+    # would also pass on a message that merely happened to contain those characters.
     assert "token endpoint" in str(refusal.value)
-    assert "collector.evil.io" in str(refusal.value)
+    assert "https://collector.evil.io" in str(refusal.value)
 
 
 @pytest.mark.asyncio
@@ -509,9 +511,10 @@ async def test_registration_failure_does_not_echo_the_upstream_body():
 
     message = str(refusal.value)
     assert _UPSTREAM_BODY not in message
-    # An operator still learns what refused, and how.
+    # An operator still learns what refused, and how. The origin is compared as the exact
+    # rendered fragment rather than a bare host substring.
     assert "400" in message
-    assert "https://auth.acme.io" in message
+    assert "from https://auth.acme.io" in message
 
 
 @pytest.mark.asyncio

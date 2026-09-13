@@ -211,9 +211,8 @@ async def test_complete_via_the_identity_document_needs_no_stored_client_info():
         server_url=_SERVER_URL,
         scopes=["read"],
     )
-    completion = await service.complete(
-        code="auth-code-1", state=start.state, caller_user_id=user_id
-    )
+    attempt = await service.claim(state=start.state, caller_user_id=user_id)
+    completion = await service.complete(attempt=attempt, code="auth-code-1")
 
     grant_rows = [r for _, r in dao.records if r.kind.value == "oauth_grant"]
     assert len(grant_rows) == 1
@@ -265,9 +264,8 @@ async def test_wrong_direction_2_split_horizon_still_completes_a_full_authorizat
         server_url=_SERVER_URL,
         scopes=["read"],
     )
-    completion = await service.complete(
-        code="auth-code-1", state=start.state, caller_user_id=user_id
-    )
+    attempt = await service.claim(state=start.state, caller_user_id=user_id)
+    completion = await service.complete(attempt=attempt, code="auth-code-1")
 
     assert register_called == [True]
     assert completion.secret_id is not None
