@@ -469,7 +469,8 @@ async def test_streamed_credential_split_across_two_chunks_is_refused():
     """The split lands mid-credential on purpose: a per-chunk search with no memory of the
     chunk before it sees neither half and relays both."""
     frame = f'data: {{"error":"key {_PROVIDER_KEY} is invalid"}}\n\n'.encode()
-    split = frame.index(_PROVIDER_KEY.encode()) + len(_PROVIDER_KEY) // 2
+    starts_at = frame.index(_PROVIDER_KEY.encode())
+    split = starts_at + len(_PROVIDER_KEY) // 2
     first, second = frame[:split], frame[split:]
     assert _PROVIDER_KEY.encode() not in first
     assert _PROVIDER_KEY.encode() not in second
@@ -492,10 +493,11 @@ async def test_streamed_credential_split_across_two_chunks_is_refused():
             chunks.append(chunk)
 
     _assert_refusal(excinfo.value)
-    # The first chunk was relayed and the second was not, so the refusal really did come
-    # from a value spanning the boundary rather than from a body that arrived whole.
-    assert chunks == [first]
-    assert _PROVIDER_KEY.encode() not in b"".join(chunks)
+    # The refusal really did come from a value spanning the boundary: the second chunk was
+    # never relayed, and neither was the part of the first that had begun the credential.
+    relayed = b"".join(chunks)
+    assert relayed == frame[:starts_at]
+    assert second not in relayed
 
 
 @pytest.mark.asyncio
@@ -540,6 +542,101 @@ async def test_no_injected_secret_means_no_scan():
     assert await _drain(result.body) == [body]
 
 
+@pytest.mark.asyncio
+async def test_a_credential_returned_in_a_response_header_is_refused():
+    """The scan read the body only, and the proxy copies the upstream's header block onto
+    Agenta's own response (`response_headers` strips hop-by-hop names and `set-cookie`, and
+    nothing else). So a 200 whose body is ordinary and whose header carries the key handed
+    the caller the credential with the body scan finding nothing."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"id": "x", "choices": []},
+            headers={"x-debug-auth": _PROVIDER_KEY},
+        )
+
+    adapter = _llm_adapter(handler)
+
+    # The refusal lands before either response shape is built, so the proxy never reaches
+    # `response_headers` with a header block holding the key.
+    with pytest.raises(LLMUpstreamCredentialEchoError) as excinfo:
+        await adapter.relay_chat_completion(
+            route=_llm_route(),
+            secret=_llm_secret(),
+            context=_llm_context(),
+            body=_llm_body(),
+            headers={},
+        )
+
+    _assert_refusal(excinfo.value)
+    assert response_headers({"x-debug-auth": _PROVIDER_KEY}) == {
+        "x-debug-auth": _PROVIDER_KEY
+    }, "the header would have been forwarded verbatim had the relay not refused"
+
+
+@pytest.mark.asyncio
+async def test_a_credential_split_one_byte_from_its_end_never_reaches_the_caller():
+    """The reviewer's case: 26 bytes split at 25 leaves one byte to guess. Detecting the
+    split once the second chunk arrives is too late — the first chunk is already gone — so
+    the relay withholds a tail that could still become the credential instead."""
+    short_key = "sk-synthetic-2600000000001"
+    assert len(short_key) == 26
+    frame = f'data: {{"error":"key {short_key}"}}\n\n'.encode()
+    split = frame.index(short_key.encode()) + 25
+    first, second = frame[:split], frame[split:]
+    assert first.endswith(short_key[:25].encode())
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return _streaming_response([first, second])
+
+    adapter = _llm_adapter(handler)
+    result = await adapter.relay_chat_completion(
+        route=_llm_route(),
+        secret=_llm_secret(key=short_key),
+        context=_llm_context(stream=True),
+        body=_llm_body(),
+        headers={},
+    )
+
+    chunks: List[bytes] = []
+    with pytest.raises(LLMUpstreamCredentialEchoError):
+        async for chunk in result.body:
+            chunks.append(chunk)
+
+    relayed = b"".join(chunks)
+    # Not one byte of the credential, not merely "not all 26 of them".
+    for length in range(1, len(short_key) + 1):
+        assert short_key[:length].encode() not in relayed
+
+
+@pytest.mark.asyncio
+async def test_a_stream_that_never_echoes_is_relayed_whole_and_undelayed():
+    """The withholding must not cost a normal stream its bytes or its liveness: every chunk
+    goes out as it arrives, and the body the caller assembles is the body sent."""
+    frames = [
+        b'data: {"choices":[{"delta":{"content":"hel"}}]}\n\n',
+        b'data: {"choices":[{"delta":{"content":"lo"}}]}\n\n',
+        b'data: {"usage":{"prompt_tokens":3,"completion_tokens":4}}\n\n',
+        b"data: [DONE]\n\n",
+    ]
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return _streaming_response(frames)
+
+    adapter = _llm_adapter(handler)
+    result = await adapter.relay_chat_completion(
+        route=_llm_route(),
+        secret=_llm_secret(),
+        context=_llm_context(stream=True),
+        body=_llm_body(),
+        headers={},
+    )
+
+    assert await _drain(result.body) == frames
+    assert result.usage is not None and result.usage.input_tokens == 3
+
+
 def test_short_values_are_not_scanned_for() -> None:
     """A value too short to identify anything would refuse responses over a coincidence."""
     from oss.src.core.gateways.dtos import injected_credential_values
@@ -557,3 +654,42 @@ def test_scanner_finds_a_value_split_across_three_chunks() -> None:
     assert scanner.detects(b"xxabcd") is False
     assert scanner.detects(b"efg") is False
     assert scanner.detects(b"hijxx") is True
+
+
+def test_relay_withholds_only_what_could_still_become_the_credential() -> None:
+    """How many bytes are held, and why that is the right number: the longest suffix that
+    is still a proper prefix of the value, and nothing else. Anything shorter relays a
+    fragment that the next chunk completes; anything longer stalls a stream for bytes
+    already proven innocent."""
+    from oss.src.core.gateways.dtos import CredentialEchoDetected, CredentialEchoRelay
+
+    relay = CredentialEchoRelay([b"abcdefghij"])
+
+    # No suffix of this chunk begins the value, so nothing is held.
+    assert relay.release(b"hello world") == b"hello world"
+    assert relay.held == 0
+
+    # The tail is nine of the ten bytes: held, and only those nine.
+    assert relay.release(b"xx abcdefghi") == b"xx "
+    assert relay.held == 9
+
+    with pytest.raises(CredentialEchoDetected):
+        relay.release(b"j and more")
+
+
+def test_relay_releases_a_held_tail_when_it_turns_out_to_be_innocent() -> None:
+    """A tail that never completes must still reach the caller, in the next chunk or at the
+    end of the stream — otherwise the fix truncates every body ending in a near-miss."""
+    from oss.src.core.gateways.dtos import CredentialEchoRelay
+
+    relay = CredentialEchoRelay([b"abcdefghij"])
+
+    assert relay.release(b"result: abcde") == b"result: "
+    assert relay.held == 5
+    # The next chunk disproves it; the held bytes go out with it, in order.
+    assert relay.release(b"XYZ") == b"abcdeXYZ"
+    assert relay.held == 0
+
+    assert relay.release(b"trailing abc") == b"trailing "
+    assert relay.flush() == b"abc"
+    assert relay.held == 0

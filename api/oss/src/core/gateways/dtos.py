@@ -167,6 +167,11 @@ class CredentialEchoScanner:
     A streamed body arrives in chunks the upstream chose, so a credential can straddle two
     of them. Each chunk is searched together with the tail of the one before it, kept at
     `len(secret) - 1` bytes, which is the longest prefix a split can leave behind.
+
+    Detection alone is enough only where the bytes are read whole before anything is
+    relayed: a non-streaming body, an error body, a response's header block. A streamed
+    body is relayed as it arrives, so detecting a split value after the first half has
+    already been yielded is too late; that path uses :class:`CredentialEchoRelay`.
     """
 
     def __init__(self, secrets: Sequence[bytes]) -> None:
@@ -178,6 +183,31 @@ class CredentialEchoScanner:
     def active(self) -> bool:
         return bool(self._secrets)
 
+    @property
+    def secrets(self) -> Tuple[bytes, ...]:
+        return self._secrets
+
+    def contains(self, data: bytes) -> bool:
+        """Whether these bytes hold an injected value. Stateless: no carry is kept."""
+        return any(secret in data for secret in self._secrets)
+
+    def detects_headers(self, headers: Mapping[str, str]) -> bool:
+        """Whether the response's own header block echoes an injected value.
+
+        The body scan never saw this: an upstream that answers 200 with the key in, say,
+        `X-Debug-Auth` has that header copied onto Agenta's own response by the proxy's
+        `response_headers`, and the caller reads the credential without a byte of the body
+        containing it.
+
+        Names and values are scanned as one CRLF-joined block, the way they travelled. An
+        injected value cannot itself contain CRLF, so a match always lies inside a single
+        header line and joining cannot manufacture one.
+        """
+        if not self._secrets:
+            return False
+        block = "\r\n".join(f"{name}: {value}" for name, value in headers.items())
+        return self.contains(block.encode(errors="replace"))
+
     def detects(self, chunk: bytes) -> bool:
         if not self._secrets:
             return False
@@ -185,6 +215,79 @@ class CredentialEchoScanner:
         found = any(secret in window for secret in self._secrets)
         self._carry = window[-self._overlap :] if self._overlap else b""
         return found
+
+
+class CredentialEchoDetected(Exception):
+    """An injected credential appeared in bytes that were about to be relayed.
+
+    Raised by :class:`CredentialEchoRelay` and translated by the adapter into the typed
+    refusal a caller sees; never carries the value itself.
+    """
+
+
+class CredentialEchoRelay:
+    """Holds back streamed bytes until they cannot still be the start of the credential.
+
+    Detecting a split value is not the same as containing it. The scanner above notices a
+    credential straddling two chunks only once the second chunk arrives, and by then the
+    first has been yielded: split a 26-byte key at byte 25 and the caller keeps 25 of it
+    with one byte left to guess. So the relay withholds instead of merely watching.
+
+    Each chunk is appended to what is held, the whole buffer is searched, and everything is
+    released **except the longest suffix that is still a proper prefix of an injected
+    value**. That suffix is the only part that the next chunk can complete into the
+    credential; every byte before it is already proven not to start one, so it goes out at
+    once. The number withheld is therefore 0 for a stream that does not resemble the
+    credential — no stall, no added latency on the normal path — and at most
+    `len(secret) - 1` bytes when it does, since a suffix as long as the value would be a
+    match and raise rather than be held.
+
+    :meth:`flush` releases the held tail when the body ends: a prefix that reaches the end
+    of the stream is a prefix that never completed.
+    """
+
+    def __init__(self, secrets: Sequence[bytes]) -> None:
+        self._secrets: Tuple[bytes, ...] = tuple(secrets)
+        self._pending = b""
+
+    @property
+    def held(self) -> int:
+        """How many bytes are currently withheld. For assertions and tests."""
+        return len(self._pending)
+
+    def release(self, chunk: bytes) -> bytes:
+        """The bytes of `chunk` that are safe to relay. Raises `CredentialEchoDetected`."""
+        if not self._secrets:
+            return chunk
+
+        buffer = self._pending + chunk
+        if self._contains(buffer):
+            self._pending = b""
+            raise CredentialEchoDetected()
+
+        hold = self._unfinished_prefix_length(buffer)
+        cut = len(buffer) - hold
+        self._pending = buffer[cut:]
+        return buffer[:cut]
+
+    def flush(self) -> bytes:
+        """The held tail, released because the stream ended without completing a value."""
+        pending, self._pending = self._pending, b""
+        return pending
+
+    def _contains(self, buffer: bytes) -> bool:
+        return any(secret in buffer for secret in self._secrets)
+
+    def _unfinished_prefix_length(self, buffer: bytes) -> int:
+        """The longest suffix of `buffer` that is a proper prefix of an injected value."""
+        longest = 0
+        for secret in self._secrets:
+            limit = min(len(secret) - 1, len(buffer))
+            for size in range(limit, longest, -1):
+                if buffer.endswith(secret[:size]):
+                    longest = size
+                    break
+        return longest
 
 
 # The `code` a refusal carries when an upstream returned the credential the gateway

@@ -144,7 +144,7 @@ async def test_standard_provider_secret_injects_bearer_header():
 
 
 @pytest.mark.asyncio
-async def test_custom_provider_secret_injects_bearer_and_merges_extras():
+async def test_custom_provider_secret_injects_bearer_and_leaves_extras_behind():
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -162,7 +162,8 @@ async def test_custom_provider_secret_injects_bearer_and_merges_extras():
 
     request = captured["request"]
     assert request.headers["authorization"] == "Bearer sk-custom"
-    assert request.headers["x-org-id"] == "org-1"
+    # A custom endpoint's extras are configuration; only its registered `headers` travel.
+    assert "x-org-id" not in request.headers
 
 
 @pytest.mark.asyncio

@@ -16,6 +16,7 @@ from oss.src.core.gateways.llms.types import (
     LLMUpstreamError,
 )
 from oss.src.core.gateways.mcps.types import (
+    MCPAgentaToolNotEntitledError,
     MCPAuthRequiredError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
@@ -177,6 +178,23 @@ def handle_gateway_exceptions():
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=e.message,
+                ) from e
+            except MCPAgentaToolNotEntitledError as e:
+                # Distinct from `MCPToolNotAllowedError`, which refuses a tool at call
+                # time against an endpoint's allowlist. This one refuses to MINT a
+                # credential naming tools the caller may not narrow to, so the resolver
+                # can tell "this run may not carry that tool" from "that call was
+                # blocked".
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=gateway_error_envelope(
+                        code="agenta_tool_not_entitled",
+                        message=e.message,
+                        next_step=(
+                            "Request only the callback tools this run resolved."
+                        ),
+                        details={"tools": e.tools},
+                    ),
                 ) from e
             except CeilingExceededError as e:
                 raise HTTPException(

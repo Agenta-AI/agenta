@@ -31,11 +31,18 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointFlags,
     MCPOAuthData,
 )
+from oss.src.core.gateways.mcps.providers.agenta.entitlement import (
+    entitled_agenta_tools,
+)
 from oss.src.core.gateways.mcps.types import MCPEndpointNotFoundError
 from oss.src.core.gateways.types import GatewaysError
 from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 from oss.src.utils.context import AuthScope, get_auth_scope
-from oss.src.middlewares.auth import resolve_session_user_id, sign_secret_token
+from oss.src.middlewares.auth import (
+    GATEWAY_TOKEN_AUDIENCE,
+    resolve_session_user_id,
+    sign_secret_token,
+)
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 
@@ -189,6 +196,7 @@ class MCPGatewayRouter:
             raise FORBIDDEN_EXCEPTION
 
     @intercept_exceptions()
+    @handle_gateway_exceptions()
     async def issue_agenta_credential(
         self,
         request: Request,
@@ -197,10 +205,25 @@ class MCPGatewayRouter:
     ) -> MCPAgentaCredentialResponse:
         """Narrow an invocation credential to its resolved callback tools.
 
-        Only the API-created service token contains ``gateway_run_id``.  Browser
-        and API-key callers therefore cannot mint a credential for arbitrary
-        Agenta tools, and the runner receives no credential capable of listing
-        tools outside the invoking run.
+        Three guards, because the value this hands back travels into a sandbox:
+
+        - Only the API-created service token contains ``gateway_run_id``.  Browser
+          and API-key callers therefore cannot mint a credential for Agenta tools
+          at all.
+        - The caller must hold the permission that governs SPENDING the MCP
+          gateway, which is where the issued credential is spent
+          (`MCPGatewayService.relay` authorizes the same one on every call). A
+          credential can then never reach a plane its buyer could not reach.
+        - The tool list is bounded rather than signed as given
+          (:func:`entitled_agenta_tools`): a credential already carrying a tool set
+          may only narrow it, and one carrying none may still only name call_refs
+          `POST /tools/call` would dispatch.
+
+        The issued value is confined to the gateway audience, like the one
+        `POST /gateways/credentials` hands the sandbox for every other MCP server.
+        That is what makes the bound hold: an audience-bound credential cannot reach
+        this route (it is not a data-plane path), so the narrowed credential can
+        never buy a wider one.
         """
         run_id = getattr(request.state, "gateway_run_id", None)
         if not isinstance(run_id, str) or not run_id:
@@ -210,7 +233,12 @@ class MCPGatewayRouter:
             )
 
         scope = get_auth_scope()
-        tools = [tool.model_dump(mode="json") for tool in body.tools]
+        await self._check(scope, Permission.USE_MCP_ENDPOINTS)
+
+        tools = entitled_agenta_tools(
+            requested=[tool.model_dump(mode="json") for tool in body.tools],
+            carried=getattr(request.state, "gateway_tools", None),
+        )
         token = await sign_secret_token(
             user_id=str(scope.user_id),
             project_id=str(scope.project_id),
@@ -218,6 +246,7 @@ class MCPGatewayRouter:
             organization_id=str(scope.organization_id),
             gateway_run_id=run_id,
             gateway_tools=tools,
+            audience=GATEWAY_TOKEN_AUDIENCE,
         )
         return MCPAgentaCredentialResponse(credentials=f"Secret {token}")
 

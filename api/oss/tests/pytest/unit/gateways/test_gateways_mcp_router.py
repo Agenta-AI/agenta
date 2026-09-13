@@ -9,11 +9,13 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
 from oss.src.apis.fastapi.gateways.mcps.models import MCPAgentaCredentialRequest
+from oss.src.core.access.permissions.types import Permission
+from oss.src.middlewares.auth import GATEWAY_TOKEN_AUDIENCE
 from oss.src.core.gateways.mcps.dtos import MCPAuthScheme
 from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
@@ -234,9 +236,37 @@ def test_route_table_matches_the_design_exactly(router):
     assert actual == EXPECTED_ROUTES
 
 
+# ---------------------------------------------------------------------------
+# Builtin Agenta MCP credential mint
+# ---------------------------------------------------------------------------
+
+# A registered handler-mode platform op, and the two runtime gateway tools: the shapes a
+# run's callback tools actually carry, so a request naming them is inside the catalog.
+_READ_CONFIG_CALL_REF = "tools.agenta.read_config"
+_COMMIT_REVISION_CALL_REF = "tools.agenta.commit_revision"
+
+
+def _mint_request(**state):
+    """A stand-in Request carrying only the auth state the mint reads."""
+    return type("Request", (), {"state": type("State", (), dict(state))()})()
+
+
+def _tool(name: str, call_ref: str) -> dict:
+    return {"name": name, "call_ref": call_ref, "input_schema": {"type": "object"}}
+
+
+@pytest.fixture
+def signer(monkeypatch):
+    mock = AsyncMock(return_value="signed")
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.sign_secret_token", mock
+    )
+    return mock
+
+
 @pytest.mark.asyncio
-async def test_agenta_credential_requires_an_invocation_nonce(router, monkeypatch):
-    request = type("Request", (), {"state": type("State", (), {})()})()
+async def test_agenta_credential_requires_an_invocation_nonce(router, signer, allow):
+    request = _mint_request()
     with pytest.raises(Exception, match="invocation credential"):
         await router.issue_agenta_credential(
             request=request,
@@ -244,26 +274,171 @@ async def test_agenta_credential_requires_an_invocation_nonce(router, monkeypatc
         )
 
     request.state.gateway_run_id = "run-1"
-    signed = AsyncMock(return_value="signed")
-    monkeypatch.setattr(
-        "oss.src.apis.fastapi.gateways.mcps.router.sign_secret_token", signed
-    )
     response = await router.issue_agenta_credential(
         request=request,
         body=MCPAgentaCredentialRequest(
-            tools=[
-                {
-                    "name": "rename_session",
-                    "call_ref": "agenta.rename_session",
-                    "input_schema": {"type": "object"},
-                }
-            ]
+            tools=[_tool("read_config", _READ_CONFIG_CALL_REF)]
         ),
     )
 
     assert response.credentials == "Secret signed"
-    assert signed.await_args.kwargs["gateway_run_id"] == "run-1"
-    assert signed.await_args.kwargs["gateway_tools"][0]["name"] == "rename_session"
+    assert signer.await_args.kwargs["gateway_run_id"] == "run-1"
+    assert signer.await_args.kwargs["gateway_tools"][0]["name"] == "read_config"
+
+
+@pytest.mark.asyncio
+async def test_agenta_credential_refuses_a_caller_without_the_gateway_permission(
+    router, signer, deny
+):
+    with pytest.raises(HTTPException) as refusal:
+        await router.issue_agenta_credential(
+            request=_mint_request(gateway_run_id="run-1"),
+            body=MCPAgentaCredentialRequest(
+                tools=[_tool("read_config", _READ_CONFIG_CALL_REF)]
+            ),
+        )
+
+    assert refusal.value.status_code == 403
+    assert deny.await_args.kwargs["permission"] == Permission.USE_MCP_ENDPOINTS
+    assert signer.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_agenta_credential_confines_the_issued_value_to_the_gateway_audience(
+    router, signer, allow
+):
+    await router.issue_agenta_credential(
+        request=_mint_request(gateway_run_id="run-1"),
+        body=MCPAgentaCredentialRequest(
+            tools=[_tool("read_config", _READ_CONFIG_CALL_REF)]
+        ),
+    )
+
+    assert signer.await_args.kwargs["audience"] == GATEWAY_TOKEN_AUDIENCE
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "call_ref",
+    [
+        "tools.agenta.not_a_registered_handler",
+        "workflow.variant",
+        "workflow.galaxy.support",
+        "vault.read",
+        "tools.composio.gmail.SEND_EMAIL",
+    ],
+)
+async def test_agenta_credential_refuses_a_call_ref_outside_the_callback_catalog(
+    router, signer, allow, call_ref
+):
+    with pytest.raises(HTTPException) as refusal:
+        await router.issue_agenta_credential(
+            request=_mint_request(gateway_run_id="run-1"),
+            body=MCPAgentaCredentialRequest(tools=[_tool("anything", call_ref)]),
+        )
+
+    assert refusal.value.status_code == 403
+    assert refusal.value.detail["code"] == "agenta_tool_not_entitled"
+    assert refusal.value.detail["details"]["tools"] == [f"anything:{call_ref}"]
+    assert signer.await_count == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "call_ref",
+    [
+        _READ_CONFIG_CALL_REF,
+        "gateway.search",
+        "gateway.run",
+        "workflow.variant.support",
+        "workflow.variant.support.3",
+        "workflow.environment.production.support",
+        "tools.composio.gmail.SEND_EMAIL.work",
+    ],
+)
+async def test_agenta_credential_signs_every_shape_the_tool_route_dispatches(
+    router, signer, allow, call_ref
+):
+    await router.issue_agenta_credential(
+        request=_mint_request(gateway_run_id="run-1"),
+        body=MCPAgentaCredentialRequest(tools=[_tool("anything", call_ref)]),
+    )
+
+    assert signer.await_args.kwargs["gateway_tools"] == [
+        _tool("anything", call_ref) | {"description": None}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_agenta_credential_refuses_widening_a_carried_tool_set(
+    router, signer, allow
+):
+    with pytest.raises(HTTPException) as refusal:
+        await router.issue_agenta_credential(
+            request=_mint_request(
+                gateway_run_id="run-1",
+                gateway_tools=[
+                    {"name": "read_config", "call_ref": _READ_CONFIG_CALL_REF}
+                ],
+            ),
+            body=MCPAgentaCredentialRequest(
+                tools=[
+                    _tool("read_config", _READ_CONFIG_CALL_REF),
+                    _tool("commit_revision", _COMMIT_REVISION_CALL_REF),
+                ]
+            ),
+        )
+
+    assert refusal.value.status_code == 403
+    assert refusal.value.detail["code"] == "agenta_tool_not_entitled"
+    assert refusal.value.detail["details"]["tools"] == [
+        f"commit_revision:{_COMMIT_REVISION_CALL_REF}"
+    ]
+    assert signer.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_agenta_credential_refuses_renaming_a_carried_call_ref(
+    router, signer, allow
+):
+    # The name is what the model reads when it picks a tool, so a rename reaches a tool
+    # the carried set never offered under that name.
+    with pytest.raises(HTTPException) as refusal:
+        await router.issue_agenta_credential(
+            request=_mint_request(
+                gateway_run_id="run-1",
+                gateway_tools=[
+                    {"name": "read_config", "call_ref": _READ_CONFIG_CALL_REF}
+                ],
+            ),
+            body=MCPAgentaCredentialRequest(
+                tools=[_tool("commit_revision", _READ_CONFIG_CALL_REF)]
+            ),
+        )
+
+    assert refusal.value.status_code == 403
+    assert signer.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_agenta_credential_signs_a_subset_of_a_carried_tool_set(
+    router, signer, allow
+):
+    await router.issue_agenta_credential(
+        request=_mint_request(
+            gateway_run_id="run-1",
+            gateway_tools=[
+                {"name": "read_config", "call_ref": _READ_CONFIG_CALL_REF},
+                {"name": "commit_revision", "call_ref": _COMMIT_REVISION_CALL_REF},
+            ],
+        ),
+        body=MCPAgentaCredentialRequest(
+            tools=[_tool("read_config", _READ_CONFIG_CALL_REF)]
+        ),
+    )
+
+    issued = signer.await_args.kwargs["gateway_tools"]
+    assert [tool["call_ref"] for tool in issued] == [_READ_CONFIG_CALL_REF]
 
 
 # ---------------------------------------------------------------------------
