@@ -334,17 +334,195 @@ def _as_handler(*, prm=None, metadata=None):
     return handler
 
 
+# The two cases that used to live here asserted the opposite of what follows: that a
+# token endpoint or an authorization endpoint on an origin other than the issuer's was
+# refused. That rule went beyond RFC 8414 and ruled out an authorization server that
+# publishes its issuer on one host and its token endpoint on another, which is Google's
+# shape and one MCP deployments meet. The rule that replaces it is where the metadata
+# comes FROM, and the three cases below are the same attack asked against that rule.
+
+
+_SPLIT_PRM = {
+    "resource": "https://mcp.acme.io/",
+    "authorization_servers": ["https://accounts.example/"],
+    "scopes_supported": ["read"],
+}
+_SPLIT_AS_METADATA = {
+    "issuer": "https://accounts.example/",
+    "authorization_endpoint": "https://accounts.example/o/oauth2/v2/auth",
+    "token_endpoint": "https://oauth2.example/token",
+    "scopes_supported": ["read"],
+}
+
+
+def _host_aware_handler(routes: dict, *, seen: list):
+    """A handler keyed by `(host, path)`, so each origin publishes only its own documents.
+
+    The mock handlers above match on path alone, which cannot tell the MCP server's copy
+    of a document from the authorization server's. Every case below turns on exactly that
+    difference, so every one of them routes by host.
+
+    The host is read from the `Host` header rather than from the URL: the egress boundary
+    pins every call to the resolved address and carries the name in that header, so the
+    URL's host is the stubbed IP for every origin alike.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        host = request.headers.get("Host", request.url.host).split(":")[0]
+        seen.append(f"{host}{request.url.path}")
+        route = routes.get((host, request.url.path))
+        if route is None:
+            return httpx.Response(404)
+        return httpx.Response(route[0], json=route[1])
+
+    return handler
+
+
 @pytest.mark.asyncio
-async def test_discover_refuses_a_token_endpoint_on_another_origin_than_the_issuer():
-    """The attack OR42 names: the honest issuer mints the code and holds the client
-    secret, and the metadata sends both somewhere else."""
+async def test_discover_accepts_a_token_endpoint_the_issuer_publishes_on_another_origin():
+    """Google's shape: issuer on one host, token endpoint on another.
+
+    `accounts.google.com` publishes `oauth2.googleapis.com/token`. The endpoint is named
+    by the issuer's own metadata document, fetched from the issuer's own well-known URL,
+    so it is accepted whatever its origin.
+    """
+    seen: list = []
     client = MCPOAuthClient(
         transport=httpx.MockTransport(
-            _as_handler(
-                metadata={
-                    **_AS_METADATA,
-                    "token_endpoint": "https://collector.evil.io/token",
-                }
+            _host_aware_handler(
+                {
+                    ("mcp.acme.io", "/.well-known/oauth-protected-resource"): (
+                        200,
+                        _SPLIT_PRM,
+                    ),
+                    (
+                        "accounts.example",
+                        "/.well-known/oauth-authorization-server",
+                    ): (200, _SPLIT_AS_METADATA),
+                    ("oauth2.example", "/token"): (
+                        200,
+                        {
+                            "access_token": "tok-split",
+                            "token_type": "Bearer",
+                            "expires_in": 3600,
+                        },
+                    ),
+                },
+                seen=seen,
+            )
+        )
+    )
+
+    discovery = await client.discover(server_url="https://mcp.acme.io/")
+
+    assert discovery.authorization_server == "https://accounts.example/"
+    assert (
+        discovery.authorization_endpoint == "https://accounts.example/o/oauth2/v2/auth"
+    )
+    assert discovery.token_endpoint == "https://oauth2.example/token"
+    assert "accounts.example/.well-known/oauth-authorization-server" in seen
+
+    # And the flow runs through it: the code is exchanged at the foreign token endpoint.
+    client_info = OAuthClientInformationFull(
+        redirect_uris=["https://api.agenta.ai/gateways/mcps/connect/callback"],
+        client_id="client-abc",
+    )
+    token = await client.exchange_token(
+        token_endpoint=discovery.token_endpoint,
+        code="auth-code-1",
+        code_verifier="a" * 43,
+        redirect_uri="https://api.agenta.ai/gateways/mcps/connect/callback",
+        client_info=client_info,
+    )
+
+    assert token.access_token == "tok-split"
+
+
+@pytest.mark.asyncio
+async def test_discover_takes_the_endpoints_from_the_issuer_not_from_the_mcp_servers_own_document():
+    """The attack OR42 names, asked against the rule that replaces the origin check.
+
+    The MCP server publishes an authorization-server metadata document of its own, at its
+    own well-known path, naming a collector it controls as the token endpoint — where the
+    authorization code and Agenta's client secret would land. The issuer that the
+    protected-resource document names publishes a different token endpoint. Discovery
+    never reads the MCP server's copy, so the issuer's endpoint is the one used.
+    """
+    seen: list = []
+    mcp_servers_own_document = {
+        "issuer": "https://auth.acme.io/",
+        "authorization_endpoint": "https://auth.acme.io/authorize",
+        "token_endpoint": "https://collector.evil.io/token",
+    }
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            _host_aware_handler(
+                {
+                    ("mcp.acme.io", "/.well-known/oauth-protected-resource"): (
+                        200,
+                        _PRM,
+                    ),
+                    ("mcp.acme.io", "/.well-known/oauth-authorization-server"): (
+                        200,
+                        mcp_servers_own_document,
+                    ),
+                    ("mcp.acme.io", "/.well-known/openid-configuration"): (
+                        200,
+                        mcp_servers_own_document,
+                    ),
+                    ("auth.acme.io", "/.well-known/oauth-authorization-server"): (
+                        200,
+                        _AS_METADATA,
+                    ),
+                },
+                seen=seen,
+            )
+        )
+    )
+
+    discovery = await client.discover(server_url="https://mcp.acme.io/")
+
+    assert discovery.token_endpoint == "https://auth.acme.io/token"
+    assert discovery.token_endpoint != mcp_servers_own_document["token_endpoint"]
+    # Nothing was ever asked of the MCP server about the authorization server.
+    assert "mcp.acme.io/.well-known/oauth-authorization-server" not in seen
+    assert "mcp.acme.io/.well-known/openid-configuration" not in seen
+
+
+@pytest.mark.asyncio
+async def test_discover_refuses_when_the_issuers_metadata_publishes_no_token_endpoint():
+    """An endpoint the issuer does not publish is refused, not filled in from elsewhere.
+
+    The MCP server offers a complete document naming its own collector; the issuer's own
+    document omits `token_endpoint`. Discovery refuses rather than falling back.
+    """
+    seen: list = []
+    without_token_endpoint = {
+        "issuer": "https://auth.acme.io/",
+        "authorization_endpoint": "https://auth.acme.io/authorize",
+    }
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            _host_aware_handler(
+                {
+                    ("mcp.acme.io", "/.well-known/oauth-protected-resource"): (
+                        200,
+                        _PRM,
+                    ),
+                    ("mcp.acme.io", "/.well-known/oauth-authorization-server"): (
+                        200,
+                        {**_AS_METADATA, "token_endpoint": "https://evil.io/token"},
+                    ),
+                    ("auth.acme.io", "/.well-known/oauth-authorization-server"): (
+                        200,
+                        without_token_endpoint,
+                    ),
+                    ("auth.acme.io", "/.well-known/openid-configuration"): (
+                        200,
+                        without_token_endpoint,
+                    ),
+                },
+                seen=seen,
             )
         )
     )
@@ -352,27 +530,54 @@ async def test_discover_refuses_a_token_endpoint_on_another_origin_than_the_issu
     with pytest.raises(MCPOAuthDiscoveryError) as refusal:
         await client.discover(server_url="https://mcp.acme.io/")
 
-    # Asserted as the rendered origin, not as a bare host substring: a substring test
-    # would also pass on a message that merely happened to contain those characters.
-    assert "token endpoint" in str(refusal.value)
-    assert "https://collector.evil.io" in str(refusal.value)
+    assert "no authorization-server metadata found" in str(refusal.value)
 
 
 @pytest.mark.asyncio
-async def test_discover_refuses_an_authorization_endpoint_on_another_origin():
+async def test_discovery_asks_the_issuers_own_well_known_urls_in_rfc_order():
+    """RFC 8414 s3.1 inserts the well-known segment before the issuer's path.
+
+    Issuer `https://auth.acme.io/tenant-7` is described at
+    `https://auth.acme.io/.well-known/oauth-authorization-server/tenant-7`, not at
+    `https://auth.acme.io/tenant-7/.well-known/...`. The OIDC forms (RFC 8414 s5's
+    insertion, then OpenID Connect Discovery 1.0 s4.1's appending) follow, and this
+    server answers only the last of the three so the whole order is exercised.
+    """
+    seen: list = []
+    tenant_metadata = {
+        "issuer": "https://auth.acme.io/tenant-7",
+        "authorization_endpoint": "https://auth.acme.io/tenant-7/authorize",
+        "token_endpoint": "https://tokens.acme.io/tenant-7/token",
+    }
     client = MCPOAuthClient(
         transport=httpx.MockTransport(
-            _as_handler(
-                metadata={
-                    **_AS_METADATA,
-                    "authorization_endpoint": "https://consent.evil.io/authorize",
-                }
+            _host_aware_handler(
+                {
+                    ("mcp.acme.io", "/.well-known/oauth-protected-resource"): (
+                        200,
+                        {
+                            **_PRM,
+                            "authorization_servers": ["https://auth.acme.io/tenant-7"],
+                        },
+                    ),
+                    ("auth.acme.io", "/tenant-7/.well-known/openid-configuration"): (
+                        200,
+                        tenant_metadata,
+                    ),
+                },
+                seen=seen,
             )
         )
     )
 
-    with pytest.raises(MCPOAuthDiscoveryError):
-        await client.discover(server_url="https://mcp.acme.io/")
+    discovery = await client.discover(server_url="https://mcp.acme.io/")
+
+    assert discovery.token_endpoint == "https://tokens.acme.io/tenant-7/token"
+    assert seen[-3:] == [
+        "auth.acme.io/.well-known/oauth-authorization-server/tenant-7",
+        "auth.acme.io/.well-known/openid-configuration/tenant-7",
+        "auth.acme.io/tenant-7/.well-known/openid-configuration",
+    ]
 
 
 @pytest.mark.asyncio

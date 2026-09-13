@@ -19,6 +19,7 @@ it.
 
 import json
 from typing import List, Optional
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -31,6 +32,7 @@ from oss.src.core.gateways.llms.dtos import (
     LLMResolvedRoute,
 )
 from oss.src.core.gateways.llms.providers.passthrough.adapter import RelayLLMAdapter
+from oss.src.core.gateways.llms.providers.passthrough.auth import build_auth_headers
 from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.mcps.dtos import (
     MCPCallContext,
@@ -45,6 +47,19 @@ from oss.src.core.gateways.mcps.oauth.types import (
 )
 from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
 from oss.src.core.gateways.mcps.types import MCPUpstreamError
+from oss.src.core.gateways.policy.dtos import (
+    ResolvedSecret,
+    SecretOrigin,
+    SecretOwner,
+    SecretOwnerKind,
+)
+from oss.src.core.secrets.dtos import (
+    CustomProviderDTO,
+    CustomProviderSettingsDTO,
+    SecretResponseDTO,
+)
+from oss.src.core.secrets.enums import CustomProviderKind, SecretKind
+from oss.src.core.shared.dtos import Header
 
 from oss.tests.pytest.unit.gateways.conftest import (
     LINK_LOCAL_ADDRESS,
@@ -480,3 +495,196 @@ async def test_gateway_egress_opt_out_admits_what_it_says_it_admits(
     target = await open_egress(f"http://{_REGISTERED_HOST}/v1")
 
     assert target.pinned_address == PRIVATE_ADDRESS
+
+
+# ---------------------------------------------------------------------------
+# Vertex token minting, which happens before the boundary is ever opened
+# ---------------------------------------------------------------------------
+
+_VERTEX_MINT = (
+    "litellm.llms.vertex_ai.vertex_llm_base.VertexBase.get_access_token_async"
+)
+
+
+def _vertex_route() -> LLMResolvedRoute:
+    return LLMResolvedRoute(
+        provider_key="vertex_ai",
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        model="gemini-2.0-flash",
+        extras={"vertex_project": "acme"},
+        settings=LLMEndpointSettings(),
+    )
+
+
+def _vertex_credential(document: dict) -> ResolvedSecret:
+    data = CustomProviderDTO(
+        kind=CustomProviderKind.CUSTOM,
+        provider=CustomProviderSettingsDTO(
+            key=None, extras={"vertex_ai_credentials": json.dumps(document)}
+        ),
+        models=[],
+    ).model_dump()
+    return ResolvedSecret(
+        secret=SecretResponseDTO(
+            kind=SecretKind.CUSTOM_PROVIDER, data=data, header=Header(name="vertex")
+        ),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        origin=SecretOrigin.VAULT,
+    )
+
+
+def _service_account(**overrides) -> dict:
+    document = {
+        "type": "service_account",
+        "project_id": "acme",
+        "client_email": "synthetic@acme.iam.gserviceaccount.com",
+        "token_uri": "https://oauth2.googleapis.com/token",
+    }
+    document.update(overrides)
+    return document
+
+
+@pytest.mark.asyncio
+async def test_vertex_token_uri_pointing_at_loopback_is_refused_without_minting():
+    """The token mint is an outbound call nothing here makes: google-auth POSTs to the
+    `token_uri` written inside the tenant's own credential document, over its own transport,
+    while `build_auth_headers` is still running — before `open_egress` has seen anything. So
+    a document naming a loopback address reached an internal port with no check at all."""
+    with patch(_VERTEX_MINT, new_callable=AsyncMock) as mint:
+        with pytest.raises(LLMUpstreamError) as excinfo:
+            await build_auth_headers(
+                _vertex_route(),
+                _vertex_credential(
+                    _service_account(token_uri="http://127.0.0.1:8080/token")
+                ),
+            )
+
+    assert "blocked target" in (excinfo.value.detail or "")
+    mint.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_vertex_credential_urls_other_than_token_uri_are_checked_too(resolves_to):
+    """Which field a given google-auth version dials is the library's business: a workload
+    identity document carries `token_url`, `service_account_impersonation_url` and a
+    `credential_source.url` besides. Every URL in the document goes through the boundary."""
+    resolves_to(LINK_LOCAL_ADDRESS)
+
+    with patch(_VERTEX_MINT, new_callable=AsyncMock) as mint:
+        with pytest.raises(LLMUpstreamError) as excinfo:
+            await build_auth_headers(
+                _vertex_route(),
+                _vertex_credential(
+                    {
+                        "type": "external_account",
+                        "token_url": "https://sts.googleapis.com/v1/token",
+                        "credential_source": {
+                            "url": "https://metadata.internal.example/token"
+                        },
+                    }
+                ),
+            )
+
+    assert "blocked target" in (excinfo.value.detail or "")
+    mint.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_vertex_credential_naming_an_executable_source_is_refused():
+    """google-auth's pluggable source runs a subprocess. Nothing a tenant stores names a
+    program for the platform to execute, whatever the library's own opt-in says."""
+    with patch(_VERTEX_MINT, new_callable=AsyncMock) as mint:
+        with pytest.raises(LLMUpstreamError):
+            await build_auth_headers(
+                _vertex_route(),
+                _vertex_credential(
+                    {
+                        "type": "external_account",
+                        "credential_source": {"executable": {"command": "/bin/false"}},
+                    }
+                ),
+            )
+
+    mint.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_vertex_document_with_public_urls_still_mints():
+    """The negative control: the refusals above come from the boundary, not from Vertex
+    having been switched off."""
+    with patch(
+        _VERTEX_MINT, new_callable=AsyncMock, return_value=("minted-token", "acme")
+    ) as mint:
+        headers = await build_auth_headers(
+            _vertex_route(), _vertex_credential(_service_account())
+        )
+
+    assert headers == {"Authorization": "Bearer minted-token"}
+    mint.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# The pin must not make two origins look like one to the connection pool
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_two_hostnames_on_one_address_do_not_share_a_pooled_connection():
+    """Pinning rewrites the URL host to the checked literal address, and httpcore keys
+    connection reuse on that rewritten origin (`AsyncHTTPConnection.can_handle_request`
+    compares scheme/host/port and nothing else). `sni_hostname` is read at handshake time
+    and never enters the key. So two tenants whose hostnames resolve to one address shared a
+    TLS connection, and the second tenant's credential travelled over a connection opened,
+    and certificate-checked, for the first tenant's name."""
+    seen: List[httpx.Request] = []
+    adapter = _llm_adapter(_recording_handler(seen))
+
+    await _relay_llm(adapter, base_url="https://first.example/v1")
+    await _relay_llm(adapter, base_url="https://second.example/v1")
+
+    # What the pool would have keyed on: identical, because both were pinned to one address.
+    assert len({str(request.url.host) for request in seen}) == 1
+    # What actually distinguishes them: an extension, plus the authority in `Host`.
+    assert [request.extensions["sni_hostname"] for request in seen] == [
+        "first.example",
+        "second.example",
+    ]
+    # So the identity has to come from somewhere the pool respects: separate pools.
+    assert sorted(adapter._clients) == [
+        "https://first.example:443",
+        "https://second.example:443",
+    ]
+    assert (
+        adapter._clients["https://first.example:443"]
+        is not adapter._clients["https://second.example:443"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_repeated_calls_to_one_origin_still_share_a_pool():
+    """The reason the pooled client exists at all: a streaming response outlives the method
+    that opened it, so clients are kept and reused. Partitioning by origin must not turn
+    that into a client per call."""
+    seen: List[httpx.Request] = []
+    adapter = _llm_adapter(_recording_handler(seen))
+
+    await _relay_llm(adapter, base_url="https://first.example/v1")
+    await _relay_llm(adapter, base_url="https://first.example/v2")
+
+    assert list(adapter._clients) == ["https://first.example:443"]
+    assert len(seen) == 2
+
+
+@pytest.mark.asyncio
+async def test_pooled_clients_keep_the_pin_and_refuse_redirects():
+    """Whatever the pooling, each client is still the hardened one: no cookie jar carried
+    between tenants, and no redirect to a host nothing checked."""
+    seen: List[httpx.Request] = []
+    adapter = _llm_adapter(_recording_handler(seen))
+
+    await _relay_llm(adapter, base_url="https://first.example/v1")
+
+    client = adapter._clients["https://first.example:443"]
+    assert client.follow_redirects is False
+    assert list(client.cookies.jar) == []
+    assert str(seen[0].url.host) == PUBLIC_ADDRESS
