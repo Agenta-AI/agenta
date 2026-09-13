@@ -7,11 +7,15 @@ plain Python.
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+from ee.src.core.wallets.grants import GRANT_CATALOG
+from ee.src.core.wallets.plans import PLAN_ALLOWANCE_CREDIT_KIND
 from ee.src.core.wallets.types import (
     DEFICIT_SOURCE,
     GENERAL_CREDIT_KINDS,
+    RESTRICTED_CREDIT_KIND_PREFIX,
     compose_debit_key,
     is_resource_eligible,
+    is_wellformed_credit_kind,
     plan_settlement,
 )
 from ee.tests.pytest.utils.wallets.builders import (
@@ -46,6 +50,54 @@ def test_is_resource_eligible_restricted_kind_matches_prefix_only():
     assert not is_resource_eligible(
         credit_kind="restricted:llm:google:", resource_key="llm:openai:gpt-4"
     )
+
+
+def test_a_restricted_kind_with_an_empty_prefix_funds_nothing():
+    """`"restricted:"` is malformed, and the failure runs the wrong way by default: the
+    allowed prefix is `""`, every string starts with `""`, so the one credit kind whose
+    whole job is to narrow what may be funded would fund every resource key instead of
+    none. It must fail closed."""
+    for resource_key in (
+        "llm:google:gemini-2.5-flash",
+        "mcp:composio:search",
+        "sbx:daytona:run",
+        "",
+    ):
+        assert not is_resource_eligible(
+            credit_kind=RESTRICTED_CREDIT_KIND_PREFIX, resource_key=resource_key
+        )
+
+    assert not is_wellformed_credit_kind(RESTRICTED_CREDIT_KIND_PREFIX)
+
+
+def test_a_restricted_kind_with_only_whitespace_after_the_colon_funds_nothing():
+    """Already closed, and pinned so it stays that way: `" "` is a real prefix that no
+    composed resource key starts with, so it matches nothing rather than everything."""
+    for resource_key in ("llm:google:gemini-2.5-flash", "mcp:composio:search"):
+        assert not is_resource_eligible(
+            credit_kind="restricted: ", resource_key=resource_key
+        )
+        assert not is_resource_eligible(
+            credit_kind="restricted:   ", resource_key=resource_key
+        )
+
+
+def test_an_empty_resource_key_is_never_funded_by_a_restricted_credit():
+    """The other direction of the same vacuous-`startswith` trap: an empty resource key
+    must not match a restricted credit that names a real prefix."""
+    assert not is_resource_eligible(
+        credit_kind="restricted:llm:google:", resource_key=""
+    )
+
+
+def test_every_code_configured_credit_kind_is_wellformed():
+    """A restricted kind reaches the table only from code today — there is no API that
+    mints one — so the catalogue is where a malformed value would be introduced. Catch it
+    here rather than at settlement, where a wrong kind is silent."""
+    for activity_code, rule in GRANT_CATALOG.items():
+        assert is_wellformed_credit_kind(rule.credit_kind), activity_code
+
+    assert is_wellformed_credit_kind(PLAN_ALLOWANCE_CREDIT_KIND)
 
 
 def test_is_resource_eligible_unconfigured_kind_fails_closed():

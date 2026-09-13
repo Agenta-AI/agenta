@@ -91,6 +91,7 @@ async def test_handle_events_reads_subscription_created_metadata_from_stripe_obj
             api_key="sk_test_123",
             Event=SimpleNamespace(
                 construct_from=lambda payload, api_key: SimpleNamespace(
+                    id="evt_created_1",
                     type="customer.subscription.created",
                     data=SimpleNamespace(
                         object=SimpleNamespace(
@@ -118,6 +119,9 @@ async def test_handle_events_reads_subscription_created_metadata_from_stripe_obj
         subscription_id="sub_123",
         plan=DefaultPlan.CLOUD_V0_PRO.value,
         anchor=9,
+        # The verified event's OWN id, not the subscription's: it identifies this
+        # delivery, and the wallet proration keys its idempotency on it.
+        event_id="evt_created_1",
     )
 
 
@@ -141,6 +145,7 @@ async def test_handle_events_reads_invoice_metadata_from_stripe_objects(monkeypa
             api_key="sk_test_123",
             Event=SimpleNamespace(
                 construct_from=lambda payload, api_key: SimpleNamespace(
+                    id="evt_invoice_1",
                     type="invoice.payment_succeeded",
                     data=SimpleNamespace(
                         object=SimpleNamespace(
@@ -167,6 +172,7 @@ async def test_handle_events_reads_invoice_metadata_from_stripe_objects(monkeypa
         subscription_id=None,
         plan=None,
         anchor=None,
+        event_id="evt_invoice_1",
     )
 
 
