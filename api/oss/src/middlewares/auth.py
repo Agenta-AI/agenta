@@ -160,6 +160,42 @@ def request_has_grant(request: Request, grant: str) -> bool:
     return grant in getattr(request.state, "token_grants", ())
 
 
+# An audience CONFINES a token to one set of routes, which is the opposite axis from a
+# grant: a grant widens a general-purpose credential, an audience narrows a purpose-built
+# one. The agent sandbox holds the only audience-bound credential today. It reaches the
+# gateway data plane and nothing else, so code running inside the sandbox cannot spend it
+# on the vault — which is the whole reason the gateway holds the provider key instead of
+# the sandbox.
+GATEWAY_TOKEN_AUDIENCE = "gateway"
+ALLOWED_SECRET_TOKEN_AUDIENCES = frozenset({GATEWAY_TOKEN_AUDIENCE})
+
+# Where each audience may be spent. A general-purpose token (no audience) is unaffected;
+# an audience-bound one is refused everywhere its entry is silent about.
+_AUDIENCE_PATHS = {
+    GATEWAY_TOKEN_AUDIENCE: _GATEWAY_DATA_PLANE,
+}
+
+
+def _validate_secret_token_audience(audience: object) -> Optional[str]:
+    """Return the token's audience and reject every unrecognized claim shape or value."""
+    if audience is None:
+        return None
+
+    if not isinstance(audience, str) or audience not in ALLOWED_SECRET_TOKEN_AUDIENCES:
+        raise ValueError("Secret token contains an unsupported audience.")
+
+    return audience
+
+
+def request_audience(request: Request) -> Optional[str]:
+    """The audience the request's verified credential is confined to, if any.
+
+    ``None`` for every general-purpose principal: session, ApiKey, and an unconfined
+    Secret token alike.
+    """
+    return getattr(request.state, "token_audience", None)
+
+
 _ZERO_UUID = "00000000-0000-0000-0000-000000000000"
 _NULL_UUID = "null"
 
@@ -974,6 +1010,10 @@ async def verify_secret_token(
             key=_SECRET_KEY,
             algorithms=["HS256"],
             leeway=_SECRET_LEEWAY,
+            # The audience decides which routes accept the token, so this middleware
+            # checks it against the request path below. PyJWT's own check only knows one
+            # expected value per call and would reject every audience-bound token here.
+            options={"verify_aud": False},
         )
 
         try:
@@ -982,6 +1022,35 @@ async def verify_secret_token(
             )
         except ValueError as exc:
             raise DecodeError("Secret token contains invalid grants.") from exc
+
+        try:
+            audience = _validate_secret_token_audience(auth_context.get("aud"))
+        except ValueError as exc:
+            raise DecodeError("Secret token contains an invalid audience.") from exc
+
+        # Reject rather than downgrade. A token that claims an audience AND a grant was
+        # not minted by `sign_secret_token`, so it is forged or corrupt either way.
+        if audience and request.state.token_grants:
+            raise DecodeError("Secret token carries both an audience and grants.")
+
+        request.state.token_audience = audience
+
+        if audience:
+            allowed_paths = _AUDIENCE_PATHS[audience]
+
+            if not allowed_paths.match(request.url.path):
+                log.debug(
+                    "[auth] secret token unauthorized",
+                    path=request.url.path,
+                    method=request.method,
+                    reason="audience_mismatch",
+                    audience=audience,
+                )
+
+                # Raised, never returned as "no principal": an audience-bound credential
+                # presented off its routes is a caller doing something it must be told
+                # about, not an anonymous request that some later check might wave through.
+                raise UnauthorizedException(reason="audience_mismatch")
 
         request.state.user_id = auth_context.get("user_id")
         request.state.user_email = auth_context.get("user_email")
@@ -1077,8 +1146,16 @@ async def sign_secret_token(
     gateway_run_id: Optional[str] = None,
     gateway_tools: Optional[list[dict]] = None,
     grants: Optional[List[str]] = None,
+    audience: Optional[str] = None,
 ):
     validated_grants = _validate_secret_token_grants(grants)
+    validated_audience = _validate_secret_token_audience(audience)
+
+    # Grants and audiences pull in opposite directions, so a token never carries both.
+    # Without this, "mint a gateway credential" could quietly hand the sandbox the
+    # plaintext-vault capability again the day someone copies a grant-bearing mint call.
+    if validated_audience and validated_grants:
+        raise ValueError("An audience-bound secret token cannot carry grants.")
 
     try:
         if not _SECRET_KEY:
@@ -1104,6 +1181,11 @@ async def sign_secret_token(
         # empty one, so its payload stays the shape every existing holder was issued.
         if validated_grants:
             auth_context["grants"] = list(validated_grants)
+
+        # Same reasoning for `aud`, and it is also what keeps PyJWT's own audience check
+        # out of the way for every token minted before this claim existed.
+        if validated_audience:
+            auth_context["aud"] = validated_audience
 
         secret_token = encode(
             payload=auth_context,
