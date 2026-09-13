@@ -250,6 +250,285 @@ jobs:
           check_name: Application API Unit Test Results
           comment_mode: off
 
+  run-api-ee-unit-tests:
+    # The enterprise API suite (api/ee/tests/pytest/unit) ran nowhere until this job
+    # existed: every other job here pins AGENTA_LICENSE=oss, and api/run-tests.py's
+    # `_resolve_test_dirs` then resolves oss/tests/pytest only, so the whole ee tree was
+    # collected by no CI run at all.
+    #
+    # This job DOES duplicate run-api-unit-tests, deliberately, and the duplication is
+    # the point rather than an oversight. With AGENTA_LICENSE=ee, run-tests.py runs BOTH
+    # oss/tests/pytest/unit and ee/tests/pytest/unit in one process, so the ~4.8k OSS
+    # unit tests execute twice per PR: once here and once in run-api-unit-tests. Running
+    # only `ee/tests/pytest/unit` here would avoid that, and was rejected:
+    #
+    #   1. Defects in this codebase live in the seam between the two trees, and are
+    #      invisible unless both are imported together. The lifecycle-convention test
+    #      (oss/tests/pytest/unit/models/test_lifecycle_conventions.py) imports only the
+    #      OSS model modules, so it passed alone while the EE measurement tables broke
+    #      the convention; it failed the moment anything imported the EE models. An
+    #      ee-only job would not have caught that, and neither would the oss-only job.
+    #   2. run-api-unit-tests is still not redundant in the other direction: it is the
+    #      only run that proves the OSS suite passes under an OSS license, where
+    #      `_LICENSE` changes env defaults (database name prefix, feature gating) and EE
+    #      modules are never imported. That is what a self-hosted OSS install runs.
+    #
+    # Cost: one extra ubuntu-latest job of roughly the same duration as run-api-unit-tests
+    # per non-draft PR touching the paths above. Deemed worth it for a suite of this size
+    # that currently has no coverage at all.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: ee
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes API
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Cache Python dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-api-unit-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-application-api-unit-uv-
+
+      - name: Install API dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: |
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
+
+      - name: Run enterprise API unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: uv run --no-sync python run-tests.py --layer unit
+
+      - name: Publish enterprise API unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          # AGENTA_LICENSE=ee makes run-tests.py write to ee/tests/results, not oss/.
+          files: api/ee/tests/results/junit.xml
+          check_name: Application API Enterprise Unit Test Results
+          comment_mode: off
+
+  run-api-ee-integration-tests:
+    # The enterprise wallet and measurement integration suites — the repository's first
+    # api/ee/tests/pytest/integration suites — against real Postgres and Redis service
+    # containers. They drive the DAOs, the alembic chain and the worker bodies in-process
+    # and need no API, workers or web stack; the recipe below is the one a human ran by
+    # hand on 12 September 2026, recorded in section 9 of
+    # docs/design/wallets-research/v1/nodes/im-1-02-pipeline/acceptance.md.
+    #
+    # AGENTA_TESTS_REQUIRE_INFRA turns the conftests' "dependency unreachable" skip into a
+    # hard failure. Without it a broken service container produces an all-skipped run that
+    # exits 0 and reports green, which is the worst possible outcome for a suite whose
+    # whole job is to prove a concurrency guarantee against real infrastructure.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: username
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        # Service containers start before the checkout, so the repository's
+        # init-db-ee.sql cannot be mounted here as docker-compose mounts it; the
+        # databases it creates are created by running that same file with psql below.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      AGENTA_LICENSE: ee
+      AGENTA_WALLETS_ENABLED: "true"
+      # Service container ports are published on the runner's localhost.
+      POSTGRES_URI_CORE: postgresql+asyncpg://username:password@localhost:5432/agenta_ee_core
+      POSTGRES_URI_TRACING: postgresql+asyncpg://username:password@localhost:5432/agenta_ee_tracing
+      POSTGRES_URI_SUPERTOKENS: postgresql://username:password@localhost:5432/agenta_ee_supertokens
+      REDIS_URI: redis://localhost:6379/0
+      AGENTA_TESTS_REQUIRE_INFRA: "true"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes API
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Cache Python dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-api-unit-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-application-api-unit-uv-
+
+      - name: Install API dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: |
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
+
+      # The databases must exist before the migrations run. Run the repository's own
+      # init script rather than hand-rolled CREATE DATABASE statements, so this job and
+      # docker-compose agree on what an EE Postgres contains. The script uses psql meta
+      # commands (\c, \gexec), so it needs psql rather than a driver — which the
+      # ubuntu-latest image ships (the PostgreSQL client is preinstalled; only the server
+      # service is stopped).
+      - name: Create the enterprise databases
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        env:
+          PGPASSWORD: password
+        run: |
+          psql -v ON_ERROR_STOP=1 -h localhost -p 5432 -U username -d postgres \
+            -f api/ee/databases/postgres/init-db-ee.sql
+
+      # The two legacy chains read `env.alembic.cfg_path_{core,tracing}`, which default to
+      # /app/... , and those alembic.ini files hardcode `script_location = /app/...`. Both
+      # are container paths. Copy each next to its own directory with the paths rewritten
+      # to this checkout, and point the env vars at the copies. The four post-alignment
+      # chains (core_oss, core_ee, tracing_oss, tracing_ee) resolve their own location from
+      # __file__ and need no override.
+      - name: Point the legacy alembic chains at this checkout
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: |
+          set -euo pipefail
+          for chain in core tracing; do
+            src="${GITHUB_WORKSPACE}/api/ee/databases/postgres/migrations/${chain}"
+            sed "s#^script_location = .*#script_location = ${src}#" \
+              "${src}/alembic.ini" > "${RUNNER_TEMP}/alembic-${chain}.ini"
+          done
+          echo "ALEMBIC_CFG_PATH_CORE=${RUNNER_TEMP}/alembic-core.ini" >> "$GITHUB_ENV"
+          echo "ALEMBIC_CFG_PATH_TRACING=${RUNNER_TEMP}/alembic-tracing.ini" >> "$GITHUB_ENV"
+
+      - name: Migrate the enterprise databases to head
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: uv run --no-sync python -m ee.databases.postgres.migrations.runner
+
+      # Every wallet fixture upgrades core_ee to ee0000000004 and downgrades it back
+      # itself. Left at head, the fixture's upgrade is a no-op and
+      # test_migration_upgrade_downgrade_upgrade_round_trip fails its opening assertion
+      # that the wallet tables do not yet exist. The backfill suite drives ee0000000005
+      # up from ee0000000004 the same way. The package's autouse guard in
+      # ee/tests/pytest/integration/wallets/conftest.py restores whatever revision it
+      # finds after each test, so this parks the chain once and it stays parked; that
+      # guard also refuses outright if the database it is pointed at holds wallet rows,
+      # which is what makes running a schema-dropping suite here safe.
+      - name: Park the core_ee chain at ee0000000003 for the wallet fixtures
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: |
+          uv run --no-sync python -c "
+          from alembic import command
+          from ee.databases.postgres.migrations.core_ee.utils import alembic_cfg
+          command.downgrade(alembic_cfg, 'ee0000000003')
+          "
+
+      # Explicit directories rather than `--layer integration`: with AGENTA_LICENSE=ee
+      # that flag would also collect oss/tests/pytest/integration, whose suites want
+      # dependencies this job does not stand up. Those belong in their own job.
+      - name: Run enterprise wallet and measurement integration tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: |
+          uv run --no-sync python run-tests.py \
+            ee/tests/pytest/integration/wallets \
+            ee/tests/pytest/integration/measurements
+
+      # Second line of defence behind AGENTA_TESTS_REQUIRE_INFRA: a collection error, a
+      # renamed directory or a marker change can still produce an empty run that exits 0.
+      # A green check on this job must mean tests actually executed.
+      - name: Assert the integration suite actually ran tests
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
+        working-directory: api
+        run: |
+          uv run --no-sync python -c "
+          import sys
+          import xml.etree.ElementTree as ET
+
+          path = 'ee/tests/results/junit.xml'
+          try:
+              root = ET.parse(path).getroot()
+          except (OSError, ET.ParseError) as error:
+              sys.exit(f'no readable junit report at {path}: {error}')
+
+          suites = root.iter('testsuite')
+          total = skipped = 0
+          for suite in suites:
+              total += int(suite.get('tests', 0))
+              skipped += int(suite.get('skipped', 0))
+
+          executed = total - skipped
+          print(f'{path}: {total} collected, {skipped} skipped, {executed} executed')
+          if executed <= 0:
+              sys.exit(
+                  'the integration suite executed zero tests: '
+                  f'{total} collected, {skipped} skipped. A skipped or empty run is not '
+                  'a pass — check the Postgres and Redis service containers.'
+              )
+          "
+
+      - name: Publish enterprise API integration test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: api/ee/tests/results/junit.xml
+          check_name: Application API Enterprise Integration Test Results
+          comment_mode: off
+
   run-services-unit-tests:
     if: |
       github.event_name == 'workflow_dispatch' ||

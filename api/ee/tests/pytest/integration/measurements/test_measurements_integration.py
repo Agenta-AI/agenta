@@ -77,14 +77,35 @@ async def _debits_since(redis_client: Redis, *, last_id: bytes) -> list:
     return entries
 
 
-async def _fetch_measurement(analytics_engine: AnalyticsEngine, *, measurement_id: str):
+async def _fetch_measurements(
+    analytics_engine: AnalyticsEngine, *, measurement_id: str
+) -> list[MeasurementDBE]:
+    """Every row for this measurement id, not the first one, so the callers can assert
+    the count. `.first()` cannot tell one row from five, which is the double-insert
+    `test_transient_debit_publish_failure_converges_to_one_of_each` exists to rule out.
+
+    A second row is in fact unreachable today: `uq_measurements_measurement_id` is a
+    UNIQUE constraint, so a duplicate insert raises rather than landing. That makes this
+    a belt on top of a brace rather than a live bug fix — but the belt is free, and the
+    test now proves the convergence it claims instead of inheriting it from a constraint
+    declared in another file that a future migration could relax."""
     async with analytics_engine.session() as session:
         result = await session.execute(
             select(MeasurementDBE).where(
                 MeasurementDBE.measurement_id == measurement_id
             )
         )
-        return result.scalars().first()
+        return list(result.scalars().all())
+
+
+async def _fetch_one_measurement(
+    analytics_engine: AnalyticsEngine, *, measurement_id: str
+) -> MeasurementDBE:
+    rows = await _fetch_measurements(analytics_engine, measurement_id=measurement_id)
+    assert len(rows) == 1, (
+        f"expected exactly one measurement row for {measurement_id}, found {len(rows)}"
+    )
+    return rows[0]
 
 
 async def _fetch_values(analytics_engine: AnalyticsEngine, *, measurement_row_id):
@@ -131,10 +152,9 @@ async def test_full_consume_persist_publish(redis_client, analytics_engine):
     assert count == 1
     await worker.ack_and_delete(processed_ids)
 
-    row = await _fetch_measurement(
+    row = await _fetch_one_measurement(
         analytics_engine, measurement_id=command.measurement_id
     )
-    assert row is not None
     assert row.project_id == command.project_id
 
     values = await _fetch_values(analytics_engine, measurement_row_id=row.id)
@@ -179,10 +199,11 @@ async def test_transient_debit_publish_failure_converges_to_one_of_each(
     assert count_1 == 0
     assert processed_1 == []
 
-    row_after_first = await _fetch_measurement(
+    # Already persisted, and exactly once: the tracing write succeeded before the debit
+    # publish failed.
+    row_after_first = await _fetch_one_measurement(
         analytics_engine, measurement_id=command.measurement_id
     )
-    assert row_after_first is not None  # already persisted
 
     # Redelivery via XREADGROUP with the SAME id ("0" reclaims this
     # consumer's own pending entries) — no new XADD.
@@ -199,10 +220,12 @@ async def test_transient_debit_publish_failure_converges_to_one_of_each(
     assert count_2 == 1
     await worker.ack_and_delete(processed_2)
 
-    row_after_second = await _fetch_measurement(
+    # Still exactly one row, and the same one: the redelivery neither inserted a second
+    # measurement nor replaced the first. `_fetch_one_measurement` carries the count
+    # assertion — comparing ids alone would pass with a duplicate sitting behind it.
+    row_after_second = await _fetch_one_measurement(
         analytics_engine, measurement_id=command.measurement_id
     )
-    assert row_after_second is not None
     assert row_after_second.id == row_after_first.id  # same row — idempotent
 
     new_debits = await _debits_since(redis_client, last_id=last_debit_id)

@@ -46,9 +46,10 @@ async def _fresh_engine_per_test():
         engine_module._transactions_engine = None
 
 
-async def _insert_organization(session) -> uuid.UUID:
+async def _insert_organization(session) -> tuple[uuid.UUID, uuid.UUID]:
     """Minimal valid `organizations` row (its `owner_id` FK requires a `users` row).
-    Both rows are logged for cleanup by the caller."""
+    Returns `(organization_id, user_id)`; both rows are logged for cleanup by the
+    caller."""
     user_id = uuid.uuid4()
     unique = uuid.uuid4().hex
     await session.execute(
