@@ -151,11 +151,11 @@ main reason to enumerate them rather than write "grant".
 | `purchase` | checkout completed | payment identifier | long or never | |
 | `auto_recharge` | balance crossed a threshold | payment identifier | long or never | same shape as purchase, different trigger; §8 |
 | `promotion` | a code, a campaign, a conference | organization + campaign | yes | must debit a campaign budget, §8 |
-| `contribution_award` | approved contribution | contribution identifier | yes | backdatable; approver recorded |
+| `contribution_award` | approved contribution | contribution identifier | yes | backdatable; approver recorded; never edited in place |
 | `referral_bonus` | referral converted | referral identifier | yes | both sides get one |
 | `goodwill` | a human deciding | support case identifier | choice | not tied to any one charge |
 | `charge_refund` | a specific charge reversed | the movement being reversed | inherits | points at an outbound movement; distinct from goodwill |
-| `chargeback_reversal` | card dispute upheld | dispute identifier | — | negative inbound; can drive a balance negative |
+| `chargeback_reversal` | card dispute upheld | dispute identifier | — | reverses a `purchase`; an outbound debit under the canonical split, not a negative credit; can drive a balance negative |
 | `opening_balance` | migration or seeding | organization + migration name | choice | the one everybody forgets, and the one that most needs a key |
 | `partner_allocation` | funded from another organization's pool | source movement | inherits | needs the counterparty column; not first version |
 | `correction` | an operator fixing arithmetic | ticket identifier | — | never an edit to an existing row |

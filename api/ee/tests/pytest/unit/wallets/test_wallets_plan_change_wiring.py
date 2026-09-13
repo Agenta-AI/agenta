@@ -15,6 +15,9 @@ import pytest
 import ee.src.core.subscriptions.service as subscriptions_service_module
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.subscriptions.types import Event, SubscriptionDTO
+from ee.src.core.wallets.service import WalletsService
+from ee.tests.pytest.utils.wallets.builders import build_general_wallet_balance
+from ee.tests.pytest.utils.wallets.fakes import FakeWalletsDAO
 from oss.src.utils.env import env
 
 
@@ -291,3 +294,197 @@ async def test_switch_leaves_the_anchor_alone_so_both_windows_are_the_same_windo
     assert call["outgoing_period_start"] == datetime(2026, 3, 8, tzinfo=timezone.utc)
     assert call["outgoing_period_end"] == datetime(2026, 4, 8, tzinfo=timezone.utc)
     assert call["idempotency_key"] == "plan_change:sub_123:2026-03-08T00:00:00+00:00"
+
+
+def _mock_stripe(monkeypatch):
+    """The direct plan-switch route talks to Stripe before it updates the row."""
+    stripe = MagicMock()
+    stripe.SubscriptionItem.list.return_value.data = []
+    monkeypatch.setattr(subscriptions_service_module, "_load_stripe", lambda: stripe)
+    monkeypatch.setattr(
+        subscriptions_service_module, "get_stripe_line_items", lambda plan: []
+    )
+
+
+@pytest.mark.asyncio
+async def test_webhook_delivery_id_becomes_the_idempotency_key(monkeypatch):
+    """Stripe reuses `stripe_event.id` when it retries a delivery and issues a new one
+    for every distinct change, so when the webhook supplies it, it IS the occurrence's
+    identity and nothing else belongs in the key."""
+    organization_id = str(uuid4())
+    subscription = SubscriptionDTO(
+        organization_id=organization_id, plan="cloud_v0_hobby", active=True, anchor=1
+    )
+    service = SubscriptionsService(
+        subscriptions_dao=_FakeSubscriptionsDAO(subscription)
+    )
+
+    fake_wallets = _RecordingWalletsService()
+    monkeypatch.setattr(
+        subscriptions_service_module, "get_wallets_service", lambda: fake_wallets
+    )
+    _freeze_clock(monkeypatch, datetime(2026, 4, 1, tzinfo=timezone.utc))
+
+    await service.process_event(
+        organization_id=organization_id,
+        event=Event.SUBSCRIPTION_CREATED,
+        subscription_id="sub_123",
+        plan="cloud_v0_pro",
+        anchor=1,
+        event_id="evt_1KjH9xCreated",
+    )
+
+    assert fake_wallets.calls[0]["idempotency_key"] == "plan_change:evt_1KjH9xCreated"
+
+
+@pytest.mark.asyncio
+async def test_direct_route_without_a_delivery_id_falls_back_to_the_period_key(
+    monkeypatch,
+):
+    """The direct plan-switch and cancel routes are synchronous user actions with no
+    delivery to identify, so they keep the period-scoped key. Two direct switches in one
+    billing period therefore still collide — open-designs item 22."""
+    organization_id = str(uuid4())
+    subscription = SubscriptionDTO(
+        organization_id=organization_id,
+        subscription_id="sub_123",
+        plan="cloud_v0_pro",
+        active=True,
+        anchor=1,
+    )
+    service = SubscriptionsService(
+        subscriptions_dao=_FakeSubscriptionsDAO(subscription)
+    )
+
+    fake_wallets = _RecordingWalletsService()
+    monkeypatch.setattr(
+        subscriptions_service_module, "get_wallets_service", lambda: fake_wallets
+    )
+    _mock_stripe(monkeypatch)
+    _freeze_clock(monkeypatch, datetime(2026, 4, 16, tzinfo=timezone.utc))
+
+    await service.process_event(
+        organization_id=organization_id,
+        event=Event.SUBSCRIPTION_SWITCHED,
+        plan="cloud_v0_business",
+    )
+
+    assert (
+        fake_wallets.calls[0]["idempotency_key"]
+        == "plan_change:sub_123:2026-04-01T00:00:00+00:00"
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_then_switch_in_one_billing_period_both_move_money(monkeypatch):
+    """The ordinary flow that the period-scoped key used to swallow. Create Pro on
+    1 April anchored on the 1st, upgrade to Business on the 16th: the switch never moves
+    the anchor, so both changes land in the SAME window (1 April -> 1 May) for the SAME
+    subscription and used to produce one byte-identical key — the upgrade was treated as
+    a replay of the creation and moved nothing, leaving the customer on $5 of allowance
+    instead of $27.50.
+
+    They key differently now for two reasons at once: the creation arrives over the
+    webhook and is identified by its Stripe delivery, and the switch is a direct route
+    that falls back to the period key. Real `plans.py` amounts, real `WalletsService`
+    over the in-memory DAO.
+    """
+    organization_id = str(uuid4())
+    subscription = SubscriptionDTO(
+        organization_id=organization_id, plan="cloud_v0_hobby", active=True, anchor=1
+    )
+    service = SubscriptionsService(
+        subscriptions_dao=_FakeSubscriptionsDAO(subscription)
+    )
+
+    dao = FakeWalletsDAO(
+        general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
+    )
+    wallets = WalletsService(wallets_dao=dao)
+    monkeypatch.setattr(
+        subscriptions_service_module, "get_wallets_service", lambda: wallets
+    )
+
+    _freeze_clock(monkeypatch, datetime(2026, 4, 1, tzinfo=timezone.utc))
+    await service.process_event(
+        organization_id=organization_id,
+        event=Event.SUBSCRIPTION_CREATED,
+        subscription_id="sub_123",
+        plan="cloud_v0_pro",
+        anchor=1,
+        event_id="evt_created",
+    )
+
+    # The whole period ahead: the full $5 Pro allowance.
+    assert dao.general_balance.balance_musd == 5_000_000
+
+    _mock_stripe(monkeypatch)
+    _freeze_clock(monkeypatch, datetime(2026, 4, 16, tzinfo=timezone.utc))
+    await service.process_event(
+        organization_id=organization_id,
+        event=Event.SUBSCRIPTION_SWITCHED,
+        plan="cloud_v0_business",
+    )
+
+    # Exactly half the 30-day period remains (1_296_000 of 2_592_000 seconds): $2.50 of
+    # the Pro allowance is clawed back and $25 of the Business allowance is minted.
+    assert len(dao.plan_changes) == 2  # two distinct keys, two applications
+    assert sorted(key for _, key in dao.plan_changes) == [
+        "plan_change:evt_created",
+        "plan_change:sub_123:2026-04-01T00:00:00+00:00",
+    ]
+    switch_result = dao.plan_changes[
+        (
+            dao.general_balance.organization_id,
+            "plan_change:sub_123:2026-04-01T00:00:00+00:00",
+        )
+    ]
+    assert switch_result.outgoing_debit_amount_musd == 2_500_000
+    assert switch_result.incoming_credit_amount_musd == 25_000_000
+    assert dao.general_balance.balance_musd == 27_500_000  # $27.50, not $5
+
+
+@pytest.mark.asyncio
+async def test_the_same_delivery_id_applied_twice_moves_money_once(monkeypatch):
+    """A Stripe retry carries the same `stripe_event.id`, so the second application is a
+    replay and must move nothing. (`process_event` also skips the hook outright on a
+    redelivery, since the plan no longer differs — this pins the layer that would still
+    have to be safe if it did not.)"""
+    organization_id = str(uuid4())
+    service = SubscriptionsService(
+        subscriptions_dao=_FakeSubscriptionsDAO(
+            SubscriptionDTO(
+                organization_id=organization_id, plan="cloud_v0_hobby", active=True
+            )
+        )
+    )
+
+    dao = FakeWalletsDAO(
+        general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
+    )
+    wallets = WalletsService(wallets_dao=dao)
+    monkeypatch.setattr(
+        subscriptions_service_module, "get_wallets_service", lambda: wallets
+    )
+
+    delivery = dict(
+        organization_id=str(dao.general_balance.organization_id),
+        event=Event.SUBSCRIPTION_CREATED,
+        subscription_id="sub_123",
+        outgoing_plan="cloud_v0_hobby",
+        incoming_plan="cloud_v0_pro",
+        outgoing_anchor=1,
+        incoming_anchor=1,
+        event_id="evt_retried",
+        now=datetime(2026, 4, 1, tzinfo=timezone.utc),
+    )
+
+    await service._apply_wallet_plan_change(**delivery)
+    assert dao.general_balance.balance_musd == 5_000_000
+
+    await service._apply_wallet_plan_change(**delivery)
+
+    assert len(dao.plan_changes) == 1
+    # Deduplicated on the delivery id itself, not on the period it happens to fall in.
+    assert [key for _, key in dao.plan_changes] == ["plan_change:evt_retried"]
+    assert dao.general_balance.balance_musd == 5_000_000  # replayed, not re-applied
