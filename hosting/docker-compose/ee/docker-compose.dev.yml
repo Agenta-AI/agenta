@@ -333,6 +333,7 @@ services:
         volumes:
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
             - ../../../api/oss/src/crons/triggers.sh:/triggers.sh
+            - ../../../api/oss/src/crons/gateways.sh:/gateways.sh
             - ../../../api/ee/src/crons/meters.sh:/meters.sh
             - ../../../api/ee/src/crons/spans.sh:/spans.sh
             - ../../../api/ee/src/crons/events.sh:/events.sh

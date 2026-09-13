@@ -100,12 +100,13 @@ reproduces on `main` and is tracked as issue #6803.
 
 ### Deployment flags
 
-Two named environment variables now gate gateway behaviour, both default off.
+Three named environment variables now gate gateway behaviour, all three default off.
 
 | Variable | Read by | Effect |
 | --- | --- | --- |
 | `AGENTA_GATEWAYS_MOCKS_ENABLED` | the API process, `api/oss/src/utils/env.py` | generates the development-only mock catalogue entries and routes |
 | `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | the SDK in the `services` container and the runner, `run-plan.ts` | permits a gateway bearer over plain HTTP to a routable host (OR24) |
+| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | the API process, `api/oss/src/utils/env.py` | off by default, so the shared egress module resolves, range-checks and pins every outbound gateway call and requires https. Setting it lifts those checks for the gateway alone; webhooks keep their own flag, `AGENTA_INSECURE_EGRESS_ALLOWED`, and their own default (OR40, OR64) |
 
 In the OSS and EE development compose files `AGENTA_GATEWAYS_MOCKS_ENABLED` is hardcoded on the
 `api` service and on the two mock gateway services, and

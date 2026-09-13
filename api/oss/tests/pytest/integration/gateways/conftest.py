@@ -17,23 +17,30 @@ from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
+from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 from oss.tests.pytest.utils.postgres import use_reachable_core_uri
 
 # example.com: routable and in no blocked range.
 _PUBLIC_ADDRESS = "93.184.216.34"
 
 
-@pytest.fixture(autouse=True)
-def _public_dns_by_default(monkeypatch):
+@pytest.fixture
+def _public_dns_for_the_oauth_provider(monkeypatch):
     """The OAuth client resolves and pins before it dials (`core/gateways/egress.py`).
 
-    The in-process provider below answers on `.local` names that no resolver knows, so stub
-    the lookup with one public address. The guard still runs for real against that answer;
-    the refusal cases live in `unit/gateways/test_gateways_egress.py`.
+    The in-process provider below answers on `.local` names that no resolver knows, so the
+    gateway's own resolver returns one public address for them. The guard still runs for
+    real against that answer; the refusal cases live in
+    `unit/gateways/test_gateways_egress.py`.
+
+    Deliberately not autouse, and deliberately not a patch of `socket.getaddrinfo`. Patching
+    the socket module replaces DNS for every test in this directory, including the ones that
+    only touch Postgres, and a stubbed answer missing a real address family fails those at
+    setup wherever the database is reached by hostname.
     """
     monkeypatch.setattr(
-        "oss.src.core.webhooks.utils.socket.getaddrinfo",
-        lambda *_args, **_kwargs: [(None, None, None, None, (_PUBLIC_ADDRESS, 0))],
+        "oss.src.core.gateways.egress.resolve_validated_ip",
+        lambda hostname, **_kwargs: _PUBLIC_ADDRESS,
     )
 
 
@@ -192,14 +199,16 @@ class _InMemorySecretsDAO:
 
 
 @pytest.fixture
-def local_mcp_oauth_connect_service(local_mcp_oauth_provider):
+def local_mcp_oauth_connect_service(
+    local_mcp_oauth_provider, _public_dns_for_the_oauth_provider
+):
     """Service+vault fixture for the local OAuth provider integration contract."""
     dao = _InMemorySecretsDAO()
     service = MCPOAuthConnectService(
         vault_service=VaultService(secrets_dao=dao),
         client=MCPOAuthClient(transport=local_mcp_oauth_provider.transport),
         api_url="https://api.oauth.local",
-        secret_key="local-mcp-oauth-test-key",
+        attempts_dao=InMemoryMCPOAuthAttemptsDAO(),
         resolve=lambda _hostname: ["10.0.0.1"],
     )
     return service, dao
