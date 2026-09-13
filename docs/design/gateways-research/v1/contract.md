@@ -61,6 +61,23 @@ base URL, optional provider family, model, region/API version and credentials.
 MCP adapters receive the resolved server URL, auth scheme and credentials. Both
 are in-process adapter boundaries; neither is an external plugin contract.
 
+### Outbound headers
+
+A caller's headers reach an upstream by allowlist, not by pass-through. Forwarded are
+`content-type` and `accept`; the vendor protocol headers `anthropic-version`,
+`anthropic-beta`, `anthropic-dangerous-direct-browser-access`, `openai-organization`,
+`openai-project` and `openai-beta`; the MCP session headers `mcp-session-id` and
+`mcp-protocol-version`; `idempotency-key`; the mock-profile selector
+`x-agenta-mock-profile`; and anything prefixed `x-stainless-`. Everything else is dropped,
+including every header a caller invents. `Authorization` and `Cookie` are never forwarded
+on either plane, whatever their casing: both authenticate the caller to Agenta, so sending
+them to a tenant-configured upstream would disclose an Agenta session to whoever registered
+the endpoint. An endpoint's upstream credential comes only from its registered secret,
+which the gateway injects last and which therefore replaces any same-named header the
+caller sent. An endpoint registered without a secret calls its upstream unauthenticated;
+the caller's own token is never promoted into that slot. On the way back, `set-cookie` is
+stripped, because a relayed response is returned on Agenta's own origin.
+
 ## Not contracts
 
 - Provider-specific APIs and the MCP protocol are upstream-owned contracts.
