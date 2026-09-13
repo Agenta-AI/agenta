@@ -136,8 +136,15 @@ class SecretsTokenStorage:
         provider = await self._find_provider()
         if provider is None:
             return None
+        settings = provider.data.provider
+        # The secret lives in the settings field the vault knows how to redact, never in
+        # the registration metadata beside it; put it back only here, where the caller is
+        # the OAuth client itself.
         return OAuthClientInformationFull.model_validate(
-            provider.data.provider.extra["client_info"]
+            {
+                **settings.extra["client_info"],
+                "client_secret": settings.client_secret or None,
+            }
         )
 
     async def set_client_info(self, client_info: OAuthClientInformationFull) -> None:
@@ -147,7 +154,15 @@ class SecretsTokenStorage:
             client_secret=client_info.client_secret or "",
             issuer_url=issuer,
             scopes=(client_info.scope or "").split(),
-            extra={"client_info": client_info.model_dump(mode="json")},
+            # The rest of the dynamic-client-registration response is kept because the MCP
+            # client needs it back verbatim (redirect URIs, grant and auth methods, token
+            # endpoint auth). The client secret is excluded: a second copy in a free-form
+            # map is a copy nothing redacts, and the outer field above already holds it.
+            extra={
+                "client_info": client_info.model_dump(
+                    mode="json", exclude={"client_secret"}
+                )
+            },
         )
         secret = SecretDTO(
             kind=SecretKind.OAUTH_PROVIDER,
