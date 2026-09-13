@@ -20,6 +20,7 @@ import {messageBodyKey, useStartupPhase} from "@agenta/chat/state"
 import {AgentChatAvatar} from "@agenta/entity-ui/agent"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground/agent-chat"
+import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
     ChatBubble,
@@ -30,7 +31,7 @@ import {
     turnToolbarRevealClass,
     userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {Bot, Brain, ChevronRight, User, XCircle} from "lucide-react"
 
 import {Button} from "@/components/ui/button"
@@ -205,6 +206,7 @@ const TurnRowInner = ({
     /** The agent's workflow id, so its own icon rides the assistant bubbles. Display only. */
     workflowId?: string | null
 }) => {
+    const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const traceId = getMessageTraceId(turn.message)
     // `render.kind` rides as a sibling `data-render` part, so widget dispatch needs the map.
@@ -388,13 +390,12 @@ const TurnRowInner = ({
                 content={hasBubbleContent ? content : failureNote}
                 header={attachments}
             />
-            {/* The turn's information and actions, revealed on hover or keyboard focus — the same
-                lane the desktop transcript reserves, so a settled turn reads quietly until you
-                reach for it. */}
+            {/* Keep the debug trace action visible on touch devices while the inspector flag is
+                enabled. The normal toolbar stays quiet until hover or keyboard focus. */}
             <div
-                className={`${turnToolbarClass} ${turnToolbarRevealClass} ${
-                    turn.isUser ? "right-11" : "left-11"
-                }`}
+                className={`${turnToolbarClass} ${
+                    inspectorEnabled ? "pointer-events-auto opacity-100" : turnToolbarRevealClass
+                } ${turn.isUser ? "right-11" : "left-11"}`}
             >
                 <TurnFooter
                     messageId={turn.message.id}
