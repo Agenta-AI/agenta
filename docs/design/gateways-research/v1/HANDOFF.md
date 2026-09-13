@@ -61,8 +61,7 @@ of a read-modify-write race (OR61).
 highest severity open is P1, and OR75 is the only finding at it: the MCP relay returns an upstream's
 header block and body unread, so a server that echoes the grant it was sent hands a vault credential
 to the sandbox, where the LLM relay refuses exactly that. Nothing waits on a decision any more: OD24
-to OD27 in `open-designs.md` are all decided, OD26, OD24 and OD27 have landed, and OD25 is being
-built now. The open set is OR48, OR49, OR51 to OR54, OR56, OR58, OR59, OR62, OR63, OR65 to OR68, and
+to OD27 in `open-designs.md` are all decided and all four have landed. The open set is OR48, OR49, OR51 to OR54, OR56, OR58, OR59, OR62, OR63, OR65 to OR68, and
 OR75. Read `open-reviews.md` before planning work here. Green suites are not evidence on this
 branch, and `OR65` says why.
 
