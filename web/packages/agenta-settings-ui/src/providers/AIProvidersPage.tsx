@@ -152,10 +152,13 @@ export const AIProvidersPage = ({
                 width: 200,
                 render: (record) => <span className="truncate">{record.name}</span>,
             },
+            // Provider and Name identify the row and stay on a phone; the rest are a wider
+            // screen's, reachable there — see `DataTableColumn.responsive` (#6206).
             {
                 key: "credential",
                 title: "Credential",
                 width: 220,
+                responsive: "md",
                 render: (record) => (
                     <span className="font-mono text-xs">{credentialSummary(record)}</span>
                 ),
@@ -164,12 +167,14 @@ export const AIProvidersPage = ({
                 key: "models",
                 title: "Active models",
                 width: 180,
+                responsive: "md",
                 render: (record) => activeModelsSummary(record, capabilities),
             },
             {
                 key: "created_at",
                 title: "Created",
                 width: 170,
+                responsive: "md",
                 render: (record) =>
                     record.createdAt
                         ? formatDay({date: record.createdAt, outputFormat: "YYYY-MM-DD HH:mm"})
