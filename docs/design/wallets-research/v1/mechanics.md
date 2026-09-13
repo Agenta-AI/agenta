@@ -275,6 +275,13 @@ as tie-break. Which means: plan allowance (worthless if unspent) → promotions 
 purchased (never expires, somebody paid for it). That is the order a user would choose for
 themselves, and it protects earned value from being stranded behind a grant that outlives it.
 
+Wave 1 ships the other order. The settlement planner sorts candidate credits by priority
+first, then soonest expiry, then the credit id as a deterministic tiebreak (`plan_settlement`
+in `api/ee/src/core/wallets/types.py`; the selection SQL in
+`api/ee/src/dbs/postgres/wallets/dao.py` applies the same predicate). The two orders drain
+different lots first, so the paragraph above is the case for changing the code rather than a
+description of it. Item 13 of `open-designs.md` owns the question.
+
 ---
 
 ## 8. Extending: the number nobody has defined

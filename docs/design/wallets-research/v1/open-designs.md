@@ -76,6 +76,9 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 17 | Open | What the admission ceiling enforces, and on what evidence. |
 | 18 | Open | The unit and rounding of a provider-declared cost. |
 | 19 | Open | How the rate card stays in step with the model catalogue. |
+| 20 | Open | Where a stream entry this pipeline cannot accept goes, and what the stream cap protects. |
+| 21 | Open | Whether expired credit value leaves the general balance, and what admission reads. |
+| 22 | Open | What identifies one plan change, so two in a billing period are not treated as one. |
 
 Items 2, 4, 7, and 14 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
@@ -1235,6 +1238,13 @@ Under priority-first the signup grant is spent first and the award expires unuse
 The delivered order came from the `WP-1-01` specification, which said "priority/end-time/
 credit-ID order". Nothing recorded that this reversed a stated decision.
 
+`mechanics.md` §7 states the same expiry-first rule, and states it as settled rather than
+proposed: "Spend order falls out of this and needs no separate rule. Soonest expiry first,
+priority as tie-break." Two canonical-sounding documents therefore described an order the
+code does not implement. `mechanics.md` now says which order Wave 1 ships and points here;
+the product argument for reversing the code stays where it was written, as the case for
+option 1 below.
+
 Today the divergence is inert: `plan_allowance` is priority 10 and expires at period end,
 the signup grant is priority 20 and lasts twelve months, so both orders agree. It becomes
 live the first time a short-lived lot sits at a higher priority number than a long-lived one
@@ -1651,6 +1661,236 @@ Options 2 and 3 together. Generate the card from litellm's snapshot so the numbe
 transcribed by hand, and add the test so a model that the snapshot does not price cannot reach
 the `builtin` namespace unnoticed. Option 2 alone is enough to be safe; option 3 is what makes
 it maintainable.
+
+### Decision
+
+_Unresolved._
+
+## 20. Where a stream entry this pipeline cannot accept goes
+
+**Status:** Open
+
+### Context
+
+A delivery on either Redis stream ends in one of three ways: retried, dropped as terminal, or
+dropped after repeated failure. Both workers enable the shared consumer's reclaim pass
+(`reclaim_pending=True` in `api/ee/src/tasks/asyncio/wallets/worker.py` and
+`api/ee/src/tasks/asyncio/measurements/worker.py`), so an entry left pending by a database or
+Redis error comes back on a later pass. Two of the three ways destroy the payload outright, a
+fourth mechanism destroys it without any worker involved, and retry itself has a bound the
+reclaim pass does not state.
+
+**Terminal.** When a worker judges an envelope unprocessable — a malformed or
+unsupported-version `DebitCommandV1`, or a general balance row that is neither present nor
+insertable — it reports the message id as processed, and the consumer's `run` loop passes it to
+`ack_and_delete` (`api/oss/src/tasks/asyncio/shared/consumer.py`), which both `XACK`s and
+`XDEL`s it. `drop_expired` in the same file does the same after `max_deliveries` failures. Both
+log the loss by message id. That log line is the entire record: the envelope itself is gone.
+
+**Trimmed.** `streams:debits` is published with `maxlen=MAXLEN_STREAMS_DEBITS`, about 100,000,
+and `approximate=True` (`api/ee/src/core/wallets/streaming.py`). Redis trims by length. It does
+not know whether an entry is still in a consumer group's pending list, so a backlog past the cap
+deletes unsettled charges out from under a worker that has not finished with them.
+
+**Stranded.** The reclaim pass reads the oldest entries in the pending list and nothing else:
+`xpending_range` with `min="-"`, `max="+"` and `count=max_batch_size`, which defaults to 50, and
+no cursor carried between passes. Both workers call only an undecodable payload a permanent
+failure (`is_permanent_failure` in each), deliberately, so that money is never dropped because
+the database was down; an entry that decodes cleanly and then fails its write deterministically
+is kept past `max_deliveries`, logged as over budget, and retried forever. Fifty of those at the
+head of the list hide every entry behind them, so a debit left pending by a transient outage is
+never reclaimed at all, and once `MAXLEN` trims its payload away `XCLAIM` returns nothing for it
+and the loop skips it without a line. What makes this reachable is that a deterministic write
+failure is possible at all: the instance that surfaced it was an integer column narrower than the
+range its envelope accepts, which is fixed, and the class is not. A dead-letter destination
+answers this the same way it answers the other two, by moving the entry out of the pending list
+rather than leaving it there.
+
+A worked failure. A rollout puts a newer API in front of an older wallet worker, and the API
+starts publishing a `DebitCommandV2` envelope. The worker's deserializer rejects the unknown
+version as terminal, which is the correct call — redelivering it will not make the old worker
+understand it — and ACK-and-deletes every one. Twelve minutes later the worker is rolled and
+understands the new envelope, but the twelve minutes of charges are not anywhere: not in the
+stream, not in a table, only in a log line naming message ids that no longer resolve to
+anything. The same twelve minutes under a dead-letter destination sit as replayable envelopes,
+and the rollout costs nothing.
+
+### Decision needed
+
+Two things, and the second is cheaper than the first.
+
+1. **Where an unacceptable entry goes.** Options: nothing but the log, as delivered; a
+   dead-letter stream per source stream (`streams:debits:dead`), which keeps the envelope in the
+   system that already holds it and makes replay one `XADD` back; or a dead-letter table in
+   Postgres, which survives a Redis flush and is queryable, at the cost of a second store on the
+   failure path of a worker whose whole job is that store.
+2. **What the cap protects.** Options: keep `MAXLEN` by length; trim by age with `MINID`, so the
+   cap is a retention window rather than a count and a backlog is never silently truncated; or
+   keep the length cap but alarm on stream depth well below it, so a backlog is a page rather
+   than data loss.
+
+### Why it matters
+
+Both mechanisms lose money silently, in the direction that favours the customer and cannot be
+reconstructed. A measurement was taken, a provider was paid, and no debit exists. The loss is
+invisible from every surface: the call succeeded, the balance is right for the debits that did
+land, and only a log line records that others did not. A dead-letter destination turns that into
+a countable queue that somebody can drain, which is the difference between an incident and a
+number.
+
+This is the recovery half of item 10, which owns the gateway/wallet write path's concurrency,
+exposure, and recovery questions. Item 10's concurrency guarantee is proved; this is one of the
+untouched parts.
+
+### Current direction
+
+A dead-letter stream for both destinations, and `MINID` for the cap. The stream keeps the
+failure path inside Redis, where the envelope already is, so a terminal drop becomes a move
+rather than a delete and no worker needs a second store to fail into. `MINID` makes the cap a
+stated retention window, which is a property somebody can reason about, rather than a count that
+happens to be larger than the backlogs seen so far.
+
+### Decision
+
+_Unresolved._
+
+## 21. Whether expired credit value leaves the general balance
+
+**Status:** Open
+
+### Context
+
+Two projections describe the same money and disagree the moment a credit expires.
+
+`wallet_balances` holds one general row per organization and one row per credit. Admission reads
+only the general row: `WalletsService.check` (`api/ee/src/core/wallets/service.py`) compares
+`balance_musd` against the row's floor and returns a boolean. Settlement reads the per-credit
+rows, and `plan_settlement` (`api/ee/src/core/wallets/types.py`) drops every candidate whose
+`end_time` has passed before it allocates anything.
+
+Nothing posts an expired credit's remaining value out of the general balance. Expiry is a
+timestamp going by, not an event: `DebitKind.CREDIT_EXPIRY` exists in
+`api/ee/src/core/wallets/contracts.py` and nothing emits it, and Wave 1 ships no job that sweeps
+expired credits. So the general balance goes on counting value that no debit can draw on, and
+admission answers from that number.
+
+A worked failure. An organization holds one credit of twenty dollars that expired yesterday and
+nothing else. Its general balance still reads 20,000,000 musd against a floor of zero, so
+`check` returns true and the call is dispatched. The charge arrives at the wallet worker,
+`plan_settlement` finds no eligible candidate, and the whole amount posts as a deficit debit with
+a null `wallet_credit_id`. The organization spent money it did not have, through the check that
+exists to stop exactly that, and the general balance now walks down through zero while every
+per-credit row says there was never anything to spend.
+
+This is latent while nothing expires with value left on it. It stops being latent the first time
+an `end_time` passes on a funded credit, which needs no job and no new feature — only the clock.
+
+### Decision needed
+
+What makes the general balance stop counting expired value.
+
+1. **An expiry debit.** A job sweeps credits past their `end_time` with a positive balance and
+   posts one `credit_expiry` debit per credit, which zeroes the per-credit row and reduces the
+   general row through the same path as every other removal of value. History stays append-only
+   and the two projections reconcile. This is item 3's recommendation applied to expiry, and it
+   is the option that needs a job somebody has to run.
+2. **Admission reads the credits, not the projection.** `check` sums unexpired per-credit
+   balances instead of reading the general row. Correct without any job, and it replaces an
+   indexed single-row read on the request path with an aggregate over every credit an
+   organization holds.
+3. **The general balance excludes expiring value from the start.** Only credits that never
+   expire contribute to it, and everything else is read per credit. Removes the divergence by
+   removing the number, and makes the general row mean something narrower than its name.
+
+### Why it matters
+
+Admission is the only thing standing between an empty wallet and a provider bill, and this is
+the case where it says yes to an organization with nothing. The resulting deficit debit is
+correct bookkeeping of an event that should not have happened.
+
+Item 13 asks the question underneath this one: whether earned value expires at all. If the
+answer is that it does not, this item shrinks to plan allowances and purchased lots. It does not
+disappear, because a plan allowance expires at period end by design.
+
+### Current direction
+
+Option 1, because item 3 already points that way for every other removal of value and expiry is
+not a special case. Whether the sweep is a periodic job or is folded into the next write that
+touches the organization is an implementation question that follows the decision, not part of it.
+
+### Decision
+
+_Unresolved._
+
+## 22. What identifies one plan change
+
+**Status:** Open
+
+### Context
+
+A mid-period plan change prorates the wallet's allowance credit, and that call is made
+idempotent by a key built in `_apply_wallet_plan_change`
+(`api/ee/src/core/subscriptions/service.py`):
+
+```text
+plan_change:{subscription_id}:{period_start}
+```
+
+`period_start` is the billing period the change lands in, computed from the subscription's
+anchor. Two calls collide exactly when they are two changes in the same period for the same
+subscription, and `apply_plan_change` then treats the second as a replay of the first and does
+nothing. The method's own docstring records this as an accepted Wave 1 limitation. It is written
+down in exactly one place, which is the code, and this register is where somebody looks for open
+questions.
+
+A worked failure. An organization upgrades from Pro to Business on the fourth of the month and
+downgrades to Free on the nineteenth. Both changes fall in the same billing period, so both
+produce the key `plan_change:sub_123:2026-09-01T00:00:00+00:00`. The upgrade prorates and mints
+its Business allowance. The downgrade is swallowed as a duplicate: the subscription is Free, the
+entitlements cache is invalidated, the customer is billed as Free, and the wallet still carries
+a Business allowance for the rest of the period.
+
+A second problem lives at the same boundary and is not the same problem. The wallet hook runs
+only when the plan actually changed (`if subscription.plan != previous_plan`), and its exception
+is logged and swallowed so that a wallet-side failure never blocks Stripe's acknowledgement.
+Together those two make a failure unrecoverable rather than merely deferred: a webhook replay
+finds the plan already changed, skips the hook, and there is no durable pending record of the
+proration that never happened. The swallow is right at that boundary. What is missing is
+something that remembers.
+
+### Decision needed
+
+What identifies a plan change, and what remembers one whose wallet side failed.
+
+1. **Thread a per-delivery identifier from the webhook boundary.** Stripe's event id is one per
+   delivery and stable across retries, which is exactly the identity the key needs. It has to be
+   carried from the webhook handler down to `_apply_wallet_plan_change`, which no signature does
+   today. Closes the collision completely and makes the key mean "this occurrence" rather than
+   "some occurrence in this period".
+2. **Add the transition to the key.** `plan_change:{subscription_id}:{period_start}:{outgoing}:{incoming}`
+   separates the upgrade from the downgrade above without touching the webhook boundary. Cheap,
+   and still collides on two identical transitions in one period (Pro to Free, back to Pro, to
+   Free again), which is rarer but not impossible.
+3. **A durable pending record.** The subscription transaction writes a row saying the wallet
+   side is owed, and a retry drains it. This is the only option that also answers the second
+   problem, and it is the largest.
+
+### Why it matters
+
+A missed downgrade leaves a customer holding allowance they no longer pay for, and a missed
+upgrade leaves them short of what they do. Neither is visible: no error surfaces, the
+subscription is correct, and only the wallet is wrong. Options 1 and 3 are independent and both
+are eventually needed, since a correct key still does nothing for a call that never ran.
+
+Item 3 owns the event model for cancellation, expiry, clawback, refund, and plan-change history,
+which is where a durable pending record and the debits a plan change posts both belong.
+
+### Current direction
+
+Option 1 for the key, because the identifier exists at the webhook boundary and everything else
+is a workaround for not having carried it down. Option 3 after it, on item 3's timetable rather
+than its own. Option 2 is a poor middle: it narrows the collision without closing it, and the
+work it saves is one parameter.
 
 ### Decision
 
