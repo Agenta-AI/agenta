@@ -188,6 +188,28 @@ describe("buildAgentRequest", () => {
         store.set(executionHeadersAtom, () => async () => ({Authorization: "Bearer jwt-abc"}))
     })
 
+    it("advertises secret setup only in capable hosts without changing the saved tools", async () => {
+        const config = {agent: {instructions: "help", tools: []}}
+        seed(store, "e", {config})
+        const plain = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const interactive = await buildAgentRequest("e", [], {
+            sessionId: "s1",
+            store,
+            secretSetup: true,
+        })
+        expect(JSON.stringify(plain?.requestBody)).not.toContain("__ag__request_secret")
+        expect(
+            (interactive?.requestBody.data as {parameters: {agent: {tools: unknown[]}}}).parameters
+                .agent.tools,
+        ).toContainEqual({
+            "@ag.embed": {
+                "@ag.references": {workflow: {slug: "__ag__request_secret"}},
+                "@ag.selector": {path: "parameters.tool"},
+            },
+        })
+        expect(config.agent.tools).toEqual([])
+    })
+
     it("returns null when the entity has no invocation URL", async () => {
         seed(store, "e", {url: null})
         expect(await buildAgentRequest("e", [], {sessionId: "s1", store})).toBeNull()
@@ -695,6 +717,27 @@ describe("buildAgentRequest", () => {
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
         expect(req!.headers.Accept).toBe("application/json")
         store.set(agentChannelModeAtomFamily("s1"), "stream")
+    })
+
+    it("marks a shared sender request and keeps its acceptance channel streaming", async () => {
+        store.set(agentChannelModeAtomFamily("s1"), "batch")
+        seed(store, "e", {})
+        const req = await buildAgentRequest("e", [], {
+            sessionId: "s1",
+            sharedResponse: true,
+            store,
+        })
+        expect(req!.headers.Accept).toBe("text/event-stream")
+        expect(req!.headers["x-ag-session-response"]).toBe("shared")
+        expect(req!.requestBody).toMatchObject({flags: {detached: true}})
+        store.set(agentChannelModeAtomFamily("s1"), "stream")
+    })
+
+    it("keeps the legacy invoke body unchanged when the shared sender is not ready", async () => {
+        seed(store, "e", {})
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        expect(req!.requestBody).not.toHaveProperty("flags")
+        expect(req!.headers).not.toHaveProperty("x-ag-session-response")
     })
 
     it("declares the Vercel message format via x-ag-messages-format", async () => {

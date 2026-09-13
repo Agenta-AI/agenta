@@ -16,16 +16,16 @@ export interface HarnessMeta {
 /**
  * Avatar identity (brand colour + monogram) per harness id. Labels come from the schema `oneOf`
  * title when present; these defaults only supply the avatar and a label fallback. Keyed by the real
- * enum values `pi_core` / `pi_agenta` / `claude`.
+ * enum values `pi_core` / `claude` / `codex`.
  */
 export const HARNESS_META: Record<string, HarnessMeta> = {
     pi_core: {label: "Pi", short: "Pi", color: "#6b5bd6"},
-    pi_agenta: {label: "Pi (Agenta)", short: "Ag", color: "#1c2c3d"},
     claude: {label: "Claude Code", short: "CC", color: "#d97757"},
     codex: {label: "Codex", short: "Cx", color: "#10a37f"},
 }
 
-/** Harnesses never offered in a picker. */
+/** Harnesses never offered in a picker. `pi_agenta` (a removed experiment) stays listed so a
+ * web build in front of an older API that still advertises it never shows it. */
 export const HIDDEN_HARNESSES = new Set(["pi_agenta"])
 
 /** Resolve display identity, deriving a sensible fallback for unknown harness ids. */

@@ -26,7 +26,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Structured tool editor. Nothing selected → tool basics (name / description / permission / additionalProperties). A workflow-reference tool routes to ReferenceToolFormView instead.",
+                    "Structured tool editor. Nothing selected → tool basics (name / description / permission / additionalProperties). A subagent routes to ReferenceToolFormView instead, which is a different surface entirely.",
             },
         },
     },
@@ -94,7 +94,7 @@ export const GatewayToolWithoutSchema: Story = {
     render: () => <Frame value={EMPTY_GATEWAY_TOOL} />,
 }
 
-/** `type:"reference"` routes to ReferenceToolFormView (read-only binding without the bridge). */
+/** `type:"reference"` is a SUBAGENT: it routes to ReferenceToolFormView, not to this form. */
 export const ReferenceTool: Story = {
     args: {value: REFERENCE_TOOL, onChange: noop},
     render: () => <Frame value={REFERENCE_TOOL} />,

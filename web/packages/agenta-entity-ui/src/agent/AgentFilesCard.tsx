@@ -140,8 +140,9 @@ export const AgentFilesCard = ({appId}: {appId: string}) => {
                             <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
                                 {detail}
                             </span>
+                            {/* Hidden below `sm`: it left the filename ~11 characters. */}
                             {file.mtime ? (
-                                <span className="w-14 shrink-0 text-right text-xs text-colorTextTertiary">
+                                <span className="hidden w-14 shrink-0 text-right text-xs text-colorTextTertiary sm:block">
                                     {timeAgo(file.mtime)}
                                 </span>
                             ) : null}

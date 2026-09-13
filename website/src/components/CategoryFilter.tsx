@@ -31,7 +31,8 @@ export default function CategoryFilter({
 
   const onKeyDown = (e: React.KeyboardEvent, i: number) => {
     let next = i;
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (i + 1) % categories.length;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown")
+      next = (i + 1) % categories.length;
     else if (e.key === "ArrowLeft" || e.key === "ArrowUp")
       next = (i - 1 + categories.length) % categories.length;
     else if (e.key === "Home") next = 0;
@@ -39,7 +40,9 @@ export default function CategoryFilter({
     else return;
     e.preventDefault();
     select(categories[next]);
-    (e.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
+    (
+      e.currentTarget.parentElement?.children[next] as HTMLElement | undefined
+    )?.focus();
   };
 
   const base: CSSProperties = {
@@ -60,15 +63,22 @@ export default function CategoryFilter({
     color: "var(--ink-900)",
     boxShadow: "var(--shadow-btn-primary)",
   };
+  // Inactive pill colors resolve through page-level vars (--cf-off-*, defined
+  // in blog/index.astro's style block): light = paper-50 / ink-600 / paper-200
+  // ring per the spec; dark = the previous hard-coded values.
   const off: CSSProperties = {
     ...base,
-    background: "rgba(255,255,255,0.04)",
-    color: "rgba(255,255,255,0.72)",
-    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)",
+    background: "var(--cf-off-bg)",
+    color: "var(--cf-off-text)",
+    boxShadow: "var(--cf-off-ring)",
   };
 
   return (
-    <div role="tablist" aria-label="Filter posts by category" style={{ display: "flex", gap: 8 }}>
+    <div
+      role="tablist"
+      aria-label="Filter posts by category"
+      style={{ display: "flex", gap: 8 }}
+    >
       {categories.map((cat, i) => (
         <button
           key={cat}

@@ -80,7 +80,7 @@ export interface MarkdownToolbarProps {
 }
 
 const BTN_BASE =
-    "flex h-7 w-7 items-center justify-center rounded border-0 bg-transparent transition-colors"
+    "flex h-7 w-7 shrink-0 items-center justify-center rounded border-0 bg-transparent transition-colors"
 const btnClass = (disabled: boolean, isActive: boolean) =>
     [
         BTN_BASE,
@@ -303,7 +303,9 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
     const blockLabel = BLOCK_TYPES.find((b) => b.key === blockType)?.label ?? "Normal text"
 
     return (
-        <div className="flex items-center gap-0.5">
+        // Below sm the row scrolls sideways instead of wrapping: a second row of buttons ate
+        // vertical space the editor needs in a phone drawer.
+        <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden">
             {/* Block type — paragraph / headings / quote / code block. */}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild disabled={disabled}>

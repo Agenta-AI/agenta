@@ -152,10 +152,10 @@ export async function teardown(
 ): Promise<{ parked: boolean }> {
   const { sandbox, log } = input;
   const disposition = teardownDisposition(input.reason ?? "failed-turn");
+  const sandboxLogId = sandbox?.sandboxId ?? input.plannedSandboxId;
   let parked = false;
 
   if (disposition === "stop" && input.isDaytona && sandbox?.pauseSandbox) {
-    const sandboxLogId = sandbox.sandboxId ?? input.plannedSandboxId;
     try {
       await sandbox.pauseSandbox();
       parked = true;
@@ -172,9 +172,23 @@ export async function teardown(
     // that failed may still have removed the sandbox, so reconnecting to it is a wasted round
     // trip either way. See `markSandboxDestroyed`.
     markSandboxDestroyed(sandbox?.sandboxId ?? input.plannedSandboxId ?? undefined);
-    await sandbox?.destroySandbox?.().catch(() => {});
+    // SWALLOWED, BUT NEVER SILENT. Teardown must always complete, so the rejection cannot
+    // propagate — but it is the only signal that a remote sandbox, and on Daytona the Secret
+    // mounted into it, may still exist. It used to vanish here, so a stranded pair left no trace
+    // at all. The Daytona provider arms its own retry on this same failure; this line is what
+    // tells an operator it happened. `conciseError` reads only the top-level message, which for
+    // a Secret cleanup failure is a fixed sentence, so no Secret id or value can reach the log.
+    await sandbox?.destroySandbox?.().catch((err) => {
+      log(
+        `sandbox delete failed sandbox=${sandboxLogId}: ${conciseError(err, input.harness)}`,
+      );
+    });
   }
-  await sandbox?.dispose?.().catch(() => {});
+  await sandbox?.dispose?.().catch((err) => {
+    log(
+      `sandbox dispose failed sandbox=${sandboxLogId}: ${conciseError(err, input.harness)}`,
+    );
+  });
 
   return { parked };
 }

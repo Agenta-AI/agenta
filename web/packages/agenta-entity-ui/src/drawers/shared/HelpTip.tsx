@@ -1,7 +1,8 @@
-/** The `?` marker: an explanation behind a hover/focus tooltip, next to whatever it explains. */
+/** The info marker: an explanation behind a hover/focus tooltip, next to whatever it explains. */
 import type {ReactNode} from "react"
 
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {Info} from "@phosphor-icons/react"
 
 export function HelpTip({
     label,
@@ -20,9 +21,9 @@ export function HelpTip({
                     <button
                         type="button"
                         aria-label={`About ${label}`}
-                        className="flex size-[14px] shrink-0 cursor-help items-center justify-center rounded-full border border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent text-[10px] font-normal leading-none text-colorTextDescription outline-none hover:border-[var(--ag-colorTextTertiary)] hover:text-colorTextSecondary focus-visible:border-[var(--ag-colorPrimary)] focus-visible:text-colorTextSecondary focus-visible:shadow-[0_0_0_2px_var(--ag-controlOutline)]"
+                        className="inline-flex shrink-0 cursor-help items-center justify-center rounded-sm border-0 bg-transparent p-0 leading-none text-colorTextDescription outline-none hover:text-colorTextSecondary focus-visible:text-colorTextSecondary focus-visible:shadow-[0_0_0_2px_var(--ag-controlOutline)]"
                     >
-                        ?
+                        <Info className="size-[13px]" aria-hidden="true" />
                     </button>
                 </TooltipTrigger>
                 <TooltipContent side={side} className="max-w-[320px]">

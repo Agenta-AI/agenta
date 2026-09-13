@@ -26,6 +26,7 @@ import type {ClientToolWidget} from "@agenta/shared/clientTools"
 
 import ConnectToolWidget from "./ConnectToolWidget"
 import ElicitationWidget from "./ElicitationWidget"
+import {SecretRequestWidget} from "./SecretRequestWidget"
 
 /** The built-in client-tool widgets, as a plain value.
  *
@@ -40,6 +41,7 @@ export const clientToolWidgets: {
 } = {
     // Keyed by `render.kind` (checked first — the finer dispatch axis).
     byRenderKind: {
+        secret: SecretRequestWidget,
         connect: ConnectToolWidget,
         elicitation: ElicitationWidget,
     },
@@ -48,6 +50,7 @@ export const clientToolWidgets: {
     // missing — an old persisted transcript, or any replay path that didn't carry the
     // sibling part.
     byToolName: {
+        request_secret: SecretRequestWidget,
         request_connection: ConnectToolWidget,
         request_input: ElicitationWidget,
     },

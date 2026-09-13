@@ -13,12 +13,20 @@ from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
+from starlette.responses import JSONResponse
 
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
 from oss.src.core.git.types import CommitLockTimeout, VariantNotFound
 from oss.src.core.workflows.change_set import ChangeSetError, Reason
-from oss.src.core.workflows.service import CommitOutcome, RevisionConflictError
-from oss.src.core.workflows.types import StaticWorkflowSlug
+from oss.src.core.workflows.service import (
+    CommitOutcome,
+    RevisionConflictError,
+)
+from oss.src.core.workflows.types import (
+    InvalidAgentHarnessError,
+    StaticWorkflowSlug,
+)
 
 
 VARIANT_ID = uuid4()
@@ -61,8 +69,10 @@ def _revision():
 def router():
     from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
 
+    workflows_service = AsyncMock()
+    workflows_service.fetch_workflow_revision.return_value = None
     return WorkflowsRouter(
-        workflows_service=AsyncMock(),
+        workflows_service=workflows_service,
         environments_service=AsyncMock(),
     )
 
@@ -134,6 +144,49 @@ class TestFailuresThatMustNotLookLikeSuccess:
         assert caught.value.status_code == 500
         assert caught.value.detail["code"] == "commit_failed"
         invalidate.assert_not_awaited()
+
+
+async def test_full_commit_cannot_implicitly_remove_credentials_without_secret_access(
+    router,
+):
+    from oss.src.core.workflows.dtos import WorkflowRevision
+
+    router.workflows_service.fetch_workflow_revision.return_value = (
+        WorkflowRevision.model_validate(
+            {
+                "id": str(uuid4()),
+                "workflow_variant_id": str(VARIANT_ID),
+                "version": "3",
+                "data": {
+                    "parameters": {
+                        "agent": {
+                            "sandbox": {
+                                "credentials": [
+                                    {
+                                        "secret": {"slug": "github"},
+                                        "binding": {
+                                            "type": "env",
+                                            "name": "GITHUB_TOKEN",
+                                        },
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+            }
+        )
+    )
+    access = AsyncMock(side_effect=[True, False])
+
+    with (
+        patch("oss.src.apis.fastapi.workflows.router.check_action_access", access),
+        pytest.raises(Exception) as caught,
+    ):
+        await _commit(router)
+
+    assert caught.value is FORBIDDEN_EXCEPTION
+    router.workflows_service.commit_workflow_revision_checked.assert_not_awaited()
 
 
 class TestVariantNotFound:
@@ -242,6 +295,58 @@ class TestDomainRefusals:
         assert caught.value.detail["details"]["current_revision_id"] == current
         assert caught.value.detail["retryable"] is False
         assert caught.value.detail["next_step"]
+
+    async def test_an_unreadable_harness_answers_422_and_names_the_field(
+        self, router, allow_access
+    ):
+        # F4: this used to answer 200 and persist a config that could never run. The failure
+        # then surfaced on invoke as an unhandled 500 whose body was a Python repr, far from
+        # the request that caused it.
+        router.workflows_service.commit_workflow_revision_checked.side_effect = (
+            InvalidAgentHarnessError(
+                value="not_a_real_harness",
+                message="invalid harness.kind (str) 'not_a_real_harness'",
+            )
+        )
+
+        with pytest.raises(HTTPException) as caught:
+            await _commit(router)
+
+        assert caught.value.status_code == 422
+        assert caught.value.detail["code"] == "invalid_harness_kind"
+        # Not retryable: the same bytes carry the same unreadable value forever. The way
+        # forward is the next_step, and the values that exist travel in `details`.
+        assert caught.value.detail["retryable"] is False
+        assert caught.value.detail["next_step"]
+        assert (
+            caught.value.detail["details"]["field"] == "parameters.agent.harness.kind"
+        )
+        assert "pi_core" in caught.value.detail["details"]["allowed"]
+
+    @pytest.mark.parametrize(
+        "kind,echoed",
+        [(float("nan"), "nan"), (float("inf"), "inf")],
+    )
+    async def test_a_non_finite_kind_still_answers_422_and_not_a_500(
+        self, router, allow_access, kind, echoed
+    ):
+        # Python's json parser accepts the non-standard `NaN` and `Infinity` literals in a
+        # request body, and Starlette serializes with `allow_nan=False`. Echoing the float
+        # verbatim raised inside the response and turned this refusal back into a 500.
+        router.workflows_service.commit_workflow_revision_checked.side_effect = (
+            InvalidAgentHarnessError(
+                value=kind,
+                message=f"invalid harness.kind (float) {kind!r}",
+            )
+        )
+
+        with pytest.raises(HTTPException) as caught:
+            await _commit(router)
+
+        assert caught.value.status_code == 422
+        assert caught.value.detail["details"]["value"] == echoed
+        # What the client actually receives has to serialize.
+        JSONResponse(caught.value.detail)
 
     async def test_a_change_set_refusal_answers_422(self, router, allow_access):
         router.workflows_service.commit_workflow_revision_checked.side_effect = (

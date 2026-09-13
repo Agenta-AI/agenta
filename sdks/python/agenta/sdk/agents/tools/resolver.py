@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Mapping, Optional, Sequence
+from typing import Dict, List, Mapping, Optional, Sequence
 
 from agenta.sdk.agents.pi_builtins import PI_BUILTIN_TOOL_NAMES
 from agenta.sdk.utils.logging import get_module_logger
@@ -92,11 +92,15 @@ def _build_client_tool_spec(*, tool_config: ClientToolConfig) -> ClientToolSpec:
     )
 
 
-def _check_tool_name(name: str, seen: set[str]) -> None:
+def _reject_reserved_tool_name(name: str) -> None:
     # The harness registers custom tools by name beside its built-ins, so a same-named custom
     # tool would silently replace the built-in the platform activates on every run.
     if name.strip().lower() in PI_BUILTIN_TOOL_NAMES:
         raise ReservedToolNameError(name)
+
+
+def _check_tool_name(name: str, seen: set[str]) -> None:
+    _reject_reserved_tool_name(name)
     if name in seen:
         raise DuplicateToolNameError(name)
     seen.add(name)
@@ -130,8 +134,56 @@ def _validate_declared_config_names(tool_configs: Sequence[ToolConfig]) -> None:
     seen: set[str] = set()
     for tool_config in tool_configs:
         name = _declared_config_name(tool_config)
-        if name is not None:
-            _check_tool_name(name, seen)
+        if name is None:
+            continue
+        if isinstance(tool_config, ReferenceToolConfig):
+            # A reference tool's model-visible name is DERIVED: its workflow slug, sanitized to
+            # the provider's tool-name pattern. Two slugs can therefore arrive here sharing one
+            # name, and the workflow adapter gives them distinct names before they reach the wire
+            # while `_validate_unique_names` still checks the result. Rejecting here would refuse
+            # a pair the adapter handles. The reserved-name check still applies — that one is
+            # about shadowing a built-in.
+            _reject_reserved_tool_name(name)
+            continue
+        _check_tool_name(name, seen)
+
+
+# The playground build kit embeds these client tools for every agent. A revision saved before
+# a tool joined the kit may carry its own copy, embedded by hand, and the playground overlay
+# merges tools by embed slug or by name, so an inline copy or an id-based embed survives next to
+# the kit's entry. Two identical copies are one tool, not a name clash.
+RESERVED_CLIENT_TOOL_NAMES = frozenset(
+    {"request_connection", "request_input", "request_secret"}
+)
+
+
+def _drop_duplicate_reserved_client_tools(
+    tool_configs: Sequence[ToolConfig],
+) -> List[ToolConfig]:
+    """Keep the first of two identical reserved client tools; leave everything else alone.
+
+    Only an exact duplicate is dropped: same reserved name, same description, same input
+    schema. Two DIFFERENT tools that share a reserved name still reach the duplicate check and
+    are refused, because that is a real conflict the author must resolve.
+    """
+    kept: List[ToolConfig] = []
+    seen: Dict[str, ClientToolConfig] = {}
+    for tool_config in tool_configs:
+        if (
+            isinstance(tool_config, ClientToolConfig)
+            and tool_config.name in RESERVED_CLIENT_TOOL_NAMES
+        ):
+            earlier = seen.get(tool_config.name)
+            if earlier is not None and earlier.model_dump() == tool_config.model_dump():
+                log.warning(
+                    "tool %r: a second identical copy of this platform tool was dropped "
+                    "(the build kit already provides it)",
+                    tool_config.name,
+                )
+                continue
+            seen.setdefault(tool_config.name, tool_config)
+        kept.append(tool_config)
+    return kept
 
 
 def _validate_unique_names(tool_specs: Sequence[ToolSpec]) -> None:
@@ -184,6 +236,7 @@ class ToolResolver:
         # this one only keeps a resolver usable without an agent template.
         permission_default: PermissionMode = "allow_reads",
     ) -> ResolvedToolSet:
+        tool_configs = _drop_duplicate_reserved_client_tools(tool_configs)
         _validate_declared_config_names(tool_configs)
         for tool_config in tool_configs:
             if isinstance(tool_config, BuiltinToolConfig):

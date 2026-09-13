@@ -5,4 +5,5 @@ import type * as AgentaApi from "../index.js";
 export interface DiscoveryResult {
     status: AgentaApi.DiscoveryStatus;
     models?: string[] | undefined;
+    model_names?: Record<string, string> | undefined;
 }

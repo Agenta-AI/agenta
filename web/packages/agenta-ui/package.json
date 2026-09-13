@@ -38,12 +38,15 @@
         "./drill-in": "./src/drill-in/index.ts",
         "./editor": "./src/Editor/index.ts",
         "./editor-theme.css": "./src/styles/editor-theme.css",
+        "./filter-menu": "./src/filter-menu/index.ts",
         "./height-collapse": "./src/components/HeightCollapse.tsx",
         "./hooks": "./src/hooks/index.ts",
+        "./list-table": "./src/list-table/index.ts",
         "./llm-icons": "./src/LLMIcons/index.ts",
         "./rich-chat-input": "./src/RichChatInput/index.ts",
         "./select-llm-provider": "./src/SelectLLMProvider/index.ts",
         "./shared-editor": "./src/SharedEditor/index.ts",
+        "./shortcuts": "./src/shortcuts/index.ts",
         "./styles": "./src/utils/styles.ts",
         "./surfaces.css": "./src/styles/surfaces.css",
         "./table": "./src/InfiniteVirtualTable/index.ts",
@@ -53,7 +56,8 @@
         "./type-chip": "./src/type-chip/index.ts",
         "./ui": "./src/components/ui/index.ts",
         "./utils": "./src/utils/index.ts",
-        "./agent-icon": "./src/agent-icon/index.ts"
+        "./agent-icon": "./src/agent-icon/index.ts",
+        "./page-title": "./src/page-title/index.tsx"
     },
     "peerDependencies": {
         "@lexical/code": ">=0.38.0",
@@ -83,6 +87,7 @@
         "@agenta/shared": "workspace:../agenta-shared",
         "@ant-design/icons": "^6.1.0",
         "@cloudflare/stream-react": "^1.9.3",
+        "@floating-ui/react": "^0.27.13",
         "@lexical/code": "^0.46.0",
         "@lexical/code-shiki": "^0.46.0",
         "@lexical/hashtag": "^0.46.0",
@@ -129,7 +134,7 @@
         "jotai-immer": "^0.4.3",
         "jotai-scheduler": "^0.0.5",
         "jotai-tanstack-query": "^0.11.0",
-        "js-yaml": "^4.3.0",
+        "js-yaml": "^4.3.1",
         "json5": "^2.2.3",
         "jsonrepair": "^3.13.3",
         "lexical": "^0.46.0",
@@ -143,7 +148,6 @@
         "uuid": "^11.1.1"
     },
     "devDependencies": {
-        "@floating-ui/react": "^0.27.13",
         "@phosphor-icons/core": "2.1.1",
         "@testing-library/dom": "^10.4.0",
         "@testing-library/react": "^16.3.2",

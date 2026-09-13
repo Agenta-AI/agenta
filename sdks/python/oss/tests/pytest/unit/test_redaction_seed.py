@@ -81,6 +81,18 @@ class TestCuratedEnvSecretValuesDefaults:
                 f"{name} must not be seeded with the default (empty) prefix list"
             )
 
+    def test_google_application_credentials_path_is_not_seeded(self, monkeypatch):
+        path = "/run/secrets/service-account"
+        monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", path)
+        values = curated_env_secret_values()
+        assert path not in values
+
+    def test_google_application_credentials_material_is_still_seeded(self, monkeypatch):
+        material = '{"private_key":"fake-private-key-DO-NOT-USE"}'
+        monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", material)
+        values = curated_env_secret_values()
+        assert material in values
+
     def test_aws_bearer_token_bedrock_is_seeded_via_default_blocklist(
         self, monkeypatch
     ):

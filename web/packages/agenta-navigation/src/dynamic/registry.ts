@@ -1,12 +1,9 @@
 import {createElement} from "react"
 
-import {
-    agentWorkflowsListQueryStateAtom,
-    promptWorkflowsListQueryStateAtom,
-} from "@agenta/entities/workflow"
+import {promptWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {playgroundSessionPath} from "@agenta/sessions/link"
 import {addPendingSessionOpenAtom} from "@agenta/sessions/state"
 import {ChatsCircleIcon, CircleIcon, CircleNotchIcon, LightningIcon} from "@phosphor-icons/react"
-import {RobotIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
@@ -14,10 +11,8 @@ import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 import {withEntityGroups, withRefsByRecency} from "./groups"
 import {sidebarSessionToggledGroupsAtomFamily} from "./sessionFilters"
 import {
-    sidebarAgentRanksAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
-    sidebarSessionScopeLimit,
     sidebarSessionsListAtomFamily,
     type SessionSidebarRef,
 } from "./sessionsSource"
@@ -31,9 +26,13 @@ import type {
 
 const DEFAULT_SIDEBAR_ENTITY_LIMIT = 5
 
-// Sidebar item keys that own a dynamic entity list. The static row in
-// `useSidebarConfig` and the registry entry below must share the same key —
-// keep the constant the single source of truth.
+/** An entity that renders every ref it holds, however many that is — the list is bounded by what
+ * has been fetched, not by a render cap. */
+export const SIDEBAR_UNBOUNDED = Number.POSITIVE_INFINITY
+
+// Sidebar item keys shared by the static row in `useSidebarConfig` and any registry entry
+// below — keep the constant the single source of truth. Only Prompts and Sessions own a
+// dynamic list today; the rest are plain rows whose keys are still addressed by name.
 export const PROMPTS_SIDEBAR_KEY = "project-prompts-link"
 export const AGENTS_SIDEBAR_KEY = "project-agents-link"
 export const TESTSETS_SIDEBAR_KEY = "app-testsets-link"
@@ -56,14 +55,16 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     activeSourceAtom: gatedSidebarSource(scopeId, parentKey, config.listAtom),
     getLabel: (ref) => config.getLabel(ref as TRef),
     childLink: (ref, projectURL) => `${projectURL}${config.childPath(ref as TRef)}`,
-    emptyLabel: config.emptyLabel,
-    maxItems: config.maxItems ?? DEFAULT_SIDEBAR_ENTITY_LIMIT,
-    showAllLink: config.showAllPath
-        ? (projectURL) => `${projectURL}${config.showAllPath}`
-        : undefined,
     childMatchLinks: config.childMatchPaths
         ? (ref, projectURL) =>
               config.childMatchPaths!(ref as TRef).map((path) => `${projectURL}${path}`)
+        : undefined,
+    emptyLabel: config.emptyLabel,
+    hideWhenEmpty: config.hideWhenEmpty,
+    maxItems: config.maxItems ?? DEFAULT_SIDEBAR_ENTITY_LIMIT,
+    dragZone: config.dragZone,
+    showAllLink: config.showAllPath
+        ? (projectURL) => `${projectURL}${config.showAllPath}`
         : undefined,
     getIcon: config.getIcon ? (ref) => config.getIcon!(ref as TRef) : undefined,
     getTooltip: config.getTooltip ? (ref) => config.getTooltip!(ref as TRef) : undefined,
@@ -97,12 +98,15 @@ const ENTITIES: SidebarEntity[] = [
         icon: createElement(ChatsCircleIcon, {size: 14}),
         listAtom: sidebarSessionsListAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         getLabel: (session) => session.name || "Untitled session",
-        // The link navigates to the owning agent; the click hands over WHICH session, since the
-        // playground has no way to read that from the route.
-        childPath: (session) => `/apps/${session.appId}/playground`,
+        // The session's own deep link, so copy/open-in-new-tab lands here (#5974).
+        childPath: (session) =>
+            session.appId
+                ? playgroundSessionPath("/apps", session.appId, session.sessionId)
+                : "/sessions",
+        // Highlight on the agent's playground whatever session the URL carries.
+        childMatchPaths: (session) => (session.appId ? [`/apps/${session.appId}/playground`] : []),
         getOnClick: (session) => () => {
-            // A row with no resolved agent yet cannot open anything; the sidebar still shows it so
-            // a first-turn session keeps its place (#5974).
+            // No resolved agent yet: nothing to open, but the row keeps its place (#5974).
             if (!session.appId) return
             getDefaultStore().set(addPendingSessionOpenAtom, {
                 appId: session.appId,
@@ -144,6 +148,9 @@ const ENTITIES: SidebarEntity[] = [
             return agent ? `${name} — ${agent}` : undefined
         },
         emptyLabel: "No sessions",
+        // The Sessions row has no caret to protect, and "No sessions yet" under a heading that
+        // already says Sessions is the same sentence twice.
+        hideWhenEmpty: true,
         // Grouped by owning agent, with the same headings, filters and row menu the mobile rail
         // uses — one model, two hosts.
         getGroupKey: sidebarSessionGroupKey,
@@ -151,22 +158,8 @@ const ENTITIES: SidebarEntity[] = [
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         // An archived row is second-class, not hidden: same row, dimmed.
         getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
-        // A heading over one row says nothing, so a grouped list needs the window the source
-        // fetches rather than the flat list's seven.
-        maxItems: sidebarSessionScopeLimit(MAIN_SIDEBAR_SCOPE_ID),
-        showAllPath: "/sessions",
-    }),
-    defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
-        kind: "app",
-        icon: createElement(RobotIcon, {size: 14}),
-        listAtom: agentWorkflowsListQueryStateAtom,
-        getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
-        childPath: (workflow) => `/apps/${workflow.id}/playground`,
-        // Busiest agent first, by session count — stable session to session, unlike recency,
-        // which reshuffled on every turn. Frozen per page load. Same rule the mobile rail applies.
-        ranksAtom: sidebarAgentRanksAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
-        emptyLabel: "No agents",
-        showAllPath: "/agents",
+        // Every loaded page renders; the scroll container pages in more as you reach its end.
+        maxItems: SIDEBAR_UNBOUNDED,
     }),
 ]
 

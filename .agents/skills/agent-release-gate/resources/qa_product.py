@@ -21,6 +21,7 @@ as JSON + a markdown table.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures as cf
 import json
 import os
 import pathlib
@@ -31,7 +32,7 @@ import uuid
 
 import httpx
 
-from path_triggers import changed_paths, mandatory_cells
+from path_triggers import changed_paths, mandatory_cells, mandatory_journeys
 
 HERE = pathlib.Path(__file__).resolve().parent
 # Results land in the CURRENT working directory, never inside the skill, so repeated runs do not
@@ -103,6 +104,32 @@ def resolve_credentials(env_file: str | pathlib.Path | None = None) -> None:
 # it must be a public HTTPS URL. See STATUS.md "MCP smoke test".
 DEFAULT_MCP_URL = "https://mcp.deepwiki.com/mcp"
 MCP_URL = DEFAULT_MCP_URL
+
+# The hosted-subscription cells (H1, H2). The slug names the connection in the project's vault.
+# The rest are OPERATOR ACCESS, in the same spirit as --cold2-replace-cmd: the gate must be able
+# to force a refresh and to break one sandbox's copy of a login, and neither is reachable through
+# the product's own API by design. Every journey that needs one SKIPs, naming it, when it is
+# absent.
+#
+# The stored login is expired one of two ways. Give the driver the stack (--db-container plus
+# --stack-env, which names the file holding AGENTA_CRYPT_KEY) and it runs the pgcrypto update
+# itself; give it --subscription-expire-cmd instead and it runs that hook, for a deployment whose
+# database the driver cannot reach.
+SUBSCRIPTION_SLUG = "chatgpt"
+RUNNER_CONTAINER = ""
+SUBSCRIPTION_EXPIRE_CMD = ""
+SUBSCRIPTION_DB_CONTAINER = ""
+SUBSCRIPTION_DB_NAME = "agenta_ee_core"
+SUBSCRIPTION_DB_USER = "username"
+SUBSCRIPTION_STACK_ENV = ""
+SUBSCRIPTION_REDIS_CONTAINER = ""
+# The API caches its vault read for 5 minutes, so a turn sent right after the expiry is served
+# the copy from BEFORE it: the harness sees a valid token, nothing refreshes, and the journey
+# measures the cache instead of the product. The built-in expire clears that cache when
+# --redis-container is set, and the wait below then only covers the runner's own poll. Without a
+# cache clear, raise the wait past the deployment's cache TTL or the journey reports a FAIL that
+# is really the cache.
+SUBSCRIPTION_CACHE_WAIT = 60.0
 
 
 def api_call(
@@ -237,6 +264,46 @@ CELLS = {
         "model": "gpt-5.6-luna",
         "provider": "openai",
         "connection": {"mode": "self_managed", "slug": None},
+    },
+    # H1/H2: the HOSTED subscription connection — the user's own ChatGPT subscription, signed in
+    # ONCE through the product and stored in the project's vault, then delivered to whichever
+    # sandbox runs the turn. `self_managed` + a SLUG is what separates it from S1/S2: those two
+    # read a login the OPERATOR mounted into the runner container, so they only ever prove the
+    # self-hosted case and can never see the store, the delivery, the refresh push-back, or the
+    # per-project isolation. Nothing in the fixed matrix covers a credential that the PRODUCT
+    # owns and rewrites while a turn is running.
+    #
+    # Both cells need a connected subscription in the target project (login_state `ready`); the
+    # driver resolves it once and SKIPs the whole cell, with the reason, when it is absent.
+    # Set the slug with --subscription-slug (default `chatgpt`).
+    "H1": {
+        "harness": "pi_core",
+        "sandbox": "local",
+        # The connection advertises seven models, but a ChatGPT subscription does NOT accept all
+        # of them through this path: `gpt-5.4-mini` is refused with "not supported when using
+        # Codex with a ChatGPT account". Pin the codex model the subscription really serves; a
+        # cheaper-looking id from the same list is not interchangeable.
+        "model": "gpt-5.3-codex-spark",
+        # `openai-codex`, not `openai`: the subscription provider slug Pi authenticates against.
+        # The vault-key `openai` provider is a different code path (cell C3).
+        "provider": "openai-codex",
+        "connection": {
+            "mode": "self_managed",
+            "slug": None,
+        },  # slug from --subscription-slug
+        "subscription": True,
+    },
+    # H2: the same connection on a REMOTE sandbox. The delivery is a different mechanism there —
+    # the login is written to the sandbox VM's own disk and the refreshed copy is read back by a
+    # poll rather than a file watch — so a local pass says nothing about it. This is also the
+    # only hosted cell where the sandbox, not the runner, holds the credential.
+    "H2": {
+        "harness": "pi_core",
+        "sandbox": "daytona",
+        "model": "gpt-5.3-codex-spark",
+        "provider": "openai-codex",
+        "connection": {"mode": "self_managed", "slug": None},
+        "subscription": True,
     },
     # P2 (OpenRouter as a CUSTOM OpenAI-compatible provider) needs a `custom_provider` secret in
     # the vault; `connection.slug` points at it. Set --custom-slug to run it.
@@ -429,6 +496,12 @@ class Turn:
         self._segments: list[dict] = []
         self.finish_reason: str | None = None
         self.errors: list[str] = []
+        # Machine-readable failure codes, from BOTH places the product can report one: the
+        # `data-agent-error` SSE frame (a failure the runner found mid-turn) and the
+        # `status.failure_code` of a >=400 JSON body (a failure the API found before the turn
+        # started). A journey that asserts on a specific failure must read the code, never the
+        # prose: the message is written for a human and is free to change.
+        self.failure_codes: list[str] = []
         self.committed_revision: dict | None = None
         self.http_status: int = 0
         self.ms: int = 0
@@ -493,6 +566,7 @@ class Turn:
             "tools": [t.get("toolName") for t in self.tool_calls],
             "approval": bool(self.approval),
             "errors": self.errors,
+            "failure_codes": self.failure_codes,
             "reply": self.reply[:400],
         }
 
@@ -522,7 +596,14 @@ def invoke(
         ) as r:
             t.http_status = r.status_code
             if r.status_code >= 400:
-                t.errors.append(f"HTTP {r.status_code}: {r.read().decode()[:500]}")
+                body = r.read().decode()
+                t.errors.append(f"HTTP {r.status_code}: {body[:500]}")
+                try:
+                    code = (json.loads(body).get("status") or {}).get("failure_code")
+                except (json.JSONDecodeError, AttributeError):
+                    code = None
+                if code:
+                    t.failure_codes.append(code)
                 t.ms = int((time.time() - start) * 1000)
                 return t
             for line in r.iter_lines():
@@ -589,6 +670,15 @@ def invoke(
                             t.tool_payloads[tcid] = {"errorText": f.get("errorText")}
                 elif ftype == "data-committed-revision":
                     t.committed_revision = f.get("data")
+                elif ftype == "data-agent-error":
+                    # The runner found the failure DURING the turn, so it arrives as a data
+                    # frame rather than an HTTP status. The chat surface renders this frame as
+                    # the error card, which is why a journey asserting on a failure the user
+                    # sees must read it here.
+                    code = (f.get("data") or {}).get("code")
+                    if code:
+                        t.failure_codes.append(code)
+                    t.errors.append(json.dumps(f)[:300])
                 elif ftype == "error":
                     t.errors.append(json.dumps(f)[:300])
                 elif ftype == "finish":
@@ -1069,10 +1159,15 @@ def _continuity(cell: dict, tier: str) -> dict:
                 "why": (
                     "cold 2 needs the runner replica REPLACED, which no HTTP client can do. Pass "
                     "--cold2-replace-cmd (or set AGENTA_QA_RUNNER_REPLACE_CMD) to a command that "
-                    "SIGKILLs the runner replica — e.g. `docker kill -s KILL <runner>`. It must "
-                    "be SIGKILL: on SIGTERM the runner runs its shutdown handler and destroys "
-                    "every sandbox it owns, including the session this cell wants to resume "
-                    "(warm-approvals-qa.md)."
+                    "SIGKILLs the runner replica AND starts the replacement — e.g. "
+                    "`docker kill -s KILL <runner> && docker start <runner>` followed by a wait "
+                    "for health. It must be SIGKILL: on SIGTERM the runner runs its shutdown "
+                    "handler and destroys every sandbox it owns, including the session this cell "
+                    "wants to resume (warm-approvals-qa.md). And it must start the container "
+                    "explicitly: Docker treats an operator-issued kill as a manual stop and skips "
+                    "the `always` restart policy, so a bare `docker kill` leaves the runner down "
+                    "for every later cell (measured 2026-09-10: seven minutes down before a human "
+                    "noticed; with the explicit start, back in about forty seconds)."
                 ),
             }
         try:
@@ -2024,6 +2119,20 @@ def j_secret_opaque(cell: dict) -> dict:
                 "C4, P3 or X2."
             ),
         }
+    if cell.get("subscription"):
+        # A hosted-subscription cell has no vault provider key at all: the harness authenticates
+        # from a login file the runner writes into the sandbox, so this journey's variable is
+        # unset by design and an EMPTY verdict would read as a leak that never existed. The
+        # equivalent property for a hosted login — that the DELIVERED login reaches the sandbox
+        # as a Daytona Secret rather than in the clear — needs its own journey and has none yet.
+        return {
+            "skip": True,
+            "why": (
+                "hosted-subscription cells carry no vault provider key; the login is delivered "
+                "as a file, so this journey's variable is unset by design. The delivered-login "
+                "equivalent is not covered yet."
+            ),
+        }
 
     var = _provider_key_var(cell)
     nonce = uuid.uuid4().hex[:10].upper()
@@ -2161,6 +2270,457 @@ def j_builtin_grep(cell: dict) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Hosted subscription journeys (cells H1, H2)
+#
+# What these cover that nothing else does: a credential the PRODUCT owns. S1 and S2 read a login
+# an operator mounted into the runner by hand, so they prove the file assembly and nothing about
+# the store, the delivery to a sandbox, the refresh the provider hands back mid-turn, or what a
+# user sees when the login finally dies. Those four are the whole feature, and each one has a
+# journey below.
+# ---------------------------------------------------------------------------
+
+# Find the login the runner materialized for one connection. Roots mirror the runner's own state
+# directory resolution; the script prints an empty line when nothing is there yet.
+_FIND_LOGIN_JS = r"""
+const fs=require('fs'),path=require('path'),os=require('os');
+const id=process.argv[1];
+const roots=[process.env.AGENTA_RUNNER_STATE_DIR, path.join(os.tmpdir(),'agenta','runner-state')].filter(Boolean);
+for (const r of roots){const p=path.join(r,'subscriptions',id,'auth.json'); if (fs.existsSync(p)) {console.log(p); process.exit(0);} }
+console.log('');
+"""
+
+# Break one sandbox's copy of a login, two ways.
+#   expire  the copy is genuine but past its expiry, which is what makes the harness refresh.
+#   dead    both tokens are garbage and the expiry is far in the future, so the materialize rule
+#           keeps this copy, the first model request fails, and the refresh is refused. The meta
+#           version decides what that means: the CURRENT version is a login that is really dead
+#           (nothing newer to fall back to), an OLDER version is a session holding a stale
+#           lineage, which the runner must replace from the store and retry.
+_BREAK_LOGIN_JS = r"""
+const fs=require('fs');
+const [file, mode, metaVersion, metaGeneration]=process.argv.slice(1);
+const doc=JSON.parse(fs.readFileSync(file,'utf8'));
+const cred=doc['openai-codex'];
+if (mode==='expire') cred.expires=Date.now()-60000;
+if (mode==='dead') {
+  cred.access='dead-'+Math.random().toString(36).slice(2);
+  cred.refresh='dead-'+Math.random().toString(36).slice(2);
+  cred.expires=Date.now()+20*24*3600*1000;
+}
+fs.writeFileSync(file, JSON.stringify(doc,null,2)); fs.chmodSync(file,0o600);
+const meta=file.replace(/auth\.json$/,'meta.json');
+if (metaVersion!==undefined && fs.existsSync(meta)) {
+  const m=JSON.parse(fs.readFileSync(meta,'utf8'));
+  m.version=Number(metaVersion); m.generation=Number(metaGeneration);
+  fs.writeFileSync(meta, JSON.stringify(m));
+}
+console.log(JSON.stringify({mode, meta: fs.existsSync(meta)? JSON.parse(fs.readFileSync(meta,'utf8')) : null}));
+"""
+
+
+def _hosted_only(cell: dict, what: str) -> dict | None:
+    """SKIP on any cell that is not a hosted-subscription cell."""
+    if cell.get("subscription"):
+        return None
+    return {
+        "pass": True,
+        "skip": True,
+        "why": f"{what} applies only to the hosted-subscription cells (H1, H2)",
+    }
+
+
+def hosted_connection() -> tuple[dict | None, str]:
+    """The project's hosted subscription connection, read off the product's own secrets route.
+
+    Returns the redacted connection row and a reason string. The row is the ONLY place the login
+    state, version and generation are observable to a client: the login itself never leaves the
+    API, which is the property the read path is supposed to have.
+    """
+    r = api_call("GET", "/secrets/")
+    if r.status_code != 200:
+        return None, f"GET /secrets/ -> {r.status_code}"
+    for s in r.json():
+        data = s.get("data") or {}
+        kind = s.get("kind") or data.get("kind")
+        if kind == "subscription_provider" and s.get("slug") == SUBSCRIPTION_SLUG:
+            return {
+                "id": s["id"],
+                "login_state": data.get("login_state"),
+                "version": data.get("login_version"),
+                "generation": data.get("login_generation"),
+                "error": data.get("login_error"),
+            }, "found"
+    return (
+        None,
+        f"no `subscription_provider` connection with slug {SUBSCRIPTION_SLUG!r}",
+    )
+
+
+def _docker(container: str, argv: list, timeout: float = 60.0) -> tuple[int, str, str]:
+    p = subprocess.run(
+        ["docker", "exec", container, *argv],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    return p.returncode, p.stdout.strip(), p.stderr.strip()
+
+
+# Expire the STORED login of one connection, in place. The `login` blob lives inside an encrypted
+# column, so the update decrypts, moves `login.expires` into the past, and encrypts again with the
+# stack's own AGENTA_CRYPT_KEY. It returns the version and the new expiry, and nothing else: no
+# token and no key ever reaches this driver's output. Test use only.
+#
+# The key is read from the container's environment through psql's own backquote substitution, so
+# it never appears in a command line on the host, where any user could read it from `ps`.
+_EXPIRE_SQL = """\\set k `printf %s "$K"`
+\\set sid `printf %s "$SID"`
+update secrets
+   set data = pgp_sym_encrypt(
+                jsonb_set(
+                  pgp_sym_decrypt(data, :'k')::jsonb,
+                  '{{login,expires}}',
+                  to_jsonb({past}::bigint)
+                )::text,
+                :'k')::bytea
+ where id = :'sid'
+returning (pgp_sym_decrypt(data, :'k')::jsonb->>'login_version') as login_version,
+          (pgp_sym_decrypt(data, :'k')::jsonb->'login'->>'expires') as expires;
+"""
+
+
+def _crypt_key(path: str) -> tuple[str, str]:
+    """AGENTA_CRYPT_KEY out of a stack env file, or "" and a reason. Never logged."""
+    p = pathlib.Path(path).expanduser()
+    if not p.exists():
+        return "", f"--stack-env {path} does not exist"
+    for line in p.read_text().splitlines():
+        if line.startswith("AGENTA_CRYPT_KEY="):
+            key = line.split("=", 1)[1].strip()
+            if key:
+                return key, "found"
+    return "", f"--stack-env {path} holds no AGENTA_CRYPT_KEY"
+
+
+def _clear_vault_cache() -> dict:
+    """Drop the API's cached vault read for this project, so the next turn reads the database.
+
+    The API caches `list_secrets` per project for 5 minutes and invalidates it only when a secret
+    is written THROUGH the API. An expiry written straight into the column is invisible to that
+    rule, so without this the next turn is served the copy from before the expiry.
+    """
+    if not SUBSCRIPTION_REDIS_CONTAINER:
+        return {
+            "cleared": False,
+            "why": "no --redis-container; waiting out the cache TTL instead",
+        }
+    suffix = PROJECT[-12:]
+    rc, out, err = _docker(
+        SUBSCRIPTION_REDIS_CONTAINER,
+        ["redis-cli", "--scan", "--pattern", f"cache:p:{suffix}:*list_secrets*"],
+    )
+    if rc != 0:
+        return {"cleared": False, "why": f"redis scan failed: {err[:200]}"}
+    keys = [k for k in out.splitlines() if k.strip()]
+    for key in keys:
+        _docker(SUBSCRIPTION_REDIS_CONTAINER, ["redis-cli", "del", key])
+    return {"cleared": True, "keys": len(keys)}
+
+
+def _expire_stored_login(secret_id: str) -> tuple[bool, str, dict]:
+    """Force the stored login past its expiry. Returns ok, a reason, and what each step did.
+
+    Two routes, and the caller SKIPs when neither is configured. `--subscription-expire-cmd` wins
+    when both are given, because an operator who wrote a hook for this deployment knows something
+    the built-in update does not.
+    """
+    steps: dict = {}
+    if SUBSCRIPTION_EXPIRE_CMD:
+        cmd = SUBSCRIPTION_EXPIRE_CMD.replace("{secret_id}", secret_id)
+        p = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=180)
+        steps["expire_hook"] = {
+            "rc": p.returncode,
+            "out": (p.stdout + p.stderr)[-300:],
+        }
+        return p.returncode == 0, "the expire hook ran", steps
+    key, why = _crypt_key(SUBSCRIPTION_STACK_ENV)
+    if not key:
+        return False, why, steps
+    sql = _EXPIRE_SQL.format(past=int(time.time() - 3600) * 1000)
+    p = subprocess.run(
+        [
+            "docker",
+            "exec",
+            "-i",
+            "-e",
+            "K",
+            "-e",
+            "SID",
+            SUBSCRIPTION_DB_CONTAINER,
+            "psql",
+            "-U",
+            SUBSCRIPTION_DB_USER,
+            "-d",
+            SUBSCRIPTION_DB_NAME,
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-tA",
+            "-f",
+            "-",
+        ],
+        input=sql,
+        env={**os.environ, "K": key, "SID": secret_id},
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    steps["expire_stored"] = {"rc": p.returncode, "row": p.stdout.strip()[-120:]}
+    if p.returncode != 0:
+        return (
+            False,
+            f"the stored-login update failed: {p.stderr.strip()[-200:]}",
+            steps,
+        )
+    if not p.stdout.strip():
+        return (
+            False,
+            f"no secret row with id {secret_id} in {SUBSCRIPTION_DB_NAME}",
+            steps,
+        )
+    steps["cache"] = _clear_vault_cache()
+    return True, "the stored login is now past its expiry", steps
+
+
+def _local_login_path(secret_id: str) -> tuple[str, str]:
+    """Where the runner keeps its own copy of one connection's login, or "" and a reason."""
+    if not RUNNER_CONTAINER:
+        return "", "needs --runner (the runner replica to reach in)"
+    rc, out, err = _docker(RUNNER_CONTAINER, ["node", "-e", _FIND_LOGIN_JS, secret_id])
+    if rc != 0:
+        return "", f"docker exec failed: {err[:200]}"
+    if not out:
+        return "", "the runner has not materialized this login yet — run `chat` first"
+    return out, "found"
+
+
+def _break_local_login(
+    path: str, mode: str, version=None, generation=None
+) -> tuple[bool, str]:
+    argv = ["node", "-e", _BREAK_LOGIN_JS, path, mode]
+    if version is not None:
+        argv += [str(version), str(generation)]
+    rc, out, err = _docker(RUNNER_CONTAINER, argv)
+    return rc == 0, out or err[:200]
+
+
+def _hosted_turn_pair(cell: dict, label: str) -> dict:
+    """One session, two turns, with the first reply replayed byte-faithfully as history.
+
+    Two turns rather than one on purpose: the second turn is the one that runs against a session
+    the runner may have refreshed the credential under, and a text-only replay would evict the
+    warm session and hide that (LESSONS #1).
+    """
+    s = str(uuid.uuid4())
+    m1 = [user_msg(f"Reply with exactly: PONG {label}")]
+    t1 = invoke(s, m1, template(cell))
+    if t1.finish_reason != "stop" or t1.errors:
+        return {"session": s, "turn1": t1.summary(), "turn2": None, "ok": False}
+    m2 = m1 + [t1.assistant_message(), user_msg("Reply with exactly: PONG again")]
+    t2 = invoke(s, m2, template(cell))
+    ok = t2.finish_reason == "stop" and not t2.errors
+    return {"session": s, "turn1": t1.summary(), "turn2": t2.summary(), "ok": ok}
+
+
+def j_hosted_parallel(cell: dict) -> dict:
+    """Three sessions at once on ONE connection: does sharing a credential serialize or corrupt?
+
+    One session proves delivery. It cannot see the thing that actually breaks a shared credential
+    — several sandboxes reading, and possibly rewriting, the same stored login at the same time.
+    Every session must finish; a partial pass is a FAIL, because "two of three worked" is the
+    shape a lock contention bug takes.
+    """
+    if skip := _hosted_only(cell, "the parallel journey"):
+        return skip
+    conn, why = hosted_connection()
+    if not conn or conn["login_state"] != "ready":
+        return {
+            "pass": True,
+            "skip": True,
+            "why": f"no ready hosted connection: {why if not conn else conn['login_state']}",
+        }
+    count = 3
+    with cf.ThreadPoolExecutor(max_workers=count) as ex:
+        results = [
+            f.result()
+            for f in [ex.submit(_hosted_turn_pair, cell, f"s{i}") for i in range(count)]
+        ]
+    passed = sum(1 for r in results if r["ok"])
+    after, _ = hosted_connection()
+    return {
+        "pass": passed == count,
+        "why": f"{passed}/{count} concurrent sessions completed both turns on one connection",
+        "before": conn,
+        "after": after,
+        "sessions": results,
+    }
+
+
+def j_hosted_refresh(cell: dict) -> dict:
+    """Force a real refresh, and prove the refreshed login went BACK to the store.
+
+    A subscription token outlives most test windows, so nothing refreshes by accident and a green
+    chat says nothing about this path. The journey expires the STORED login (and, on a local
+    sandbox, the runner's own copy too, or the materialize rule correctly restores the newer
+    stored copy and no refresh ever happens — that mistake cost a run). Then one turn must answer
+    AND the stored `login_version` must move: a refresh that stays inside the sandbox is the same
+    as no refresh at all, because the next sandbox gets the dead token.
+    """
+    if skip := _hosted_only(cell, "the refresh journey"):
+        return skip
+    if not SUBSCRIPTION_EXPIRE_CMD and not (
+        SUBSCRIPTION_DB_CONTAINER and SUBSCRIPTION_STACK_ENV
+    ):
+        return {
+            "pass": True,
+            "skip": True,
+            "why": (
+                "needs --db-container and --stack-env (the driver expires the stored login "
+                "itself), or --subscription-expire-cmd (an operator hook that does it)"
+            ),
+        }
+    conn, why = hosted_connection()
+    if not conn or conn["login_state"] != "ready":
+        return {
+            "pass": True,
+            "skip": True,
+            "why": f"no ready hosted connection: {why if not conn else conn['login_state']}",
+        }
+    steps = []
+    expired, reason, detail = _expire_stored_login(conn["id"])
+    steps.append(detail)
+    if not expired:
+        return {"pass": False, "why": reason, "steps": steps}
+    if cell["sandbox"] == "local":
+        path, reason = _local_login_path(conn["id"])
+        if not path:
+            return {"pass": True, "skip": True, "why": reason, "steps": steps}
+        ok, out = _break_local_login(path, "expire")
+        steps.append({"expire_local": ok, "out": out})
+    # The API caches a vault read briefly, so a turn sent immediately gets the pre-expiry copy
+    # back and the harness sees a valid token. Waiting is the whole difference between measuring
+    # a refresh and measuring the cache.
+    time.sleep(SUBSCRIPTION_CACHE_WAIT)
+    pair = _hosted_turn_pair(cell, "refresh")
+    deadline = time.time() + 60
+    after, _ = hosted_connection()
+    while time.time() < deadline and after and after["version"] == conn["version"]:
+        time.sleep(3)
+        after, _ = hosted_connection()
+    moved = bool(after) and (after["version"] or 0) > (conn["version"] or 0)
+    why = (
+        "the turn answered on an expired login AND the refreshed login reached the store "
+        "(login_version moved)"
+    )
+    if pair["ok"] and not moved:
+        # The most common cause by far, and the one that reads as a product failure: the turn was
+        # served the copy from before the expiry, so nothing ever needed refreshing. Name it in
+        # the verdict, or the next reader triages the runner instead of the cache.
+        why += (
+            ". The turn answered but the version did not move. Check first that the cached vault "
+            "read was cleared (pass --redis-container, or an expire hook that clears it), or that "
+            f"--subscription-cache-wait ({SUBSCRIPTION_CACHE_WAIT:.0f}s here) exceeds the "
+            "deployment's cache TTL of 300s; the runner log line `subscription login "
+            "materialized=... reason=` names the copy it actually delivered"
+        )
+    return {
+        "pass": pair["ok"] and moved and after["login_state"] == "ready",
+        "why": why,
+        "before": conn,
+        "after": after,
+        "steps": steps,
+        "session": pair,
+    }
+
+
+def j_hosted_dead(cell: dict) -> dict:
+    """A login that is really dead: the user must be told, in a code a client can act on.
+
+    Breaks the sandbox's copy with garbage tokens at the CURRENT stored version, so there is
+    nothing newer to fall back to and the refresh is genuinely refused. Two things must then be
+    true, and neither is about prose: the run reports `subscription_login_required`, and the
+    connection moves to `needs_login` so the product can offer a sign-in. A turn that fails with
+    a generic error would satisfy a human reader and leave the client with nothing to render.
+
+    THIS JOURNEY LEAVES THE CONNECTION NEEDING A HUMAN SIGN-IN. Run it last.
+    """
+    if skip := _hosted_only(cell, "the dead-login journey"):
+        return skip
+    if cell["sandbox"] != "local":
+        return {
+            "pass": True,
+            "skip": True,
+            "why": "the sandbox's copy of the login lives on the remote VM's own disk, which this driver cannot reach; run the dead journey on H1",
+        }
+    conn, why = hosted_connection()
+    if not conn or conn["login_state"] != "ready":
+        return {
+            "pass": True,
+            "skip": True,
+            "why": f"no ready hosted connection: {why if not conn else conn['login_state']}",
+        }
+    path, reason = _local_login_path(conn["id"])
+    if not path:
+        return {"pass": True, "skip": True, "why": reason}
+    ok, out = _break_local_login(path, "dead", conn["version"], conn["generation"])
+    if not ok:
+        return {"pass": False, "why": f"could not break the local login: {out}"}
+    s = str(uuid.uuid4())
+    t = invoke(s, [user_msg("Reply with exactly: PONG")], template(cell))
+    deadline = time.time() + 30
+    after, _ = hosted_connection()
+    while time.time() < deadline and after and after["login_state"] == "ready":
+        time.sleep(3)
+        after, _ = hosted_connection()
+    coded = "subscription_login_required" in t.failure_codes
+    return {
+        "pass": coded and bool(after) and after["login_state"] == "needs_login",
+        "why": "the run reported subscription_login_required AND the connection moved to needs_login (a human must sign in again before any later hosted journey)",
+        "before": conn,
+        "after": after,
+        "broke": out,
+        "turn": t.summary(),
+    }
+
+
+def j_hosted_relogin_needed(cell: dict) -> dict:
+    """The human step, recorded rather than pretended away.
+
+    Signing in again is a device-code flow: a person opens a URL and approves a code in their own
+    ChatGPT account. No driver can do it, and a driver that quietly skipped it would let a gate
+    run end with a connection nobody can use and no note saying so. This journey therefore always
+    SKIPs, and its reason IS the runbook: it reports the connection's current state, and names the
+    command that starts the sign-in.
+    """
+    if skip := _hosted_only(cell, "the re-login marker"):
+        return skip
+    conn, why = hosted_connection()
+    state = conn["login_state"] if conn else why
+    return {
+        "pass": True,
+        "skip": True,
+        "why": (
+            f"human step, never automated. Connection state is {state!r}. "
+            "If it is `needs_login`, a person must sign in again before any hosted journey "
+            "can pass: POST /api/secrets/{id}/login-attempts, open the verification URL, enter "
+            "the user code in the ChatGPT account that owns the subscription, then poll "
+            "GET /api/secrets/{id}/login-attempts/{attempt_id} until it leaves `pending`. "
+            "The product path is the AI providers page, `Sign in again` on the connection card."
+        ),
+        "connection": conn,
+    }
+
+
 JOURNEYS = {
     "chat": j1_chat,
     "mount": j2_mount,
@@ -2179,10 +2739,17 @@ JOURNEYS = {
     "builtin_grep": j_builtin_grep,
     "secret_opaque": j_secret_opaque,
     "rotate": j_rotate,
+    "parallel": j_hosted_parallel,
+    "refresh": j_hosted_refresh,
+    "dead": j_hosted_dead,
+    "relogin_needed": j_hosted_relogin_needed,
 }
 
 
 def main() -> int:
+    global SUBSCRIPTION_SLUG, RUNNER_CONTAINER, SUBSCRIPTION_EXPIRE_CMD
+    global SUBSCRIPTION_CACHE_WAIT, SUBSCRIPTION_DB_CONTAINER, SUBSCRIPTION_DB_NAME
+    global SUBSCRIPTION_DB_USER, SUBSCRIPTION_STACK_ENV, SUBSCRIPTION_REDIS_CONTAINER
     p = argparse.ArgumentParser()
     p.add_argument(
         "--cell",
@@ -2246,9 +2813,12 @@ def main() -> int:
         "--cold2-replace-cmd",
         default=os.environ.get("AGENTA_QA_RUNNER_REPLACE_CMD"),
         help=(
-            "shell command that replaces the runner replica, for the cold2 journey. MUST SIGKILL "
-            "(e.g. `docker kill -s KILL <runner>`): on SIGTERM the runner destroys every sandbox "
-            "it owns, including the session under test. Without it, cold2 SKIPs."
+            "shell command that replaces the runner replica, for the cold2 journey. MUST SIGKILL: "
+            "on SIGTERM the runner destroys every sandbox it owns, including the session under "
+            "test. It must also START the replacement itself and return only once it is serving, "
+            "because Docker skips the restart policy for an operator-issued kill. So: "
+            "`docker kill -s KILL <runner> && docker start <runner>` plus a wait for health, NOT "
+            "a bare `docker kill`. Without it, cold2 SKIPs."
         ),
     )
     p.add_argument(
@@ -2258,6 +2828,86 @@ def main() -> int:
         help=(
             "seconds to wait after replacing the replica, so the dead replica's session-owner key "
             "lapses (AGENTA_SESSIONS_REDIS_OWNER_TTL_SECONDS, default 120)"
+        ),
+    )
+    p.add_argument(
+        "--subscription-slug",
+        default=SUBSCRIPTION_SLUG,
+        help=(
+            "vault slug of the hosted subscription connection cells H1/H2 use "
+            f"(default {SUBSCRIPTION_SLUG!r}). Both cells SKIP when the project has no such "
+            "connection in state `ready`."
+        ),
+    )
+    p.add_argument(
+        "--runner",
+        "--runner-container",
+        dest="runner_container",
+        default=os.environ.get("AGENTA_QA_RUNNER_CONTAINER", ""),
+        help=(
+            "runner replica the driver may reach into (docker exec) to break one sandbox's copy "
+            "of a hosted login. Needed by the `refresh` and `dead` journeys on H1; without it "
+            "they SKIP."
+        ),
+    )
+    p.add_argument(
+        "--db-container",
+        default=os.environ.get("AGENTA_QA_DB_CONTAINER", ""),
+        help=(
+            "postgres container the `refresh` journey expires the STORED login in, with a "
+            "pgcrypto update of the connection's row. Pair it with --stack-env. Without either "
+            "this pair or --subscription-expire-cmd, `refresh` SKIPs."
+        ),
+    )
+    p.add_argument(
+        "--db-name",
+        default=SUBSCRIPTION_DB_NAME,
+        help=f"database inside --db-container (default {SUBSCRIPTION_DB_NAME})",
+    )
+    p.add_argument(
+        "--db-user",
+        default=SUBSCRIPTION_DB_USER,
+        help=f"postgres role inside --db-container (default {SUBSCRIPTION_DB_USER})",
+    )
+    p.add_argument(
+        "--stack-env",
+        default=os.environ.get("AGENTA_QA_STACK_ENV", ""),
+        help=(
+            "path to the deployment's env file, read for AGENTA_CRYPT_KEY so the `refresh` "
+            "journey can decrypt and re-encrypt the stored login. The key is passed to the "
+            "container through its environment and never printed, and never reaches a command "
+            "line on this host."
+        ),
+    )
+    p.add_argument(
+        "--redis-container",
+        default=os.environ.get("AGENTA_QA_REDIS_CONTAINER", ""),
+        help=(
+            "redis container holding the API's cached vault read. The `refresh` journey clears "
+            "this project's cached read after expiring the login, because an expiry written "
+            "straight into the column does not invalidate it. Without this flag the journey must "
+            "wait out the cache TTL instead (see --subscription-cache-wait)."
+        ),
+    )
+    p.add_argument(
+        "--subscription-expire-cmd",
+        default=os.environ.get("AGENTA_QA_SUBSCRIPTION_EXPIRE_CMD", ""),
+        help=(
+            "alternative to --db-container/--stack-env for a deployment whose database this "
+            "driver cannot reach: a shell command that expires the STORED login, with "
+            "`{secret_id}` substituted for the connection's id. It wins when both are given."
+        ),
+    )
+    p.add_argument(
+        "--subscription-cache-wait",
+        type=float,
+        default=SUBSCRIPTION_CACHE_WAIT,
+        help=(
+            "seconds the `refresh` journey waits after expiring the stored login, so the API's "
+            f"cached vault read lapses (default {SUBSCRIPTION_CACHE_WAIT:.0f}, which assumes the "
+            "cache was CLEARED and covers only the runner's own poll). With no cache clear, raise "
+            "this past the deployment's cache TTL of 300 seconds, or the turn is served the "
+            "pre-expiry copy and the journey measures the cache, not a refresh."
         ),
     )
     p.add_argument(
@@ -2307,12 +2957,14 @@ def main() -> int:
     # fact, and so a rule naming a cell nobody has written yet fails immediately instead of
     # spending the whole matrix first.
     triggered: dict = {}
+    triggered_journeys: dict = {}
     if args.release_base or args.changed_path:
         paths = list(args.changed_path or [])
         if args.release_base:
             repo = pathlib.Path(args.repo) if args.repo else None
             paths += changed_paths(args.release_base, repo=repo)
         triggered = mandatory_cells(paths)
+        triggered_journeys = mandatory_journeys(paths)
     missing_cells = [
         cell for cell in triggered if cell not in CELLS and not (HERE / cell).exists()
     ]
@@ -2322,6 +2974,15 @@ def main() -> int:
     for cell in triggered:
         if cell in CELLS and cell not in cells:
             cells.append(cell)
+    missing_journeys = [name for name in triggered_journeys if name not in JOURNEYS]
+    if missing_journeys:
+        raise SystemExit(
+            "The release diff makes these journeys mandatory, but they do not exist: "
+            + ", ".join(missing_journeys)
+        )
+    for journey in triggered_journeys:
+        if journey not in journeys:
+            journeys.append(journey)
     if triggered:
         print("Path-scoped rules make these cells MANDATORY for this release:")
         for cell, why in triggered.items():
@@ -2335,6 +2996,13 @@ def main() -> int:
                 )
             )
             print(f"  {cell} ({where})")
+            for path in why:
+                print(f"      because this release changed {path}")
+        print()
+    if triggered_journeys:
+        print("Path-scoped rules make these journeys MANDATORY for this release:")
+        for journey, why in triggered_journeys.items():
+            print(f"  {journey} (added to this run)")
             for path in why:
                 print(f"      because this release changed {path}")
         print()
@@ -2381,6 +3049,37 @@ def main() -> int:
     if args.mcp_url:
         global MCP_URL
         MCP_URL = args.mcp_url
+    SUBSCRIPTION_SLUG = args.subscription_slug
+    RUNNER_CONTAINER = args.runner_container
+    SUBSCRIPTION_EXPIRE_CMD = args.subscription_expire_cmd
+    SUBSCRIPTION_CACHE_WAIT = args.subscription_cache_wait
+    SUBSCRIPTION_DB_CONTAINER = args.db_container
+    SUBSCRIPTION_DB_NAME = args.db_name
+    SUBSCRIPTION_DB_USER = args.db_user
+    SUBSCRIPTION_STACK_ENV = args.stack_env
+    SUBSCRIPTION_REDIS_CONTAINER = args.redis_container
+    # The hosted cells run against a connection a HUMAN signed in. Resolve it once, before any
+    # journey spends a turn, and skip the whole cell with the reason when it is absent or not
+    # ready. Letting the journeys fail one by one would read as a broken release on a deployment
+    # that simply has no hosted connection.
+    cell_skip: dict[str, str] = {}
+    hosted_selected = [cid for cid in cells if CELLS[cid].get("subscription")]
+    if hosted_selected:
+        for cid in hosted_selected:
+            CELLS[cid]["connection"]["slug"] = SUBSCRIPTION_SLUG
+        conn, why = hosted_connection()
+        if not conn:
+            reason = f"no hosted subscription connection to test: {why}"
+        elif conn["login_state"] != "ready":
+            reason = (
+                f"the hosted connection {SUBSCRIPTION_SLUG!r} is {conn['login_state']!r}, not "
+                "`ready`. A human must sign in again before these cells mean anything."
+            )
+        else:
+            reason = ""
+        if reason:
+            for cid in hosted_selected:
+                cell_skip[cid] = reason
     stamp = time.strftime("%Y%m%d-%H%M%S")
     outdir = RUNS / stamp
     outdir.mkdir(parents=True, exist_ok=True)
@@ -2392,7 +3091,10 @@ def main() -> int:
         for jname in journeys:
             print(f"[{cid}] {jname} ... ", end="", flush=True)
             try:
-                r = JOURNEYS[jname](cell)
+                if cid in cell_skip:
+                    r = {"pass": True, "skip": True, "why": cell_skip[cid]}
+                else:
+                    r = JOURNEYS[jname](cell)
             except Exception as e:  # a crash is a result, not a reason to lose the run
                 r = {"pass": False, "why": f"driver exception: {type(e).__name__}: {e}"}
             results[cid]["journeys"][jname] = r
@@ -2433,6 +3135,14 @@ def main() -> int:
                 "\nThis release is NOT green until every cell above marked "
                 "`run it separately` has a recorded result.\n"
             )
+    if triggered_journeys:
+        (outdir / "mandatory-journeys.json").write_text(
+            json.dumps(triggered_journeys, indent=2)
+        )
+        table += "\n\nMandatory journeys for this release, by path rule:\n\n"
+        table += "| journey | because this release changed |\n|---|---|\n"
+        for journey, why in triggered_journeys.items():
+            table += f"| {journey} | {', '.join(why)} |\n"
     (outdir / "summary.md").write_text(table + "\n")
     print("\n" + table)
     print(f"\nresults: {outdir}")

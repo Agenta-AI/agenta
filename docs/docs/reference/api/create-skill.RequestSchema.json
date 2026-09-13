@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"skill":{"additionalProperties":true,"type":"object","title":"Skill"}},"type":"object","required":["skill"],"title":"SkillCreateRequest"}}},"required":true}}

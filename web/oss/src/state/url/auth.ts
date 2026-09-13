@@ -208,6 +208,8 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         const path = resolvedPath
         const asPath = resolvedAsPath
         const isAuthRoute = path.startsWith("/auth")
+        // Next's matched route: the parsed snapshot holds the literal URL, never "/404".
+        const isNotFoundRoute = Router.pathname === "/404"
         const isAuthCallbackRoute = path.startsWith("/auth/callback")
         const isAcceptRoute = path.startsWith("/workspaces/accept")
         const isPostSignupRoute = path.startsWith("/post-signup")
@@ -405,8 +407,9 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             return
         }
 
-        // Signed out: drop the latch so a dead session can never keep the page visible
-        if (isAuthRoute) {
+        // Signed out: drop the latch so a dead session can never keep the page visible.
+        // /404 joins the auth screens: bouncing a bad link to sign-in hides the explanation.
+        if (isAuthRoute || isNotFoundRoute) {
             store.set(protectedRouteReadyAtom, true)
             store.set(protectedRouteReadyLatchAtom, false)
             return

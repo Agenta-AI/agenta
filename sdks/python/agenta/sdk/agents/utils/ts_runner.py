@@ -180,8 +180,9 @@ async def deliver_http_stream(
 ) -> AsyncIterator[Dict[str, Any]]:
     """POST ``/run`` asking for NDJSON and yield each parsed record as it arrives.
 
-    The ``async with`` closes the connection when the generator is closed or cancelled, which
-    the runner observes as a client disconnect and turns into run cancellation.
+    The ``async with`` closes the connection when the generator is closed or cancelled. The
+    runner turns that disconnect into cancellation for request-owned runs, while an explicitly
+    detached session run continues under session ownership.
     """
     import httpx  # local import: only the HTTP transport needs it
 

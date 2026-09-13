@@ -81,6 +81,7 @@ const trackDrag = (
     const detach = () => {
         window.removeEventListener("pointermove", track)
         window.removeEventListener("pointerup", stop)
+        window.removeEventListener("pointercancel", stop)
     }
     const stop = () => {
         detach()
@@ -90,6 +91,9 @@ const trackDrag = (
     track(event)
     window.addEventListener("pointermove", track)
     window.addEventListener("pointerup", stop)
+    // A touch drag the browser reclaims ends in `pointercancel`, never `pointerup`: without this
+    // the listeners leak and the colour under the finger is never committed.
+    window.addEventListener("pointercancel", stop)
     return detach
 }
 
@@ -225,7 +229,8 @@ const CustomColorArea = ({
             <div className="flex items-stretch gap-2.5 px-3 pb-3">
                 <div
                     onPointerDown={(e) => startDrag(e, (x, y) => ({h: hsv.h, s: x, v: 1 - y}))}
-                    className="relative h-[104px] min-w-0 flex-1 cursor-crosshair rounded-lg"
+                    // touch-none: a finger dragging here must paint, not scroll the panel behind it.
+                    className="relative h-[104px] min-w-0 flex-1 cursor-crosshair touch-none rounded-lg"
                     style={{
                         backgroundImage: `linear-gradient(to top,#000,rgba(0,0,0,0)),linear-gradient(to right,#fff,${hueCss})`,
                     }}
@@ -245,7 +250,7 @@ const CustomColorArea = ({
                             v: hsv.v || 0.6,
                         }))
                     }
-                    className="relative w-2.5 shrink-0 cursor-pointer rounded-full"
+                    className="relative w-2.5 shrink-0 cursor-pointer touch-none rounded-full"
                     style={{
                         background: "linear-gradient(to bottom,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)",
                     }}
@@ -395,7 +400,8 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
     const chipStyle = agentIconChipStyle(color)
 
     return (
-        <div className="w-[300px]">
+        // Clamped: 300px overflowed a 320px viewport after collision padding.
+        <div className="w-[min(300px,calc(100vw-2rem))]">
             <div className="flex items-center gap-2.5 p-3 pb-2.5">
                 <span
                     className={cn(

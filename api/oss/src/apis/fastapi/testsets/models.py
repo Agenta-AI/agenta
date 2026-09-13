@@ -1,6 +1,8 @@
 from typing import Optional, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from oss.src.core.git.dtos import RevisionGrouping, validate_revision_grouping
 
 from oss.src.core.shared.dtos import (
     Windowing,
@@ -229,10 +231,29 @@ class TestsetRevisionQueryRequest(BaseModel):
         description="Include full testcase objects for each returned revision. Defaults to true.",
     )
     #
+    grouping: Optional[RevisionGrouping] = Field(
+        default=None,
+        description=(
+            "Divide matching revisions by artifact or variant and select one "
+            "revision from each group."
+        ),
+    )
+    #
     windowing: Optional[Windowing] = Field(
         default=None,
         description="Cursor-based pagination. See the Query Pattern guide.",
     )
+
+    @model_validator(mode="after")
+    def _validate_grouping(self):
+        validate_revision_grouping(
+            grouping=self.grouping,
+            artifact_refs=self.testset_refs,
+            variant_refs=self.testset_variant_refs,
+            revision_refs=self.testset_revision_refs,
+            windowing=self.windowing,
+        )
+        return self
 
 
 class TestsetRevisionCommitRequest(BaseModel):

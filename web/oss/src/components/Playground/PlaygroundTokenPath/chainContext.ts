@@ -20,7 +20,7 @@
 import {outputConnectionController} from "@agenta/playground"
 import {playgroundNodesAtom} from "@agenta/playground/state"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 export interface NodeChainContext {
     /** Envelope slots this editor's prompt can legally reference. */

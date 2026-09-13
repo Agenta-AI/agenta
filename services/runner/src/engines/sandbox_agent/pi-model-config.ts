@@ -22,6 +22,7 @@
  * The input stays neutral in both cases — no Pi-specific wire field is introduced.
  */
 import type { AgentRunRequest } from "../../protocol.ts";
+import { harnessKindOf } from "../../harness-kind.ts";
 import type {
   PiBuiltinModel,
   PiBuiltinRegistry,
@@ -222,10 +223,9 @@ export class PiModelConfigError extends Error {
   }
 }
 
-/** Pi identity check, mirroring `buildRunPlan` (an empty harness defaults to `pi_core`). */
+/** Pi identity check: THE shared normalizer, so it can never drift from `buildRunPlan`. */
 function isPiHarness(harness: string | undefined): boolean {
-  const resolved = harness || "pi_core";
-  return resolved === "pi_core" || resolved === "pi_agenta";
+  return harnessKindOf(harness) === "pi";
 }
 
 /**

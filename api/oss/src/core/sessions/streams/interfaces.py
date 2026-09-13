@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.streams.dtos import (
+    SessionNameSource,
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
@@ -16,6 +17,18 @@ from oss.src.core.shared.dtos import Windowing
 
 
 class SessionStreamsDAOInterface(ABC):
+    @abstractmethod
+    async def settle_command(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str],
+        mirror_stopped: bool,
+        transaction: Optional[Any] = None,
+    ) -> None:
+        """Clear this command's marker and project its stopped state."""
+
     @abstractmethod
     async def create(
         self,
@@ -89,6 +102,7 @@ class SessionStreamsDAOInterface(ABC):
         user_id: Optional[UUID],
         session_id: str,
         header: SessionStreamHeaderEdit,
+        name_source: SessionNameSource = SessionNameSource.manual,
     ) -> Optional[SessionStream]: ...
 
     @abstractmethod

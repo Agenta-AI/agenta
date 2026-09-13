@@ -15,7 +15,8 @@ fresh sandbox. Set the runner service to use it:
 The runner probes for its pinned Pi before each session; because this recipe bakes it, the
 probe hits and no session-time install runs. The SDK code-evaluator runner can share the
 built snapshot through its own DAYTONA_SNAPSHOT_CODE / DAYTONA_SNAPSHOT variables, so the
-recipe additionally installs python3 and typescript/ts-node.
+recipe runs the shared tool recipe (install-agent-tools.sh), which includes python3 and
+typescript/ts-node.
 
 Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--force]
 
@@ -35,6 +36,7 @@ Licensing (see services/runner/docker/README.md):
 """
 
 import base64
+import gzip
 import json
 import os
 import sys
@@ -52,7 +54,7 @@ from daytona.common.errors import DaytonaNotFoundError
 
 SNAPSHOT_NAME = "agenta-agent-sandbox-v1"
 SANDBOX_AGENT_IMAGE = "rivetdev/sandbox-agent:0.5.0-rc.2-full"
-PI_VERSION = "0.80.6"
+PI_VERSION = "0.85.1"
 PI_PACKAGE = f"@earendil-works/pi-coding-agent@{PI_VERSION}"
 PI_ACP_VERSION = "0.0.29"
 SANDBOX_AGENT_HOME = "/home/sandbox/.local/share/sandbox-agent"
@@ -147,6 +149,46 @@ GEESEFS_URL = (
     f"{GEESEFS_VERSION}/geesefs-linux-amd64"
 )
 
+# The shared tool recipe: one file installs everything an agent calls (gh, uv, fd, ripgrep, the
+# pinned Python set, node tools, ffmpeg, poppler, tesseract, ONE Chromium) in the runner images
+# AND this snapshot, so the local and the remote sandbox cannot drift. The Daytona build has no
+# context from this repo, so the script is embedded base64, the same way the codex patch is.
+SANDBOX_IMAGES_DIR = Path(__file__).resolve().parents[1]
+INSTALL_SCRIPT = (SANDBOX_IMAGES_DIR / "install-agent-tools.sh").read_bytes()
+AGENT_REQUIREMENTS = (SANDBOX_IMAGES_DIR / "agent-requirements.txt").read_bytes()
+PLAYWRIGHT_BROWSERS_PATH = "/opt/pw-browsers"
+
+
+def _embed_file(content: bytes, dest: str) -> list[str]:
+    """RUN lines that write `content` to `dest` inside the build: gzip, base64, split.
+
+    Two limits shape this. Daytona rejects a Dockerfile line over 65535 bytes, and Docker runs a
+    RUN line as `sh -c "<line>"`, one argv string capped at 128 KiB by Linux. The hashed
+    requirements lock alone is 150 KB, so it is gzipped (about 4x smaller) and the base64 is
+    appended to a staging file across as many RUN lines as it takes, each well under both caps,
+    then decoded once.
+    """
+    blob = base64.b64encode(gzip.compress(content, 9)).decode()
+    staging = f"{dest}.b64"
+    lines = [
+        f"RUN printf '%s' '{blob[i : i + 48_000]}' >> {staging}"
+        for i in range(0, len(blob), 48_000)
+    ]
+    lines.append(f"RUN base64 -d {staging} | gzip -dc > {dest} && rm {staging}")
+    for line in lines:
+        if len(line) > 60_000:
+            raise ValueError(f"embedded line for {dest} too long: {len(line)}")
+    return lines
+
+
+def install_agent_tools_commands() -> list[str]:
+    return [
+        *_embed_file(INSTALL_SCRIPT, "/tmp/install-agent-tools.sh"),
+        *_embed_file(AGENT_REQUIREMENTS, "/tmp/agent-requirements.txt"),
+        "RUN sh /tmp/install-agent-tools.sh "
+        "&& rm /tmp/install-agent-tools.sh /tmp/agent-requirements.txt",
+    ]
+
 
 def main() -> None:
     force = "--force" in sys.argv
@@ -189,28 +231,25 @@ def main() -> None:
             "&& echo codex-baked-in-base-image",
             "RUN test -x /home/sandbox/.local/share/sandbox-agent/bin/opencode "
             "&& echo opencode-baked-in-base-image",
+            # Everything an agent calls comes from the shared recipe (see INSTALL_SCRIPT).
+            # This includes python3 and typescript/ts-node for the SDK code-evaluator runtimes.
+            f"ENV PLAYWRIGHT_BROWSERS_PATH={PLAYWRIGHT_BROWSERS_PATH}",
+            # ts-node 10 + typescript 5.9 picks `module: NodeNext` without a tsconfig and fails
+            # (TS5109) on newer node; same setting as the runner images, see the recipe.
+            'ENV TS_NODE_COMPILER_OPTIONS="{\\"module\\":\\"commonjs\\",\\"moduleResolution\\":\\"node\\"}"',
+            *install_agent_tools_commands(),
             # Durable cwd: fuse + geesefs so the remote sandbox can mount its store prefix.
-            # unzip/zip + python-is-python3 (symlinks /usr/bin/python -> python3): an agent
-            # handed an archive reaches for `unzip` and plain `python`; without them every
-            # such task burns failed bash calls and extra approval round-trips. The base is
-            # Debian bookworm (node:22-bookworm), so python-is-python3 is the right package.
-            # ripgrep/fd-find/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are
-            # the first commands every harness reaches for when searching a tree, and Debian
-            # ships fd as `fdfind`, so the symlink is what makes the typed command resolve.
-            "RUN apt-get update && apt-get install -y --no-install-recommends fuse curl "
-            "python3 python-is-python3 unzip zip ripgrep fd-find jq procps file tree "
-            '&& ln -s "$(which fdfind)" /usr/local/bin/fd '
+            "RUN apt-get update && apt-get install -y --no-install-recommends fuse "
             "&& rm -rf /var/lib/apt/lists/* && echo user_allow_other >> /etc/fuse.conf",
-            # Code-evaluator runtimes: this snapshot is shared with the SDK DaytonaRunner.
-            # typescript@5: ts-node needs the JS compiler API; typescript 7+ is the Go
-            # rewrite with no JS API (ts.sys undefined).
-            "RUN npm install -g typescript@5 ts-node@10 "
-            "&& python3 --version "
-            "&& echo 'const v: number = 1; console.log(v)' > /tmp/v.ts "
-            "&& ts-node /tmp/v.ts && rm /tmp/v.ts",
             f"RUN curl -fsSL -o /usr/local/bin/geesefs {GEESEFS_URL} "
             "&& chmod +x /usr/local/bin/geesefs",
             "USER sandbox",
+            # The recipe's checks ran as root. Assert the tools as the sandbox user too.
+            "RUN gh --version >/dev/null && uv --version >/dev/null && fd --version >/dev/null "
+            "&& tsc --version >/dev/null && bun --version >/dev/null "
+            '&& python3 -c "import pandas, playwright" '
+            "&& chromium --headless=new --no-sandbox --disable-gpu --dump-dom about:blank 2>/dev/null "
+            "| grep -q '<html'",
             # Replace the base image's private Pi adapter. sandbox-agent resolves this launcher
             # before PATH, so a global pi-acp install would leave the stale adapter active.
             f"RUN sandbox-agent install-agent pi --reinstall "

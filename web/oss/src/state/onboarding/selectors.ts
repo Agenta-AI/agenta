@@ -1,8 +1,6 @@
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {atom} from "jotai"
 
-import {navSimplifiedDefaultAtom, navSimplifiedOverrideAtom} from "@/oss/lib/onboarding/atoms"
-
 import {onboardingSessionAtom} from "./atoms"
 
 /**
@@ -45,14 +43,6 @@ export const homeNavInertAtom = atom((get) => get(isFirstRunOnboardingAtom))
  */
 export const deadEndNavDisabledAtom = atom((get) => get(isFirstRunOnboardingAtom))
 
-/**
- * The simplified, agent-focused sidebar hides advanced areas (Prompts, Evaluation, Registry,
- * Evaluations, Overview). Unlike the selectors above, this derives from the durable signup-era
- * default ({@link navSimplifiedDefaultAtom}) — set once at signup, not the live session — so
- * existing users keep the full nav. Stable seam: Phase 2 layers a user override here
- * (`override ?? default`) without touching consumers.
- */
-export const advancedNavHiddenAtom = atom((get) => {
-    const override = get(navSimplifiedOverrideAtom)
-    return override ?? get(navSimplifiedDefaultAtom)
-})
+// `advancedNavHiddenAtom` — the simplified-nav gate, and now also the gate that decides which
+// APP the user gets — lives in `@agenta/shared/state`, which `/m` can read too. Import it from
+// there; the selectors above stay session-scoped and app-local.

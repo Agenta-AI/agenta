@@ -1,27 +1,28 @@
 from typing import Callable, Optional
 from uuid import UUID
 
-from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
-from oss.src.core.secrets.interfaces import SecretsDAOInterface
-from oss.src.core.secrets.managed import SecretManagementDTO
-
-from oss.src.dbs.postgres.shared.engine import (
-    TransactionsEngine,
-    get_transactions_engine,
-)
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     SecretResponseDTO,
     UpdateSecretDTO,
 )
+from oss.src.core.secrets.enums import SecretKind
+from oss.src.core.secrets.interfaces import SecretsDAOInterface
+from oss.src.core.secrets.managed import SecretManagementDTO
+from oss.src.core.secrets.types import SubscriptionProviderConflict
+from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 from oss.src.dbs.postgres.secrets.mappings import (
-    map_secrets_dto_to_dbe,
     map_secrets_dbe_to_dto,
+    map_secrets_dto_to_dbe,
     map_secrets_dto_to_dbe_update,
 )
-
-from sqlalchemy import select
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
 
 
 class SecretsDAO(SecretsDAOInterface):
@@ -60,9 +61,20 @@ class SecretsDAO(SecretsDAOInterface):
             secret_dto=create_secret_dto,
             management=management,
         )
-        async with self.engine.session() as session:
-            session.add(secrets_dbe)
-            await session.commit()
+        try:
+            async with self.engine.session() as session:
+                session.add(secrets_dbe)
+                await session.commit()
+        except IntegrityError as e:
+            if (
+                create_secret_dto.secret.kind == SecretKind.SUBSCRIPTION_PROVIDER
+                and "uq_secrets_project_id_slug" in str(e.orig)
+            ):
+                provider = create_secret_dto.secret.data.provider
+                raise SubscriptionProviderConflict(
+                    provider=getattr(provider, "value", provider)
+                ) from e
+            raise
 
         secrets_dto = map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
         return secrets_dto
@@ -129,7 +141,7 @@ class SecretsDAO(SecretsDAOInterface):
         organization_id: UUID | None,
         user_id: UUID | None = None,
         resolve_update: Optional[
-            Callable[[SecretResponseDTO, UpdateSecretDTO], UpdateSecretDTO]
+            Callable[[SecretResponseDTO, UpdateSecretDTO], Optional[UpdateSecretDTO]]
         ] = None,
     ):
         async with self.engine.session() as session:
@@ -155,10 +167,16 @@ class SecretsDAO(SecretsDAOInterface):
             # snapshot another writer has already replaced; the keep-on-omit carry-over
             # in particular would then write a rotated credential back to its old value.
             if resolve_update is not None:
-                update_secret_dto = resolve_update(
+                resolved = resolve_update(
                     map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe),
                     update_secret_dto,
                 )
+                # None means the resolver found nothing to change. Returning here leaves
+                # the lifecycle columns alone and rolls the transaction back, so a poll
+                # that learns nothing costs a read and no write.
+                if resolved is None:
+                    return map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
+                update_secret_dto = resolved
 
             map_secrets_dto_to_dbe_update(
                 secrets_dbe=secrets_dbe,

@@ -5,6 +5,10 @@
  * harness. So the property that matters most here is NEGATIVE: Pi and Claude must not receive the
  * mount paragraph twice, once through their own channel and once through the file.
  *
+ * The two config sentences (the rendered file is a copy; skills live in the configuration) moved
+ * to the SDK platform text on 2026-09-07. The tests below pin their ABSENCE here, so they cannot
+ * creep back and be delivered twice.
+ *
  * Run: pnpm exec vitest run tests/unit/platform-guidance.test.ts
  */
 import { describe, it } from "vitest";
@@ -13,9 +17,7 @@ import assert from "node:assert/strict";
 import {
   codexBundledSkillsAppendix,
   fileCitationAppendix,
-  instructionsSourceAppendix,
   platformGuidanceAppendix,
-  skillLocationAppendix,
   type PlatformGuidanceInput,
 } from "../../src/engines/sandbox_agent/platform-guidance.ts";
 import {
@@ -32,25 +34,48 @@ const run = (
   isPi: false,
   agentMountedPath: undefined,
   agentMountSkipped: false,
-  // A config-editing agent by default, since that is what the skill sentence addresses. The
+  // A config-editing agent by default, since that is what the codex rebuttal addresses. The
   // gate's other arm is exercised explicitly below.
   toolNames: ["commit_revision"],
   ...overrides,
 });
 
 describe("what every harness is told", () => {
-  it("always carries the skill-location sentence", () => {
-    // The one contributor with no harness condition. It is the fix for an observed failure: an
-    // agent copied a skill file into the harness's own skills folder and reported success, so the
-    // skill was never saved and the next session could not find it.
+  it("always carries the file-citation sentence", () => {
+    // The one contributor with no harness condition and no tool condition: any run can mention a
+    // file in chat, and the client opens only one path shape.
     for (const input of [
       run({ acpAgent: "codex" }),
       run({ acpAgent: "claude" }),
       run({ acpAgent: "pi", isPi: true }),
     ]) {
       const guidance = platformGuidanceAppendix(input);
-      assert.ok(guidance?.includes("parameters.agent.skills"), input.acpAgent);
-      assert.ok(guidance?.includes("commit_revision"), input.acpAgent);
+      assert.ok(
+        guidance?.includes(fileCitationAppendix().text),
+        input.acpAgent,
+      );
+    }
+  });
+
+  it("no longer carries the config sentences, which the SDK platform text now owns", () => {
+    // Delivering them here as well would spend the same context twice. The SDK text gates its
+    // configuration sections on the same tool name, so a run that can commit still reads them
+    // once, first, in the platform text.
+    for (const input of [
+      run({ acpAgent: "codex" }),
+      run({ acpAgent: "claude" }),
+      run({ acpAgent: "pi", isPi: true }),
+    ]) {
+      const guidance = platformGuidanceAppendix(input);
+      assert.ok(guidance, input.acpAgent);
+      assert.ok(
+        !guidance.includes("is a copy of your configuration"),
+        `${input.acpAgent} must not carry the instructions-source sentence`,
+      );
+      assert.ok(
+        !guidance.includes("parameters.agent.skills"),
+        `${input.acpAgent} must not carry the skill-location sentence`,
+      );
     }
   });
 
@@ -66,25 +91,8 @@ describe("what every harness is told", () => {
     assert.ok(!withoutSkills?.includes("rendered skill files"));
   });
 
-  it("names the configuration path and denies the working-directory copy", () => {
-    // Both halves are load-bearing. Naming the real place without denying the wrong one leaves the
-    // model with two plausible targets, which is the state it was already in when it failed.
-    const text = skillLocationAppendix().text;
-    assert.ok(text.includes("`parameters.agent.skills`"));
-    assert.match(text, /does NOT add a skill/);
-    assert.equal(skillLocationAppendix().id, "skill-location");
-  });
-
-  it("opens with a config sentence, not with the mount paragraph", () => {
-    // Order is a decision. The config sentences are short and tell the model what to DO; the mount
-    // paragraph is long and describes where things go. A reader who stops early must have read the
-    // one that changes an action.
-    //
-    // DELIBERATE EDIT: this asserted the SKILL sentence opened the block. The instructions
-    // sentence now leads (see the ordering comment on `platformGuidanceAppendix`), so the property
-    // worth keeping is that a config sentence comes first and the mount paragraph comes last.
+  it("ends on the mount paragraph, which is long and describes where things go", () => {
     const guidance = platformGuidanceAppendix(run({ agentMountedPath: MOUNT }));
-    assert.ok(guidance?.startsWith(instructionsSourceAppendix().text));
     assert.ok(guidance?.endsWith(agentMountGuidance(MOUNT)));
   });
 });
@@ -132,14 +140,10 @@ describe("the mount paragraph is delivered exactly once", () => {
   it("says nothing about durable storage when none was configured", () => {
     // The third state. A stack with no durable storage at all would otherwise carry the "not
     // available" caveat in every prompt forever, which is how a real warning becomes noise.
-    // Asserted as the ABSENCE of mount text rather than as equality with a fixed pair: the block's
-    // composition is harness-dependent now (codex gets the bundled-skills rebuttal), and pinning
-    // the exact string here would fail for a reason that has nothing to do with mounts.
     const guidance = platformGuidanceAppendix(run());
     assert.ok(guidance);
     assert.ok(!guidance.includes("durable agent folder"));
     assert.ok(!guidance.includes(agentMountUnavailableGuidance()));
-    assert.ok(guidance.startsWith(instructionsSourceAppendix().text));
   });
 
   it("prefers the live path over the skipped sentence when both are set", () => {
@@ -162,202 +166,32 @@ describe("the mount paragraph is delivered exactly once", () => {
 });
 
 describe("the context budget", () => {
-  it("keeps each always-on sentence short", () => {
-    // This block is in the context of every turn, for every agent, on every harness, and it draws
-    // on the same attention the author's own instructions need. The number is a tripwire, not a
-    // law: if a contributor genuinely needs the room, raise it deliberately and say why here.
-    for (const c of [skillLocationAppendix(), instructionsSourceAppendix()]) {
-      assert.ok(c.text.length < 600, `${c.id} is ${c.text.length} chars`);
-    }
-  });
-
-  it("keeps the whole always-on block within a raised, justified ceiling", () => {
-    // RAISED DELIBERATELY, from one sentence to two. The instructions sentence roughly doubles the
-    // always-on block, and the justification is measured rather than argued: editing the rendered
-    // instructions file was the DOMINANT failure shape across all three harnesses, ahead of the
-    // skill mistake this block already addresses. The budget is being spent on the biggest
-    // observed failure.
-    //
-    // If a third sentence wants in, it needs its own numbers. The block is charged to the author's
-    // attention on every turn, and "it reads well" is not a reason.
-    //
-    // RAISED AGAIN for the third sentence, with its own numbers: the file-citation sentence
-    // (~240 chars) answers two observed failures — a bare `README.md` mention linked to the
-    // wrong file (#6004), and an absolute path treated as a web href that navigated away from
-    // chat (#5983). The client resolves full absolute paths now, so the model must preserve them.
+  it("keeps the always-on block small now that the config sentences left", () => {
+    // LOWERED DELIBERATELY. The block used to hold three sentences under a 1200-char ceiling.
+    // Two of them now ship in the SDK platform text, so what remains here for a non-codex run
+    // is the file-citation sentence alone. If a new contributor wants in, it needs its own
+    // numbers; "it reads well" is not a reason.
     const alwaysOn = platformGuidanceAppendix(
       run({ acpAgent: "claude", toolNames: ["commit_revision"] }),
     );
     assert.ok(alwaysOn);
     assert.ok(
-      alwaysOn.length < 1200,
+      alwaysOn.length < 450,
       `the always-on block is ${alwaysOn.length} chars`,
     );
   });
 
   it("lets CODEX pay more, because codex alone has the problem it answers", () => {
-    // A SECOND, HIGHER CEILING, RAISED DELIBERATELY AND ONLY FOR CODEX. The rebuttal sentence is
-    // not general guidance: it answers codex's own bundled skill-creator and skill-installer,
-    // which document installing into `.codex/skills`. Claude and pi ship no such skills and pay
-    // nothing for it, which is why the budget is harness-dependent rather than uniform.
-    //
-    // The justification is measured: codex skill scenarios sit at 6 of 21 with 13 wrong_surface,
-    // against ZERO on claude and pi. If that gap closes and the sentence stays, delete it.
+    // The rebuttal sentence answers codex's own bundled skill-creator and skill-installer, which
+    // document installing into `.codex/skills`. Claude and pi ship no such skills and pay nothing
+    // for it. The justification is measured: codex skill scenarios sit at 6 of 21 with 13
+    // wrong_surface, against ZERO on claude and pi. If that gap closes and the sentence stays,
+    // delete it.
     const codex = platformGuidanceAppendix(
       run({ acpAgent: "codex", toolNames: ["commit_revision"] }),
     );
     assert.ok(codex);
-    // 1200 + the file-citation sentence's ~240 chars (see the always-on ceiling above).
-    assert.ok(codex.length < 1450, `the codex block is ${codex.length} chars`);
-  });
-});
-
-describe("the skill sentence follows the TOOL, not the flag", () => {
-  it("is absent for a run that does not offer commit_revision", async () => {
-    // A plain agent with no config tools would otherwise read a sentence telling it to use a
-    // tool it does not have. The block is guidance about this environment, so naming a
-    // capability the run lacks is the confusion it exists to remove.
-    //
-    // The block itself is no longer silent here: the file-citation sentence has no tool
-    // dependency (any run can mention a file in chat), so the property to hold is the ABSENCE
-    // of the config sentences, not an empty block.
-    const guidance = platformGuidanceAppendix(run({ toolNames: [] }));
-    assert.ok(guidance?.includes(fileCitationAppendix().text));
-    assert.ok(
-      !guidance?.includes("parameters.agent.skills"),
-      "the skill sentence must not name a tool the run lacks",
-    );
-    assert.ok(!guidance?.includes("agents_md"));
-  });
-
-  it("is present for a run that offers it, alongside unrelated tools", async () => {
-    const guidance = platformGuidanceAppendix(
-      run({ toolNames: ["bash", "commit_revision", "read_config"] }),
-    );
-    assert.ok(guidance?.includes("parameters.agent.skills"));
-  });
-
-  it("does NOT gate the mount paragraph, which has no tool dependency", async () => {
-    // The two contributors are independent. A Codex run with no config tools still needs to be
-    // told where its durable folder is, and silencing that with the skill sentence would be the
-    // mount bug all over again.
-    const guidance = platformGuidanceAppendix(
-      run({ toolNames: [], agentMountedPath: MOUNT }),
-    );
-    assert.ok(guidance?.includes(agentMountGuidance(MOUNT)));
-    assert.ok(!guidance?.includes("parameters.agent.skills"));
-  });
-
-  it("keys on the tool name rather than on the ordered-operations flag", async () => {
-    // THE AXIS IS DELIBERATE. The natural guess is the flag that gates the config-editing
-    // surface, and it is the wrong one: `commit_revision` is in the default build kit
-    // unconditionally and the flag changes the commit's DELTA SHAPE, not the tool's existence.
-    // A flag-off agent with the build kit really can add a skill (its legacy description says to
-    // send the whole list), so gating on the flag would delete correct guidance from the
-    // release-default configuration. Presence also catches what a flag check cannot: a flag-ON
-    // agent that simply has no config tools.
-    assert.ok(
-      platformGuidanceAppendix(
-        run({ toolNames: ["commit_revision"] }),
-      )?.includes("parameters.agent.skills"),
-    );
-    assert.ok(
-      !platformGuidanceAppendix(run({ toolNames: ["read_config"] }))?.includes(
-        "parameters.agent.skills",
-      ),
-    );
-  });
-});
-
-describe("the instructions-location sentence", () => {
-  it("covers BOTH directions of the same wrong mental model", () => {
-    // The revision that matters. The first draft covered writing only, and the read direction is
-    // the same confusion inverted: models re-read the rendered file and report a stale value while
-    // honestly stating they checked (9 of 9 trials, all three harnesses). One sentence names the
-    // file as a copy once and closes both directions.
-    const text = instructionsSourceAppendix().text;
-    assert.ok(text.includes("`parameters.agent.instructions.agents_md`"));
-    assert.match(text, /is a copy of your configuration/, "names it a copy");
-    assert.match(
-      text,
-      /does NOT change your instructions/,
-      "closes the WRITE direction",
-    );
-    assert.match(text, /may not appear here/, "closes the READ direction");
-    assert.equal(instructionsSourceAppendix().id, "instructions-source");
-  });
-
-  it("ends on the positive instruction, naming both tools", () => {
-    // A model told only what not to do invents what to do instead. Both tools are named because
-    // the two directions need different ones: read_config to look, commit_revision to change.
-    const text = instructionsSourceAppendix().text;
-    assert.ok(text.includes("read_config"));
-    assert.ok(text.includes("commit_revision"));
-    assert.ok(
-      text.indexOf("read_config") > text.indexOf("out of date"),
-      "the instruction comes after the warning it answers",
-    );
-  });
-
-  it("hedges the staleness claim, because a re-render really can happen", () => {
-    // ACCURACY IN THE ALWAYS-ON BLOCK. The proposal said re-reading "will not" show a change made
-    // since the run started. That overstates it: when a request carries changed instructions the
-    // file IS re-rendered (matrix_l5 proves it live), so the honest word is "may not". The
-    // actionable half, use read_config, is true either way.
-    assert.doesNotMatch(instructionsSourceAppendix().text, /will not show/);
-  });
-
-  it("is self-referential, so it is accurate on every harness", () => {
-    // It says "This file" rather than naming CLAUDE.md or AGENTS.md, because the block is rendered
-    // INSIDE the file it describes. A per-harness path would be one more thing to keep in sync and
-    // one more thing to get wrong.
-    assert.match(
-      instructionsSourceAppendix().text,
-      /^This file is a copy of your configuration/,
-    );
-    for (const name of ["CLAUDE.md", "AGENTS.md"]) {
-      assert.ok(!instructionsSourceAppendix().text.includes(name));
-    }
-  });
-
-  it("comes FIRST, ahead of the skill sentence", () => {
-    // The ordering decision, pinned so it cannot drift silently: by measured failure rate the
-    // instructions mistake dominates, and the sentence describes the document being read, so it
-    // belongs at the top of that document. Swapping this is a deliberate experiment, not a tidy-up.
-    const guidance = platformGuidanceAppendix(
-      run({ toolNames: ["commit_revision"] }),
-    );
-    assert.ok(guidance);
-    const iAt = guidance.indexOf(instructionsSourceAppendix().text);
-    const sAt = guidance.indexOf(skillLocationAppendix().text);
-    assert.ok(iAt >= 0 && sAt >= 0, "both sentences are present");
-    assert.ok(iAt < sAt, "instructions must precede skills");
-  });
-
-  it("rides the SAME tool gate as the skill sentence, in both arms", () => {
-    // One gate for both, so they can never disagree about whether this run can commit.
-    const withTool = platformGuidanceAppendix(
-      run({ toolNames: ["commit_revision"] }),
-    );
-    assert.ok(withTool?.includes("agents_md"));
-    assert.ok(withTool?.includes("parameters.agent.skills"));
-
-    const withoutTool = platformGuidanceAppendix(run({ toolNames: ["bash"] }));
-    assert.ok(
-      !withoutTool?.includes("agents_md"),
-      "neither sentence applies without the tool",
-    );
-    assert.ok(!withoutTool?.includes("parameters.agent.skills"));
-  });
-
-  it("still yields the mount paragraph alone when there is no config tool", () => {
-    // The independence check, restated for the new sentence: gating the config pair must not
-    // silence the mount paragraph, which has no tool dependency.
-    const guidance = platformGuidanceAppendix(
-      run({ toolNames: [], agentMountedPath: MOUNT }),
-    );
-    assert.ok(guidance?.includes(agentMountGuidance(MOUNT)));
-    assert.ok(!guidance?.includes("agents_md"));
+    assert.ok(codex.length < 800, `the codex block is ${codex.length} chars`);
   });
 });
 
@@ -384,33 +218,51 @@ describe("the codex bundled-skills rebuttal", () => {
     }
   });
 
-  it("names both skills and the folder they install into", () => {
+  it("names both skills, the folder they install into, and the tool that does count", () => {
     // It has to name them. The failure is that models follow those two by name, so guidance that
-    // gestured at "other tools" would not connect to what they are actually reading.
+    // gestured at "other tools" would not connect to what they are actually reading. It also has
+    // to name the right tool, now that the skill sentence it used to lean on is not in this block.
     const text = codexBundledSkillsAppendix().text;
     assert.ok(text.includes("skill-creator"));
     assert.ok(text.includes("skill-installer"));
     assert.ok(text.includes(".codex/skills"));
+    assert.ok(text.includes("commit_revision"));
+    assert.doesNotMatch(text, /as described above/);
     assert.equal(codexBundledSkillsAppendix().id, "codex-bundled-skills");
   });
 
-  it("rides the config-tool gate too, so a codex run without commit_revision stays silent", () => {
+  it("rides the config-tool gate, so a codex run without commit_revision stays silent", () => {
+    // A plain agent with no config tools would otherwise read a sentence telling it to use a
+    // tool it does not have.
     const guidance = platformGuidanceAppendix(
       run({ acpAgent: "codex", toolNames: ["bash"] }),
     );
     assert.ok(!guidance?.includes("skill-installer"));
+    assert.ok(guidance?.includes(fileCitationAppendix().text));
   });
 
-  it("sits immediately after the skill sentence it defends", () => {
-    // Placement is the argument: it is a rebuttal to a specific tool, not standalone guidance, so
-    // it reads as an exception to the sentence above it rather than as a new topic.
-    const g = platformGuidanceAppendix(
-      run({ acpAgent: "codex", toolNames: ["commit_revision"] }),
-    );
-    assert.ok(g);
+  it("keys on the tool name rather than on the ordered-operations flag", () => {
+    // THE AXIS IS DELIBERATE. `commit_revision` is in the default build kit unconditionally and
+    // the flag changes the commit's DELTA SHAPE, not the tool's existence. Presence also catches
+    // what a flag check cannot: a flag-ON agent that simply has no config tools.
     assert.ok(
-      g.indexOf(skillLocationAppendix().text) <
-        g.indexOf(codexBundledSkillsAppendix().text),
+      platformGuidanceAppendix(
+        run({ acpAgent: "codex", toolNames: ["commit_revision"] }),
+      )?.includes("skill-installer"),
     );
+    assert.ok(
+      !platformGuidanceAppendix(
+        run({ acpAgent: "codex", toolNames: ["read_config"] }),
+      )?.includes("skill-installer"),
+    );
+  });
+
+  it("does NOT gate the mount paragraph, which has no tool dependency", () => {
+    // A Codex run with no config tools still needs to be told where its durable folder is.
+    const guidance = platformGuidanceAppendix(
+      run({ toolNames: [], agentMountedPath: MOUNT }),
+    );
+    assert.ok(guidance?.includes(agentMountGuidance(MOUNT)));
+    assert.ok(!guidance?.includes("skill-installer"));
   });
 });

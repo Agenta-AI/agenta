@@ -31,37 +31,22 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
-import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
-import {
-    Button,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from "@agenta/ui/ui"
+import {DropdownMenuItem, DropdownMenuSeparator} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
-    Clock,
     Flask,
-    Lightning,
     ListChecks,
     Pause,
     PencilSimpleLine,
     Play,
-    Plus,
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import TriggerDeliveriesDrawer from "../../gatewayTrigger/drawers/TriggerDeliveriesDrawer"
-import TriggerScheduleDrawer from "../../gatewayTrigger/drawers/TriggerScheduleDrawer"
-import TriggerSubscriptionDrawer from "../../gatewayTrigger/drawers/TriggerSubscriptionDrawer"
 
 import {AddTextLink} from "./AddTextLink"
-import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
 import {ScheduleTriggerRow} from "./triggerManagement/ScheduleTriggerRow"
 import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
@@ -74,9 +59,18 @@ export interface TriggerManagementSectionProps {
     entityId: string | null
     /** Read-only mode (e.g. a non-editable revision). */
     disabled?: boolean
+    /**
+     * The unified create/edit automation drawer, mounted once by this section. This package
+     * cannot import it directly (that package depends on this one), so the host passes it in.
+     */
+    automationDrawer: ReactNode
 }
 
-export function TriggerManagementSection({entityId, disabled}: TriggerManagementSectionProps) {
+export function TriggerManagementSection({
+    entityId,
+    disabled,
+    automationDrawer,
+}: TriggerManagementSectionProps) {
     const {scopedSubscriptions, scopedSchedules, defaultReferences, defaultBoundLabel} =
         useAgentTriggers(entityId)
 
@@ -309,14 +303,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
         ],
     )
 
-    // Create flows for the per-section "+" and empty-state links — both default-bind to this agent.
-    const openSubscriptionCreate = useCallback(() => {
-        openSubscriptionDrawer({
-            defaultReferences,
-            defaultBoundLabel,
-            playgroundEntityId: entityId ?? undefined,
-        })
-    }, [openSubscriptionDrawer, defaultReferences, defaultBoundLabel, entityId])
+    // The empty state's link — the region header owns the "+". Both default-bind to this agent.
     const openScheduleCreate = useCallback(() => {
         openScheduleDrawer({
             defaultReferences,
@@ -325,106 +312,55 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
         })
     }, [openScheduleDrawer, defaultReferences, defaultBoundLabel, entityId])
 
-    // Compact header "+" — the same affordance the config sections render in their `extra` slot.
-    const headerAddButton = (label: string, onClick: () => void) => (
-        <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={onClick} aria-label={label}>
-                        <Plus size={16} />
-                    </Button>
-                </TooltipTrigger>
-                <TooltipContent>{label}</TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
-    )
-
     return (
-        <div className="flex flex-col">
-            {/* Subscriptions + Schedules render as the SAME accordion sections the template config
-                uses (icon, count summary, header "+", collapse) so the Triggers region reads like
-                the Configuration region. */}
-            <ConfigAccordionSection
-                // Remount on the empty↔non-empty boundary so `defaultOpen` re-applies: adding the
-                // FIRST subscription (0→1) otherwise leaves the mount-time-collapsed section shut and
-                // hides the new row.
-                key={scopedSubscriptions.length > 0 ? "has-subscriptions" : "no-subscriptions"}
-                icon={<Lightning size={16} />}
-                title="Subscriptions"
-                summary={countSummary(scopedSubscriptions.length, "subscription")}
-                extra={
-                    !disabled
-                        ? headerAddButton("Add subscription", openSubscriptionCreate)
-                        : undefined
-                }
-                defaultOpen={scopedSubscriptions.length > 0}
-                animateInitialOpen
-                // Same expanded-header band Tools uses (see AgentTemplateSectionList): white while
-                // collapsed, recoloured while open. The bleed matches this region's px-4 container.
-                headerBand="-mx-4 px-4"
-            >
-                {scopedSubscriptions.length > 0 ? (
-                    // Grouped by provider. The connections + catalog queries live inside this child
-                    // so they only fire when there ARE app subscriptions to decorate.
-                    <AppTriggerProviderGroups
-                        scopedSubscriptions={scopedSubscriptions}
-                        entityId={entityId}
-                        disabled={disabled}
-                        subscriptionMenu={subscriptionMenu}
-                    />
-                ) : !disabled ? (
-                    <span className="text-xs text-[var(--ag-zinc-5)]">
-                        No subscriptions yet —{" "}
-                        <AddTextLink label="add a subscription" onClick={openSubscriptionCreate} />
-                    </span>
-                ) : null}
-            </ConfigAccordionSection>
+        <div className="flex flex-col gap-2 py-3">
+            {/* One list, not a Subscriptions section beside a Schedules section: both are
+                automations, the region header above already names them, and two accordions for
+                what is usually one or two rows spent more height on their own headers than on
+                their contents. Event-backed ones stay grouped by the app they arrive from,
+                because that grouping IS how a reader finds them. */}
+            {scopedSubscriptions.length > 0 ? (
+                <AppTriggerProviderGroups
+                    scopedSubscriptions={scopedSubscriptions}
+                    entityId={entityId}
+                    disabled={disabled}
+                    subscriptionMenu={subscriptionMenu}
+                />
+            ) : null}
 
-            <ConfigAccordionSection
-                // See the Subscriptions section: remount on 0↔1 so adding the first schedule opens it.
-                key={scopedSchedules.length > 0 ? "has-schedules" : "no-schedules"}
-                icon={<Clock size={16} />}
-                title="Schedules"
-                summary={countSummary(scopedSchedules.length, "schedule")}
-                extra={!disabled ? headerAddButton("Add schedule", openScheduleCreate) : undefined}
-                defaultOpen={scopedSchedules.length > 0}
-                noDivider
-                animateInitialOpen
-                headerBand="-mx-4 px-4"
-            >
-                {scopedSchedules.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                        {scopedSchedules.map((record) => (
-                            <ScheduleTriggerRow
-                                key={`schedule-${record.id}`}
-                                record={record}
-                                entityId={entityId}
-                                disabled={disabled}
-                                onOpen={() =>
-                                    record.id &&
-                                    openScheduleDrawer({
-                                        scheduleId: record.id,
-                                        playgroundEntityId: entityId ?? undefined,
-                                    })
-                                }
-                                menu={scheduleMenu(record)}
-                            />
-                        ))}
-                    </div>
-                ) : !disabled ? (
-                    <span className="text-xs text-[var(--ag-zinc-5)]">
-                        No schedules yet —{" "}
-                        <AddTextLink label="add a schedule" onClick={openScheduleCreate} />
-                    </span>
-                ) : null}
-            </ConfigAccordionSection>
+            {scopedSchedules.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                    {scopedSchedules.map((record) => (
+                        <ScheduleTriggerRow
+                            key={`schedule-${record.id}`}
+                            record={record}
+                            entityId={entityId}
+                            disabled={disabled}
+                            onOpen={() =>
+                                record.id &&
+                                openScheduleDrawer({
+                                    scheduleId: record.id,
+                                    playgroundEntityId: entityId ?? undefined,
+                                })
+                            }
+                            menu={scheduleMenu(record)}
+                        />
+                    ))}
+                </div>
+            ) : null}
+
+            {scopedSubscriptions.length === 0 && scopedSchedules.length === 0 && !disabled ? (
+                <span className="text-xs text-[var(--ag-zinc-5)]">
+                    No automations yet —{" "}
+                    <AddTextLink label="add an automation" onClick={openScheduleCreate} />
+                </span>
+            ) : null}
 
             {/* Propless, atom-driven drawers — mounted once; they manage their own
                 visibility. App browsing + connecting now happens inside the subscription
                 drawer (no separate catalog drawer in the playground). When a
                 subscription/schedule is created here it default-binds to this agent. */}
-            <TriggerSubscriptionDrawer />
-            <TriggerScheduleDrawer />
+            {automationDrawer}
             <TriggerDeliveriesDrawer />
         </div>
     )

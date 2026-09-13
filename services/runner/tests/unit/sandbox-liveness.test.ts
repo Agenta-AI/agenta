@@ -1,0 +1,325 @@
+/**
+ * A sandbox that dies under a running turn must end the turn, not hang it.
+ *
+ * The ACP prompt the turn is parked on can never settle once the sandbox process is gone: the
+ * transport's read loop swallows the severed stream and never rejects the pending request. The
+ * existing run limits do not save it either — `notePaused()` retires all of them the moment the
+ * turn parks for a human, which is exactly when a long turn is most likely to outlive its
+ * sandbox. So the runner probes the sandbox's own HTTP surface, independently of the wedged ACP
+ * channel. These tests hold the probe's contract: it tolerates a blip, it declares death once,
+ * and it never fires after the turn released it. Issue #6418.
+ */
+
+import { describe, it, expect, vi, afterEach } from "vitest";
+
+import {
+  DEFAULT_PROBE_FAILURES,
+  DEFAULT_PROBE_INTERVAL_MS,
+  DEFAULT_PROBE_TIMEOUT_MS,
+  PROBE_FAILURES_ENV,
+  PROBE_INTERVAL_ENV,
+  httpLivenessProbe,
+  resolveSandboxLivenessLimits,
+  SandboxGoneError,
+  sandboxHealthUrl,
+  startSandboxLivenessProbe,
+  type Clock,
+  type SandboxLivenessLimits,
+} from "../../src/engines/sandbox_agent/sandbox-liveness.ts";
+import { SANDBOX_GONE_MARKER } from "../../src/engines/sandbox_agent/errors.ts";
+import { createSandboxGoneLatch } from "../../src/engines/sandbox_agent/sandbox-gone.ts";
+
+/** A clock whose timers only run when the test says so, in scheduled order. */
+function fakeClock(): Clock & { tick(): Promise<void>; pending(): number } {
+  let nextId = 1;
+  const timers = new Map<number, { fn: () => void; at: number }>();
+  let now = 0;
+
+  const clock = {
+    setTimeout(fn: () => void, ms: number) {
+      const id = nextId++;
+      timers.set(id, { fn, at: now + ms });
+      return id as unknown as NodeJS.Timeout;
+    },
+    clearTimeout(handle: NodeJS.Timeout) {
+      timers.delete(handle as unknown as number);
+    },
+    pending: () => timers.size,
+    /** Run the earliest pending timer, then drain the microtask queue. */
+    async tick() {
+      const entries = [...timers.entries()].sort((a, b) => a[1].at - b[1].at);
+      const next = entries[0];
+      if (!next) return;
+      timers.delete(next[0]);
+      now = next[1].at;
+      next[1].fn();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    },
+  };
+  return clock;
+}
+
+const limits: SandboxLivenessLimits = {
+  intervalMs: 1_000,
+  timeoutMs: 500,
+  failureThreshold: 3,
+};
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+describe("sandbox liveness probe", () => {
+  it.each([
+    ["local", "http://127.0.0.1:43123/ui/", "http://127.0.0.1:43123/v1/health"],
+    [
+      "Daytona",
+      "https://3000-sandbox-id.proxy.daytona.works/ui/",
+      "https://3000-sandbox-id.proxy.daytona.works/v1/health",
+    ],
+  ])(
+    "derives the daemon health route from a %s inspector URL",
+    (_provider, inspectorUrl, expected) => {
+      expect(sandboxHealthUrl({ inspectorUrl })).toBe(expected);
+    },
+  );
+
+  it("declares the sandbox gone after the threshold of consecutive failures", async () => {
+    const onGone = vi.fn();
+    const probe = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+    const clock = fakeClock();
+
+    const handle = startSandboxLivenessProbe({ probe, limits, onGone, clock });
+
+    // Each pass is one interval timer, then the probe's own timeout timer.
+    for (let i = 0; i < 3; i++) {
+      await clock.tick(); // interval fires, probe rejects
+      await clock.tick(); // the (already settled) probe timeout is cleared/drained
+    }
+
+    expect(probe).toHaveBeenCalledTimes(3);
+    expect(onGone).toHaveBeenCalledTimes(1);
+    expect(onGone.mock.calls[0][0]).toContain(SANDBOX_GONE_MARKER);
+    handle.dispose();
+  });
+
+  it("tolerates a blip: one failure between successes is not a death", async () => {
+    const onGone = vi.fn();
+    const probe = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("transient"))
+      .mockResolvedValue({ id: "session-1" });
+    const clock = fakeClock();
+
+    const handle = startSandboxLivenessProbe({ probe, limits, onGone, clock });
+
+    for (let i = 0; i < 8; i++) await clock.tick();
+
+    expect(onGone).not.toHaveBeenCalled();
+    expect(handle.failures()).toBe(0);
+    handle.dispose();
+  });
+
+  it("counts a probe that hangs as a failure, so a vanished host is not waited on forever", async () => {
+    const onGone = vi.fn();
+    // The exact #6418 shape: the request neither answers nor refuses.
+    const probe = vi.fn().mockImplementation(() => new Promise(() => {}));
+    const clock = fakeClock();
+
+    const handle = startSandboxLivenessProbe({ probe, limits, onGone, clock });
+
+    // interval -> probe hangs -> its timeout fires, three times over.
+    for (let i = 0; i < 6; i++) await clock.tick();
+
+    expect(onGone).toHaveBeenCalledTimes(1);
+    expect(onGone.mock.calls[0][0]).toContain("probe timed out");
+    handle.dispose();
+  });
+
+  it("fires at most once, and never after dispose", async () => {
+    const onGone = vi.fn();
+    const probe = vi.fn().mockRejectedValue(new Error("gone"));
+    const clock = fakeClock();
+
+    const handle = startSandboxLivenessProbe({ probe, limits, onGone, clock });
+    handle.dispose();
+
+    for (let i = 0; i < 10; i++) await clock.tick();
+
+    expect(probe).not.toHaveBeenCalled();
+    expect(onGone).not.toHaveBeenCalled();
+    expect(clock.pending()).toBe(0);
+  });
+});
+
+/** A latch the environment already armed, which is what every turn past acquire holds. */
+function armedLatch() {
+  const latch = createSandboxGoneLatch();
+  latch.arm();
+  return latch;
+}
+
+/**
+ * The Daytona case. The proxy answers for a deleted sandbox, so no probe ever fails the weak way
+ * and the three-strike counter never moves. Both routes below end the turn instead.
+ */
+describe("a sandbox the provider says is gone", () => {
+  it("ends the turn on the FIRST such answer, without waiting for the threshold", async () => {
+    const onGone = vi.fn();
+    const probe = vi
+      .fn()
+      .mockRejectedValue(new SandboxGoneError("sandbox a476c238 not found"));
+    const clock = fakeClock();
+
+    const handle = startSandboxLivenessProbe({ probe, limits, onGone, clock });
+
+    await clock.tick(); // one interval, one probe
+    await clock.tick();
+
+    expect(probe).toHaveBeenCalledTimes(1);
+    expect(onGone).toHaveBeenCalledTimes(1);
+    expect(onGone.mock.calls[0][0]).toContain(SANDBOX_GONE_MARKER);
+    expect(onGone.mock.calls[0][0]).toContain("a476c238");
+    handle.dispose();
+  });
+
+  it("ends the turn the moment the ACP transport reports it, with no probe at all", async () => {
+    const onGone = vi.fn();
+    const goneSignal = armedLatch();
+    const clock = fakeClock();
+
+    const handle = startSandboxLivenessProbe({
+      probe: vi.fn().mockResolvedValue(200),
+      goneSignal,
+      limits,
+      onGone,
+      clock,
+    });
+    goneSignal.note("provider reports the sandbox is gone (HTTP 404)");
+
+    expect(onGone).toHaveBeenCalledTimes(1);
+    expect(onGone.mock.calls[0][0]).toContain(SANDBOX_GONE_MARKER);
+    handle.dispose();
+  });
+
+  it("honours the transport's report on a sandbox with no health URL to poll", () => {
+    const onGone = vi.fn();
+    const goneSignal = armedLatch();
+    const clock = fakeClock();
+
+    const handle = startSandboxLivenessProbe({
+      goneSignal,
+      limits,
+      onGone,
+      clock,
+    });
+
+    expect(clock.pending()).toBe(0); // nothing to poll, so nothing is scheduled
+    goneSignal.note("deleted");
+
+    expect(onGone).toHaveBeenCalledTimes(1);
+    handle.dispose();
+  });
+
+  it("still reports one death when the probe and the transport both see it", async () => {
+    const onGone = vi.fn();
+    const goneSignal = armedLatch();
+    const probe = vi
+      .fn()
+      .mockRejectedValue(new SandboxGoneError("sandbox gone per probe"));
+    const clock = fakeClock();
+
+    const handle = startSandboxLivenessProbe({
+      probe,
+      goneSignal,
+      limits,
+      onGone,
+      clock,
+    });
+    goneSignal.note("sandbox gone per transport");
+    await clock.tick();
+    await clock.tick();
+
+    expect(onGone).toHaveBeenCalledTimes(1);
+    handle.dispose();
+  });
+
+  it("hands the listener back on dispose, so a warm sandbox keeps no finished turns", () => {
+    const goneSignal = armedLatch();
+    const finishedTurn = vi.fn();
+    const currentTurn = vi.fn();
+    const clock = fakeClock();
+
+    // Turn 1 runs and ends. Turn 2 starts on the SAME warm environment, so the same latch.
+    startSandboxLivenessProbe({
+      goneSignal,
+      limits,
+      onGone: finishedTurn,
+      clock,
+    }).dispose();
+    const handle = startSandboxLivenessProbe({
+      goneSignal,
+      limits,
+      onGone: currentTurn,
+      clock,
+    });
+
+    goneSignal.note("deleted");
+
+    expect(finishedTurn).not.toHaveBeenCalled();
+    expect(currentTurn).toHaveBeenCalledTimes(1);
+    handle.dispose();
+  });
+});
+
+describe("httpLivenessProbe", () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("rejects with a definitive error when the provider names the sandbox as gone", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response("not found: sandbox a476c238 not found", {
+        status: 404,
+        headers: { "x-daytona-error-code": "SANDBOX_NOT_FOUND" },
+      }),
+    ) as unknown as typeof fetch;
+
+    await expect(
+      httpLivenessProbe("http://sandbox/v1/health")(),
+    ).rejects.toBeInstanceOf(SandboxGoneError);
+  });
+
+  it("keeps reading an ordinary 404 as alive", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("Not Found", { status: 404 }),
+      ) as unknown as typeof fetch;
+
+    await expect(httpLivenessProbe("http://sandbox/v1/health")()).resolves.toBe(
+      404,
+    );
+  });
+});
+
+describe("sandbox liveness limits", () => {
+  it("defaults to one probe per heartbeat interval and three strikes", () => {
+    expect(resolveSandboxLivenessLimits()).toEqual({
+      intervalMs: DEFAULT_PROBE_INTERVAL_MS,
+      timeoutMs: DEFAULT_PROBE_TIMEOUT_MS,
+      failureThreshold: DEFAULT_PROBE_FAILURES,
+    });
+  });
+
+  it("takes an operator override", () => {
+    vi.stubEnv(PROBE_INTERVAL_ENV, "5000");
+    vi.stubEnv(PROBE_FAILURES_ENV, "2");
+
+    const resolved = resolveSandboxLivenessLimits();
+
+    expect(resolved.intervalMs).toBe(5_000);
+    expect(resolved.failureThreshold).toBe(2);
+  });
+});

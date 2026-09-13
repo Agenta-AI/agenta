@@ -16,6 +16,7 @@ const SINGLETONS = ["antd", "@ant-design/icons", "rc-util"]
 
 const config: StorybookConfig = {
     framework: {name: "@storybook/nextjs", options: {}},
+    staticDirs: ["../public"],
     stories: [
         // MDX overview pages (per-folder "quick context") sit alongside the stories.
         "../stories/**/*.mdx",

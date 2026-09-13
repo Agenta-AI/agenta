@@ -4,6 +4,7 @@ import {describe, expect, it, vi} from "vitest"
 import {
     buildTurnViewModels,
     createExecutedToolIdentityCache,
+    createTurnViewModelCache,
     toolPartsSignature,
 } from "../../../src/model/turnViewModel"
 
@@ -31,6 +32,28 @@ describe("toolPartsSignature", () => {
         // More text streaming in does not change the signature.
         const more = [...parts, {type: "text", text: "more"}] as UIMessage["parts"]
         expect(toolPartsSignature(more)).toBe(toolPartsSignature(parts))
+    })
+})
+
+describe("createTurnViewModelCache", () => {
+    it("rebuilds an unchanged turn when the client-tool classifier changes", () => {
+        const cache = createTurnViewModelCache()
+        const executedFor = createExecutedToolIdentityCache()
+        const messages = [assistant("a1", [toolPart("c1", "output-available")])]
+        const build = (isClientToolPart: () => boolean) =>
+            buildTurnViewModels(messages, {busy: false, executedFor, cache, isClientToolPart})
+
+        const plain = () => false
+        const first = build(plain)[0]
+        // Same message, same predicate: the cache is what keeps TurnRow's memo holding.
+        expect(build(plain)[0]).toBe(first)
+
+        // A late data-render hint reclassifies an earlier turn; the caller hands over a new
+        // predicate identity, and a stale view model would render the widget as a tool line.
+        const reclassified = build(() => true)[0]
+        expect(reclassified).not.toBe(first)
+        expect(reclassified.items.some((item) => item.kind === "clientTool")).toBe(true)
+        expect(first.items.some((item) => item.kind === "clientTool")).toBe(false)
     })
 })
 

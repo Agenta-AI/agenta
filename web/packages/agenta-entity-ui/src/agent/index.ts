@@ -12,8 +12,24 @@ export {
     type AgentIconChrome,
 } from "./agentIcon"
 export {AgentCard, agentAvatar, type AgentCardData, type AgentCardProps} from "./AgentCard"
+export {
+    AgentChip,
+    AgentPicker,
+    type AgentPickerProps,
+    type AgentPickerDensity,
+    type AgentPickerTriggerVariant,
+} from "./AgentPicker"
 export {NextTriggersSection, type NextTriggersSectionProps} from "./NextTriggersSection"
-export {AgentConfigSummaryCard, type AgentConfigSummaryCardProps} from "./AgentConfigSummaryCard"
+export {
+    useUpcomingTriggers,
+    type UpcomingTrigger,
+    type UseUpcomingTriggersArgs,
+} from "./useUpcomingTriggers"
+export {
+    AgentConfigSummaryCard,
+    type AgentConfigSummaryCardProps,
+    type AgentConfigSummaryCopy,
+} from "./AgentConfigSummaryCard"
 export {agentConfigSummary, prettifyKind, type AgentConfigSummary} from "./agentConfigSummary"
 export {agentLatestRevisionAtomFamily} from "./state"
 export {AgentCardGrid, type AgentCardGridProps} from "./AgentCardGrid"
@@ -21,6 +37,21 @@ export {AgentRosterGrid, type AgentRosterEntry, type AgentRosterGridProps} from 
 export {AgentOverviewLayout, type AgentOverviewLayoutProps} from "./AgentOverviewLayout"
 export {AgentFilesCard} from "./AgentFilesCard"
 export {AgentOverviewBody, type AgentOverviewBodyProps} from "./AgentOverviewBody"
+export {AgentOverviewSkeleton} from "./AgentOverviewSkeleton"
 export {AgentActionsMenu, type AgentActionsMenuProps} from "./AgentActionsMenu"
-export {useAgentActions, type AgentActionTarget} from "./useAgentActions"
+export {
+    AgentNameInline,
+    agentNameLabelClass,
+    type AgentNameInlineProps,
+    type AgentNameSize,
+} from "./AgentNameInline"
+export {AgentIconPopover} from "./AgentIconPopover"
+export {AgentIdentity, type AgentIdentityProps, type AgentIdentitySize} from "./AgentIdentity"
+export {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK, AGENT_FOCUS_RING} from "./chrome"
+export {
+    useAgentActions,
+    useRenameAgent,
+    useUpdateAgentDescription,
+    type AgentActionTarget,
+} from "./useAgentActions"
 export {AgentIntroCard, capabilityLabel} from "./AgentIntroCard"

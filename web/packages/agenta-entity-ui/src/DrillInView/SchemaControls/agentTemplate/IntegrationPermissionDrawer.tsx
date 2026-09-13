@@ -13,7 +13,7 @@
  * Built for scale: a provider integration can list 50 to 200 tools, so the body carries a search
  * box, two collapsible groups (read-only and write and delete), and a per-group row cap.
  */
-import {memo, useLayoutEffect, useMemo, useState} from "react"
+import {memo, useMemo, useState} from "react"
 
 import {
     useToolConnectionsQuery,
@@ -22,6 +22,7 @@ import {
     type ToolCatalogAction,
     type ToolCatalogActionDetails,
 } from "@agenta/entities/gatewayTool"
+import {humanizeActionKey} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Badge, Button, SearchInput, Spinner} from "@agenta/ui/ui"
@@ -33,7 +34,6 @@ import ConnectionStatusBadge from "../../../gatewayTool/components/ConnectionSta
 import {
     INTEGRATION_PRESETS,
     TOOL_PERMISSION_OPTIONS,
-    isDescriptionTruncatable,
     partitionToolsByAccess,
     presetPermissions,
     readIntegrationPreset,
@@ -58,7 +58,7 @@ import type {
 } from "../toolUtils"
 
 import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
-import {humanizeActionKey} from "./itemDescriptors"
+import {ExpandableDescription} from "./ExpandableDescription"
 import {PolicyGlyph} from "./PermissionGlyph"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
 
@@ -110,20 +110,8 @@ const ToolRow = memo(function ToolRow({
     onChange: (toolKey: string, permission: GatewayPermission) => void
     disabled?: boolean
 }) {
+    // Only the row's tint depends on this; the clamp and the toggle live in ExpandableDescription.
     const [expanded, setExpanded] = useState(false)
-    const [preview, setPreview] = useState<HTMLSpanElement | null>(null)
-    const [overflows, setOverflows] = useState(false)
-    const description = tool.description?.trim()
-    // Measured only while collapsed: expanding changes the very box the measurement reads.
-    useLayoutEffect(() => {
-        if (!description) {
-            setOverflows(false)
-            return
-        }
-        if (!preview || expanded) return
-        setOverflows(preview.scrollWidth > preview.clientWidth)
-    }, [preview, expanded, description])
-    const truncatable = isDescriptionTruncatable(description, overflows)
 
     return (
         <div
@@ -148,27 +136,11 @@ const ToolRow = memo(function ToolRow({
                             </Badge>
                         ) : null}
                     </div>
-                    {description ? (
-                        <span
-                            ref={setPreview}
-                            className={`text-xs text-[var(--ag-colorTextTertiary)] ${
-                                expanded
-                                    ? "whitespace-pre-line leading-relaxed text-[var(--ag-colorTextSecondary)]"
-                                    : "truncate"
-                            }`}
-                        >
-                            {description}
-                        </span>
-                    ) : null}
-                    {truncatable ? (
-                        <button
-                            type="button"
-                            onClick={() => setExpanded((value) => !value)}
-                            className="mt-1 w-fit cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorLink)]"
-                        >
-                            {expanded ? "Show less" : "Show more"}
-                        </button>
-                    ) : null}
+                    <ExpandableDescription
+                        description={tool.description}
+                        label={tool.name || humanizeActionKey(tool.key)}
+                        onExpandedChange={setExpanded}
+                    />
                 </div>
                 <PermissionPolicySelect
                     value={permission}
@@ -177,13 +149,14 @@ const ToolRow = memo(function ToolRow({
                     disabled={disabled}
                     size="sm"
                     aria-label={`Permission for ${tool.key}`}
+                    // Narrower and smaller-set on a phone, so the tool name beside it stays legible.
                     triggerClassName={
                         permission === "deny"
-                            ? "w-auto min-w-[132px] shrink-0 border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)]"
-                            : "w-auto min-w-[132px] shrink-0"
+                            ? "w-auto min-w-[104px] shrink-0 border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)] max-sm:!text-field-sm sm:min-w-[132px]"
+                            : "w-auto min-w-[104px] shrink-0 max-sm:!text-field-sm sm:min-w-[132px]"
                     }
                     // The panel is pinned to the trigger; a compact chip wraps every option label.
-                    contentClassName="w-auto min-w-[260px]"
+                    contentClassName="w-auto min-w-[220px] sm:min-w-[260px]"
                 />
             </div>
         </div>
@@ -492,19 +465,32 @@ function DrawerTitle({
     const {integration} = useToolIntegrationDetail(target.integration)
     const {connections} = useToolConnectionsQuery()
     const connection = findTargetConnection(connections, target, connectionSlug)
+    const displayName = integration?.name || target.integration
+    const showSlug = displayName.toLowerCase() !== target.integration.toLowerCase()
 
     return (
         // w-full + min-w-0: the title slot will not shrink alone, pushing the badge past the edge.
         <div className="flex w-full min-w-0 items-center gap-2.5">
-            <ProviderLogo logo={integration?.logo ?? null} size={22} />
-            <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-semibold">
-                    {integration?.name || target.integration}
-                </span>
-                <span className="truncate text-xs font-normal text-[var(--ag-colorTextTertiary)]">
-                    Integration · {target.integration}
-                    {connectionSlug ? ` · ${connectionSlug} connection` : ""}
-                </span>
+            <ProviderLogo
+                logo={integration?.logo ?? null}
+                size={22}
+                className="max-sm:!size-[18px]"
+            />
+            {/* One line: "Integration · gmail · gmail-main connection" repeated the name and
+                labelled what the logo already says. The slug is dropped where the name IS it. */}
+            <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                <span className="truncate text-sm font-semibold">{displayName}</span>
+                {showSlug ? (
+                    // Dropped on a phone: it never shrinks, so it cut the name down to one letter.
+                    <span className="hidden shrink-0 text-xs font-normal text-[var(--ag-colorTextTertiary)] sm:inline">
+                        {target.integration}
+                    </span>
+                ) : null}
+                {connectionSlug ? (
+                    <span className="min-w-0 truncate text-xs font-normal text-[var(--ag-colorTextTertiary)]">
+                        {connectionSlug}
+                    </span>
+                ) : null}
             </div>
             {/* Shows Pending and Inactive too, which is exactly what an author needs here. */}
             {connection ? (

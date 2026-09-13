@@ -6,8 +6,6 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {stableStringify} from "@agenta/entities/workflow/commitDiff"
 
-import type {ConfigItemView} from "../ConfigItemDrawer"
-
 import {cloneItem} from "./agentTemplateUtils"
 import {ITEM_KINDS, type ItemKind, type ItemKindDef} from "./itemKinds"
 import {applyItemToList, removeItemFromList} from "./itemListOps"
@@ -29,7 +27,6 @@ export function useConfigItemDrawer({
     const [draft, setDraft] = useState<Record<string, unknown>>({})
     // What the drawer opened with, so Save can tell an untouched item from an edited one.
     const [opened, setOpened] = useState<string>("")
-    const [drawerView, setDrawerView] = useState<ConfigItemView>("form")
     // JSON-view parse validity from the open drawer's JsonObjectEditor; blocks Save while the raw
     // JSON is invalid. Reset when the open item changes — each editor is keyed/remounts and starts
     // valid.
@@ -38,25 +35,17 @@ export function useConfigItemDrawer({
         setJsonInvalid(false)
     }, [editing])
 
-    const openCreate = useCallback(
-        (kind: ItemKind, seed: Record<string, unknown>, view: ConfigItemView) => {
-            setDraft(seed)
-            setOpened(stableStringify(seed))
-            setDrawerView(view)
-            setEditing({kind, mode: "create", index: -1})
-        },
-        [],
-    )
-    const openEdit = useCallback(
-        (kind: ItemKind, index: number, item: unknown, view: ConfigItemView) => {
-            const initial = cloneItem(item)
-            setDraft(initial)
-            setOpened(stableStringify(initial))
-            setDrawerView(view)
-            setEditing({kind, mode: "edit", index})
-        },
-        [],
-    )
+    const openCreate = useCallback((kind: ItemKind, seed: Record<string, unknown>) => {
+        setDraft(seed)
+        setOpened(stableStringify(seed))
+        setEditing({kind, mode: "create", index: -1})
+    }, [])
+    const openEdit = useCallback((kind: ItemKind, index: number, item: unknown) => {
+        const initial = cloneItem(item)
+        setDraft(initial)
+        setOpened(stableStringify(initial))
+        setEditing({kind, mode: "edit", index})
+    }, [])
     const closeEditor = useCallback(() => setEditing(null), [])
 
     const fieldArray = useCallback(
@@ -97,8 +86,6 @@ export function useConfigItemDrawer({
         editing,
         draft,
         setDraft,
-        drawerView,
-        setDrawerView,
         jsonInvalid,
         setJsonInvalid,
         openCreate,

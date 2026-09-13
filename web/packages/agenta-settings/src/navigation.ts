@@ -5,7 +5,6 @@ export type SettingsTabKey =
     | "secrets"
     | "llms"
     | "tools"
-    | "triggers"
     | "webhooks"
     | "workspace"
     | "projects"
@@ -21,7 +20,6 @@ export type SettingsScopeKey = "project" | "organization" | "personal"
 export interface SettingsAccess {
     billingEnabled: boolean
     canShowTools: boolean
-    canShowTriggers: boolean
     canViewApiKeys: boolean
     canViewEvents: boolean
     isEE: boolean
@@ -74,12 +72,6 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         scope: "project",
         description: "Configure integrations your agents can use.",
         docs: {label: "About tools", href: `${DOCS_BASE}/concepts/tools-and-integrations`},
-    },
-    {
-        key: "triggers",
-        scope: "project",
-        description: "Run agents automatically from schedules or events.",
-        docs: {label: "About automations", href: `${DOCS_BASE}/concepts/automations`},
     },
     {
         key: "webhooks",
@@ -162,7 +154,6 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     // The tab key stays `llms` so existing `?tab=llms` links keep working.
     llms: "AI providers",
     tools: "Tools",
-    triggers: "Triggers",
     webhooks: "Webhooks",
     workspace: "Members",
     projects: "Projects",
@@ -199,8 +190,6 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.canViewApiKeys
         case "tools":
             return access.canShowTools
-        case "triggers":
-            return access.canShowTriggers
         case "organization":
             return access.isEE && access.isOwner
         case "auditLog":

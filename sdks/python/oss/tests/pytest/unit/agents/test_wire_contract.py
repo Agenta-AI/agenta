@@ -10,7 +10,7 @@ purpose. Regenerate the golden deliberately, and update ``protocol.ts`` and ``KN
 to match.
 
 There is no engine selector on the wire: the runner drives one engine (the sandbox-agent ACP
-path) and ``harness`` (``pi_core`` / ``pi_agenta`` / ``claude``) picks the agent.
+path) and ``harness`` (``pi_core`` / ``claude`` / ``codex``) picks the agent.
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from agenta.sdk.redaction.context import redaction_context
 from agenta.sdk.redaction.redactor import Redactor
 
 from agenta.sdk.agents import (
-    AgentaAgentTemplate,
     AgentTemplate,
     ClaudeAgentTemplate,
     CodexAgentTemplate,
@@ -46,6 +45,9 @@ from agenta.sdk.agents import (
     ToolResolver,
     TraceContext,
 )
+from agenta.sdk.agents.platform_instructions import compose_platform_instructions
+from agenta.sdk.agents.connections import EnvironmentCredentialBinding
+from agenta.sdk.agents.dtos import ResolvedSandboxCredential
 from agenta.sdk.agents.platform.gateway import _derived_tool_specs
 from agenta.sdk.agents.tools import (
     CompiledTool,
@@ -83,6 +85,7 @@ KNOWN_REQUEST_KEYS = {
     "harnessMode",
     "modelCapabilities",
     "modelConnection",
+    "sandboxCredentials",
     "messages",
     "context",
     "telemetry",
@@ -93,13 +96,17 @@ KNOWN_REQUEST_KEYS = {
     "toolCallback",
     "permissions",
     "gatewayPolicy",
+    "platformInstructions",
+    "turnContext",
     "systemPrompt",
     "appendSystemPrompt",
     "skills",
     "sandboxPermission",
     "harnessFiles",
     "turnId",
+    "detached",
     "projectId",
+    "controlCommandId",
     "effectiveParameters",
 }
 
@@ -190,6 +197,7 @@ def _pi_payload():
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
+        turn_context='## This session\n\nThis session is named "Q3 notes".',
         trace=TraceContext(
             traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
             endpoint="https://otlp.example/v1/traces",
@@ -283,6 +291,12 @@ def _codex_payload():
             ],
             endpoint=Endpoint(base_url="https://api.openai.com/v1"),
         ),
+        sandbox_credentials=[
+            ResolvedSandboxCredential(
+                binding=EnvironmentCredentialBinding(name="GITHUB_TOKEN"),
+                value="github-secret",
+            )
+        ],
     )
     return request_to_wire(
         harness=HarnessKind.CODEX,
@@ -322,6 +336,11 @@ def _gateway_connection_payload():
         # Straight from the producer, so the golden records what a real resolve emits.
         custom_tools=_derived_tool_specs(list(gateway_policy.integrations)),
         tool_callback=_CALLBACK,
+        # Straight from the same producer path the adapters use, so the golden pins the
+        # separate-field form (the guidance is spliced runner-side at environment build).
+        platform_instructions=compose_platform_instructions(
+            list(gateway_policy.integrations)
+        ),
     )
     return request_to_wire(
         harness=HarnessKind.PI,
@@ -331,23 +350,6 @@ def _gateway_connection_payload():
         trace=None,
         session_id=None,
         gateway_policy=gateway_policy,
-    )
-
-
-def _agenta_payload():
-    config = AgentaAgentTemplate(
-        agents_md="Agenta preamble + project rules.",
-        model="gpt-5.5",
-        custom_tools=[dict(_CUSTOM_TOOL)],
-        tool_callback=_CALLBACK,
-        append_system="You are an Agenta agent.",
-        skills=[dict(_SKILL)],
-    )
-    return request_to_wire(
-        harness=HarnessKind.AGENTA,
-        sandbox="local",
-        config=config,
-        messages=[Message(role="user", content="hi")],
     )
 
 
@@ -383,6 +385,64 @@ def _attachment_payload():
         ],
         session_id="sess-attachment",
     )
+
+
+#: The login the hosted-subscription golden carries. Not a credential: every value is a literal.
+_SUBSCRIPTION_LOGIN = {
+    "type": "oauth",
+    "access": "access-token",
+    "refresh": "refresh-token",
+    "expires": 1789000000000,
+    "accountId": "acct-1",
+}
+
+
+def _subscription_connection_payload():
+    """A Pi run authenticated by a hosted subscription instead of an API key.
+
+    The harness still owns authentication (``runtime_provided``, no credentials), and Agenta
+    delivers the login it signs in with. This is the only wire shape that carries a login, so
+    the golden is the anchor the runner's own mirror is asserted against.
+    """
+    from agenta.sdk.agents.connections import Connection, ResolvedSubscription
+    from agenta.sdk.agents.dtos import ModelRef
+
+    config = PiAgentTemplate(
+        agents_md="You are a helpful assistant.",
+        model="openai-codex/gpt-5.5",
+        model_ref=ModelRef(
+            model="gpt-5.5",
+            provider="openai-codex",
+            connection=Connection(mode="self_managed", slug="chatgpt"),
+        ),
+        resolved_connection=ResolvedConnection(
+            provider="openai-codex",
+            model="gpt-5.5",
+            credential_mode="runtime_provided",
+            subscription=ResolvedSubscription(
+                id="0199-secret-id",
+                slug="chatgpt",
+                provider="chatgpt",
+                version=3,
+                generation=1,
+                login=dict(_SUBSCRIPTION_LOGIN),
+            ),
+        ),
+    )
+    return request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        session_id=None,
+    )
+
+
+def test_request_to_wire_subscription_connection_matches_golden(golden):
+    """The hosted-subscription run's whole payload, login included (contracts section 1)."""
+    payload = _subscription_connection_payload()
+    assert payload == golden("run_request.subscription_connection.json")
+    assert set(payload) <= KNOWN_REQUEST_KEYS
 
 
 def test_request_to_wire_gateway_connection_matches_golden(golden):
@@ -427,22 +487,14 @@ def test_request_to_wire_omits_gateway_policy_without_a_connection(golden):
         ("run_request.claude.json", _claude_payload()),
         ("run_request.codex.json", _codex_payload()),
         ("run_request.attachment.json", _attachment_payload()),
+        (
+            "run_request.subscription_connection.json",
+            _subscription_connection_payload(),
+        ),
     ):
         assert "gatewayPolicy" not in payload
         assert "gatewayPolicy" not in golden(name)
         assert payload == golden(name)
-
-
-def test_request_to_wire_agenta_carries_skills_and_pi_shape():
-    payload = _agenta_payload()
-    assert set(payload) <= KNOWN_REQUEST_KEYS
-    # Agenta is a Pi config: same tool shape and shared permission plan, plus prompt overrides.
-    assert payload["permissions"] == {"default": "allow_reads"}
-    assert payload["tools"] == list(PI_BUILTIN_TOOL_NAMES)
-    assert payload["appendSystemPrompt"] == "You are an Agenta agent."
-    # ...plus the resolved inline skill packages, on their own seam (not in `wire_tools`).
-    assert payload["skills"][0]["name"] == "release-notes"
-    assert payload["skills"][0]["files"][0]["path"] == "scripts/draft.py"
 
 
 def test_request_to_wire_skills_ride_their_own_seam_not_tools():
@@ -629,6 +681,27 @@ def test_request_to_wire_omits_turn_id_when_none():
     assert "turnId" not in payload
 
 
+def test_request_to_wire_carries_detached_only_for_a_session():
+    detached = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5"),
+        messages=[],
+        session_id="sess-1",
+        detached=True,
+    )
+    ad_hoc = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5"),
+        messages=[],
+        detached=True,
+    )
+
+    assert detached["detached"] is True
+    assert "detached" not in ad_hoc
+
+
 def test_request_to_wire_carries_project_id_when_set():
     payload = request_to_wire(
         harness=HarnessKind.PI,
@@ -773,6 +846,36 @@ def test_effective_parameters_preserve_tool_input_schema_properties():
         effective_parameters={"agent": {"tools": [tool]}},
     )
     assert payload["effectiveParameters"]["agent"]["tools"][0] == tool
+
+
+def test_effective_parameters_preserve_builder_sized_configuration():
+    # The normal playground builder measured 147,209 bytes with 18 tools. Dropping
+    # that config silently resumes against the saved agent, which has no builder tools.
+    parameters = {
+        "agent": {
+            "instructions": {"agents_md": "Build and update the current agent."},
+            "tools": [
+                {
+                    "name": "commit_revision"
+                    if index == 0
+                    else f"builder_tool_{index}",
+                    "description": "Builder operation schema documentation. " * 210,
+                    "inputSchema": {"type": "object", "properties": {}},
+                }
+                for index in range(18)
+            ],
+        }
+    }
+    assert 147_209 <= len(json.dumps(parameters).encode("utf-8")) <= 160_000
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="Configure this agent")],
+        session_id="sess-builder",
+        effective_parameters=parameters,
+    )
+    assert payload["effectiveParameters"] == parameters
 
 
 def test_effective_parameters_over_the_cap_are_dropped_whole():
@@ -1048,6 +1151,28 @@ def test_known_request_keys_match_the_wire_schema():
     assert declared == KNOWN_REQUEST_KEYS
 
 
+def test_request_to_wire_carries_durable_continuation_coordination_ids():
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5.5"),
+        messages=[Message(role="user", content="approved")],
+        session_id="session-1",
+        turn_id="turn-continuation-1",
+        project_id="project-1",
+        control_command_id="command-1",
+    )
+
+    assert payload["sessionId"] == "session-1"
+    assert payload["turnId"] == "turn-continuation-1"
+    assert payload["projectId"] == "project-1"
+    assert payload["controlCommandId"] == "command-1"
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+    parsed = WireRunRequest.model_validate(payload)
+    assert parsed.control_command_id == "command-1"
+
+
 def test_named_connection_choice_is_a_declared_schema_field():
     """A named Agenta connection reaches the runner as a first-class field, not as an extra.
 
@@ -1129,6 +1254,41 @@ def test_request_to_wire_carries_consumer_owned_model_connection():
         "credentialMode",
     ):
         assert removed not in payload
+
+
+def test_request_to_wire_carries_the_hosted_subscription_block():
+    # A hosted subscription run: the harness still owns authentication (runtime_provided, no
+    # credentials), and Agenta delivers the login the harness signs in with.
+    login = dict(_SUBSCRIPTION_LOGIN)
+    payload = _subscription_connection_payload()
+
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["model"] == "openai-codex/gpt-5.5"
+    # The author's choice still rides `connection`; the resolved login rides `modelConnection`.
+    assert payload["connection"] == {"mode": "self_managed", "slug": "chatgpt"}
+    assert payload["modelConnection"] == {
+        "provider": "openai-codex",
+        "deployment": "direct",
+        "credentialMode": "runtime_provided",
+        "credentials": [],
+        "subscription": {
+            "id": "0199-secret-id",
+            "slug": "chatgpt",
+            "provider": "chatgpt",
+            "version": 3,
+            "generation": 1,
+            "login": login,
+        },
+    }
+    # The schema must describe what the producer emits, or the runner mirror drifts. The login is
+    # a typed model, so a producer that dropped one of its four required fields fails right here.
+    parsed = WireRunRequest.model_validate(payload)
+    assert parsed.model_connection is not None
+    subscription = parsed.model_connection.subscription
+    assert subscription is not None
+    assert subscription.version == 3
+    assert subscription.generation == 1
+    assert subscription.login.model_dump(by_alias=True) == login
 
 
 @pytest.mark.parametrize(
@@ -1533,3 +1693,30 @@ def test_result_from_wire_redacts_seeded_credential_from_output_events_and_error
         with pytest.raises(RuntimeError) as exc:
             result_from_wire({"ok": False, "error": f"provider rejected {marker}"})
         assert marker not in str(exc.value)
+
+
+def test_request_to_wire_omits_turn_context_when_unset():
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "turnContext" not in payload
+    assert "sessionContext" not in payload
+
+
+def test_request_to_wire_carries_only_rendered_turn_context():
+    context = '## This session\n\nThis session is named "Q3 notes".'
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id="sess_abc",
+        turn_context=context,
+    )
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["turnContext"] == context
+    assert "sessionContext" not in payload
+    assert payload["messages"] == [{"role": "user", "content": "hi"}]

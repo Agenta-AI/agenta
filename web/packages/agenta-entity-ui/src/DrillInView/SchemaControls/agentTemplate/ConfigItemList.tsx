@@ -4,8 +4,6 @@
  */
 import type {ReactNode} from "react"
 
-import type {ConfigItemView} from "../ConfigItemDrawer"
-
 import {ITEM_KINDS, type ItemKind} from "./itemKinds"
 import {ItemRow, type ItemRowStatus} from "./ItemRow"
 
@@ -18,10 +16,11 @@ export function ConfigItemList({
     disabled,
     emptyAdd,
     statusFor,
+    extraFor,
 }: {
     kind: ItemKind
     items: unknown[]
-    openEdit: (kind: ItemKind, index: number, item: unknown, view: ConfigItemView) => void
+    openEdit: (kind: ItemKind, index: number, item: unknown) => void
     removeItem: (kind: ItemKind, index: number) => void
     closeEditor: () => void
     disabled?: boolean
@@ -29,6 +28,8 @@ export function ConfigItemList({
     emptyAdd: ReactNode
     /** Per-row draft/validation status (unsaved edits, missing fields). */
     statusFor?: (item: unknown, index: number) => ItemRowStatus | undefined
+    /** Per-row action slot ahead of the remove button (e.g. publish-to-registry). */
+    extraFor?: (item: unknown, index: number) => ReactNode
 }) {
     const def = ITEM_KINDS[kind]
     if (items.length > 0) {
@@ -38,7 +39,7 @@ export function ConfigItemList({
                     <ItemRow
                         key={`${kind}-${index}`}
                         descriptor={def.describe(item)}
-                        onEdit={() => openEdit(kind, index, item, def.editView(item))}
+                        onEdit={() => openEdit(kind, index, item)}
                         onRemove={() => {
                             removeItem(kind, index)
                             closeEditor()
@@ -46,6 +47,7 @@ export function ConfigItemList({
                         // Read-only items (static `__ag__*` skills) can't be removed and open disabled.
                         disabled={disabled || def.isReadOnly(item)}
                         status={statusFor?.(item, index)}
+                        extra={extraFor?.(item, index)}
                     />
                 ))}
             </div>

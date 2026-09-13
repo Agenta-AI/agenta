@@ -88,21 +88,21 @@ const Frame = (children: React.ReactNode) => (
 
 /** Both accordions populated: a Slack provider group with two subscriptions + two schedules. */
 export const WithTriggers: Story = {
-    args: {entityId: null},
+    args: {entityId: null, automationDrawer: null},
     parameters: {agenta: {queries: populated, args: withEntityId}},
     render: (args) => Frame(<TriggerManagementSection {...args} />),
 }
 
 /** Read-only revision — no header "+", no empty-state links, rows open nothing. */
 export const ReadOnly: Story = {
-    args: {entityId: null, disabled: true},
+    args: {entityId: null, automationDrawer: null, disabled: true},
     parameters: {agenta: {queries: populated, args: withEntityId}},
     render: (args) => Frame(<TriggerManagementSection {...args} />),
 }
 
 /** No triggers bound to this agent: both accordions render their add-a-trigger text links. */
 export const Empty: Story = {
-    args: {entityId: null},
+    args: {entityId: null, automationDrawer: null},
     parameters: {
         agenta: {queries: (scope: StoryScope) => triggerSectionQueries(scope), args: withEntityId},
     },

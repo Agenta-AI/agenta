@@ -184,7 +184,7 @@ function daytonaDeps(
 ): SandboxAgentDeps {
   return {
     createDaytonaCwd: () => "/home/sandbox/agenta-failclosed-test",
-    resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
+    resolveSkillDirs: () => ({ skills: [], dropped: [], cleanup: () => {} }),
     buildDaemonEnv: () => ({}),
     resolveDaemonBinary: () => "/bin/sandbox-agent",
     buildSandboxProvider: (() => ({}) as any) as any,

@@ -1,0 +1,164 @@
+import {useCallback, useMemo, useState} from "react"
+
+import {
+    skillsListDataAtom,
+    skillsListQueryAtom,
+    skillsSearchAtom,
+    skillsShowArchivedAtom,
+} from "@agenta/skills/state"
+import {
+    buildRegistrySections,
+    NewSkillMenuButton,
+    SkillCreateDrawer,
+    SkillDetailDrawer,
+    SkillGallerySections,
+    SkillImportDrawer,
+    type SkillListItem,
+} from "@agenta/skills-ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {FilterRailLayout} from "@agenta/ui/components/presentational"
+import {SearchInput} from "@agenta/ui/ui"
+import {useAtom, useAtomValue} from "jotai"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {BROWSE_RAIL_MODE} from "@/lib/browseLayout"
+
+import {useBindProjectContext} from "../context/useBindProjectContext"
+import {AppShell} from "../nav/AppShell"
+import {NavDrawer} from "../nav/NavDrawer"
+
+/**
+ * The skill registry — where the nav's Skills entry lands. Same browse shape as agents and
+ * sessions: title and search in a pinned toolbar (or the rail, in rail mode), the shared
+ * `SkillGallerySections` grid below — the same cards the desktop registry page renders.
+ * Card/drawer navigation and the create flows land with the desktop's follow-up
+ * checkpoints (plan-web.md W3.3/W5).
+ */
+export const SkillListScreen = ({
+    workspaceId,
+    projectId,
+}: {
+    workspaceId: string
+    projectId: string
+}) => {
+    useBindProjectContext(projectId)
+    const query = useAtomValue(skillsListQueryAtom)
+    const projectSkills = useAtomValue(skillsListDataAtom)
+    const [search, setSearch] = useAtom(skillsSearchAtom)
+    const [showArchived, setShowArchived] = useAtom(skillsShowArchivedAtom)
+
+    const {sections} = useMemo(() => buildRegistrySections(projectSkills), [projectSkills])
+
+    // Card tap -> the detail drawer (read-only editor + versions rail + used-by).
+    const [detailSkill, setDetailSkill] = useState<SkillListItem | null>(null)
+    const [detailOpen, setDetailOpen] = useState(false)
+    const openSkill = useCallback((item: SkillListItem) => {
+        setDetailSkill(item)
+        setDetailOpen(true)
+    }, [])
+    const closeDetail = useCallback(() => setDetailOpen(false), [])
+    const [importOpen, setImportOpen] = useState(false)
+    const openImport = useCallback(() => setImportOpen(true), [])
+    const closeImport = useCallback(() => setImportOpen(false), [])
+    // Write and Upload share the create drawer; the MODE decides its opening state —
+    // Upload starts as the full-drawer dropzone and morphs into the editor (1c → 1d).
+    const [createMode, setCreateMode] = useState<"write" | "upload" | null>(null)
+    const openWrite = useCallback(() => setCreateMode("write"), [])
+    const openUpload = useCallback(() => setCreateMode("upload"), [])
+    const closeCreate = useCallback(() => setCreateMode(null), [])
+
+    // Identical content in both shells — a toolbar above the results, or the rail beside them.
+    const browseControls = (
+        <div
+            className={
+                BROWSE_RAIL_MODE
+                    ? "contents"
+                    : `${pageContentWidthClass} flex shrink-0 flex-col gap-3 px-6 pb-3 pt-2 lg:px-16 lg:pt-14`
+            }
+        >
+            <div className="flex min-w-0 items-center gap-2">
+                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                {/* 24px is the desktop rung; on a phone it eats the row beside the hamburger,
+                    so the title drops to the 16px ramp the other /m list screens use. */}
+                <h1 className="text-colorText m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] sm:text-[24px] sm:leading-[1.3333333333333333]">
+                    Skills
+                </h1>
+                {/* Skills' archived view is inline (Archived tags in the same grid), so this
+                    toggles rather than routes. It rides the title row so the toolbar below
+                    carries only the search and the create action. */}
+                <button
+                    type="button"
+                    onClick={() => setShowArchived(!showArchived)}
+                    className="text-muted-foreground shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs hover:underline"
+                >
+                    {showArchived ? "Hide archived" : "Archived skills"}
+                </button>
+            </div>
+
+            {/* Desktop's toolbar axis (TableShell): search left and growing, action right. */}
+            <div className="flex min-w-0 items-center justify-between gap-3">
+                <SearchInput
+                    value={search}
+                    onValueChange={setSearch}
+                    placeholder="Search skills by name…"
+                    className="min-w-0 grow sm:max-w-80"
+                />
+                <NewSkillMenuButton
+                    className="shrink-0"
+                    onWrite={openWrite}
+                    onUpload={openUpload}
+                    onImport={openImport}
+                />
+            </div>
+        </div>
+    )
+
+    const gallery = (
+        <div className="flex flex-col gap-6">
+            <SkillGallerySections
+                sections={sections}
+                onOpenSkill={openSkill}
+                search={search}
+                loading={query.isPending}
+            />
+        </div>
+    )
+
+    return (
+        <>
+            <PageTitle title="Skills" />
+            <AppShell workspaceId={workspaceId} projectId={projectId}>
+                <ScreenScaffold fill header={BROWSE_RAIL_MODE ? undefined : browseControls}>
+                    {BROWSE_RAIL_MODE ? (
+                        <FilterRailLayout
+                            rail={browseControls}
+                            contentClassName="overflow-y-auto px-6 pb-6 pt-4"
+                        >
+                            {gallery}
+                        </FilterRailLayout>
+                    ) : (
+                        <div
+                            className={`${pageContentWidthClass} min-h-0 min-w-0 flex-1 overflow-y-auto px-6 pb-6 pt-4 lg:px-16`}
+                        >
+                            {gallery}
+                        </div>
+                    )}
+                </ScreenScaffold>
+            </AppShell>
+            <SkillDetailDrawer
+                open={detailOpen}
+                onClose={closeDetail}
+                projectId={projectId}
+                skill={detailSkill}
+            />
+            <SkillImportDrawer open={importOpen} onClose={closeImport} projectId={projectId} />
+            <SkillCreateDrawer
+                open={createMode !== null}
+                onClose={closeCreate}
+                projectId={projectId}
+                mode={createMode ?? "write"}
+            />
+        </>
+    )
+}

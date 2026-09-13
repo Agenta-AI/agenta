@@ -2,6 +2,7 @@ import {useCallback} from "react"
 
 import {useRouter} from "next/router"
 
+import {clearTranscriptSnapshots} from "@/features/chat/useSessionTranscript"
 import {signOut} from "@/lib/auth"
 import {clearLastContext} from "@/lib/context"
 import {queryClient} from "@/lib/queryClient"
@@ -17,6 +18,7 @@ export const useLogout = () => {
     return useCallback(async () => {
         await signOut().catch(() => undefined)
         clearLastContext()
+        clearTranscriptSnapshots()
         await queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
         void router.replace("/auth")
     }, [router])

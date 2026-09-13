@@ -5,16 +5,18 @@
  * point and must survive any edit:
  *
  *  - **The card never moves the composer.** Every state renders into the same `CARD_MIN_H` box, and
- *    every slot holds its space whether or not it has content: the nav renders disabled at one
- *    question, the counter is tabular, and the error line is permanently mounted and merely empty.
- *    A `return null` on any branch, or a slot that only appears when filled, reintroduces the shift.
+ *    every slot holds its space whether or not it has content: the nav renders disabled on the first
+ *    and last question, the counter is tabular, and the error line is permanently mounted and merely
+ *    empty. A `return null` on any branch, or a slot that only appears when filled, reintroduces the
+ *    shift. The stepper cluster is decided by the FORM, not by the state, so a one-question form
+ *    drops it outright without ever moving mid-answer.
  *  - **It docks like its siblings.** It sits between `ApprovalDock` and `ConnectionDock`, in that
  *    order, because that is also the keyboard precedence (approval > elicitation > connect).
  *
  * Escape here does NOT settle, unlike `ApprovalCard` and `ConnectionDock`. This card owns a text
  * field, and Escape-to-back-out-of-typing is the stronger expectation; dismissing is the header ✕.
  */
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     buildAcceptResult,
@@ -117,11 +119,27 @@ const ElicitationCard = ({
     // One settle per card. `meta.settled` only flips after the host's durable write resolves, so the
     // buttons stay live in between without this latch.
     const settledRef = useRef(false)
+    const [submissionError, setSubmissionError] = useState<string | null>(null)
     const settle = useCallback(
         (output: Record<string, unknown>) => {
             if (settledRef.current) return
             settledRef.current = true
-            onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output})
+            setSubmissionError(null)
+            const failed = (error: unknown) => {
+                settledRef.current = false
+                setSubmissionError(
+                    error instanceof Error
+                        ? error.message
+                        : "Could not submit your answer. Try again.",
+                )
+            }
+            try {
+                void Promise.resolve(
+                    onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output}),
+                ).catch(failed)
+            } catch (error) {
+                failed(error)
+            }
         },
         [onOutput, meta.toolName, meta.toolCallId],
     )
@@ -144,6 +162,7 @@ const ElicitationCard = ({
             active={active}
             shortcutsEnabled={shortcutsEnabled}
             settle={settle}
+            submissionError={submissionError}
         />
     )
 }
@@ -204,6 +223,7 @@ const LiveCard = ({
     active,
     shortcutsEnabled,
     settle,
+    submissionError,
 }: {
     payload: ElicitationRequestPayload
     meta: ClientToolMeta
@@ -212,6 +232,7 @@ const LiveCard = ({
     active: boolean
     shortcutsEnabled: boolean
     settle: (output: Record<string, unknown>) => void
+    submissionError?: string | null
 }) => {
     const cardRef = useRef<HTMLDivElement>(null)
     const form = useMemo(() => buildElicitationSteps(payload), [payload])
@@ -246,6 +267,17 @@ const LiveCard = ({
         },
         [stepper, settle],
     )
+
+    const decline = useCallback(
+        () => settleAnd(toOutput(buildDeclineResult("Declined the request."))),
+        [settleAnd],
+    )
+
+    // A skip with no next step and no review to land on must settle, or the run parks forever.
+    const skipStep = useCallback(() => {
+        if (!isReview && !stepper.canGoForward) return decline()
+        stepper.skip()
+    }, [isReview, stepper, decline])
 
     const multi = isMultiSelect(step)
 
@@ -312,7 +344,7 @@ const LiveCard = ({
         }
         if (mod && (event.key === "Backspace" || event.key === "Delete")) {
             event.preventDefault()
-            stepper.skip()
+            skipStep()
             return
         }
         if (mod) return
@@ -387,7 +419,11 @@ const LiveCard = ({
             tabIndex={-1}
             role="group"
             aria-label={
-                step ? `Question ${stepper.position} of ${stepper.total}` : "Review answers"
+                !step
+                    ? "Review answers"
+                    : stepper.isMultiStep
+                      ? `Question ${stepper.position} of ${stepper.total}`
+                      : "Question"
             }
             onKeyDownCapture={onKeyDown}
             onPointerDownCapture={stepper.cancelHold}
@@ -396,26 +432,31 @@ const LiveCard = ({
         >
             <Eyebrow label={askerLabel}>
                 <div className="ml-auto flex items-center gap-0.5">
-                    <NavButton
-                        label="Previous question"
-                        disabled={!stepper.canGoBack}
-                        onClick={stepper.back}
-                    >
-                        <CaretLeft size={11} />
-                    </NavButton>
-                    <span
-                        aria-live="polite"
-                        className="min-w-[26px] text-center text-[11px] tabular-nums text-colorTextTertiary"
-                    >
-                        {stepper.position}/{stepper.total}
-                    </span>
-                    <NavButton
-                        label="Next question"
-                        disabled={!stepper.canGoForward}
-                        onClick={stepper.forward}
-                    >
-                        <CaretRight size={11} />
-                    </NavButton>
+                    {/* Fixed for the card's life, so hiding it shifts nothing mid-answer. */}
+                    {stepper.isMultiStep ? (
+                        <>
+                            <NavButton
+                                label="Previous question"
+                                disabled={!stepper.canGoBack}
+                                onClick={stepper.back}
+                            >
+                                <CaretLeft size={11} />
+                            </NavButton>
+                            <span
+                                aria-live="polite"
+                                className="min-w-[26px] text-center text-[11px] tabular-nums text-colorTextTertiary"
+                            >
+                                {stepper.position}/{stepper.total}
+                            </span>
+                            <NavButton
+                                label="Next question"
+                                disabled={!stepper.canGoForward}
+                                onClick={stepper.forward}
+                            >
+                                <CaretRight size={11} />
+                            </NavButton>
+                        </>
+                    ) : null}
                     <Button
                         variant="ghost"
                         size="icon-sm"
@@ -431,16 +472,18 @@ const LiveCard = ({
                 </div>
             </Eyebrow>
 
-            <div className="flex gap-1" aria-hidden>
-                {steps.map((candidate, index) => (
-                    <span
-                        key={candidate.name}
-                        className={`h-0.5 flex-1 rounded-full ${
-                            index < stepper.position ? "bg-colorText" : "bg-colorFillTertiary"
-                        }`}
-                    />
-                ))}
-            </div>
+            {stepper.isMultiStep ? (
+                <div className="flex gap-1" aria-hidden>
+                    {steps.map((candidate, index) => (
+                        <span
+                            key={candidate.name}
+                            className={`h-0.5 flex-1 rounded-full ${
+                                index < stepper.position ? "bg-colorText" : "bg-colorFillTertiary"
+                            }`}
+                        />
+                    ))}
+                </div>
+            ) : null}
 
             {/* pb-1 so the control does not sit flush against the actions; the card's own gap
                 alone read as cramped under a field. */}
@@ -449,8 +492,12 @@ const LiveCard = ({
                     <ReviewList stepper={stepper} />
                 ) : step ? (
                     <>
-                        <span className="text-[13px] font-medium leading-tight line-clamp-2">
-                            <span className="text-colorText">{stepper.position}.</span> {step.label}
+                        {/* Capped and scrollable, not clamped: nothing shifts, nothing is lost. */}
+                        <span className="block max-h-20 overflow-y-auto text-sm font-medium leading-snug sm:max-h-[34px] sm:text-[13px] sm:leading-tight">
+                            {stepper.isMultiStep ? (
+                                <span className="text-colorText">{stepper.position}. </span>
+                            ) : null}
+                            {step.label}
                             {step.hint ? (
                                 <span className="font-normal text-colorTextQuaternary">
                                     {" "}
@@ -479,21 +526,19 @@ const LiveCard = ({
                 <Button
                     variant="ghost"
                     className={touchCls}
-                    onClick={() =>
-                        isReview
-                            ? settleAnd(toOutput(buildDeclineResult("Declined the request.")))
-                            : stepper.skip()
-                    }
+                    onClick={isReview ? decline : skipStep}
                 >
                     {isReview ? "Decline" : "Skip"}
                 </Button>
                 <span
                     aria-live="polite"
                     className={`mr-auto truncate text-xs ${
-                        stepper.error ? "text-colorError" : "text-colorTextTertiary"
+                        submissionError || stepper.error
+                            ? "text-colorError"
+                            : "text-colorTextTertiary"
                     }`}
                 >
-                    {stepper.error ?? stepper.hold ?? ""}
+                    {submissionError ?? stepper.error ?? stepper.hold ?? ""}
                 </span>
             </div>
         </div>

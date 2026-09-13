@@ -142,6 +142,16 @@ async def test_cancel_publishes_lifecycle_ended(lock_engine):
     await svc.command(
         project_id=_PROJECT,
         user_id=_USER,
+        request=SessionStreamCommandRequest(
+            session_id=session_id,
+            data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
+        ),
+    )
+    publisher.lifecycle_calls.clear()
+
+    await svc.command(
+        project_id=_PROJECT,
+        user_id=_USER,
         request=SessionStreamCommandRequest(session_id=session_id, force=False),
     )
 

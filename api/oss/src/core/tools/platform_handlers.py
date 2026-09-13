@@ -776,7 +776,10 @@ async def handle_commit_revision(
     from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
     from oss.src.core.workflows.dtos import WorkflowRevisionCommit
     from oss.src.core.workflows.service import RevisionConflictError
-    from oss.src.core.workflows.types import StaticWorkflowSlug
+    from oss.src.core.workflows.types import (
+        InvalidAgentHarnessError,
+        StaticWorkflowSlug,
+    )
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("commit_revision is unavailable.")
@@ -835,6 +838,8 @@ async def handle_commit_revision(
             agent_context=True,
         )
     except ChangeSetError as e:
+        return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
+    except InvalidAgentHarnessError as e:
         return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
     except RevisionConflictError as e:
         return PlatformHandlerResult.failure(AgentError(**e.to_detail()))

@@ -439,6 +439,40 @@ class TestTheAgentWriteScope:
         assert caught.value.reason == Reason.OUT_OF_SCOPE
         assert "sandbox.permissions" in caught.value.message
 
+    def test_the_ordered_arm_refuses_a_sandbox_credentials_write(
+        self, service, ordered_on
+    ):
+        from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE
+
+        commit = _commit(
+            operations=[
+                {
+                    "operation": "set",
+                    "target": AGENT + ["sandbox", "credentials"],
+                    "value": [],
+                }
+            ]
+        )
+
+        with pytest.raises(ChangeSetError) as caught:
+            _apply(service, {}, commit, scope_policy=AGENT_COMMIT_SCOPE)
+
+        assert caught.value.reason == Reason.OUT_OF_SCOPE
+        assert "sandbox.credentials" in caught.value.message
+
+    def test_the_legacy_arm_refuses_a_sandbox_credentials_write(self, service):
+        from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE
+
+        commit = _commit(
+            set={"parameters": {"agent": {"sandbox": {"credentials": []}}}}
+        )
+
+        with pytest.raises(ChangeSetError) as caught:
+            _apply(service, {}, commit, scope_policy=AGENT_COMMIT_SCOPE)
+
+        assert caught.value.reason == Reason.OUT_OF_SCOPE
+        assert "sandbox.credentials" in caught.value.message
+
     def test_it_refuses_a_write_outside_the_agent_subtree(self, service):
         from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE
 

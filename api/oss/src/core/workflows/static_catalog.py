@@ -26,6 +26,8 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
 from agenta.sdk.agents.platform.workflow import (
     REQUEST_CONNECTION_TOOL_NAME,
     REQUEST_CONNECTION_WORKFLOW_SLUG,
+    REQUEST_SECRET_TOOL_NAME,
+    REQUEST_SECRET_WORKFLOW_SLUG,
 )
 from agenta.sdk.agents.skills.models import SkillTemplate
 from agenta.sdk.engines.running.utils import (
@@ -152,6 +154,52 @@ def _client_tool_revision() -> WorkflowRevision:
     )
 
 
+def _request_secret_revision() -> WorkflowRevision:
+    return WorkflowRevision(
+        name="Request secret",
+        description="Ask the user to configure a custom secret for this agent.",
+        data=WorkflowRevisionData(
+            uri="client:tool:request_secret:v0",
+            parameters={
+                "tool": {
+                    "type": "client",
+                    "name": REQUEST_SECRET_TOOL_NAME,
+                    "description": (
+                        "Pause the run and ask the user to configure a custom secret. "
+                        "Call this tool when a credential the operation needs is not "
+                        "available, and let the user set it up here instead of asking "
+                        "for the value. Never ask the user to paste a credential into "
+                        "chat, and never inspect or print the value of a configured "
+                        "credential. If the user cancels the setup, stop the affected "
+                        "operation and do not ask for that secret again unless the user "
+                        "asks to retry."
+                    ),
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Readable credential name.",
+                            },
+                            "env_var": {
+                                "type": "string",
+                                "description": "Suggested environment variable name.",
+                            },
+                            "reason": {
+                                "type": "string",
+                                "description": "Why the credential is required.",
+                            },
+                        },
+                        "required": ["name", "env_var", "reason"],
+                        "additionalProperties": False,
+                    },
+                    "render": {"kind": "secret"},
+                }
+            },
+        ),
+    )
+
+
 REQUEST_INPUT_TOOL_NAME = "request_input"
 
 
@@ -175,9 +223,8 @@ def _request_input_revision() -> WorkflowRevision:
                     "description": (
                         "Pause the run and ask the user for typed input via an inline form. "
                         "Use this instead of guessing values the user must confirm — for "
-                        "example, when wiring a provider tool, ask WHICH actions to enable "
-                        "(enum from discover_tools results) or collect non-secret settings "
-                        "(subdomain, workspace) before request_connection; or collect schedule "
+                        "example, collect a non-secret setting before request_connection (an "
+                        "account subdomain, which workspace to use); or collect schedule "
                         "details (frequency, time of day, timezone) before create_schedule. "
                         "`requestedSchema` must be a FLAT JSON object schema: top-level "
                         "string/number/integer/boolean properties (enum, format, title and "
@@ -254,6 +301,12 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
         "versions": {
             "v1": _client_tool_revision(),
         },
+    },
+    REQUEST_SECRET_WORKFLOW_SLUG: {
+        "kind": "tool",
+        "embeddable": True,
+        "latest": "v1",
+        "versions": {"v1": _request_secret_revision()},
     },
     REQUEST_INPUT_WORKFLOW_SLUG: {
         "kind": "tool",

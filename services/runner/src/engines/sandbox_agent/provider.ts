@@ -18,10 +18,40 @@ import {
   daytonaWithLifecycle,
 } from "./daytona-provider.ts";
 import { daytonaWithProcessLocalSecrets } from "./daytona-secret-provider.ts";
+import type { DaytonaSecretLease } from "./daytona-secrets.ts";
 import {
   assertDaytonaOpaqueSecretsEnabled,
   type DaytonaSecretPlan,
 } from "./daytona-secret-plan.ts";
+
+/** The port the Daytona provider passes to `sandbox-agent server`. */
+export const DAYTONA_SANDBOX_AGENT_PORT = 3_000;
+
+/**
+ * Recover the daemon port from the public sandbox handle id.
+ *
+ * Local ids are the daemon's `host:port`; Daytona ids are opaque, so use the explicit port this
+ * module gives that provider. Unknown providers stay undefined rather than borrowing a port.
+ */
+export function sandboxAgentServerPort(
+  sandboxId: string | undefined,
+): number | undefined {
+  if (!sandboxId) return undefined;
+  const separator = sandboxId.indexOf("/");
+  if (separator <= 0) return undefined;
+  const provider = sandboxId.slice(0, separator);
+  if (provider === "daytona") return DAYTONA_SANDBOX_AGENT_PORT;
+  if (provider !== "local") return undefined;
+
+  try {
+    const port = Number(new URL(`http://${sandboxId.slice(separator + 1)}`).port);
+    return Number.isInteger(port) && port > 0 && port <= 65_535
+      ? port
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
@@ -143,7 +173,17 @@ export const PLANNED_SANDBOX_IDS = ["e2b"] as const;
  * `buildRunPlan` rejects restricted policies the local provider cannot enforce before this is
  * reached. A known-but-disabled provider is refused here too (defense-in-depth for callers that
  * bypass `buildRunPlan`).
+ *
+ * `options.inheritedLease` carries the Secret lease of a sandbox the credential preflight convicted
+ * as stuck. The rebuild is created against that same allocation, which is the case Daytona support
+ * confirmed works. See `acquireEnvironment`.
  */
+export interface BuildSandboxProviderOptions {
+  /** A detached lease from a sandbox this run already convicted. See `acquireEnvironment`. */
+  inheritedLease?: DaytonaSecretLease;
+  config?: RunnerConfig;
+}
+
 export function buildSandboxProvider(
   sandboxId: string,
   env: Record<string, string>,
@@ -152,8 +192,9 @@ export function buildSandboxProvider(
   modelEnvironment: Record<string, string>,
   sandboxPermission?: SandboxPermission,
   daytonaSecretPlan?: DaytonaSecretPlan,
-  config: RunnerConfig = loadRunnerConfig(),
+  options: BuildSandboxProviderOptions = {},
 ) {
+  const config = options.config ?? loadRunnerConfig();
   if (
     (KNOWN_SANDBOX_PROVIDER_IDS as readonly string[]).includes(sandboxId) &&
     !config.providers.enabled.includes(sandboxId as SandboxProviderId)
@@ -179,6 +220,7 @@ export function buildSandboxProvider(
       daytonaWithLifecycle(
         {
           ...(image ? { image } : {}),
+          agentPort: DAYTONA_SANDBOX_AGENT_PORT,
           create: {
             ...createFields,
             ...(Object.keys(secretAttachments).length > 0
@@ -216,6 +258,11 @@ export function buildSandboxProvider(
         client.secret,
         {
           createFingerprint,
+          // Set only when the credential preflight convicted the previous sandbox of this run.
+          // The rebuild then mounts the SAME Secret instead of allocating a new one.
+          ...(options.inheritedLease
+            ? { inheritedLease: options.inheritedLease }
+            : {}),
           // Run slightly after Daytona's own auto-delete backstop. The timer first issues an
           // idempotent sandbox delete, then removes Secrets, preserving the hard deletion order.
           cleanupDelayMilliseconds:

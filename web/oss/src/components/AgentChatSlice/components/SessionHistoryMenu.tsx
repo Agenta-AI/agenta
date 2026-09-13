@@ -255,7 +255,10 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
                                 session={session}
                                 label={labelOf(session)}
                                 archived
-                                onOpen={() => undefined}
+                                onOpen={() => {
+                                    openSession(session.id)
+                                    onPicked()
+                                }}
                                 onDelete={() => deleteSession(session.id)}
                                 onArchive={() => archiveSession(session.id)}
                                 onUnarchive={() => unarchiveSession(session.id)}

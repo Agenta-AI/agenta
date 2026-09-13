@@ -5,6 +5,9 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'website/**'
+      # The site publishes /openapi.json from this spec (website/scripts/copy-openapi.mjs),
+      # so a regenerated spec has to redeploy the site.
+      - 'docs/docs/reference/openapi.json'
       - '.github/workflows/15-website-preview.yml'
   workflow_dispatch:
     inputs:
@@ -22,10 +25,39 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # wrangler itself is a pinned devDependency in website/package.json (the worker
+  # bundler must match everywhere); this stays as documentation of that pin.
   WRANGLER_VERSION: "4.113.0"
   R2_FONTS_BUCKET: agenta-brand-fonts
 
 jobs:
+  # Unit tests and typecheck run for EVERY PR, forks included — the deploy job
+  # below is gated on secrets and would otherwise leave contributors with no
+  # signal on the worker's negotiation logic.
+  check:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: website/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: website/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: cd website && pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: cd website && pnpm test
+
   deploy:
     name: Build and deploy preview
     runs-on: ubuntu-latest
@@ -77,7 +109,9 @@ jobs:
         run: |
           cd website
           alias="pr-${PR_NUMBER}"
-          pnpm dlx "wrangler@${WRANGLER_VERSION}" versions upload \
+          # wrangler is a pinned devDependency (see website/package.json), so the
+          # worker bundles with the same version everywhere.
+          pnpm exec wrangler versions upload \
             --preview-alias "$alias" 2>&1 | tee /tmp/wrangler.log
           url=$(grep -oiE 'Version Preview Alias URL: https://[a-z0-9.-]+\.workers\.dev' /tmp/wrangler.log | sed 's/.*: //' | head -1)
           if [ -z "$url" ]; then
@@ -86,15 +120,12 @@ jobs:
           fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
+      # Asserts the site serves AND that the edge worker's agent-readiness
+      # behavior survived: content negotiation, Vary, 406, the JSON/markdown
+      # 404s, /openapi.json — plus the static behavior it must not break
+      # (the _redirects 308s and trailing-slash normalization).
       - name: Verify preview serves the site
-        run: |
-          for i in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "${{ steps.deploy.outputs.url }}/")
-            [ "$code" = "200" ] && exit 0
-            sleep 5
-          done
-          echo "::error::Preview URL did not return 200 (last code: $code)"
-          exit 1
+        run: cd website && bash scripts/verify-deployment.sh "${{ steps.deploy.outputs.url }}"
 
       - name: Comment preview URL
         uses: marocchino/sticky-pull-request-comment@v2

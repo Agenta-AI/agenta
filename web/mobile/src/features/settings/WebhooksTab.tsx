@@ -18,7 +18,7 @@ import {
     SheetTitle,
 } from "@/components/ui/sheet"
 
-import {ConfirmSheet} from "./ConfirmSheet"
+import {ConfirmModal} from "./ConfirmModal"
 import {WebhookFormSheet} from "./WebhookFormSheet"
 
 /**
@@ -39,7 +39,7 @@ export const WebhooksTab = () => {
         <WebhooksPage
             renderDrawer={({onSuccess}) => <WebhookFormSheet onSuccess={onSuccess} />}
             renderDeleteDialog={() => (
-                <ConfirmSheet
+                <ConfirmModal
                     open={Boolean(webhookToDelete)}
                     title="Delete subscription"
                     description="This cannot be undone."

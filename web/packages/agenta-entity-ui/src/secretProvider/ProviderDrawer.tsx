@@ -3,11 +3,12 @@
  *
  * The contexts differ in what they can honestly show. Settings has a connections table beside the
  * drawer, so the drawer is the catalog and nothing else. The agent playground has no such table
- * and a harness runtime underneath it, so it gets Connected above the catalog and Subscriptions
- * below. The completion playground has the table's problem but not the runtime — a completion runs
- * no harness — so it gets Connected and drops Subscriptions.
+ * and a harness runtime underneath it, so it gets Connected above the catalog, and below it the
+ * hosted ChatGPT sign-in, Claude setup, and the deployment's mounted subscriptions. The completion playground has
+ * the table's problem but not the runtime — a completion runs no harness — so it gets Connected
+ * and drops both subscription blocks.
  *
- * Structure: everything is pinned except the catalog. Connected, Subscriptions, and the footer
+ * Structure: everything is pinned except the catalog. Connected, subscription cards, and the footer
  * hold their place while the catalog absorbs all spare height, which is what keeps the footer off
  * the bottom of an empty column.
  *
@@ -19,6 +20,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
+    isSubscriptionConnection,
     SecretManagementPolicy,
     type ProviderCatalogEntry,
     type ProviderConnection,
@@ -27,8 +29,6 @@ import {
 import {providerTitleForKind} from "@agenta/entities/secret"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {ArrowLeft, ArrowSquareOut, WarningCircle, X} from "@phosphor-icons/react"
-import Link from "next/link"
-import {useRouter} from "next/router"
 
 import {DrawerFooter} from "../drawers/shared/DrawerFooter"
 import {harnessMetaFor} from "../DrillInView/SchemaControls/harnessMeta"
@@ -40,6 +40,7 @@ import {
 } from "./PlaygroundProviderSections"
 import ProviderCatalogList from "./ProviderCatalogList"
 import ProviderConnectionCard, {type ProviderCardSaveState} from "./ProviderConnectionCard"
+import SubscriptionConnectionCard from "./SubscriptionConnectionCard"
 import SubscriptionPairCard, {type SubscriptionPairCardSaveState} from "./SubscriptionPairCard"
 
 /**
@@ -98,7 +99,7 @@ const LIST_BODY_STYLE = {
  */
 const CARD_BODY_STYLE = {display: "flex", flexDirection: "column"} as const
 
-/** The catalog's footer is a paper strip, not a button row: a note on the left, a link on the right. */
+/** The catalog's footer is a paper strip rather than a button row. */
 const LIST_FOOTER_STYLE = {
     background: "var(--ag-colorFillQuaternary)",
     padding: "10px 24px",
@@ -106,18 +107,6 @@ const LIST_FOOTER_STYLE = {
 
 /** Wide enough for a model id and a tag on one line, narrow enough to read as a side panel. */
 const DRAWER_WIDTH = 480
-
-/**
- * The AI-providers settings tab, scoped to the project in the current route (the tab key is
- * legacy). Read off the router's `asPath` rather than `window.location`: asPath is basePath-
- * relative, so this stays right on the mobile app, which is mounted under `/m`. `null` on a route
- * with no project in it — there is no settings page to point at, so the footer drops the link.
- */
-const useSettingsHref = (): string | null => {
-    const router = useRouter()
-    const projectPath = router.asPath.split("?")[0].match(/^(\/w\/[^/]+\/p\/[^/]+)/)?.[1]
-    return projectPath ? `${projectPath}/settings?tab=llms` : null
-}
 
 const ProviderDrawer = ({
     open,
@@ -131,21 +120,23 @@ const ProviderDrawer = ({
     width = DRAWER_WIDTH,
 }: ProviderDrawerProps) => {
     const [view, setView] = useState<DrawerView>({level: "catalog"})
-    /**
-     * The connections the user actually connected. A manager-only one is not editable
-     * — saving it answers 409 — so it is neither counted nor listed, the same rule the Settings
-     * table applies. It stays in the `connections` prop the card reads, and in the callers' own
-     * lists, so the model picker and the "Connect key" gate keep counting it.
-     */
+    // Only what this card can edit: a manager-only connection 409s on save, and a subscription's
+    // credential is a sign-in. Both stay in `connections`, so the picker still counts them.
     const userConnections = useMemo(
         () =>
             connections.filter(
-                (candidate) => candidate.managementPolicy !== SecretManagementPolicy.ManagerOnly,
+                (candidate) =>
+                    candidate.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
+                    !isSubscriptionConnection(candidate),
             ),
         [connections],
     )
     const visibleCount = userConnections.length
-    const settingsHref = useSettingsHref()
+    // One per project, so the first is it. Null still renders the card: it carries the Connect verb.
+    const hostedSubscription = useMemo(
+        () => connections.find(isSubscriptionConnection) ?? null,
+        [connections],
+    )
     // The card owns the save; the footer that triggers it lives out here, so the card publishes
     // what it needs. Cleared on every level change — the next card publishes its own.
     const [cardSave, setCardSave] = useState<ProviderCardSaveState | null>(null)
@@ -176,7 +167,8 @@ const ProviderDrawer = ({
     const isSettings = context === "settings"
     const showConnected = !isSettings
     // Only the agent playground runs a harness, so only it can offer a subscription.
-    const showSubscriptionRows = context === "playground" && showSubscriptions
+    const isPlayground = context === "playground"
+    const showSubscriptionRows = isPlayground && showSubscriptions
 
     const backButton = (
         <button
@@ -292,24 +284,9 @@ const ProviderDrawer = ({
                     <ArrowSquareOut size={12} />
                 </a>
             </p>
-        ) : (
-            <p className="m-0 flex w-full items-center justify-between gap-4 text-field-sm text-colorTextSecondary">
-                {/* A count over an empty list says nothing; the link is the whole footer then. */}
-                <span>{visibleCount ? `${visibleCount} connected` : ""}</span>
-                {settingsHref ? (
-                    // In-app navigation, so `Link` rather than a bare anchor: it prefixes the
-                    // host's basePath and skips the full reload. The drawer closes behind it.
-                    <Link
-                        href={settingsHref}
-                        onClick={onClose}
-                        className="flex shrink-0 items-center gap-1 text-btn-link hover:text-btn-link-hover"
-                    >
-                        Manage in Settings
-                        <ArrowSquareOut size={12} />
-                    </Link>
-                ) : null}
-            </p>
-        )
+        ) : visibleCount ? (
+            <p className="m-0 text-field-sm text-colorTextSecondary">{visibleCount} connected</p>
+        ) : undefined
 
     return (
         <EnhancedDrawer
@@ -348,10 +325,16 @@ const ProviderDrawer = ({
                         label={isSettings ? undefined : "Add a provider"}
                         hint={isSettings ? undefined : "several connections per provider are fine"}
                     />
-                    {showSubscriptionRows ? (
+                    {/* `showSubscriptions` gates the MOUNTED rows only: a deployment that mounts
+                        nothing still runs a hosted subscription. */}
+                    {isPlayground ? (
                         <PlaygroundSubscriptionsSection
                             subscriptionDocsUrl={subscriptionDocsUrl}
                             onSelectPair={(pair) => showView({level: "subscription", pair})}
+                            hostedCard={
+                                <SubscriptionConnectionCard connection={hostedSubscription} />
+                            }
+                            showMounted={showSubscriptionRows}
                         />
                     ) : null}
                 </>

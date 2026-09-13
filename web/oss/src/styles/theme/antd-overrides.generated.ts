@@ -69,7 +69,7 @@ export const LIGHT_TOKEN_OVERRIDES = {
     colorBgLayout: "#f6f5f3",
     colorBgBase: "#ffffff",
     colorBgMask: "rgba(36, 36, 36, 0.45)",
-    colorBgSpotlight: "rgba(36, 36, 36, 0.9)",
+    colorBgSpotlight: "#242424",
     colorBgContainerDisabled: "rgba(36, 36, 36, 0.04)",
     colorBorderBg: "#ffffff",
     colorWhite: "#ffffff",

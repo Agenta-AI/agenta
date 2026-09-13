@@ -62,8 +62,8 @@ import {axios, getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import deepEqual from "fast-deep-equal"
 import {atom, type Getter} from "jotai"
-import {atomFamily} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
+import {atomFamily} from "jotai-family"
 
 import {mergeTestcaseAnnotationTags, selectQueueScopedAnnotation} from "../testsetSync"
 import type {

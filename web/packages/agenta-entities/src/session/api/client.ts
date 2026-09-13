@@ -62,6 +62,20 @@ export function projectScopedRequest(
     return options
 }
 
+/** True for a Fern error carrying an HTTP 409, the server's "I refuse" rather than "I failed".
+ *
+ * Fern raises `AgentaApiError` with a `statusCode`, so this reads that field rather than the
+ * message. Anything without one is a transport or unknown failure and must not be mistaken
+ * for a refusal: the two call for opposite handling at a call site that shows an optimistic
+ * value. */
+export function isConflictError(error: unknown): boolean {
+    return (
+        typeof error === "object" &&
+        error !== null &&
+        (error as {statusCode?: unknown}).statusCode === 409
+    )
+}
+
 /** True for fetch/Fern abort + timeout cancellations (vs real failures).
  *
  * Fern does NOT rethrow the raw `AbortError`: its fetcher repackages an aborted request as
@@ -94,12 +108,19 @@ export function isAbortError(error: unknown): boolean {
 /**
  * Boundary wrapper for Fern calls. Fern throws `AgentaApiError` on non-2xx; we return
  * null on failure (logged) and rethrow aborts so query clients cancel cleanly.
+ *
+ * `isExpected` marks a status that is an answer, not a failure: null, unlogged.
  */
-export async function callFern<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
+export async function callFern<T>(
+    label: string,
+    fn: () => Promise<T>,
+    isExpected?: (error: unknown) => boolean,
+): Promise<T | null> {
     try {
         return await fn()
     } catch (error) {
         if (isAbortError(error)) throw error
+        if (isExpected?.(error)) return null
         console.error(`${label} failed:`, error instanceof Error ? error.message : String(error))
         return null
     }

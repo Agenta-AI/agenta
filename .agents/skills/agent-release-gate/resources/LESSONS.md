@@ -228,6 +228,100 @@ around — `CODEX_SQLITE_HOME` is split onto container-local disk) and hard link
   the API reads S3 directly, so a hit is store-side proof, and the same listing shows any 0-byte
   objects — the fingerprint of this whole bug class.
 
+## Two Daytona-era traps for the lifecycle (L*) cases — 2026-08-31
+
+**Fixture connections must be vault-backed.** A fixture built by copying the Claude defaults and
+changing only the harness keeps `llm.connection = {"mode":"self_managed","slug":null}`. A
+self_managed Pi run needs the `PI_CODING_AGENT_DIR` mount, which a gate deployment does not have,
+so turn 1 errors and the case fails before it tests anything. Set
+`llm.connection = {"mode":"agenta","slug":null}` on every non-default-harness fixture (caught on
+#6371; the Pi fixtures in `matrix_l5_live_route_observed.py` and `bench_lib.py` already do this).
+
+**A stuck-substitution rebuild is not an eviction.** Since the credential preflight (#6370), a
+fresh Daytona sandbox whose Secret wiring failed (a vendor-side per-sandbox fault, a few percent
+of creates) is convicted at ~10s and rebuilt ONCE. A warm-reuse case that counts sandbox ids can
+therefore see two ids without any lifecycle regression. Before ruling a warm case failed, grep
+the runner log for `[credential-preflight] STUCK`: if it fired inside the run, re-run the case
+instead of reporting the eviction.
+
+## On a placeholder 401, read the proxy log before you blame a key — 2026-08-31
+
+A free-credits user on cloud hit a 401 on their first message. The product told them to add the
+project's OpenAI key. That advice was wrong three ways: their key was fine, adding one would not
+have helped, and the run was retryable. The real cause was the first-call race. On a Daytona run
+the real key never enters the sandbox — it is a Daytona Secret, and the sandbox holds a
+`dtn_secret_<id>` placeholder that Daytona substitutes into egress asynchronously, with no
+confirmation signal, 10-24s after the Secret is created. A cold sandbox whose FIRST model call
+beats that propagation sends the raw placeholder, and the provider refuses it with a 401.
+
+**The rule.** A 401 from a Daytona run is not evidence about the user's key until you have read
+the litellm-proxy log. Grep it for `Received=dtn_`. If the line is there, the key was never the
+problem and no key change will fix it: the run needed a retry.
+
+**An ABSENT marker proves nothing.** The marker is one-directional evidence — present, it
+confirms a placeholder refusal; absent, it is silence, and silence has many causes. A direct
+provider never emits it at all (`api.anthropic.com` answers "Invalid bearer token" and echoes
+nothing), a remote deployment has no reachable proxy log, and incomplete log access looks
+identical to a clean window. Reading an empty grep as "so it really was the user's key" is how F6
+survived a whole release. When the marker is absent, judge on the other evidence instead: the
+stored error's CODE (`credential_delivery_failed` is the runner's own verdict and outranks any
+grep), whether the sandbox was freshly created, and whether the copy contradicts itself by
+advising a key change on a run whose key was delivered seconds earlier. The runner classifies
+this correctly as `credential_delivery_failed`
+(see `PLACEHOLDER_CREDENTIAL` in `services/runner/src/engines/sandbox_agent/errors.ts`), so a
+run that reports an add-a-key message over a placeholder refusal is a product bug, not a user
+error. The related trap already recorded above still holds: a stuck-substitution rebuild is not an
+eviction, so grep `[credential-preflight] STUCK` before calling a warm case failed.
+
+Four standing checks came out of this incident. Run all four on every gate; each one is described
+in full in the skill's resource inventory.
+
+1. `matrix_c5_first_call_race.py` — forces a cold Daytona sandbox and sends one message
+   immediately, so the first model call lands as early as it can. FAILs when a placeholder refusal
+   is reported as the user's key problem.
+2. `sweep_disagree.py` — run AFTER a gate session. Greps the runner log for
+   `[reconcile] shadow ... DISAGREE ...`, the over-eviction signature that never shows on the wire.
+3. `matrix_h1_bad_harness.py` — a malformed harness must be refused at some boundary and must
+   never run as a silent defaulted turn.
+4. `check_secrets_teardown.py` — a Daytona Secret must not outlive its run. Names only, never
+   values.
+
+## Two traps the incident checks hit on their first live run — 2026-08-31
+
+**The Daytona Secrets API is singular, paginated, and lies about `page`.** `/secrets` does not
+exist; it 404s with "Cannot GET". The real paths are `/secret`, `/secret/paginated` and
+`/secret/{secretId}` (verified against `@daytona/api-client@0.198.0` inside the runner). Plain
+`/secret` is deprecated and, per the client's own docs, "fails for organizations with more than
+1500 secrets" — and the org holds ~3510, so it is unusable. The paginated listing returns 100 per
+response and a `page` parameter is SILENTLY IGNORED: the same 100 ids come back every time, which
+makes a page-based walk loop forever on identical data while looking like progress. Follow
+`nextCursor` to exhaustion, refuse a cursor that repeats, and bound the walk. A useful side
+effect: because `/secret` and `/secret/paginated` return 403 for an under-scoped key while
+`/secrets` returns 404, you can confirm the right path without any list access at all.
+
+**Never pick a container by name match on a shared box.** `matrix_c5` originally took the first
+`docker ps` name containing "litellm" and found `starter-litellm-proxy` — a different project's
+container — while the stack under test had no proxy at all. A foreign container's log is worse
+than no log: it invents evidence about a deployment that was never under test. Resolve a
+container by its `com.docker.compose.project` label against the target stack's project (derive
+the project from whichever container publishes the port in `AGENTA_BASE`), or take it explicitly.
+When nothing matches, say so and continue.
+
+## Standing reds: expected, named, never softened
+
+A check that goes red for a filed finding stays red — softening it would hide the next real
+break behind the same shape. What it gets instead is a NAME in its failure message, so a reader
+scanning a gate report recognizes it in one line instead of chasing it as fresh breakage. This is
+how the W5 steer red is handled, and it now applies to one more:
+
+- **`matrix_h1_bad_harness.py`, the `null_kind` case — finding SF2.** A cleared harness
+  (`{"kind": null}`) is not rejected: it silently defaults to `pi_core`, so on any config whose
+  model spelling suits Pi the turn runs and the cell correctly fails. Filed for the next release,
+  not fixed in v0.114.4. The failure message says so. When SF2 is fixed the case turns green on
+  its own and the `known_finding` key stops appearing — that is the signal to delete the note.
+  A wrong-type or unknown-string harness that runs is a DIFFERENT, unfiled defect and is
+  deliberately not covered by the name.
+
 ## The checklist for the next QA run
 
 1. `docker ps` — is anything restarting? If yes, wait.

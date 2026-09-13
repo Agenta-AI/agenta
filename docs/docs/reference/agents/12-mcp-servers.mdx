@@ -1,0 +1,48 @@
+---
+title: "MCP servers"
+sidebar_label: "MCP servers"
+description: "Connect an agent to an HTTP MCP server with tool filters and secret-backed headers."
+sidebar_position: 13
+---
+
+Add MCP servers to `parameters.agent.mcps`. Each entry has a unique name, an HTTP connection, and an optional tool policy.
+
+```json
+{
+  "name": "internal-search",
+  "connection": {
+    "type": "http",
+    "url": "https://mcp.example.com/mcp",
+    "headers": { "X-Tenant": "acme" },
+    "credentials": {
+      "type": "header_secret_refs",
+      "headers": { "Authorization": "internal-mcp-token" }
+    }
+  },
+  "policy": {
+    "tools": { "mode": "include", "names": ["search_docs"] },
+    "permission": "allow"
+  }
+}
+```
+
+## Connection fields
+
+- `type` is `http`; local stdio servers are not part of this configuration surface.
+- `url` is required.
+- `headers` stores non-secret static values.
+- `header_secret_refs.headers` maps HTTP header names to project secret slugs. Secret values resolve at run time and are not stored in the template.
+
+## Tool policy
+
+`tools.mode: "all"` exposes every advertised tool and requires an empty names list. `tools.mode: "include"` exposes only `tools.names`. `permission` is `allow`, `ask`, `deny`, or `null`; `null` inherits the runner policy.
+
+The name must match `^[A-Za-z0-9._-]+$`, be no longer than 128 characters, and must not be `agenta-tools`, which is reserved.
+
+## Troubleshooting
+
+- A connection failure usually means DNS, TLS, network policy, or server availability.
+- An authorization failure means the referenced project secret is absent, expired, or mapped to the wrong header.
+- A missing tool can be excluded by `policy.tools`, absent from server discovery, or unsupported by the selected harness.
+
+See [Add an MCP server](/guides/add-an-mcp-server) for the configuration workflow.

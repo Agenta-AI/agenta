@@ -356,6 +356,7 @@ export {
     applyBuildKitOverlay,
     buildAgentRequest,
     buildAgentReferences,
+    SHARED_SESSION_RESPONSE_HEADER,
     type AgentRequest,
 } from "./agentRequest"
 // Stream vs batch response channel for the agent lane (read by buildAgentRequest's Accept header).
@@ -375,7 +376,13 @@ export {RECORD_ANSWER_TIMEOUT_MS, recordAnswerThenRelease} from "./answerOrderin
 // Render-hint map: sibling `data-render` parts → toolCallId lookup (interaction kinds).
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./renderMap"
 // Agent-lane queued-message release gate (never releases mid-HITL or pre-resume).
-export {canReleaseQueuedMessage, isHitlPending, messageHasPendingHitl} from "./agentMessageQueue"
+export {
+    approvalContinuationSettled,
+    canReleaseQueuedMessage,
+    hasRunningApprovalContinuation,
+    isHitlPending,
+    messageHasPendingHitl,
+} from "./agentMessageQueue"
 // Per-turn request capture + correlation helpers (Turn Inspector Context/Raw tabs).
 export {
     appendCapped,
@@ -392,3 +399,13 @@ export {
     flushAgentAutoCommitAtom,
     registerAgentAutoCommitHandler,
 } from "./agentAutoCommit"
+// Agent version history: the drawer's rows, and the revert that commits an old config as a new one.
+export {
+    buildVersionRows,
+    buildRevertMessage,
+    revertAgentRevisionAtom,
+    revertAgentRevision,
+    REVERT_MESSAGE_PREFIX,
+    type AgentVersionRow,
+    type RevertAgentRevisionParams,
+} from "./agentVersionHistory"

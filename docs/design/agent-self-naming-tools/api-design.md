@@ -186,9 +186,9 @@ constants.
 ### `rename_session`
 
 > Name and describe the session you are running in, so a person scanning a long list of sessions can
-> tell what this one is. Call it once you understand what the session is about, which is usually
-> after the first exchange. Call it again later whenever the session has moved on and the name or
-> the recap no longer fits.
+> tell what this one is. Name the session once, as soon as you understand what it is about, which
+> is usually after the first exchange. After that, do not rename it. Rename it again only when the
+> person asks you to.
 >
 > `name` is the general subject: what this session is about, as a short label a person can scan in a
 > list. A few words. Not the latest step, and not a sentence.
@@ -201,8 +201,9 @@ constants.
 ### `rename_agent`
 
 > Name and describe yourself, so a person browsing the list of agents can tell what you are for.
-> Call it once you understand your own purpose, which is usually right after your first task. Call
-> it again if your purpose changes.
+> Rename yourself only while your name is still a placeholder such as "New agent" or "Untitled".
+> Do it once you understand your own purpose, which is usually right after your first task. Once
+> you have a real name, keep it. Rename yourself again only when the person asks you to.
 >
 > `name` is what you are for, as a short label a person can scan in a list. A few words.
 >

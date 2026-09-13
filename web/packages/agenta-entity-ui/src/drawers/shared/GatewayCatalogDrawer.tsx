@@ -257,7 +257,7 @@ function IntegrationsView<I, T, C>({
     return (
         <div className="flex h-full min-h-0 overflow-hidden">
             {hasConnections && (
-                <div className="flex w-[280px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
+                <div className="flex w-[168px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] sm:w-[280px]">
                     <div className="shrink-0 px-4 pb-2 pt-4">
                         <span className="text-xs text-[var(--ag-colorTextDescription)]">
                             Your connections
@@ -370,7 +370,7 @@ function IntegrationsView<I, T, C>({
                     ) : integrations.length === 0 ? (
                         <EmptyState description="No integrations found" />
                     ) : (
-                        <div className="grid auto-rows-min gap-2 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
+                        <div className="grid auto-rows-min gap-2 [grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr))]">
                             {integrations.map((integration, i) => (
                                 <React.Fragment key={adapter.integration.key(integration)}>
                                     {i === sentinelIndex && (

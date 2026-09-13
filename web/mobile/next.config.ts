@@ -19,10 +19,13 @@ const nextConfig: NextConfig = {
         "@agenta/ui",
         "@agenta/entities",
         "@agenta/entity-ui",
+        "@agenta/automation-ui",
         "@agenta/navigation",
         "@agenta/navigation-ui",
         "@agenta/sessions",
         "@agenta/sessions-ui",
+        "@agenta/skills",
+        "@agenta/skills-ui",
         "@agenta/settings",
         "@agenta/settings-ui",
         "@agenta/home-ui",
@@ -37,6 +40,12 @@ const nextConfig: NextConfig = {
     // Workspace root, so standalone output nests as .next/standalone/mobile/
     // (same pattern as web/oss).
     outputFileTracingRoot: path.resolve(__dirname, ".."),
+    // Next 16.3.1 loads the ESM SWC helpers at runtime, but its standalone tracer
+    // currently keeps only the CommonJS helper files. Include the ESM helpers so
+    // the production image can start.
+    outputFileTracingIncludes: {
+        "/*": ["../node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/esm/**/*"],
+    },
     // Same policy as web/oss: the type gate runs as a dedicated turbo task, not inside
     // `next build`. (Next 16 removed the `eslint` option; `next build` no longer lints.)
     typescript: {

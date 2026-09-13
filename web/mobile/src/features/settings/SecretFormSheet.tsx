@@ -7,10 +7,10 @@ import {
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 import {slugifyName} from "@agenta/shared/utils"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 
 import {Button} from "@/components/ui/button"
 import {Input} from "@/components/ui/input"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
 import {
     Sheet,
     SheetContent,

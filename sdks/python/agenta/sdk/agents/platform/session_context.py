@@ -1,0 +1,439 @@
+"""Per-turn session facts, read by the agent service from the Agenta backend.
+
+The platform prompt tells the agent to rename itself only while its name is a placeholder,
+and to name the session once at the start. Both rules need three facts the run does not
+carry: the agent's display name, the session's name, and whether an earlier turn exists.
+
+The API stamps those facts on ``request.meta`` for the runs it proxies. The playground does
+not go through the API: it posts a turn straight to the agent service, so a service that
+reads the facts off ``meta`` sees nothing on the path the browser uses. This module reads
+them in the service instead, which is where every turn that goes through
+``agenta.sdk.agents.handler.make_agent_handler`` passes. An SDK user who drives the harness
+or session interfaces directly bypasses that handler and supplies ``SessionConfig``'s
+``session_context`` itself.
+
+``meta`` is request body, and the service's ``/invoke`` is reachable by a browser, so a
+``session_context`` on the wire is client input on this path. It is never read. A client must
+not be able to tell the agent it is already named, which would suppress the naming rule.
+
+Every read is best-effort and time-boxed. These facts shape prompt text only, so a backend
+that cannot answer in the budget must degrade to the pre-#6638 prompt rather than delay or
+fail the turn. ``None`` means UNKNOWN per field, and the renderer says nothing about a fact
+it does not have.
+
+A backend answer this module cannot parse is UNKNOWN, never a fact. The difference matters
+for the session: an unnamed session and a session whose name could not be read render
+opposite prompts, and only one of them is safe to guess at.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import math
+import os
+from typing import Any, Optional, Tuple
+from urllib.parse import quote
+
+import httpx
+
+from agenta.sdk.agents.dtos import SessionContext
+from agenta.sdk.utils.logging import get_module_logger
+
+from .connection import PlatformConnection
+
+log = get_module_logger(__name__)
+
+# The TOTAL wall-clock budget for resolving the facts, in seconds.
+#
+# Not the tool resolver's 30 s: that one budgets a round-trip the run cannot proceed without,
+# and it is per-operation anyway, so a server that trickles bytes stays under every httpx
+# timeout while the elapsed time grows without bound. These reads are optional. The turn is
+# correct without them, so a slow backend must cost the user a prompt section, not a wait.
+#
+# Two seconds, not a few hundred milliseconds: a fresh client per turn pays connection and TLS
+# setup, and the stream read does Redis work before its Postgres lookup. A tighter bound buys
+# nothing against runs that take seconds, and it turns an ordinary slow day into silently
+# missing facts.
+DEFAULT_SESSION_CONTEXT_TIMEOUT = 2.0
+
+# How long the cancelled operation gets to unwind after the budget expires. `wait_for` awaits
+# that unwind, so a teardown that hangs would extend the turn past the budget it was given.
+# Past this grace the operation is abandoned to finish on its own and the turn moves on.
+CLEANUP_GRACE = 0.25
+
+
+def session_context_timeout() -> float:
+    """The total budget for one resolution. Override via AGENTA_AGENT_SESSION_CONTEXT_TIMEOUT."""
+    raw = os.getenv("AGENTA_AGENT_SESSION_CONTEXT_TIMEOUT")
+    if raw:
+        try:
+            parsed = float(raw)
+        except ValueError:
+            return DEFAULT_SESSION_CONTEXT_TIMEOUT
+        if parsed > 0 and math.isfinite(parsed):
+            return parsed
+    return DEFAULT_SESSION_CONTEXT_TIMEOUT
+
+
+async def run_optional(start, *, budget: float, label: str):
+    """Call ``start()`` and await it under one deadline, turning every failure into ``None``.
+
+    The one deadline owner for optional work. It runs the work as its OWN task, which is what
+    makes the guarantees below hold; a bare ``wait_for`` gives none of them.
+
+    ``start`` is a callable, not an awaitable, so that a resolver which raises SYNCHRONOUSLY
+    before returning its coroutine is inside the boundary too. Passing the already-evaluated
+    call would let such a factory escape it, and ``Callable[..., Awaitable[...]]`` admits one.
+
+    The unwind is bounded. ``wait_for`` awaits the cancelled coroutine's cleanup, so a slow
+    teardown extends the turn past the budget. Here the cancelled task gets ``CLEANUP_GRACE``
+    to finish and is otherwise detached to complete on its own.
+
+    A cancellation from OUTSIDE always propagates. In a bare ``wait_for`` a teardown that
+    raises REPLACES the in-flight ``CancelledError`` with an ordinary exception, which a
+    broad ``except`` then swallows, and the caller's cancel is lost. A failing teardown inside
+    a child task cannot reach this frame, so nothing can overwrite the cancel here.
+    """
+    try:
+        task = asyncio.ensure_future(start())
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: %s could not start", label, exc_info=True)
+        return None
+    try:
+        done, _ = await asyncio.wait({task}, timeout=budget)
+    except asyncio.CancelledError:
+        task.cancel()
+        _abandon(task)
+        raise
+
+    if not done:
+        task.cancel()
+        try:
+            settled, _ = await asyncio.wait({task}, timeout=CLEANUP_GRACE)
+        except asyncio.CancelledError:
+            _abandon(task)
+            raise
+        if not settled:
+            log.warning("agent: %s did not unwind within %.3fs", label, CLEANUP_GRACE)
+        _abandon(task)
+        log.warning("agent: %s timed out after %.3fs", label, budget)
+        return None
+
+    try:
+        return task.result()
+    except asyncio.CancelledError:
+        # Cancelled by something other than this frame, so there is no caller cancel to
+        # honour here. The facts are simply unavailable.
+        log.warning("agent: %s was cancelled", label)
+        return None
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: %s failed", label, exc_info=True)
+        return None
+
+
+# Detached cleanups, held so the loop cannot collect one mid-unwind. A done callback is not
+# a reference: Python requires a strong one for a task to run reliably in the background, and
+# without it asyncio reports "Task was destroyed but it is pending!". Entries remove
+# themselves, so this set is empty whenever nothing is unwinding.
+_detached: "set[asyncio.Future]" = set()
+
+
+def detached_count() -> int:
+    """How many cleanups are still unwinding. Test and inspection hook."""
+    return len(_detached)
+
+
+def _abandon(task: "asyncio.Future") -> None:
+    """Let ``task`` finish unwinding on its own, held and its outcome consumed."""
+
+    def _release(finished: "asyncio.Future") -> None:
+        _detached.discard(finished)
+        if not finished.cancelled():
+            finished.exception()
+
+    if task.done():
+        _release(task)
+        return
+    _detached.add(task)
+    task.add_done_callback(_release)
+
+
+async def resolve_session_context(
+    *,
+    session_id: Optional[str],
+    workflow_id: Optional[str] = None,
+    connection: Optional[PlatformConnection] = None,
+    timeout: Optional[float] = None,
+) -> Optional[SessionContext]:
+    """Read the agent name, the session name, and the first-turn flag for one turn.
+
+    Returns ``None`` when no fact could be read at all, so the caller leaves the prompt
+    section out entirely. Three requests go out concurrently, so the turn waits for the
+    slowest rather than the sum. They are not all cheap: the stream read touches Redis for
+    the liveness flags as well as Postgres for the row.
+
+    A new client per call, matching every other adapter in this package. That costs a fresh
+    connection per turn, which is worth revisiting for the package as a whole rather than
+    here alone. Never cache the FACTS: a rename has to show on the very next turn.
+
+    The deadline covers the whole operation, client construction and teardown included, and
+    bounds the unwind too. See :func:`run_optional`.
+
+    This is the bounded entrypoint, for a caller that reaches past ``make_agent_handler``.
+    The handler does NOT go through here: it brings its own bound and calls
+    :func:`read_session_context` instead, so exactly one deadline owns a turn. Nesting two
+    would leave the outer grace period watching an inner wrapper unwind rather than the
+    client that actually holds the connections.
+    """
+    budget = timeout if timeout is not None else session_context_timeout()
+    return await run_optional(
+        lambda: read_session_context(
+            session_id=session_id,
+            workflow_id=workflow_id,
+            connection=connection,
+            budget=budget,
+        ),
+        budget=budget,
+        label="session context",
+    )
+
+
+async def read_session_context(
+    *,
+    session_id: Optional[str],
+    workflow_id: Optional[str] = None,
+    connection: Optional[PlatformConnection] = None,
+    budget: Optional[float] = None,
+) -> Optional[SessionContext]:
+    """The reads, with NO deadline of their own. For a caller that supplies one.
+
+    ``budget`` caps each individual HTTP operation. It does not bound the whole call, and a
+    backend that trickles bytes will outlive it, so a caller must wrap this in
+    :func:`run_optional`.
+    """
+    return await _resolve(
+        session_id=session_id,
+        workflow_id=workflow_id,
+        connection=connection,
+        budget=budget if budget is not None else session_context_timeout(),
+    )
+
+
+async def _resolve(
+    *,
+    session_id: Optional[str],
+    workflow_id: Optional[str],
+    connection: Optional[PlatformConnection],
+    budget: float,
+) -> Optional[SessionContext]:
+    """The reads themselves. Every failure path above this returns no facts."""
+    connection = connection or PlatformConnection()
+    api_base = connection.base_url()
+    if not api_base:
+        return None
+
+    headers = connection.headers()
+
+    # The per-operation timeout is capped by the same budget, so no single read can outlive
+    # the whole operation even before `wait_for` fires.
+    async with httpx.AsyncClient(timeout=budget) as client:
+        agent_name, session_facts = await asyncio.gather(
+            _read_agent_name(
+                client,
+                api_base=api_base,
+                headers=headers,
+                workflow_id=workflow_id,
+            ),
+            _read_session_facts(
+                client,
+                api_base=api_base,
+                headers=headers,
+                session_id=session_id,
+            ),
+        )
+
+    session_name, first_turn = session_facts
+    if agent_name is None and session_name is None and first_turn is None:
+        return None
+    return SessionContext(
+        agent_name=agent_name,
+        session_name=session_name,
+        first_turn=first_turn,
+    )
+
+
+async def _read_agent_name(
+    client: httpx.AsyncClient,
+    *,
+    api_base: str,
+    headers: dict,
+    workflow_id: Optional[str],
+) -> Optional[str]:
+    """The workflow artifact's display name. That is what ``rename_agent`` renames.
+
+    ``rename_agent`` targets the artifact (``PUT /api/workflows/{workflow_id}`` bound to
+    ``$ctx.workflow.artifact.id``), so the artifact's name is the agent's name, never the
+    revision's. A draft run carries no artifact reference and has no name to report.
+
+    Every failure here reads the same as an absent name, and an absent name renders no line
+    at all. There is no unsafe guess to make, unlike the session pair below.
+    """
+    if not workflow_id:
+        return None
+    try:
+        response = await client.get(
+            f"{api_base}/workflows/{quote(str(workflow_id), safe='')}",
+            headers=headers,
+        )
+        if response.status_code >= 400:
+            log.warning("agent: workflow name read HTTP %s", response.status_code)
+            return None
+        body = response.json()
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: workflow name read failed", exc_info=True)
+        return None
+
+    if not isinstance(body, dict):
+        log.warning("agent: workflow name read returned a non-object body")
+        return None
+    workflow = body.get("workflow")
+    if workflow is None:
+        return None
+    if not isinstance(workflow, dict):
+        log.warning("agent: workflow name read returned a malformed workflow")
+        return None
+    return _display_name(workflow.get("name"))
+
+
+async def _read_session_facts(
+    client: httpx.AsyncClient,
+    *,
+    api_base: str,
+    headers: dict,
+    session_id: Optional[str],
+) -> Tuple[Optional[str], Optional[bool]]:
+    """The session's name and whether it has run a turn yet.
+
+    A run with no session id opens a fresh session, so it is the first turn and the session
+    has no name. That is a fact, not an unknown, and it needs no read. It is also rare in the
+    service: the normalizer mints a session id before the handler runs, so a request that
+    arrived without one usually still pays both reads.
+
+    The name and the turn position are reported as ONE pair. If either read fails, or either
+    body is a shape this code cannot trust, both come back UNKNOWN. A half-read pair is worse
+    than no pair: an unread name beside ``first_turn=False`` renders "This session has no
+    name yet. Name it with rename_session", which tells an already-named session to rename
+    itself, and that is the exact bug this module exists to fix.
+
+    ``first_turn`` means "no durable turn row exists at lookup time", which is not quite
+    "this is the first logical exchange". A retry or a cold resume of the first exchange
+    reads False once its row is written, and an append that failed leaves a later execution
+    reading True. The API resolver has the same semantics, so the two agree.
+
+    The ordering is safe. The facts resolve, then the runner builds the prompt, then it
+    appends the turn row, so an ordinary first invocation cannot observe its own row.
+    Counting the request's messages would be wrong rather than cheap, because a client may
+    send only the latest message.
+    """
+    if session_id is None:
+        return None, True
+    unknown: Tuple[Optional[str], Optional[bool]] = (None, None)
+    try:
+        stream_response, turns_response = await asyncio.gather(
+            client.get(
+                f"{api_base}/sessions/streams/",
+                params={"session_id": session_id},
+                headers=headers,
+            ),
+            client.post(
+                f"{api_base}/sessions/turns/query",
+                json={"query": {"session_id": session_id}, "windowing": {"limit": 1}},
+                headers=headers,
+            ),
+        )
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: session facts read failed", exc_info=True)
+        return unknown
+
+    if stream_response.status_code >= 400 or turns_response.status_code >= 400:
+        log.warning(
+            "agent: session facts read HTTP stream=%s turns=%s",
+            stream_response.status_code,
+            turns_response.status_code,
+        )
+        return unknown
+
+    try:
+        stream_body = stream_response.json()
+        turns_body = turns_response.json()
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: session facts decode failed", exc_info=True)
+        return unknown
+
+    session_name = _session_name(stream_body)
+    first_turn = _first_turn(turns_body)
+    if session_name is _MALFORMED or first_turn is _MALFORMED:
+        log.warning("agent: session facts arrived in an unexpected shape")
+        return unknown
+    return session_name, first_turn
+
+
+class _Malformed:
+    """A body this code cannot trust. Distinct from a fact that is legitimately absent."""
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return "<malformed>"
+
+
+_MALFORMED = _Malformed()
+
+
+def _session_name(body: Any) -> Any:
+    """The session's name, ``None`` for an unnamed session, ``_MALFORMED`` for a bad body.
+
+    An absent or null ``stream`` is legitimate: a session with no row yet has no name, and
+    the backend may spell that either way. An absent or null ``name`` is the unnamed session,
+    which is the whole point of the first-turn prompt. Anything else is a shape this code
+    did not expect, and guessing "unnamed" from it would tell a named session to rename.
+    """
+    if not isinstance(body, dict):
+        return _MALFORMED
+    stream = body.get("stream")
+    if stream is None:
+        return None
+    if not isinstance(stream, dict):
+        return _MALFORMED
+    name = stream.get("name")
+    if name is None:
+        return None
+    if not isinstance(name, str):
+        return _MALFORMED
+    return _display_name(name)
+
+
+def _first_turn(body: Any) -> Any:
+    """Whether the session has no turn row yet, or ``_MALFORMED`` for a bad body.
+
+    ``turns`` must be a list. An absent or null one is not "no turns": the query always
+    answers with the list it matched, so its absence means this is not the answer this code
+    knows how to read.
+    """
+    if not isinstance(body, dict):
+        return _MALFORMED
+    turns = body.get("turns")
+    if not isinstance(turns, list):
+        return _MALFORMED
+    return not turns
+
+
+def _display_name(value: Any) -> Optional[str]:
+    """A name worth showing, or ``None``. A cleared title is stored as an empty string."""
+    return value if isinstance(value, str) and value.strip() else None

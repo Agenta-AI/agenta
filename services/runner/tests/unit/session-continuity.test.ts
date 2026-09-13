@@ -41,7 +41,11 @@ describe("SessionContinuityStore basics", () => {
     const store = new SessionContinuityStore();
     store.record("sess-1", "claude", "agent-1", 3);
     store.record("sess-1", "pi", "agent-2", 1);
-    assert.equal(store.latestTurn("sess-1"), 3, "latest stays at the higher turn index");
+    assert.equal(
+      store.latestTurn("sess-1"),
+      3,
+      "latest stays at the higher turn index",
+    );
     assert.deepEqual(store.get("sess-1", "pi"), {
       agentSessionId: "agent-2",
       turnIndex: 1,
@@ -106,7 +110,10 @@ describe("record/read-back", () => {
   it("an empty store: eligibleAgentSessionId is undefined (cold path taken)", () => {
     const store = new SessionContinuityStore();
     assert.equal(isHarnessLoadEligible("sess-new", "claude", store), false);
-    assert.equal(eligibleAgentSessionId("sess-new", "claude", store), undefined);
+    assert.equal(
+      eligibleAgentSessionId("sess-new", "claude", store),
+      undefined,
+    );
   });
 });
 
@@ -225,6 +232,31 @@ describe("assertLocalRunnerOwnership", () => {
         assert.match(err.message, /local sandbox requires a single runner/);
         return true;
       },
+    );
+  });
+
+  it("tells the user the pin clears itself, since a runner restart is how they meet it", () => {
+    // The message is surfaced verbatim. A restart leaves the old replica's affinity key alive
+    // for OWNER_TTL_SECONDS (120s), so every resume in that window lands here and then starts
+    // working again on its own. Without saying so the error reads as a dead session.
+    const err = new LocalSandboxNotOwnerError(
+      "sess-1",
+      "replica-b",
+      "replica-a",
+    );
+
+    assert.match(err.message, /pinned to the runner instance that started it/);
+    assert.match(err.message, /clears itself within a couple of minutes/);
+    assert.match(err.message, /sending again will work/);
+    // The operator detail survives, after the part a user can act on.
+    const guidanceEnds = err.message.indexOf("[local sandbox requires");
+    assert.ok(
+      guidanceEnds > 0,
+      "operator detail should be bracketed at the end",
+    );
+    assert.ok(
+      !err.message.slice(0, guidanceEnds).includes("replica-a"),
+      "no replica ids before the guidance — they mean nothing to the person who pressed send",
     );
   });
 });

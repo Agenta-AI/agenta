@@ -6,7 +6,7 @@
  * tools at once (see `useConnectFlow`'s per-flow popup naming, and the all-settled resume rule in
  * @agenta/playground `agentShouldResumeAfterApproval`), and the dock stacks them.
  */
-import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
+import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground/agent-chat"
 import type {ToolUIPart, UIMessage} from "ai"
 
 import type {ClientToolMeta} from "../skin"

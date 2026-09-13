@@ -46,5 +46,11 @@ export const useSessionCardVerbs = () => {
         [actions, onOpenRow],
     )
 
-    return {onOpenRow, menuFor, onMenuSelect}
+    // Rename happens IN the row, so this only supplies the commit — the list owns the edit.
+    const onRenameRow = useCallback(
+        (vm: SessionRowVm, name: string) => actions.commitRename(actionTargetFor(vm), name),
+        [actions],
+    )
+
+    return {onOpenRow, menuFor, onMenuSelect, onRenameRow}
 }

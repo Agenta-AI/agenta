@@ -3,22 +3,30 @@ import {memo, useEffect, useMemo, useState} from "react"
 import {
     getMessageRunError,
     getMessageRunErrorCode,
+    isMessageRunErrorTransport,
     getMessageTraceId,
     getMessageUsage,
 } from "@agenta/chat/assets"
-import {attachmentIdForPart, fileKind, filePartName} from "@agenta/chat/assets"
+import {
+    attachmentIdForPart,
+    filePartName,
+    isPendingSendFailed,
+    isViewable,
+    PENDING_SEND_FAILED_NOTE,
+} from "@agenta/chat/assets"
 import {
     ClientToolPart,
     isClientToolPart,
     type ClientToolOutputHandler,
 } from "@agenta/chat/clientTools"
 import {
-    AudioPlayer,
+    AttachmentCard,
+    AttachmentCardGrid,
     CollapsibleMessageBody,
     StartupActivity,
     TurnFooter,
 } from "@agenta/chat/components"
-import {isToolPart, toolIdentity} from "@agenta/chat/model"
+import {isToolPart, SESSION_TURN_IN_USE_CODE, toolIdentity} from "@agenta/chat/model"
 import {
     errorKey,
     expandedValueAtomFamily,
@@ -37,7 +45,6 @@ import {buildRenderMap} from "@agenta/playground"
 import {openProviderDrawerRequestAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
-    ChatAttachmentCard,
     ChatBubble,
     ChatBubbleAvatar,
     turnRowClass,
@@ -52,6 +59,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
 
+import {viewingMessageAttachmentAtom} from "./MessageAttachmentViewer"
 import StreamingMarkdown from "./StreamingMarkdown"
 import ToolActivity from "./ToolActivity"
 
@@ -75,6 +83,10 @@ interface AgentMessageProps {
     /** The turn's trace id for a USER message (its paired assistant's trace) — lets the user turn
      * borrow the run's real start time so it dates from the trace, not this browser's first-seen. */
     turnTraceId?: string
+    /** Re-run this failed turn — the same regenerate wiring as the Stopped → Resend affordance.
+     * Stable across renders (the message to retry is passed in, not closed over); the parent
+     * passes it only on the last turn while a retry can actually run, so it gates position. */
+    onRetry?: (messageId: string) => void
 }
 
 /**
@@ -146,6 +158,31 @@ const STARTER_CREDIT_CODES = new Set([
     "starter_credits_program_paused",
 ])
 
+/**
+ * Failure classes cleared by signing in again, not by a key. The subscription's stored sign-in is
+ * dead and no newer one exists, so the fix is a new device login on the AI providers page — which
+ * is where the provider drawer opens.
+ */
+const SUBSCRIPTION_LOGIN_CODES = new Set(["subscription_login_required"])
+
+/** Transient failure classes where the honest advice is simply to run the turn again. */
+const RETRYABLE_CODES = new Set([
+    "continuation_resumed",
+    "credential_delivery_failed",
+    "starter_credits_unavailable",
+    "rate_limited",
+    // The run never produced an outcome of its own and was closed for it — by the runner when
+    // a turn would not unwind, or by the platform's execution watchdog when the runner itself
+    // was gone. Nothing is wrong with the request, so sending it again is the whole fix.
+    "execution_lost",
+    // Another session refreshed the subscription sign-in while this turn was using the old one.
+    // The newer sign-in is already stored, so the next attempt uses it.
+    "subscription_login_refreshed",
+])
+
+// An admission refusal means the message was not sent, not that an agent run failed.
+const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE])
+
 /** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
 const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4
 
@@ -158,11 +195,17 @@ export const RunErrorBody = ({
     text,
     stateKey,
     code,
+    transport,
+    onRetry,
 }: {
     text: string
     stateKey: string
     /** The runner's failure class, when the turn carried one (`data-agent-error`'s `code`). */
     code?: string
+    /** The request never reached Agenta — retryable, and it has no code to match on. */
+    transport?: boolean
+    /** Re-run the failed turn; offered for transport failures and the classes in RETRYABLE_CODES. */
+    onRetry?: () => void
 }) => {
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
     const setExpanded = useSetAtom(setExpandedAtom)
@@ -170,12 +213,18 @@ export const RunErrorBody = ({
     const expanded = stored ?? false
     const big = isBigError(text)
     const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
+    const offerSignIn = code ? SUBSCRIPTION_LOGIN_CODES.has(code) : false
+    const notSent = !!code && NOT_SENT_CODES.has(code)
+    const offerRetry =
+        !notSent && !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
 
     return (
         <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <span className="text-xs font-medium text-colorError">The agent run failed</span>
+                <span className="text-xs font-medium text-colorError">
+                    {notSent ? "Message not sent" : "The agent run failed"}
+                </span>
                 {big && expanded ? (
                     <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
                         {text}
@@ -207,8 +256,22 @@ export const RunErrorBody = ({
                         className="mt-1"
                         onClick={() => requestProviderDrawer(true)}
                     >
-                        {/* TODO(copy: owner) */}
                         Add your key
+                    </Button>
+                )}
+                {offerSignIn && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-1"
+                        onClick={() => requestProviderDrawer(true)}
+                    >
+                        Sign in again
+                    </Button>
+                )}
+                {offerRetry && (
+                    <Button size="sm" variant="outline" className="mt-1" onClick={onRetry}>
+                        Try again
                     </Button>
                 )}
             </div>
@@ -253,8 +316,8 @@ const triggerDownload = (href: string, name: string) => {
 }
 
 const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: string}) => {
+    const setViewing = useSetAtom(viewingMessageAttachmentAtom)
     const attachmentId = attachmentIdForPart(file)
-    const kind = fileKind(file.mediaType)
     const source = useAttachmentMediaSrc(attachmentId ? sessionId : null, attachmentId)
     const src = attachmentId ? source.src : file.url
     const name = filePartName(file)
@@ -270,9 +333,13 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
         }
     }, [fallbackDownloadPending, name, source.failed, source.src])
 
-    const handleDownload = async (event: React.MouseEvent<HTMLAnchorElement>) => {
-        if (!attachmentId || !src || src.startsWith("blob:")) return
-        event.preventDefault()
+    const handleDownload = async () => {
+        if (!src) return
+        // Already a local blob (the axios fallback resolved it) — save it straight off.
+        if (src.startsWith("blob:") || !attachmentId) {
+            triggerDownload(src, name)
+            return
+        }
         try {
             const response = await fetch(src, {credentials: "include"})
             if (!response.ok) throw new Error("Direct attachment download failed")
@@ -286,43 +353,23 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
         }
     }
 
-    if (kind === "audio") {
-        return (
-            <AudioPlayer
-                src={src ?? ""}
-                name={name}
-                onError={attachmentId ? source.onError : undefined}
-                className="max-w-[320px] rounded-lg border border-solid border-colorBorderSecondary px-2 py-1.5"
-            />
-        )
-    }
-
     return (
-        <ChatAttachmentCard
+        <AttachmentCard
             name={name}
-            kind={kind}
+            mediaType={file.mediaType ?? ""}
             src={src ?? undefined}
             loading={attachmentId ? source.isPending : false}
-            className="max-w-full"
-            onImageError={kind === "image" && attachmentId ? source.onError : undefined}
-            onVideoError={kind === "video" && attachmentId ? source.onError : undefined}
-            description={
-                kind === "file" ? (
-                    src ? (
-                        <a
-                            href={src}
-                            download={name}
-                            onClick={handleDownload}
-                            className="truncate text-xs text-colorPrimary"
-                        >
-                            {file.mediaType}
-                        </a>
-                    ) : (
-                        <span className="truncate text-xs text-colorTextTertiary">
-                            {source.failed ? "Download unavailable" : file.mediaType}
-                        </span>
-                    )
-                ) : undefined
+            action={src && !source.failed ? "download" : "none"}
+            onDownload={() => void handleDownload()}
+            onView={
+                src && isViewable(file.mediaType ?? "")
+                    ? () =>
+                          setViewing({
+                              name,
+                              mediaType: file.mediaType ?? "",
+                              url: src,
+                          })
+                    : undefined
             }
         />
     )
@@ -343,6 +390,7 @@ const AgentMessage = ({
     onClientToolOutput,
     precededByEmptyAssistant = false,
     turnTraceId,
+    onRetry,
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const isUser = message.role === "user"
@@ -361,6 +409,7 @@ const AgentMessage = ({
     // we know whether the turn produced an answer.
     const runError = getMessageRunError(message)
     const runErrorCode = getMessageRunErrorCode(message)
+    const runErrorTransport = isMessageRunErrorTransport(message)
     const fullText = message.parts
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
@@ -456,6 +505,7 @@ const AgentMessage = ({
         | {kind: "part"; part: UIMessage["parts"][number]; index: number}
         | {kind: "tools"; parts: ToolUIPart[]; index: number}
         | {kind: "clientTool"; part: ToolUIPart; index: number}
+        | {kind: "files"; parts: FileUIPart[]; index: number}
     // A HITL-approved tool's part LINGERS in `approval-responded` (a perpetual spinner, no output):
     // the cold-replay runner re-issues the approved call under a FRESH id, so its execution output
     // lands on a SEPARATE sibling part. Drop the answered gate once its executed sibling exists (same
@@ -485,6 +535,14 @@ const AgentMessage = ({
             const last = renderItems[renderItems.length - 1]
             if (last && last.kind === "tools") last.parts.push(part as ToolUIPart)
             else renderItems.push({kind: "tools", parts: [part as ToolUIPart], index: i})
+            return
+        }
+        // Consecutive attachments share one grid, so a message's files lay out as a block
+        // instead of one full-width card per part.
+        if (part.type === "file") {
+            const last = renderItems[renderItems.length - 1]
+            if (last && last.kind === "files") last.parts.push(part as FileUIPart)
+            else renderItems.push({kind: "files", parts: [part as FileUIPart], index: i})
             return
         }
         renderItems.push({kind: "part", part, index: i})
@@ -526,20 +584,13 @@ const AgentMessage = ({
                 />
             )
         }
-        // Multi-modality: render attachments (sent by the user or returned by the
-        // agent) as X `FileCard`s — images preview inline, other kinds show a typed
-        // file chip with a download link.
-        if (part.type === "file") {
-            return (
-                <AttachmentFilePart key={partKey} file={part as FileUIPart} sessionId={sessionId} />
-            )
-        }
         return null
     }
 
     const defaultBody = (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
             {renderItems.map((item) => {
+                if (item.kind === "files") return null
                 if (item.kind === "tools") {
                     return (
                         <ToolActivity
@@ -598,6 +649,8 @@ const AgentMessage = ({
             text={errorText || "The agent run failed."}
             stateKey={errorKey(message.id)}
             code={runErrorCode}
+            transport={runErrorTransport}
+            onRetry={onRetry ? () => onRetry(message.id) : undefined}
         />
     )
 
@@ -611,6 +664,18 @@ const AgentMessage = ({
         defaultBody
     )
 
+    // A send the server refused after the composer had already cleared. The row keeps the text so
+    // it is not lost; this says why it is sitting there with no answer coming.
+    const pendingSendFailure = isPendingSendFailed(message) ? (
+        <div
+            data-pending-send-failed="true"
+            role="status"
+            className="mt-1 text-[11px] leading-4 opacity-80"
+        >
+            {PENDING_SEND_FAILED_NOTE}
+        </div>
+    ) : null
+
     // Partial output then failure: show the content AND the error. Answer-less failure: the
     // whole bubble is the error. Otherwise: just the content.
     const body =
@@ -621,9 +686,47 @@ const AgentMessage = ({
             </div>
         ) : isError ? (
             errorBody
+        ) : pendingSendFailure ? (
+            <div className="flex min-w-0 max-w-full flex-col">
+                {contentBody}
+                {pendingSendFailure}
+            </div>
         ) : (
             contentBody
         )
+
+    // Attachments hang above the bubble rather than inside its fill, so a message reads as its
+    // files first and its words second.
+    const fileItems = renderItems.filter((item) => item.kind === "files")
+    const attachments = fileItems.length ? (
+        <div className="flex flex-col gap-2">
+            {fileItems.map((item) => (
+                <AttachmentCardGrid key={`${message.id}-files-${item.index}`}>
+                    {item.parts.map((file, n) => (
+                        <AttachmentFilePart
+                            key={`${message.id}-file-${item.index}-${n}`}
+                            file={file}
+                            sessionId={sessionId}
+                        />
+                    ))}
+                </AttachmentCardGrid>
+            ))}
+        </div>
+    ) : null
+    // Attachments with no words: there is no bubble to paint, only the cards. An empty text part
+    // counts as no words — a turn carrying only files still arrives with one.
+    const hasBubbleContent =
+        renderItems.some(
+            (item) =>
+                item.kind !== "files" &&
+                !(
+                    item.kind === "part" &&
+                    item.part.type === "text" &&
+                    !((item.part as {text?: string}).text ?? "").trim()
+                ),
+        ) ||
+        showError ||
+        isError
 
     // The turn's meta line, in a reserved lane BELOW the bubble (the `pb-8` on the row), so it
     // never overlays the last content line and never reaches the next turn. The lane is always
@@ -645,7 +748,7 @@ const AgentMessage = ({
                 placement={isUser ? "end" : "start"}
                 // Borderless assistant turns: content sits on the panel bg with just the avatar and
                 // spacing, so tool cards aren't wrapped in an extra outline. User stays filled.
-                variant={isUser ? "filled" : "borderless"}
+                variant={isUser && hasBubbleContent ? "filled" : "borderless"}
                 avatar={<MessageAvatar isUser={isUser} />}
                 className="min-w-0 max-w-[85%]"
                 classNames={{
@@ -658,7 +761,10 @@ const AgentMessage = ({
                         : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
-                content={body}
+                // A refused file-only send has no words to paint, but its failure still has to be
+                // said, or the cards sit there looking like an upload that worked.
+                content={hasBubbleContent ? body : pendingSendFailure}
+                header={attachments}
             />
             <div
                 className={`${turnToolbarClass} ${isUser ? "right-11" : "left-11"} ${toolbarReveal}`}

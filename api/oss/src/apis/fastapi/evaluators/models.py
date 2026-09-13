@@ -1,6 +1,8 @@
 from typing import Optional, List, Dict, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from oss.src.core.git.dtos import RevisionGrouping, validate_revision_grouping
 
 from oss.src.core.shared.dtos import (
     Windowing,
@@ -261,10 +263,33 @@ class EvaluatorRevisionQueryRequest(BaseModel):
         description="When true, include soft-deleted revisions.",
     )
     #
+    grouping: Optional[RevisionGrouping] = Field(
+        default=None,
+        description=(
+            "Divide matching revisions by artifact or variant and select one "
+            "revision from each group."
+        ),
+    )
+    #
     windowing: Optional[Windowing] = Field(
         default=None,
         description="Cursor-based pagination controls.",
     )
+
+    @model_validator(mode="after")
+    def _validate_grouping(self):
+        validate_revision_grouping(
+            grouping=self.grouping,
+            artifact_refs=self.evaluator_refs,
+            variant_refs=self.evaluator_variant_refs,
+            revision_refs=self.evaluator_revision_refs,
+            windowing=self.windowing,
+        )
+        if self.grouping and self.evaluator_revision and self.evaluator_revision.flags:
+            raise ValueError(
+                "grouping cannot be combined with evaluator revision flags"
+            )
+        return self
 
 
 class EvaluatorRevisionCommitRequest(BaseModel):

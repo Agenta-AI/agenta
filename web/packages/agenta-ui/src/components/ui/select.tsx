@@ -175,7 +175,7 @@ function SelectItem({
                 // antd colours: highlighted-but-not-selected = controlItemBgHover; selected =
                 // controlItemBgActive (a cool bluish tint, not the neutral accent gray). The
                 // `:not()` keeps the selected row's active bg from being overridden by hover.
-                "[&[data-highlighted]:not([data-state=checked])]:bg-muted",
+                "[&[data-highlighted]:not([data-state=checked])]:bg-controlItemBgHover",
                 "data-[state=checked]:bg-controlItemBgActive data-[state=checked]:font-semibold",
                 "data-[disabled]:pointer-events-none data-[disabled]:text-disabled",
                 className,

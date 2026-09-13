@@ -44,15 +44,9 @@ export function MessageComposer({
                         : "text-[var(--ag-colorTextDescription)]"
                 }`}
             >
-                {wouldReplace ? (
-                    "This schedule sends a richer set of inputs than one message — typing here replaces them."
-                ) : (
-                    <>
-                        Sent to the agent{" "}
-                        {isChat ? "as the user message" : `as the "${primaryKey}" input`} on each
-                        run.
-                    </>
-                )}
+                {wouldReplace
+                    ? "This schedule sends a richer set of inputs than one message — typing here replaces them."
+                    : "Sent to the agent on every run."}
             </span>
         </div>
     )

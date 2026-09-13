@@ -96,6 +96,9 @@ export const buildPickerGroupsWithSections = (rows: PickerConnectionRow[]): Prov
             ...(row.kind === "subscription"
                 ? {tag: SUBSCRIPTION_TAG, tagTone: "olive" as const}
                 : {}),
+            // A row that cannot run anything says so under its name instead of disappearing.
+            ...(row.disabled ? {disabled: true} : {}),
+            ...(row.hint ? {caption: row.hint} : {}),
             sections,
             options: sections.flatMap((section) => section.options),
         }

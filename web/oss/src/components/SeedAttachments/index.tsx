@@ -1,7 +1,8 @@
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
-import {Paperclip, X} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {AttachmentCard, AttachmentCardGrid} from "@agenta/chat/components"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Paperclip} from "@phosphor-icons/react"
 
 import {isAgentFileUploadsEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
 
@@ -32,15 +33,17 @@ export const SeedAttachButton = ({
 
     return (
         <>
-            <Tooltip title="Attach files">
+            <SimpleTooltip title="Attach files">
                 <Button
-                    type="text"
+                    variant="ghost"
+                    size="icon"
                     aria-label="Attach files"
-                    icon={<Paperclip size={16} />}
                     disabled={disabled}
                     onClick={() => inputRef.current?.click()}
-                />
-            </Tooltip>
+                >
+                    <Paperclip size={16} />
+                </Button>
+            </SimpleTooltip>
             <input
                 ref={inputRef}
                 type="file"
@@ -57,7 +60,11 @@ export const SeedAttachButton = ({
     )
 }
 
-/** Names only — the real tray, with previews and upload progress, is the chat's. */
+/**
+ * The same cards the chat tray draws, so a seeded composer does not look like a different product.
+ * No upload state: nothing is uploaded until the session exists — these files ride the first-run
+ * seed and go through the chat's own `addFiles` on arrival.
+ */
 export const SeedAttachmentChips = ({
     files,
     onChange,
@@ -65,25 +72,37 @@ export const SeedAttachmentChips = ({
     files: File[]
     onChange: (files: File[]) => void
 }) => {
+    // Keyed by the File itself, not by position: `previews` is state and lags `files` by a commit,
+    // so an index lookup hands a surviving card the URL of the one just removed — a URL this
+    // effect is revoking in the same pass.
+    const [previews, setPreviews] = useState<Map<File, string>>(new Map())
+
+    useEffect(() => {
+        const urls = new Map<File, string>()
+        files.forEach((file) => {
+            if (file.type.startsWith("image/") || file.type.startsWith("audio/")) {
+                urls.set(file, URL.createObjectURL(file))
+            }
+        })
+        setPreviews(urls)
+        return () => urls.forEach((url) => URL.revokeObjectURL(url))
+    }, [files])
+
     if (!files.length) return null
     return (
-        <div className="flex flex-wrap items-center gap-1.5 px-3 pt-2">
-            {files.map((file, index) => (
-                <span
-                    key={`${file.name}-${index}`}
-                    className="inline-flex items-center gap-1 rounded border border-solid border-colorBorderSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary"
-                >
-                    <span className="max-w-40 truncate">{file.name}</span>
-                    <button
-                        type="button"
-                        aria-label={`Remove ${file.name}`}
-                        onClick={() => onChange(files.filter((_, at) => at !== index))}
-                        className="inline-flex cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary"
-                    >
-                        <X size={10} />
-                    </button>
-                </span>
-            ))}
+        <div className="px-3 pt-2">
+            <AttachmentCardGrid>
+                {files.map((file, index) => (
+                    <AttachmentCard
+                        key={`${file.name}-${index}`}
+                        name={file.name}
+                        mediaType={file.type}
+                        src={previews.get(file)}
+                        action="remove"
+                        onRemove={() => onChange(files.filter((_, at) => at !== index))}
+                    />
+                ))}
+            </AttachmentCardGrid>
         </div>
     )
 }

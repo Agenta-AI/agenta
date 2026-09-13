@@ -26,6 +26,25 @@ describe("withRenamedSession", () => {
         })
     })
 
+    // The rail's paging tail caches `{rows, more}`, not a bare array: whether another page exists
+    // cannot be read off a row count once response validation can drop a row. A rename of a
+    // session below the first page reaches the rail only through this branch, because rename
+    // deliberately patches the cache instead of refetching.
+    it("renames inside the rail's paging tail", () => {
+        const data = {rows: [row("s1", "old"), row("s2", "other")], more: true}
+
+        expect(withRenamedSession(data, "s1", "new")).toEqual({
+            rows: [row("s1", "new"), row("s2", "other")],
+            more: true,
+        })
+    })
+
+    it("hands back the same tail when the session is not in it", () => {
+        const data = {rows: [row("s2", "other")], more: false}
+
+        expect(withRenamedSession(data, "s1", "new")).toBe(data)
+    })
+
     it("renames inside an infinite query's pages", () => {
         const data = {pageParams: [null], pages: [{sessions: [row("s1", "old")]}]}
 
@@ -38,6 +57,19 @@ describe("withRenamedSession", () => {
     // Identity matters: a fresh object would re-render every list that never held the session.
     it("hands back the same object when the session is absent", () => {
         const data = [row("s2", "other")]
+
+        expect(withRenamedSession(data, "s1", "new")).toBe(data)
+    })
+
+    // `/m` feeds the browser title from a per-session query that caches ONE session, not a list.
+    it("renames a bare session object", () => {
+        const data = {...row("s1", "old"), status: "idle"}
+
+        expect(withRenamedSession(data, "s1", "new")).toEqual({...row("s1", "new"), status: "idle"})
+    })
+
+    it("leaves a bare session for another id alone", () => {
+        const data = row("s2", "other")
 
         expect(withRenamedSession(data, "s1", "new")).toBe(data)
     })
@@ -60,6 +92,11 @@ describe("NAMED_SESSION_QUERY_KEYS", () => {
     // cache and prefers the REMOTE title, which is how an unpatched entry undoes a rename.
     it("covers the reconciliation cache the tab titles are folded from", () => {
         expect(NAMED_SESSION_QUERY_KEYS).toContain("internal-reconciliation")
+    })
+
+    // `/m`'s browser title reads this one, and it used to lag a rename until the next refetch.
+    it("covers the per-session stream the browser title is fed from", () => {
+        expect(NAMED_SESSION_QUERY_KEYS).toContain("session-stream")
     })
 
     // A rename cannot change a pending gate, and patching it would rewrite the wrong shape.

@@ -1,4 +1,13 @@
-import {forwardRef, type ReactNode, useEffect, useImperativeHandle, useRef, useState} from "react"
+import {
+    forwardRef,
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useImperativeHandle,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 
 import {modifierKeyLabel} from "@agenta/shared/utils"
 import {CodeHighlightNode, CodeNode} from "@lexical/code"
@@ -25,18 +34,20 @@ import {
     type LexicalEditor,
 } from "lexical"
 
+import type {PaletteSpec} from "./assets/palette"
 import type {SlashCommandSection} from "./assets/slashCommands"
+import {slashPaletteSpec} from "./assets/slashPalette"
 import {chatInputTheme} from "./assets/theme"
 import {CHAT_TRANSFORMERS} from "./assets/transformers"
 import {CharacterCountPlugin} from "./plugins/CharacterCountPlugin"
 import {CodeFencePlugin} from "./plugins/CodeFencePlugin"
+import {CommandPalettePlugin} from "./plugins/CommandPalettePlugin"
 import {beginDictation, type DictationSession} from "./plugins/dictation"
 import {EditableSyncPlugin} from "./plugins/EditableSyncPlugin"
 import {EditorRefBridge} from "./plugins/EditorRefBridge"
 import {FocusStatePlugin} from "./plugins/FocusStatePlugin"
 import {LinkPastePlugin} from "./plugins/LinkPastePlugin"
 import {SendButton} from "./plugins/SendButton"
-import {SlashCommandPlugin} from "./plugins/SlashCommandPlugin"
 import {SubmitPlugin} from "./plugins/SubmitPlugin"
 
 /** Imperative handle for prefill / clear / focus (e.g. rewind-to-edit). */
@@ -70,6 +81,11 @@ export interface RichChatInputProps {
     /** Speech is being dictated in. Locks editing for the duration so typing cannot interleave with
      * the incoming transcript and corrupt it. */
     dictating?: boolean
+    /**
+     * Shown in the hints' place while `dictating`. A ReactNode rather than an analyser, because
+     * the audio belongs to whoever owns the microphone — this only knows the row is free.
+     */
+    dictationWave?: ReactNode
     autoFocus?: boolean
     className?: string
     /** Leading slot in the footer (e.g. an attach-files button). */
@@ -91,11 +107,20 @@ export interface RichChatInputProps {
     /** Hide the built-in send button (keyboard-only). */
     hideSendButton?: boolean
     /** A stream is in flight — the send button becomes a Stop button. */
+    /** The send is in flight; the button spins and refuses a second press. */
+    sending?: boolean
     streaming?: boolean
-    /** Abort the in-flight stream (used while `streaming`). */
+    /** Disable the Stop control while its durable request is settling. */
+    stopping?: boolean
+    /** Request a durable stop (used while `streaming`). */
     onStop?: () => void
+    /** Submit choices displayed beside Stop while `streaming` (for example Queue and Steer). */
+    busyActions?: {label: string; onSubmit: (markdown: string) => void}[]
     /** Min-height class for the editor area (default `min-h-[72px]`). */
     minHeightClassName?: string
+    /** How far the editor may grow before it scrolls itself. A surface with a page behind it
+     * wants a lower ceiling than a chat dock, which has nothing under it to push. */
+    maxHeightClassName?: string
     /** Visual density: `compact` (default, chat) or `comfortable` (hero-scale surfaces) —
      * pads the editor/footer without forking the component. */
     size?: "compact" | "comfortable"
@@ -114,6 +139,11 @@ export interface RichChatInputProps {
      * are untouched. See `assets/slashCommands`.
      */
     slashCommands?: SlashCommandSection[]
+    /**
+     * The `@` file-mention palette. Built by the host (it needs drive data); omitted → no palette.
+     * Independent of `slashCommands`, so a surface can have either, both, or neither.
+     */
+    filePalette?: PaletteSpec
 }
 
 // Static: RichText gives Cmd+B/I + block behavior, History gives undo/redo, list
@@ -144,6 +174,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             placeholder = "Type a message…",
             disabled = false,
             dictating = false,
+            dictationWave,
             autoFocus = false,
             className,
             prefix,
@@ -154,9 +185,13 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             sendForceEnabled,
             sendDisabled,
             hideSendButton,
+            sending,
             streaming,
+            stopping,
             onStop,
+            busyActions,
             minHeightClassName = "min-h-[72px]",
+            maxHeightClassName = "max-h-40",
             size = "compact",
             textSizeClassName = "text-xs",
             hideShortcutHints = false,
@@ -165,12 +200,13 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             onChange,
             initialMarkdown,
             slashCommands,
+            filePalette,
         },
         ref,
     ) {
         const editorRef = useRef<LexicalEditor | null>(null)
         const dictationRef = useRef<DictationSession | null>(null)
-        // The `/` palette spans this box and floats above it.
+        // The palettes span this box and float above it.
         const boxRef = useRef<HTMLDivElement | null>(null)
         const [focused, setFocused] = useState(false)
         // Resolved after mount: SSR has no platform, and answering during render would mismatch on
@@ -178,6 +214,24 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         const [modKey, setModKey] = useState("⌘")
 
         useEffect(() => setModKey(modifierKeyLabel()), [])
+
+        // One plugin owns every trigger — see `CommandPalettePlugin` for why two would collide.
+        const palettes = useMemo(() => {
+            const specs: PaletteSpec[] = []
+            if (slashCommands?.length) specs.push(slashPaletteSpec(slashCommands))
+            if (filePalette) specs.push(filePalette)
+            return specs
+        }, [slashCommands, filePalette])
+
+        // A send empties the editor, so the session must go with it: the recogniser flushes a last
+        // final result on its way out, which would otherwise rebuild its nodes in the empty box.
+        const handleSubmit = useCallback(
+            (markdown: string) => {
+                dictationRef.current = null
+                onSubmit(markdown)
+            },
+            [onSubmit],
+        )
 
         // Seed once at mount. EditorRefBridge (a child) binds the editor in its own effect,
         // which runs before this one, so the ref is live here. Mount-only by design — the
@@ -199,12 +253,15 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                 // focus theft to an overlay that just autofocused itself (it dismisses).
                 blur: () => editorRef.current?.blur(),
                 focus: () => editorRef.current?.focus(),
-                clear: () =>
+                clear: () => {
+                    // Same reason as a send: an emptied editor cannot host a live session.
+                    dictationRef.current = null
                     editorRef.current?.update(() => {
                         const root = $getRoot()
                         root.clear()
                         root.append($createParagraphNode())
-                    }),
+                    })
+                },
                 insertText: (text: string) => {
                     const editor = editorRef.current
                     if (!editor) return
@@ -287,7 +344,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             aria-label="Chat message"
                             aria-placeholder={placeholder}
                             className={clsx(
-                                "max-h-40 overflow-y-auto break-words leading-relaxed text-[var(--ag-colorText)] outline-none",
+                                "overflow-y-auto break-words leading-relaxed text-[var(--ag-colorText)] outline-none",
+                                maxHeightClassName,
                                 comfortable ? "px-5 py-4" : "px-3 py-2.5",
                                 textSizeClassName,
                                 minHeightClassName,
@@ -316,7 +374,13 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         )}
                     >
                         {prefix}
-                        {hideShortcutHints ? null : (
+                        {/* The hints are UNMOUNTED for this, not just faded: kept mounted they
+                            still hold their width, and the wave was left drawing in whatever was
+                            left over instead of across the row. */}
+                        {dictating && dictationWave ? (
+                            <div className="flex min-w-0 flex-1 items-center">{dictationWave}</div>
+                        ) : null}
+                        {hideShortcutHints || (dictating && dictationWave) ? null : (
                             // The format hints are a focus-only aid: kept mounted (so their space
                             // never reflows the row) and faded in when the editor takes focus.
                             // Dictation hides them the same way — editing is locked while speech
@@ -340,12 +404,15 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         <div className="ml-auto flex items-center gap-2">
                             {hideSendButton ? null : (
                                 <SendButton
-                                    onSubmit={onSubmit}
+                                    onSubmit={handleSubmit}
                                     forceEnabled={sendForceEnabled}
                                     disabled={disabled || sendDisabled}
                                     disabledReason={sendDisabledReason}
+                                    sending={sending}
                                     streaming={streaming}
                                     onStop={onStop}
+                                    stopping={stopping}
+                                    busyActions={busyActions}
                                 />
                             )}
                             {trailing}
@@ -370,14 +437,14 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     {/* Enter on a lone ``` fence opener → code block (runs before SubmitPlugin). */}
                     <CodeFencePlugin />
                     {submitOnEnter ? (
-                        <SubmitPlugin onSubmit={onSubmit} disabled={sendDisabled} />
+                        <SubmitPlugin onSubmit={handleSubmit} disabled={sendDisabled} />
                     ) : null}
                     <FocusStatePlugin onFocusChange={setFocused} />
                     {onChange ? <CharacterCountPlugin onTextChange={onChange} /> : null}
                     {/* Registers Enter above SubmitPlugin, so it must mount after it. */}
-                    {slashCommands?.length ? (
-                        <SlashCommandPlugin
-                            sections={slashCommands}
+                    {palettes.length ? (
+                        <CommandPalettePlugin
+                            palettes={palettes}
                             anchorRef={boxRef}
                             disabled={disabled || dictating}
                         />

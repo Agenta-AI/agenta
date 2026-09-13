@@ -48,13 +48,17 @@ export async function fetchSessionRecords(
       body: JSON.stringify({ session_id: sessionId }),
       signal: AbortSignal.timeout(queryTimeoutMs()),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // Prefixed so a runner-side 401 is distinguishable from a provider refusal; see
+    // `RUNNER_INTERNAL_401` in engines/sandbox_agent/errors.ts.
+    if (!res.ok)
+      throw new Error(`session records query failed: HTTP ${res.status}`);
     const body = (await res.json()) as { records?: SessionRecordRow[] };
     return Array.isArray(body?.records) ? body.records : [];
   } catch (err) {
-    const detail = String(
-      err instanceof Error ? err.message : err,
-    ).slice(0, 120);
+    const detail = String(err instanceof Error ? err.message : err).slice(
+      0,
+      120,
+    );
     log(`query FAILED session=${sessionId}: ${detail}`);
     return null;
   }

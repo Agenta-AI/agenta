@@ -1,0 +1,15 @@
+<!-- Refresh the story index when reviewing rebuilt static Storybooks. -->
+<script>
+(() => {
+  const originalFetch = window.fetch.bind(window);
+  const indexVersion = Date.now().toString(36);
+  window.fetch = (input, options) => {
+    const url = new URL(input instanceof Request ? input.url : input, window.location.href);
+    if (url.origin === window.location.origin && url.pathname.endsWith('/index.json')) {
+      url.searchParams.set('reviewIndex', indexVersion);
+      return originalFetch(input instanceof Request ? new Request(url, input) : url, {...options, cache: 'no-store'});
+    }
+    return originalFetch(input, options);
+  };
+})();
+</script>

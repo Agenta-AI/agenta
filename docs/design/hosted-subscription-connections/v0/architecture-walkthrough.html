@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agenta subscription connection walkthrough</title>
+<style>
+:root{--bg:#f4f1e9;--paper:#fffdf8;--ink:#20231f;--muted:#666960;--line:#d9d5ca;--purple:#5947c7;--soft:#eeebff;--green:#176847;--green-soft:#e4f3ea;--amber:#fff1ce;--red:#fbe9e6;--shadow:0 14px 36px #25201912}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--ink);background:var(--bg);font:15px/1.5 Inter,ui-sans-serif,system-ui,sans-serif}button,input{font:inherit}button{color:inherit}button:focus-visible{outline:3px solid #5947c755;outline-offset:3px}.page{width:min(1480px,calc(100% - 32px));margin:auto;padding:28px 0 64px}.card{border:1px solid var(--line);border-radius:18px;background:var(--paper);box-shadow:var(--shadow)}.hero{display:flex;justify-content:space-between;gap:24px;padding:30px}.eyebrow{margin:0 0 7px;color:var(--purple);font-size:11px;font-weight:850;letter-spacing:.09em;text-transform:uppercase}h1,h2,h3,p{margin-top:0}h1{max-width:900px;margin-bottom:12px;font-size:clamp(32px,4vw,54px);line-height:1.05;letter-spacing:-.04em}.lead{max-width:900px;margin:0;color:var(--muted)}.chip{display:inline-flex;align-items:center;gap:7px;height:max-content;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--muted);font-size:11px;font-weight:750;white-space:nowrap}.chip:before{width:7px;height:7px;border-radius:50%;background:#855805;content:""}.summary,.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.summary{margin:16px 0 26px}.summary article,.item{padding:16px;border:1px solid var(--line);border-radius:13px;background:var(--paper)}.summary strong{display:block;margin-bottom:4px}.summary p,.item p{margin:0;color:var(--muted);font-size:12px}.controls{position:sticky;top:10px;z-index:20;display:flex;justify-content:space-between;gap:12px;margin-bottom:12px;padding:11px;border:1px solid var(--line);border-radius:13px;background:#fffdf8f5}.segments,.steps{display:flex;gap:6px;align-items:center}.segments{padding:4px;border-radius:10px;background:#ece8dd}.segments button,.steps button,.primary,.secondary{min-height:36px;padding:7px 13px;border:0;border-radius:8px;cursor:pointer;font-weight:750}.segments button{background:transparent;color:var(--muted)}.segments button[aria-pressed=true]{background:#fff;color:var(--ink)}.steps button,.secondary{border:1px solid var(--line);background:#fff}.steps button:disabled{opacity:.4;cursor:not-allowed}.count{min-width:72px;color:var(--muted);font-size:12px;text-align:center}.primary{background:var(--purple);color:#fff}.walkthrough{display:grid;grid-template-columns:minmax(340px,.8fr) minmax(560px,1.2fr);gap:12px}.panel{overflow:hidden}.panel-head{display:flex;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line);background:#fbf9f3}.panel-head h2{margin:0 0 2px;font-size:17px}.panel-head p{margin:0;color:var(--muted);font-size:12px}.panel-body{padding:18px}
+.browser{min-height:535px;overflow:hidden;border:1px solid #ccc7ba;border-radius:12px;background:#fff}.browser-bar{height:36px;padding:9px 12px;border-bottom:1px solid var(--line);background:#f0eee8;color:#777;font-size:10px}.app{display:grid;grid-template-columns:55px 1fr;min-height:499px}.nav{padding:13px 9px;background:#222521}.logo{display:grid;place-items:center;width:33px;height:33px;margin:auto;border-radius:9px;background:#fff;font-weight:900}.nav i{display:block;width:24px;height:6px;margin:14px auto;border-radius:4px;background:#62675f}.nav i:first-of-type{background:#a99dff}.main{position:relative;padding:18px;background:#fafafa}.sub{margin:0 0 16px;color:#777;font-size:11px}.empty{display:grid;place-items:center;min-height:230px;padding:20px;border:1px dashed #d4d0c6;border-radius:11px;background:#fff;color:#777;text-align:center}.banner{margin-top:13px;padding:14px;border:1px solid #c9bef3;border-radius:10px;background:#f2efff}.banner p{margin:4px 0 11px;color:#5f5970;font-size:11px}.drawer{position:absolute;inset:0 0 0 auto;width:min(390px,94%);padding:18px;border-left:1px solid var(--line);background:#fff;box-shadow:-12px 0 28px #1e1d1922}.drawer-copy{margin-bottom:16px;color:#6f6b63;font-size:11px}.provider-card{display:grid;grid-template-columns:36px 1fr auto;gap:10px;align-items:center;width:100%;margin-bottom:8px;padding:11px;border:1px solid var(--line);border-radius:9px;background:#fff;text-align:left}.provider-card.selected{border-color:var(--purple);background:var(--soft)}.provider-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:9px;background:#242723;color:#fff;font-weight:900}.provider-icon.grok{background:#155c7d}.provider-card strong,.provider-card small{display:block}.provider-card small{color:#777;font-size:10px}.device{padding:14px;border:1px solid var(--line);border-radius:10px;background:#faf9f5}.code{display:flex;justify-content:space-between;align-items:center;margin:12px 0;padding:12px;border:1px dashed #aaa497;border-radius:8px;background:#fff;font:800 19px/1 ui-monospace,monospace;letter-spacing:.08em}.copy{padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;font-size:10px}.notice{display:flex;gap:9px;margin-top:11px;padding:10px;border-radius:8px;font-size:11px}.wait{background:var(--amber);color:#674509}.success{background:var(--green-soft);color:var(--green)}.model{display:inline-flex;margin:5px 0 13px;padding:6px 9px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:10px;font-weight:750}.bubble{max-width:90%;margin:8px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:11px}.bubble.user{margin-left:auto;background:var(--soft)}.composer{position:absolute;right:18px;bottom:18px;left:18px;display:flex;gap:7px}.composer input{flex:1;min-width:0;padding:9px;border:1px solid var(--line);border-radius:8px}
+.backend-intro{margin-bottom:12px;padding:11px 13px;border-radius:10px;background:#e8f3fa;color:#174d70;font-size:12px}.flow{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:24px 16px;padding:6px 2px 15px}.service{position:relative;min-height:102px;padding:11px;border:2px solid #d5d1c7;border-radius:11px;background:#fff;transition:.15s}.service.active{border-color:var(--purple);box-shadow:0 0 0 4px #5947c71e;transform:translateY(-2px)}.service:after{position:absolute;top:50%;right:-19px;color:#99948a;content:"→";font-size:18px;transform:translateY(-50%)}.service:nth-child(4):after,.service:nth-child(7):after{display:none}.service.storage{border-style:dashed;background:#faf9f4}.service.storage:after{content:"↔"}.service.provider{background:#f0f6f8}.tag{display:block;margin-bottom:6px;color:var(--purple);font-size:9px;font-weight:850;letter-spacing:.06em;text-transform:uppercase}.service strong{display:block;margin-bottom:3px;font-size:13px}.service p{margin:0;color:var(--muted);font-size:10px}.service small{display:block;margin-top:6px;color:#89847a;font:9px/1.3 ui-monospace,monospace}.log{padding:13px;border-radius:10px;background:#252821;color:#eef1e9;font:11px/1.55 ui-monospace,monospace}.log .muted{color:#aab0a4}.log .good{color:#8ee1b3}.log .warn{color:#f4cd75}.safety{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:12px}.safety div{padding:9px;border-radius:8px;background:var(--green-soft);color:#1b5c42;font-size:10px}.section{margin-top:25px;padding:24px}.section>.lead{max-width:820px;font-size:14px}.number{display:grid;place-items:center;width:26px;height:26px;margin-bottom:10px;border-radius:7px;background:var(--soft);color:var(--purple);font-size:11px;font-weight:900}.item h3{margin-bottom:5px;font-size:14px}.item code{color:#625e56;font-size:9px;overflow-wrap:anywhere}.sequence{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}.sequence div{padding:12px 10px;border:1px solid var(--line);border-radius:10px;background:#fff}.sequence strong{display:block;margin-bottom:4px;font-size:11px}.sequence span{color:var(--muted);font-size:10px}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:10px 11px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--muted);font-size:10px;text-transform:uppercase}td:first-child{font-weight:750}.decisions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.decision{padding:14px;border-radius:11px;background:var(--amber);color:#674609}.decision.blocker{background:var(--red);color:#71302d}.decision strong{display:block;margin-bottom:4px;font-size:12px}.decision p{margin:0;font-size:11px}.foot{margin:16px 0 0;color:var(--muted);font-size:11px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media(max-width:1050px){.walkthrough{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}.sequence{grid-template-columns:repeat(3,1fr)}}@media(max-width:700px){.page{width:calc(100% - 18px);padding-top:9px}.hero{flex-direction:column;padding:21px}.summary,.grid,.decisions,.safety{grid-template-columns:1fr}.controls{position:static;flex-direction:column}.steps{justify-content:space-between}.panel-body,.section{padding:14px}.flow{grid-template-columns:1fr 1fr}.service:after{display:none}.sequence{grid-template-columns:1fr 1fr}}
+</style></head><body><aside style="padding:16px;background:#fff1ce">Historical v0 proposal: a good starting point that may miss requirements and design questions. Its choices are not approved. Read the <a href="../requirements.md">current requirements</a> and <a href="../design-questions.md">open questions</a>.</aside><main class="page">
+<header class="hero card">
+  <div><p class="eyebrow">Technical design</p>
+  <h1>Connect a paid AI subscription, then use it in an Agenta agent</h1>
+  <p class="lead">The left side shows what the user sees. The right side shows what each Agenta service does. Choose a provider and move through the steps.</p></div>
+  <span class="chip">Draft for review</span>
+</header>
+<section class="summary" aria-label="The idea in plain words">
+  <article><strong>1. The user signs in</strong><p>Agenta shows a one-time code. The user enters it on the official provider website.</p></article>
+  <article><strong>2. The provider saves the login</strong><p>Codex or Grok writes its own files into a private encrypted folder for this connection.</p></article>
+  <article><strong>3. The runner uses the folder</strong><p>Agenta mounts that folder into a trusted runner and starts the matching provider client.</p></article>
+</section>
+<section aria-labelledby="walkthrough-title">
+  <h2 class="sr-only" id="walkthrough-title">Interactive onboarding and backend walkthrough</h2>
+  <div class="controls">
+    <div class="segments" aria-label="Choose a provider">
+      <button type="button" data-provider="chatgpt" aria-pressed="true">ChatGPT</button>
+      <button type="button" data-provider="supergrok" aria-pressed="false">SuperGrok</button>
+    </div>
+    <div class="steps">
+      <button type="button" id="previousStep">← Previous</button>
+      <span class="count" id="stepCount" aria-live="polite">Step 1 of 6</span>
+      <button type="button" id="nextStep">Next →</button>
+    </div>
+  </div>
+  <div class="walkthrough">
+    <article class="panel card">
+      <header class="panel-head"><div><h2>User experience</h2><p>The browser always shows the next useful action.</p></div><span class="chip" id="uiState">Needs connection</span></header>
+      <div class="panel-body"><div class="browser">
+        <div class="browser-bar">● ● ● &nbsp; cloud.agenta.ai/agents/new</div>
+        <div class="app"><nav class="nav" aria-label="Mock navigation"><div class="logo">A</div><i></i><i></i><i></i></nav><div class="main" id="uiFrame"></div></div>
+      </div></div>
+    </article>
+    <article class="panel card">
+      <header class="panel-head"><div><h2>Services and backend</h2><p>Highlighted boxes take part in this step.</p></div><span class="chip" id="backendState">No login created</span></header>
+      <div class="panel-body">
+        <div class="backend-intro" id="explanation"></div>
+        <div class="flow" aria-label="Backend service diagram">
+          <div class="service" data-service="web"><span class="tag">Browser</span><strong>Web frontend</strong><p>Shows onboarding and safe status.</p><small>web/</small></div>
+          <div class="service" data-service="api"><span class="tag">Public service</span><strong>Main API</strong><p>Owns records and checks the user.</p><small>api/oss/</small></div>
+          <div class="service" data-service="agent"><span class="tag">Runtime adapter</span><strong>Agent service + SDK</strong><p>Builds the model run request.</p><small>services/oss/ + sdks/python/</small></div>
+          <div class="service" data-service="runner"><span class="tag">Private service</span><strong>Runner</strong><p>Starts login and model clients.</p><small>services/runner/</small></div>
+          <div class="service storage" data-service="db"><span class="tag">Metadata</span><strong>Postgres</strong><p>Stores owner, state, and references.</p><small>No provider tokens</small></div>
+          <div class="service storage" data-service="volume"><span class="tag">Private storage</span><strong>Authentication home</strong><p>Encrypted files from Codex or Grok.</p><small>One per connection</small></div>
+          <div class="service provider" data-service="provider"><span class="tag">External</span><strong id="providerName">OpenAI</strong><p>Authenticates the user and serves the model.</p><small>Official provider flow</small></div>
+        </div>
+        <div class="log" id="eventLog" aria-live="polite"></div>
+        <div class="safety"><div>Browser receives a short code, never the token file.</div><div>Database stores state and references, never provider tokens.</div><div>Agent tools must be blocked from the authentication home.</div></div>
+      </div>
+    </article>
+  </div>
+</section>
+<section class="section card">
+  <p class="eyebrow">Engineering map</p><h2>Which services would change</h2>
+  <p class="lead">There are five code areas and one infrastructure area. The main API owns the durable connection. The runner owns the sensitive login process and mounted files.</p>
+  <div class="grid" style="margin-top:16px">
+    <article class="item"><span class="number">1</span><h3>Web frontend</h3><p>Add provider choice, one-time code, status, retry, disconnect, and automatic model selection.</p><code>web/oss/.../AgentChatSlice<br>web/packages/agenta-entities</code></article>
+    <article class="item"><span class="number">2</span><h3>Main API</h3><p>Add connection and login-attempt records. Check ownership. Resolve private runner and storage references.</p><code>api/oss/src/core<br>api/oss/src/apis/fastapi</code></article>
+    <article class="item"><span class="number">3</span><h3>Agent service</h3><p>Use one connection resolver for status and runs. Pass the resolved connection identity to the runner.</p><code>services/oss/src/agent</code></article>
+    <article class="item"><span class="number">4</span><h3>Python SDK</h3><p>Carry the connection choice through the run request. Add Grok as a supported harness.</p><code>sdks/python/agenta/sdk/agents</code></article>
+    <article class="item"><span class="number">5</span><h3>Runner</h3><p>Add private login operations, Codex and Grok adapters, the correct storage mount, and the Grok harness.</p><code>services/runner/src</code></article>
+    <article class="item"><span class="number">6</span><h3>Cloud infrastructure</h3><p>Create encrypted storage per connection. Mount it into one trusted login or run worker at a time.</p><code>Hosting and deployment configuration</code></article>
+  </div>
+  <h3 style="margin-top:24px">Where each kind of data lives</h3>
+  <div class="grid">
+    <article class="item"><h3>Existing vault</h3><p>Keeps API keys and custom secrets. Native Codex and Grok login files bypass this store because the provider owns a changing set of files.</p></article>
+    <article class="item"><h3>New authentication home</h3><p>Keeps provider login files on encrypted persistent storage. Only a trusted login or run worker mounts it.</p></article>
+    <article class="item"><h3>Agent workspace</h3><p>Keeps conversation and session files. The authentication home path and contents never enter this workspace.</p></article>
+  </div>
+</section>
+<section class="section card">
+  <p class="eyebrow">End-to-end sequence</p><h2>The complete flow in six sentences</h2>
+  <div class="sequence">
+    <div><strong>1. Choose</strong><span>User selects ChatGPT or SuperGrok.</span></div>
+    <div><strong>2. Create</strong><span>Main API creates a user-owned connection.</span></div>
+    <div><strong>3. Sign in</strong><span>Runner starts the official provider login.</span></div>
+    <div><strong>4. Save</strong><span>Provider client writes private login files.</span></div>
+    <div><strong>5. Select</strong><span>Agenta picks the matching harness and model.</span></div>
+    <div><strong>6. Run</strong><span>Runner mounts the same home and starts the agent.</span></div>
+  </div>
+</section>
+<section class="section card">
+  <p class="eyebrow">User-visible behavior</p><h2>Connection states and recovery</h2>
+  <div class="table-wrap"><table><thead><tr><th>State</th><th>What the user sees</th><th>Available action</th></tr></thead><tbody>
+    <tr><td>Not connected</td><td>Provider choices and a short explanation.</td><td>Choose a provider.</td></tr>
+    <tr><td>Waiting</td><td>Provider URL, one-time code, expiry, and progress.</td><td>Open provider, copy code, or cancel.</td></tr>
+    <tr><td>Interrupted</td><td>The same active attempt after a page refresh.</td><td>Continue or cancel.</td></tr>
+    <tr><td>Expired or failed</td><td>A plain reason. The draft agent stays available.</td><td>Try again.</td></tr>
+    <tr><td>Connected</td><td>Connection state and selected model.</td><td>Send the first message or disconnect.</td></tr>
+    <tr><td>In use</td><td>Another turn currently uses this connection.</td><td>Wait and retry.</td></tr>
+  </tbody></table></div>
+</section>
+<section class="section card">
+  <p class="eyebrow">Implementation gates</p><h2>What must be proved before release</h2>
+  <div class="decisions">
+    <div class="decision blocker"><strong>Tool isolation test</strong><p>Codex or Grok must refresh its login. Shell and file tools started by the model must fail when they try to read the same files.</p></div>
+    <div class="decision blocker"><strong>Stable SuperGrok login control</strong><p>Grok documents device login, but its public docs do not describe a structured login API. The fallback is a pinned CLI version with a tested parser.</p></div>
+    <div class="decision"><strong>Recommended ownership</strong><p>Only the user who connected the subscription can use it, and only from an interactive turn in the first release.</p></div>
+    <div class="decision"><strong>Recommended concurrency</strong><p>Allow one active run per connection so two processes cannot refresh the same files together.</p></div>
+  </div>
+  <p class="foot">The service boundaries, ownership rule, storage operator, and release tests remain open decisions.</p>
+</section>
+</main><script>
+const providers={
+  chatgpt:{label:"ChatGPT",company:"OpenAI",product:"ChatGPT through Codex",code:"F7KM-P2QX",url:"auth.openai.com/device",harness:"Codex",home:"CODEX_HOME",adapter:"codex app-server JSON-RPC",note:"Codex returns the URL, code, login ID, and completion as structured events."},
+  supergrok:{label:"SuperGrok",company:"xAI",product:"SuperGrok through Grok Build",code:"GRK8-LM42",url:"grok.com/device",harness:"Grok Build",home:"GROK_HOME",adapter:"grok login --device-auth",note:"Grok prints the URL and code. Agenta needs a supported structured interface or a pinned parser."}
+};
+const steps=[
+  {
+    ui:"Needs connection",back:"No login created",active:["web"],
+    explain:"The frontend can see that the new agent has no usable model connection. No subscription data exists yet.",
+    log:p=>`<span class="muted">UI</span> Agent draft needs a model connection<br><span class="muted">NEXT</span> User opens provider setup`,
+    view:p=>`<h3>Research assistant</h3><p class="sub">New agent · Draft</p><div class="empty"><div><strong>Your agent is ready to configure</strong><br><small>Connect a model to send the first message.</small></div></div><div class="banner"><strong>Connect your AI subscription</strong><p>Use the ${p.label} plan you already pay for. You will sign in on ${p.company}'s website.</p><button class="primary" data-next>Connect a subscription</button></div>`
+  },
+  {
+    ui:"Choosing provider",back:"Still local to browser",active:["web"],
+    explain:"The user chooses the product first. Agenta creates storage and starts a provider process only after the user confirms that choice.",
+    log:p=>`<span class="muted">UI</span> Show subscription connections<br><span class="muted">CHOICE</span> ${p.product}`,
+    view:p=>`<h3>Research assistant</h3><p class="sub">New agent · Draft</p><div class="drawer"><h3>Connect an AI subscription</h3><p class="drawer-copy">Choose where your paid subscription lives. Sign-in happens with the provider.</p><button class="provider-card ${p.label==="ChatGPT"?"selected":""}" data-select="chatgpt"><span class="provider-icon">C</span><span><strong>ChatGPT</strong><small>Runs through Codex</small></span><span>›</span></button><button class="provider-card ${p.label==="SuperGrok"?"selected":""}" data-select="supergrok"><span class="provider-icon grok">G</span><span><strong>SuperGrok</strong><small>Runs through Grok Build</small></span><span>›</span></button><p class="drawer-copy">First-release assumption: this connection belongs to you and supports interactive turns.</p><button class="primary" data-next>Connect ${p.label}</button></div>`
+  },
+  {
+    ui:"Waiting for sign-in",back:"Login attempt active",active:["web","api","runner","db","volume","provider"],
+    explain:"The main API creates the connection record. The runner starts the official provider client with a new private authentication home. The browser receives only a short URL and code.",
+    log:p=>`<span class="muted">API</span> Create user-owned ${p.label} connection<br><span class="muted">RUNNER</span> Start ${p.adapter}<br><span class="muted">MOUNT</span> Attach private ${p.home}<br><span class="warn">WAIT</span> Provider is waiting for the user`,
+    view:p=>`<h3>Research assistant</h3><p class="sub">New agent · Draft</p><div class="drawer"><h3>Sign in to ${p.label}</h3><p class="drawer-copy">Open the provider page and enter this one-time code. Agenta never asks you to upload a login file.</p><div class="device"><small>1. Open this provider page</small><p><strong>${p.url}</strong></p><button class="secondary">Open ${p.company}</button><small style="display:block;margin-top:13px">2. Enter this code</small><div class="code"><span>${p.code}</span><button class="copy" data-copy="${p.code}">Copy</button></div></div><div class="notice wait"><span>●</span><span><strong>Waiting for you</strong><br>You can close this page and return before the code expires.</span></div><p class="drawer-copy">${p.note}</p></div>`
+  },
+  {
+    ui:"Checking connection",back:"Provider exchange in progress",active:["api","runner","db","volume","provider"],
+    explain:"The user finishes on the provider website. The official client exchanges the code, writes its own files, and reports completion. Postgres receives only safe state and metadata.",
+    log:p=>`<span class="muted">PROVIDER</span> User completed ${p.label} sign-in<br><span class="muted">${p.harness.toUpperCase()}</span> Write files in ${p.home}<br><span class="muted">CALLBACK</span> Report safe completion<br><span class="warn">CHECK</span> Confirm connection is usable`,
+    view:p=>`<h3>Research assistant</h3><p class="sub">New agent · Draft</p><div class="drawer"><h3>Checking your ${p.label} connection</h3><p class="drawer-copy">You completed the provider step. Agenta is checking that the official client can use the saved login.</p><div class="device"><strong>${p.product}</strong><div class="notice wait">● Saving the provider session and checking access.</div></div><button class="secondary" style="margin-top:13px">Cancel</button></div>`
+  },
+  {
+    ui:"Connected",back:"Connection ready",active:["web","api","db","volume"],
+    explain:"The main API marks the connection ready. The frontend updates the draft agent to the compatible harness and model. The authentication files stay outside the browser, database, and agent workspace.",
+    log:p=>`<span class="good">READY</span> ${p.label} connection is usable<br><span class="muted">CONFIG</span> Select ${p.harness} and a compatible model<br><span class="muted">UI</span> Enable the first agent message`,
+    view:p=>`<h3>Research assistant</h3><p class="sub">New agent · Draft</p><span class="model">● ${p.label} · ${p.harness}</span><div class="empty"><div><div class="notice success">✓ <span><strong>${p.label} connected</strong><br>Your agent can now use this subscription.</span></div><small>Send a message to test the complete connection.</small></div></div><div class="composer"><input value="Research the top three competitors" aria-label="Message"><button class="primary" data-next>Send</button></div>`
+  },
+  {
+    ui:"First run complete",back:"Authentication home mounted",active:["web","api","agent","runner","db","volume","provider"],
+    explain:"For the first message, the server resolves the connection and checks its owner. The runner claims it, mounts its private home, starts the matching harness, and returns the normal chat stream.",
+    log:p=>`<span class="muted">API</span> Check owner, state, product, and active-run lease<br><span class="muted">SDK</span> Build ${p.harness} run request<br><span class="muted">RUNNER</span> Mount ${p.home} and start ${p.harness}<br><span class="muted">PROVIDER</span> Serve model response<br><span class="good">DONE</span> Stream response and release connection`,
+    view:p=>`<h3>Research assistant</h3><p class="sub">Connected · ${p.label}</p><span class="model">● ${p.label} · ${p.harness}</span><div class="bubble user">Research the top three competitors.</div><div class="bubble"><strong>Research assistant</strong><br>I will compare their product, pricing, and target users. I am starting with primary sources.</div><div class="notice success">✓ <span><strong>Connection verified</strong><br>The first response completed successfully.</span></div><div class="composer"><input placeholder="Send another message" aria-label="Message"><button class="primary">Send</button></div>`
+  }
+];
+let providerKey="chatgpt",stepIndex=0;
+function render(){
+  const p=providers[providerKey],s=steps[stepIndex];
+  document.querySelector("#uiFrame").innerHTML=s.view(p);
+  document.querySelector("#uiState").textContent=s.ui;
+  document.querySelector("#backendState").textContent=s.back;
+  document.querySelector("#explanation").textContent=s.explain;
+  document.querySelector("#eventLog").innerHTML=s.log(p);
+  document.querySelector("#providerName").textContent=p.company;
+  document.querySelector("#stepCount").textContent=`Step ${stepIndex+1} of ${steps.length}`;
+  document.querySelector("#previousStep").disabled=stepIndex===0;
+  document.querySelector("#nextStep").disabled=stepIndex===steps.length-1;
+  document.querySelectorAll(".service").forEach(n=>n.classList.toggle("active",s.active.includes(n.dataset.service)));
+  document.querySelectorAll("[data-provider]").forEach(n=>n.setAttribute("aria-pressed",String(n.dataset.provider===providerKey)));
+}
+document.querySelectorAll("[data-provider]").forEach(n=>n.onclick=()=>{providerKey=n.dataset.provider;render()});
+document.querySelector("#previousStep").onclick=()=>{stepIndex=Math.max(0,stepIndex-1);render()};
+document.querySelector("#nextStep").onclick=()=>{stepIndex=Math.min(steps.length-1,stepIndex+1);render()};
+document.addEventListener("click",event=>{
+  const target=event.target instanceof Element?event.target:null;
+  if(target?.closest("[data-next]")){stepIndex=Math.min(steps.length-1,stepIndex+1);render()}
+  const choice=target?.closest("[data-select]");if(choice){providerKey=choice.dataset.select;render()}
+  const copy=target?.closest("[data-copy]");if(copy){navigator.clipboard?.writeText(copy.dataset.copy).catch(()=>{});copy.textContent="Copied"}
+});
+document.addEventListener("keydown",event=>{
+  if(event.target instanceof Element&&event.target.closest("button,input,a"))return;
+  if(event.key==="ArrowRight"&&stepIndex<steps.length-1){stepIndex++;render()}
+  if(event.key==="ArrowLeft"&&stepIndex>0){stepIndex--;render()}
+});
+render();
+</script></body></html>

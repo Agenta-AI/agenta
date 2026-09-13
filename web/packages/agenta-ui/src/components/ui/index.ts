@@ -7,6 +7,13 @@ export {Badge, badgeVariants, type BadgeProps} from "./badge"
 export {Button, buttonVariants, type ButtonProps} from "./button"
 export {LoadingButton, type LoadingButtonProps} from "./button-composed"
 export {Input, Textarea, inputVariants, type InputProps, type TextareaProps} from "./input"
+export {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupButton,
+    InputGroupText,
+    InputGroupInput,
+} from "./input-group"
 export {InputNumber, inputNumberVariants, type InputNumberProps} from "./input-number"
 export {
     InputAffix,
@@ -29,7 +36,14 @@ export {
     type SelectTriggerProps,
 } from "./select"
 export {Popover, PopoverTrigger, PopoverAnchor, PopoverContent} from "./popover"
-export {Tooltip, TooltipTrigger, TooltipContent, TooltipProvider} from "./tooltip"
+export {
+    Tooltip,
+    TooltipTrigger,
+    TooltipContent,
+    TooltipProvider,
+    type TooltipShortcut,
+} from "./tooltip"
+export {Kbd, KbdGroup, kbdVariants, type KbdProps} from "./kbd"
 export {SimpleTooltip, type SimpleTooltipProps} from "./tooltip-composed"
 export {RadioGroup, RadioGroupItem, type RadioGroupProps} from "./radio-group"
 export {

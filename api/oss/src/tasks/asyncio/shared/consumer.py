@@ -12,6 +12,10 @@ Batch Configuration:
 - max_block_ms: 5000ms (XREADGROUP BLOCK) - max wait time when queue is empty
 - max_batch_mb: 50 - max batch size in megabytes
 - max_delay_ms: 250ms - max wait time for batch accumulation when small batches arrive
+
+Redelivery (opt-in, `reclaim_pending`):
+- reclaim_min_idle_ms: 30000 - how long an unacknowledged entry sits before it is retried
+- max_deliveries: 5 - deliveries after which an entry is dropped loudly instead of retried
 """
 
 import time
@@ -31,9 +35,10 @@ class StreamConsumer:
     Base class for a Redis Streams consumer-group loop.
 
     Flow:
-    1. Read batch from Redis Streams (XREADGROUP)
+    1. Read batch from Redis Streams (XREADGROUP), or reclaim entries an earlier
+       pass left unacknowledged (opt-in, see `reclaim_batch`)
     2. `process_batch` (subclass): deserialize, group, meter, write
-    3. ACK + DEL processed messages
+    3. ACK + DEL the message ids `process_batch` reports as durable
     """
 
     #: Short tag prepended to log messages by subclasses (e.g. "[INGEST]").
@@ -49,6 +54,9 @@ class StreamConsumer:
         max_block_ms: int = 5000,  # 5 seconds
         max_delay_ms: int = 250,  # 250 milliseconds
         max_batch_mb: int = 50,  # 50 MB
+        reclaim_pending: bool = False,
+        reclaim_min_idle_ms: int = 30_000,  # 30 seconds
+        max_deliveries: int = 5,
     ):
         self.redis = redis_client
         self.stream_name = stream_name
@@ -62,6 +70,12 @@ class StreamConsumer:
         self.max_block_ms = max_block_ms
         self.max_batch_mb = max_batch_mb
         self.max_delay_ms = max_delay_ms
+        self.reclaim_pending = reclaim_pending
+        self.reclaim_min_idle_ms = reclaim_min_idle_ms
+        self.max_deliveries = max_deliveries
+        #: Messages this process gave up on. Only ever grows; read by tests and logs.
+        self.dropped_messages = 0
+        self._last_reclaim_at = 0.0
 
     async def create_consumer_group(self):
         """Create consumer group if it doesn't exist. Safe to call multiple times (idempotent)."""
@@ -141,6 +155,127 @@ class StreamConsumer:
             log.error(f"{self.log_prefix} Failed to read batch: {e}")
             return []
 
+    def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
+        """Subclass hook: a short identity for a dropped message, for the loss log."""
+        return None
+
+    def is_permanent_failure(
+        self,
+        msg_id: bytes,
+        data: Dict[bytes, bytes],
+    ) -> bool:
+        """Subclass hook: whether this exact message is known not to succeed on retry."""
+        return False
+
+    async def reclaim_batch(self) -> List[Tuple[bytes, Dict[bytes, bytes]]]:
+        """Re-deliver entries an earlier pass left unacknowledged.
+
+        `read_batch` only ever asks Redis for `>`, so an entry that is never acknowledged is
+        invisible to every later read of this group. Without this pass, "skip the ACK so Redis
+        retries it" means "lose it quietly with a growing pending list". Redis' delivery count
+        bounds retries only for a message the subclass has identified as permanently invalid;
+        it cannot distinguish a poison message from a transient write-path outage.
+        """
+        if not self.reclaim_pending:
+            return []
+
+        # One XPENDING per idle window, not one per loop turn: a busy stream spins this loop
+        # as fast as Postgres answers, and the pending list cannot change faster than the
+        # window anyway.
+        now = time.monotonic()
+        if (now - self._last_reclaim_at) * 1000 < self.reclaim_min_idle_ms:
+            return []
+        self._last_reclaim_at = now
+
+        try:
+            pending = await self.redis.xpending_range(
+                name=self.stream_name,
+                groupname=self.consumer_group,
+                min="-",
+                max="+",
+                count=self.max_batch_size,
+                # A zero window means "no idle filter", not "idle exactly zero".
+                idle=self.reclaim_min_idle_ms or None,
+            )
+        except Exception as e:
+            log.error(f"{self.log_prefix} Failed to read pending entries: {e}")
+            return []
+
+        if not pending:
+            return []
+
+        deliveries = {
+            entry["message_id"]: int(entry["times_delivered"]) for entry in pending
+        }
+
+        try:
+            claimed = await self.redis.xclaim(
+                name=self.stream_name,
+                groupname=self.consumer_group,
+                consumername=self.consumer_name,
+                min_idle_time=self.reclaim_min_idle_ms,
+                message_ids=list(deliveries.keys()),
+            )
+        except Exception as e:
+            log.error(f"{self.log_prefix} Failed to claim pending entries: {e}")
+            return []
+
+        # XCLAIM returns nothing for an entry whose stream payload is already gone (MAXLEN
+        # trim), and removes it from the pending list itself.
+        retry: List[Tuple[bytes, Dict[bytes, bytes]]] = []
+        expired: List[Tuple[bytes, Dict[bytes, bytes]]] = []
+        over_budget = 0
+        for msg_id, data in claimed:
+            if not data:
+                continue
+            if deliveries.get(msg_id, 1) >= self.max_deliveries:
+                over_budget += 1
+                if self.is_permanent_failure(msg_id, data):
+                    expired.append((msg_id, data))
+                    continue
+            retry.append((msg_id, data))
+
+        if expired:
+            await self.drop_expired(expired)
+        elif over_budget:
+            log.warning(
+                f"{self.log_prefix} Keeping over-budget messages: failure is not known to be permanent",
+                stream=self.stream_name,
+                group=self.consumer_group,
+                count=over_budget,
+            )
+
+        if retry:
+            log.warning(
+                f"{self.log_prefix} Redelivering unacknowledged messages",
+                stream=self.stream_name,
+                group=self.consumer_group,
+                count=len(retry),
+            )
+
+        return retry
+
+    async def drop_expired(self, entries: List[Tuple[bytes, Dict[bytes, bytes]]]):
+        """Give up on entries that failed `max_deliveries` times, loudly.
+
+        This is data loss. It is preferred over an unbounded retry because a single entry the
+        write path can never accept would otherwise stall every later entry in the group. The
+        log line names each lost message so the loss is countable after the fact.
+        """
+        self.dropped_messages += len(entries)
+        log.error(
+            f"{self.log_prefix} Dropping messages after repeated delivery failures",
+            stream=self.stream_name,
+            group=self.consumer_group,
+            max_deliveries=self.max_deliveries,
+            count=len(entries),
+            messages=[
+                self.describe_message(data) or repr(msg_id) for msg_id, data in entries
+            ],
+            dropped_total=self.dropped_messages,
+        )
+        await self.ack_and_delete([msg_id for msg_id, _ in entries])
+
     async def ack_and_delete(self, message_ids: List[bytes]):
         """ACK and DELETE messages after successful processing."""
         if not message_ids:
@@ -168,10 +303,10 @@ class StreamConsumer:
         Main worker loop.
 
         Flow:
-        1. Read batch via XREADGROUP
+        1. Reclaim entries an earlier pass left unacknowledged, else read via XREADGROUP
         2. Process batch
-        3. ACK + DEL on success
-        4. On error, messages remain pending for retry
+        3. ACK + DEL only the message ids `process_batch` reports as durable
+        4. Everything else stays pending and comes back through step 1
         """
         log.info(
             f"{self.log_prefix} Starting worker",
@@ -183,7 +318,9 @@ class StreamConsumer:
 
         while True:
             try:
-                batch = await self.read_batch()
+                batch = await self.reclaim_batch()
+                if not batch:
+                    batch = await self.read_batch()
                 if not batch:
                     continue
 

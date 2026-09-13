@@ -237,7 +237,8 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                         className={slotClassNames?.header}
                     >
                         {title != null ? (
-                            <SheetTitle className="flex-1">{title}</SheetTitle>
+                            // min-w-0: its automatic minimum is min-content, so a nowrap title never shrank.
+                            <SheetTitle className="min-w-0 flex-1">{title}</SheetTitle>
                         ) : (
                             <span className="flex-1" />
                         )}

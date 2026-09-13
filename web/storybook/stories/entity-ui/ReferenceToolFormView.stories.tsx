@@ -1,24 +1,9 @@
-import type {ReactNode} from "react"
-
-import {RailField} from "@agenta/entity-ui/drawers/shared"
-import {ReferenceToolFormView, SchemaTree} from "@agenta/entity-ui/drill-in"
-import {ConfigAccordionSection, CopyButton} from "@agenta/ui/components/presentational"
-import {GitBranch, Info, TreeStructure} from "@phosphor-icons/react"
+import {DrillInUIProvider, ReferenceToolFormView} from "@agenta/entity-ui/drill-in"
+import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Input as AntInput} from "antd"
 
-// ReferenceToolFormView — the detail view for a `type:"reference"` workflow tool (#4860):
-// exposed name, description, the resolved input schema, and the "Reference by" axis.
-// Storybook mounts it without a `workflowReference` bridge, so the read-only binding
-// summary renders (the editable axis needs the host's bridge).
-//
-// The antd half replays the pre-migration body verbatim from feat/storybook-data-seam; the
-// shared chrome (ConfigAccordionSection / SchemaTree / CopyButton / RailField) is the SAME
-// component in both halves, so the diff isolates the migrated leaves.
-//
-// antd swaps: `Input.TextArea autoSize` → `AutosizeTextarea` (`@agenta/ui`);
-// `Spin size="small"` → `Spinner size="small"` (the environment picker's loading slot,
-// only reachable with the bridge injected).
+// The detail panel for one saved subagent: the calling agent owns only the description.
+// A subagent always runs the latest revision, so there is no version control here.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/ReferenceToolFormView",
     component: ReferenceToolFormView,
@@ -27,7 +12,9 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Edit counterpart of the WorkflowReferenceSelector: exposed tool name, editable description, read-only input schema, and the reference binding.",
+                    "One saved subagent: an editable description over a read-only summary of the " +
+                    "agent it points at. The instruction file clamps to four lines and expands " +
+                    "into a fixed scrolling well rather than pushing the panel off screen.",
             },
         },
     },
@@ -38,165 +25,89 @@ type Story = StoryObj<typeof meta>
 
 const noop = () => undefined
 
-const INPUT_SCHEMA = {
-    type: "object",
-    properties: {
-        thread: {type: "string", description: "The support thread to summarize"},
-        max_bullets: {type: "integer"},
-    },
-    required: ["thread"],
-}
-
-const PINNED_TOOL = {
+const TOOL = {
     type: "reference",
     ref_by: "variant",
-    slug: "summarizer",
-    version: "3",
-    description: "Summarize a support thread into three bullets",
-    input_schema: INPUT_SCHEMA,
+    slug: "support-triage",
+    name: "Support triage",
+    description: "Summarize a support thread into three bullets.",
+    input_schema: {type: "object", properties: {}},
 }
 
-const DEPLOYED_TOOL = {
-    type: "reference",
-    ref_by: "environment",
-    slug: "summarizer",
-    environment: "production",
-    description: "",
-    input_schema: null,
+/** Long enough to clamp, which is what makes the Show more link appear. */
+const AGENTS_MD = [
+    "You are a QA fixture agent. Run the migration browser matrix, compare legacy and modern",
+    "rendering paths, and report failures with a reproduction link. Always start from the pinned",
+    "fixture list. When a combination fails, capture the console output, the rendered screenshot,",
+    "and the diff against the last known-good run before you report it.",
+    "",
+    "Never retry a failing combination more than twice. A third failure is a real defect and it",
+    "belongs in the report, not in another retry.",
+].join("\n")
+
+const DETAIL: SubagentDetail = {
+    workflowId: "01a04000-0000-7000-8000-000000000001",
+    name: "Support triage",
+    description: "Reads an incoming support ticket and names the team that owns it.",
+    model: "claude-sonnet-4-5",
+    provider: "anthropic",
+    integrations: [
+        {key: "github", name: "GitHub", permission: "Allow all"},
+        {key: "linear", name: "Linear", permission: "Ask for write and delete"},
+    ],
+    skills: ["Browser matrix run", "Visual diff", "Repro reducer"],
+    instructions: {fileName: "AGENTS.md", text: AGENTS_MD, wordCount: 2140},
 }
 
-/** Pre-migration body, verbatim (antd baseline). */
-const AntdBody = ({
-    slug,
-    description,
-    schema,
-    binding,
-}: {
-    slug: string
-    description: string
-    schema: Record<string, unknown> | null
-    binding: string
-}) => (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4">
-        <div className="flex flex-col gap-4">
-            <ConfigAccordionSection
-                size="compact"
-                collapsible={false}
-                icon={<Info size={15} />}
-                title="Details"
-            >
-                <RailField label="Exposed as" align="center">
-                    <div className="flex w-fit max-w-full items-center gap-1 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] py-0.5 pl-2.5 pr-1 font-mono text-xs text-[var(--ag-colorText)]">
-                        <span className="truncate">{slug}</span>
-                        <CopyButton text={slug} buttonText={null} icon variant="ghost" />
-                    </div>
-                </RailField>
+/** A bridge that resolves one subagent. Only the members this panel touches are real. */
+const bridgeWith = (detail: SubagentDetail | null) =>
+    ({
+        enabled: true,
+        workflows: [],
+        workflowsLoading: false,
+        useSubagentDetail: () => ({detail, loading: false}),
+        agentHref: (id: string) => `/agents/${id}`,
+    }) as unknown as WorkflowReferenceBridge
 
-                <RailField label="Description">
-                    <AntInput.TextArea
-                        value={description}
-                        autoSize={{minRows: 2, maxRows: 6}}
-                        placeholder="What this tool does and when the agent should call it"
-                        readOnly
-                    />
-                </RailField>
-            </ConfigAccordionSection>
-
-            <ConfigAccordionSection
-                size="compact"
-                icon={<TreeStructure size={15} />}
-                title="Schema"
-                summary={`Inputs · ${schema?.properties ? Object.keys(schema.properties).length : 0}`}
-                summaryCollapsedOnly
-            >
-                <div className="max-h-[320px] max-w-prose overflow-y-auto overscroll-contain">
-                    <SchemaTree schema={schema} emptyText="No declared inputs" />
-                </div>
-            </ConfigAccordionSection>
-
-            <ConfigAccordionSection
-                size="compact"
-                noDivider
-                icon={<GitBranch size={15} />}
-                title="Reference by"
-                summary={binding}
-                summaryCollapsedOnly
-            >
-                <p className="m-0 text-xs text-[var(--ag-colorTextSecondary)]">{binding}</p>
-            </ConfigAccordionSection>
-        </div>
+const Frame = (bridge: WorkflowReferenceBridge | undefined, children: React.ReactNode) => (
+    <div data-vrt-subject className="w-[520px]">
+        <DrillInUIProvider components={bridge ? {workflowReference: bridge} : {}}>
+            {children}
+        </DrillInUIProvider>
     </div>
 )
 
-const Row = ({
-    label,
-    a,
-    s,
-    expected,
-}: {
-    label: string
-    a: ReactNode
-    s: ReactNode
-    expected?: string
-}) => (
-    <div
-        className="grid grid-cols-[8rem_1fr_1fr] items-start gap-4 border-b border-colorBorderSecondary py-3"
-        data-vrt-expected={expected}
-    >
-        <div className="text-xs text-colorTextSecondary">{label}</div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">antd</span>
-            <div data-vrt-subject className="flex-1">
-                {a}
-            </div>
-        </div>
-        <div className="flex items-center gap-2">
-            <span className="w-8 shrink-0 text-[10px] text-colorTextSecondary">agenta</span>
-            <div data-vrt-subject className="flex-1">
-                {s}
-            </div>
-        </div>
-    </div>
-)
-
-export const AntdVsAgenta: Story = {
-    args: {value: PINNED_TOOL, onChange: noop},
-    render: () => (
-        <div className="flex max-w-[1200px] flex-col">
-            <Row
-                label="pinned revision"
-                a={
-                    <AntdBody
-                        slug="summarizer"
-                        description="Summarize a support thread into three bullets"
-                        schema={INPUT_SCHEMA}
-                        binding="Pinned to v3"
-                    />
-                }
-                s={<ReferenceToolFormView value={PINNED_TOOL} onChange={noop} />}
-            />
-            <Row
-                label="deployed env"
-                a={
-                    <AntdBody
-                        slug="summarizer"
-                        description=""
-                        schema={null}
-                        binding="Deployed in production"
-                    />
-                }
-                s={<ReferenceToolFormView value={DEPLOYED_TOOL} onChange={noop} />}
-            />
-        </div>
-    ),
+/** The full panel: identity, the one editable field, and the read-only configuration. */
+export const Default: Story = {
+    args: {value: TOOL, onChange: noop},
+    render: (args) => Frame(bridgeWith(DETAIL), <ReferenceToolFormView {...args} value={TOOL} />),
 }
 
-/** Read-only (committed revision): the description textarea takes the disabled skin. */
+/** An agent with nothing configured. Each row says so rather than rendering an empty gap. */
+export const NothingConfigured: Story = {
+    args: {value: TOOL, onChange: noop},
+    render: (args) =>
+        Frame(
+            bridgeWith({
+                ...DETAIL,
+                model: undefined,
+                integrations: [],
+                skills: [],
+                instructions: undefined,
+            }),
+            <ReferenceToolFormView {...args} value={TOOL} />,
+        ),
+}
+
+/** No host bridge at all, so nothing resolves. The description still edits: it is local. */
+export const WithoutBridge: Story = {
+    args: {value: TOOL, onChange: noop},
+    render: (args) => Frame(undefined, <ReferenceToolFormView {...args} value={TOOL} />),
+}
+
+/** Read-only revision: the description cannot be edited either. */
 export const Disabled: Story = {
-    args: {value: PINNED_TOOL, onChange: noop, disabled: true},
-    render: () => (
-        <div className="max-w-[560px]">
-            <ReferenceToolFormView value={PINNED_TOOL} onChange={noop} disabled />
-        </div>
-    ),
+    args: {value: TOOL, onChange: noop, disabled: true},
+    render: (args) =>
+        Frame(bridgeWith(DETAIL), <ReferenceToolFormView {...args} value={TOOL} disabled />),
 }

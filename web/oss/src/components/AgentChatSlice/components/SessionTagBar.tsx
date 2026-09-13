@@ -6,7 +6,10 @@ import {
     SessionTab,
     SessionTabDragItem,
     SessionTabStrip,
+    withShortcutKey,
+    type MenuSelect,
 } from "@agenta/sessions-ui"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowLineRight, PencilSimple, X, XSquare} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -23,6 +26,7 @@ import {
     reorderSessionsAtomFamily,
     sessionFirstUserTextAtomFamily,
 } from "../state/sessions"
+import {renameSessionRequestAtom} from "../state/uiRequests"
 
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 
@@ -105,7 +109,7 @@ interface SessionTagProps {
     onClose: (id: string) => void
     onRename: (id: string, title: string) => void
     /** Right-click actions, from the shared `useSessionActions` set. */
-    menu: {items: SessionMenuItem[]; onClick: (info: {key: string}) => void}
+    menu: {items: SessionMenuItem[]; onClick: MenuSelect}
 }
 
 /** One session chip: status dot + truncated label (double-click or pencil to rename) + hover
@@ -194,7 +198,7 @@ const SessionTag = memo(function SessionTag({
             }}
             className="flex shrink-0 items-center overflow-hidden"
         >
-            <SessionRowContextMenu entries={menu.items} onSelect={(key) => menu.onClick({key})}>
+            <SessionRowContextMenu entries={menu.items} onSelect={(key) => menu.onClick(key)}>
                 <SessionTab
                     active={active}
                     pinned={pinned}
@@ -298,6 +302,10 @@ const SessionTagBar = ({
     const tabIds = useMemo(() => sessions.map((session) => session.id), [sessions])
     const {isPinned} = useSessionPins()
     const {menuItems, onMenuClick} = useSessionActions()
+    // Rename edits the chip in place, and the chip owns that state — so the menu asks for it the
+    // way Alt+R does, through the one-shot request atom `useInlineRenameRequest` consumes. One
+    // path for both, so the menu entry cannot drift from the shortcut.
+    const requestRename = useSetAtom(renameSessionRequestAtom)
     const menuFor = useCallback(
         (session: AgentChatSession) => {
             const target = {
@@ -316,14 +324,27 @@ const SessionTagBar = ({
                 .slice(index + 1)
                 .filter((s) => !isPinned(s.id))
                 .map((s) => s.id)
-            const shared = onMenuClick(target)
+            const shared = onMenuClick(target, {
+                onRename: () => requestRename({scope, sessionId: session.id, nonce: Date.now()}),
+            })
             return {
                 items: [
-                    ...menuItems(target),
+                    ...menuItems(target).map((entry) => {
+                        if ("key" in entry && entry.key === "rename") {
+                            return {...entry, label: withShortcutKey(entry.label, "session.rename")}
+                        }
+                        if ("key" in entry && entry.key === "archive") {
+                            return {
+                                ...entry,
+                                label: withShortcutKey(entry.label, "session.archive"),
+                            }
+                        }
+                        return entry
+                    }),
                     {type: "divider" as const},
                     {
                         key: "close",
-                        label: "Close",
+                        label: withShortcutKey("Close", "session.close"),
                         icon: <X size={14} />,
                         disabled: sessions.length <= 1,
                     },
@@ -340,15 +361,19 @@ const SessionTagBar = ({
                         disabled: toRight.length === 0,
                     },
                 ],
-                onClick: ({key}: {key: string}) => {
+                onClick: (key: string) => {
                     if (key === "close") return onClose(session.id)
                     if (key === "close-others") return onCloseMany?.(others)
                     if (key === "close-right") return onCloseMany?.(toRight)
+                    // Deferred, not run here: the request mounts the chip's input, and an input
+                    // that mounts inside the menu's focus trap is blurred straight back out —
+                    // and a blur commits. See `useDeferredMenuSelect`.
+                    if (key === "rename") return () => shared({key})
                     shared({key})
                 },
             }
         },
-        [isPinned, menuItems, onClose, onCloseMany, onMenuClick, scope, sessions],
+        [isPinned, menuItems, onClose, onCloseMany, onMenuClick, requestRename, scope, sessions],
     )
     // Session ids present when the bar first mounted. Seeded once; NOT topped up, so an id that
     // appears later reads as "added after mount" and scrolls smoothly (see SessionTag).
@@ -365,7 +390,13 @@ const SessionTagBar = ({
                 onAdd={onAdd}
                 addDisabled={addDisabled}
                 addTooltip={
-                    addDisabled ? "Available after your agent's first response" : "New session"
+                    addDisabled ? (
+                        "Available after your agent's first response"
+                    ) : (
+                        <span className="flex items-center gap-1.5">
+                            New session <ShortcutKeys id="session.new" tone="inverse" />
+                        </span>
+                    )
                 }
                 extra={extra}
                 leadingExtra={leftExtra}

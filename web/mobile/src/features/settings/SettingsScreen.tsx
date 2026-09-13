@@ -11,13 +11,7 @@ import {
 } from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
 import {fetchAllProjects} from "@agenta/entities/project"
-import {
-    getSettingsTabDescription,
-    getSettingsTabDocs,
-    getSettingsTabLabel,
-    getSettingsTabVariant,
-    type SettingsTabKey,
-} from "@agenta/settings"
+import {getSettingsTabVariant, type SettingsTabKey} from "@agenta/settings"
 import {useApiKeys, type SettingsAccess} from "@agenta/settings"
 import {
     AccessControlsSection,
@@ -30,9 +24,6 @@ import {
     GatewayToolsSection,
     OrganizationsPage,
     SsoProvidersSection,
-    TriggerConnectionsSection,
-    TriggerSchedulesSection,
-    TriggerSubscriptionsSection,
     SettingsPageShell,
     useEntitlements,
 } from "@agenta/settings-ui"
@@ -43,6 +34,12 @@ import {useRouter} from "next/router"
 import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {
+    getMobileSettingsTabDescription,
+    getMobileSettingsTabDocs,
+    getMobileSettingsTabLabel,
+    INTEGRATIONS_SECTION_COPY,
+} from "@/lib/integrationsCopy"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -64,7 +61,7 @@ import {
     OrganizationLoading,
     OrganizationNoFlags,
 } from "./states/OrganizationStates"
-import {useConfirmSheet} from "./useConfirmSheet"
+import {useConfirmModal} from "./useConfirmModal"
 import {WebhooksTab} from "./WebhooksTab"
 
 /**
@@ -134,11 +131,11 @@ const TabBody = ({
         projectId,
         enabled: access.isEE && (tab === "organization" || tab === "auditLog"),
     })
-    // Destructive actions in the shared tool/trigger sections ask for confirmation through an
-    // imperative callback (the desktop hands them antd's AlertPopup); this is the sheet version.
-    const {confirm, sheet: confirmSheet, close: closeConfirm} = useConfirmSheet()
+    // Destructive actions in the shared tool sections ask for confirmation through an
+    // imperative callback (the desktop hands them antd's AlertPopup); this is the modal version.
+    const {confirm, modal: confirmModal, close: closeConfirm} = useConfirmModal()
     // A confirmation is about the section that raised it. Leaving the tab abandons that context,
-    // so the sheet must not survive into the next one and act there.
+    // so the modal must not survive into the next one and act there.
     useEffect(() => closeConfirm, [tab, closeConfirm])
     const [memberSearch, setMemberSearch] = useState("")
     const [orgSearch, setOrgSearch] = useState("")
@@ -216,19 +213,9 @@ const TabBody = ({
             if (!access.canShowTools) return null
             return (
                 <>
-                    <GatewayToolsSection confirm={confirm} />
-                    {confirmSheet}
+                    <GatewayToolsSection confirm={confirm} copy={INTEGRATIONS_SECTION_COPY} />
+                    {confirmModal}
                 </>
-            )
-        case "triggers":
-            if (!access.canShowTriggers) return null
-            return (
-                <div className="flex flex-col gap-8">
-                    <TriggerConnectionsSection confirm={confirm} />
-                    <TriggerSubscriptionsSection confirm={confirm} />
-                    <TriggerSchedulesSection confirm={confirm} />
-                    {confirmSheet}
-                </div>
             )
         case "projects":
             return (
@@ -368,9 +355,9 @@ export const SettingsScreen = ({
                 desktop widths this app now serves. */}
             <SettingsPageShell
                 variant={getSettingsTabVariant(active)}
-                title={getSettingsTabLabel(active, access)}
-                description={getSettingsTabDescription(active, access)}
-                docs={getSettingsTabDocs(active)}
+                title={getMobileSettingsTabLabel(active, access)}
+                description={getMobileSettingsTabDescription(active, access)}
+                docs={getMobileSettingsTabDocs(active)}
             >
                 <TabBody
                     tab={active}

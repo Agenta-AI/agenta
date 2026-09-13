@@ -45,13 +45,10 @@ The docs build to Cloudflare Workers Static Assets. Two workers serve the site:
 | `agenta-docs` | `wrangler.production.jsonc` | the production build, on its own `workers.dev` URL |
 | `agenta-docs-preview` | `wrangler.jsonc` | one version per pull request |
 
-**`https://agenta.ai/docs` does not point at these workers yet.** That hostname
-still goes through the older `new-docs-router` worker, which proxies to Vercel.
-Deploying `agenta-docs` changes no live traffic. The cutover is a separate,
-deliberate step: remove the `agenta.ai/docs*` route from `new-docs-router` and
-add `agenta.ai/docs` and `agenta.ai/docs/*` to `agenta-docs`. The exact patterns
-are commented in `wrangler.production.jsonc`. Rolling back means dropping those
-two routes and restoring the old one, which takes about a minute.
+`https://agenta.ai/docs` and all paths below it route directly to
+`agenta-docs`. The retired `new-docs-router` worker no longer proxies these
+requests to Vercel. The production routes are declared in
+`wrangler.production.jsonc` so later deployments preserve the cutover.
 
 Two GitHub Actions workflows drive them:
 
@@ -82,6 +79,12 @@ moves to it:
 ```bash
 node scripts/check-parity.mjs https://pr-1234-agenta-docs-preview.<subdomain>.workers.dev
 ```
+
+`scripts/monitor-production.mjs` is the smaller production health check. GitHub
+Actions runs it every 15 minutes against the sitemap and representative current,
+versioned, security, and API-reference pages. It checks normal, Googlebot, and
+Bingbot requests and rejects any Vercel challenge response or unexpectedly
+cacheable error.
 
 ## Changelog Guidelines
 

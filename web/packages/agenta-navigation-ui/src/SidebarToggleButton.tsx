@@ -27,10 +27,11 @@ export const SidebarToggleButton = ({
             type="text"
             size="small"
             className={clsx(
-                // A 22px square — the exact height of the wordmark — so both optical centres line
-                // up; the old 28px pill rode 3px low. `after:inset-[-3px]` gives back the pointer
-                // area the smaller square costs, without affecting layout.
-                "shrink-0 !h-[22px] !w-[22px] !p-0 relative after:absolute after:inset-[-3px] after:content-['']",
+                // A 28px square, the same box the rail's icon rows use, so the one control above
+                // the list is as easy to hit as the rows under it. It was 22 with a -3px ::after
+                // extending only the POINTER area, which left a hover fill visibly smaller than
+                // the thing you were pointing at.
+                "shrink-0 !size-7 !p-0",
                 className,
             )}
             aria-label={onDismiss ? "Close navigation" : undefined}

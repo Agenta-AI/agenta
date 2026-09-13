@@ -42,11 +42,14 @@ export default defineConfig({
     // overrides this for targeted local runs where the developer controls scope.
     fullyParallel: false,
     forbidOnly: !!process.env.CI,
-    retries: process.env.CI ? 2 : process.env.RETRIES ? parseInt(process.env.RETRIES) : 0,
+    retries: process.env.CI ? 1 : process.env.RETRIES ? parseInt(process.env.RETRIES) : 0,
+    maxFailures: process.env.CI ? 5 : 0,
+    globalTimeout: process.env.CI ? 20 * 60 * 1000 : 0,
     workers: process.env.PLAYWRIGHT_WORKERS ? parseInt(process.env.PLAYWRIGHT_WORKERS) : 1,
     reporter: [
         ["html", {outputFolder: getReportDir()}],
         ["junit", {outputFile: getJunitPath()}],
+        ...(process.env.CI ? ([["github"]] as [["github"]]) : []),
         [require.resolve("./playwright/live-reporter.ts")],
     ],
     outputDir: getOutputDir(),

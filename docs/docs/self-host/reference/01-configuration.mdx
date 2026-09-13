@@ -235,12 +235,13 @@ run multiple runners, use the Daytona provider, whose sessions any runner can re
 
 These locate the runner and authenticate the call. Two of the three are caller-side: the Services
 API and its SDK read them, not the runner. The platform API also reads the locator and token
-directly, for the session `kill` verb's sandbox teardown (`POST /kill` on the runner) — a second,
-independent caller of the same runner HTTP surface, not routed through Services.
+directly. It calls the runner to cancel a turn when a user presses Stop (`POST /cancel`), and to tear down a sandbox
+for the session `kill` verb (`POST /kill` on the runner). It is a second, independent caller of the
+same runner HTTP surface, not routed through Services, so both containers need both values.
 
 | Variable | Role | Read by | Default | Secret | Helm |
 |---|---|---|---|---|---|
-| `AGENTA_RUNNER_INTERNAL_URL` | Runner locator | Services API and the platform API (both caller-side) | Compose: `http://runner:8765` | no | `agentRunner.externalUrl`, else derived from `agentRunner.enabled` |
+| `AGENTA_RUNNER_INTERNAL_URL` | Runner locator | Services API and the platform API (both caller-side) | Compose: `http://runner:8765` on both callers (the `gh.local` and `gh.ssl` files set it on `api` from v0.115.3) | no | `agentRunner.externalUrl`, else derived from `agentRunner.enabled` |
 | `AGENTA_RUNNER_TOKEN` | Shared request credential | Services and the platform API send it; runner verifies it | **Required — no default** | yes | `agenta.runnerToken`, or `agentRunner.auth.tokenSecretRef` to source it from your own Secret |
 | `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout the caller allows on the run request | Services API and SDK (caller-side) | `360` | no | n/a |
 
@@ -566,13 +567,34 @@ docker compose exec services python -c \
 
 A `200` confirms the hop.
 
+#### Stop does nothing, and minutes later the run is closed as "stopped responding"
+
+**Cause:** `AGENTA_RUNNER_INTERNAL_URL` is unset on the platform API. The api delivers a Stop to
+the runner directly. Without the locator it logs
+`cancel: no runner internal_url/token configured; command <id> cannot be delivered`, retries for a
+few minutes, and then closes the healthy turn as lost. The chat shows "The agent stopped responding
+and the run was closed", and the warm sandbox is gone. Before v0.115.3 the `gh.local` (oss and ee)
+and `gh.ssl` Compose files set the locator on `services` only, so the `services` check above passes
+while the api has no value.
+
+**Solution:** Set the locator and the token on the `api` container and recreate it:
+
+```bash
+docker compose exec api printenv AGENTA_RUNNER_INTERNAL_URL   # empty means this entry
+docker compose up -d --force-recreate api
+```
+
+On a Compose file older than v0.115.3, add both lines to the `api` service's `environment` block,
+the way the `services` block has them. On the next Stop the api log must not show the
+`cannot be delivered` line.
+
 #### The API cannot reach the runner, or the runner rejects its calls
 
 **Cause:** `AGENTA_RUNNER_INTERNAL_URL` does not point at the runner, or `AGENTA_RUNNER_TOKEN` is
 set on only one side.
 
-**Solution:** Check the URL, and set the same token value on the API and on the runner or on
-neither.
+**Solution:** Check the URL, and set the same token value on the api, on services, and on the
+runner.
 
 #### A self-managed local run fails because the harness has no login
 

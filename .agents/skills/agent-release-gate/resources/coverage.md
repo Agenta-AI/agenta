@@ -25,6 +25,8 @@ subscription has its own cell — C1, S1, S2.
 | S2 | `codex` | `local` | `gpt-5.6-luna` | subscription (Codex OAuth, `runtime_provided`) | **The genuine Codex-subscription cell**: the codex harness with the operator's mounted ChatGPT/Codex login. The only cell that exercises the subscription file assembly — `CODEX_HOME` pointed at `<cwd>/.codex` and `auth.json` symlinked into the **durable** working directory. That link is the one credential path an object-store round trip can destroy (#5692). Local-only (Daytona rejects `runtime_provided`), and needs the subscription sidecar. |
 | P2 | `pi_core` | `local` | `<name>/custom/deepseek/deepseek-v4-flash` | custom OpenAI-compatible provider | OpenRouter reached as a custom OpenAI-compatible endpoint — the path every self-hoster with a proxy or local vLLM uses, and the least-travelled one. Needs a `custom_provider` vault slug and display name; pass `--custom-slug` plus `--custom-name` (the driver sends the full `<name>/custom/<model>` key and connection mode `agenta`). |
 | P2b | `pi_core` | `local` | `<name>/custom/deepseek/deepseek-v4-flash` | custom OpenAI-compatible provider, `provider` SET | P2 with `provider: "openai"` — the shape the PLAYGROUND saves for a named custom connection, which P2 cannot cover because it pins `provider: None`. A set provider prefixes `to_model_string()`, and `Connection.selected_model_id` used to compare only against that, so the `<name>/custom/<model>` namespace was never stripped and the provider got the namespaced id and returned 403. Regression guard: every custom connection picked in the playground rides this path. Needs both `--custom-slug` and `--custom-name` because `model_keys` is built from the display name. |
+| H1 | `pi_core` | `local` | `gpt-5.3-codex-spark` | hosted subscription (`self_managed` + slug) | The user's own ChatGPT subscription, signed in ONCE through the product and stored in the project's vault, then delivered to the sandbox that runs the turn. S1 and S2 read a login the OPERATOR mounted into the runner, so they only ever prove the self-hosted case: nothing else in the matrix sees the store, the delivery, the refresh push-back, or the per-project isolation. Needs a connected subscription in state `ready`; both hosted cells SKIP with the reason when there is none. |
+| H2 | `pi_core` | `daytona` | `gpt-5.3-codex-spark` | hosted subscription (`self_managed` + slug) | The same connection on a REMOTE sandbox. The delivery is a different mechanism there: the login is written to the sandbox VM's own disk and a refreshed copy is read back by a poll rather than by a file watch, so a local pass says nothing about it. This is also the only hosted cell where the sandbox, not the runner, holds the credential. |
 | P3 | `pi_core` | `daytona` | `<name>/custom/deepseek/deepseek-v4-flash` | custom OpenAI-compatible provider | P2 on a REMOTE sandbox. v0.108.1 validates a credentialed connection's endpoint far more strictly on Daytona, because that host is what the credential's Secret is pinned to: plain HTTPS, default port, real fully-qualified hostname. A self-hosted proxy on a non-default port — an ordinary setup — is now refused where it worked in v0.108.0. P2 is local-only and a local sandbox never builds a secret plan, so nothing in the gate could see that rejection until this cell. Needs `--custom-slug` plus `--custom-name`. |
 
 The Codex cells (`X1`, `X2`, `S2`) run `chat`, `tool`, `commit`, `warm`, `cold1`, `cold2`,
@@ -69,6 +71,10 @@ cell — keep them in sync if a cell changes.
 | `builtin_grep` | Policy `allow_reads`. Write a file with bash, then grep it. | A `grep` call executes with no approval card — grep is one of the three built-ins Pi does not activate on its own, and it is read-only, so it runs unattended. **Pi only.** |
 | `secret_opaque` | Ask the sandbox to classify its own provider key variable and echo back a verdict word carrying a nonce this run invented. | The verdict says the value begins `dtn_secret_`, so the agent holds a Daytona Secret placeholder and not the real key. **Daytona only** (C2, C4, P3, X2); it `SKIP`s on every local cell, where the harness runs inside the runner container and there is nothing to hide it from. |
 | `rotate` | Change the provider key in the vault **mid-conversation** to a decoy no provider accepts, send a turn, then put the real key back and keep talking. | The turn under the decoy must FAIL (a success means the runner kept serving the old credential), and the turn after the restore must succeed with the durable working directory intact. Skips on subscription cells, which have no vault key, and custom-provider cells, whose write-only key cannot be safely restored. The vault is restored in a `finally`. |
+| `parallel` | Three sessions at once on ONE hosted connection, two turns each. | All three finish both turns. **Hosted cells only** (H1, H2); SKIPs everywhere else. A partial pass is a FAIL: "two of three worked" is the shape a lock contention bug takes, and one session can never see several sandboxes reading and rewriting one stored login at the same time. |
+| `refresh` | Expire the STORED login with a pgcrypto update of its row (and, on a local sandbox, the runner's own copy too), clear the API's cached vault read, then send one turn. | The turn answers AND the stored `login_version` moves. **Hosted cells only.** A refresh that stays inside the sandbox is the same as no refresh: the next sandbox gets the dead token. SKIPs without `--db-container` and `--stack-env` (or `--subscription-expire-cmd`). |
+| `dead` | Break the sandbox's copy of the login with garbage tokens at the CURRENT stored version, so there is nothing newer to fall back to and the refresh is genuinely refused. | The run reports the code `subscription_login_required` and the connection moves to `needs_login`. **H1 only** (H2 SKIPs: the copy lives on the remote VM's disk, which the driver cannot reach). A generic error would satisfy a human reader and leave the client with nothing to render. **Leaves the connection needing a human sign-in, so run it last.** |
+| `relogin_needed` | Nothing. It always SKIPs. | It is a marker: signing in again is a device-code flow that needs a person, and a gate that skipped it silently could end with a connection nobody can use and no note saying so. Its reason reports the connection's current state and names the steps. **Hosted cells only.** |
 
 The four rule journeys are the only coverage of `harness.permissions`. Built-in tools are always
 active and are never listed in `tools`, so those three lists are the only lever over them: if they
@@ -162,6 +168,37 @@ unset it for a genuine cold 2.
 | Subscription sidecar — ChatGPT/Codex login mounted (Pi's `~/.pi/agent/auth.json`) | S1 |
 | Subscription sidecar — ChatGPT/Codex login mounted read-write with `CODEX_HOME` naming it | S2 |
 | Operator hook that SIGKILLs the runner (`--cold2-replace-cmd`) | `cold2` in every cell |
+| A hosted subscription connection in the project, signed in and `ready` (`--subscription-slug`, default `chatgpt`) | H1, H2 |
+| A reachable runner replica for `docker exec` (`--runner`) | `refresh` and `dead` on H1 |
+| The stack's postgres container and its env file, for the pgcrypto expire of the stored login (`--db-container`, `--stack-env`, and `--db-name`/`--db-user` when they are not the defaults) | `refresh` on H1, H2 |
+| The stack's redis container, so the expiry is not hidden by the API's cached vault read (`--redis-container`) | `refresh` on H1, H2 |
+
+**The hosted cells end a run with a human step, and that is deliberate.** `dead` proves the
+failure a user actually meets, and proving it means killing the login. There is no way back
+without a person: the sign-in is a device code approved inside the subscription account. So run
+the hosted journeys in this order, `dead` last, and read `relogin_needed`'s reason before closing
+the run:
+
+```bash
+STACK="--db-container <postgres> --redis-container <redis> --stack-env <env file>"
+uv run resources/qa_product.py --cell H1 --only chat --only parallel --only refresh \
+  --runner <runner> $STACK
+uv run resources/qa_product.py --cell H2 --only chat --only parallel --only refresh $STACK
+uv run resources/qa_product.py --cell H1 --only dead --only relogin_needed --runner <runner>
+```
+
+`refresh` expires the stored login itself: it decrypts the connection's row with the stack's
+`AGENTA_CRYPT_KEY`, moves `login.expires` into the past, and encrypts it again. The key is read
+from `--stack-env`, handed to the container through its environment, and never printed or placed
+on a command line. Two details decide whether the journey measures the product or measures a
+cache. The API caches its vault read for 5 minutes and only invalidates it on a write made
+THROUGH the API, so `--redis-container` clears that read; without it, raise
+`--subscription-cache-wait` past 300 seconds. On a local sandbox the runner's own copy is expired
+too, because the materialize rule correctly prefers the newer stored copy and no refresh would
+ever happen.
+
+Where the driver cannot reach the database, `--subscription-expire-cmd '<hook> {secret_id}'`
+replaces both flags with an operator hook that does the same thing. It wins when both are given.
 
 ## Standalone interaction-card lifecycle cells
 
@@ -179,6 +216,62 @@ I2 reports an unset `TELEGRAM_BOT_TOKEN` as a loud journey `SKIP` and makes the 
 green. The token is read from the process environment only and is never printed or stored in the
 result.
 
+## Session-context cell (`matrix_n1_session_context.py`)
+
+The per-turn session facts are the agent's display name, the session's name, and the first-turn
+flag. They reach the harness only as prompt text (`turnContext`), so no SSE frame carries them and
+no stored row records them. Every cell above reads frames and side effects, which is why the whole
+matrix stayed green while the playground delivered no facts at all (#6661).
+
+| Cell | Tier | What it pins | Extra requirement |
+|---|---|---|---|
+| `matrix_n1_session_context.py` | journey, with two controls | A rename between two turns must reach the agent on the path the playground posts (`{BASE}/services/agent/v0/invoke`), the agent's own display name must reach it too, and a client-supplied `meta.session_context` must be ignored. | a working model provider for the selected harness |
+
+**Why this cell asserts on model prose, which the gate otherwise refuses.** There is no
+deterministic surface. `turnContext` is a prompt string on the service-to-runner `/run` payload,
+the runner prepends it and logs nothing, and it is deliberately excluded from `request.messages`
+and from persisted user input so a replay cannot duplicate it. The stored turn row carries harness,
+sandbox, and timing only. The transport half is pinned by unit tests instead
+(`sdks/python/oss/tests/pytest/unit/agents/test_wire_contract.py` for the payload field,
+`services/runner/tests/unit/sandbox-agent-orchestration.test.ts` for the prepend); the cell owns
+the journey. If a later change ever exposes the text on the wire or in a row, assert on that and
+demote the prose half to corroboration.
+
+**What makes the prose evidence honest.** Every fact the cell asks for carries a random token
+minted for the run and spoken nowhere in the conversation, so a transcript-derived answer cannot
+match. The second ask is the exact shape of #6661: by then the FIRST name is in the transcript,
+from the agent's own previous reply, and the second name exists only in the stored header.
+
+**Two controls, so a FAIL cannot be blamed on the model.** An echo probe opens the session and
+must come back with a literal token from its own user message, or the cell reports INCONCLUSIVE.
+Every rename is read back from `GET /sessions/streams/` before the ask, so a rename that did not
+land fails as a rename rather than as a transport defect.
+
+**The forged step is the security half.** `meta` is client input on this path, so a browser can
+hand the agent forged facts. The API's stamp drops a caller-supplied `session_context` on purpose:
+a client must not be able to tell the agent an unnamed session is already named. Before #6667 the
+service believed the forgery.
+
+```bash
+uv run resources/matrix_n1_session_context.py                 # pi_core on a local sandbox
+uv run resources/matrix_n1_session_context.py --sandbox daytona   # the shape staging accepts
+uv run resources/matrix_n1_session_context.py --harness-all   # all three harnesses
+```
+
+The sandbox is not what this cell tests: the facts are resolved in the agent service, before any
+sandbox exists. It is a flag because a deployment can refuse one. Staging enables Daytona only and
+answers 403 for a local sandbox, so a cell pinned to local cannot run there at all.
+
+**Verifying a fix before it is deployed.** `AGENTA_SERVICE_BASE` moves the TURNS to an agent
+service run by hand, while every API read and write still goes to `AGENTA_BASE`. That is how this
+cell was signed: FAIL against the deployed stack, PASS against a service built from the fix, with
+the same backend under both. It is a development override, it announces itself on stderr, and each
+result records the `service_base` it used. A release run must never set it.
+
+```bash
+AGENTA_SERVICE_BASE=http://localhost:8099 uv run resources/matrix_n1_session_context.py
+```
+
 ## Cross-cutting invariants (fold into every cell's verdict)
 
 These are not cells. They are pure checks in `qa_matrix_lib.py` that a cell folds into its PASS
@@ -188,7 +281,7 @@ own assertions are scenario-shaped and can be satisfied for the wrong reason.
 | Invariant | What it pins | Wired into |
 |---|---|---|
 | `check_no_blank_success_on_refusal(turns, log_lines)` | No `tool_result` with empty output and `isError:false` may exist for a call the runner logged as `[commit-auth] refused`. A refusal must reach the wire as an error or a denial, never as a blank that reads as success. | `matrix_invariant_commit_auth_refusal.py` |
-| `check_no_silent_turn(turns)` | No turn may come back completely bare — no text, no tool call, no approval gate, no file or data payload, no error. That is a swallowed provider failure (ASD-EST100) arriving as a clean empty finish: the user sees a blank bubble with no reason anywhere. | `matrix_w7.py`, `matrix_w7_daytona.py`, `matrix_w7_per_harness.py`, `matrix_t8_saved_files.py`, `matrix_b1_builtin_find.py`, `matrix_invariant_commit_auth_refusal.py`, `matrix_l3_abandoned_approval.py`, `matrix_w3.py`, `matrix_w4.py`, `matrix_w5.py` |
+| `check_no_silent_turn(turns)` | No turn may come back completely bare — no text, no tool call, no approval gate, no file or data payload, no error. That is a swallowed provider failure (ASD-EST100) arriving as a clean empty finish: the user sees a blank bubble with no reason anywhere. | `matrix_w7.py`, `matrix_w7_daytona.py`, `matrix_w7_per_harness.py`, `matrix_t8_saved_files.py`, `matrix_t9_agent_tools.py`, `matrix_b1_builtin_find.py`, `matrix_invariant_commit_auth_refusal.py`, `matrix_l3_abandoned_approval.py`, `matrix_w3.py`, `matrix_w4.py`, `matrix_w5.py`, `matrix_n1_session_context.py` |
 
 The silent-turn check matters most in cells whose PASS depends on something NOT appearing (no
 error, no leak, no blank success): a turn that produced nothing satisfies those by doing nothing
@@ -214,6 +307,10 @@ those cells are MANDATORY for that release.
 | Rule | Cells it makes mandatory | Why this subsystem needs its own cell |
 |---|---|---|
 | `api/oss/src/core/tools/**`, `sdks/python/agenta/sdk/agents/platform/gateway.py`, `sdks/python/agenta/sdk/agents/tools/gateway_policy.py`, `services/runner/src/tools/**`, `services/runner/src/engines/sandbox_agent/gateway-gate.ts` | `matrix_gw1_gateway_tools.py` | The gateway chain — the API's catalog and resolve, the SDK's two model-facing tools and its permission compiler, the runner's policy and semantic gate. `tool`, `approve`, and `deny` prove the approval machinery with a BUILTIN, never with a gateway tool, so nothing in the fixed matrix notices when a compiled policy and an enforced policy drift apart. Proposed in [`docs/design/composio-tools-rework/release-gate-changes.md`](../../../../docs/design/composio-tools-rework/release-gate-changes.md). |
+| `services/runner/src/engines/sandbox_agent/subscription-*`, `services/runner/src/subscription-*`, `api/oss/src/core/secrets/subscription_*`, `api/oss/src/apis/fastapi/vault/**`, `web/packages/agenta-entities/src/secret/**` | `H1` | The hosted-subscription chain — the runner half that materializes a login and pushes a refreshed copy back, the runner's device-login and status surface, the API half that stores and versions the login, the vault routes the browser signs in through, and the client shapes that render the connection state. Every other cell authenticates from a vault key or from a login an OPERATOR mounted, so a break here is invisible to the whole fixed matrix. |
+| Custom-secret vault/workflow paths, `sdks/python/agenta/sdk/agents/{sandbox_credentials.py,wire_models.py,utils/wire.py}`, and runner credential validation/composition/identity/redaction paths | `matrix_s1_custom_secrets.py` | A normal model turn can stay green while the credential is missing, stale, leaked, or injected into only one sandbox provider. This cell checks the saved-reference boundary, both providers, secret rotation, removal, and SSE non-disclosure through durable side effects. |
+| `services/runner/src/engines/sandbox_agent/**`, `services/runner/src/providers/daytona*` | Cells `C2`, `C4`, `X2`; journeys `burst` and `crosstalk` | The sandbox engine and the Daytona provider: sandbox creation, the secret plan, the credential preflight, and the retry the runner does when a first model call is refused. A fault here appears only when many sandboxes start at once, which no other journey does. Production hit it as one first message in five failing with a credential error (AGE-4249 / #6485) while the sequential gate stayed green. `P3` is a Daytona cell too but is deliberately not named: it needs `--custom-slug` and `--custom-name`, and the driver exits when a selected custom cell has no slug, so the rule would stop every release run that did not pass them. |
+| `sdks/python/agenta/sdk/agents/platform/session_context.py`, `sdks/python/agenta/sdk/agents/platform_instructions.py`, `sdks/python/agenta/sdk/agents/handler.py`, `api/oss/src/core/sessions/context.py` | `matrix_n1_session_context.py` | The per-turn session facts: the agent's display name, the session's name, and the first-turn flag. They reach the harness only as prompt text, so no SSE frame and no stored row reflects them and every frame-level cell is blind to them going missing. That is how #6661 shipped through a green gate: the API stamped the facts in its invoke prelude, the SDK and the runner consumed them correctly, and the playground posts straight to the agent service, where the prelude never runs. |
 
 What the driver does with a mandatory cell depends on which kind it is:
 

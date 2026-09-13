@@ -2,8 +2,10 @@ import {humanSize} from "@agenta/entities/drive"
 import {type DriveId} from "@agenta/entities/drive"
 import {fileOrigin} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
+import {shortcutAria} from "@agenta/shared/utils"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {Tag, EnhancedButton as Button} from "@agenta/ui/components/presentational"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -115,9 +117,22 @@ export const DriveHeader = ({
                     : "border-colorBorderSecondary py-2"
             }`}
         >
-            <Tooltip title={closeVariant === "collapse" ? "Collapse files" : "Close"}>
+            <Tooltip
+                title={
+                    closeVariant === "collapse" ? (
+                        <span className="flex items-center gap-1.5">
+                            Collapse files <ShortcutKeys id="panel.files" tone="inverse" />
+                        </span>
+                    ) : (
+                        "Close"
+                    )
+                }
+            >
                 <Button
                     type="text"
+                    aria-keyshortcuts={
+                        closeVariant === "collapse" ? shortcutAria("panel.files") : undefined
+                    }
                     aria-label={closeVariant === "collapse" ? "Collapse files pane" : "Close"}
                     icon={
                         closeVariant === "collapse" ? (

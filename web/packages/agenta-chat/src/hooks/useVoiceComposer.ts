@@ -1,8 +1,9 @@
-import {type RefObject, useState} from "react"
+import {type RefObject, useCallback, useRef, useState} from "react"
 
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {useAudioRecorder} from "./useAudioRecorder"
+import {useDictationAnalyser} from "./useDictationAnalyser"
 
 /**
  * The composer's voice surface for one session: the recorder that backs the recording takeover,
@@ -45,10 +46,16 @@ export const useVoiceComposer = ({
         voiceRecorder.start()
     }
     // Dictation runs inside the mic button (its transcript changes far too often to lift here), so
-    // it reports failures up for the shared notice.
+    // it reports failures up for the shared notice and leaves its stopper here.
+    const dictationStopRef = useRef<() => void>(() => {})
+    // A send finishes the message, so the mic has nothing left to hear. Stable: the composer's
+    // memoized submit handler depends on it.
+    const endDictation = useCallback(() => dictationStopRef.current(), [])
     const [dictationError, setDictationError] = useState<string | null>(null)
     // Locks the editor while speech is coming in, so typing can't interleave with the transcript.
     const [dictating, setDictating] = useState(false)
+    // The recogniser hands back transcripts and no audio, so the wave needs its own stream.
+    const dictationAnalyserRef = useDictationAnalyser(dictating)
     const micError = voiceRecorder.error ?? dictationError
     const dismissMicError = () => {
         setDictationError(null)
@@ -59,8 +66,11 @@ export const useVoiceComposer = ({
         voiceRecorder,
         voiceWillSend,
         startVoiceMessage,
+        dictationStopRef,
+        endDictation,
         dictating,
         setDictating,
+        dictationAnalyserRef,
         setDictationError,
         micError,
         dismissMicError,

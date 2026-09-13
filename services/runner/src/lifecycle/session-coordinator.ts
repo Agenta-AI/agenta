@@ -40,7 +40,11 @@ import {
   type SessionEnvironment,
 } from "../engines/sandbox_agent.ts";
 import type { MountCredentials } from "../engines/sandbox_agent/mount.ts";
-import type { TeardownReason } from "../engines/sandbox_agent/teardown.ts";
+import { SESSION_TURN_IN_USE_MESSAGE } from "../sessions/admission.ts";
+import {
+  teardownDisposition,
+  type TeardownReason,
+} from "../engines/sandbox_agent/teardown.ts";
 import {
   mechanismForRotation,
   runCredentialDelivery,
@@ -52,7 +56,9 @@ import { desiredCredentialSetFor } from "../providers/daytona-credential-deliver
 import {
   approvalDecisionForToolCall,
   assertsPriorConversation,
+  changedConfigFields,
   computeCredentialEpoch,
+  configFieldDigests,
   configFingerprint,
   credentialEpochMismatch,
   carriesApprovalReplyOnly,
@@ -188,6 +194,14 @@ export interface KeepaliveContext {
   /** Latest session credential accessor supplied by the alive watchdog. */
   credential?: () => string;
   /**
+   * Called once with this run's project scope, as soon as it is known.
+   *
+   * The scope can only be resolved here: `runContext.project.id` is empty on the live invoke
+   * path, so the project comes from the signed mount, which is signed inside this function. The
+   * transport needs it to route a control command to the right tenant's session.
+   */
+  onScopeResolved?: (projectId: string) => void;
+  /**
    * Test seam for the credential-propagation hold. Production waits for real: the hold is what
    * keeps applied state from advancing over a value the provider's egress layer has probably not
    * picked up yet, so it must never be skipped outside a test.
@@ -287,6 +301,10 @@ export async function runWithKeepalive(
   }
   const key = scope.key;
   klog(`scope=${scope.source} key=${key} session=${sessionId}`);
+  // Tell the transport which project this run belongs to. Until this lands, a control command
+  // cannot tell one tenant's session from another's, because the request itself often carries
+  // no project and the scope was only just derived from the signed mount.
+  ctx.onScopeResolved?.(scope.key.slice(0, scope.key.lastIndexOf(":")));
 
   // The mount may be null here (store unconfigured, 503, ephemeral fallback) or undefined (the
   // sign attempt threw) when the run-context scope produced the key. A mount-less session still
@@ -552,6 +570,14 @@ export async function runWithKeepalive(
     }
   };
 
+  /**
+   * The idle window a clean park gets. A user Stop gets the longer stopped window, because the
+   * user is about to type the next message; every other clean turn gets the ordinary one. See
+   * `KeepaliveConfig.stoppedTtlMs` for how to collapse the two.
+   */
+  const parkTtlMs = (stopped: boolean): number =>
+    stopped ? (config.stoppedTtlMs ?? config.ttlMs) : config.ttlMs;
+
   const resultTeardownReason = (result: AgentRunResult): TeardownReason =>
     shouldPark(result, signal, clientGone)
       ? "clean-resumable"
@@ -591,6 +617,26 @@ export async function runWithKeepalive(
     // or MCP credential shape. Until the reconciliation router can say which facet moved, treat
     // it as runtime-level and delete. Delete is always sound; it only costs a rebuild.
     return "runtime-incompatible";
+  };
+
+  /**
+   * The teardown for a set of unresolved reasons: the strictest one wins.
+   *
+   * An eviction is named by its FIRST unresolved reason, but the sandbox's fate must answer
+   * ALL of them. `history` sorts before the credential checks, so a turn that changed the
+   * model, edited its transcript, AND carried a rotation the port could not deliver was
+   * evicted as `history`, mapped to `continuity-invalid`, and PARKED — leaving a sandbox whose
+   * daemon still held the old credential for the next turn to resume onto. Deleting when any
+   * reason says delete costs a rebuild; parking when one says delete is the stale-material bug
+   * `teardown.ts` exists to prevent.
+   */
+  const strictestTeardown = (mismatches: string[]): TeardownReason => {
+    const reasons = mismatches.map(mismatchTeardownReason);
+    return (
+      reasons.find((r) => teardownDisposition(r) === "delete") ??
+      reasons[0] ??
+      "compatibility-mismatch"
+    );
   };
 
   const notifyParkedLive = async (env: SessionEnvironment): Promise<void> => {
@@ -743,7 +789,12 @@ export async function runWithKeepalive(
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!(await seat(config.ttlMs, "idle"))) {
+      // A settled user Stop parks like any clean turn, but on the LONGER stopped window: the
+      // user is about to type. Logged so the live evidence shows the sandbox surviving a Stop
+      // rather than a `no-park:cancelled` eviction.
+      const stopped = result.stopReason === "cancelled";
+      if (stopped) klog(`park-cancelled key=${key} ttl=${parkTtlMs(stopped)}ms`);
+      if (!(await seat(parkTtlMs(stopped), "idle"))) {
         await drop("park-refused", "clean-resumable");
       } else {
         await notifyParkedLive(env);
@@ -801,7 +852,9 @@ export async function runWithKeepalive(
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!(await pool.repark(live, update, config.ttlMs))) {
+      const stopped = result.stopReason === "cancelled";
+      if (stopped) klog(`park-cancelled key=${key} ttl=${parkTtlMs(stopped)}ms`);
+      if (!(await pool.repark(live, update, parkTtlMs(stopped)))) {
         await live.teardown("failed-turn");
       } else {
         await notifyParkedLive(env);
@@ -827,7 +880,12 @@ export async function runWithKeepalive(
     // where `reserve` would) means unmounting and deleting that cwd out from under the environment
     // just built on it. That is the original bug in a narrower window, so the claim happens here.
     await pool.evict(key, "pre-acquire", "failed-turn");
-    const acq = await engine.acquireEnvironment(request, signal, signed, trackedEmit);
+    const acq = await engine.acquireEnvironment(
+      request,
+      signal,
+      signed,
+      trackedEmit,
+    );
     if (!acq.ok) return { ok: false, error: acq.error };
     const env = acq.env;
     const leaseMs = installedMountLease(env.installedMountExpiries);
@@ -861,6 +919,7 @@ export async function runWithKeepalive(
       result = await engine.runTurn(env, request, trackedEmit, signal, {
         approvalParkMode: true,
         loaded: env.loadedFromContinuity,
+        nativeHistoryVerified: env.nativeHistoryVerified,
         ...turnCredential,
       });
     } catch (err) {
@@ -898,22 +957,49 @@ export async function runWithKeepalive(
     // Comparing anyway evicts the warm session on every turn of every conversation. The session
     // id already binds the request to this conversation; the client simply no longer asserts it.
     const clientAssertsHistory = !carriesMinimalHistory(request);
-    let mismatch: string | undefined;
-    if (cfgFp !== existing.configFingerprint) mismatch = "config";
-    else if (clientAssertsHistory && priorFp !== existing.historyFingerprint)
-      mismatch = "history";
-    else if (credMismatch) mismatch = credMismatch;
-    else if (
-      // Still-valid credentials that cannot cover a worst-case turn are expiring, not expired:
-      // rebuild at the boundary rather than let the turn die under the mount.
-      mountCredentialsExpireBy(existing.credentialEpoch, requiredValidThroughMs)
-    )
-      mismatch = "credentials-expiring";
-    else if (!tailIsFreshUserMessage(request)) mismatch = "tail";
+    /**
+     * EVERY reason is re-evaluated after a repair, not only the first one found.
+     *
+     * The old shape was an else-if chain feeding the two repair doors below, and a successful
+     * repair set `mismatch = undefined`. That cleared the answer to EVERY question when the
+     * repair had answered exactly one: a model switch riding with an edited transcript took the
+     * live route and then continued warm on a native conversation that still held the unedited
+     * turn; paired with a rotated credential it ran on the old baked key; paired with an
+     * expiring mount lease it let the turn die under the mount. So a repair marks ITS reason
+     * repaired and asks again, and the remaining checks keep their order and their comments.
+     */
+    const repaired = new Set<string>();
+    /**
+     * Every unresolved reason, in the order the checks are written. The FIRST one names the
+     * eviction, and the WHOLE list decides the teardown — see `strictestTeardown`.
+     */
+    const unresolvedMismatches = (): string[] => {
+      const reasons: string[] = [];
+      if (!repaired.has("config") && cfgFp !== existing.configFingerprint)
+        reasons.push("config");
+      if (clientAssertsHistory && priorFp !== existing.historyFingerprint)
+        reasons.push("history");
+      if (credMismatch && !repaired.has(credMismatch))
+        reasons.push(credMismatch);
+      if (
+        // Still-valid credentials that cannot cover a worst-case turn are expiring, not expired:
+        // rebuild at the boundary rather than let the turn die under the mount.
+        mountCredentialsExpireBy(
+          existing.credentialEpoch,
+          requiredValidThroughMs,
+        )
+      )
+        reasons.push("credentials-expiring");
+      if (!tailIsFreshUserMessage(request)) reasons.push("tail");
+      return reasons;
+    };
+    const firstMismatch = (): string | undefined => unresolvedMismatches()[0];
+    let mismatch = firstMismatch();
 
     // STEP 6. A pure configuration mismatch gets one chance to be satisfied on the live
     // environment. Everything else — credentials, continuity, an expiring lease — is decided
-    // above and never reaches this door.
+    // by `firstMismatch` and never reaches this door; a successful apply answers ONLY the
+    // config question, so the remaining reasons are asked again.
     if (mismatch === "config") {
       // Pass the plan we ACTED ON: the apply has already committed the new applied state, so
       // recomputing here would yield an empty plan and the counter could not name the route.
@@ -926,13 +1012,15 @@ export async function runWithKeepalive(
           "environment",
           appliedPlan,
         );
-        mismatch = undefined;
+        repaired.add("config");
+        mismatch = firstMismatch();
       }
     }
 
     // STEP 8. A rotated credential gets the same chance. The other credential mismatches do NOT:
     // `credentials-expired` and `credentials-expiring` are mount-lease facts that the mount
     // subsystem repairs by re-signing, and delivering a model key would not extend a lease.
+    // Same contract as step 6: a delivery answers only the rotation, so ask again.
     if (mismatch === "credentials-rotated") {
       const deliveredPlan = await tryCredentialRoute(existing);
       if (deliveredPlan) {
@@ -944,7 +1032,8 @@ export async function runWithKeepalive(
           deliveredPlan,
           "rotate-in-place",
         );
-        mismatch = undefined;
+        repaired.add("credentials-rotated");
+        mismatch = firstMismatch();
       }
     }
 
@@ -955,14 +1044,39 @@ export async function runWithKeepalive(
       mismatch = "mount-lost";
 
     if (mismatch) {
-      klog(`mismatch (${mismatch}) key=${key}; evict + cold`);
+      // The eviction is NAMED by the first unresolved reason and DISPOSED by all of them. The
+      // backstop only fires when the list is already empty, so `mount-lost` stands alone.
+      const allMismatches =
+        mismatch === "mount-lost" ? ["mount-lost"] : unresolvedMismatches();
+      // A config mismatch names the changed FIELDS (names only — the digests never carry
+      // values), so "what evicted this warm session" is answerable from the log line alone
+      // instead of needing production database access to reconstruct.
+      const changedFields =
+        mismatch === "config"
+          ? changedConfigFields(
+              configFieldDigests(request),
+              existing.environment.appliedState.fieldDigests,
+            )
+          : [];
+      klog(
+        `mismatch (${mismatch}) key=${key}` +
+          (changedFields.length ? ` fields=[${changedFields.join(",")}]` : "") +
+          // Name the rest too: they do not name the eviction but they DO decide the teardown,
+          // so a parked-vs-deleted sandbox is explainable from this one line.
+          (allMismatches.length > 1
+            ? ` also=[${allMismatches.slice(1).join(",")}]`
+            : "") +
+          `; evict + cold`,
+      );
       // A transcript mismatch is a decision about the CONVERSATION, not the environment, so it
-      // is logged but never counted against the router. See `DecisionScope`.
+      // is logged but never counted against the router. See `DecisionScope`. A continuity reason
+      // riding WITH an environment reason is an environment decision: the router must see the
+      // rebuild it is accountable for.
       shadowRoute(
         existing,
         "rebuild",
         `mismatch:${mismatch}`,
-        mismatch === "history" || mismatch === "tail"
+        allMismatches.every((r) => r === "history" || r === "tail")
           ? "continuity"
           : "environment",
         undefined,
@@ -988,8 +1102,9 @@ export async function runWithKeepalive(
         `mismatch:${mismatch}`,
         // A failed delivery brings its own teardown reason, so the disposition travels with the
         // failure instead of being re-derived from a label. They agree today; the point is that
-        // they cannot drift.
-        credentialTeardown ?? mismatchTeardownReason(mismatch),
+        // they cannot drift. Otherwise every unresolved reason gets a vote and the strictest
+        // wins, so a continuity reason that merely sorts first cannot park a stale sandbox.
+        credentialTeardown ?? strictestTeardown(allMismatches),
       );
       return coldAndPark();
     }
@@ -1070,6 +1185,7 @@ export async function runWithKeepalive(
     const parkedList = [...existing.environment.parkedApprovals.values()];
     const resumeDecisions: ResumeApprovalInput[] = [];
     const carriedForward: ParkedApproval[] = [];
+    const freshUserTail = tailIsFreshUserMessage(request);
     let mismatch: string | undefined;
     if (parkedList.length === 0) {
       mismatch = "no-parked-gate";
@@ -1119,7 +1235,14 @@ export async function runWithKeepalive(
     // session; the history check only guards a client that DID assert a transcript.
     const clientAssertsHistory = !carriesApprovalReplyOnly(request);
     if (!mismatch) {
-      if (clientAssertsHistory && priorFp !== existing.historyFingerprint) {
+      if (freshUserTail && carriedForward.length > 0) {
+        // A new prompt cannot start while any old gate still holds the harness's original prompt.
+        // Only a complete decision set can settle that prompt and keep this environment warm.
+        mismatch = "fresh-prompt-unanswered-gate";
+      } else if (
+        clientAssertsHistory &&
+        priorFp !== existing.historyFingerprint
+      ) {
         mismatch = "history";
       } else if (mountCredentialsExpired(existing.credentialEpoch)) {
         mismatch = "credentials-expired";
@@ -1175,21 +1298,25 @@ export async function runWithKeepalive(
 
     const live = pool.checkoutApproval(key);
     if (live) {
-      shadowRoute(existing, "reuse", "approval-resume");
+      const decisionRoute = freshUserTail
+        ? "approval-decision-then-prompt"
+        : "approval-resume";
+      shadowRoute(existing, "reuse", decisionRoute);
       const approveCount = resumeDecisions.filter(
         (d) => d.reply === "once",
       ).length;
       const rejectCount = resumeDecisions.length - approveCount;
       klog(
-        `resume key=${key} gates=${parkedList.length} answered=${resumeDecisions.length} ` +
+        `${freshUserTail ? "decision-then-prompt" : "resume"} key=${key} ` +
+          `gates=${parkedList.length} answered=${resumeDecisions.length} ` +
           `carried=${carriedForward.length} ` +
           `approve=${approveCount} reject=${rejectCount} tool=${parked?.toolName ?? "?"}`,
       );
       let result: AgentRunResult;
       try {
-        // Answer the parked gate on the SAME live session; the original prompt continues and this
-        // (new) turn owns streaming + tracing. The gated tool runs with its original byte-exact
-        // args — no model re-issues anything, so argument drift/task restart cannot happen.
+        // A pure decision resumes the original prompt. A decision followed by fresh user text
+        // settles that gate first and then sends the text as a normal continuation prompt on the
+        // same warm session; the decision becomes context instead of swallowing the new turn.
         result = await engine.runTurn(
           live.environment,
           request,
@@ -1197,7 +1324,14 @@ export async function runWithKeepalive(
           signal,
           {
             approvalParkMode: true,
-            resume: { decisions: resumeDecisions, carriedForward },
+            ...(freshUserTail
+              ? {
+                  continuation: true,
+                  settleApprovalsThenPrompt: { decisions: resumeDecisions },
+                }
+              : {
+                  resume: { decisions: resumeDecisions, carriedForward },
+                }),
             ...turnCredential,
           },
         );
@@ -1230,12 +1364,29 @@ export async function runWithKeepalive(
       return result;
     }
     // checkout lost a race; fall through to cold.
+  } else if (existing && existing.state === "busy") {
+    // A LIVE turn is streaming on this environment right now, in this process. Refuse; never
+    // destroy it.
+    //
+    // This branch used to `evict` and cold-start ("supersede-busy"), which is the second half of
+    // the double-send bug (#6417, #5539, #5538): a second message on a running session tore the
+    // sandbox out from under the first turn, so both turns died and the session stayed locked
+    // until the 30-minute lease expired. Admission (`sessions/admission.ts`, decided by the API's
+    // atomic `nx` acquire on the turn's first heartbeat) now refuses the second turn at the edge,
+    // so in normal operation nothing reaches here at all.
+    //
+    // What still reaches here is the fail-open window: the heartbeat fails open on a network or
+    // HTTP error, so an API blip can admit two turns. Local state is the more specific truth in
+    // that window — a busy entry means a turn is demonstrably in flight on this box — so this is
+    // the backstop that keeps the invariant true when the arbiter is unreachable. Only a
+    // `checkoutIdle` continuation and a freshly `reserve`d cold turn leave a busy entry;
+    // `checkoutApproval` REMOVES its session, so an in-flight approval resume is never found here.
+    klog(`refuse (busy) key=${key}; another turn owns this session`);
+    return { ok: false, error: SESSION_TURN_IN_USE_MESSAGE };
   } else if (existing) {
-    // Busy / destroyed: two turns racing one session. Only a checkoutIdle continuation leaves a
-    // busy entry in the map (checkoutApproval REMOVES its session, so an in-flight approval
-    // resume can never be found — a duplicate approval misses the pool and runs cold, and its
-    // environment can never be destroyed by this branch). Supersede — destroy the parked one and
-    // cold-start — awaited so its teardown cannot overlap our acquire.
+    // `destroyed`: a dead entry left by a drain (`destroyAll`) or a teardown that has already
+    // run. Nothing is in flight on it, so clearing the key and cold-starting is correct and
+    // costs nothing warm.
     klog(`evict (supersede-${existing.state}) key=${key}; cold`);
     await pool.evict(key, `supersede-${existing.state}`, "failed-turn");
   } else {

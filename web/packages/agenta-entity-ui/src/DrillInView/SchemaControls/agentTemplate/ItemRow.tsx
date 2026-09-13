@@ -71,10 +71,15 @@ export function StatusTag({status}: {status: ItemRowStatus}) {
 
 /** Colored avatar square (icon or monogram) at the start of a config-item row. */
 export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
+    // `chip` wins when the item paints itself; everything else keeps the solid type square.
+    const chipped = Boolean(descriptor.avatarClassName)
     return (
         <span
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[12px] font-semibold leading-none text-white"
-            style={{background: descriptor.color}}
+            className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded text-[12px] font-semibold leading-none",
+                chipped ? descriptor.avatarClassName : "text-white",
+            )}
+            style={chipped ? descriptor.avatarStyle : {background: descriptor.color}}
         >
             {descriptor.icon ?? descriptor.mono}
         </span>
@@ -119,10 +124,10 @@ export function ItemRow({
             // The whole row opens it; the chevron and tags used to be a dead target.
             onClick={interactive ? onEdit : undefined}
             className={cn(
-                "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2 transition-colors",
+                "group flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] py-2.5 pl-3 pr-2 transition-colors",
                 // Item cards read as white sheets sitting ON the expanded section's band.
                 !locked && "bg-[var(--ag-surface-section-content)]",
-                interactive && !status && "cursor-pointer hover:border-[var(--ag-zinc-5)]",
+                interactive && !status && "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]",
                 interactive && status && "cursor-pointer",
                 locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
             )}
@@ -151,14 +156,14 @@ export function ItemRow({
                 <ItemAvatar descriptor={descriptor} />
                 <div className="min-w-0 flex-1">
                     <div
-                        className={`truncate text-xs font-medium ${
+                        className={`truncate text-[13px] font-normal ${
                             descriptor.monoName === false ? "" : "font-mono"
                         }`}
                     >
                         {descriptor.name}
                     </div>
                     {descriptor.description ? (
-                        <span className="block truncate text-xs leading-tight text-colorTextDescription">
+                        <span className="block truncate text-xs leading-tight text-[var(--ag-colorTextTertiary)]">
                             {descriptor.description}
                         </span>
                     ) : null}
@@ -166,11 +171,15 @@ export function ItemRow({
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
                 {status ? <StatusTag status={status} /> : null}
-                {descriptor.tags.map((tag) => (
-                    <Tag key={tag} className={TAG_CLS}>
-                        {tag}
-                    </Tag>
-                ))}
+                {descriptor.tags.map((tag) => {
+                    const label = typeof tag === "string" ? tag : tag.label
+                    const tone = typeof tag === "string" ? undefined : tag.tone
+                    return (
+                        <Tag key={label} tone={tone} className={TAG_CLS}>
+                            {label}
+                        </Tag>
+                    )
+                })}
                 {locked ? <Tag className={TAG_CLS}>Locked</Tag> : null}
                 {extra}
                 {onRemove && !disabled && !locked ? (
@@ -181,12 +190,15 @@ export function ItemRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100"
+                        // A 24px ghost target, not a bare glyph: a hover-only icon is hard to hit.
+                        className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-colorErrorText)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ag-colorPrimary)] group-hover:opacity-100"
                     >
                         <Trash size={14} />
                     </button>
                 ) : null}
-                {interactive ? <CaretRight size={14} className="text-[var(--ag-zinc-5)]" /> : null}
+                {interactive ? (
+                    <CaretRight size={13} className="text-[var(--ag-colorTextQuaternary)]" />
+                ) : null}
             </div>
         </div>
     )
@@ -287,10 +299,7 @@ export function InstructionsFileRow({
 }) {
     const descriptor = describeInstruction(filename, content)
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
-    const meta =
-        wordCount > 0
-            ? `Markdown · ${wordCount} word${wordCount === 1 ? "" : "s"}`
-            : "Markdown · empty"
+    const meta = wordCount > 0 ? `${wordCount} word${wordCount === 1 ? "" : "s"}` : "empty"
     return (
         <div
             role="button"
@@ -303,8 +312,10 @@ export function InstructionsFileRow({
                 }
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
+            // Same border and ground as the integration and subagent rows above: --ag-c-EAEFF5 is
+            // a fixed light hex, so this row's edge vanished against a dark section.
             className={cn(
-                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2.5 transition-colors",
+                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] px-3 py-2.5 transition-colors",
                 !status && "hover:border-[var(--ag-zinc-5)]",
             )}
         >

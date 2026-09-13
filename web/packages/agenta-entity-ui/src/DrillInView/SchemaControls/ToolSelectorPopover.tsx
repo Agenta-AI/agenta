@@ -853,8 +853,8 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     }, [resetAndClose, onReferenceWorkflow])
 
     const content = (
-        <div className="flex h-[360px] min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm">
-            <div className="flex w-[232px] flex-col min-h-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)]">
+        <div className="flex h-[360px] w-[min(460px,calc(100vw-1.5rem))] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm sm:w-auto sm:min-w-[460px]">
+            <div className="flex w-1/2 flex-col min-h-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)] sm:w-[232px]">
                 <div className="shrink-0 px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
                     <InputAffix
                         variant="ghost"
@@ -1028,7 +1028,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                 </div>
             </div>
 
-            <div className="w-[232px] h-full bg-[var(--ag-c-FFFFFF)]">
+            <div className="w-1/2 h-full bg-[var(--ag-c-FFFFFF)] sm:w-[232px]">
                 {activeBuiltinProvider ? (
                     <BuiltinToolsPane
                         provider={activeBuiltinProvider}

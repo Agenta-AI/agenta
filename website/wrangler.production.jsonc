@@ -11,11 +11,40 @@
   "name": "agenta-website",
   "compatibility_date": "2026-07-01",
   "preview_urls": false,
+  // Thin content-negotiation shim in front of the assets binding. The site
+  // stays pure SSG; this worker only picks a prebuilt representation and sets
+  // agent-facing headers. See worker/index.ts.
+  "main": "./worker/index.ts",
   "assets": {
     "directory": "./dist",
+    // The worker reads prebuilt .md twins through this binding.
+    "binding": "ASSETS",
     // Serve /about for both /about and /about/ ; canonicalize to no trailing slash.
     "html_handling": "drop-trailing-slash",
-    // Unknown paths render the generated 404 page.
-    "not_found_handling": "404-page"
+    // "none", not "404-page": with 404-page the asset server answers unknown
+    // paths itself and the worker is never invoked, so agents could not get a
+    // markdown or JSON 404. With "none" an unmatched request falls through to
+    // worker/index.ts, which picks the right 404 representation and serves the
+    // generated /404.html to browsers.
+    "not_found_handling": "none",
+    // Allowlist: ONLY the HTML routes that need Accept negotiation run the
+    // worker first. Cloudflare does not apply _headers or _redirects to
+    // worker-served responses, so everything else (images, fonts, favicons,
+    // /openapi.json, /llms.txt, /sitemap-*.xml, and the four 308s in
+    // public/_redirects) must stay on the plain asset path. The two "!" rules
+    // keep blog/author IMAGES (one level deeper) on that path too.
+    "run_worker_first": [
+      "/",
+      "/api",
+      "/pricing",
+      "/contact",
+      "/imprint",
+      "/blog",
+      "/blog/*",
+      "/authors",
+      "/authors/*",
+      "!/blog/*/*",
+      "!/authors/*.*"
+    ]
   }
 }

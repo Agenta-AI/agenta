@@ -66,12 +66,8 @@ describe("harnessSubscriptionStatus", () => {
       state: "not_configured",
       provider: "anthropic",
     });
-    // Pi is not tied to one provider, so it reports no provider at all — and both Pi harnesses
-    // answer alike, because they read the same login.
+    // Pi is not tied to one provider, so it reports no provider at all.
     assert.deepEqual(await harnessSubscriptionStatus("pi_core", {}), {
-      state: "not_configured",
-    });
-    assert.deepEqual(await harnessSubscriptionStatus("pi_agenta", {}), {
       state: "not_configured",
     });
   });
@@ -166,12 +162,8 @@ describe("harnessSubscriptionStatus", () => {
       ),
       { state: "ready", provider: "anthropic" },
     );
-    // One Pi mount, one login file: `pi_core` and `pi_agenta` both read it.
     const piMount = mount("PI_CODING_AGENT_DIR", "auth.json");
     assert.deepEqual(await harnessSubscriptionStatus("pi_core", piMount), {
-      state: "ready",
-    });
-    assert.deepEqual(await harnessSubscriptionStatus("pi_agenta", piMount), {
       state: "ready",
     });
   });
@@ -187,12 +179,10 @@ describe("harnessSubscriptionStatus", () => {
       }),
     );
 
-    for (const harness of ["pi_core", "pi_agenta"]) {
-      assert.deepEqual(await harnessSubscriptionStatus(harness, env), {
-        state: "ready",
-        providers: ["anthropic", "openai"],
-      });
-    }
+    assert.deepEqual(await harnessSubscriptionStatus("pi_core", env), {
+      state: "ready",
+      providers: ["anthropic", "openai"],
+    });
   });
 
   it("ignores a login id it has no provider family for", async () => {
@@ -344,24 +334,21 @@ describe("subscriptionStatusResponse", () => {
     assert.equal(response.harnesses.codex.state, "login_unusable");
     assert.equal(response.harnesses.claude.state, "ready");
     assert.equal(response.harnesses.pi_core.state, "not_configured");
-    assert.equal(response.harnesses.pi_agenta.state, "not_configured");
   });
 
-  it("gives both Pi harnesses the same answer from the one Pi mount", async () => {
+  it("reports the Pi states from the one Pi mount", async () => {
     const piDir = join(root, "pi-agent");
     mkdirSync(piDir, { recursive: true });
     const env = { PI_CODING_AGENT_DIR: piDir } as NodeJS.ProcessEnv;
 
-    // No login file yet: both Pi harnesses say so.
+    // No login file yet.
     let response = await subscriptionStatusResponse(env);
     assert.equal(response.harnesses.pi_core.state, "login_missing");
-    assert.equal(response.harnesses.pi_agenta.state, "login_missing");
 
     writeFileSync(join(piDir, "auth.json"), FAKE_LOGIN);
 
     response = await subscriptionStatusResponse(env);
     assert.deepEqual(response.harnesses.pi_core, { state: "ready" });
-    assert.deepEqual(response.harnesses.pi_agenta, { state: "ready" });
   });
 
   it("serializes nothing but state words and provider names", async () => {

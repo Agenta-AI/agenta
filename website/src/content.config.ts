@@ -26,6 +26,8 @@ const posts = defineCollection({
       category: z.enum(["Article", "Engineering"]),
       // Stored as ISO; `z.coerce.date()` accepts the YAML date scalar too.
       date: z.coerce.date(),
+      // Optional revision date for Article structured data.
+      updated: z.coerce.date().optional(),
       // Primary author (drives the canonical byline order: primary first).
       author: reference("authors"),
       // Optional co-authors. The live site shows multi-author bylines for the
@@ -46,6 +48,16 @@ const posts = defineCollection({
       // Auto-computed during migration (~238 wpm); optional + not authoritative.
       readingTime: z.string().optional(),
       tags: z.array(z.string()).optional(),
+      // When present, the visible FAQ must use the same questions and answers.
+      // The blog post route emits these entries as FAQPage structured data.
+      faq: z
+        .array(
+          z.object({
+            question: z.string(),
+            answer: z.string(),
+          }),
+        )
+        .optional(),
     })
     .passthrough(),
 });

@@ -14,6 +14,20 @@ export {
 
 // Platform detection (modifier-key naming)
 export {isMacPlatform, modifierKeyLabel, altKeyPrefix, pushToTalkLabel} from "./platform"
+// Overlay ownership detection
+export {isOnScreen, isOverlayOpen} from "./overlay"
+
+// The playground's keyboard shortcut registry
+export {
+    PLAYGROUND_SHORTCUTS,
+    SHORTCUT_GROUP_TITLES,
+    getShortcut,
+    shortcutAria,
+    shortcutGroups,
+    shortcutFaces,
+    shortcutText,
+} from "./shortcuts"
+export type {Shortcut, ShortcutGroupId, ShortcutModifier} from "./shortcuts"
 
 // Filtering utilities
 export {filterItems} from "./filterItems"
@@ -53,6 +67,9 @@ export type {
     PathSegment,
     TypedPathInfo,
 } from "./pathUtils"
+
+// The query param a session is addressed by, on either app
+export {SESSION_QUERY_PARAM} from "./sessionParam"
 
 // Template variable validation (envelope-slot aware)
 export {
@@ -216,7 +233,23 @@ export {
     generateDefaultSlug,
     randomAlphanumeric,
 } from "./connectionSlug"
-export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "./toolSlug"
+export {
+    buildGatewayToolSlug,
+    humanizeActionKey,
+    isGatewayToolSlug,
+    parseGatewayToolSlug,
+} from "./toolSlug"
+
+// Agent tool-permission policy vocabulary.
+export {
+    DEFAULT_PERMISSION_POLICY,
+    PERMISSION_POLICY_OPTIONS,
+    isPermissionPolicy,
+    permissionPolicyLabel,
+    permissionPolicyOptionsForEnum,
+    type PermissionPolicy,
+    type PermissionPolicyOption,
+} from "./permissionPolicy"
 
 // Gateway Tool JSON-Schema → form-field descriptor utilities
 export {

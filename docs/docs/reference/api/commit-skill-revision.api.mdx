@@ -1,0 +1,72 @@
+---
+id: commit-skill-revision
+title: "Commit Skill Revision"
+description: "Commit a new revision of one skill."
+sidebar_label: "Commit Skill Revision"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVVktv2zgQ/ivEnFpAttM83K32smm2QIPuooGTtofESCbSyGYjkSpJ2XEF/ffFkLIt24lb5La+2OY8OPPNfDOsweHEQnwNlw8yzy2MI0jJJkaWTmoFMZzpopBOoFA0F4Zm0kqthM6EViQsG/Vv1I36irlM0VEqLJkZmZ6VKf0pSrRW3N2jpdul7a1M74TVAkWiVVIZQ8oJSqW7UajsnIwVxwfvxKu7lUGiVZbLxN29FlJZR5jy/fck1UToGZm5kc6R6kMEuiSDHPl5CjEkPvZbH+XqfoigRIMFOTKceQ0KC4IYgppMIQLJmZfophCBoR+VNJRC7ExFEdhkSgVCXINblN7OGakmEEGmTYEOYqgq78VJl7OCh1acp9A04+CPrHuv0wU72XafaOVIORZhWeYy8ekMvluuRt25vTScrJNk/Tnf4Y3SVLIF5hcdheC7DVjff6fEbQcITQQFWYsT8n7U4nPm4dlMs4lWJ6piq/Haz7+teRPBdsn3udxGbt8V79GSGC3b0GO6m9ca0+sWmPFWsqGrR6EU0DTsxZAttbIBz8ODA/7a5MJllSRkbVblYtQqw4srNtfmIcv1/Bfg7APjW+vC48AJ/Bbc+zxuIBvBjIynzAu9fW3Nn6rRk+VoMQ31OD483C1BO2c4xA/GaPNy/FNyKD1lpKPC7irkOtmQ/gYCUjmakIFmvM4YjcFFJ+F/dAjQ881OnhokT/ApqDyv6sEQVyxteH6VlQdkKT73B00EiXvsuNmpxhlj+eh+ySrGJoTf6nWrvipRqNDzUPwdSrCvPT5eXV3sOAz9UZCbah7zpbbOT3U3hRgGnvF2UC/neTNYEsMOwkaACMKWCvO/MjnbYSl9LcPfqXOljQcDqvpJrqu0jxNSDvsog+KYfSSVkW7hnZxenH+ixUfClAzE1+OuwiW3YGiqTbVVIbCUn4ihaXfRaeWm2sifoVPahTQNVpw7N/dovUg+PGJR5tRdBN1pvm6X3bEMRxn+cZINj3snb9+87R2fDA9790dZ0jtM3g2PsuEQMxyGnsp0t6VOPR7i9OIctt8MGyKmJya+G5fJeTFEW0ivAYYIqPDkBEdY/LWSbMwkOOi/6R/wETdAgapzRftqCZt3tN78G3HW69HxP3vmtF3DVB2UOUo/TDyadUuDdvFZiCDuPGxWTPCF8VwYRzBlAsXXUNecwheTNw0f/6jIcHOPI5ihkXjPdb+uIZWWf6cQZ5hb2oPqq1E7M16L56JeEkBx988wr/gfRPBAi+6bzE/U6ZJddSs+Czf1/Nxbm++sAaZ1sDhNEirdXt1xZ7RcfL68Ytq0j7VCp2xjcM5Y4jyEqn3mnt7+rIYc1aQK1As++fMfSzzvkg==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Commit Skill Revision"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/skills/{skill_id}/revisions/commit"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Commit a new revision of one skill.
+
+Validated server-side; pass `base_revision_id` so a concurrent edit
+answers 409 (`revision_conflict`) instead of being overwritten.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./commit-skill-revision.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./commit-skill-revision.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./commit-skill-revision.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

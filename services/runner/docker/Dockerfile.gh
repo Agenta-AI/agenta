@@ -17,20 +17,21 @@ FROM node:24-slim
 
 WORKDIR /app
 
-# CA certificates: the sandbox-agent daemon (Rust) downloads harness CLIs (e.g. Claude
-# Code) over HTTPS using the system trust store, which node:*-slim omits — without this
-# the daemon's `install-agent claude` fails TLS verification. git lets npm/installers
-# fetch git deps. python3 runs `code` tools whose runtime is "python": the runner relays
-# the call and spawns `python3` (src/tools/code.ts), so without it those tools fail with
-# `spawn python3 ENOENT`.
-# fuse + geesefs: the durable session cwd (mount.ts) is a geesefs FUSE mount of the store
-# prefix; `fuse` provides fusermount + /etc/fuse.conf (user_allow_other for -o allow_other).
-# unzip/zip + python-is-python3 (which symlinks /usr/bin/python -> python3): the local sandbox
-# IS this container, and an agent handed an archive reaches for `unzip` and plain `python`.
-# Without them every such task burns failed bash calls and extra approval round-trips.
-# ripgrep/fd-find/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are the first
-# commands every harness reaches for when searching a tree, and Debian ships fd as `fdfind`,
-# so the symlink below is what makes the command agents actually type resolve.
+# Everything an agent calls (git, gh, uv, fd, ripgrep, python3 + the pinned package set, node
+# tools, ffmpeg, poppler, tesseract, and ONE Chromium under PLAYWRIGHT_BROWSERS_PATH) comes from
+# the shared recipe images/sandbox/install-agent-tools.sh, which the Daytona snapshot runs
+# too, so the local sandbox (this container) and the remote one cannot drift. Each section of
+# that script asserts its own pin and fails the build otherwise.
+COPY images/sandbox/install-agent-tools.sh images/sandbox/agent-requirements.txt /tmp/
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
+# ts-node 10 + typescript 5.9 on node 24 picks `module: NodeNext` without a tsconfig and fails
+# (TS5109); agents run it from a working directory with no tsconfig. See the recipe.
+ENV TS_NODE_COMPILER_OPTIONS="{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}"
+RUN sh /tmp/install-agent-tools.sh && rm /tmp/install-agent-tools.sh
+
+# Image-specific bits the shared recipe leaves alone.
+# fuse: the durable session cwd (mount.ts) is a geesefs FUSE mount of the store prefix; `fuse`
+# provides fusermount + /etc/fuse.conf (user_allow_other for -o allow_other).
 # libnss-unknown + the nsswitch edit: the documented subscription self-host scheme runs this
 # container as the OPERATOR's uid (`user: "<id -u>:<id -g>"`), which usually has no /etc/passwd
 # entry in the image. fusermount calls getpwuid() and aborts with "could not determine username"
@@ -38,9 +39,7 @@ WORKDIR /app
 # for unknown uids so any `user:` override works.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates git python3 python-is-python3 unzip zip fuse curl \
-        ripgrep fd-find jq procps file tree libnss-unknown \
-    && ln -s "$(which fdfind)" /usr/local/bin/fd \
+        ca-certificates fuse libnss-unknown \
     && rm -rf /var/lib/apt/lists/* \
     && echo "user_allow_other" >> /etc/fuse.conf \
     && sed -i -E "s/^(passwd|group):(.*)/\1:\2 unknown/" /etc/nsswitch.conf \
@@ -107,6 +106,9 @@ EXPOSE 8765
 # through a per-run temp dir the runtime user owns, so this is the fast path for the default dir,
 # not the only safeguard.
 RUN mkdir -p /pi-agent && chown node:node /pi-agent
+# Durable runner state (the per-connection copy of a hosted subscription login). A named volume
+# mounted here inherits this ownership, so the non-root runner can write it.
+RUN mkdir -p /var/lib/agenta/runner-state && chown node:node /var/lib/agenta/runner-state
 
 # Pin HOME so the sandbox-agent daemon's per-agent install dir ($HOME/.local/share/sandbox-agent)
 # is the same at build time (the pin RUN below) and at runtime (buildDaemonEnv copies HOME into the
@@ -114,6 +116,13 @@ RUN mkdir -p /pi-agent && chown node:node /pi-agent
 ENV HOME=/home/node
 
 USER node
+
+# The recipe's checks ran as root. Assert the tools an agent calls as the RUNTIME user too, so a
+# permission slip on /opt/pw-browsers or the global node dir fails the build, not a session.
+RUN gh --version >/dev/null && uv --version >/dev/null && fd --version >/dev/null \
+    && tsc --version >/dev/null && bun --version >/dev/null \
+    && python3 -c "import pandas, playwright" \
+    && chromium --headless=new --no-sandbox --disable-gpu --dump-dom about:blank 2>/dev/null | grep -q '<html'
 
 # Pin the Codex ACP adapter (decision D-005). The sandbox-agent daemon otherwise installs
 # @agentclientprotocol/codex-acp from the npm registry with a FLOATING `^1.1.7` range at first Codex

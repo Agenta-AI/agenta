@@ -19,7 +19,6 @@ export const useSettingsAccess = (): SettingsAccess => {
         () => ({
             billingEnabled,
             canShowTools: isToolsEnabled(),
-            canShowTriggers: isToolsEnabled(),
             canViewApiKeys,
             canViewEvents,
             isEE: isEE(),

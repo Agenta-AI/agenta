@@ -230,6 +230,12 @@ def test_config_schema_has_example_commit_revision_requests():
     assert '"delta"' in content
 
 
+def test_config_schema_preserves_allow_all_integration_creation_guidance():
+    content = _file("references/config-schema.md").content
+    assert "A newly added integration always starts with every tool allowed" in content
+    assert '`policy.permissions` to `{ "default": "allow", "tools": {} }`' in content
+
+
 def test_trigger_inputs_has_example_trigger_requests():
     content = _file("references/trigger-inputs.md").content
     assert "## Example requests" in content

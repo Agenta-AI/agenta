@@ -80,12 +80,26 @@ export interface ButtonProps
     asChild?: boolean
 }
 
+/**
+ * A button holding one element and no text is an icon button, and wants the square `icon` size
+ * rather than the text ramp's horizontal padding. Call sites kept omitting `size`, so icon-only
+ * buttons rendered as wide as a labelled one. Only inferred when `size` is absent — passing any
+ * size, `default` included, keeps exactly what was asked for.
+ */
+const inferIconSize = (children: React.ReactNode): "icon" | undefined => {
+    const kids = React.Children.toArray(children)
+    if (kids.length !== 1) return undefined
+    return React.isValidElement(kids[0]) ? "icon" : undefined
+}
+
 function Button({className, variant, size, asChild = false, ...props}: ButtonProps) {
     const Comp = asChild ? Slot : "button"
+    // `asChild` hands rendering to the child, so its single element is the button, not an icon.
+    const effectiveSize = size ?? (asChild ? undefined : inferIconSize(props.children))
     return (
         <Comp
             data-slot="button"
-            className={cn(buttonVariants({variant, size, className}))}
+            className={cn(buttonVariants({variant, size: effectiveSize, className}))}
             {...props}
         />
     )

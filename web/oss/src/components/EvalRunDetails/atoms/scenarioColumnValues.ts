@@ -1,7 +1,8 @@
 import type {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {formatMetricDisplay} from "@agenta/ui/cell-renderers"
 import {atom} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {IStepResponse} from "@/oss/lib/evaluations"
 import type {PreviewTestCase} from "@/oss/lib/Types"

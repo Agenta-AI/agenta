@@ -12,6 +12,7 @@
  * platform special cases; nothing here is load-bearing for unknown tools, and raw names stay
  * reachable via tooltips and Build mode.
  */
+import {PATH_KEYS} from "@agenta/entities/session"
 import {parseGatewayToolName} from "@agenta/entities/workflow/commitDiff"
 import {canonicalClientToolName} from "@agenta/shared/clientTools"
 
@@ -556,10 +557,6 @@ const shortCommand = (command: string): string =>
     clamp(unwrapShell(command).replace(SANDBOX_ROOT, ""), 48)
 
 const basename = (path: string): string => path.split("/").filter(Boolean).pop() ?? path
-
-/** Path-ish argument keys. Kept in step with `PATH_KEYS` in `@agenta/entities`'
- * `session/core/fileActivity.ts`, which reads the same argument for the file cards on this row. */
-const PATH_KEYS = ["path", "file_path", "filePath", "notebook_path", "filename", "target_file"]
 
 /** Arguments naming what the call was looking for. */
 const QUERY_KEYS = ["use_cases", "query", "keywords", "search"]

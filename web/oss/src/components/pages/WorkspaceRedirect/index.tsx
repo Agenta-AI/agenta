@@ -39,10 +39,6 @@ const WorkspaceRedirect = () => {
         void router.replace(targetPath)
     }, [router, targetPath])
 
-    if (targetPath && router.asPath.split("?")[0] === targetPath.split("?")[0]) {
-        return null
-    }
-
     return (
         <section className="flex items-center justify-center w-full h-screen">
             <Spin spinning={true} />

@@ -32,7 +32,6 @@ The MCP form does not store the key directly. It references a project secret tha
 1. In the **Configuration** column, find **MCPs**, between **Tools** and **Skills**. Its summary reads `None` when the agent has no MCP servers yet.
 2. Click the `+` button on that row, labelled `Add MCP server`.
 3. Fill in the fields below, then click `Create`.
-4. Click `Commit` in the **Configuration** header to make the server part of a version.
 
 <Stream controls autoplay muted loop src="17ccf3fe16305937aabc23ac8ffe00e9" height="400px" />
 
@@ -49,7 +48,7 @@ The MCP form does not store the key directly. It references a project secret tha
 The server's actions appear as tools labelled with the server name. When the agent calls one, it appears in the conversation and on any approval card.
 
 :::note
-The agent's `Policy` in the **Advanced** dialog governs MCP tools. They have no per-tool `Permission`, and `Always allow` is not offered on their approval cards. Under the default `Allow reads` policy, every MCP call asks for approval. To run MCP tools without approval, including on a schedule, set `Policy` to `Allow all`. See [Control what an agent can do](/guides/control-what-an-agent-can-do).
+The agent's `Policy` in the **Advanced** dialog governs MCP tools. They have no per-tool `Permission`, and `Always allow` is not offered on their approval cards. A new agent starts on `Allow all`, where MCP tools run without approval, including on a schedule. Under `Allow reads`, every MCP call asks for approval instead. See [Control what an agent can do](/guides/control-what-an-agent-can-do).
 :::
 
 ## Next
