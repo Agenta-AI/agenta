@@ -1,13 +1,12 @@
 from importlib.metadata import version
 from os import getenv
 from typing import Any, Callable, Optional
-from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from agenta.client import AgentaApi, AsyncAgentaApi
 from agenta.sdk.engines.tracing import Tracing
 from agenta.sdk.utils.globals import set_global
-from agenta.sdk.utils.helpers import parse_url
+from agenta.sdk.utils.helpers import parse_url, strip_trailing_api_segment
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -97,11 +96,7 @@ class AgentaSingleton:
 
         if _api_url:
             _api_url = parse_url(url=_api_url)
-            parts = urlsplit(_api_url)
-            path = parts.path.rstrip("/")
-            if path.endswith("/api"):
-                path = path[: -len("/api")]
-            _host = urlunsplit((parts.scheme, parts.netloc, path, "", ""))
+            _host = strip_trailing_api_segment(_api_url)
         elif _host:
             _host = parse_url(url=_host)
             _api_url = _host + "/api"

@@ -2,6 +2,7 @@ import os
 import importlib.metadata
 import re
 from typing import Dict, Tuple
+from urllib.parse import urlsplit, urlunsplit
 
 
 def get_current_version():
@@ -45,6 +46,19 @@ def parse_url(url: str) -> str:
         return url
 
     return url
+
+
+def strip_trailing_api_segment(url: str) -> str:
+    """Strip a trailing ``/api`` PATH segment from a URL.
+
+    Unlike a plain string ``replace("/api", "")``, this only removes ``/api``
+    when it is a trailing path segment, so it never corrupts a host literally
+    named ``api`` (e.g. ``http://api:8000/api`` -> ``http://api:8000``, not
+    ``http://:8000``).
+    """
+    parts = urlsplit(url)
+    path = parts.path.rstrip("/").removesuffix("/api")
+    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
 
 
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")

@@ -9,7 +9,7 @@ have a trailing ``/api`` PATH segment stripped — the scheme/host/port
 (``parts.netloc``) must never be touched, no matter what the host is named.
 """
 
-import agenta as ag  # noqa: F401  (bootstraps the package-level singleton)
+import agenta as ag
 import pytest
 from agenta.sdk.engines.tracing import Tracing
 from agenta.sdk.utils.init import AgentaSingleton
@@ -103,3 +103,51 @@ def test_init_api_url_host_parsing(reset_singleton, api_url, expected_host):
     assert singleton.host == expected_host
     # Tracing stores the url passed to `Tracing(url=...)` as `otlp_url`.
     assert singleton.tracing.otlp_url == f"{expected_host}/api/otlp/v1/traces"
+
+
+def test_get_trace_url_does_not_corrupt_host_named_api(monkeypatch):
+    """get_trace_url() builds web_url from api_url; a host literally named
+    'api' must survive the '/api' strip instead of being corrupted to 'http://:8000'.
+
+    NOTE: get_trace_url() reads ag.DEFAULT_AGENTA_SINGLETON_INSTANCE, so this
+    test must reset and init THAT instance rather than a fresh AgentaSingleton().
+    """
+    from agenta.sdk.utils.helpers import strip_trailing_api_segment
+
+    # Reset the singleton that get_trace_url() actually reads.
+    singleton = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE
+    singleton.host = None
+    singleton.api_url = None
+    singleton.api_key = None
+    singleton.scope_type = None
+    singleton.scope_id = None
+    singleton.organization_id = None
+    singleton.workspace_id = None
+    singleton.project_id = None
+    singleton.tracing = None
+    singleton.api = None
+    singleton.async_api = None
+    Singleton._instances.pop(Tracing, None)
+
+    # Keep the parser deterministic.
+    monkeypatch.delenv("DOCKER_NETWORK_MODE", raising=False)
+    monkeypatch.delenv("AGENTA_API_URL", raising=False)
+    monkeypatch.delenv("AGENTA_API_INTERNAL_URL", raising=False)
+    monkeypatch.delenv("AGENTA_API_KEY", raising=False)
+
+    # resolve_scopes() normally hits the network; stub it.
+    monkeypatch.setattr(
+        singleton,
+        "resolve_scopes",
+        lambda: ("org-1", "ws-1", "proj-1"),
+    )
+
+    singleton.init(api_url="http://api:8000/api")
+
+    trace_url = singleton.tracing.get_trace_url(trace_id="abc123")
+
+    # The host must be preserved, not corrupted by a naive '/api' replace.
+    expected_web = strip_trailing_api_segment("http://api:8000/api")
+    assert expected_web == "http://api:8000"
+    assert "http://api:8000/w/ws-1/p/proj-1" in trace_url
+    assert "http://:8000" not in trace_url
