@@ -202,7 +202,10 @@ async def test_cancellation_prorates_over_the_period_the_paid_plan_was_billed_fo
     assert call["now"] == datetime(2026, 3, 25, 9, 0, tzinfo=timezone.utc)
     # The key names the INCOMING period: the one still reconstructible from the
     # subscription after this event overwrote its anchor.
-    assert call["idempotency_key"] == "plan_change:none:2026-03-25T00:00:00+00:00"
+    assert (
+        call["idempotency_key"]
+        == "plan_change:none:2026-03-25T00:00:00+00:00:cloud_v0_pro:cloud_v0_hobby"
+    )
 
 
 @pytest.mark.asyncio
@@ -247,7 +250,10 @@ async def test_creation_grants_over_stripes_new_anchor_not_the_old_one(monkeypat
     assert call["outgoing_period_end"] == datetime(2026, 3, 15, tzinfo=timezone.utc)
     assert call["incoming_period_start"] == datetime(2026, 3, 14, tzinfo=timezone.utc)
     assert call["incoming_period_end"] == datetime(2026, 4, 14, tzinfo=timezone.utc)
-    assert call["idempotency_key"] == "plan_change:sub_123:2026-03-14T00:00:00+00:00"
+    assert (
+        call["idempotency_key"]
+        == "plan_change:sub_123:2026-03-14T00:00:00+00:00:cloud_v0_hobby:cloud_v0_pro"
+    )
 
 
 @pytest.mark.asyncio
@@ -293,7 +299,10 @@ async def test_switch_leaves_the_anchor_alone_so_both_windows_are_the_same_windo
     assert call["outgoing_period_end"] == call["incoming_period_end"]
     assert call["outgoing_period_start"] == datetime(2026, 3, 8, tzinfo=timezone.utc)
     assert call["outgoing_period_end"] == datetime(2026, 4, 8, tzinfo=timezone.utc)
-    assert call["idempotency_key"] == "plan_change:sub_123:2026-03-08T00:00:00+00:00"
+    assert (
+        call["idempotency_key"]
+        == "plan_change:sub_123:2026-03-08T00:00:00+00:00:cloud_v0_pro:cloud_v0_business"
+    )
 
 
 def _mock_stripe(monkeypatch):
@@ -338,12 +347,14 @@ async def test_webhook_delivery_id_becomes_the_idempotency_key(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_direct_route_without_a_delivery_id_falls_back_to_the_period_key(
+async def test_direct_route_without_a_delivery_id_keys_on_period_and_transition(
     monkeypatch,
 ):
     """The direct plan-switch and cancel routes are synchronous user actions with no
-    delivery to identify, so they keep the period-scoped key. Two direct switches in one
-    billing period therefore still collide — open-designs item 22."""
+    delivery to identify, so they key on what they do know: the subscription, the billing
+    period, and the transition. The transition is what separates two different changes in
+    one period; keeping the key a function of the change (rather than of the call) is what
+    still absorbs a concurrent double-submit of the same change."""
     organization_id = str(uuid4())
     subscription = SubscriptionDTO(
         organization_id=organization_id,
@@ -371,7 +382,7 @@ async def test_direct_route_without_a_delivery_id_falls_back_to_the_period_key(
 
     assert (
         fake_wallets.calls[0]["idempotency_key"]
-        == "plan_change:sub_123:2026-04-01T00:00:00+00:00"
+        == "plan_change:sub_123:2026-04-01T00:00:00+00:00:cloud_v0_pro:cloud_v0_business"
     )
 
 
@@ -431,12 +442,12 @@ async def test_create_then_switch_in_one_billing_period_both_move_money(monkeypa
     assert len(dao.plan_changes) == 2  # two distinct keys, two applications
     assert sorted(key for _, key in dao.plan_changes) == [
         "plan_change:evt_created",
-        "plan_change:sub_123:2026-04-01T00:00:00+00:00",
+        "plan_change:sub_123:2026-04-01T00:00:00+00:00:cloud_v0_pro:cloud_v0_business",
     ]
     switch_result = dao.plan_changes[
         (
             dao.general_balance.organization_id,
-            "plan_change:sub_123:2026-04-01T00:00:00+00:00",
+            "plan_change:sub_123:2026-04-01T00:00:00+00:00:cloud_v0_pro:cloud_v0_business",
         )
     ]
     assert switch_result.outgoing_debit_amount_musd == 2_500_000
@@ -488,3 +499,128 @@ async def test_the_same_delivery_id_applied_twice_moves_money_once(monkeypatch):
     # Deduplicated on the delivery id itself, not on the period it happens to fall in.
     assert [key for _, key in dao.plan_changes] == ["plan_change:evt_retried"]
     assert dao.general_balance.balance_musd == 5_000_000  # replayed, not re-applied
+
+
+@pytest.mark.asyncio
+async def test_two_direct_switches_in_one_billing_period_both_move_money(monkeypatch):
+    """Open-designs item 22's collision, on the only routes that can still reach it.
+    Upgrade Pro to Business on 16 September and downgrade Business to Pro on the 21st:
+    same subscription, same 1 September window, no Stripe delivery to identify either.
+    Under a key that named only the subscription and the period they were one key and the
+    second moved nothing, leaving the wallet funded for Business while the subscription
+    said Pro. The transition in the key separates them.
+
+    30-day period (2_592_000 seconds). The upgrade lands with exactly half left, the
+    downgrade with exactly a third.
+    """
+    organization_id = str(uuid4())
+    subscription = SubscriptionDTO(
+        organization_id=organization_id,
+        subscription_id="sub_123",
+        plan="cloud_v0_pro",
+        active=True,
+        anchor=1,
+    )
+    service = SubscriptionsService(
+        subscriptions_dao=_FakeSubscriptionsDAO(subscription)
+    )
+
+    dao = FakeWalletsDAO(
+        general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
+    )
+    wallets = WalletsService(wallets_dao=dao)
+    monkeypatch.setattr(
+        subscriptions_service_module, "get_wallets_service", lambda: wallets
+    )
+    _mock_stripe(monkeypatch)
+
+    _freeze_clock(monkeypatch, datetime(2026, 9, 16, tzinfo=timezone.utc))
+    await service.process_event(
+        organization_id=organization_id,
+        event=Event.SUBSCRIPTION_SWITCHED,
+        plan="cloud_v0_business",
+    )
+
+    # Half the period left, no prior allowance credit to claw back: $25 of $50 minted.
+    assert dao.general_balance.balance_musd == 25_000_000
+
+    _freeze_clock(monkeypatch, datetime(2026, 9, 21, tzinfo=timezone.utc))
+    await service.process_event(
+        organization_id=organization_id,
+        event=Event.SUBSCRIPTION_SWITCHED,
+        plan="cloud_v0_pro",
+    )
+
+    assert len(dao.plan_changes) == 2  # two transitions, two keys, two applications
+    assert sorted(key for _, key in dao.plan_changes) == [
+        "plan_change:sub_123:2026-09-01T00:00:00+00:00:cloud_v0_business:cloud_v0_pro",
+        "plan_change:sub_123:2026-09-01T00:00:00+00:00:cloud_v0_pro:cloud_v0_business",
+    ]
+    downgrade = dao.plan_changes[
+        (
+            dao.general_balance.organization_id,
+            "plan_change:sub_123:2026-09-01T00:00:00+00:00:cloud_v0_business:cloud_v0_pro",
+        )
+    ]
+    # A third of the period left: 50_000_000 * 864_000 // 2_592_000 clawed back,
+    # 5_000_000 * 864_000 // 2_592_000 minted.
+    assert downgrade.outgoing_debit_amount_musd == 16_666_666
+    assert downgrade.incoming_credit_amount_musd == 1_666_666
+    assert dao.general_balance.balance_musd == 10_000_000  # not stuck at 25_000_000
+
+
+@pytest.mark.asyncio
+async def test_the_registers_worked_example_ends_on_the_right_balance(monkeypatch):
+    """Item 22's worked failure end to end: upgrade Pro to Business on the 4th, cancel to
+    Free on the 19th, both in the 1 September period. In this codebase the pair was never
+    one key — the cancel branch nulls `subscription_id` before the hook runs and re-anchors the
+    subscription to today, so it keys on `none` and on the 19th — but the sequence is the
+    one the register asks to end correctly, and the transition now shows in both keys.
+    The clawback is still taken over the OUTGOING window (1 September to 1 October), which
+    is the period the Business allowance was granted for."""
+    organization_id = str(uuid4())
+    subscription = SubscriptionDTO(
+        organization_id=organization_id,
+        subscription_id="sub_123",
+        plan="cloud_v0_pro",
+        active=True,
+        anchor=1,
+    )
+    service = SubscriptionsService(
+        subscriptions_dao=_FakeSubscriptionsDAO(subscription)
+    )
+
+    dao = FakeWalletsDAO(
+        general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
+    )
+    wallets = WalletsService(wallets_dao=dao)
+    monkeypatch.setattr(
+        subscriptions_service_module, "get_wallets_service", lambda: wallets
+    )
+    _mock_stripe(monkeypatch)
+
+    _freeze_clock(monkeypatch, datetime(2026, 9, 4, tzinfo=timezone.utc))
+    await service.process_event(
+        organization_id=organization_id,
+        event=Event.SUBSCRIPTION_SWITCHED,
+        plan="cloud_v0_business",
+    )
+
+    # 27 of the 30 days still ahead: 50_000_000 * 2_332_800 // 2_592_000.
+    assert dao.general_balance.balance_musd == 45_000_000
+
+    _freeze_clock(monkeypatch, datetime(2026, 9, 19, tzinfo=timezone.utc))
+    result = await service.process_event(
+        organization_id=organization_id,
+        event=Event.SUBSCRIPTION_CANCELLED,
+    )
+
+    assert result.plan == "cloud_v0_hobby"
+    assert sorted(key for _, key in dao.plan_changes) == [
+        "plan_change:none:2026-09-19T00:00:00+00:00:cloud_v0_business:cloud_v0_hobby",
+        "plan_change:sub_123:2026-09-01T00:00:00+00:00:cloud_v0_pro:cloud_v0_business",
+    ]
+    # 12 of the 30 days still ahead: 50_000_000 * 1_036_800 // 2_592_000 clawed back, and
+    # Free mints nothing. The customer keeps what they used, not the whole allowance.
+    assert dao.general_balance.balance_musd == 45_000_000 - 20_000_000
+    assert dao.general_balance.balance_musd == 25_000_000

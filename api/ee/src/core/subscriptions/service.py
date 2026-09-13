@@ -463,17 +463,31 @@ class SubscriptionsService:
           apply. That is exactly the identity this key needs, so when it is present
           nothing else belongs in the key — the same one-prefix-one-identifier shape as
           `measurement:{measurement_id}` (`ee.src.tasks.asyncio.measurements.worker`).
-        * `plan_change:{subscription_id}:{incoming period start}` as the fallback, for the
-          direct plan-switch and cancel routes, which are synchronous user actions with no
-          delivery to identify. The incoming period is used because it is the one still
-          reconstructible from the stored subscription afterwards; the outgoing anchor is
-          overwritten by this same event.
+        * `plan_change:{subscription_id}:{incoming period start}:{outgoing}:{incoming}`
+          as the fallback, for the direct plan-switch and cancel routes, which are
+          synchronous user actions with no delivery to identify. The incoming period is
+          used because it is the one still reconstructible from the stored subscription
+          afterwards; the outgoing anchor is overwritten by this same event. The
+          TRANSITION is in the key because without it two different changes in one period
+          — an upgrade on the 4th and a downgrade on the 19th — are one key, and the
+          second moves no money while Stripe and the subscription row have both already
+          moved on (open-designs item 22's worked failure).
 
-        The fallback still collides on TWO DIRECT SWITCHES IN ONE BILLING PERIOD for the
-        same subscription: the second is treated as a replay of the first and moves no
-        money. That residue is open-designs item 22 ("What identifies one plan change"),
-        and it is now the only case left — the webhook path, which is every Stripe-driven
-        change, is fully identified.
+        The fallback deliberately stays a function of the CHANGE and not of the call. A
+        fresh identifier per invocation would separate those two changes too, but it
+        would also stop deduplicating anything: `read` and `update` in this service are
+        separate sessions with no row lock, so two concurrent submissions of the SAME
+        switch both see the old plan, both pass the "already on this plan" guard, and both
+        reach this hook. Today they share a key and move money once; with a per-call
+        identifier they would move it twice. A key that is unique per call is a nonce, and
+        a nonce disables the DAO's replay guard rather than sharpening it.
+
+        The residue is now one case: the SAME transition repeated in one billing period
+        for the same subscription (Pro to Business, back to Pro, to Business again), whose
+        third leg replays the first. That case is by construction indistinguishable from
+        the concurrent double-submit above, so no key built from the change alone can
+        separate them; only a delivery identifier can, which is what the webhook path
+        already has. Recorded as open-designs item 22.
 
         Best-effort: logged and swallowed, never raised into the billing-webhook
         boundary. A wallet-side bug here must not block Stripe event acknowledgement
@@ -503,7 +517,11 @@ class SubscriptionsService:
             idempotency_key = (
                 f"plan_change:{event_id}"
                 if event_id
-                else f"plan_change:{subscription_id or 'none'}:{incoming_period_start.isoformat()}"
+                else (
+                    f"plan_change:{subscription_id or 'none'}"
+                    f":{incoming_period_start.isoformat()}"
+                    f":{outgoing_plan}:{incoming_plan}"
+                )
             )
 
             await get_wallets_service().apply_plan_change(
