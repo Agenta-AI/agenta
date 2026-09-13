@@ -2,40 +2,42 @@
 
 ## Active review findings
 
-Seventeen findings are open. None of them waits on a design decision any more. OD24 to OD27 in
-`open-designs.md` are all decided: OD26, OD24 and OD27 have landed, and OD25 is being built now.
-Every open entry is a repair, and each states the closure that would settle it and the test that
-would prove it. A finding that closes moves to the closed record below.
+Sixteen findings are open. OR69 heads this section but counts as neither open nor closed: it was
+withdrawn on 2026-09-13, and its entry stays in place so the reading is not repeated. None of the
+sixteen waits on a design decision any more. OD24 to OD27 in `open-designs.md` are all decided:
+OD26, OD24 and OD27 have landed, and OD25 is being built now. Every open entry is a repair, and each
+states the closure that would settle it and the test that would prove it. A finding that closes
+moves to the closed record below.
 
 ---
 
-### OR69. The Daytona runner puts the user's provider keys into the sandbox environment, around the gateway entirely
+### OR69. The Daytona runner puts the user's provider keys into the sandbox environment, around the gateway entirely — WITHDRAWN, the file was the wrong runner
 
-`sdks/python/agenta/sdk/engines/running/runners/daytona.py:140-200` reads the project's vault
-secrets and maps fourteen of them to conventional provider environment variables, `OPENAI_API_KEY`
-among them. `:286-291` passes that map, plus `AGENTA_API_KEY` and the run's granted
-`AGENTA_CREDENTIALS`, into the sandbox's environment at creation. Present in the branch as of
-2026-09-13, and unchanged by OR38.
+This entry was wrong and is kept only so the reading is not repeated. It read
+`sdks/python/agenta/sdk/engines/running/runners/daytona.py:140-200,286-291` as the agent's Daytona
+backend and concluded that a gateway-routed run still ships the user's provider keys into the
+sandbox. Three checks, each of which alone settles it, say otherwise.
 
-This is the defect the gateway exists to remove, reached by a different road. OR38 narrowed the
-credential the gateway hands the agent, so agent code can no longer ask the vault for a provider
-key. It did not touch this path, which does not ask: the key is already in the environment when
-the sandbox starts. Anything that can read the environment of that sandbox, the harness process
-included, has the user's real provider key and can call the provider directly, with no endpoint,
-no allowlist, no ceiling and no audit record. The granted `AGENTA_CREDENTIALS` sits beside it, so
-the vault is reachable too for anything with shell access, which is why OR38's closure stops at
-the agent's own credential.
+**It is a different runner.** That file is the custom-code evaluator's sandbox. Its entry point is
+`execute_code_safely` in `sdks/python/agenta/sdk/engines/running/sandbox.py:46`, which takes
+`correct_answer` and returns a score. The agent runner is `services/runner/src`, a separate
+component, and the evaluator file contains the string "gateway" zero times.
 
-The severity does not rest on the sandbox being hostile. It rests on the gateway's guarantee being
-stated without qualification while a second, older path hands out the same secret. Either the
-guarantee is narrowed in writing to the agent's credential, or this path goes.
+**The agent path attaches no provider credential at all.** A gateway-routed connection is built at
+`sdks/python/agenta/sdk/agents/connections/endpoints.py:245-254` with `credential_mode="none"` and
+an empty `credentials` list, which is what `specs-wp13.md` promised.
 
-Closure: a sandbox the Daytona backend creates carries no provider key and no granted platform
-credential in its environment, and a run still completes on every harness. Proven by a test that
-builds the environment map the backend passes and asserts no vault-derived provider value and no
-granted credential appears in it, plus the existing 27 harness cells still passing. The OTLP export
-that `AGENTA_CREDENTIALS` serves needs its own narrow credential rather than the run's granted one;
-say which in the fix.
+**The agent runner never ships a plaintext key to Daytona anyway.** It delivers credentials as
+`dtn_secret_<id>` references that Daytona's own egress proxy substitutes host-pinned
+(`services/runner/src/providers/daytona-credential-delivery.ts`). The sandbox holds placeholders.
+
+**And nothing here is this branch's.** `git diff origin/main...HEAD` touches no file under
+`sdks/python/agenta/sdk/engines/running/runners/`.
+
+What remains true is narrower and older than the entry claimed: the custom-code evaluator's Daytona
+sandbox receives vault-derived provider values as ordinary environment variables. That predates this
+work, has no gateway component, and belongs in an issue outside this document set rather than in a
+finding against this branch.
 
 ---
 
@@ -531,7 +533,7 @@ point now.
 Tests: `api/oss/tests/pytest/unit/gateways/test_gateways_egress.py`, 24 cases, plus the 27 live
 harness cells still passing with the check enforcing.
 
-### OR38. The credential handed to the sandbox is a general-purpose platform token that can read the vault — CLOSED for the credential the gateway hands the agent, and not for the sandbox's environment
+### OR38. The credential handed to the sandbox is a general-purpose platform token that can read the vault — CLOSED for the credential the gateway hands the agent
 
 **What the defect was.** One value served two roles. The SDK read the platform authorization it was
 handed and passed that same value on as the sandbox's gateway credential, and the value was minted
@@ -560,11 +562,15 @@ Tests: `api/oss/tests/pytest/unit/gateways/test_gateways_sandbox_credential.py`,
 real auth middleware in front of the real exchange route rather than a substitute for either, plus
 the 27 live cells passing with 56 credential exchanges logged during the run.
 
-**The limit, stated plainly.** OR38 is closed for the credential the gateway hands the agent. It is
-not closed for the sandbox's environment as a whole. `OR69` records that the Daytona backend puts the
-user's real provider keys and a granted platform credential into that environment at creation, which
-reaches the same secret by a different road. Read OR69 before treating a sandbox as unable to see a
-provider key.
+**The scope, stated plainly.** OR38 closes the credential the gateway hands the agent, and that is
+the whole of it. It needs no caveat about a second road to the same secret, because the agent path
+carries no provider key to the sandbox. A gateway-routed connection is built with
+`credential_mode="none"` and an empty credential list at
+`sdks/python/agenta/sdk/agents/connections/endpoints.py:245-254`. On the Daytona backend the agent
+runner delivers credentials as placeholder references that the egress proxy substitutes, not as
+plaintext (`services/runner/src/providers/daytona-credential-delivery.ts`). An earlier version of
+this paragraph pointed at OR69 for a wider hole; OR69 was withdrawn on 2026-09-13, and its entry at
+the top of the active section says why.
 
 ### OR36 / OR37. A proxied request relays the caller's session cookie and Authorization header upstream, and the injected authorization header is merged case-sensitively — CLOSED, and the strip list was replaced rather than widened
 

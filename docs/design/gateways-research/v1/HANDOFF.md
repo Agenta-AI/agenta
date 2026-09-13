@@ -35,9 +35,9 @@ The remaining documents are the design itself: `decisions.md`, `architecture.md`
 ## Current state
 
 **The branch is not mergeable as of 2026-09-13.** A security review of the credential boundary
-found thirty-three defects that every green suite ran straight past, and closing one of them turned
-up a thirty-fourth, OR69. Seventeen are now fixed and closed: request headers travel by allowlist
-rather than pass-through, so the caller's session no longer reaches a tenant's upstream (OR36,
+recorded thirty-four findings that every green suite ran straight past, OR36 to OR69. One of them,
+OR69, was withdrawn, so thirty-three stand. Seventeen are now fixed and closed: request headers
+travel by allowlist, so the caller's session no longer reaches a tenant's upstream (OR36,
 OR37); a response echoing the injected key is refused (OR39); every credential field is redacted
 rather than the first per kind (OR43); the migration declares the secret kind the OAuth code writes
 (OR46); three ways a request escaped its endpoint's limits are shut (OR44, OR50, OR60); a mock
@@ -49,13 +49,18 @@ exemption safe (OR41, OR47); discovery pins the authorization server and both it
 server the tenant registered (OR42); an expired grant is refreshed before use (OR55); and Postgres
 arbitrates the registration write instead of a read-modify-write race (OR61).
 
-**Seventeen remain open, and OR69 is the largest.** The Daytona runner writes the user's real
-provider keys and a granted platform credential into the sandbox's environment at creation, which
-reaches by a different road the secret OR38 just took away from the agent's credential. Nothing
-waits on a decision any more: OD24 to OD27 in `open-designs.md` are all decided, OD26, OD24 and
-OD27 have landed, and OD25 is being built now. The open set is OR45, OR48, OR49, OR51 to OR54,
-OR56, OR58, OR59, OR62, OR63, OR65, OR66, OR67, OR68 and OR69. Read `open-reviews.md`
-before planning work here. Green suites are not evidence on this branch, and `OR65` says why.
+**Sixteen remain open, and OR45 is the largest.** `POST /gateways/mcps/credentials/agenta` exists to
+hand out a credential narrowed to a chosen set of tools, and it runs no permission check and no
+narrowing check, so the caller picks the set. It is the only P0 left. Nothing waits on a decision any
+more: OD24 to OD27 in `open-designs.md` are all decided, OD26, OD24 and OD27 have landed, and OD25 is
+being built now. The open set is OR45, OR48, OR49, OR51 to OR54, OR56, OR58, OR59, OR62, OR63, and
+OR65 to OR68. Read `open-reviews.md` before planning work here. Green suites are not evidence on this
+branch, and `OR65` says why.
+
+**OR69 was recorded and then withdrawn on 2026-09-13**, after the file it cited,
+`sdks/python/agenta/sdk/engines/running/runners/daytona.py`, turned out to be the custom-code
+evaluator's sandbox rather than the agent runner. Its entry stays at the top of the active section in
+`open-reviews.md`, with the three checks that settle it.
 
 **The dashboard product path works end to end as of 2026-09-13**: a
 provider created in the dashboard registers its gateway endpoint, and Pi and Claude Code each
@@ -104,8 +109,9 @@ step.
   Traefik and the development client reloads the whole page every 50 to 60 seconds, taking every open
   form with it. **OR35** (no create control on the API keys page) reproduces on `main` and is tracked
   as issue #6803.
-- **Fixed and closed, 2026-09-13.** Seventeen of the thirty-four: **OR36** and **OR37** (headers
-  travel by allowlist, and the injected credential replaces the caller's in any casing),
+- **Fixed and closed, 2026-09-13.** Seventeen of the thirty-three that stand: **OR36** and
+  **OR37** (headers travel by allowlist, and the injected credential replaces the caller's in any
+  casing),
   **OR39** (a response echoing the injected key is refused), **OR43** (every credential field is
   redacted), **OR44**, **OR50** and **OR60** (the three escapes from an endpoint's limits),
   **OR46** (the missing secret-kind enum value), **OR57** (mocks gated on their flag), **OR40**
@@ -116,10 +122,11 @@ step.
   rests on that record), **OR42** (discovery is pinned to the registered server, at the cost of
   split-origin authorization servers), **OR55** (an expired grant is refreshed before use) and
   **OR61** (Postgres arbitrates the registration write).
-- **Open.** Seventeen findings: **OR45**, **OR48**, **OR49**, **OR51** to **OR54**, **OR56**,
-  **OR58**, **OR59**, **OR62**, **OR63**, **OR65** to **OR69**.
-  Two are P0, blocking on security (OR45 and OR69); five are debt (OR63,
+- **Open.** Sixteen findings: **OR45**, **OR48**, **OR49**, **OR51** to **OR54**, **OR56**,
+  **OR58**, **OR59**, **OR62**, **OR63**, **OR65** to **OR68**.
+  One is P0, blocking on security (OR45); five are debt (OR63,
   OR65 to OR68); the remaining ten are correctness repairs. None waits on a decision.
+- **Withdrawn.** **OR69**, on 2026-09-13. It counts as neither open nor closed.
 
 ## The live evidence, 2026-09-13
 
@@ -213,14 +220,9 @@ does not exist on this one.
 
 The blocking set comes first, and nothing in it waits on a decision.
 
-**OR69, before anything else.** It is the only open finding that puts the user's real provider key
-somewhere a caller can read it, and it does so outside the gateway entirely. OR38 shut the road
-through the agent's credential; this is the other road. The gateway's guarantee cannot be stated
-without qualification while it is open. Whoever takes it has to say which credential the OTLP export
-gets in place of the run's granted one.
-
-**Then OR45**, the one P0 left beside it. It puts a permission check on the credential issuer, so a
-caller stops choosing its own narrowing.
+**OR45, before anything else.** It is the only P0 left. It puts a permission check on the credential
+issuer and holds the issued tool set to a subset of the source credential's, so a caller stops
+choosing its own narrowing.
 
 **Then the correctness repairs and the debt**, in `open-reviews.md` order. Each entry states the
 closure that would settle it and the test that would prove it.
