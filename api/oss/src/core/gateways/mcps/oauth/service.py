@@ -1,10 +1,11 @@
-"""Run the two-phase MCP OAuth connection flow."""
+"""Run the two-phase MCP OAuth connection flow, and renew the grants it stores."""
 
+import asyncio
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
-from mcp.shared.auth import OAuthClientInformationFull
+from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.dtos import (
@@ -13,19 +14,27 @@ from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthCompletion,
     MCPOAuthDiscovery,
 )
-from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthAttemptsDAOInterface
+from oss.src.core.gateways.mcps.oauth.interfaces import (
+    MCPOAuthAttemptsDAOInterface,
+    MCPOAuthRefresherInterface,
+)
 from oss.src.core.gateways.mcps.oauth.registration import (
     Resolver,
     identity_document_client_info,
     is_publicly_resolvable,
 )
 from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS, new_state
-from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
+from oss.src.core.gateways.mcps.oauth.storage import (
+    SecretsTokenStorage,
+    grant_is_expired,
+)
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
+    MCPOAuthRefreshFailedError,
     MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
+    MCPOAuthTokenExchangeError,
 )
 from oss.src.core.secrets.services import VaultService
 
@@ -37,7 +46,7 @@ def callback_redirect_uri(*, api_url: str) -> str:
     return f"{api_url.rstrip('/')}{_CALLBACK_PATH}"
 
 
-class MCPOAuthConnectService:
+class MCPOAuthConnectService(MCPOAuthRefresherInterface):
     def __init__(
         self,
         *,
@@ -53,6 +62,8 @@ class MCPOAuthConnectService:
         self.attempts_dao = attempts_dao
         # Tests may inject DNS resolution.
         self._resolve_kwargs = {"resolve": resolve} if resolve is not None else {}
+        # One lock per (project, server). See `refresh_grant`.
+        self._refresh_locks: Dict[Tuple[UUID, str], asyncio.Lock] = {}
 
     async def discover(self, *, server_url: str) -> MCPOAuthDiscovery:
         return await self.client.discover(server_url=server_url)
@@ -218,6 +229,100 @@ class MCPOAuthConnectService:
             server_url=consumed.server_url,
             secret_id=grant.id,
         )
+
+    # Refresh
+
+    def _refresh_lock(self, *, project_id: UUID, server_url: str) -> asyncio.Lock:
+        return self._refresh_locks.setdefault((project_id, server_url), asyncio.Lock())
+
+    async def refresh_grant(self, *, project_id: UUID, server_url: str) -> None:
+        """Renew the stored grant for one server, in place.
+
+        **Concurrency.** Several relays can find one grant expired at the same moment,
+        and a rotating authorization server invalidates a refresh token the instant it
+        is spent, so two exchanges would leave one caller holding a token the server has
+        already retired. Two mechanisms, in order:
+
+        * Inside a worker, one `asyncio.Lock` per `(project_id, server_url)` serializes
+          the refresh, and the grant is re-read after the lock is taken. The second
+          caller therefore finds a fresh token and performs no exchange at all.
+        * Across workers, nothing can serialize them without a distributed lock this
+          module has no business introducing, so the losing exchange is expected to be
+          refused. It is treated as a race, not a death: the grant is re-read, and if the
+          winner has already written a live token it is used. Only when the re-read still
+          shows an expired grant does this raise.
+
+        The refreshed tokens are written back to the same vault row the endpoint's
+        `secret_id` names, so the caller re-reads its own reference rather than being
+        handed one.
+        """
+        async with self._refresh_lock(project_id=project_id, server_url=server_url):
+            storage = SecretsTokenStorage(
+                vault_service=self.vault_service,
+                project_id=project_id,
+                server_url=server_url,
+            )
+
+            stored = await storage.get_tokens()
+            if stored is None:
+                raise MCPOAuthRefreshFailedError(
+                    server_url=server_url, detail="no stored grant"
+                )
+            if not grant_is_expired(stored):
+                # Another coroutine in this worker refreshed while we waited.
+                return
+            if not stored.refresh_token:
+                raise MCPOAuthRefreshFailedError(
+                    server_url=server_url,
+                    detail="the stored grant carries no refresh token",
+                )
+
+            # Rediscovered rather than stored: the token endpoint is not part of a grant,
+            # and discovery now pins it to the issuer the resource names
+            # (`oauth/client.py`), so re-reading it is not re-trusting the server.
+            discovery = await self.client.discover(server_url=server_url)
+            storage.authorization_server = discovery.authorization_server
+
+            client_info = await storage.get_client_info()
+            if client_info is None:
+                client_info = identity_document_client_info(
+                    api_url=self.api_url,
+                    redirect_uri=callback_redirect_uri(api_url=self.api_url),
+                )
+
+            try:
+                refreshed = await self.client.refresh_token(
+                    token_endpoint=discovery.token_endpoint,
+                    refresh_token=stored.refresh_token,
+                    client_info=client_info,
+                    resource=discovery.resource,
+                )
+            except MCPOAuthTokenExchangeError as e:
+                if await self._another_worker_refreshed(storage=storage, stored=stored):
+                    return
+                raise MCPOAuthRefreshFailedError(
+                    server_url=server_url, detail=e.detail
+                ) from e
+
+            if not refreshed.refresh_token:
+                # RFC 6749 s6: a server that does not rotate returns no new refresh
+                # token, and the old one stays valid. Dropping it would make the next
+                # expiry unrecoverable.
+                refreshed.refresh_token = stored.refresh_token
+
+            await storage.write_tokens(refreshed)
+
+    @staticmethod
+    async def _another_worker_refreshed(
+        *, storage: SecretsTokenStorage, stored: OAuthToken
+    ) -> bool:
+        """Whether the row now holds a live grant someone else wrote."""
+        current = await storage.get_tokens()
+        if current is None:
+            return False
+        if current.access_token == stored.access_token:
+            return False
+        return not grant_is_expired(current)
 
     async def sweep_expired_attempts(self) -> int:
         """Drop attempts nobody came back for. Driven by the cron service."""

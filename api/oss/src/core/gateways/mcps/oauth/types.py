@@ -34,6 +34,26 @@ class MCPOAuthTokenExchangeError(GatewaysError):
         super().__init__(f"Token exchange failed at {token_endpoint}: {detail}")
 
 
+class MCPOAuthRefreshFailedError(GatewaysError):
+    """The stored grant is expired and could not be renewed.
+
+    Raised when there is no refresh token to present, or when the authorization server
+    refused the one there is. Either way the grant is dead and only the person who
+    granted it can replace it, so the data plane turns this into a reconnect refusal
+    rather than relaying a call that would come back 401 forever.
+    """
+
+    def __init__(self, *, server_url: str, detail: Optional[str] = None):
+        self.server_url = server_url
+        self.detail = detail
+        super().__init__(
+            f"The stored authorization for {server_url} expired and could not be "
+            f"renewed: {detail}"
+            if detail
+            else f"The stored authorization for {server_url} expired and could not be renewed"
+        )
+
+
 class MCPOAuthStateInvalidError(GatewaysError):
     """No authorization attempt answers the callback's `state` handle.
 

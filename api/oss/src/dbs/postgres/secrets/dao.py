@@ -12,7 +12,7 @@ from oss.src.core.secrets.dtos import (
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
 from oss.src.core.secrets.managed import SecretManagementDTO
-from oss.src.core.secrets.types import SubscriptionProviderConflict
+from oss.src.core.secrets.types import SecretSlugConflict, SubscriptionProviderConflict
 from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dbe_to_dto,
@@ -66,15 +66,17 @@ class SecretsDAO(SecretsDAOInterface):
                 session.add(secrets_dbe)
                 await session.commit()
         except IntegrityError as e:
-            if (
-                create_secret_dto.secret.kind == SecretKind.SUBSCRIPTION_PROVIDER
-                and "uq_secrets_project_id_slug" in str(e.orig)
-            ):
+            if "uq_secrets_project_id_slug" not in str(e.orig):
+                raise
+            if create_secret_dto.secret.kind == SecretKind.SUBSCRIPTION_PROVIDER:
                 provider = create_secret_dto.secret.data.provider
                 raise SubscriptionProviderConflict(
                     provider=getattr(provider, "value", provider)
                 ) from e
-            raise
+            # Every other kind gets the generic conflict, so a caller writing under a
+            # slug it derives (rather than one the user typed) can read the winner and
+            # update instead of crashing on a raw driver error.
+            raise SecretSlugConflict(slug=create_secret_dto.slug or "") from e
 
         secrets_dto = map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
         return secrets_dto

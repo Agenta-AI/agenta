@@ -1194,6 +1194,15 @@ llm_gateway_service = LLMGatewayService(
     ),
 )
 
+mcp_oauth_attempts_dao = MCPOAuthAttemptsDAO(engine=_transactions_engine)
+
+mcp_oauth_connect_service = MCPOAuthConnectService(
+    vault_service=vault_service,
+    client=MCPOAuthClient(),
+    api_url=env.agenta.api_url,
+    attempts_dao=mcp_oauth_attempts_dao,
+)
+
 mcp_gateway_service = MCPGatewayService(
     mcp_endpoints_dao=mcp_endpoints_dao,
     policy=gateway_policy_service,
@@ -1229,15 +1238,9 @@ mcp_gateway_service = MCPGatewayService(
             ),
         }
     ),
-)
-
-mcp_oauth_attempts_dao = MCPOAuthAttemptsDAO(engine=_transactions_engine)
-
-mcp_oauth_connect_service = MCPOAuthConnectService(
-    vault_service=vault_service,
-    client=MCPOAuthClient(),
-    api_url=env.agenta.api_url,
-    attempts_dao=mcp_oauth_attempts_dao,
+    # The stored grant is renewed on the data-plane path, and the connect service is what
+    # holds the vault and the OAuth client that can spend a refresh token (OR55).
+    oauth_refresher=mcp_oauth_connect_service,
 )
 
 gateway_credentials_router = GatewayCredentialsRouter()
