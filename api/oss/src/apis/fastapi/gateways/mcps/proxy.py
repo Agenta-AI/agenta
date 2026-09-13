@@ -15,6 +15,7 @@ from oss.src.apis.fastapi.gateways.utils import response_headers, with_code_mark
 from oss.src.core.gateways.dtos import (
     GatewayConnectAffordance,
     GatewayEndpointNamespace,
+    forwardable_request_headers,
 )
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
@@ -59,16 +60,19 @@ _MAPPED_EXCEPTIONS = (
 
 
 def _forwarded_headers(request: Request) -> Dict[str, str]:
-    """The caller's headers, stripped of Agenta's own gateway credential —
-    an upstream `custom` server must never see the platform secret that authenticated
-    the caller to us (§7.1's pass-through rule stops at the body and status, not our
-    own credentials). A caller-provided ``Authorization`` header belongs to the
-    configured upstream and is intentionally preserved."""
-    return {
-        key: value
-        for key, value in request.headers.items()
-        if key.lower() != "x-ag-credentials"
-    }
+    """The caller's headers, admitted by allowlist rather than filtered by exception.
+
+    Section 7.1's pass-through rule stops at the body and the status; it never covered
+    credentials. OR36 reversed the part of it that did: a caller's ``Authorization`` and
+    ``Cookie`` authenticate the caller to Agenta, so an upstream a tenant configured must
+    never receive either, and an endpoint registered without a secret calls its server
+    unauthenticated rather than borrowing the caller's token.
+
+    The adapters apply the same allowlist again before they connect, so this is defence in
+    depth rather than the control. Filtering here keeps the caller's session out of the
+    service, the policy plane and anything that records there.
+    """
+    return forwardable_request_headers(request.headers)
 
 
 def _protocol_error(

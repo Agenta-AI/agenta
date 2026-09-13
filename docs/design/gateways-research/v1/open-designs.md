@@ -1,8 +1,8 @@
 # Design findings
 
 The **Open design decisions** section below is the exception to everything that follows it. Four
-decisions were raised by the 2026-09-13 security review. OD27 is settled and its repair has
-landed. The other three are open, and each must be settled before its repair can be written.
+decisions were raised by the 2026-09-13 security review, and all four are now decided. OD27's repair
+has landed. The other three are decided but not yet built, and each still blocks its finding.
 
 Everything after that section is the historical research record for the gateway design findings,
 and is **not an active backlog**: every finding there is either fixed and verified in the
@@ -11,8 +11,8 @@ outcome; it must not be read as an open task.
 
 The only implementation follow-up that was still latent — explicit Bedrock/Vertex `base_url`
 registration and coverage — is tracked as OR17 in `open-reviews.md`, where it can be verified
-against code and tests. Apart from OD24 to OD26 below, no other design finding in this document
-remains open.
+against code and tests. Apart from OD24 to OD26 below, which are decided but not yet built, no other design finding in this
+document remains open.
 
 **Disposition of the historical residuals.** The package/contract findings and relay behaviour
 are fixed or verified. The following are explicit notes, not deferred requirements hidden in this
@@ -33,7 +33,7 @@ Four of the findings in `open-reviews.md` cannot be repaired until someone answe
 underneath them. Each one moves a seam, so the answer comes first and the code second. The
 recommendation on each is a recommendation, not a ruling.
 
-### OD24. What may the credential inside the sandbox do? — OPEN, blocks OR38
+### OD24. What may the credential inside the sandbox do? — DECIDED on Option 1, blocks OR38 until built
 
 The agent sandbox receives the same platform token the runtime uses everywhere else. The
 middleware accepts it on every route rather than on gateway routes only, and one of those routes
@@ -46,12 +46,15 @@ value carried by both the SDK and the runner. It also gives the metering work a 
 one project and one run. **Option 2, one token with the vault route denied to it.** One middleware
 rule, and every route added afterwards is opted in by default.
 
-Recommendation: Option 1. The feature is an argument that narrow credentials beat broad ones, and
-Option 2 makes the next route someone adds reachable from the sandbox unless they remember.
+**Ruling: Option 1.** A gateway-audience token, minted per project and run, refused everywhere but
+the gateway routes. The feature is an argument that narrow credentials beat broad ones, and Option 2
+makes the next route someone adds reachable from the sandbox unless they remember.
+
+**Decided 2026-09-13 by the takeover orchestrator, pending Mahmoud's confirmation.**
 
 ---
 
-### OD25. Where does the OAuth authorization attempt live? — OPEN, blocks OR41
+### OD25. Where does the OAuth authorization attempt live? — DECIDED on Option 1, blocks OR41 until built
 
 The PKCE verifier travels to the authorization server inside the `state` parameter, signed but
 readable, so the server can decode it and PKCE protects nothing. The state also replays for its
@@ -63,12 +66,15 @@ one table and an expiry sweep. **Option 2, encrypt the payload and add a replay 
 the stateless shape, but still ships secrets through a third party's URL and logs, and still needs
 server state for the cache.
 
-Recommendation: Option 1. It is the standard shape, and it is what lets the callback be checked
-against the logged-in user.
+**Ruling: Option 1.** An opaque single-use record tied to the session, the project, the endpoint and
+the issuer, with an expiry sweep. It is the standard shape, and it is what lets the callback be
+checked against the logged-in user.
+
+**Decided 2026-09-13 by the takeover orchestrator, pending Mahmoud's confirmation.**
 
 ---
 
-### OD26. Where does the outbound egress check belong? — OPEN, blocks OR40 and OR64
+### OD26. Where does the outbound egress check belong? — DECIDED on Option 1, blocks OR40 and OR64 until built
 
 Registration validates a URL's format and its literal IP address and defers name resolution to
 use. Two of the three outbound paths never resolve or pin at request time, so a hostname that
@@ -79,9 +85,11 @@ resolves and pins; the LLM adapter and the OAuth client do not.
 the address, pins the connection and strips headers. **Option 2, copy the existing check into the
 two paths that lack it**, which is faster and leaves a third copy of the same predicate to drift.
 
-Recommendation: Option 1, and make the shared client the only way to make an outbound call.
-Drifting copies are how this gap appeared, and a single-box self-hosted install is exactly where
-"internal" is one hop away.
+**Ruling: Option 1.** One shared egress client that resolves, checks the address, pins the connection
+and strips headers, and that is the only way to make an outbound call. Drifting copies are how this
+gap appeared, and a single-box self-hosted install is exactly where "internal" is one hop away.
+
+**Decided 2026-09-13 by the takeover orchestrator, pending Mahmoud's confirmation.**
 
 ---
 
@@ -99,6 +107,8 @@ chunk boundaries and hides a real misconfiguration instead of surfacing it, whil
 meters nothing, which keeps the metering seam simple. The relay now scans for the injected value
 and refuses under the code `upstream_echoed_credential`, keeping an overlap between chunks so a
 credential split across two frames is still caught. `open-reviews.md` closes OR39 against this.
+
+**Decided 2026-09-13 by the takeover orchestrator, pending Mahmoud's confirmation.**
 
 ---
 

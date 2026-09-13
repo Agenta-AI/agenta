@@ -213,8 +213,13 @@ def _secret_key(secret: ResolvedSecret | None) -> str | None:
 class DeployableMockMCPAdapter(MCPUpstreamInterface):
     """Relay generated development entries to the compose mock over a real socket.
 
-    This bypasses the generic custom-server SSRF adapter because the target is a
-    fixed, opt-in development service, not caller-controlled routing data.
+    The one outbound call under `core/gateways/` that does not go through
+    `core/gateways/egress.py`, because it *is* the exemption that module describes: the
+    target is a fixed, opt-in development service, not caller-controlled routing data. The
+    two gates below are both operator environment — mocks must be enabled, and the URL must
+    equal the one the operator configured — so no tenant can reach this adapter with an
+    address of its own. `egress.exempt_hosts()` carries the same host for the calls that do
+    go through the shared boundary.
     """
 
     async def relay(

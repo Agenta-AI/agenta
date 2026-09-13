@@ -22,6 +22,11 @@ from mcp.shared.auth import (
 )
 from pydantic import ValidationError
 
+from oss.src.core.gateways.egress import (
+    EgressRefusedError,
+    egress_client,
+    open_egress,
+)
 from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthDiscovery
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthDiscoveryError,
@@ -95,7 +100,33 @@ class MCPOAuthClient:
         self._transport = transport
 
     def _client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(timeout=_TIMEOUT_SECONDS, transport=self._transport)
+        return egress_client(timeout=_TIMEOUT_SECONDS, transport=self._transport)
+
+    # Every URL below is attacker-influenced: `server_url` is tenant data, the
+    # `resource_metadata` location arrives in the upstream's own `WWW-Authenticate`
+    # challenge, and the authorization and token endpoints are read out of a metadata
+    # document the upstream published. All of them go through the shared egress boundary,
+    # which resolves the name, refuses a blocked address and pins the connection (OD26).
+
+    @staticmethod
+    async def _get(client: httpx.AsyncClient, url: str) -> Optional[httpx.Response]:
+        """One guarded GET. `None` when the target was refused or unreachable.
+
+        Discovery walks a list of candidate URLs and moves on when one does not answer, so
+        a refused candidate is skipped the same way; the walk ends in the discovery error
+        the caller already raises when nothing usable was found. The point is that the
+        blocked address is never dialled.
+        """
+        try:
+            target = await open_egress(url)
+        except EgressRefusedError:
+            return None
+        try:
+            return await client.get(
+                target.url, headers=target.headers, extensions=target.extensions
+            )
+        except httpx.RequestError:
+            return None
 
     async def discover(self, *, server_url: str) -> MCPOAuthDiscovery:
         async with self._client() as client:
@@ -127,9 +158,8 @@ class MCPOAuthClient:
         for url in _protected_resource_urls(
             server_url, resource_metadata_url=resource_metadata_url
         ):
-            try:
-                response = await client.get(url)
-            except httpx.RequestError:
+            response = await self._get(client, url)
+            if response is None:
                 continue
             if response.status_code != 200:
                 continue
@@ -144,9 +174,8 @@ class MCPOAuthClient:
     async def _probe_resource_metadata_url(
         self, client: httpx.AsyncClient, *, server_url: str
     ) -> Optional[str]:
-        try:
-            response = await client.get(server_url)
-        except httpx.RequestError:
+        response = await self._get(client, server_url)
+        if response is None:
             return None
         return _resource_metadata_url_from_response(response)
 
@@ -154,9 +183,8 @@ class MCPOAuthClient:
         self, client: httpx.AsyncClient, *, authorization_server: str
     ) -> OAuthMetadata:
         for url in _authorization_server_metadata_urls(authorization_server):
-            try:
-                response = await client.get(url)
-            except httpx.RequestError:
+            response = await self._get(client, url)
+            if response is None:
                 continue
             if response.status_code != 200:
                 continue
@@ -189,9 +217,21 @@ class MCPOAuthClient:
         )
         body = metadata.model_dump(by_alias=True, mode="json", exclude_none=True)
 
+        try:
+            target = await open_egress(endpoint)
+        except EgressRefusedError as e:
+            raise MCPOAuthRegistrationError(
+                authorization_server=authorization_server, detail=e.relay_detail
+            ) from e
+
         async with self._client() as client:
             try:
-                response = await client.post(endpoint, json=body)
+                response = await client.post(
+                    target.url,
+                    json=body,
+                    headers=target.headers,
+                    extensions=target.extensions,
+                )
             except httpx.RequestError as e:
                 raise MCPOAuthRegistrationError(
                     authorization_server=authorization_server, detail=str(e)
@@ -259,12 +299,23 @@ class MCPOAuthClient:
         if resource:
             data["resource"] = resource
 
+        try:
+            target = await open_egress(
+                token_endpoint,
+                above_caller={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+        except EgressRefusedError as e:
+            raise MCPOAuthTokenExchangeError(
+                token_endpoint=token_endpoint, detail=e.relay_detail
+            ) from e
+
         async with self._client() as client:
             try:
                 response = await client.post(
-                    token_endpoint,
+                    target.url,
                     data=data,
-                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    headers=target.headers,
+                    extensions=target.extensions,
                 )
             except httpx.RequestError as e:
                 raise MCPOAuthTokenExchangeError(
