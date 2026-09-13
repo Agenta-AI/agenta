@@ -1,13 +1,18 @@
-# Resolved design findings
+# Design findings
 
-This is the historical research record for the gateway design findings. It is **not an active
-backlog**: every finding below is either fixed/verified in the implemented gateway, or explicitly
-won't-fix for this increment. The surrounding text preserves the reasoning that led to each
+The **Open design decisions** section below is the exception to everything that follows it. Four
+decisions were raised by the 2026-09-13 security review. OD27 is settled and its repair has
+landed. The other three are open, and each must be settled before its repair can be written.
+
+Everything after that section is the historical research record for the gateway design findings,
+and is **not an active backlog**: every finding there is either fixed and verified in the
+implemented gateway, or explicitly won't-fix for this increment. The surrounding text preserves the reasoning that led to each
 outcome; it must not be read as an open task.
 
 The only implementation follow-up that was still latent — explicit Bedrock/Vertex `base_url`
 registration and coverage — is tracked as OR17 in `open-reviews.md`, where it can be verified
-against code and tests. No other design finding in this document remains open.
+against code and tests. Apart from OD24 to OD26 below, no other design finding in this document
+remains open.
 
 **Disposition of the historical residuals.** The package/contract findings and relay behaviour
 are fixed or verified. The following are explicit notes, not deferred requirements hidden in this
@@ -19,6 +24,81 @@ Bedrock capability fallback. Their authoritative record is now
 Code is different: its observed harness behaviour is an active live-web QA item in [qa.md](qa.md),
 not a source-inspection limitation. Any old use of “deferred”, “later”, or “unverified” below is
 historical rationale for one of those dispositions, not an open action.
+
+---
+
+## Open design decisions
+
+Four of the findings in `open-reviews.md` cannot be repaired until someone answers the question
+underneath them. Each one moves a seam, so the answer comes first and the code second. The
+recommendation on each is a recommendation, not a ruling.
+
+### OD24. What may the credential inside the sandbox do? — OPEN, blocks OR38
+
+The agent sandbox receives the same platform token the runtime uses everywhere else. The
+middleware accepts it on every route rather than on gateway routes only, and one of those routes
+projects vault values in plaintext. Code running in the sandbox can therefore ask Agenta for the
+provider key the gateway exists to keep out of it.
+
+**Option 1, a gateway-audience token.** Mint a second token whose audience is the gateway routes,
+and have the middleware refuse it anywhere else. It costs a minting path, a claim, and a second
+value carried by both the SDK and the runner. It also gives the metering work a subject that names
+one project and one run. **Option 2, one token with the vault route denied to it.** One middleware
+rule, and every route added afterwards is opted in by default.
+
+Recommendation: Option 1. The feature is an argument that narrow credentials beat broad ones, and
+Option 2 makes the next route someone adds reachable from the sandbox unless they remember.
+
+---
+
+### OD25. Where does the OAuth authorization attempt live? — OPEN, blocks OR41
+
+The PKCE verifier travels to the authorization server inside the `state` parameter, signed but
+readable, so the server can decode it and PKCE protects nothing. The state also replays for its
+full hour and is not bound to the browser that began the flow.
+
+**Option 1, an opaque server-side attempt record.** `state` becomes a random string, and a row
+holds the verifier, the session, the project, the endpoint and the issuer, consumed once. It adds
+one table and an expiry sweep. **Option 2, encrypt the payload and add a replay cache.** It keeps
+the stateless shape, but still ships secrets through a third party's URL and logs, and still needs
+server state for the cache.
+
+Recommendation: Option 1. It is the standard shape, and it is what lets the callback be checked
+against the logged-in user.
+
+---
+
+### OD26. Where does the outbound egress check belong? — OPEN, blocks OR40 and OR64
+
+Registration validates a URL's format and its literal IP address and defers name resolution to
+use. Two of the three outbound paths never resolve or pin at request time, so a hostname that
+registers cleanly can point somewhere internal on its first call. The MCP HTTP adapter already
+resolves and pins; the LLM adapter and the OAuth client do not.
+
+**Option 1, one shared egress client that every outbound call must use**, which resolves, checks
+the address, pins the connection and strips headers. **Option 2, copy the existing check into the
+two paths that lack it**, which is faster and leaves a third copy of the same predicate to drift.
+
+Recommendation: Option 1, and make the shared client the only way to make an outbound call.
+Drifting copies are how this gap appeared, and a single-box self-hosted install is exactly where
+"internal" is one hop away.
+
+---
+
+### OD27. What does the gateway owe when an upstream echoes the injected key back? — SETTLED on Option 1, and OR39 is closed against it
+
+An upstream that quoted the Authorization header in an error body, or mid-stream, reached the
+caller unchanged.
+
+**Option 1, scan and refuse**, failing with the shared typed envelope. **Option 2, scan and
+redact**, replacing the value and continuing. **Option 3, accept it**, and document that the
+sandbox is not a trust boundary.
+
+**Ruling: Option 1.** Option 3 contradicts the feature. Option 2 needs the same buffering across
+chunk boundaries and hides a real misconfiguration instead of surfacing it, while a refused call
+meters nothing, which keeps the metering seam simple. The relay now scans for the injected value
+and refuses under the code `upstream_echoed_credential`, keeping an overlap between chunks so a
+credential split across two frames is still caught. `open-reviews.md` closes OR39 against this.
 
 ---
 
@@ -277,10 +357,18 @@ between harness and gateway that holds the gateway identity and leaves the harne
 login untouched. Not needed for wave 2 — no harness failed the matrix for wave 2's actual
 requirement (header + override, no subscription combination attempted).
 
-### OD15. Pass-through is not a mode at all — it is the default when nothing overwrites — CLOSED
+### OD15. Pass-through is not a mode at all — it is the default when nothing overwrites — CLOSED, and half of it was later reversed by OR36
 
 Settled as written below: there is no mode to store, because pass-through is what already happens
 when the gateway has no secret to inject.
+
+**Amended 2026-09-13.** The conclusion that a pass-through endpoint needs no stored mode still
+stands, and nothing below it changes. What did change is what "pass-through" forwards. OR36 found
+that letting the caller's headers through by default sent the caller's Agenta session cookie and
+`Authorization` to whoever registered the endpoint. Headers now travel by allowlist, and those two
+never travel at all, so an endpoint with no secret calls its upstream unauthenticated rather than
+borrowing the caller's token. `contract.md` carries the list. Read every sentence below about
+forwarding the caller's `Authorization` as the history of a decision that was reversed.
 
 The question was where a pass-through target keeps its mode, given that pass-through's
 natural targets are `standard` endpoints, which are generated and have no row (D20). It

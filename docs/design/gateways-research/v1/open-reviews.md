@@ -2,57 +2,11 @@
 
 ## Active review findings
 
-### OR36. A proxied request relays the caller's session cookie and Authorization header upstream, and one pooled client carries upstream cookies between tenants
-
-Two defects share one root cause and one fix, so they are recorded together. A gateway call relays
-the caller's Agenta session cookie and Authorization header to a tenant-configured upstream URL.
-Reproduced against the worktree on 2026-09-13 with synthetic credentials: a `sAccessToken` cookie
-reached the upstream. Reproduced separately: after one upstream answered with `Set-Cookie`, a later
-call carrying a different tenant's provider key sent the first call's upstream session cookie.
-
-`GATEWAY_ONLY_HEADERS = frozenset({"x-ag-credentials"})` at
-`api/oss/src/core/gateways/dtos.py:10` is the entire strip list, and it holds that one header and
-nothing else. Both planes use it:
-`api/oss/src/core/gateways/llms/providers/passthrough/adapter.py:28`,
-`api/oss/src/core/gateways/mcps/providers/http/adapter.py:34` and
-`api/oss/src/core/gateways/mcps/providers/composio/adapter.py:33`. Every other header the caller
-sends goes upstream. On the way back, `api/oss/src/apis/fastapi/gateways/utils.py:6-12` strips only
-content and connection headers, so `Set-Cookie` reaches the browser on the API origin. The
-cross-tenant cookie comes from a single retained `httpx.AsyncClient` at
-`.../passthrough/adapter.py:124`, constructed once at import time in
-`api/entrypoints/routers.py:1182`. An httpx client keeps a cookie jar, and that jar is now
-process-wide. An allow-by-default strip list is the wrong shape for a credential boundary, because
-every header added anywhere in the platform joins it silently.
-
-Closure: the relay forwards an explicit allowlist of request headers and returns an explicit
-allowlist of response headers, and the upstream client holds no cookie jar. Proven by a case beside
-`api/oss/tests/pytest/unit/gateways/test_gateways_llm_relay_adapter.py` that sends a request
-carrying a session cookie and an Authorization header and asserts neither reaches the upstream, and
-by a second case that drives two calls through one adapter instance, the first answering with
-`Set-Cookie`, and asserts the second sends no cookie.
-
----
-
-### OR37. The injected authorization header is merged case-sensitively into a case-insensitive protocol, so two Authorization headers go upstream
-
-A relayed request carries both the caller's `authorization` header and the gateway's injected
-`Authorization` header. HTTP field names are case-insensitive, so the upstream sees one header with
-two values, and which one it honours is the upstream's choice. Present in the branch as of
-2026-09-13.
-
-`api/oss/src/core/gateways/llms/providers/passthrough/adapter.py:48-51` builds the outbound headers
-as plain dicts: line 48 copies the caller's headers, line 50 merges the route's headers, and line 51
-merges `build_auth_headers`, which spells the name with a capital A
-(`api/oss/src/core/gateways/llms/providers/passthrough/auth.py:15`, `:55`, `:85`, `:105`, `:109`).
-Starlette normalises incoming names to lowercase, so `authorization` and `Authorization` are
-separate dict keys and neither overwrites the other. The existing test at
-`api/oss/tests/pytest/unit/gateways/test_gateways_llm_relay_adapter.py:217` is named for exactly
-this overwrite, and it passes only because its input at line 231 is already title-cased.
-
-Closure: outbound headers are assembled in a case-insensitive structure, so an injected name
-replaces any casing of the same name. Proven by rewriting that test to supply the lowercase
-`authorization` Starlette actually produces, and asserting the upstream receives one authorization
-value, the gateway's.
+Twenty-four findings are open. Four of them wait on a design decision rather than on a
+repair: OR38 on OD24, OR41 on OD25, and OR40 and OR64 on OD26, the open decisions recorded as
+OD24 to OD27 in `open-designs.md`. The rest are repairs, and each entry states the closure that
+would settle it and the test that would prove it. A finding that closes moves to the closed
+record below.
 
 ---
 
@@ -76,27 +30,6 @@ middleware accepts `X-AG-Credentials` only on gateway routes. Proven by a case i
 `api/oss/tests/pytest/unit/gateways/` that presents a sandbox gateway credential to
 `GET /vault/secrets` and asserts a refusal, alongside the existing gateway relay cases proving the
 same credential still relays.
-
----
-
-### OR39. An upstream can return the injected provider key to the caller through the response body
-
-A gateway response is relayed to the caller unread. An upstream that echoes the Authorization header
-it received, which several providers do in an error body, returns Agenta's provider key to the
-sandbox. Reproduced against the worktree on 2026-09-13 with a synthetic key: the key appeared in a
-401 JSON body and again in a 200 SSE stream.
-
-`api/oss/src/core/gateways/llms/providers/passthrough/adapter.py:170-177` converts 5xx statuses into
-domain errors. Every other status, and every successful body, passes through. The body generators at
-`.../adapter.py:196` and `:207` yield upstream bytes with no filtering, and
-`api/oss/src/apis/fastapi/gateways/llms/proxy.py:350-366` returns those bytes to the caller on both
-the streaming and non-streaming paths. Nothing between the upstream socket and the sandbox looks at
-what is in the body.
-
-Closure: a response body carrying the injected credential never reaches the caller. Proven by a case
-beside `test_gateways_llm_relay_adapter.py` that drives an `httpx.MockTransport` upstream echoing the
-Authorization value in a 401 body and again in an SSE frame, and asserts the credential appears
-nowhere in what the proxy returns.
 
 ---
 
@@ -182,50 +115,6 @@ caller receives.
 
 ---
 
-### OR43. Write-only OAuth secrets still return credentials from the vault
-
-Marking an OAuth secret write-only does not withhold its credentials. `GET /vault/secrets` returns
-the refresh token of a grant, and the client secret of a provider registration. Reproduced against
-the worktree on 2026-09-13 with `write_only=True`.
-
-`api/oss/src/core/secrets/redaction.py:31-39` maps exactly one primary field per secret kind, and
-only that field is cleared (`:140-151`). For `oauth_grant` the mapped field is `access_token`
-(`:38`), so the `refresh_token` declared at `api/oss/src/core/secrets/dtos.py:202` survives, and a
-refresh token is the longer-lived credential of the two. For `oauth_provider` the mapped field is the
-outer `client_secret` (`:37`), but
-`api/oss/src/core/gateways/mcps/oauth/storage.py:150` writes a second copy of the whole registration,
-client secret included, into `extra.client_info`. The extras scrub reads an attribute named `extras`
-(`redaction.py:102`, `:153-156`) while `OAuthProviderSettingsDTO` declares the field as `extra`
-(`api/oss/src/core/secrets/dtos.py:192`), so that blob is never scrubbed. One field per kind is the
-wrong shape: it redacts what someone remembered rather than what is credential-bearing.
-
-Closure: each secret kind declares an explicit public projection naming every field that may be
-returned, and the duplicated client secret is not stored. Proven by a case beside
-`api/oss/tests/pytest/unit/secrets/` that writes a write-only grant and a write-only provider
-registration, reads both back through the vault route, and asserts no credential value appears
-anywhere in either response.
-
----
-
-### OR44. The model allowlist checks one field while the whole request body is forwarded
-
-An endpoint restricted to one model routes a call to another. Reproduced against the worktree on
-2026-09-13: `{"model": "gpt-4o", "models": ["forbidden-model"]}` passed an endpoint allowing only
-`gpt-4o`, and OpenRouter documents `models` as fallback routing.
-
-`api/oss/src/core/gateways/llms/service.py:502-505` is the whole allowlist check, and it reads
-`context.model` and nothing else. `api/oss/src/core/gateways/llms/service.py:392-397` forwards the
-original body to the adapter unchanged. Every other model-selecting field in that body therefore
-travels unexamined. Exact-string matching is not the weakness; `GatewayEndpointFilter.allows`
-correctly rejects case and unicode variants of a model name. The gap is the second field.
-
-Closure: the gateway either rejects a body carrying a model-selecting field it does not check, or
-checks every such field against the allowlist. Proven by a case in
-`api/oss/tests/pytest/unit/gateways/test_gateways_llm_service.py` that sends an allowed `model`
-beside a disallowed `models` entry and asserts the call is refused.
-
----
-
 ### OR45. `POST /gateways/mcps/credentials/agenta` issues a narrowed credential with no permission check
 
 The endpoint exists to hand out a credential narrowed to a chosen set of tools. It performs no
@@ -243,27 +132,6 @@ Closure: the handler runs the same permission check as its neighbours, and the i
 subset of the source credential's. Proven by cases in
 `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_router.py` asserting a caller without the
 permission is refused, and that a request naming a tool outside the source credential is refused.
-
----
-
-### OR46. The migration omits a secret-kind enum value the code writes, so MCP OAuth cannot complete on a migrated database
-
-The first dynamic client registration fails at the database. Any deployment upgraded through the
-migrations, which is every deployment that is not a fresh create-all, cannot finish an MCP OAuth
-flow. Present in the branch as of 2026-09-13.
-
-`api/oss/databases/postgres/migrations/core_oss/versions/oss000000030_add_gateway_endpoints.py:27`
-adds one value to `secretkind_enum`, `OAUTH_GRANT`.
-`api/oss/src/core/gateways/mcps/oauth/storage.py:153` writes `SecretKind.OAUTH_PROVIDER`. No
-migration in the tree adds that member: the enum gains `CUSTOM_SECRET` in revision 005,
-`WEBHOOK_PROVIDER` in `f0a1b2c3d4e5`, `SUBSCRIPTION_PROVIDER` in 029 and `OAUTH_GRANT` in 030, while
-`SecretKind.OAUTH_PROVIDER` exists at `api/oss/src/core/secrets/enums.py:11` and the column is a real
-PostgreSQL enum (`api/oss/src/dbs/postgres/secrets/dbas.py:23`). The unit suites use fake DAOs, so
-nothing in them touches the enum. This gap is why so much of the OAuth path carries no evidence.
-
-Closure: the migration adds `OAUTH_PROVIDER`, and a test writes that kind against a real database.
-Proven by a case in `api/oss/tests/pytest/integration/gateways/` that stores a provider registration
-through `OAuthClientStorage` on a migrated database and reads it back.
 
 ---
 
@@ -325,25 +193,6 @@ Closure: a streamed call records the same usage fields a non-streaming call reco
 record carries them. Proven by cases beside `test_gateways_llm_nonstreaming_drain.py` that drive a
 streamed Anthropic response and a streamed OpenAI response through the real service and assert the
 recorded usage matches the upstream's own totals.
-
----
-
-### OR50. The output-token ceiling is optional in practice, and the first recognised alias masks the rest
-
-An endpoint configured with an output-token ceiling does not enforce one. Reproduced against the
-worktree on 2026-09-13 under a ceiling of 10: a request supplying no maximum passed, and
-`{"max_tokens": 1, "max_completion_tokens": 99999}` passed.
-
-`api/oss/src/core/gateways/llms/service.py:516-517` returns without refusing when the parsed value is
-`None`, which is the case for a request that names no maximum at all. The parser
-`_requested_max_output_tokens` at `:137-148` iterates the protocol's alias tuple from `:130-134` and
-returns the first integer it finds, so a small value in the first alias hides a large one in the
-second. A ceiling that a request can decline by omission is not a ceiling.
-
-Closure: the gateway writes the ceiling onto the outgoing request, covering the omitted case and
-every alias for the protocol. Proven by cases in `test_gateways_llm_service.py` asserting that a
-request with no maximum leaves with the ceiling set, and that a request naming two aliases leaves
-with both at or below the ceiling.
 
 ---
 
@@ -474,30 +323,6 @@ method are the same string.
 
 ---
 
-### OR57. A mock endpoint is callable with the mock flag off
-
-`AGENTA_GATEWAYS_MOCKS_ENABLED` does not prevent a mock upstream from serving traffic. Reproduced
-against the worktree on 2026-09-13: a custom LLM endpoint declaring the mock deployment kind returned
-200 with the flag false.
-
-`LLMEndpointCreate` accepts `deployment_kind` as an unvalidated enum
-(`api/oss/src/core/gateways/llms/dtos.py:78`, member at `:34`), and
-`api/entrypoints/routers.py:1183` registers `MockLLMAdapter` unconditionally, unlike Composio at
-`:1202-1211`, which is gated. Dispatch selects the adapter from the persisted deployment kind, so it
-never consults the flag. The flag gates the catalogue
-(`api/oss/src/core/gateways/llms/catalog.py:35`, `:90`) and the compose services, and neither sits on
-this path. The MCP builtin route is closed by a different mechanism: `_mock_endpoints` returns an
-empty list with the flag off (`api/oss/src/core/gateways/mcps/service.py:283`), so an unlisted mock
-slug raises `MCPEndpointNotFoundError`. That leaves the MCP adapters registered but unreachable, and
-the LLM mock reachable.
-
-Closure: the mock adapters are registered only when the flag is set, and an endpoint declaring a mock
-deployment kind is refused with the flag off. Proven by a case in
-`api/oss/tests/pytest/unit/gateways/test_gateways_llm_service.py` that creates such an endpoint with
-the flag false and asserts the call is refused.
-
----
-
 ### OR58. Brokered builtin MCP endpoints carry no tool allowlist, so any member can call any tool
 
 Any workspace member holding `USE_MCP_ENDPOINTS` can call any tool on a brokered connection. Present
@@ -531,23 +356,6 @@ Closure: re-registration on a warm session is a no-op rather than a collision, a
 collision is reported to the caller. Proven by a case in
 `services/runner/tests/unit/pi-gateway-mcp.test.ts` that drives two turns on one session and asserts
 the second turn still has the tools.
-
----
-
-### OR60. The caller's model string is interpolated into cloud URL paths unescaped
-
-On an endpoint with an unrestricted allowlist, a model value such as `x/../..` reaches arbitrary
-paths under the organisation's cloud credentials. Present in the branch as of 2026-09-13.
-
-`api/oss/src/core/gateways/llms/providers/passthrough/routing.py:66` interpolates `route.model` into
-the Azure path, and `:142` interpolates it into the Vertex path as
-`…/models/{route.model}:{action}`. Neither escapes it, and neither restricts its characters. The
-Vertex prefix at `:105-106` interpolates `region` and `vertex_project` the same way.
-
-Closure: a model value is admitted only if it matches a strict character class, and path segments are
-escaped. Proven by a case in
-`api/oss/tests/pytest/unit/gateways/test_gateways_llm_deployment_base_urls.py` asserting a model
-containing a path separator or a dot segment is refused, on Azure and on Vertex.
 
 ---
 
@@ -739,6 +547,223 @@ enum member and the retained rows, and the upgrade sets a `lock_timeout`.
 ---
 
 ## Closed review record
+
+### OR36 / OR37. A proxied request relays the caller's session cookie and Authorization header upstream, and the injected authorization header is merged case-sensitively — CLOSED, and the strip list was replaced rather than widened
+
+The two were recorded together and closed together, because they are one boundary.
+
+**What the defect was.** The relay stripped a single header, `x-ag-credentials`, and forwarded
+everything else, so the caller's Agenta session cookie and Authorization header reached a
+tenant-configured upstream. The injected `Authorization` was merged into a plain dict beside the
+caller's lowercase `authorization`, so the upstream received two values of one case-insensitive
+field and chose which to honour. One pooled `httpx.AsyncClient` held a process-wide cookie jar, so an
+upstream's `Set-Cookie` came back on the next tenant's call.
+
+**The boundary is now deny-by-default.** `FORWARDABLE_REQUEST_HEADERS` in
+`api/oss/src/core/gateways/dtos.py` names every request header that may reach an upstream:
+`content-type`, `accept`, `anthropic-version`, `anthropic-beta`,
+`anthropic-dangerous-direct-browser-access`, `openai-organization`, `openai-project`, `openai-beta`,
+`mcp-session-id`, `mcp-protocol-version`, `idempotency-key`, `x-agenta-mock-profile`, and the
+`x-stainless-` prefix, which covers vendor SDK telemetry as a prefix because that set grows with each
+SDK release. A second list, `NON_FORWARDABLE_REQUEST_HEADERS`, refuses `authorization`, `cookie`,
+`x-ag-credentials`, `proxy-authorization`, `host` and the hop-by-hop names by name. None of them sits
+on the allowlist, so the refusal list is a second line of defence rather than the boundary itself: it
+keeps holding if the allowlist is ever widened. Both planes read the same function.
+`GATEWAY_ONLY_HEADERS` no longer exists.
+
+**OR37 closed with it.** Outbound headers are assembled in `httpx.Headers` and assigned by name, so
+the gateway's credential replaces a caller's header in any casing instead of joining it. The dict
+merge that made `authorization` and `Authorization` separate keys is gone from the relay.
+
+**Cookies travel in neither direction.** Every gateway `httpx` client is handed `NoCookieJar`, which
+neither stores an upstream `Set-Cookie` nor sends a `Cookie`. `httpx` rebuilds any `Cookies` object
+it is given and keeps only the raw jar, which is why the guarantee lives on the jar rather than on
+the wrapper. On the way back, `set-cookie` is stripped from the relayed response in
+`api/oss/src/apis/fastapi/gateways/utils.py`, because that response is returned on Agenta's own
+origin.
+
+**One behaviour reversed, deliberately.** An MCP endpoint registered without a secret used to borrow
+the caller's `Authorization` for its upstream call. It now calls that upstream unauthenticated. OD15
+in `open-designs.md` records the reversal, since pass-through of the caller's credential was half of
+what that decision originally settled.
+
+Tests: `api/oss/tests/pytest/unit/gateways/test_gateways_header_contract.py`, which owns the outbound
+header boundary for both planes, thirteen cases in total across this entry and OR39. Four drive a
+caller cookie and a lowercase `authorization` through the LLM relay and the three MCP adapters and
+assert neither reaches the upstream while the gateway's own credential does, once.
+`test_allowlisted_header_travels_and_an_arbitrary_one_does_not` pins the shape of the list rather
+than its contents. `test_upstream_set_cookie_is_not_returned_to_the_caller` and
+`test_upstream_cookie_is_not_replayed_on_a_later_call` cover the jar, the second driving two
+sequential relays through one adapter where the first upstream answers with `Set-Cookie`.
+
+### OR39. An upstream can return the injected provider key to the caller through the response body — CLOSED, by refusing rather than redacting
+
+A relayed response went to the caller unread. An upstream that echoes the Authorization header it
+received, which several providers do in an error body, handed Agenta's provider key to the sandbox.
+
+The relay now scans every response for the value it injected. `CredentialEchoScanner` in
+`api/oss/src/core/gateways/dtos.py` searches each chunk together with the tail of the one before it,
+kept at one byte less than the longest secret, which is the longest prefix a split can leave behind.
+A credential straddling two SSE frames is therefore caught. The scheme prefix is dropped before
+scanning, so an upstream echoing the bare key rather than the whole header is caught too, and values
+under eight bytes are not scanned for at all, because scanning for them would refuse a response over
+a coincidence.
+
+A detection refuses the call with the shared typed envelope under the code
+`upstream_echoed_credential`. Redaction was the alternative and it lost on both halves: a key an
+upstream is willing to print is a key to rotate rather than to paper over, and nothing is wrong with
+the request, so there is no retry that helps until the rotation happens. The scanner does nothing
+when no secret was injected, so an endpoint with no credential relays byte for byte as before.
+
+Tests: in the same header-contract file,
+`test_non_streaming_body_echoing_the_credential_is_refused` and
+`test_streamed_credential_split_across_two_chunks_is_refused`, which splits the credential mid-value
+across two chunks on purpose. Beside them,
+`test_a_body_without_the_credential_still_relays_when_one_was_injected` and
+`test_no_injected_secret_means_no_scan` pin the two ways the scan must stay out of the way, and two
+unit cases pin the minimum length and a value split across three chunks.
+
+### OR43. Write-only OAuth secrets still return credentials from the vault — CLOSED, and there were two leaks rather than one
+
+Marking an OAuth secret write-only withheld one field per kind, and only that field. A write-only
+`oauth_grant` therefore returned its `refresh_token`, which is the longer-lived of its two
+credentials.
+
+`CREDENTIAL_FIELDS` in `api/oss/src/core/secrets/redaction.py` now names every credential-bearing
+field per kind, and the projection clears all of them. The single-field map other callers read, the
+presence report and the update carry-over, is derived from the new one as the first field of each
+kind, so their behaviour does not move. One field per kind was the wrong shape: it redacted what
+someone remembered rather than what is credential-bearing.
+
+The second leak was a spelling. The extras scrub read a container attribute named `extras` while the
+OAuth DTOs declare `extra`, which is how a second copy of the client secret survived inside
+`extra.client_info` regardless of the write-only flag. Three things changed. `set_client_info` in
+`api/oss/src/core/gateways/mcps/oauth/storage.py` dumps the registration with
+`exclude={"client_secret"}`, so the duplicate is not written. `get_client_info` reads the secret back
+from the outer field. And the scrub reads both spellings and walks nested maps, so rows written
+before the fix stop leaking on their next read rather than waiting for a rewrite.
+
+Tests: `api/oss/tests/pytest/unit/secrets/test_write_only_oauth.py`, four cases. A write-only grant
+returns neither of its tokens, a registration stores its secret once, a write-only provider returns
+no client secret anywhere in its response, and a row written in the old shape is still redacted.
+
+### OR44. The model allowlist checks one field while the whole request body is forwarded — CLOSED, and the fields the gateway cannot read are refused rather than dropped
+
+`model` was the whole allowlist check while the body travelled to the upstream unchanged, so
+`{"model": "gpt-4o", "models": ["forbidden-model"]}` passed an endpoint allowing only `gpt-4o` and
+the forbidden fallback ran when the primary failed.
+
+`_check_allowlist` in `api/oss/src/core/gateways/llms/service.py` now measures every entry of
+OpenRouter's `models` fallback array against the same allowlist, by the same exact-string match the
+primary gets. Exact matching was never the weakness and is untouched. A `models` value that is not a
+list of model ids is refused, because the allowlist cannot read it.
+
+A routing field whose effect on model selection the allowlist cannot evaluate is refused under the
+code `routing_field_not_allowed`: `provider`, `route`, `preset` and `fallbacks`. Each of them decides
+which model or which upstream actually serves the call, so forwarding one forwards a routing decision
+nobody checked. Refusing beats ignoring for two reasons worth recording. A field a provider ships
+later would otherwise reopen the allowlist silently, which is the defect in this entry repeating
+itself under a new name. And aliases and fallbacks are outside this increment by `models.md`, so
+refusing costs no supported behaviour today. A JSON null names no routing, so only a field carrying a
+value is refused.
+
+Tests: in `api/oss/tests/pytest/unit/gateways/test_gateways_llm_service.py`,
+`test_a_forbidden_fallback_model_beside_a_permitted_one_is_refused`,
+`test_a_fallback_list_of_permitted_models_still_relays`,
+`test_fallback_entries_are_matched_exactly_like_the_primary_model`,
+`test_a_fallback_field_that_is_not_a_list_of_model_ids_is_refused`,
+`test_a_routing_extension_the_gateway_cannot_check_is_refused` over each of the four fields, and
+`test_a_null_routing_extension_is_not_treated_as_routing`.
+
+### OR46. The migration omits a secret-kind enum value the code writes, so MCP OAuth cannot complete on a migrated database — CLOSED, and the test generalises rather than names the value
+
+Revision `oss000000030_add_gateway_endpoints` added `OAUTH_GRANT` to `secretkind_enum` and not
+`OAUTH_PROVIDER`, which is the kind the OAuth client storage writes on the first dynamic client
+registration. Every deployment upgraded through the migrations, which is every deployment that is not
+a fresh `create_all`, failed there.
+
+The revision now adds both. Verified against the running development database, whose enum carried
+seven labels and lacked this one, and then against a scratch database migrated from empty, which came
+back with eight labels and accepted a cast of the literal. `downgrade()` states in its own body that
+`ALTER TYPE ... ADD VALUE` is not reversible, so both members stay on the enum after a downgrade,
+inert without the tables the revision creates and harmless when `upgrade()` runs again.
+
+Tests: `api/oss/tests/pytest/unit/secrets/test_secret_kind_migrations.py`. It derives both sides, the
+members of `SecretKind` that the code can write and the values the OSS migration chain declares, and
+compares the two sets. The entry proposed an integration case that stores a provider registration on
+a migrated database. The derived comparison was chosen instead because it names neither kind, so the
+next kind added without a migration fails it too, rather than the one kind anyone happened to think
+of.
+
+### OR50. The output-token ceiling is optional in practice, and the first recognised alias masks the rest — CLOSED
+
+A configured ceiling refused nothing when a request named no maximum, and
+`{"max_tokens": 1, "max_completion_tokens": 99999}` passed a ceiling of ten, because the parser
+returned the first alias it recognised.
+
+`_enforce_ceilings` in `api/oss/src/core/gateways/llms/service.py` now measures every alias its
+protocol spells. `_requested_max_output_tokens` reads a numeric string and a float as the numbers
+they spell, so a client sending `"999999"` is measured rather than waved through for being the wrong
+type, while `bool` stays excluded because `true` is not a token count. A request that names no usable
+maximum has the endpoint's ceiling written into its body, under the alias correct for its protocol:
+`max_tokens` for Chat Completions and Messages, `max_output_tokens` for Responses. Chat Completions
+is written with `max_tokens` rather than `max_completion_tokens` because that is the spelling every
+OpenAI-compatible upstream in the catalogue understands. A request above the ceiling is still refused
+rather than clamped, which is what D25 requires, and only an endpoint that carries a ceiling has its
+body rewritten at all.
+
+Tests: in `api/oss/tests/pytest/unit/gateways/test_gateways_llm_service.py`,
+`test_a_request_naming_no_maximum_leaves_with_the_ceiling_written_in` per protocol,
+`test_the_second_alias_is_checked_not_only_the_first_one_found`,
+`test_a_maximum_that_names_no_usable_count_gets_the_ceiling_instead`,
+`test_a_non_integer_maximum_above_the_ceiling_is_still_refused`,
+`test_a_maximum_at_exactly_the_ceiling_passes_untouched` and
+`test_an_endpoint_with_no_ceiling_relays_the_body_byte_for_byte`.
+
+### OR57. A mock endpoint is callable with the mock flag off — CLOSED
+
+`deployment_kind` accepted `mock` as an unvalidated enum member, and `MockLLMAdapter` was registered
+unconditionally. Dispatch selects an adapter from the endpoint's stored deployment kind and never
+consults the flag, so a mock endpoint returned 200 on a process where
+`AGENTA_GATEWAYS_MOCKS_ENABLED` was false.
+
+The mock adapters are now registered only when that flag is set, read through the shared `env` object
+as `env.mock_gateways.enabled`: `mock` on the LLM registry, `mock` and `mock_http` on the MCP
+registry. With the registration absent, a row persisted as `mock` raises `LLMAdapterNotFoundError`
+rather than dispatching. Creating an endpoint with a mock deployment kind while the flag is off is
+refused under the code `gateway_mocks_disabled`, so the row is not written in the first place.
+
+Tests: `api/oss/tests/pytest/unit/gateways/test_gateways_mock_flag_gate.py`. Three cases cover
+creation with the flag off, with the flag on, and a real deployment kind under both. The gate case
+reads the registration site itself, parsing the adapter dictionaries out of
+`api/entrypoints/routers.py`, so it fails if a third mock adapter is ever registered outside the
+flag, which is the way this defect would return.
+
+### OR60. The caller's model string is interpolated into cloud URL paths unescaped — CLOSED, and the grammar is the control rather than escaping
+
+Azure puts the model in `/openai/deployments/{model}` and Vertex in `…/models/{model}:{action}`.
+Neither escaped it and neither restricted its characters, so a value such as `x/../..` walked out of
+the deployment's own prefix and reached arbitrary paths under the organisation's cloud credentials.
+
+`is_path_safe_model_identifier` in
+`api/oss/src/core/gateways/llms/providers/passthrough/validation.py` admits a model only when every
+slash-separated segment matches `[A-Za-z0-9][A-Za-z0-9._:-]*`, which is the character class real
+model ids use and which excludes a segment that is a run of dots. Anything else is refused under the
+code `invalid_model_identifier`, and the check runs where the model becomes a path segment, for Azure
+and for Vertex alike.
+
+Escaping was rejected rather than added on top. Agenta's qualified `<provider>/<kind>/<model>`
+spelling is what the playground sends, so `/` is a real separator between admitted segments and
+percent-encoding it would break the spelling live QA depends on. Within the admitted class only `:`
+is reserved, and Vertex's `{model}:{action}` needs that colon to stay literal. The character class is
+the whole control, and escaping would exclude nothing it does not already exclude.
+
+Tests: in `api/oss/tests/pytest/unit/gateways/test_gateways_llm_routing_strategies.py`, fifteen
+spellings driven through Azure and through Vertex, covering dot segments, an encoded separator, a
+query or fragment that truncates the rest of the route, an absolute URL, a backslash, a space and a
+newline. Beside them, cases asserting a plain model id and Agenta's qualified spelling still build
+their URLs. The entry proposed these cases in
+`test_gateways_llm_deployment_base_urls.py`; they sit beside the URL builder they guard instead.
 
 ### OR34. The AI providers drawer closes itself and discards the form — CLOSED, and the drawer was not what closed it
 

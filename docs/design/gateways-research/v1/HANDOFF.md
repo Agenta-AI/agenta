@@ -34,14 +34,19 @@ The remaining documents are the design itself: `decisions.md`, `architecture.md`
 
 ## Current state
 
-**The branch is not mergeable as of 2026-09-13.** Every local suite and the PR CI are green, and a
-security review of the credential boundary found blocking defects underneath them: the caller's
-session cookie and Authorization header reach the tenant's upstream, one pooled client carries
-upstream cookies between tenants, the credential the sandbox holds can read the vault, and an
-upstream can return the injected provider key through its response body. The open set is **OR36
-through OR68**, recorded in `open-reviews.md` with a closure condition and a proving test each.
-Read that file before planning work on this branch; green suites are not evidence here, and
-`OR65` says why.
+**The branch is not mergeable as of 2026-09-13.** A security review of the credential boundary
+found thirty-three defects that every green suite ran straight past. Eight are now fixed and
+closed: request headers travel by allowlist rather than pass-through, so the caller's session no
+longer reaches a tenant's upstream (OR36, OR37); a response echoing the injected key is refused
+(OR39); every credential field is redacted rather than the first per kind (OR43); the migration
+declares the secret kind the OAuth code writes (OR46); and three ways a request escaped its
+endpoint's limits are shut (OR44, OR50, OR60, OR57).
+
+**Twenty-four remain open, OR38 to OR68.** Four of those wait on a decision rather than on code:
+OR38 on OD24, OR41 on OD25, OR40 and OR64 on OD26, all in `open-designs.md`. The largest still
+open is OR38: the credential the sandbox holds is a general platform token that can read the vault
+in plaintext, which is the feature's own premise inverted. Read `open-reviews.md` before planning
+work here. Green suites are not evidence on this branch, and `OR65` says why.
 
 **The dashboard product path works end to end as of 2026-09-13**: a
 provider created in the dashboard registers its gateway endpoint, and Pi and Claude Code each
@@ -90,9 +95,15 @@ step.
   Traefik and the development client reloads the whole page every 50 to 60 seconds, taking every open
   form with it. **OR35** (no create control on the API keys page) reproduces on `main` and is tracked
   as issue #6803.
-- **Open.** **OR36 through OR68** from the 2026-09-13 security and code review. Ten of those are P0, blocking
-  on security or data loss (OR36 to OR45); seventeen are P1, blocking on correctness (OR46 to
-  OR62); six are debt (OR63 to OR68).
+- **Fixed and closed, 2026-09-13.** Eight of the thirty-three: **OR36** and **OR37** (headers
+  travel by allowlist, and the injected credential replaces the caller's in any casing),
+  **OR39** (a response echoing the injected key is refused), **OR43** (every credential field is
+  redacted), **OR44**, **OR50** and **OR60** (the three escapes from an endpoint's limits),
+  **OR46** (the missing secret-kind enum value) and **OR57** (mocks gated on their flag).
+- **Open.** **OR38 through OR68**, twenty-four entries. Six are P0, blocking on security
+  (OR38, OR40, OR41, OR42, OR45); twelve are P1, blocking on correctness; six are debt (OR63 to
+  OR68). Four wait on a decision rather than on code: OR38 on OD24, OR41 on OD25, OR40 and OR64
+  on OD26.
 
 ## The live evidence, 2026-09-13
 
