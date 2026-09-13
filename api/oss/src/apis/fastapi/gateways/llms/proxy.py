@@ -11,7 +11,10 @@ from oss.src.apis.fastapi.gateways.llms.utils import (
     parse_responses_call_context,
 )
 from oss.src.apis.fastapi.gateways.utils import response_headers, with_code_marker
-from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.dtos import (
+    GatewayEndpointNamespace,
+    forwardable_request_headers,
+)
 from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMProtocol
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.llms.types import (
@@ -34,8 +37,11 @@ from oss.src.utils.context import get_auth_scope
 if TYPE_CHECKING:
     from oss.src.core.gateways.llms.service import LLMGatewayService
 
-# Remove only the platform credential from relayed headers.
-_STRIPPED_INBOUND_HEADERS = {"x-ag-credentials"}
+# Headers are admitted at the edge, not filtered at the wire. The adapters apply the same
+# allowlist before they connect, so this is defence in depth rather than the control: it
+# keeps the caller's cookie and Authorization from travelling through the service, the
+# policy plane and anything that records there.
+_forward_inbound_headers = forwardable_request_headers
 
 _DOMAIN_EXCEPTIONS = (
     GatewayEndpointInactiveError,
@@ -353,11 +359,7 @@ class LLMGatewayProxy:
                 code="invalid_request",
             )
 
-        caller_headers = {
-            k: v
-            for k, v in request.headers.items()
-            if k.lower() not in _STRIPPED_INBOUND_HEADERS
-        }
+        caller_headers = _forward_inbound_headers(request.headers)
 
         try:
             result = await self.service.relay_chat_completion(

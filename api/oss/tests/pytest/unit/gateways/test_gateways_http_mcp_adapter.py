@@ -56,7 +56,7 @@ def _secure_egress(monkeypatch):
 @pytest.fixture(autouse=True)
 def _empty_host_allowlist(monkeypatch):
     monkeypatch.setattr(
-        "oss.src.core.gateways.mcps.providers.http.adapter.env.mcp_gateway.host_allowlist",
+        "oss.src.core.gateways.egress.env.mcp_gateway.host_allowlist",
         [],
     )
 
@@ -392,7 +392,7 @@ async def test_hostname_resolves_to_literal_ip_with_host_header_preserved(monkey
 @pytest.mark.asyncio
 async def test_host_allowlist_bypasses_the_guard(monkeypatch):
     monkeypatch.setattr(
-        "oss.src.core.gateways.mcps.providers.http.adapter.env.mcp_gateway.host_allowlist",
+        "oss.src.core.gateways.egress.env.mcp_gateway.host_allowlist",
         ["internal-mcp.local"],
     )
     captured = {}

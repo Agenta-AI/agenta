@@ -67,7 +67,11 @@ async def test_creates_a_connection_scoped_session_then_relays_raw_jsonrpc():
                     },
                 },
             )
-        assert request.url == "https://app.composio.test/tool_router/v3/trs_123/mcp"
+        # The session URL came back in Composio's own response, so it takes the shared
+        # egress boundary: the request is pinned to the checked address and the authority
+        # travels as `Host` (core/gateways/egress.py, OD26).
+        assert request.headers["host"] == "app.composio.test"
+        assert request.url.path == "/tool_router/v3/trs_123/mcp"
         return httpx.Response(
             200,
             headers={"x-composio-request-id": "req_123"},

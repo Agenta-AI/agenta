@@ -90,7 +90,7 @@ _CALLER_HEADERS = {
 @pytest.fixture(autouse=True)
 def _empty_host_allowlist(monkeypatch):
     monkeypatch.setattr(
-        "oss.src.core.gateways.mcps.providers.http.adapter.env.mcp_gateway.host_allowlist",
+        "oss.src.core.gateways.egress.env.mcp_gateway.host_allowlist",
         [],
     )
 

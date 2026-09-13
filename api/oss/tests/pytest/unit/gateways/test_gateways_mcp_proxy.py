@@ -151,22 +151,32 @@ def test_relayed_body_and_status_pass_through_untouched(client, mock_service):
     assert mock_service.calls[0]["body"] == request_body
 
 
-def test_gateway_credential_is_not_forwarded_but_upstream_authorization_is(
+def test_the_callers_authorization_and_cookie_never_enter_the_service(
     client, mock_service
 ):
+    """OR36 reversed the half of OD15 that forwarded the caller's Authorization.
+
+    Both that header and the session cookie authenticate the caller to Agenta, so neither
+    may reach a server a tenant configured. An endpoint's upstream credential comes from
+    its registered secret instead. An allowlisted protocol header still travels.
+    """
     client.post(
         "/custom/acme-notion",
         headers={
-            "Authorization": "Bearer upstream-token",
+            "Authorization": "Bearer caller-token",
+            "Cookie": "sAccessToken=caller-session",
             "X-AG-Credentials": "ApiKey gateway-token",
+            "MCP-Protocol-Version": "2026-07-28",
         },
         content=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
     )
 
     forwarded_headers = mock_service.calls[0]["headers"]
     normalized = {key.lower(): value for key, value in forwarded_headers.items()}
-    assert normalized["authorization"] == "Bearer upstream-token"
+    assert "authorization" not in normalized
+    assert "cookie" not in normalized
     assert "x-ag-credentials" not in normalized
+    assert normalized["mcp-protocol-version"] == "2026-07-28"
 
 
 # ---------------------------------------------------------------------------

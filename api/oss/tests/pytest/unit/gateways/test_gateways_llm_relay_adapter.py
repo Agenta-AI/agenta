@@ -1,6 +1,11 @@
 """Unit tests for `RelayLLMAdapter`.
 
 Nothing running: httpx.MockTransport intercepts every request, no real socket.
+
+The relay now dials the literal address the egress guard checked and carries the registered
+authority in `Host` (`core/gateways/egress.py`, OD26), so an outbound request's URL host is
+an IP address. The routing tests below therefore assert on :func:`_routed_url`, which puts
+the authority back; the pin itself is asserted in `test_gateways_egress.py`.
 """
 
 import json
@@ -40,6 +45,11 @@ from oss.src.core.secrets.enums import (
     StandardProviderKind,
 )
 from oss.src.core.shared.dtos import Header
+
+
+def _routed_url(request: httpx.Request) -> str:
+    """The URL the relay composed, with the egress pin undone."""
+    return f"{request.url.scheme}://{request.headers['host']}{request.url.raw_path.decode()}"
 
 
 def _route(
@@ -258,8 +268,8 @@ async def test_outbound_url_is_base_url_plus_chat_completions():
         headers={},
     )
 
-    assert (
-        str(captured["request"].url) == "https://upstream.example/v1/chat/completions"
+    assert _routed_url(captured["request"]) == (
+        "https://upstream.example/v1/chat/completions"
     )
 
 
@@ -459,7 +469,7 @@ async def test_bedrock_messages_request_composes_mantle_url_and_leaves_body_unto
 
     def handler(request: httpx.Request) -> httpx.Response:
         captured["content"] = request.content
-        captured["url"] = str(request.url)
+        captured["url"] = _routed_url(request)
         return httpx.Response(200, json={"id": "x", "content": []})
 
     adapter = _adapter(handler)
@@ -532,7 +542,7 @@ async def test_vertex_messages_request_moves_model_from_body_to_url():
 
     def handler(request: httpx.Request) -> httpx.Response:
         captured["content"] = request.content
-        captured["url"] = str(request.url)
+        captured["url"] = _routed_url(request)
         return httpx.Response(200, json={"id": "x", "content": []})
 
     adapter = _adapter(handler)
@@ -584,7 +594,7 @@ async def test_vertex_streaming_messages_request_uses_the_stream_action():
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        captured["url"] = str(request.url)
+        captured["url"] = _routed_url(request)
         return httpx.Response(200, json={"id": "x", "content": []})
 
     adapter = _adapter(handler)

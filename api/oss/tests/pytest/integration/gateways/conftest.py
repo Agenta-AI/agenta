@@ -19,6 +19,23 @@ from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
 from oss.tests.pytest.utils.postgres import use_reachable_core_uri
 
+# example.com: routable and in no blocked range.
+_PUBLIC_ADDRESS = "93.184.216.34"
+
+
+@pytest.fixture(autouse=True)
+def _public_dns_by_default(monkeypatch):
+    """The OAuth client resolves and pins before it dials (`core/gateways/egress.py`).
+
+    The in-process provider below answers on `.local` names that no resolver knows, so stub
+    the lookup with one public address. The guard still runs for real against that answer;
+    the refusal cases live in `unit/gateways/test_gateways_egress.py`.
+    """
+    monkeypatch.setattr(
+        "oss.src.core.webhooks.utils.socket.getaddrinfo",
+        lambda *_args, **_kwargs: [(None, None, None, None, (_PUBLIC_ADDRESS, 0))],
+    )
+
 
 @dataclass
 class LocalMCPOAuthProvider:

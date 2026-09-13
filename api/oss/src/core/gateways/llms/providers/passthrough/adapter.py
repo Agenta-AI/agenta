@@ -8,10 +8,14 @@ import httpx
 from oss.src.core.gateways.dtos import (
     CredentialEchoScanner,
     credential_echo_envelope,
-    forwardable_request_headers,
     injected_credential_values,
-    no_cookie_jar,
     outbound_headers,
+)
+from oss.src.core.gateways.egress import (
+    EgressRefusedError,
+    EgressTarget,
+    harden_pooled_client,
+    open_egress,
 )
 from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
@@ -54,24 +58,27 @@ class LLMUpstreamCredentialEchoError(LLMUpstreamError):
         )
 
 
-async def _outbound_headers(
+async def _outbound_target(
     *,
+    url: str,
     headers: Dict[str, str],
     route: LLMResolvedRoute,
     secret: Optional[ResolvedSecret],
-) -> Tuple[httpx.Headers, Tuple[bytes, ...]]:
-    """The outbound headers, plus the credential values they carry.
+) -> Tuple[EgressTarget, Tuple[bytes, ...]]:
+    """The checked, pinned target and the credential values its headers carry.
 
     Layered caller, then endpoint, then authentication, so what the gateway injects wins
-    over anything the caller sent under the same name in any casing.
+    over anything the caller sent under the same name in any casing. The whole assembly
+    goes through the shared egress boundary, which admits only the allowlisted caller
+    headers and pins the connection to an address it checked (OD26).
     """
     auth_headers = await build_auth_headers(route, secret)
-    outbound = outbound_headers(
-        forwardable_request_headers(headers),
-        route.headers,
-        auth_headers,
+    target = await open_egress(
+        url,
+        caller_headers=headers,
+        above_caller=outbound_headers(route.headers, auth_headers),
     )
-    return outbound, injected_credential_values(auth_headers)
+    return target, injected_credential_values(auth_headers)
 
 
 # Enough to hold the last SSE frames; the usage frame is the final data frame before the
@@ -144,11 +151,10 @@ class RelayLLMAdapter(LLMUpstreamInterface):
 
     def __init__(self, *, client: Optional[httpx.AsyncClient] = None) -> None:
         self._client = client or httpx.AsyncClient()
-        # The pooled client is shared by every tenant, so it must hold no cookie jar: an
+        # The pooled client is shared by every tenant, so it must hold no cookie jar (an
         # upstream `Set-Cookie` would otherwise be stored here and replayed on the next
-        # tenant's call. Assigned rather than passed to the constructor so an injected
-        # client is covered too.
-        self._client.cookies = no_cookie_jar()
+        # tenant's call) and must not follow a redirect to a host nothing checked.
+        harden_pooled_client(self._client)
 
     async def relay_chat_completion(
         self,
@@ -166,9 +172,16 @@ class RelayLLMAdapter(LLMUpstreamInterface):
             protocol=context.protocol,
             body=body,
         )
-        request_headers, injected_secrets = await _outbound_headers(
-            headers=headers, route=route, secret=secret
-        )
+        try:
+            target, injected_secrets = await _outbound_target(
+                url=url, headers=headers, route=route, secret=secret
+            )
+        except EgressRefusedError as exc:
+            raise LLMUpstreamError(
+                provider_key=route.provider_key,
+                status_code=None,
+                detail=exc.relay_detail,
+            ) from exc
         scanner = CredentialEchoScanner(injected_secrets)
         timeout = (
             route.settings.timeout_seconds
@@ -177,7 +190,12 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         )
 
         request = self._client.build_request(
-            "POST", url, content=body, headers=request_headers, timeout=timeout
+            "POST",
+            target.url,
+            content=body,
+            headers=target.headers,
+            timeout=timeout,
+            extensions=target.extensions,
         )
 
         try:

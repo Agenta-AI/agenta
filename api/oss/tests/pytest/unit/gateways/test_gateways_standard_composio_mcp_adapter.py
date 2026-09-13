@@ -74,7 +74,9 @@ async def test_uses_only_the_project_key_and_project_scoped_session():
                     }
                 },
             )
-        assert request.url == "https://mcp.composio.test/session/project-a"
+        # Pinned by the shared egress boundary; the authority travels as `Host`.
+        assert request.headers["host"] == "mcp.composio.test"
+        assert request.url.path == "/session/project-a"
         return httpx.Response(200, content=b'{"jsonrpc":"2.0","id":7,"result":{}}')
 
     result = await _adapter(broker).relay(

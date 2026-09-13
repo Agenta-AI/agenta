@@ -9,10 +9,10 @@ from urllib.parse import urlparse
 import httpx
 
 from oss.src.core.gateway.connections.dtos import Connection
-from oss.src.core.gateways.dtos import (
-    forwardable_request_headers,
-    no_cookie_jar,
-    outbound_headers,
+from oss.src.core.gateways.egress import (
+    EgressRefusedError,
+    egress_client,
+    open_egress,
 )
 from oss.src.core.gateways.mcps.dtos import (
     MCPBrokeredAuth,
@@ -86,19 +86,30 @@ class ComposioMCPAdapter(MCPUpstreamInterface):
         connection = auth.connection
         session = await self._session(connection)
         timeout = _DEFAULT_TIMEOUT_SECONDS
+        # The session's own capability headers win over anything the caller sent, in any
+        # casing; only allowlisted caller headers travel at all. `mcp_url` came back in
+        # Composio's response rather than from our configuration, so it takes the same
+        # egress boundary as any other upstream-supplied address (OD26).
         try:
-            async with httpx.AsyncClient(
-                timeout=timeout, transport=self._transport, cookies=no_cookie_jar()
+            target = await open_egress(
+                session.mcp_url,
+                caller_headers=headers,
+                above_caller=session.mcp_headers,
+            )
+        except EgressRefusedError as exc:
+            raise MCPUpstreamError(
+                target=session.mcp_url, detail=exc.relay_detail
+            ) from exc
+
+        try:
+            async with egress_client(
+                timeout=timeout, transport=self._transport
             ) as client:
                 response = await client.post(
-                    session.mcp_url,
+                    target.url,
                     content=body,
-                    # The session's own capability headers win over anything the caller
-                    # sent, in any casing; only allowlisted caller headers travel at all.
-                    headers=outbound_headers(
-                        forwardable_request_headers(headers),
-                        session.mcp_headers,
-                    ),
+                    headers=target.headers,
+                    extensions=target.extensions,
                 )
         except httpx.RequestError as exc:
             raise MCPUpstreamError(target=session.mcp_url, detail=str(exc)) from exc
@@ -154,18 +165,26 @@ class ComposioMCPAdapter(MCPUpstreamInterface):
             }
 
         try:
-            async with httpx.AsyncClient(
+            target = await open_egress(
+                f"{self.api_url}/tool_router/session",
+                above_caller={
+                    "x-api-key": self.api_key,
+                    "Content-Type": "application/json",
+                },
+            )
+        except EgressRefusedError as exc:
+            raise MCPUpstreamError(target="composio", detail=exc.relay_detail) from exc
+
+        try:
+            async with egress_client(
                 timeout=_DEFAULT_TIMEOUT_SECONDS,
                 transport=self._transport,
-                cookies=no_cookie_jar(),
             ) as client:
                 response = await client.post(
-                    f"{self.api_url}/tool_router/session",
+                    target.url,
                     json=payload,
-                    headers={
-                        "x-api-key": self.api_key,
-                        "Content-Type": "application/json",
-                    },
+                    headers=target.headers,
+                    extensions=target.extensions,
                 )
                 response.raise_for_status()
                 session = response.json()

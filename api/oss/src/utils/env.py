@@ -934,6 +934,32 @@ class MockGatewaysConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class GatewayEgressConfig(BaseModel):
+    """Whether the gateway's outbound boundary (`core/gateways/egress.py`) enforces.
+
+    Separate from `AGENTA_INSECURE_EGRESS_ALLOWED`, which governs webhook delivery, OIDC
+    issuer probes and provider-endpoint checks and defaults to permissive so a zero-config
+    self-host works. The gateway cannot inherit that default: its targets are tenant data
+    and upstream-supplied URLs reached with a provider credential attached, so the range
+    check and the https requirement are on unless an operator turns them off deliberately.
+
+    Also distinct from `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED`, which is read only by the
+    SDK and the runner (`sdks/python/agenta/sdk/agents/connections/models.py`,
+    `services/runner/src/engines/sandbox_agent/run-plan.ts`) and governs the hop *into*
+    Agenta rather than egress out of it.
+
+    Turning this on does not open every internal address by accident on a dev stack: the
+    narrower escape hatches are `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` and the mock upstreams
+    admitted while `AGENTA_GATEWAYS_MOCKS_ENABLED` is on.
+    """
+
+    insecure_allowed: bool = _parse_bool_env(
+        "AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED", default=False
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class MCPGatewayConfig(BaseModel):
     """`HttpMCPAdapter`'s outbound-guard escape hatch. Mirrors the runner's
     `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`: a `custom` MCP server whose host is
@@ -2001,6 +2027,7 @@ class EnvironSettings(BaseModel):
     crisp: CrispConfig = CrispConfig()
     daytona: DaytonaConfig = DaytonaConfig()
     docker: DockerConfig = DockerConfig()
+    gateway_egress: GatewayEgressConfig = GatewayEgressConfig()
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
     loops: LoopsConfig = LoopsConfig()
