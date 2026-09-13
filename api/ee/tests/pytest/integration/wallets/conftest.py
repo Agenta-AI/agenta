@@ -104,7 +104,8 @@ def _skip_when_postgres_unreachable(request):
 #      the restore below. It has to be there rather than in this fixture's teardown:
 #      autouse conftest fixtures finalize LAST, so by the time this one runs the module's
 #      own `wallet_schema` teardown has already downgraded and the tables are already
-#      gone. A re-check here would inspect rubble.
+#      gone. A re-check here would inspect rubble. It narrows the window rather than
+#      closing it — see "WHAT THIS DOES NOT CLOSE" below for the measured residue.
 #   3. After the test, it puts the chain back at the revision it was found at, instead of
 #      leaving it wherever the module's own teardown stopped.
 #
@@ -124,6 +125,27 @@ def _skip_when_postgres_unreachable(request):
 # handles. The lock that would actually block an application write is `ACCESS EXCLUSIVE`
 # on the three tables, and holding that for the fixture lifetime would block the suite's
 # own writes. Detecting the intruder and refusing to drop is the mechanism that fits.
+#
+# WHAT THIS DOES NOT CLOSE, measured rather than reasoned about. The re-check is
+# check-then-act: the count query runs, then alembic runs, and alembic's `DROP` comes a
+# little after. A write committed inside that gap is still lost silently. Gate-tested with
+# a writer inserting a wallet row owned by a real organization while the fixture was
+# active: across FOURTEEN attempts the guard refused TWELVE times — the row survived, the
+# chain was left partway down, and the refusal text read as intended — and lost the row
+# TWICE. The insert landed about 2.2 seconds into each attempt, just after the first
+# fixture upgrade makes the table visible; both losses landed at 2.37 seconds, inside the
+# gap. The window is therefore on the order of a hundred milliseconds, at the end of the
+# count query.
+#
+# That residue is accepted. The case this guard exists for is a live stack sharing the
+# database, and such a stack has written its wallet rows long before any count runs — the
+# entry check usually refuses it before a single test starts. Losing a row requires a
+# write to commit inside a ~100ms window, which describes a coincidence rather than the
+# threat. Closing it properly would mean taking `ACCESS EXCLUSIVE` on the three tables in
+# the SAME transaction that performs the `DROP` — which is alembic's transaction on
+# alembic's connection, so the locking would have to live in `core_ee/env.py`, production
+# migration plumbing. Test-only locking inside a migration path costs more than the
+# residue, so the residue stays documented instead of fixed.
 #
 # It refuses rather than skipping, for the same reason `AGENTA_TESTS_REQUIRE_INFRA`
 # exists: a silent skip here would report green while proving nothing. A refusal at
