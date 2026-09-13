@@ -295,3 +295,65 @@ async def test_provision_signup_subscription_skips_wallet_when_flag_off(monkeypa
 
     assert provisioned == []
     assert awarded == []
+
+
+@pytest.mark.asyncio
+async def test_retried_signup_sizes_the_wallet_from_the_stored_plan(monkeypatch):
+    """`provision_subscription` returns None when the organization already has a
+    subscription, which is what a retried signup looks like. The wallet's floor is sized
+    from the plan, so falling back to `get_default_plan()` there would provision an
+    organization that Stripe put on the trial plan as though it were on the default one.
+    The stored subscription is the only thing that knows which plan is real."""
+    import ee.src.core.organizations.service as organizations_service_module
+
+    provisioned_plans = []
+
+    async def _fake_provision_wallet_general_balance(*, organization_id, plan):
+        provisioned_plans.append(plan)
+
+    async def _fake_award_signup_grant(*, organization_id):
+        return None
+
+    class _StoredSubscription:
+        plan = "cloud_v0_trial"
+        anchor = None
+
+    class _FakeSubscriptionService:
+        async def provision_subscription(
+            self, *, organization_id, organization_name, organization_email
+        ):
+            return None  # already subscribed — this is the retry
+
+        async def read(self, *, organization_id):
+            return _StoredSubscription()
+
+    class _FakeOrganization:
+        id = uuid4()
+        name = "acme"
+
+    monkeypatch.setattr(
+        organizations_service_module,
+        "_provision_wallet_general_balance",
+        _fake_provision_wallet_general_balance,
+    )
+    monkeypatch.setattr(
+        organizations_service_module, "_award_signup_grant", _fake_award_signup_grant
+    )
+    monkeypatch.setattr(
+        organizations_service_module,
+        "_subscription_service",
+        _FakeSubscriptionService(),
+    )
+
+    async def _fake_check_entitlements(*, key, delta, scope):
+        return None
+
+    monkeypatch.setattr(
+        organizations_service_module, "check_entitlements", _fake_check_entitlements
+    )
+
+    await organizations_service_module.provision_signup_subscription(
+        _FakeOrganization(), organization_email="user@example.com"
+    )
+
+    assert provisioned_plans == ["cloud_v0_trial"]

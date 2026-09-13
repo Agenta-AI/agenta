@@ -53,10 +53,36 @@ class FakeWalletsDAO(WalletsDAOInterface):
         self.awards: Dict[str, WalletCreditDTO] = {}
         self.award_calls = 0
 
+    def _owned_credits(
+        self, *, organization_id: UUID
+    ) -> List[Tuple[CreditCandidateDTO, WalletBalanceDTO]]:
+        """The credits this organization owns, and only those.
+
+        `CreditCandidateDTO` carries no `organization_id` — the real DAO's SQL scopes the
+        candidate select by `wallet_credits.organization_id` before it builds candidates,
+        so the DTO never needs the column. The fake has to apply that scope itself, and
+        the paired `wallet_balances` row is where it holds the owner. Without this, a
+        fixture holding two organizations' credits would let one organization spend the
+        other's, and a unit test would go green on funds production would never select.
+
+        Expiry and a positive balance are NOT filtered here on purpose: `plan_settlement`
+        re-derives both (see its docstring), so the fake would be asserting a rule twice
+        and could drift from the one the service actually runs.
+        """
+        return [
+            (candidate, balance)
+            for candidate, balance in self._credits.values()
+            if balance.organization_id == organization_id
+        ]
+
     async def _lock_general_balance(self, *, organization_id: UUID) -> WalletBalanceDTO:
         """Mirrors `WalletsDAO._lock_general_balance`: every write path opens with this,
-        and it provisions the row when it is missing rather than raising."""
-        if self.general_balance is not None:
+        it is scoped to the caller's organization, and it provisions the row when it is
+        missing rather than raising."""
+        if (
+            self.general_balance is not None
+            and self.general_balance.organization_id == organization_id
+        ):
             return self.general_balance
 
         if not self.can_provision:
@@ -99,8 +125,9 @@ class FakeWalletsDAO(WalletsDAOInterface):
 
         candidates = [
             candidate
-            for candidate, _ in self._credits.values()
-            if True  # organization scoping is implicit: fixtures are single-organization in tests
+            for candidate, _ in self._owned_credits(
+                organization_id=command.organization_id
+            )
         ]
         plan = plan_settlement(command=command, candidates=candidates)
 
@@ -176,7 +203,7 @@ class FakeWalletsDAO(WalletsDAOInterface):
         organization_id: UUID,
         now: Optional[datetime] = None,
     ) -> Optional[WalletCreditDTO]:
-        for candidate, _ in self._credits.values():
+        for candidate, balance in self._owned_credits(organization_id=organization_id):
             if candidate.credit_kind == "plan_allowance":
                 if (
                     now is not None
@@ -186,7 +213,7 @@ class FakeWalletsDAO(WalletsDAOInterface):
                     continue  # expired at the caller's clock — mirrors the real DAO
                 return WalletCreditDTO(
                     id=candidate.wallet_credit_id,
-                    organization_id=organization_id,
+                    organization_id=balance.organization_id,
                     credit_kind=candidate.credit_kind,
                     amount_musd=candidate.balance_musd,
                     priority=candidate.priority,
@@ -218,7 +245,10 @@ class FakeWalletsDAO(WalletsDAOInterface):
         outgoing_debit_id = None
         if outgoing_credit_id is not None and outgoing_debit_amount_musd > 0:
             candidate, balance = self._credits.get(outgoing_credit_id, (None, None))
-            if balance is not None:
+            # Owner check, not just existence: the real DAO's outgoing-credit select is
+            # `WHERE id = :outgoing AND organization_id = :organization_id`, so a credit
+            # id belonging to somebody else finds nothing and debits nothing.
+            if balance is not None and balance.organization_id == organization_id:
                 applied_outgoing = min(outgoing_debit_amount_musd, balance.balance_musd)
                 if applied_outgoing > 0:
                     outgoing_debit_id = uuid_utils.uuid7()

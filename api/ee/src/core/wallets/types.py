@@ -12,15 +12,11 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from ee.src.core.wallets.contracts import DebitCommandV1
+from ee.src.core.wallets.errors import WalletError
 
 # Explicit funding source used when a debit is not covered by any credit. Never a sequence
 # or loop index — see the replay invariant in docs/design/wallets-research/v1/wave-1.md.
 DEFICIT_SOURCE = "deficit"
-
-
-class WalletError(Exception):
-    """Base class for core wallet domain errors (distinct from the stream-level
-    `ee.src.core.wallets.errors.WalletError` taxonomy, which covers envelope handling)."""
 
 
 class WalletGeneralBalanceNotFoundError(WalletError):

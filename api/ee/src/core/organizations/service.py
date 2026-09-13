@@ -1070,6 +1070,15 @@ async def provision_signup_subscription(
     # Both helpers re-raise, and the signup path deletes the new user when this
     # coroutine fails, so an unfinished wallet must not run here.
     if env.wallets.enabled:
+        if subscription is None:
+            # `provision_subscription` returns None when the organization already had a
+            # subscription — a retried signup. The stored row is then the only thing that
+            # knows the real plan: with Stripe on, the organization was onboarded on the
+            # trial or free plan, and `get_default_plan()` would size the wallet's floor
+            # from a plan it is not on. Fall back to the default only if nothing is stored.
+            subscription = await _subscription_service.read(
+                organization_id=str(organization.id)
+            )
         plan = subscription.plan if subscription is not None else get_default_plan()
         await _provision_wallet_general_balance(
             organization_id=organization.id, plan=plan

@@ -84,8 +84,12 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("measurement_id", sa.UUID(), nullable=False),
         sa.Column("key", sa.VARCHAR(), nullable=False),
-        sa.Column("value", sa.Integer(), nullable=False),
-        sa.Column("cost_musd", sa.Integer(), nullable=True),
+        # Both metric columns are 64-bit: `cost_musd` is money and a millionth-of-a-dollar
+        # unit overflows a 32-bit column at ~2147 US dollars, and `value` is an unbounded
+        # count from the envelope. A row the column rejects is retried forever by the
+        # measurement worker, not dropped.
+        sa.Column("value", sa.BigInteger(), nullable=False),
+        sa.Column("cost_musd", sa.BigInteger(), nullable=True),
         sa.Column(
             "created_at",
             sa.TIMESTAMP(timezone=True),

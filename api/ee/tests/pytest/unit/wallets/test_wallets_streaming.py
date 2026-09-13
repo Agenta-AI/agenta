@@ -87,3 +87,17 @@ def _with_version(payload: bytes, version: int) -> bytes:
     raw = loads(zlib.decompress(payload))
     raw["version"] = version
     return zlib.compress(dumps(raw))
+
+
+@pytest.mark.parametrize("payload", [b"[]", b'"text"', b"1", b"null"])
+def test_a_non_object_envelope_is_terminal_not_a_crash(payload):
+    """`[]`, `"text"`, `1` and `null` all decompress and parse. Reading `version` off them
+    raises AttributeError, which no worker classifies as terminal, so the entry would be
+    left pending and redelivered forever. They must surface as `MalformedEnvelopeError`."""
+    import zlib
+
+    with pytest.raises(MalformedEnvelopeError):
+        deserialize_debit_command(zlib.compress(payload))
+
+    with pytest.raises(MalformedEnvelopeError):
+        deserialize_measurement_command(zlib.compress(payload))

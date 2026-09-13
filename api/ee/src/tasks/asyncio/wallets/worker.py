@@ -42,6 +42,8 @@ class DebitWorker(StreamConsumer):
         max_block_ms: int = 5000,
         max_delay_ms: int = 250,
         max_batch_mb: int = 50,
+        reclaim_min_idle_ms: int = 30_000,
+        max_deliveries: int = 5,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -52,8 +54,44 @@ class DebitWorker(StreamConsumer):
             max_block_ms=max_block_ms,
             max_delay_ms=max_delay_ms,
             max_batch_mb=max_batch_mb,
+            # `read_batch` only ever asks Redis for `>`, so a debit this worker leaves
+            # pending is invisible to every later read of this group: without the reclaim
+            # pass, "leave it pending for redelivery" means "drop the charge silently".
+            # Redelivery is safe because `WalletSettlementPort.settle` is idempotent on the
+            # envelope's `idempotency_key` — a redelivered posting settles at most once.
+            reclaim_pending=True,
+            reclaim_min_idle_ms=reclaim_min_idle_ms,
+            max_deliveries=max_deliveries,
         )
         self.settlement_port = settlement_port
+
+    def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
+        """`organization:idempotency_key` for the dropped-message log, so a lost debit is
+        traceable back to the posting the gateway intended to charge."""
+        try:
+            command = deserialize_debit_command(payload=data[b"data"])
+        except Exception:
+            return None
+        return f"{command.organization_id}:{command.idempotency_key}"
+
+    def is_permanent_failure(
+        self,
+        msg_id: bytes,
+        data: Dict[bytes, bytes],
+    ) -> bool:
+        """Only an entry this worker cannot even read is known not to succeed on retry.
+
+        A decodable envelope that keeps failing is failing in the settlement path — a
+        database or transaction outage — and money must not be dropped because the write
+        path was down for longer than `max_deliveries` attempts. An entry carrying no
+        `data` field, or one whose payload no longer parses, will never gain one, so it
+        is dropped instead of pinned in the pending list forever.
+        """
+        try:
+            deserialize_debit_command(payload=data[b"data"])
+        except Exception:
+            return True
+        return False
 
     async def process_batch(
         self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]
@@ -65,7 +103,7 @@ class DebitWorker(StreamConsumer):
         duplicate delivery is a normal successful settlement replay (the settlement port
         itself is idempotent on `idempotency_key`): no error, ACK. A core transaction,
         database, or Redis error while settling is retryable — the message is left pending
-        for normal consumer-group redelivery.
+        and comes back through the consumer's reclaim pass (`reclaim_pending=True` above).
         """
         processed_ids: List[bytes] = []
 

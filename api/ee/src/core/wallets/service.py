@@ -90,15 +90,23 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         idempotency_key: str,
         outgoing_plan: str,
         incoming_plan: str,
-        period_start: datetime,
-        period_end: datetime,
+        outgoing_period_start: datetime,
+        outgoing_period_end: datetime,
+        incoming_period_start: datetime,
+        incoming_period_end: datetime,
         now: Optional[datetime] = None,
     ) -> PlanChangeResultDTO:
         """Prorate the outgoing plan's unused allowance out, mint the incoming plan's
         prorated share, and update the general balance's floor — all as one atomic
         transaction in the DAO, replay-safe on `idempotency_key`. Never mutates an
         existing `wallet_credits` row; never issues the recurring full-period allowance
-        (that is a later wave's job)."""
+        (that is a later wave's job).
+
+        The two windows are the billing period the OUTGOING allowance was granted for and
+        the one the INCOMING allowance will cover. They differ only when the change also
+        moves the billing anchor; the caller computes both (see
+        `compute_plan_change_proration`). The incoming window's end is also the minted
+        credit's `end_time`, so a credit never outlives the period it pays for."""
         now = now or datetime.now(timezone.utc)
 
         outgoing_credit = await self.wallets_dao.get_active_plan_allowance_credit(
@@ -110,8 +118,10 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
             outgoing_credit_id=outgoing_credit.id if outgoing_credit else None,
             outgoing_allowance_musd=allowance_musd_for_plan(plan=outgoing_plan),
             incoming_allowance_musd=allowance_musd_for_plan(plan=incoming_plan),
-            period_start=period_start,
-            period_end=period_end,
+            outgoing_period_start=outgoing_period_start,
+            outgoing_period_end=outgoing_period_end,
+            incoming_period_start=incoming_period_start,
+            incoming_period_end=incoming_period_end,
             now=now,
         )
 
@@ -123,7 +133,7 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
             incoming_credit_kind=PLAN_ALLOWANCE_CREDIT_KIND,
             incoming_credit_amount_musd=proration.incoming_credit_amount_musd,
             incoming_priority=PLAN_ALLOWANCE_PRIORITY,
-            incoming_end_time=period_end,
+            incoming_end_time=incoming_period_end,
             floor_musd=floor_musd_for_plan(plan=incoming_plan),
             now=now,
         )

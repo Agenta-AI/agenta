@@ -73,8 +73,10 @@ async def test_apply_plan_change_mints_no_value_on_the_zero_allowance_self_hoste
         idempotency_key="pc-zero-mapping",
         outgoing_plan="self_hosted_enterprise",
         incoming_plan="cloud_v0_hobby",
-        period_start=PERIOD_START,
-        period_end=PERIOD_END,
+        outgoing_period_start=PERIOD_START,
+        outgoing_period_end=PERIOD_END,
+        incoming_period_start=PERIOD_START,
+        incoming_period_end=PERIOD_END,
         now=MID_PERIOD,
     )
 
@@ -105,8 +107,10 @@ async def test_apply_plan_change_upgrade_hobby_to_pro_moves_real_value():
         idempotency_key="pc-upgrade-hobby-to-pro",
         outgoing_plan="cloud_v0_hobby",
         incoming_plan="cloud_v0_pro",
-        period_start=PERIOD_START,
-        period_end=PERIOD_END,
+        outgoing_period_start=PERIOD_START,
+        outgoing_period_end=PERIOD_END,
+        incoming_period_start=PERIOD_START,
+        incoming_period_end=PERIOD_END,
         now=MID_PERIOD,
     )
 
@@ -147,8 +151,10 @@ async def test_apply_plan_change_downgrade_business_to_pro_moves_real_value():
         idempotency_key="pc-downgrade-business-to-pro",
         outgoing_plan="cloud_v0_business",
         incoming_plan="cloud_v0_pro",
-        period_start=PERIOD_START,
-        period_end=PERIOD_END,
+        outgoing_period_start=PERIOD_START,
+        outgoing_period_end=PERIOD_END,
+        incoming_period_start=PERIOD_START,
+        incoming_period_end=PERIOD_END,
         now=MID_PERIOD,
     )
 
@@ -178,8 +184,10 @@ async def test_apply_plan_change_updates_general_balance_floor(monkeypatch):
         idempotency_key="pc-floor",
         outgoing_plan="a",
         incoming_plan="b",
-        period_start=PERIOD_START,
-        period_end=PERIOD_END,
+        outgoing_period_start=PERIOD_START,
+        outgoing_period_end=PERIOD_END,
+        incoming_period_start=PERIOD_START,
+        incoming_period_end=PERIOD_END,
         now=PERIOD_START,
     )
 
@@ -214,8 +222,10 @@ async def test_apply_plan_change_moves_prorated_value_and_never_mutates_existing
         idempotency_key="pc-move-value",
         outgoing_plan="outgoing",
         incoming_plan="incoming",
-        period_start=PERIOD_START,
-        period_end=PERIOD_END,
+        outgoing_period_start=PERIOD_START,
+        outgoing_period_end=PERIOD_END,
+        incoming_period_start=PERIOD_START,
+        incoming_period_end=PERIOD_END,
         now=datetime(2026, 1, 22, tzinfo=timezone.utc),  # 10 days remaining of 31
     )
 
@@ -280,8 +290,10 @@ async def test_apply_plan_change_replayed_webhook_applies_exactly_once(monkeypat
         idempotency_key="pc-replay-once",
         outgoing_plan="a",
         incoming_plan="b",
-        period_start=PERIOD_START,
-        period_end=PERIOD_END,
+        outgoing_period_start=PERIOD_START,
+        outgoing_period_end=PERIOD_END,
+        incoming_period_start=PERIOD_START,
+        incoming_period_end=PERIOD_END,
         now=PERIOD_START,
     )
 
@@ -299,3 +311,41 @@ async def test_apply_plan_change_replayed_webhook_applies_exactly_once(monkeypat
     assert dao.general_balance.balance_musd == balance_after_first
     assert dao._credits == credits_after_first
     assert len(dao._credits) == 1  # only ONE credit was ever minted, not two
+
+
+@pytest.mark.asyncio
+async def test_apply_plan_change_sizes_and_expires_the_new_credit_by_the_incoming_window():
+    """An upgrade that also MOVES the billing anchor: the old subscription billed on the
+    15th, the new one bills on the 14th. The minted credit must be worth the full $5 of
+    the period it covers and expire at that period's end (14 April) — not be worth
+    178_571 musd and expire the next day, which is what sizing it against the outgoing
+    window produced. Real, unpatched `plans.py` mapping."""
+    dao = FakeWalletsDAO(
+        general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
+    )
+    service = WalletsService(wallets_dao=dao)
+    incoming_period_end = datetime(2026, 4, 14, tzinfo=timezone.utc)
+
+    result = await service.apply_plan_change(
+        organization_id=dao.general_balance.organization_id,
+        idempotency_key="pc-anchor-moved",
+        outgoing_plan="cloud_v0_hobby",
+        incoming_plan="cloud_v0_pro",
+        outgoing_period_start=datetime(2026, 2, 15, tzinfo=timezone.utc),
+        outgoing_period_end=datetime(2026, 3, 15, tzinfo=timezone.utc),
+        incoming_period_start=datetime(2026, 3, 14, tzinfo=timezone.utc),
+        incoming_period_end=incoming_period_end,
+        now=datetime(
+            2026, 3, 14, tzinfo=timezone.utc
+        ),  # the whole incoming period left
+    )
+
+    assert result.incoming_credit_amount_musd == 5_000_000  # the full $5, not 178_571
+    assert (
+        result.outgoing_debit_amount_musd == 0
+    )  # hobby minted no allowance to claw back
+    assert result.incoming_credit_id is not None
+    incoming_candidate, incoming_balance = dao._credits[result.incoming_credit_id]
+    assert incoming_candidate.end_time == incoming_period_end
+    assert incoming_balance.balance_musd == 5_000_000
+    assert dao.general_balance.balance_musd == 5_000_000

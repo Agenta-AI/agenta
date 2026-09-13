@@ -203,9 +203,6 @@ async def _build_measurements_worker(redis_client: Redis) -> StreamConsumer:
 
 
 async def _build_debits_worker(redis_client: Redis) -> StreamConsumer:
-    # Seeded runtime factory (WP-1-00): `get_wallet_settlement_port()` and
-    # `DebitWorker.process_batch` are unimplemented until WP-1-01/WP-1-03 land.
-    # This wiring does not change when they do.
     return DebitWorker(
         settlement_port=get_wallet_settlement_port(),
         redis_client=redis_client,

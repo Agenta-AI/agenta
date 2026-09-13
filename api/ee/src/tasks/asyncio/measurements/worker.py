@@ -46,8 +46,9 @@ class MeasurementWorker(StreamConsumer):
        does not charge (e.g. non-managed endpoint) publishes nothing.
     5. Publish `DebitCommandV1` to `streams:debits`.
     6. ACK + DEL only after both the tracing write and the debit publish (if
-       any) succeed. A tracing or Redis failure leaves the message pending
-       for normal consumer-group redelivery.
+       any) succeed. A tracing or Redis failure leaves the message pending,
+       and the consumer's reclaim pass (`reclaim_pending=True` below) brings
+       it back.
     """
 
     log_prefix = "[MEASUREMENTS]"
@@ -65,6 +66,8 @@ class MeasurementWorker(StreamConsumer):
         max_block_ms: int = 5000,
         max_delay_ms: int = 250,
         max_batch_mb: int = 50,
+        reclaim_min_idle_ms: int = 30_000,
+        max_deliveries: int = 5,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -75,10 +78,46 @@ class MeasurementWorker(StreamConsumer):
             max_block_ms=max_block_ms,
             max_delay_ms=max_delay_ms,
             max_batch_mb=max_batch_mb,
+            # `read_batch` only ever asks Redis for `>`, so a measurement this worker
+            # leaves pending is invisible to every later read of this group: without the
+            # reclaim pass, "leave it pending for redelivery" means "lose the measurement
+            # and its charge silently". Redelivery is safe because the measurement insert
+            # is idempotent on `measurement_id` and the debit it publishes carries the
+            # derived `measurement:{measurement_id}` idempotency key, on which the
+            # settlement port is itself idempotent.
+            reclaim_pending=True,
+            reclaim_min_idle_ms=reclaim_min_idle_ms,
+            max_deliveries=max_deliveries,
         )
         self.measurements_dao = measurements_dao
         self.organization_resolver = organization_resolver
         self.debit_publisher = debit_publisher
+
+    def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
+        """`measurement_id` for the dropped-message log, so a loss is traceable."""
+        try:
+            command = deserialize_measurement_command(payload=data[b"data"])
+        except Exception:
+            return None
+        return command.measurement_id
+
+    def is_permanent_failure(
+        self,
+        msg_id: bytes,
+        data: Dict[bytes, bytes],
+    ) -> bool:
+        """Only an entry this worker cannot even read is known not to succeed on retry.
+
+        A decodable envelope that keeps failing is failing in the tracing write or the
+        debit publish — both outages that end — and a measurement is a billing fact, so
+        it keeps its place in the pending list. An entry carrying no `data` field, or one
+        whose payload no longer parses, will never gain one and is dropped instead.
+        """
+        try:
+            deserialize_measurement_command(payload=data[b"data"])
+        except Exception:
+            return True
+        return False
 
     async def _process_one(self, command) -> bool:
         """Persist + (maybe) charge one already-deserialized command.
