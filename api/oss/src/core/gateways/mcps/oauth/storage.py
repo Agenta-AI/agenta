@@ -18,8 +18,39 @@ from oss.src.core.secrets.dtos import (
 )
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.types import SecretSlugConflict
 from oss.src.core.shared.dtos import Header
 from oss.src.utils.helpers import get_slug_from_name_and_id
+
+
+# A grant this close to its expiry counts as expired. Long enough that a token cannot die
+# between the check and the upstream call it authorizes, short enough that a healthy
+# hour-long token is not renewed on every request. One definition, because the data plane
+# decides whether to ask for a refresh and the OAuth service decides whether to perform
+# one: were they to disagree, a call would bounce between them.
+REFRESH_SKEW_SECONDS = 60
+
+
+def grant_is_expired(tokens: OAuthToken, *, skew: int = REFRESH_SKEW_SECONDS) -> bool:
+    """Whether a stored grant needs renewing before it is used.
+
+    A grant whose authorization server stated no lifetime is never treated as expired:
+    nothing here knows when it dies, and guessing would renew a working token on every
+    call. Such a grant still dies as a 401 from the upstream, which is the behaviour for
+    every token whose end nobody can predict.
+    """
+    if tokens.expires_in is None:
+        return False
+    return tokens.expires_in <= skew
+
+
+def grant_settings_expired(
+    grant: Optional[OAuthGrantSettingsDTO], *, skew: int = REFRESH_SKEW_SECONDS
+) -> bool:
+    """The same question asked of a stored record rather than of a wire token."""
+    if grant is None or grant.expires_at is None:
+        return False
+    return grant.expires_at - skew <= time.time()
 
 
 def _server_slug(server_url: str) -> str:
@@ -31,7 +62,15 @@ def _issuer_slug(issuer_url: str) -> str:
 
 
 class SecretsTokenStorage:
-    """Store OAuth grants by server and client registration by authorization server."""
+    """Store OAuth grants by server and client registration by authorization server.
+
+    Both records are addressed by a slug derived from a URL (`uuid5`), so two callbacks
+    completing at once compute the same slug and both find nothing to update. The write
+    is therefore create-first, and the loser of the unique index on `(project_id, slug)`
+    converts its refusal into the update it would have made had it read a moment later
+    (OR61). Postgres arbitrates; nothing serializes these writers in Python, which would
+    only work inside one worker anyway.
+    """
 
     def __init__(
         self,
@@ -99,23 +138,22 @@ class SecretsTokenStorage:
             data=OAuthGrantDTO(grant=grant_settings),
         )
 
+        slug = _server_slug(self.server_url)
         existing = await self._find_grant()
         if existing is not None:
-            updated = await self.vault_service.update_secret(
-                secret_id=existing.id,
-                update_secret_dto=UpdateSecretDTO(secret=secret),
-                project_id=self.project_id,
-            )
-            return updated or existing
+            return await self._update(existing=existing, secret=secret)
 
-        return await self.vault_service.create_secret(
-            project_id=self.project_id,
-            create_secret_dto=CreateSecretDTO(
-                slug=_server_slug(self.server_url),
-                header=Header(name=f"OAuth grant — {self.server_url}"),
-                secret=secret,
-            ),
-        )
+        try:
+            return await self.vault_service.create_secret(
+                project_id=self.project_id,
+                create_secret_dto=CreateSecretDTO(
+                    slug=slug,
+                    header=Header(name=f"OAuth grant — {self.server_url}"),
+                    secret=secret,
+                ),
+            )
+        except SecretSlugConflict:
+            return await self._update_by_slug(slug=slug, secret=secret)
 
     # Client registration
 
@@ -169,20 +207,58 @@ class SecretsTokenStorage:
             data=OAuthProviderDTO(provider=provider_settings),
         )
 
+        slug = _issuer_slug(issuer)
         existing = await self._find_provider()
         if existing is not None:
-            await self.vault_service.update_secret(
-                secret_id=existing.id,
-                update_secret_dto=UpdateSecretDTO(secret=secret),
-                project_id=self.project_id,
-            )
+            await self._update(existing=existing, secret=secret)
             return
 
-        await self.vault_service.create_secret(
+        try:
+            await self.vault_service.create_secret(
+                project_id=self.project_id,
+                create_secret_dto=CreateSecretDTO(
+                    slug=slug,
+                    header=Header(name=f"OAuth client — {issuer}"),
+                    secret=secret,
+                ),
+            )
+        except SecretSlugConflict:
+            await self._update_by_slug(slug=slug, secret=secret)
+
+    # Writes
+
+    async def _update(
+        self, *, existing: SecretResponseDTO, secret: SecretDTO
+    ) -> SecretResponseDTO:
+        updated = await self.vault_service.update_secret(
+            secret_id=existing.id,
+            update_secret_dto=UpdateSecretDTO(secret=secret),
             project_id=self.project_id,
-            create_secret_dto=CreateSecretDTO(
-                slug=_issuer_slug(issuer),
-                header=Header(name=f"OAuth client — {issuer}"),
-                secret=secret,
-            ),
         )
+        return updated or existing
+
+    async def _update_by_slug(
+        self, *, slug: str, secret: SecretDTO
+    ) -> SecretResponseDTO:
+        """Apply the write the create lost, to the row that won the slug.
+
+        The winner is read back by the same slug this call tried to claim, so there is no
+        window in which the row could be a different one: the index that refused the
+        create is the index this read goes through.
+        """
+        winner = await self.vault_service.get_secret_by_slug(
+            secret_slug=slug,
+            project_id=self.project_id,
+        )
+        if winner is None:
+            # The winner was deleted between the refusal and this read. Nothing holds
+            # the slug now, so the original create is the right call again.
+            return await self.vault_service.create_secret(
+                project_id=self.project_id,
+                create_secret_dto=CreateSecretDTO(
+                    slug=slug,
+                    header=Header(name=f"OAuth record — {self.server_url}"),
+                    secret=secret,
+                ),
+            )
+        return await self._update(existing=winner, secret=secret)

@@ -25,7 +25,12 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayEndpointNamespace
-from oss.src.core.gateways.mcps.dtos import MCPEndpoint, MCPEndpointEdit, MCPOAuthData
+from oss.src.core.gateways.mcps.dtos import (
+    MCPEndpoint,
+    MCPEndpointEdit,
+    MCPEndpointFlags,
+    MCPOAuthData,
+)
 from oss.src.core.gateways.mcps.types import MCPEndpointNotFoundError
 from oss.src.core.gateways.types import GatewaysError
 from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
@@ -58,7 +63,18 @@ def _guard_custom_endpoint_url(*, url: Optional[str]) -> None:
 def _as_edit(
     endpoint: MCPEndpoint, *, secret_id: Optional[UUID] = None
 ) -> MCPEndpointEdit:
-    """Create an editable copy of an endpoint."""
+    """Create an editable copy of an endpoint.
+
+    A new grant revalidates the endpoint. The data plane marks one invalid when its
+    stored authorization expires and cannot be renewed (OR55); reconnecting is the cure,
+    and carrying that flag forward would leave the endpoint refusing calls it can now
+    serve.
+    """
+    flags = (
+        MCPEndpointFlags(is_active=endpoint.flags.is_active, is_valid=True)
+        if secret_id is not None
+        else endpoint.flags
+    )
     return MCPEndpointEdit(
         id=endpoint.id,
         name=endpoint.name,
@@ -66,7 +82,7 @@ def _as_edit(
         auth_mode=endpoint.auth_mode,
         secret_id=secret_id if secret_id is not None else endpoint.secret_id,
         data=endpoint.data,
-        flags=endpoint.flags,
+        flags=flags,
     )
 
 

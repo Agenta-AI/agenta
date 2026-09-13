@@ -11,6 +11,8 @@ from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.gateways.mcps.dtos import MCPAuthScheme
 from oss.src.core.gateways.dtos import (
+    GatewayConnectAffordance,
+    GatewayConnectionRequirement,
     GatewayConnectionState,
     GatewayEndpointNamespace,
 )
@@ -24,6 +26,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
     MCPEndpointCreate,
     MCPEndpointData,
+    MCPEndpointFlags,
     MCPEndpointRoute,
     MCPEndpointEdit,
     MCPEndpointQuery,
@@ -35,9 +38,13 @@ from oss.src.core.gateways.mcps.interfaces import (
     MCPEndpointsDAOInterface,
     MCPRelayResult,
 )
+from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthRefresherInterface
+from oss.src.core.gateways.mcps.oauth.storage import grant_settings_expired
+from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
+    MCPAuthRequiredError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
     MCPToolNotAllowedError,
@@ -46,6 +53,7 @@ from oss.src.core.gateways.mcps.types import (
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
     ProviderKeyRef,
+    ResolvedSecret,
     SecretOwnerKind,
     SecretMode,
     GatewayOutcome,
@@ -146,6 +154,7 @@ class MCPGatewayService:
         upstream_registry: MCPUpstreamRegistry,
         connections_service: ConnectionsService,
         agenta_tools_router: Optional[Any] = None,
+        oauth_refresher: Optional[MCPOAuthRefresherInterface] = None,
     ) -> None:
         self.mcp_endpoints_dao = mcp_endpoints_dao
         self.policy = policy
@@ -153,6 +162,9 @@ class MCPGatewayService:
         self.upstream_registry = upstream_registry
         self.connections_service = connections_service
         self.agenta_tools_router = agenta_tools_router
+        # Absent only in tests that never resolve an OAuth endpoint; a deployment wires
+        # the connect service, which is what knows how to spend a refresh token.
+        self.oauth_refresher = oauth_refresher
 
     # Management
 
@@ -691,6 +703,9 @@ class MCPGatewayService:
                 ref=BoundSecretRef(secret_id=endpoint.secret_id),
                 mode=SecretMode.PROJECT_ONLY,  # one consent per server (out-of-scope.md)
             )
+            secret = await self._renewed(
+                scope=scope, target=target, endpoint=endpoint, secret=secret
+            )
             return MCPDirectAuth(secret=secret)
 
         if endpoint.auth_mode == MCPAuthScheme.API_KEY:
@@ -713,6 +728,98 @@ class MCPGatewayService:
             return MCPDirectAuth(secret=secret)
 
         raise AssertionError(f"unsupported MCP auth mode: {endpoint.auth_mode!r}")
+
+    async def _renewed(
+        self,
+        *,
+        scope: AuthScope,
+        target: _ResolvedTarget,
+        endpoint: MCPEndpoint,
+        secret: ResolvedSecret,
+    ) -> ResolvedSecret:
+        """Return a live grant for an OAuth endpoint, refreshing it if it has expired.
+
+        Without this the relay sends an expired access token, the upstream answers 401,
+        and the endpoint goes on reporting READY because a secret still exists (OR55).
+        A grant that cannot be renewed is a grant only its owner can replace, so the
+        endpoint is marked invalid — which is what `_connection_state` reads — and the
+        caller gets the same reconnect affordance a never-connected endpoint gets.
+        """
+        grant = getattr(secret.secret.data, "grant", None)
+        if not grant_settings_expired(grant):
+            return secret
+
+        server_url = endpoint.data.route.base_url or ""
+        path = _target_path(
+            namespace=target.namespace,
+            provider=target.provider,
+            integration=target.integration,
+            name=target.name,
+        )
+
+        if self.oauth_refresher is None or not server_url:
+            raise self._reconnect_required(endpoint=endpoint, path=path)
+
+        try:
+            await self.oauth_refresher.refresh_grant(
+                project_id=scope.project_id,
+                server_url=server_url,
+            )
+        except MCPOAuthRefreshFailedError as e:
+            await self._invalidate_endpoint(scope=scope, endpoint=endpoint)
+            raise self._reconnect_required(endpoint=endpoint, path=path) from e
+
+        # The refresh rewrote the row this reference already names, so the same lookup
+        # returns the new tokens.
+        return await self.resolver.resolve(
+            scope=scope,
+            ref=BoundSecretRef(secret_id=endpoint.secret_id),  # type: ignore[arg-type]
+            mode=SecretMode.PROJECT_ONLY,
+        )
+
+    @staticmethod
+    def _reconnect_required(
+        *, endpoint: MCPEndpoint, path: str
+    ) -> MCPAuthRequiredError:
+        return MCPAuthRequiredError(
+            requirement=GatewayConnectionRequirement(
+                target=path,
+                state=GatewayConnectionState.NEEDS_AUTH,
+                connect=GatewayConnectAffordance(
+                    endpoint=f"/gateways/mcps/endpoints/{endpoint.id}/connect",
+                    body={},
+                ),
+            )
+        )
+
+    async def _invalidate_endpoint(
+        self, *, scope: AuthScope, endpoint: MCPEndpoint
+    ) -> None:
+        """Record that the endpoint's stored authorization is dead.
+
+        Only a stored row can be marked: generated endpoints (builtin, standard) carry no
+        persisted flags, and none of them reach this path.
+        """
+        if endpoint.namespace != GatewayEndpointNamespace.CUSTOM:
+            return
+        if not endpoint.flags.is_valid:
+            return
+        await self.mcp_endpoints_dao.edit_endpoint(
+            project_id=scope.project_id,
+            user_id=scope.user_id,  # type: ignore[arg-type]
+            #
+            endpoint=MCPEndpointEdit(
+                id=endpoint.id,
+                name=endpoint.name,
+                description=endpoint.description,
+                auth_mode=endpoint.auth_mode,
+                secret_id=endpoint.secret_id,
+                data=endpoint.data,
+                flags=MCPEndpointFlags(
+                    is_active=endpoint.flags.is_active, is_valid=False
+                ),
+            ),
+        )
 
     def _route_for(
         self, *, target: _ResolvedTarget, project_id: UUID

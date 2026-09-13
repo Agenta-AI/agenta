@@ -310,3 +310,296 @@ def test_authorization_url_carries_the_fixed_redirect_uri_and_pkce():
     assert "state=state-token" in url
     assert "scope=read+write" in url
     assert "resource=https%3A%2F%2Fmcp.acme.io%2F" in url
+
+
+# --- OR42: discovery pins the authorization server it is about to trust --------- #
+#
+# Every case below publishes metadata the way a hostile or compromised MCP server would,
+# and asserts the flow refuses before any credential travels.
+
+
+def _as_handler(*, prm=None, metadata=None):
+    """A server publishing exactly the two documents given."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(200, json=prm if prm is not None else _PRM)
+        if path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(
+                200, json=metadata if metadata is not None else _AS_METADATA
+            )
+        return httpx.Response(404)
+
+    return handler
+
+
+@pytest.mark.asyncio
+async def test_discover_refuses_a_token_endpoint_on_another_origin_than_the_issuer():
+    """The attack OR42 names: the honest issuer mints the code and holds the client
+    secret, and the metadata sends both somewhere else."""
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            _as_handler(
+                metadata={
+                    **_AS_METADATA,
+                    "token_endpoint": "https://collector.evil.io/token",
+                }
+            )
+        )
+    )
+
+    with pytest.raises(MCPOAuthDiscoveryError) as refusal:
+        await client.discover(server_url="https://mcp.acme.io/")
+
+    assert "token endpoint" in str(refusal.value)
+    assert "collector.evil.io" in str(refusal.value)
+
+
+@pytest.mark.asyncio
+async def test_discover_refuses_an_authorization_endpoint_on_another_origin():
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            _as_handler(
+                metadata={
+                    **_AS_METADATA,
+                    "authorization_endpoint": "https://consent.evil.io/authorize",
+                }
+            )
+        )
+    )
+
+    with pytest.raises(MCPOAuthDiscoveryError):
+        await client.discover(server_url="https://mcp.acme.io/")
+
+
+@pytest.mark.asyncio
+async def test_discover_refuses_metadata_whose_issuer_is_not_the_requested_server():
+    """RFC 8414 s3.3: the document must claim the issuer whose well-known URL served it."""
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            _as_handler(
+                metadata={**_AS_METADATA, "issuer": "https://elsewhere.acme.io/"}
+            )
+        )
+    )
+
+    with pytest.raises(MCPOAuthDiscoveryError) as refusal:
+        await client.discover(server_url="https://mcp.acme.io/")
+
+    assert "issuer" in str(refusal.value)
+
+
+@pytest.mark.asyncio
+async def test_discover_refuses_protected_resource_metadata_describing_another_resource():
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            _as_handler(prm={**_PRM, "resource": "https://other.acme.io/"})
+        )
+    )
+
+    with pytest.raises(MCPOAuthDiscoveryError) as refusal:
+        await client.discover(server_url="https://mcp.acme.io/")
+
+    assert "different resource" in str(refusal.value)
+
+
+@pytest.mark.asyncio
+async def test_discover_refuses_a_plain_http_authorization_endpoint(monkeypatch):
+    monkeypatch.setattr(
+        "oss.src.core.gateways.mcps.oauth.client.env.gateway_egress.insecure_allowed",
+        False,
+    )
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            _as_handler(
+                metadata={
+                    **_AS_METADATA,
+                    "authorization_endpoint": "http://auth.acme.io/authorize",
+                }
+            )
+        )
+    )
+
+    with pytest.raises(MCPOAuthDiscoveryError) as refusal:
+        await client.discover(server_url="https://mcp.acme.io/")
+
+    assert "not https" in str(refusal.value)
+
+
+@pytest.mark.asyncio
+async def test_discover_refuses_a_plain_http_authorization_server(monkeypatch):
+    monkeypatch.setattr(
+        "oss.src.core.gateways.mcps.oauth.client.env.gateway_egress.insecure_allowed",
+        False,
+    )
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            _as_handler(prm={**_PRM, "authorization_servers": ["http://auth.acme.io/"]})
+        )
+    )
+
+    with pytest.raises(MCPOAuthDiscoveryError) as refusal:
+        await client.discover(server_url="https://mcp.acme.io/")
+
+    assert "not https" in str(refusal.value)
+
+
+@pytest.mark.asyncio
+async def test_discover_allows_plain_http_when_the_operator_turned_the_guard_off(
+    monkeypatch,
+):
+    """One switch, not two: the deployment that turned off the egress guard turned off
+    the https requirement with it."""
+    monkeypatch.setattr(
+        "oss.src.core.gateways.mcps.oauth.client.env.gateway_egress.insecure_allowed",
+        True,
+    )
+    plain = {
+        "issuer": "http://auth.acme.io/",
+        "authorization_endpoint": "http://auth.acme.io/authorize",
+        "token_endpoint": "http://auth.acme.io/token",
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(
+                200, json={**_PRM, "authorization_servers": ["http://auth.acme.io/"]}
+            )
+        if request.url.path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(200, json=plain)
+        return httpx.Response(404)
+
+    client = MCPOAuthClient(transport=httpx.MockTransport(handler))
+
+    discovery = await client.discover(server_url="https://mcp.acme.io/")
+
+    assert discovery.token_endpoint == "http://auth.acme.io/token"
+
+
+@pytest.mark.asyncio
+async def test_discover_refuses_protected_resource_metadata_naming_no_authorization_server():
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            _as_handler(prm={**_PRM, "authorization_servers": []})
+        )
+    )
+
+    with pytest.raises(MCPOAuthDiscoveryError):
+        await client.discover(server_url="https://mcp.acme.io/")
+
+
+_UPSTREAM_BODY = "the-upstream-said-this-and-it-must-not-come-back"
+
+
+@pytest.mark.asyncio
+async def test_registration_failure_does_not_echo_the_upstream_body():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, text=_UPSTREAM_BODY)
+
+    client = MCPOAuthClient(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(MCPOAuthRegistrationError) as refusal:
+        await client.register(
+            authorization_server="https://auth.acme.io/",
+            registration_endpoint="https://auth.acme.io/register",
+            redirect_uri="https://api.agenta.ai/gateways/mcps/connect/callback",
+            scopes=[],
+        )
+
+    message = str(refusal.value)
+    assert _UPSTREAM_BODY not in message
+    # An operator still learns what refused, and how.
+    assert "400" in message
+    assert "https://auth.acme.io" in message
+
+
+@pytest.mark.asyncio
+async def test_token_exchange_failure_does_not_echo_the_upstream_body():
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(400, text=_UPSTREAM_BODY)
+        )
+    )
+    client_info = OAuthClientInformationFull(
+        redirect_uris=["https://api.agenta.ai/gateways/mcps/connect/callback"],
+        client_id="client-abc",
+    )
+
+    with pytest.raises(MCPOAuthTokenExchangeError) as refusal:
+        await client.exchange_token(
+            token_endpoint="https://auth.acme.io/token",
+            code="bad-code",
+            code_verifier="a" * 43,
+            redirect_uri="https://api.agenta.ai/gateways/mcps/connect/callback",
+            client_info=client_info,
+        )
+
+    message = str(refusal.value)
+    assert _UPSTREAM_BODY not in message
+    assert "400" in message
+
+
+@pytest.mark.asyncio
+async def test_a_malformed_token_response_does_not_echo_the_upstream_body():
+    client = MCPOAuthClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json={"nonsense": _UPSTREAM_BODY})
+        )
+    )
+    client_info = OAuthClientInformationFull(
+        redirect_uris=["https://api.agenta.ai/gateways/mcps/connect/callback"],
+        client_id="client-abc",
+    )
+
+    with pytest.raises(MCPOAuthTokenExchangeError) as refusal:
+        await client.exchange_token(
+            token_endpoint="https://auth.acme.io/token",
+            code="a-code",
+            code_verifier="a" * 43,
+            redirect_uri="https://api.agenta.ai/gateways/mcps/connect/callback",
+            client_info=client_info,
+        )
+
+    assert _UPSTREAM_BODY not in str(refusal.value)
+
+
+# --- OR55: the refresh grant ---------------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_posts_the_refresh_grant_and_returns_the_new_token():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(
+            dict(
+                pair.split("=", 1)
+                for pair in request.content.decode().split("&")
+                if "=" in pair
+            )
+        )
+        return httpx.Response(
+            200,
+            json={
+                "access_token": "tok-renewed",
+                "token_type": "Bearer",
+                "expires_in": 3600,
+            },
+        )
+
+    client = MCPOAuthClient(transport=httpx.MockTransport(handler))
+    client_info = OAuthClientInformationFull(
+        redirect_uris=["https://api.agenta.ai/gateways/mcps/connect/callback"],
+        client_id="client-abc",
+    )
+
+    token = await client.refresh_token(
+        token_endpoint="https://auth.acme.io/token",
+        refresh_token="refresh-1",
+        client_info=client_info,
+    )
+
+    assert token.access_token == "tok-renewed"
+    assert seen["grant_type"] == "refresh_token"
+    assert seen["refresh_token"] == "refresh-1"

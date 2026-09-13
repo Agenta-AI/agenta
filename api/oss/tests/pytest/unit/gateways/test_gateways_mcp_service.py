@@ -35,7 +35,9 @@ from oss.src.core.gateways.mcps.interfaces import (
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.providers.composio import ComposioMCPAdapter
 from oss.src.core.gateways.mcps.service import MCPGatewayService
+from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
 from oss.src.core.gateways.mcps.types import (
+    MCPAuthRequiredError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
     MCPToolNotAllowedError,
@@ -56,6 +58,8 @@ from oss.src.core.secrets.dtos import (
     CustomSecretDTO,
     CustomSecretSettingsDTO,
     MCPStandardProviderDTO,
+    OAuthGrantDTO,
+    OAuthGrantSettingsDTO,
     SecretResponseDTO,
     StandardProviderSettingsDTO,
 )
@@ -608,6 +612,7 @@ def _relay_service(
     resolver=None,
     policy=None,
     adapters: Dict[str, object],
+    oauth_refresher=None,
 ) -> MCPGatewayService:
     return MCPGatewayService(
         mcp_endpoints_dao=mcp_endpoints_dao or MockMCPEndpointsDAO(),
@@ -615,6 +620,7 @@ def _relay_service(
         resolver=resolver or MockResolver(),
         upstream_registry=MCPUpstreamRegistry(adapters=adapters),
         connections_service=connections_service or MockConnectionsService(),
+        oauth_refresher=oauth_refresher,
     )
 
 
@@ -1157,3 +1163,207 @@ async def test_relay_scope_challenge_ignored_for_a_none_scheme_endpoint():
     )
 
     assert result.status_code == 403
+
+
+# --- OR55: an expired OAuth grant is renewed before the relay, or refused ---------- #
+
+
+def _grant_secret(*, access_token: str, expires_at: Optional[int]) -> ResolvedSecret:
+    """A vault-shaped OAuth grant, as the resolver hands one to the relay."""
+    return ResolvedSecret(
+        secret=SecretResponseDTO(
+            id=uuid4(),
+            kind=SecretKind.OAUTH_GRANT,
+            data=OAuthGrantDTO(
+                grant=OAuthGrantSettingsDTO(
+                    server="https://example.com/mcp",
+                    access_token=access_token,
+                    refresh_token="renewal-handle-1",
+                    expires_at=expires_at,
+                    scopes=["read"],
+                )
+            ),
+            header=Header(name="grant"),
+        ),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        origin=SecretOrigin.VAULT,
+    )
+
+
+class _SequenceResolver(MockResolver):
+    """Hands out a different secret per call, so a re-read after a refresh is visible."""
+
+    def __init__(self, *, secrets: List[ResolvedSecret]) -> None:
+        super().__init__()
+        self._secrets = list(secrets)
+
+    async def resolve(self, *, scope, ref, mode):
+        self.resolve_calls += 1
+        self.last_mode = mode
+        return self._secrets[min(self.resolve_calls, len(self._secrets)) - 1]
+
+
+class _StubRefresher:
+    def __init__(self, *, failure: Optional[Exception] = None) -> None:
+        self.calls: List[str] = []
+        self._failure = failure
+
+    async def refresh_grant(self, *, project_id, server_url) -> None:
+        self.calls.append(server_url)
+        if self._failure is not None:
+            raise self._failure
+
+
+@pytest.mark.asyncio
+async def test_relay_refreshes_an_expired_grant_and_the_call_succeeds():
+    """Without the refresh the relay sends the stale token and the upstream 401s, while
+    the endpoint goes on reporting READY (OR55)."""
+    import time
+
+    dao = MockMCPEndpointsDAO()
+    await _oauth_endpoint(dao)
+    resolver = _SequenceResolver(
+        secrets=[
+            _grant_secret(access_token="stale", expires_at=int(time.time()) - 3600),
+            _grant_secret(access_token="renewed", expires_at=int(time.time()) + 3600),
+        ]
+    )
+    refresher = _StubRefresher()
+    adapter = MockUpstreamAdapter()
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=resolver,
+        adapters={"http": adapter},
+        oauth_refresher=refresher,
+    )
+
+    result = await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=MCPCallContext(method="tools/call", target="write_page"),
+        body=b"{}",
+        headers={},
+    )
+
+    assert result.status_code == 200
+    assert refresher.calls == ["https://example.com/mcp"]
+    # The relay carried the renewed grant, not the one it first read.
+    assert adapter.last_auth.secret.secret.data.grant.access_token == "renewed"
+
+
+@pytest.mark.asyncio
+async def test_relay_does_not_refresh_a_grant_that_is_still_live():
+    import time
+
+    dao = MockMCPEndpointsDAO()
+    await _oauth_endpoint(dao)
+    resolver = _SequenceResolver(
+        secrets=[_grant_secret(access_token="live", expires_at=int(time.time()) + 3600)]
+    )
+    refresher = _StubRefresher()
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=resolver,
+        adapters={"http": MockUpstreamAdapter()},
+        oauth_refresher=refresher,
+    )
+
+    await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=MCPCallContext(method="tools/call", target="write_page"),
+        body=b"{}",
+        headers={},
+    )
+
+    assert refresher.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_failed_refresh_refuses_the_call_and_the_endpoint_stops_reporting_ready():
+    import time
+
+    dao = MockMCPEndpointsDAO()
+    endpoint = await _oauth_endpoint(dao)
+    scope = _scope()
+    resolver = _SequenceResolver(
+        secrets=[
+            _grant_secret(access_token="stale", expires_at=int(time.time()) - 3600)
+        ]
+    )
+    refresher = _StubRefresher(
+        failure=MCPOAuthRefreshFailedError(server_url="https://example.com/mcp")
+    )
+    adapter = MockUpstreamAdapter()
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=resolver,
+        adapters={"http": adapter},
+        oauth_refresher=refresher,
+    )
+
+    assert (
+        await service._connection_state(
+            project_id=scope.project_id, user_id=scope.user_id, endpoint=endpoint
+        )
+        == GatewayConnectionState.READY
+    )
+
+    with pytest.raises(MCPAuthRequiredError) as refusal:
+        await service.relay(
+            scope=scope,
+            namespace="custom",
+            name="acme-notion",
+            context=MCPCallContext(method="tools/call", target="write_page"),
+            body=b"{}",
+            headers={},
+        )
+
+    requirement = refusal.value.requirement
+    assert requirement.state == GatewayConnectionState.NEEDS_AUTH
+    assert requirement.connect is not None
+    assert str(endpoint.id) in requirement.connect.endpoint
+    # Nothing was relayed with a dead token.
+    assert adapter.relay_calls == 0
+    # And the endpoint now tells the dashboard it needs authorizing again.
+    stored = await dao.fetch_endpoint(
+        project_id=scope.project_id, endpoint_id=endpoint.id
+    )
+    assert stored.flags.is_valid is False
+    assert (
+        await service._connection_state(
+            project_id=scope.project_id, user_id=scope.user_id, endpoint=stored
+        )
+        == GatewayConnectionState.NEEDS_AUTH
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_expired_grant_with_no_refresher_wired_refuses_rather_than_relaying():
+    import time
+
+    dao = MockMCPEndpointsDAO()
+    await _oauth_endpoint(dao)
+    resolver = _SequenceResolver(
+        secrets=[
+            _grant_secret(access_token="stale", expires_at=int(time.time()) - 3600)
+        ]
+    )
+    adapter = MockUpstreamAdapter()
+    service = _relay_service(
+        mcp_endpoints_dao=dao, resolver=resolver, adapters={"http": adapter}
+    )
+
+    with pytest.raises(MCPAuthRequiredError):
+        await service.relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=MCPCallContext(method="tools/call", target="write_page"),
+            body=b"{}",
+            headers={},
+        )
+
+    assert adapter.relay_calls == 0
