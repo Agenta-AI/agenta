@@ -420,7 +420,7 @@ or a gateway-derived collection can all create a row; user-controlled code canno
   "user_id": "usr_4d...",
   "agent_id": "agt_6e...",
   "request_id": "req_01...",
-  "gateway": "llm",
+  "gateway_kind": "llm",
   "resource_key": "vertex_ai:gemini-2.5-flash",
   "endpoint_id": "end_2f...",
   "endpoint_kind": "managed",
