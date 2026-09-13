@@ -8,7 +8,10 @@ from oss.src.core.gateways.llms.dtos import (
     LLMResolvedRoute,
 )
 from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
-from oss.src.core.gateways.llms.types import LLMUpstreamError
+from oss.src.core.gateways.llms.types import (
+    LLMModelIdentifierInvalidError,
+    LLMUpstreamError,
+)
 
 
 def _route(**overrides) -> LLMResolvedRoute:
@@ -268,3 +271,117 @@ def test_sagemaker_always_raises_naming_the_reason():
     with pytest.raises(LLMUpstreamError) as excinfo:
         build_url(route, LLMProtocol.CHAT_COMPLETIONS)
     assert "sagemaker" in (excinfo.value.detail or "").lower()
+
+
+# --- OR60: the model id is a path segment, not a free string ---------------- #
+
+
+# Each spelling walks, terminates or reinterprets the path Azure and Vertex build around
+# the model: dot segments climb out of the deployment prefix, an encoded separator climbs
+# out after the upstream decodes it, a `?` or `#` truncates the rest of the route, and an
+# absolute URL replaces it outright.
+_TRAVERSING_MODELS = [
+    "x/../..",
+    "../../secrets",
+    "..",
+    ".",
+    "x/./y",
+    "x%2f..%2f..",
+    "x/..%2f..",
+    "gpt-4o?api-version=2020-01-01",
+    "gpt-4o#fragment",
+    "https://attacker.example/v1",
+    "gpt-4o/",
+    "/gpt-4o",
+    "gpt 4o",
+    "gpt-4o\\..\\..",
+    "gpt-4o\n/x",
+]
+
+
+@pytest.mark.parametrize("model", _TRAVERSING_MODELS)
+def test_azure_refuses_a_model_that_is_not_a_path_segment(model):
+    route = _route(
+        deployment_kind=LLMDeploymentKind.AZURE,
+        base_url="https://acme.openai.azure.com",
+        api_version="2024-10-21",
+        model=model,
+    )
+    with pytest.raises(LLMModelIdentifierInvalidError):
+        build_url(route, LLMProtocol.CHAT_COMPLETIONS)
+
+
+@pytest.mark.parametrize("model", _TRAVERSING_MODELS)
+def test_vertex_messages_refuses_a_model_that_is_not_a_path_segment(model):
+    route = _route(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        base_url="https://vertex.example/v1/projects/acme/locations/europe-west4",
+        model=model,
+    )
+    with pytest.raises(LLMModelIdentifierInvalidError):
+        build_url(route, LLMProtocol.MESSAGES)
+
+
+def test_azure_still_builds_the_url_for_a_plain_model_id():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.AZURE,
+        base_url="https://acme.openai.azure.com",
+        model="gpt-4o",
+    )
+    assert build_url(route, LLMProtocol.RESPONSES) == (
+        "https://acme.openai.azure.com/openai/deployments/gpt-4o/responses"
+    )
+
+
+def test_azure_still_builds_the_url_for_agentas_qualified_model_spelling():
+    """`<provider>/<kind>/<model>` is what the playground sends, so `/` stays a legitimate
+    separator: the grammar admits the segments, it does not escape them away."""
+    route = _route(
+        deployment_kind=LLMDeploymentKind.AZURE,
+        base_url="https://acme.openai.azure.com",
+        model="gw-provider-a/custom/mock/echo",
+    )
+    assert build_url(route, LLMProtocol.CHAT_COMPLETIONS) == (
+        "https://acme.openai.azure.com/openai/deployments/"
+        "gw-provider-a/custom/mock/echo/chat/completions"
+    )
+
+
+def test_vertex_messages_still_builds_the_url_for_agentas_qualified_model_spelling():
+    route = _route(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        base_url="https://vertex.example/v1/projects/acme/locations/europe-west4",
+        model="gw-provider-a/custom/mock/echo",
+    )
+    assert build_url(route, LLMProtocol.MESSAGES) == (
+        "https://vertex.example/v1/projects/acme/locations/europe-west4/"
+        "publishers/anthropic/models/gw-provider-a/custom/mock/echo:rawPredict"
+    )
+
+
+def test_vertex_messages_keeps_a_colon_bearing_model_id_literal():
+    """Catalogue ids carry `:` (`…nemotron-3-ultra:free`), and Vertex's own `{model}:{action}`
+    separator is the same character: admitting it beats escaping it into `%3A`."""
+    route = _route(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        region="europe-west4",
+        extras={"vertex_project": "acme-prod"},
+        model="anthropic.claude-3-5-sonnet-v2:0",
+    )
+    assert build_url(route, LLMProtocol.MESSAGES).endswith(
+        "/publishers/anthropic/models/anthropic.claude-3-5-sonnet-v2:0:rawPredict"
+    )
+
+
+def test_a_traversing_model_is_unaffected_on_the_doors_that_never_route_it():
+    """Direct and custom deployments carry the model in the body only, so the grammar is
+    enforced where it is interpolated rather than everywhere."""
+    route = _route(
+        deployment_kind=LLMDeploymentKind.CUSTOM,
+        base_url="https://acme.internal/v1",
+        model="x/../..",
+    )
+    assert (
+        build_url(route, LLMProtocol.CHAT_COMPLETIONS)
+        == "https://acme.internal/v1/chat/completions"
+    )
