@@ -5,6 +5,10 @@ The generic registration gate owns SSRF protection.  This module owns the
 origin only, while Vertex accepts exactly its common projects/locations prefix.
 Keeping this beside URL composition makes it impossible for a new protocol door
 to reinterpret arbitrary user-supplied path segments.
+
+The caller's model id lands in those same paths on Azure and Vertex, so its
+admissible grammar lives here too rather than beside the ``f``-string that
+interpolates it.
 """
 
 import ipaddress
@@ -19,6 +23,33 @@ _VERTEX_PREFIX = re.compile(
     r"[A-Za-z0-9][A-Za-z0-9._-]*$"
 )
 _HOST_LABEL = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
+
+# One `/`-separated segment of a model identifier. The catalogue
+# (`agenta.sdk.utils.assets.supported_llm_models`) spells every id it knows with letters,
+# digits and `. _ - :` inside a segment — `openrouter/nvidia/nemotron-3-ultra:free`,
+# `anthropic.claude-3-5-sonnet-20241022-v2:0` — and uses `/` only as a separator, both for
+# provider-prefixed ids and for Agenta's own qualified `<provider>/<kind>/<model>` form.
+_MODEL_SEGMENT = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]*")
+
+
+def is_path_safe_model_identifier(model: str) -> bool:
+    """Whether a model id may be interpolated into a provider URL's path (OR60).
+
+    Azure places the model in `/openai/deployments/{model}` and Vertex in
+    `…/models/{model}:{action}`, so a value like `x/../..` walked out of the deployment's
+    own prefix and reached arbitrary endpoints under the organisation's cloud credentials.
+
+    Every `/`-separated segment must match the character class real model ids use, and no
+    segment may be a run of dots — which is what excludes `.` and `..` while keeping
+    `anthropic.claude-3-5-sonnet`. Percent-encoding is not used on top: `/` is a real
+    separator in the qualified form, so escaping it would break the spelling live QA
+    depends on, and within the admitted class only `:` is even reserved — and Vertex's
+    `{model}:{action}` needs that colon to stay literal. The character class is the
+    control; escaping would add nothing it does not already exclude.
+    """
+    if not model:
+        return False
+    return all(_MODEL_SEGMENT.fullmatch(segment) for segment in model.split("/"))
 
 
 def _valid_host(hostname: str) -> bool:

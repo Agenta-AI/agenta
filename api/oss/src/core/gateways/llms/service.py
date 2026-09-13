@@ -3,7 +3,7 @@
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.access.permissions.types import Permission
@@ -37,6 +37,7 @@ from oss.src.core.gateways.llms.types import (
     LLMEndpointNotFoundError,
     LLMEndpointProviderMissingError,
     LLMModelNotAllowedError,
+    LLMRoutingFieldNotAllowedError,
     LLMUpstreamError,
 )
 from oss.src.core.gateways.policy.dtos import (
@@ -112,13 +113,19 @@ async def _replay_body(payload: bytes) -> AsyncIterator[bytes]:
     yield payload
 
 
-def _parse_call_context(body: bytes, protocol: LLMProtocol) -> LLMCallContext:
-    """Extract model and streaming fields without coupling the core to the API layer."""
+def _json_object(body: bytes) -> Dict[str, Any]:
+    """The request body as a JSON object, or an empty one when it is not readable as such."""
     try:
         payload = json.loads(body) if body else {}
     except (json.JSONDecodeError, TypeError):
-        payload = {}
-    model = payload.get("model") if isinstance(payload, dict) else None
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _parse_call_context(body: bytes, protocol: LLMProtocol) -> LLMCallContext:
+    """Extract model and streaming fields without coupling the core to the API layer."""
+    payload = _json_object(body)
+    model = payload.get("model")
     if not model:
         raise ValueError("request body names no model")
     return LLMCallContext(
@@ -126,26 +133,55 @@ def _parse_call_context(body: bytes, protocol: LLMProtocol) -> LLMCallContext:
     )
 
 
-# Request fields that control completion-token ceilings by protocol.
-_CEILING_FIELDS: Dict[LLMProtocol, tuple] = {
+# OpenRouter's fallback array: model ids tried in order when the primary fails. The gateway
+# understands it, so every entry is measured against the allowlist exactly as `model` is.
+_FALLBACK_MODELS_FIELD = "models"
+
+# Routing extensions whose effect on model selection the allowlist cannot evaluate. Each
+# one decides which model or which upstream actually serves the call, and forwarding one
+# means forwarding a routing decision nobody checked (OR44). Aliases and fallbacks are
+# deliberately outside this increment (`models.md`), so refusing costs no supported feature
+# — and refusing, rather than ignoring, is what stops the next such field a provider ships
+# from silently reopening the allowlist.
+_UNSUPPORTED_ROUTING_FIELDS: Tuple[str, ...] = (
+    "route",  # OpenRouter's legacy `"route": "fallback"` auto-router
+    "provider",  # OpenRouter provider preferences: order / only / ignore / allow_fallbacks
+    "preset",  # OpenRouter preset: a stored model-and-provider routing configuration
+    "fallbacks",  # proxy-style fallback lists (LiteLLM and the gateways modelled on it)
+)
+
+
+# The request field each protocol spells its output-token maximum with (specs-wp23.md §2).
+# EVERY alias is checked, and the FIRST is the one the gateway writes when a request names
+# none of them: `max_tokens` is the spelling every OpenAI-compatible upstream in the
+# catalogue understands, so writing `max_completion_tokens` instead would leave the ceiling
+# quietly unenforced on most of them.
+_CEILING_FIELDS: Dict[LLMProtocol, Tuple[str, ...]] = {
     LLMProtocol.CHAT_COMPLETIONS: ("max_tokens", "max_completion_tokens"),
     LLMProtocol.RESPONSES: ("max_output_tokens",),
     LLMProtocol.MESSAGES: ("max_tokens",),
 }
 
 
-def _requested_max_output_tokens(body: bytes, protocol: LLMProtocol) -> Optional[int]:
-    try:
-        payload = json.loads(body) if body else {}
-    except (json.JSONDecodeError, TypeError):
+def _requested_max_output_tokens(value: Any) -> Optional[float]:
+    """One alias's value as a token count, or None when it names no usable maximum.
+
+    `bool` is excluded on purpose: `isinstance(True, int)` is True in Python, and `true` is
+    not a token count. A numeric string is read as the number it spells, so a client sending
+    `"999999"` is measured rather than waved through for being the wrong type.
+    """
+    if isinstance(value, bool):
         return None
-    if not isinstance(payload, dict):
+    if isinstance(value, (int, float)):
+        number: float = value
+    elif isinstance(value, str):
+        try:
+            number = float(value)
+        except ValueError:
+            return None
+    else:
         return None
-    for key in _CEILING_FIELDS[protocol]:
-        value = payload.get(key)
-        if isinstance(value, int):
-            return value
-    return None
+    return number if number > 0 else None
 
 
 class LLMGatewayService:
@@ -345,12 +381,15 @@ class LLMGatewayService:
         )
         self._check_active(target=target)
         context = _parse_call_context(body, protocol)
+        payload = _json_object(body)
 
         # Allowlist and ceiling before secret (§8): a refused model must not cost a
         # vault read, and the refusal reason must be the allowlist, never a coincidental
         # secret gap.
-        self._check_allowlist(target=target, context=context)
-        self._check_ceilings(target=target, context=context, body=body)
+        self._check_allowlist(target=target, context=context, payload=payload)
+        body = self._enforce_ceilings(
+            target=target, context=context, body=body, payload=payload
+        )
 
         policy_target = target.as_policy_target(model=context.model)
         decision = await self.policy.authorize(
@@ -500,28 +539,99 @@ class LLMGatewayService:
             raise GatewayEndpointInactiveError(target=target.target_path())
 
     def _check_allowlist(
-        self, *, target: _ResolvedLlmTarget, context: LLMCallContext
+        self,
+        *,
+        target: _ResolvedLlmTarget,
+        context: LLMCallContext,
+        payload: Dict[str, Any],
     ) -> None:
+        """Measure every field that can select a model, not only the one named first.
+
+        OR44: `model` was the whole check while the body travelled to the upstream
+        unchanged, so `{"model": "gpt-4o", "models": ["forbidden-model"]}` passed an
+        endpoint allowing only `gpt-4o` and the forbidden fallback ran on the primary's
+        failure. Exact-string matching was never the weakness and is untouched here; the
+        second field was.
+        """
         if not target.models.allows(context.model):
             raise LLMModelNotAllowedError(
                 model=context.model, namespace=target.namespace, name=target.name
             )
 
-    def _check_ceilings(
-        self, *, target: _ResolvedLlmTarget, context: LLMCallContext, body: bytes
-    ) -> None:
+        fallbacks = payload.get(_FALLBACK_MODELS_FIELD)
+        if fallbacks is not None:
+            if not isinstance(fallbacks, list) or not all(
+                isinstance(entry, str) for entry in fallbacks
+            ):
+                raise LLMRoutingFieldNotAllowedError(
+                    field=_FALLBACK_MODELS_FIELD,
+                    namespace=target.namespace,
+                    name=target.name,
+                    reason="it must be a list of model ids for the allowlist to check it",
+                )
+            for fallback in fallbacks:
+                if not target.models.allows(fallback):
+                    raise LLMModelNotAllowedError(
+                        model=fallback, namespace=target.namespace, name=target.name
+                    )
+
+        for field in _UNSUPPORTED_ROUTING_FIELDS:
+            # A JSON null names no routing, so only a field carrying a value is refused.
+            if payload.get(field) is not None:
+                raise LLMRoutingFieldNotAllowedError(
+                    field=field, namespace=target.namespace, name=target.name
+                )
+
+    def _enforce_ceilings(
+        self,
+        *,
+        target: _ResolvedLlmTarget,
+        context: LLMCallContext,
+        body: bytes,
+        payload: Dict[str, Any],
+    ) -> bytes:
+        """Refuse a request above the ceiling, and write the ceiling into one that names none.
+
+        OR50: the parser returned the FIRST recognised alias, so `{"max_tokens": 1,
+        "max_completion_tokens": 999999}` passed a ceiling of 10, and a request naming no
+        maximum at all returned `None` and was waved through to inherit the upstream's own
+        default. A ceiling a request can decline by omission is not a ceiling.
+
+        The body is re-serialised only in that last case, and only on an endpoint that
+        configured a ceiling; every other request still relays byte-for-byte (D34).
+        """
         ceiling = target.settings.max_output_tokens
         if ceiling is None:
-            return
-        requested = _requested_max_output_tokens(body, context.protocol)
-        if requested is None or requested <= ceiling:
-            return
-        raise CeilingExceededError(
-            ceiling="max_output_tokens",
-            requested=requested,
-            allowed=ceiling,
-            target=target.target_path(),
-        )
+            return body
+
+        aliases = _CEILING_FIELDS[context.protocol]
+        bounded = False
+        for field in aliases:
+            requested = _requested_max_output_tokens(payload.get(field))
+            if requested is None:
+                # Absent, null, or not a usable count. It names no maximum, so it cannot
+                # satisfy the ceiling either: the write below covers it.
+                continue
+            if requested > ceiling:
+                raise CeilingExceededError(
+                    ceiling="max_output_tokens",
+                    requested=requested,
+                    allowed=ceiling,
+                    target=target.target_path(),
+                )
+            bounded = True
+
+        if bounded:
+            return body
+
+        # D25 forbids clamping a request that asked for more than the ceiling; this one
+        # asked for nothing. Unusable spellings of the same alias are dropped rather than
+        # left beside the value written, so the upstream cannot pick the other one.
+        rewritten: Dict[str, Any] = {
+            key: value for key, value in payload.items() if key not in aliases
+        }
+        rewritten[aliases[0]] = ceiling
+        return json.dumps(rewritten).encode()
 
     def _outcome_from(
         self, *, result: LLMRelayResult, secret: Optional[ResolvedSecret]
