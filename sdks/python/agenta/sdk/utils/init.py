@@ -1,6 +1,7 @@
 from importlib.metadata import version
 from os import getenv
 from typing import Any, Callable, Optional
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from agenta.client import AgentaApi, AsyncAgentaApi
@@ -96,7 +97,11 @@ class AgentaSingleton:
 
         if _api_url:
             _api_url = parse_url(url=_api_url)
-            _host = _api_url.rsplit("/api", 1)[0]
+            parts = urlsplit(_api_url)
+            path = parts.path.rstrip("/")
+            if path.endswith("/api"):
+                path = path[: -len("/api")]
+            _host = urlunsplit((parts.scheme, parts.netloc, path, "", ""))
         elif _host:
             _host = parse_url(url=_host)
             _api_url = _host + "/api"
