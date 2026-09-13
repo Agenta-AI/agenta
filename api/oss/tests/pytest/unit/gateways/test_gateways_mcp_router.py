@@ -4,6 +4,7 @@ TestClient + a hand-written mock `MCPGatewayService` + a monkeypatched
 `get_auth_scope()`/`check_action_access()` — no real database, no real service.
 """
 
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -20,6 +21,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointRoute,
 )
 from oss.src.core.gateways.mcps.oauth.dtos import (
+    MCPOAuthAttempt,
     MCPOAuthAuthorizationStart,
     MCPOAuthCompletion,
     MCPOAuthDiscovery,
@@ -129,6 +131,8 @@ class MockMCPOAuthConnectService:
             authorization_url="https://auth.acme.example/authorize?client_id=abc",
             state="signed-state",
         )
+        self.claim_return = None
+        self.claim_raises = None
         self.complete_return = None
         self.complete_raises = None
         self.begun_endpoint_ids = []
@@ -144,15 +148,23 @@ class MockMCPOAuthConnectService:
         self.begun_endpoint_ids.append(endpoint_id)
         return self.begin_return
 
-    async def complete(self, *, code, state, caller_user_id):
-        self.calls.append(("complete", code, state))
+    async def claim(self, *, state, caller_user_id):
+        self.calls.append(("claim", state))
+        if self.claim_raises is not None:
+            raise self.claim_raises
+        if self.claim_return is None:
+            raise AssertionError("claim_return not set")
+        # The real service refuses a stranger before consuming anything.
+        if caller_user_id != self.claim_return.user_id:
+            raise MCPOAuthCallerMismatchError()
+        return self.claim_return
+
+    async def complete(self, *, attempt, code):
+        self.calls.append(("complete", code, attempt.state))
         if self.complete_raises is not None:
             raise self.complete_raises
         if self.complete_return is None:
             raise AssertionError("complete_return not set")
-        # The real service refuses before consuming or writing anything.
-        if caller_user_id != self.complete_return.user_id:
-            raise MCPOAuthCallerMismatchError()
         return self.complete_return
 
 
@@ -375,6 +387,24 @@ def session_user(monkeypatch):
     return _apply
 
 
+def _attempt(*, project_id, user_id, endpoint_id, state="opaque-handle"):
+    """The record `claim()` hands back: the facts the callback is authorised against."""
+    return MCPOAuthAttempt(
+        id=uuid4(),
+        state=state,
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        issuer="https://auth.acme.example/",
+        token_endpoint="https://auth.acme.example/token",
+        redirect_uri="https://api.agenta.example/gateways/mcps/connect/callback",
+        code_verifier="v" * 43,
+        scopes=["read"],
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+    )
+
+
 def _completion(*, project_id, user_id, endpoint_id, secret_id=None):
     return MCPOAuthCompletion(
         project_id=project_id,
@@ -392,6 +422,9 @@ def test_callback_completes_and_puts_the_secret_id_onto_the_bound_endpoint(
     project_id, user_id = uuid4(), uuid4()
     secret_id = uuid4()
     service.fetch_return = _oauth_endpoint(endpoint_id)
+    oauth_service.claim_return = _attempt(
+        project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
     oauth_service.complete_return = _completion(
         project_id=project_id,
         user_id=user_id,
@@ -409,7 +442,10 @@ def test_callback_completes_and_puts_the_secret_id_onto_the_bound_endpoint(
     assert "mcp:oauth:connected" in response.text
     # The endpoint came from the record's bound id, not a query by server URL.
     assert service.calls == ["fetch_endpoint", "edit_endpoint"]
-    assert oauth_service.calls == [("complete", "auth-code", "opaque-handle")]
+    assert oauth_service.calls == [
+        ("claim", "opaque-handle"),
+        ("complete", "auth-code", "opaque-handle"),
+    ]
 
 
 def test_callback_from_a_different_user_writes_nothing(
@@ -420,7 +456,7 @@ def test_callback_from_a_different_user_writes_nothing(
     endpoint_id = uuid4()
     project_id, victim_id = uuid4(), uuid4()
     service.fetch_return = _oauth_endpoint(endpoint_id)
-    oauth_service.complete_return = _completion(
+    oauth_service.claim_return = _attempt(
         project_id=project_id, user_id=victim_id, endpoint_id=endpoint_id
     )
     session_user(uuid4())  # somebody else's browser
@@ -440,7 +476,7 @@ def test_callback_with_no_agenta_session_writes_nothing(
     endpoint_id = uuid4()
     project_id, user_id = uuid4(), uuid4()
     service.fetch_return = _oauth_endpoint(endpoint_id)
-    oauth_service.complete_return = _completion(
+    oauth_service.claim_return = _attempt(
         project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
     )
     session_user(None)
@@ -459,7 +495,7 @@ def test_callback_refuses_a_caller_who_lost_permission_on_the_project(
     endpoint_id = uuid4()
     project_id, user_id = uuid4(), uuid4()
     service.fetch_return = _oauth_endpoint(endpoint_id)
-    oauth_service.complete_return = _completion(
+    oauth_service.claim_return = _attempt(
         project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
     )
     session_user(user_id)
@@ -470,15 +506,22 @@ def test_callback_refuses_a_caller_who_lost_permission_on_the_project(
 
     assert response.status_code == 403
     assert service.calls == []
+    # The attempt was consumed, and the exchange that would have written a grant into
+    # the project never ran.
+    assert oauth_service.calls == [("claim", "opaque-handle")]
 
 
 def test_callback_with_no_matching_endpoint_renders_a_failure_card(
     client, service, oauth_service, session_user, allow
 ):
     project_id, user_id = uuid4(), uuid4()
+    endpoint_id = uuid4()
     service.fetch_return = None  # the bound endpoint is gone
+    oauth_service.claim_return = _attempt(
+        project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
     oauth_service.complete_return = _completion(
-        project_id=project_id, user_id=user_id, endpoint_id=uuid4()
+        project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
     )
     session_user(user_id)
 
@@ -511,7 +554,7 @@ def test_callback_with_a_replayed_state_renders_a_failure_card(
     client, service, oauth_service, session_user, allow
 ):
     """The second callback for one handle finds no record."""
-    oauth_service.complete_raises = MCPOAuthStateInvalidError()
+    oauth_service.claim_raises = MCPOAuthStateInvalidError()
     session_user(uuid4())
 
     response = client.get(

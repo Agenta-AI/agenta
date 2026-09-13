@@ -2,7 +2,7 @@
 
 ## Active review findings
 
-Twenty-two findings are open. None of them waits on a design decision any more. OD24 to OD27 in
+Seventeen findings are open. None of them waits on a design decision any more. OD24 to OD27 in
 `open-designs.md` are all decided: OD26, OD24 and OD27 have landed, and OD25 is being built now.
 Every open entry is a repair, and each states the closure that would settle it and the test that
 would prove it. A finding that closes moves to the closed record below.
@@ -39,54 +39,6 @@ say which in the fix.
 
 ---
 
-### OR41. The OAuth state carries the PKCE verifier in readable form, replays for an hour, and is not bound to the browser that started the flow
-
-PKCE protects nothing on this flow, and a captured callback URL completes it. The state travels as
-the `state=` query parameter, so the authorization server reads the verifier it is supposed to be
-proved against. Present in the branch as of 2026-09-13.
-
-`api/oss/src/core/gateways/mcps/oauth/state.py:19`, `:31` and `:41` put `code_verifier` into a JSON
-payload that is base64url-encoded at `:48` and signed with HMAC-SHA256 at `:49-51`. A signature
-authenticates; it does not conceal. `decode_state` at `:55` checks the signature at `:66` and the age
-at `:75`, and never consumes the nonce minted at `:44`, so the same state replays for its full
-lifetime. `api/oss/src/core/gateways/mcps/oauth/service.py:135` completes from the state alone, with
-no reference to the current session, and
-`api/oss/src/apis/fastapi/gateways/mcps/router.py:442` reads `project_id` and `user_id` out of that
-state (`user_id` at `:465`) without comparing either to an authenticated principal. The route at
-`:147-153` has no auth dependency.
-
-Closure: the `state` parameter is an opaque single-use identifier, and a server-side authorization
-attempt record holds the verifier, the session, the project, the endpoint, the issuer, the token
-endpoint and the redirect URI. Proven by cases beside
-`api/oss/tests/pytest/unit/gateways/` asserting that the state value contains no verifier, that a
-second callback with the same state is refused, and that a callback presented under a different
-session is refused.
-
----
-
-### OR42. OAuth discovery trusts the server it is authenticating against, so a hostile MCP server can name its own token endpoint
-
-A hostile MCP server can publish metadata naming its own token endpoint. Agenta then sends that
-server the user's authorization code together with Agenta's registered client secret. Present in the
-branch as of 2026-09-13.
-
-`api/oss/src/core/gateways/mcps/oauth/client.py:103` takes the authorization server from the
-upstream's own metadata document, and `:112-113` copies `authorization_endpoint` and `token_endpoint`
-verbatim. `:156-170` accepts metadata from whichever candidate URL answers 200. No step compares the
-result's origin against `server_url`, and nothing requires HTTPS; the MCP SDK types these fields as
-`AnyHttpUrl`, which admits `http`. The same file reflects raw upstream response bodies into
-user-visible errors at `:203` and `:277`, which turns the unguarded discovery fetch recorded in OR40
-into a way to read internal responses.
-
-Closure: discovery accepts an authorization server and token endpoint only over HTTPS and only from
-the same origin as `server_url`, or from an explicitly configured issuer, and upstream response
-bodies never appear in returned error text. Proven by cases beside
-`api/oss/tests/pytest/unit/gateways/` that publish metadata naming a foreign token endpoint and
-assert the flow refuses, and that assert an upstream error body does not appear in the message the
-caller receives.
-
----
-
 ### OR45. `POST /gateways/mcps/credentials/agenta` issues a narrowed credential with no permission check
 
 The endpoint exists to hand out a credential narrowed to a chosen set of tools. It performs no
@@ -104,28 +56,6 @@ Closure: the handler runs the same permission check as its neighbours, and the i
 subset of the source credential's. Proven by cases in
 `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_router.py` asserting a caller without the
 permission is refused, and that a request naming a tool outside the source credential is refused.
-
----
-
-### OR47. The OAuth callback is rejected by the middleware before its handler runs
-
-The browser returns from the authorization server with no Agenta cookie and receives 401. The
-handler never runs. Reproduced against the worktree on 2026-09-13.
-
-`api/oss/src/apis/fastapi/gateways/mcps/router.py:402` is `connect_callback`, and its docstring at
-`:411-413` states that the route is an unauthenticated browser arrival. The public-endpoint list at
-`api/oss/src/middlewares/auth.py:77-113` does not name it. It names the MCP client-metadata document
-(`:111-112`) and the older tools OAuth callback (`:95-98`), so the shape was anticipated and this one
-route was left out.
-
-The exemption must not be added before OR41 is fixed. Today the handler trusts `project_id` and
-`user_id` read out of the state, and exempting the route while that holds turns a signature check
-into the only thing standing between an attacker and a tenant-scoped write.
-
-Closure: the callback route is exempt from authentication and the handler derives its principal from
-a server-side authorization attempt record. Proven by a case in
-`api/oss/tests/pytest/unit/gateways/test_gateways_mcp_router.py` that drives the callback through the
-real middleware with no cookie and asserts the handler runs.
 
 ---
 
@@ -257,25 +187,6 @@ carries a `secret_id`, and a case beside
 
 ---
 
-### OR55. Stored refresh tokens are never used, so an endpoint reports READY while every call fails
-
-An MCP OAuth endpoint works until its access token expires, then returns 401 on every call while
-still reporting READY. Present in the branch as of 2026-09-13.
-
-`api/oss/src/core/gateways/mcps/providers/http/adapter.py:67` uses the stored access token, and no
-refresh grant is executed anywhere in the tree. The only grant type ever posted is
-`authorization_code`, at `api/oss/src/core/gateways/mcps/oauth/client.py:251`. `refresh_token`
-appears as an advertised registration capability (`oauth/client.py:185`,
-`oauth/registration.py:28`) and as stored material (`oauth/storage.py:77`, `:93`), and nowhere as an
-exchange.
-
-Closure: the adapter refreshes an expired grant and stores the new tokens, and an endpoint whose
-refresh fails reports that it needs authorization. Proven by a case beside
-`api/oss/tests/pytest/unit/gateways/` that presents an expired grant, asserts a refresh exchange is
-performed, and asserts the call succeeds with the refreshed token.
-
----
-
 ### OR56. Three components disagree about which MCP method performs discovery
 
 A server that answers one component's discovery call refuses another's. Reproduced against the
@@ -328,22 +239,6 @@ Closure: re-registration on a warm session is a no-op rather than a collision, a
 collision is reported to the caller. Proven by a case in
 `services/runner/tests/unit/pi-gateway-mcp.test.ts` that drives two turns on one session and asserts
 the second turn still has the tools.
-
----
-
-### OR61. The OAuth registration write races, so concurrent callbacks hit an unhandled unique violation
-
-Two authorization flows completing at once against the same server produce an unhandled database
-error. Present in the branch as of 2026-09-13.
-
-`api/oss/src/core/gateways/mcps/oauth/storage.py:102` reads an existing grant before creating one,
-and the slug it creates under is deterministic: `uuid5(NAMESPACE_URL, server_url)` at `:25-26`. Two
-callers who both read nothing both create the same slug, and the second violates the unique
-constraint. The provider path has the same shape at `:157` and `:169`.
-
-Closure: the write is an upsert, or the unique violation is caught and retried as a read. Proven by a
-case in `api/oss/tests/pytest/integration/gateways/` that runs two concurrent registrations for one
-server URL against a real database and asserts both callers end with one stored registration.
 
 ---
 
@@ -498,6 +393,99 @@ enum member and the retained rows, and the upgrade sets a `lock_timeout`.
 ---
 
 ## Closed review record
+
+### OR41 / OR47. The OAuth state carries the PKCE verifier in readable form and is not bound to the browser that started the flow, and the callback is rejected by the middleware before its handler runs — CLOSED, and the middleware exemption became safe only once the state stopped carrying anything
+
+The two closed together, because one change closes both.
+
+**What the defect was.** State was a signed but readable payload carrying the PKCE verifier, so the
+authorization server could decode it and PKCE protected nothing. It was never consumed, so it
+replayed for its full hour. Completion was not bound to the browser that began the flow, and the
+callback took project and user out of the state without comparing them to anyone. A hostile server
+could therefore replay a victim's state with its own code and land its own tokens in the victim's
+project.
+
+**The state is now a handle, and a record holds what it used to carry.** State is an opaque
+high-entropy value that encodes nothing. A row in `mcps_oauth_attempts` holds the verifier, the
+user, the project, the endpoint id, the issuer, the token endpoint and the redirect URI.
+
+**Postgres rather than Redis, for three reasons.** The callback can land on any replica. The browser
+is away at a consent screen while the row exists, so a rolling restart must not drop every
+in-flight connection. And the row is tenant data that cascades from its project.
+
+**Exactly one callback wins.** Consumption is a single `DELETE ... RETURNING`, so one of two
+concurrent callbacks takes the row and the other finds nothing. Expiry sits outside that predicate
+on purpose, so an expired handle is consumed rather than left probeable. A sweep runs every five
+minutes from the cron service. `complete()` takes the endpoint from the stored id rather than a
+server-URL lookup, and refuses a caller who does not match the record before consuming anything, so
+a refused attempt burns nothing and writes nothing. Migration `oss000000031`, parented on
+`oss000000030`, single head, upgrade and downgrade both applied against a scratch database first.
+
+**OR47 follows from it.** The callback is exempt from the auth middleware now. Its URL is fixed and
+query-free, so the middleware could only ever resolve the caller's default scope, which has nothing
+to do with the attempt, and a bare JSON 401 inside a popup is a dead end. The exemption widens
+nothing: the handler resolves the SuperTokens session itself and refuses without one, and everything
+it acts on comes from the attempt record. Verified on a live stack that a cookieless callback
+renders the connect card rather than a 401.
+
+Tests: cases across `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_oauth_service.py`,
+`api/oss/tests/pytest/unit/gateways/test_gateways_mcp_router.py` and
+`api/oss/tests/pytest/integration/gateways/test_mcp_oauth_attempts_dao.py`, covering a replayed
+state, an expired attempt, a callback from another user, a callback with no session, and one of two
+concurrent callbacks winning against real Postgres.
+
+### OR42. OAuth discovery trusts the server it is authenticating against, so a hostile MCP server can name its own token endpoint — CLOSED, by pinning discovery to the registered server, which costs a real class of authorization server
+
+**What the defect was.** Discovery took the authorization and token endpoints verbatim from the
+upstream's own metadata, with no origin check and no HTTPS requirement. A hostile or compromised
+server could name its own token endpoint and receive the user's authorization code together with
+Agenta's registered client secret. The same file reflected raw upstream bodies into user-visible
+errors, which turned any discovery weakness into a read primitive.
+
+**Three checks chain back to what the tenant registered.** The protected-resource metadata's
+`resource` must be same-origin with the registered server URL. The authorization server metadata's
+`issuer` must equal the server that document named. All three endpoints must be same-origin with
+that issuer. HTTPS is required throughout, gated on the gateway's own egress flag rather than a
+second switch. User-visible errors carry the status and the origin, never the upstream body, and
+the validation-error strings that used to carry it are gone.
+
+**The cost.** Requiring the endpoints to be same-origin with the issuer goes beyond RFC 8414. It is
+deliberate, because the split is the attack: the honest server mints the code and holds the client
+secret, and a document naming a foreign token endpoint sends both elsewhere. An authorization server
+that splits its endpoints across origins, in the style of Google's, cannot be used. It is refused
+with the offending origin named.
+
+**The limit.** None of this stops a hostile MCP server naming an authorization server it owns
+outright. That flow is self-consistent, and the user sees the attacker's own login page. Pinning
+answers where an issuer lives, never whether it is honest.
+
+Tests: twelve cases in `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_oauth_client.py`.
+
+### OR55. Stored refresh tokens are never used, so an endpoint reports READY while every call fails — CLOSED
+
+No refresh grant was ever executed, so once an access token expired the endpoint kept reporting
+READY while every call failed with 401.
+
+An expired or nearly expired grant is now exchanged and stored before use, through the shared egress
+client. A lock per project and server, with a re-read after acquiring, means the second caller in a
+worker finds a live token and exchanges nothing. Across workers a losing exchange re-reads and
+accepts the winner's token, and only a still-expired re-read raises. A refresh that fails marks the
+connection invalid and raises a typed refusal carrying the connect affordance, so the user is told
+to reconnect rather than watching 401s.
+
+Tests: six cases in `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_oauth_service.py` and four
+in `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_service.py`.
+
+### OR61. The OAuth registration write races, so concurrent callbacks hit an unhandled unique violation — CLOSED, by letting Postgres arbitrate rather than locking in Python
+
+The registration write did a read-modify-write on a deterministic slug, so concurrent callbacks hit
+an unhandled unique violation.
+
+Postgres arbitrates now. The unique constraint surfaces as a domain conflict, and the loser re-reads
+and applies its write as an update. Nothing locks in Python.
+
+Tests: two cases in `api/oss/tests/pytest/integration/gateways/test_mcp_oauth_storage_race.py`,
+against real Postgres.
 
 ### OR40 / OR64. No egress check runs at request time on the LLM plane or on MCP OAuth discovery, and the egress boundary is duplicated instead of shared — CLOSED, and the first attempt enforced nothing because it read a flag that defaults to on
 

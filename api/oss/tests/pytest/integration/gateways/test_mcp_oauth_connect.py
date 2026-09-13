@@ -36,6 +36,14 @@ def _fixture_or_skip(request: pytest.FixtureRequest, name: str):
         pytest.skip(f"WP30 fixture `{name}` is not available yet")
 
 
+async def _callback(service, *, code, state, caller_user_id):
+    """Both halves of the callback, as the router runs them back to back: `claim()`
+    consumes the attempt, the router authorises the caller against it, `complete()`
+    exchanges. These tests are about the composition, not that gap."""
+    attempt = await service.claim(state=state, caller_user_id=caller_user_id)
+    return await service.complete(attempt=attempt, code=code)
+
+
 class _EndpointStore:
     """Minimal persistence seam: the real OAuth service and router remain intact."""
 
@@ -147,7 +155,8 @@ async def test_local_provider_exchange_persists_a_handle_and_reconnect_reuses_it
         server_url=local_mcp_oauth_provider.server_url,
         scopes=["tools:call"],
     )
-    first = await service.complete(
+    first = await _callback(
+        service,
         caller_user_id=user_id,
         **local_mcp_oauth_provider.callback_params(state=first_start.state),
     )
@@ -163,7 +172,8 @@ async def test_local_provider_exchange_persists_a_handle_and_reconnect_reuses_it
         server_url=local_mcp_oauth_provider.server_url,
         scopes=["tools:call"],
     )
-    second = await service.complete(
+    second = await _callback(
+        service,
         caller_user_id=user_id,
         **local_mcp_oauth_provider.callback_params(state=second_start.state),
     )

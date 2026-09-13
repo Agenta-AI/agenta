@@ -475,9 +475,13 @@ class MCPGatewayRouter:
         # presenting the code is the browser that started the flow.
         caller_user_id = await resolve_session_user_id(request)
 
+        # Consume the attempt first, authorise against it, and only then exchange the
+        # code. The permission check needs the project, and the project is a fact of
+        # the attempt record; running `complete()` first would have written the grant
+        # into that project's vault before anyone asked whether this caller may still
+        # write to it.
         try:
-            completion = await self.oauth_connect_service.complete(
-                code=code,
+            attempt = await self.oauth_connect_service.claim(
                 state=state,
                 caller_user_id=caller_user_id,
             )
@@ -490,10 +494,12 @@ class MCPGatewayRouter:
             )
 
         # The attempt named the user; the user must still be allowed to edit endpoints
-        # in the attempt's project, which they can have lost while consenting.
+        # in the attempt's project, which they can have lost while consenting. Nothing
+        # has been exchanged or written at this point, and nothing will be: the attempt
+        # is spent, as any presented handle is, so the person reconnects from Agenta.
         allowed = await check_action_access(
-            user_uid=str(completion.user_id),
-            project_id=str(completion.project_id),
+            user_uid=str(attempt.user_id),
+            project_id=str(attempt.project_id),
             permission=Permission.EDIT_MCP_ENDPOINTS,
         )
         if not allowed:
@@ -501,8 +507,25 @@ class MCPGatewayRouter:
                 status_code=403,
                 content=_connect_card(
                     success=False,
-                    error="You are no longer allowed to edit MCP endpoints in this project.",
+                    error=(
+                        "You are no longer allowed to edit MCP endpoints in this "
+                        "project. Nothing was connected; start again from Agenta if "
+                        "this is wrong."
+                    ),
                     agenta_url=env.agenta.web_url,
+                ),
+            )
+
+        try:
+            completion = await self.oauth_connect_service.complete(
+                attempt=attempt,
+                code=code,
+            )
+        except GatewaysError as e:
+            return HTMLResponse(
+                status_code=400,
+                content=_connect_card(
+                    success=False, error=e.message, agenta_url=env.agenta.web_url
                 ),
             )
 

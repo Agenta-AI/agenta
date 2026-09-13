@@ -256,6 +256,11 @@ async def test_agenta_mcp_exchanges_the_run_credential_for_callback_tools(
     install_http(agent_tool_resolver)
 
     class Response:
+        # The exchange reads `status_code` so a refusal becomes a typed
+        # GatewayCredentialsError rather than an httpx exception, so the double must
+        # carry one; without it the stand-in diverges from what it stands for.
+        status_code = 200
+
         def raise_for_status(self):
             return None
 
