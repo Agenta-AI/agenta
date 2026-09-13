@@ -100,12 +100,14 @@ reproduces on `main` and is tracked as issue #6803.
 
 ### The security review, as of 2026-09-13
 
-The credential-boundary review recorded thirty-four findings, OR36 to OR69. Seventeen are fixed and
-closed, and seventeen are open: OR45, OR48, OR49, OR51 to OR54, OR56, OR58, OR59, OR62, OR63, and
-OR65 to OR69. Two of the open set are P0, OR45 and OR69, and OR69 is the largest, because the
-Daytona runner still writes the user's provider keys into the sandbox environment around the gateway
-entirely. `open-reviews.md` carries the mechanism, the fix and the tests for each. The suites in the
-table above stayed green through every one of these defects, which is what OR65 records.
+The credential-boundary review recorded thirty-four findings, OR36 to OR69. One of them, OR69, was
+withdrawn on 2026-09-13, so it counts as neither open nor closed and thirty-three stand. Seventeen
+are fixed and closed, and sixteen are open: OR45, OR48, OR49, OR51 to OR54, OR56, OR58, OR59, OR62,
+OR63, and OR65 to OR68. One of the open set is P0, OR45, and it is the largest, because the
+credential issuer at `POST /gateways/mcps/credentials/agenta` runs no permission check and lets the
+caller choose its own narrowing. `open-reviews.md` carries the mechanism, the fix and the tests for
+each. The suites in the table above stayed green through every one of these defects, which is what
+OR65 records.
 
 ### Deployment flags
 
