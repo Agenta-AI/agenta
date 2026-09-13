@@ -43,15 +43,22 @@ Measured on the branch squashed onto `main`, deployed as an EE development stack
 
 ### Automated suites
 
+Re-measured on 2026-09-13 after the review repairs, on the same stack.
+
 | Suite | Result |
 | --- | --- |
+| API unit, `oss/tests/pytest/unit/gateways/` | 838 passed |
+| API unit, `oss/tests/pytest/unit/secrets/` | 198 passed |
+| API integration, `oss/tests/pytest/integration/gateways/` | 28 passed |
 | API acceptance, `oss/tests/pytest/acceptance/gateways/` | 40 passed |
-| API acceptance, the mock matrix alone | 21 passed |
-| API integration, `oss/tests/pytest/integration/gateways/` | 23 passed |
-| SDK acceptance, `test_mcp_gateway_routing_acceptance.py` | 2 passed |
-| Services integration, `test_gateway_http.py` | 11 passed |
-| Runner acceptance, `gateway-credentials-no-provider-secret.test.ts` | 23 passed |
+| SDK acceptance | 126 passed, 2 skipped |
+| Services integration | 14 passed |
 | Services acceptance, `test_agent_gateway_route.py` | 27 passed |
+| Runner unit | 3306 passed |
+| Runner acceptance | 23 passed |
+
+The counts grew because the repairs carry their own regression cases. The API gateway unit suite
+was 654 before the review and is 838 after it.
 
 `test_agent_harness_calls_echo_through_each_mock_mcp_gateway_route` covers every
 LLM-namespace and MCP-namespace pair on every harness: nine Pi, nine Codex, nine Claude. The nine
