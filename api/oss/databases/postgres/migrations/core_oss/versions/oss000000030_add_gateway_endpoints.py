@@ -23,7 +23,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # OAuth grants are required by MCP endpoint OAuth connections.
+    # Both kinds are required by MCP endpoint OAuth connections: the dynamic client
+    # registration is stored as OAUTH_PROVIDER and the tokens it obtains as OAUTH_GRANT.
+    # A database created by `create_all` has every `SecretKind` member already; one
+    # upgraded through migrations has only what the migrations declare, so a member the
+    # code writes and no migration adds fails at the first insert.
+    op.execute("ALTER TYPE secretkind_enum ADD VALUE IF NOT EXISTS 'OAUTH_PROVIDER'")
     op.execute("ALTER TYPE secretkind_enum ADD VALUE IF NOT EXISTS 'OAUTH_GRANT'")
 
     op.create_table(
@@ -154,6 +159,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # `ALTER TYPE ... ADD VALUE` has no inverse in PostgreSQL: an enum member cannot be
+    # dropped. OAUTH_PROVIDER and OAUTH_GRANT therefore stay on `secretkind_enum` after a
+    # downgrade. They are inert without the tables below, and re-running upgrade() is safe
+    # because both statements are `ADD VALUE IF NOT EXISTS`.
     op.drop_index("ix_mcps_endpoints_flags", table_name="mcps_endpoints")
     op.drop_table("mcps_endpoints")
 
