@@ -192,9 +192,11 @@ async def test_our_credentials_header_is_never_forwarded():
 
 
 @pytest.mark.asyncio
-async def test_caller_authorization_reaches_the_upstream_when_no_secret_resolved():
-    """Pass-through (OD15): the data plane reads only our own header, so `Authorization`
-    is the caller's own vendor auth and nothing overwrites it."""
+async def test_caller_authorization_never_reaches_the_upstream():
+    """OR36: an endpoint's upstream credential comes from its registered secret, never from
+    the caller. With no secret resolved the call still goes out — unauthenticated, which the
+    upstream answers as it sees fit — but the caller's own token is not what authenticates
+    it. `authorization` is not on the forward allowlist, so it is dropped either way."""
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -207,15 +209,19 @@ async def test_caller_authorization_reaches_the_upstream_when_no_secret_resolved
         secret=None,
         context=_context(),
         body=_body(),
-        headers={"Authorization": "Bearer caller-subscription"},
+        headers={"authorization": "Bearer caller-subscription"},
     )
 
-    assert captured["request"].headers["authorization"] == "Bearer caller-subscription"
+    assert "authorization" not in captured["request"].headers
 
 
 @pytest.mark.asyncio
 async def test_a_resolved_secret_overwrites_the_callers_authorization():
-    """The other half of the same rule: when we do hold a secret, ours is what goes out."""
+    """The other half of the same rule: when we do hold a secret, ours is what goes out.
+
+    The caller's spelling is the lowercase one Starlette produces (OR37). Merged as plain
+    dicts it survived beside the injected capital-A name and the upstream received two
+    authorization values, so the header count is asserted, not just the value."""
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -228,10 +234,11 @@ async def test_a_resolved_secret_overwrites_the_callers_authorization():
         secret=_standard_secret(key="sk-ours"),
         context=_context(),
         body=_body(),
-        headers={"Authorization": "Bearer caller-subscription"},
+        headers={"authorization": "Bearer caller-subscription"},
     )
 
-    assert captured["request"].headers["authorization"] == "Bearer sk-ours"
+    request = captured["request"]
+    assert request.headers.get_list("authorization") == ["Bearer sk-ours"]
 
 
 @pytest.mark.asyncio

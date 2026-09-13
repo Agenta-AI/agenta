@@ -1,11 +1,18 @@
 """Relay LLM requests while preserving provider request and response bodies."""
 
 import json
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Any, AsyncIterator, Dict, Optional, Tuple
 
 import httpx
 
-from oss.src.core.gateways.dtos import GATEWAY_ONLY_HEADERS
+from oss.src.core.gateways.dtos import (
+    CredentialEchoScanner,
+    credential_echo_envelope,
+    forwardable_request_headers,
+    injected_credential_values,
+    no_cookie_jar,
+    outbound_headers,
+)
 from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
     LLMProtocol,
@@ -23,20 +30,28 @@ from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 # Default timeout for outbound LLM requests.
 _DEFAULT_TIMEOUT_SECONDS = 60.0
 
-# Strip hop-by-hop and gateway-only headers before forwarding upstream.
-_STRIPPED_HEADERS = {
-    *GATEWAY_ONLY_HEADERS,
-    "host",
-    "content-length",
-    "connection",
-    "keep-alive",
-    "transfer-encoding",
-    "te",
-    "trailer",
-    "upgrade",
-    "proxy-authenticate",
-    "proxy-authorization",
-}
+
+class LLMUpstreamCredentialEchoError(LLMUpstreamError):
+    """The upstream returned the credential the gateway sent it.
+
+    An upstream that echoes the `Authorization` it received, which several providers do in
+    an error body, hands Agenta's provider key to the sandbox. The decision is to refuse the
+    response rather than redact it: a body that already contains the key cannot be trusted
+    to contain it only once, and a caller reading a doctored body is worse off than a caller
+    reading a refusal.
+
+    An `LLMUpstreamError` so the existing boundary mapping still catches it; `envelope`
+    carries the shared `{code, message, retryable, next_step, details}` refusal, with a
+    `code` of its own so a harness can tell this apart from a plain upstream failure.
+    """
+
+    def __init__(self, *, provider_key: Optional[str], status_code: Optional[int]):
+        self.envelope = credential_echo_envelope(target=provider_key)
+        super().__init__(
+            provider_key=provider_key,
+            status_code=status_code,
+            detail=self.envelope["message"],
+        )
 
 
 async def _outbound_headers(
@@ -44,12 +59,19 @@ async def _outbound_headers(
     headers: Dict[str, str],
     route: LLMResolvedRoute,
     secret: Optional[ResolvedSecret],
-) -> Dict[str, str]:
-    outbound = {k: v for k, v in headers.items() if k.lower() not in _STRIPPED_HEADERS}
-    if route.headers:
-        outbound.update(route.headers)
-    outbound.update(await build_auth_headers(route, secret))
-    return outbound
+) -> Tuple[httpx.Headers, Tuple[bytes, ...]]:
+    """The outbound headers, plus the credential values they carry.
+
+    Layered caller, then endpoint, then authentication, so what the gateway injects wins
+    over anything the caller sent under the same name in any casing.
+    """
+    auth_headers = await build_auth_headers(route, secret)
+    outbound = outbound_headers(
+        forwardable_request_headers(headers),
+        route.headers,
+        auth_headers,
+    )
+    return outbound, injected_credential_values(auth_headers)
 
 
 # Enough to hold the last SSE frames; the usage frame is the final data frame before the
@@ -122,6 +144,11 @@ class RelayLLMAdapter(LLMUpstreamInterface):
 
     def __init__(self, *, client: Optional[httpx.AsyncClient] = None) -> None:
         self._client = client or httpx.AsyncClient()
+        # The pooled client is shared by every tenant, so it must hold no cookie jar: an
+        # upstream `Set-Cookie` would otherwise be stored here and replayed on the next
+        # tenant's call. Assigned rather than passed to the constructor so an injected
+        # client is covered too.
+        self._client.cookies = no_cookie_jar()
 
     async def relay_chat_completion(
         self,
@@ -139,9 +166,10 @@ class RelayLLMAdapter(LLMUpstreamInterface):
             protocol=context.protocol,
             body=body,
         )
-        outbound_headers = await _outbound_headers(
+        request_headers, injected_secrets = await _outbound_headers(
             headers=headers, route=route, secret=secret
         )
+        scanner = CredentialEchoScanner(injected_secrets)
         timeout = (
             route.settings.timeout_seconds
             if route.settings.timeout_seconds is not None
@@ -149,7 +177,7 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         )
 
         request = self._client.build_request(
-            "POST", url, content=body, headers=outbound_headers, timeout=timeout
+            "POST", url, content=body, headers=request_headers, timeout=timeout
         )
 
         try:
@@ -168,12 +196,17 @@ class RelayLLMAdapter(LLMUpstreamInterface):
             ) from exc
 
         if response.status_code >= 500:
-            detail = (await response.aread()).decode(errors="replace")
+            content = await response.aread()
             await response.aclose()
+            if scanner.detects(content):
+                raise LLMUpstreamCredentialEchoError(
+                    provider_key=route.provider_key,
+                    status_code=response.status_code,
+                )
             raise LLMUpstreamError(
                 provider_key=route.provider_key,
                 status_code=response.status_code,
-                detail=detail,
+                detail=content.decode(errors="replace"),
             )
 
         result = LLMRelayResult(
@@ -183,21 +216,38 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         )
         result.body = (
             self._stream_body(
-                response=response, result=result, protocol=context.protocol
+                response=response,
+                result=result,
+                protocol=context.protocol,
+                scanner=scanner,
+                provider_key=route.provider_key,
             )
             if context.stream
             else self._single_chunk_body(
-                response=response, result=result, protocol=context.protocol
+                response=response,
+                result=result,
+                protocol=context.protocol,
+                scanner=scanner,
+                provider_key=route.provider_key,
             )
         )
         return result
 
     @staticmethod
     async def _single_chunk_body(
-        *, response: httpx.Response, result: LLMRelayResult, protocol: LLMProtocol
+        *,
+        response: httpx.Response,
+        result: LLMRelayResult,
+        protocol: LLMProtocol,
+        scanner: CredentialEchoScanner,
+        provider_key: Optional[str],
     ) -> AsyncIterator[bytes]:
         try:
             content = await response.aread()
+            if scanner.detects(content):
+                raise LLMUpstreamCredentialEchoError(
+                    provider_key=provider_key, status_code=response.status_code
+                )
             yield content
             result.usage = _usage_from_body(content, protocol)
         finally:
@@ -205,12 +255,23 @@ class RelayLLMAdapter(LLMUpstreamInterface):
 
     @staticmethod
     async def _stream_body(
-        *, response: httpx.Response, result: LLMRelayResult, protocol: LLMProtocol
+        *,
+        response: httpx.Response,
+        result: LLMRelayResult,
+        protocol: LLMProtocol,
+        scanner: CredentialEchoScanner,
+        provider_key: Optional[str],
     ) -> AsyncIterator[bytes]:
-        # Preserve upstream SSE chunk boundaries while extracting trailing usage.
+        # Preserve upstream SSE chunk boundaries while extracting trailing usage. Each chunk
+        # is checked before it is yielded, so a credential never leaves this generator, and
+        # the scanner carries a tail between chunks so a split value is still caught.
         tail = b""
         try:
             async for chunk in response.aiter_bytes():
+                if scanner.detects(chunk):
+                    raise LLMUpstreamCredentialEchoError(
+                        provider_key=provider_key, status_code=response.status_code
+                    )
                 tail = (tail + chunk)[-_USAGE_TAIL_BYTES:]
                 yield chunk
         finally:

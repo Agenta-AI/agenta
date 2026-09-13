@@ -12,7 +12,11 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPRelayAuth,
     MCPResolvedRoute,
 )
-from oss.src.core.gateways.dtos import GATEWAY_ONLY_HEADERS
+from oss.src.core.gateways.dtos import (
+    forwardable_request_headers,
+    no_cookie_jar,
+    outbound_headers,
+)
 from oss.src.core.gateways.mcps.interfaces import MCPRelayResult, MCPUpstreamInterface
 from oss.src.core.gateways.mcps.types import MCPUpstreamError
 from oss.src.core.webhooks.utils import resolve_validated_webhook_ip
@@ -23,15 +27,6 @@ _DEFAULT_TIMEOUT_SECONDS = 30.0
 
 def _host_allowlist() -> Set[str]:
     return {h.strip().lower() for h in env.mcp_gateway.host_allowlist if h.strip()}
-
-
-def _drop_header(headers: Dict[str, str], name: str) -> Dict[str, str]:
-    return {k: v for k, v in headers.items() if k.lower() != name.lower()}
-
-
-def _drop_gateway_headers(headers: Dict[str, str]) -> Dict[str, str]:
-    """Remove gateway credentials before forwarding headers upstream."""
-    return {k: v for k, v in headers.items() if k.lower() not in GATEWAY_ONLY_HEADERS}
 
 
 def _pin_to_resolved_ip(url: str, resolved_ip: str) -> Tuple[str, str]:
@@ -101,10 +96,14 @@ class HttpMCPAdapter(MCPUpstreamInterface):
         hostname = (parsed.hostname or "").lower()
 
         # route.headers merged under the caller's forwarded headers (§7.1): caller
-        # headers win on collision. The caller's own `Host` referred to this gateway,
-        # never the upstream, so it is dropped either way.
-        merged_headers = _drop_gateway_headers(
-            _drop_header({**route.headers, **headers}, "Host")
+        # headers win on collision, but only the allowlisted ones travel at all. The
+        # caller's own `Host` referred to this gateway, never the upstream, and its
+        # `Authorization` and `Cookie` authenticate it to us, so none of the three is on
+        # the allowlist. Assembled case-insensitively so a later layer replaces an earlier
+        # name whatever its casing.
+        merged_headers = outbound_headers(
+            route.headers,
+            forwardable_request_headers(headers),
         )
 
         if hostname in _host_allowlist():
@@ -134,7 +133,7 @@ class HttpMCPAdapter(MCPUpstreamInterface):
 
         try:
             async with httpx.AsyncClient(
-                timeout=timeout, transport=self._transport
+                timeout=timeout, transport=self._transport, cookies=no_cookie_jar()
             ) as client:
                 response = await client.post(
                     target_url,

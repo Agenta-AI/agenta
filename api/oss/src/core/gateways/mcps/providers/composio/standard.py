@@ -5,7 +5,11 @@ from urllib.parse import urlparse
 
 import httpx
 
-from oss.src.core.gateways.dtos import GATEWAY_ONLY_HEADERS
+from oss.src.core.gateways.dtos import (
+    forwardable_request_headers,
+    no_cookie_jar,
+    outbound_headers,
+)
 from oss.src.core.gateways.mcps.dtos import (
     COMPOSIO_PROVIDER,
     MCPBrokeredAuth,
@@ -41,15 +45,6 @@ def _project_api_key(auth: MCPRelayAuth) -> str:
             detail="standard Composio requires a project-owned Composio provider key",
         )
     return data.provider.key
-
-
-def _forward_headers(headers: Dict[str, str]) -> Dict[str, str]:
-    return {
-        name: value
-        for name, value in headers.items()
-        if name.lower() not in GATEWAY_ONLY_HEADERS
-        and name.lower() not in {"host", "content-length"}
-    }
 
 
 class StandardComposioMCPAdapter(MCPUpstreamInterface):
@@ -100,12 +95,17 @@ class StandardComposioMCPAdapter(MCPUpstreamInterface):
         )
         try:
             async with httpx.AsyncClient(
-                timeout=timeout, transport=self._transport
+                timeout=timeout, transport=self._transport, cookies=no_cookie_jar()
             ) as client:
                 response = await client.post(
                     session_url,
                     content=body,
-                    headers={**_forward_headers(headers), **session_headers},
+                    # The session's own capability headers win over anything the caller
+                    # sent, in any casing; only allowlisted caller headers travel at all.
+                    headers=outbound_headers(
+                        forwardable_request_headers(headers),
+                        session_headers,
+                    ),
                 )
         except httpx.RequestError as exc:
             raise MCPUpstreamError(target=session_url, detail=str(exc)) from exc
@@ -121,7 +121,7 @@ class StandardComposioMCPAdapter(MCPUpstreamInterface):
     ) -> tuple[str, Dict[str, str]]:
         try:
             async with httpx.AsyncClient(
-                timeout=timeout, transport=self._transport
+                timeout=timeout, transport=self._transport, cookies=no_cookie_jar()
             ) as client:
                 response = await client.post(
                     f"{self.api_url}/tool_router/session",

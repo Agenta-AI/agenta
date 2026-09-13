@@ -89,7 +89,7 @@ async def test_body_passed_through_byte_for_byte():
 
 
 @pytest.mark.asyncio
-async def test_route_and_caller_headers_both_present():
+async def test_route_headers_and_allowlisted_caller_headers_both_present():
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -105,18 +105,25 @@ async def test_route_and_caller_headers_both_present():
         auth=_auth(),
         context=_context(),
         body=b"{}",
-        headers={"X-Caller-Header": "caller"},
+        headers={"MCP-Protocol-Version": "2026-07-28", "X-Caller-Header": "caller"},
     )
 
     assert captured["headers"]["X-Route-Header"] == "route"
-    assert captured["headers"]["X-Caller-Header"] == "caller"
+    # OR36: the caller's headers are an allowlist, not a pass-through. A protocol header
+    # the upstream needs travels; an arbitrary one the caller invented does not.
+    assert captured["headers"]["MCP-Protocol-Version"] == "2026-07-28"
+    assert "x-caller-header" not in captured["headers"]
 
 
 @pytest.mark.asyncio
 async def test_caller_header_wins_on_collision_with_route_header():
     """route.headers is merged UNDER the caller's forwarded headers (specs-wp8.md §7.1),
     so on a name collision the caller's value is what reaches the upstream. entities.md
-    does not mandate this ordering; this test pins the implementation's choice."""
+    does not mandate this ordering; this test pins the implementation's choice.
+
+    The collision is on a forwardable name, because since OR36 a name outside the allowlist
+    never reaches the merge at all. The caller's spelling is the lowercase one Starlette
+    produces, so the merge has to be case-insensitive for its value to win."""
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -127,15 +134,16 @@ async def test_caller_header_wins_on_collision_with_route_header():
 
     await adapter.relay(
         route=MCPResolvedRoute(
-            url=f"https://{_PUBLIC_IP}/mcp", headers={"X-Shared": "route-value"}
+            url=f"https://{_PUBLIC_IP}/mcp",
+            headers={"MCP-Protocol-Version": "route-value"},
         ),
         auth=_auth(),
         context=_context(),
         body=b"{}",
-        headers={"X-Shared": "caller-value"},
+        headers={"mcp-protocol-version": "caller-value"},
     )
 
-    assert captured["headers"]["X-Shared"] == "caller-value"
+    assert captured["headers"].get_list("mcp-protocol-version") == ["caller-value"]
 
 
 @pytest.mark.asyncio
@@ -489,9 +497,11 @@ async def test_our_credentials_header_is_never_forwarded_upstream():
 
 
 @pytest.mark.asyncio
-async def test_caller_authorization_reaches_the_server_when_no_secret_resolved():
-    """Pass-through (OD15): the data plane reads only our own header, so `Authorization`
-    is the caller's and nothing of ours overwrites it."""
+async def test_endpoint_without_a_secret_still_calls_the_server_unauthenticated():
+    """OR36: an endpoint's credential comes from its registered secret, never from the
+    caller. An endpoint registered without one is an unauthenticated upstream by design, so
+    the call still goes out and the server answers it as it sees fit — but the caller's own
+    `Authorization` is not what carries it there."""
     captured = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -500,12 +510,13 @@ async def test_caller_authorization_reaches_the_server_when_no_secret_resolved()
 
     adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
 
-    await adapter.relay(
+    result = await adapter.relay(
         route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
         auth=_auth(secret=None),
         context=_context(),
         body=b"{}",
-        headers={"Authorization": "Bearer caller-token"},
+        headers={"authorization": "Bearer caller-token"},
     )
 
-    assert captured["headers"]["authorization"] == "Bearer caller-token"
+    assert result.status_code == 200
+    assert "authorization" not in captured["headers"]
