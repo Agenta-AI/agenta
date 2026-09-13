@@ -17,7 +17,9 @@ from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.llms.types import (
     LLMAdapterNotFoundError,
     LLMEndpointNotFoundError,
+    LLMModelIdentifierInvalidError,
     LLMModelNotAllowedError,
+    LLMRoutingFieldNotAllowedError,
     LLMUpstreamError,
 )
 from oss.src.core.gateways.policy.types import (
@@ -41,6 +43,8 @@ _DOMAIN_EXCEPTIONS = (
     PolicyDeniedError,
     EntitlementDeniedError,
     LLMModelNotAllowedError,
+    LLMRoutingFieldNotAllowedError,
+    LLMModelIdentifierInvalidError,
     CeilingExceededError,
     SecretNotFoundError,
     SecretInvalidError,
@@ -86,6 +90,24 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             message=exc.message,
             error_type="invalid_request_error",
             code="model_not_allowed",
+        )
+    if isinstance(exc, LLMRoutingFieldNotAllowedError):
+        # Its own code beside `model_not_allowed`: nothing is wrong with the model the
+        # caller named, so a client that retried the same model would keep failing. What it
+        # must do is drop the routing field.
+        return _openai_error(
+            status_code=400,
+            message=exc.message,
+            error_type="invalid_request_error",
+            code="routing_field_not_allowed",
+            field=exc.field,
+        )
+    if isinstance(exc, LLMModelIdentifierInvalidError):
+        return _openai_error(
+            status_code=400,
+            message=exc.message,
+            error_type="invalid_request_error",
+            code="invalid_model_identifier",
         )
     if isinstance(exc, CeilingExceededError):
         return _openai_error(

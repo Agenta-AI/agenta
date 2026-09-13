@@ -10,7 +10,9 @@ from oss.src.core.gateways.llms.types import (
     LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
     LLMEndpointProviderMissingError,
+    LLMModelIdentifierInvalidError,
     LLMModelNotAllowedError,
+    LLMRoutingFieldNotAllowedError,
     LLMUpstreamError,
 )
 from oss.src.core.gateways.mcps.types import (
@@ -137,6 +139,32 @@ def handle_gateway_exceptions():
                             "Set the endpoint's provider, or resolve it with a provider_key."
                         ),
                         details={"target": _target_of(e)},
+                    ),
+                ) from e
+
+            except LLMRoutingFieldNotAllowedError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=gateway_error_envelope(
+                        code="routing_field_not_allowed",
+                        message=e.message,
+                        next_step=(
+                            "Remove the routing field, and name the model you want in "
+                            "`model`."
+                        ),
+                        details={"target": _target_of(e), "field": e.field},
+                    ),
+                ) from e
+            except LLMModelIdentifierInvalidError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=gateway_error_envelope(
+                        code="invalid_model_identifier",
+                        message=e.message,
+                        next_step=(
+                            "Name a model id of letters, digits and `. _ - :`, with `/` "
+                            "only between segments."
+                        ),
                     ),
                 ) from e
 

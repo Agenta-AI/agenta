@@ -23,6 +23,52 @@ class LLMModelNotAllowedError(GatewaysError):
         super().__init__(f"Model {model} not allowed on {namespace.value}/{name}")
 
 
+class LLMRoutingFieldNotAllowedError(GatewaysError):
+    """The body carries a model-routing field the gateway cannot evaluate (OR44).
+
+    The allowlist can only bind the fields it understands. `model` and every entry of
+    OpenRouter's `models` fallback array are checked against it; a routing extension whose
+    effect the gateway cannot evaluate — OpenRouter's `provider` preferences, its legacy
+    `route`, a saved `preset`, a proxy-style `fallbacks` list — is refused rather than
+    forwarded unexamined. Refusing rather than ignoring is what stops the next such field a
+    provider ships from silently reopening the allowlist.
+    """
+
+    def __init__(
+        self,
+        *,
+        field: str,
+        namespace: GatewayEndpointNamespace,
+        name: str,
+        reason: Optional[str] = None,
+    ):
+        self.field = field
+        self.namespace = namespace
+        self.name = name
+        self.reason = reason
+        super().__init__(
+            f"Request field {field!r} selects models and is not enforceable on "
+            f"{namespace.value}/{name}" + (f": {reason}" if reason else "")
+        )
+
+
+class LLMModelIdentifierInvalidError(GatewaysError):
+    """The model identifier is not admissible where a route interpolates it (OR60).
+
+    Azure and Vertex place the caller's model inside the request URL's path. A value such as
+    `x/../..` walks out of the deployment's own prefix and reaches arbitrary endpoints under
+    the organisation's cloud credentials, so the identifier is admitted only if every one of
+    its `/`-separated segments matches the character class real model ids use.
+    """
+
+    def __init__(self, *, model: str, provider_key: Optional[str] = None):
+        self.model = model
+        self.provider_key = provider_key
+        super().__init__(
+            f"Model identifier {model!r} is not a valid model id for a routed deployment"
+        )
+
+
 class LLMAdapterNotFoundError(GatewaysError):
     """No upstream adapter is registered under this key."""
 

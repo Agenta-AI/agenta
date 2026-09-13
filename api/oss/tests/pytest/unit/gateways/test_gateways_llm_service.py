@@ -33,6 +33,7 @@ from oss.src.core.gateways.llms.types import (
     LLMEndpointNotFoundError,
     LLMEndpointProviderMissingError,
     LLMModelNotAllowedError,
+    LLMRoutingFieldNotAllowedError,
 )
 from oss.src.core.gateways.policy.dtos import (
     SecretMode,
@@ -880,3 +881,223 @@ async def test_streaming_call_records_only_after_full_consumption():
     remaining = [chunk async for chunk in result.body]
     assert remaining == [b"chunk-2"]
     assert len(policy.record_calls) == 1  # recorded exactly once, after exhaustion
+
+
+# --- OR44: every field that can select a model ------------------------------ #
+
+
+def _relay_service_and_adapter(
+    *, allowlist=None, max_output_tokens=None
+) -> tuple["LLMGatewayService", "_MockAdapter", "_MockResolver"]:
+    """A service whose custom `acme` endpoint relays through a capturing adapter."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme",
+        models=LLMModelFilter(allowlist=allowlist or ["gpt-4o"]),
+        max_output_tokens=max_output_tokens,
+        secret_id=uuid4(),
+    )
+    resolver = _MockResolver(secret=_secret())
+    adapter = _MockAdapter(
+        result=LLMRelayResult(status_code=200, headers={}, body=_one_chunk_body(b"{}"))
+    )
+    service = _service(
+        dao=dao,
+        resolver=resolver,
+        registry=LLMUpstreamRegistry(adapters={"relay": adapter}),
+        policy=_MockPolicy(allowed=True),
+    )
+    return service, adapter, resolver
+
+
+async def _relay(service, body: dict, *, protocol=LLMProtocol.CHAT_COMPLETIONS):
+    return await service.relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name="acme",
+        body=json.dumps(body).encode(),
+        headers={},
+        protocol=protocol,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_forbidden_fallback_model_beside_a_permitted_one_is_refused():
+    """OR44: `models` is OpenRouter's fallback array, and it used to travel unexamined.
+
+    The endpoint allows `gpt-4o` alone, so the primary passes; the fallback that runs when
+    the primary fails is the model the allowlist exists to keep out.
+    """
+    service, adapter, resolver = _relay_service_and_adapter(allowlist=["gpt-4o"])
+
+    with pytest.raises(LLMModelNotAllowedError) as excinfo:
+        await _relay(service, {"model": "gpt-4o", "models": ["forbidden-model"]})
+
+    assert excinfo.value.model == "forbidden-model"
+    assert adapter.calls == []
+    assert resolver.resolve_calls == []  # refused before any vault read (§8)
+
+
+@pytest.mark.asyncio
+async def test_a_body_naming_only_the_permitted_model_still_relays():
+    service, adapter, _ = _relay_service_and_adapter(allowlist=["gpt-4o"])
+
+    await _relay(service, {"model": "gpt-4o", "messages": []})
+
+    assert len(adapter.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_fallback_list_of_permitted_models_still_relays():
+    """Checking the field is not the same as banning it: a fallback inside the allowlist
+    is a routing decision the policy has already approved."""
+    service, adapter, _ = _relay_service_and_adapter(
+        allowlist=["gpt-4o", "gpt-4o-mini"]
+    )
+
+    await _relay(service, {"model": "gpt-4o", "models": ["gpt-4o-mini"]})
+
+    assert len(adapter.calls) == 1
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("route", "fallback"),
+        ("provider", {"order": ["azure", "openai"]}),
+        ("preset", "my-router"),
+        ("fallbacks", [{"model": "forbidden-model"}]),
+    ],
+)
+@pytest.mark.asyncio
+async def test_a_routing_extension_the_gateway_cannot_check_is_refused(field, value):
+    """A field that steers routing and that the allowlist cannot evaluate is refused
+    rather than forwarded, so the next one a provider ships cannot ride along."""
+    service, adapter, resolver = _relay_service_and_adapter(allowlist=["gpt-4o"])
+
+    with pytest.raises(LLMRoutingFieldNotAllowedError) as excinfo:
+        await _relay(service, {"model": "gpt-4o", field: value})
+
+    assert excinfo.value.field == field
+    assert adapter.calls == []
+    assert resolver.resolve_calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_null_routing_extension_is_not_treated_as_routing():
+    """A client library that serialises its unset options as `null` sends no routing."""
+    service, adapter, _ = _relay_service_and_adapter(allowlist=["gpt-4o"])
+
+    await _relay(service, {"model": "gpt-4o", "provider": None, "route": None})
+
+    assert len(adapter.calls) == 1
+
+
+@pytest.mark.parametrize("value", ["forbidden-model", {"only": ["forbidden"]}, [1, 2]])
+@pytest.mark.asyncio
+async def test_a_fallback_field_that_is_not_a_list_of_model_ids_is_refused(value):
+    """An unreadable `models` cannot be measured against the allowlist, so it is refused
+    rather than assumed harmless."""
+    service, adapter, _ = _relay_service_and_adapter(allowlist=["gpt-4o"])
+
+    with pytest.raises(LLMRoutingFieldNotAllowedError):
+        await _relay(service, {"model": "gpt-4o", "models": value})
+
+    assert adapter.calls == []
+
+
+@pytest.mark.asyncio
+async def test_fallback_entries_are_matched_exactly_like_the_primary_model():
+    """The exact-string match is the property that rejects case and unicode variants, and
+    it governs the fallback array the same way."""
+    service, _, _ = _relay_service_and_adapter(allowlist=["gpt-4o"])
+
+    with pytest.raises(LLMModelNotAllowedError):
+        await _relay(service, {"model": "gpt-4o", "models": ["GPT-4O"]})
+
+
+# --- OR50: the output-token ceiling is not optional ------------------------- #
+
+
+@pytest.mark.parametrize(
+    "protocol,alias",
+    [
+        (LLMProtocol.CHAT_COMPLETIONS, "max_tokens"),
+        (LLMProtocol.RESPONSES, "max_output_tokens"),
+        (LLMProtocol.MESSAGES, "max_tokens"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_a_request_naming_no_maximum_leaves_with_the_ceiling_written_in(
+    protocol, alias
+):
+    """OR50: an omitted maximum used to mean the upstream's own default applied."""
+    service, adapter, _ = _relay_service_and_adapter(max_output_tokens=10)
+
+    await _relay(service, {"model": "gpt-4o", "messages": []}, protocol=protocol)
+
+    sent = json.loads(adapter.calls[0]["body"])
+    assert sent[alias] == 10
+    assert sent["model"] == "gpt-4o"  # nothing else about the body is rewritten
+    assert sent["messages"] == []
+
+
+@pytest.mark.asyncio
+async def test_the_second_alias_is_checked_not_only_the_first_one_found():
+    """OR50: the parser returned the first recognised integer, so a small `max_tokens`
+    hid a large `max_completion_tokens` beside it."""
+    service, adapter, _ = _relay_service_and_adapter(max_output_tokens=10)
+
+    with pytest.raises(CeilingExceededError) as excinfo:
+        await _relay(
+            service,
+            {"model": "gpt-4o", "max_tokens": 1, "max_completion_tokens": 999999},
+        )
+
+    assert excinfo.value.requested == 999999
+    assert excinfo.value.allowed == 10
+    assert adapter.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_maximum_at_exactly_the_ceiling_passes_untouched():
+    service, adapter, _ = _relay_service_and_adapter(max_output_tokens=10)
+    body = {"model": "gpt-4o", "max_tokens": 10}
+
+    await _relay(service, body)
+
+    assert adapter.calls[0]["body"] == json.dumps(body).encode()
+
+
+@pytest.mark.parametrize("value", ["999999", 999999.5])
+@pytest.mark.asyncio
+async def test_a_non_integer_maximum_above_the_ceiling_is_still_refused(value):
+    """A count of the wrong type used to skip the check entirely: only `int` was read."""
+    service, _, _ = _relay_service_and_adapter(max_output_tokens=10)
+
+    with pytest.raises(CeilingExceededError):
+        await _relay(service, {"model": "gpt-4o", "max_tokens": value})
+
+
+@pytest.mark.parametrize("value", [None, -1, 0, True, "unlimited"])
+@pytest.mark.asyncio
+async def test_a_maximum_that_names_no_usable_count_gets_the_ceiling_instead(value):
+    """`null`, a negative sentinel and a non-numeric string all name no maximum, so the
+    endpoint's ceiling is what goes upstream — and the unusable spelling does not travel
+    beside it for the upstream to prefer."""
+    service, adapter, _ = _relay_service_and_adapter(max_output_tokens=10)
+
+    await _relay(service, {"model": "gpt-4o", "max_tokens": value})
+
+    assert json.loads(adapter.calls[0]["body"])["max_tokens"] == 10
+
+
+@pytest.mark.asyncio
+async def test_an_endpoint_with_no_ceiling_relays_the_body_byte_for_byte():
+    """D34 is intact where there is no ceiling to write: nothing is re-serialised."""
+    service, adapter, _ = _relay_service_and_adapter(max_output_tokens=None)
+    body = {"model": "gpt-4o", "messages": [], "max_tokens": 999999}
+
+    await _relay(service, body)
+
+    assert adapter.calls[0]["body"] == json.dumps(body).encode()

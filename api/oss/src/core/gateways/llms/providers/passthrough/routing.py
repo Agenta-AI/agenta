@@ -7,7 +7,13 @@ from oss.src.core.gateways.llms.dtos import (
     LLMProtocol,
     LLMResolvedRoute,
 )
-from oss.src.core.gateways.llms.types import LLMUpstreamError
+from oss.src.core.gateways.llms.providers.passthrough.validation import (
+    is_path_safe_model_identifier,
+)
+from oss.src.core.gateways.llms.types import (
+    LLMModelIdentifierInvalidError,
+    LLMUpstreamError,
+)
 
 # Provider base URLs include any required version prefix.
 _PROTOCOL_PATHS: Dict[LLMProtocol, str] = {
@@ -37,6 +43,22 @@ def _no_route(*, provider_key: str, detail: str) -> LLMUpstreamError:
     return LLMUpstreamError(provider_key=provider_key, status_code=None, detail=detail)
 
 
+def _path_segment_model(route: LLMResolvedRoute) -> str:
+    """The route's model, admitted only where it is safe to interpolate into a path (OR60).
+
+    Azure and Vertex are the two deployments that put the caller's own string inside the
+    request URL. Anything outside the model-id grammar — a dot segment, a space, a percent
+    escape, a backslash — is refused here rather than escaped, because the qualified
+    `<provider>/<kind>/<model>` spelling makes `/` a legitimate separator that escaping
+    would destroy.
+    """
+    if not is_path_safe_model_identifier(route.model):
+        raise LLMModelIdentifierInvalidError(
+            model=route.model, provider_key=route.provider_key
+        )
+    return route.model
+
+
 def _direct_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:
     base_url = route.base_url or DIRECT_BASE_URLS.get(route.provider_key)
     if not base_url:
@@ -63,7 +85,7 @@ def _azure_url(route: LLMResolvedRoute, protocol: LLMProtocol) -> str:
         )
     # Azure uses the configured model as its deployment name.
     url = (
-        f"{route.base_url.rstrip('/')}/openai/deployments/{route.model}"
+        f"{route.base_url.rstrip('/')}/openai/deployments/{_path_segment_model(route)}"
         f"{_PROTOCOL_PATHS[protocol]}"
     )
     if route.api_version:
@@ -137,9 +159,10 @@ def _vertex_messages_url(route: LLMResolvedRoute, *, stream: bool) -> str:
             provider_key=route.provider_key,
             detail="vertex messages endpoint has no model",
         )
+    model = _path_segment_model(route)
     prefix = _vertex_base_prefix(route)
     action = "streamRawPredict" if stream else "rawPredict"
-    return f"{prefix}/publishers/anthropic/models/{route.model}:{action}"
+    return f"{prefix}/publishers/anthropic/models/{model}:{action}"
 
 
 _MESSAGES_ROUTING: Dict[LLMDeploymentKind, Callable[[LLMResolvedRoute, bool], str]] = {
