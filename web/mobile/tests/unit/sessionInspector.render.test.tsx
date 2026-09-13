@@ -5,7 +5,7 @@ import {flushSync} from "react-dom"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-import {InspectSessionButton} from "@/features/chat/SessionInspectorSheet"
+import {InspectSessionButton} from "@/features/chat/InspectSessionButton"
 
 vi.mock("@agenta/entities/session", async () => {
     const {atom} = await import("jotai")

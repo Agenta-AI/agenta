@@ -14,8 +14,8 @@ import {PageTitle} from "@/components/PageTitle"
 
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {InspectSessionButton} from "./InspectSessionButton"
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
-import {InspectSessionButton} from "./SessionInspectorSheet"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 
