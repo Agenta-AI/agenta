@@ -1183,7 +1183,11 @@ llm_gateway_service = LLMGatewayService(
     upstream_registry=LLMUpstreamRegistry(
         adapters={
             "relay": RelayLLMAdapter(),
-            "mock": MockLLMAdapter(),
+            # Registered only under the development switch. Dispatch picks this adapter
+            # from an endpoint's stored deployment kind and never consults the flag, so a
+            # row persisted as `mock` would otherwise serve traffic on a process where
+            # mocks are off. With it absent, that row raises `LLMAdapterNotFoundError`.
+            **({"mock": MockLLMAdapter()} if env.mock_gateways.enabled else {}),
         }
     ),
 )
@@ -1197,8 +1201,17 @@ mcp_gateway_service = MCPGatewayService(
     upstream_registry=MCPUpstreamRegistry(
         adapters={
             "http": HttpMCPAdapter(),
-            "mock": MockMCPAdapter(),
-            "mock_http": DeployableMockMCPAdapter(),
+            # Same switch as the LLM plane above. The MCP service already refuses to list
+            # or resolve a mock endpoint with the flag off, so this only removes the
+            # registration that would make one dispatchable if any path reached it.
+            **(
+                {
+                    "mock": MockMCPAdapter(),
+                    "mock_http": DeployableMockMCPAdapter(),
+                }
+                if env.mock_gateways.enabled
+                else {}
+            ),
             "composio_standard": StandardComposioMCPAdapter(
                 api_url=env.composio.api_url,
             ),
