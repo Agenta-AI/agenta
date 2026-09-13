@@ -26,12 +26,11 @@ from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayEndpointNamespace
 from oss.src.core.gateways.mcps.dtos import MCPEndpoint, MCPEndpointEdit, MCPOAuthData
-from oss.src.core.gateways.mcps.oauth.state import decode_state
 from oss.src.core.gateways.mcps.types import MCPEndpointNotFoundError
 from oss.src.core.gateways.types import GatewaysError
 from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 from oss.src.utils.context import AuthScope, get_auth_scope
-from oss.src.middlewares.auth import sign_secret_token
+from oss.src.middlewares.auth import resolve_session_user_id, sign_secret_token
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 
@@ -150,6 +149,18 @@ class MCPGatewayRouter:
             methods=["GET"],
             operation_id="mcp_connect_callback",
             include_in_schema=False,
+        )
+
+        # --- OAuth attempt expiry (admin) ---
+        # The cron service POSTs to /admin/gateways/mcps/oauth/attempts/sweep, mounted
+        # in entrypoints/routers.py under prefix /admin/gateways, the same shape as
+        # /admin/triggers/schedules/refresh.
+        self.admin_router = APIRouter()
+        self.admin_router.add_api_route(
+            "/mcps/oauth/attempts/sweep",
+            self.sweep_oauth_attempts,
+            methods=["POST"],
+            operation_id="sweep_mcp_oauth_attempts",
         )
 
     async def _check(self, scope: AuthScope, permission: Permission) -> None:
@@ -393,6 +404,7 @@ class MCPGatewayRouter:
         start = await self.oauth_connect_service.begin(
             project_id=scope.project_id,
             user_id=scope.user_id,
+            endpoint_id=endpoint_id,
             server_url=server_url,
             scopes=body.scopes,
         )
@@ -408,9 +420,11 @@ class MCPGatewayRouter:
         error: Optional[str] = Query(default=None),
         error_description: Optional[str] = Query(default=None),
     ) -> HTMLResponse:
-        """Unauthenticated: the browser lands here straight from the authorization
-        server, not from an authenticated Agenta API call; all required facts come
-        from the signed state."""
+        """Exempt from `auth_middleware`: the browser lands here straight from the
+        authorization server, not from an authenticated Agenta API call. Every fact the
+        handler acts on comes from the server-side authorization attempt record that
+        the opaque `state` names, and the handler resolves the browser's own session to
+        check it against that record's user."""
         if error:
             return HTMLResponse(
                 status_code=400,
@@ -439,20 +453,17 @@ class MCPGatewayRouter:
                 ),
             )
 
-        state_payload = decode_state(state, secret_key=env.agenta.crypt_key)
-        if state_payload is None:
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False,
-                    error="OAuth state is invalid or expired.",
-                    agenta_url=env.agenta.web_url,
-                ),
-            )
+        # The principal the callback is checked against. `None` means the browser has
+        # no live Agenta session, which is a refusal: the authorization server holds
+        # this `state` too, and the session is the only evidence that the browser
+        # presenting the code is the browser that started the flow.
+        caller_user_id = await resolve_session_user_id(request)
 
         try:
             completion = await self.oauth_connect_service.complete(
-                code=code, state=state
+                code=code,
+                state=state,
+                caller_user_id=caller_user_id,
             )
         except GatewaysError as e:
             return HTMLResponse(
@@ -462,19 +473,32 @@ class MCPGatewayRouter:
                 ),
             )
 
-        user_id = UUID(state_payload["user_id"])
-
-        endpoints = await self.service.query_endpoints(project_id=completion.project_id)
-        target = next(
-            (
-                e
-                for e in endpoints
-                if e.data.route.base_url == completion.server_url
-                and e.auth_mode == GatewayAuthScheme.OAUTH
-            ),
-            None,
+        # The attempt named the user; the user must still be allowed to edit endpoints
+        # in the attempt's project, which they can have lost while consenting.
+        allowed = await check_action_access(
+            user_uid=str(completion.user_id),
+            project_id=str(completion.project_id),
+            permission=Permission.EDIT_MCP_ENDPOINTS,
         )
-        if target is None:
+        if not allowed:
+            return HTMLResponse(
+                status_code=403,
+                content=_connect_card(
+                    success=False,
+                    error="You are no longer allowed to edit MCP endpoints in this project.",
+                    agenta_url=env.agenta.web_url,
+                ),
+            )
+
+        # The endpoint comes from the attempt's bound id, not from a lookup by server
+        # URL: two endpoints in one project can name the same server, and the grant
+        # belongs to the one the user pressed connect on.
+        target = await self.service.fetch_endpoint(
+            project_id=completion.project_id,
+            #
+            endpoint_id=completion.endpoint_id,
+        )
+        if target is None or target.auth_mode != GatewayAuthScheme.OAUTH:
             return HTMLResponse(
                 status_code=400,
                 content=_connect_card(
@@ -486,7 +510,7 @@ class MCPGatewayRouter:
 
         await self.service.edit_endpoint(
             project_id=completion.project_id,
-            user_id=user_id,
+            user_id=completion.user_id,
             #
             endpoint=_as_edit(target, secret_id=completion.secret_id),
         )
@@ -499,6 +523,20 @@ class MCPGatewayRouter:
                 endpoint_id=str(target.id),
             ),
         )
+
+    # OAuth attempt expiry
+
+    @intercept_exceptions()
+    async def sweep_oauth_attempts(self, request: Request) -> Dict[str, int]:
+        """Delete authorization attempts nobody came back for.
+
+        Admin-only by mount point (`/admin/...`), which the auth middleware gates on
+        the platform `Access` key. An abandoned attempt is inert — single-use and
+        already past its expiry — so this is hygiene, not a security control; it keeps
+        unreturned PKCE verifiers from accumulating."""
+        count = await self.oauth_connect_service.sweep_expired_attempts()
+
+        return {"count": count}
 
 
 def _json_for_inline_script(value: Any) -> str:

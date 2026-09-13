@@ -110,6 +110,17 @@ _PUBLIC_ENDPOINTS = (
     # MCP OAuth client identity document, fetched without an Agenta auth token.
     "/gateways/mcps/oauth/client-metadata.json",
     "/api/gateways/mcps/oauth/client-metadata.json",
+    # MCP OAuth callback — the browser arrives straight from the authorization server,
+    # a top-level navigation that carries no `Authorization` header and no project or
+    # workspace query parameter, so the middleware could only ever resolve the user's
+    # default scope, which has nothing to do with the attempt. The handler resolves the
+    # session itself (`resolve_session_user_id`) and refuses when there is none, so the
+    # exemption widens no tenant boundary; what it buys is that the refusal reaches the
+    # user as the connect card the opener listens for, instead of a bare JSON 401 in a
+    # popup. Everything the handler acts on comes from the server-side authorization
+    # attempt record the opaque `state` names.
+    "/gateways/mcps/connect/callback",
+    "/api/gateways/mcps/connect/callback",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
@@ -492,6 +503,57 @@ async def verify_access_token(
 
     except Exception as exc:  # pylint: disable=bare-except
         raise UnauthorizedException() from exc
+
+
+async def resolve_session_user_id(request: Request) -> Optional[UUID]:
+    """The Agenta user behind this request's SuperTokens session cookie, or `None`.
+
+    For routes exempt from `auth_middleware` that still have to name their caller. An
+    exempt route builds no `AuthContext`, so `get_auth_scope()` is empty there, and a
+    browser arriving from a third party carries no `Authorization` header either — the
+    session cookie is all there is. SuperTokens runs in cookie mode here and its
+    SameSite resolves to `lax` (api and web on one site) or `none` (split domains),
+    never `strict`, so a top-level GET navigation back from a third party does present
+    `sAccessToken`.
+
+    Every failure — no cookie, an access token that expired during the round trip, a
+    user the database does not know — returns `None`. The caller decides what to say;
+    none of them may treat `None` as permission.
+    """
+    try:
+        session = await get_session(request, session_required=False)  # type: ignore
+    except Exception:  # pylint: disable=broad-except
+        # TryRefreshTokenError and friends: no principal, and this route cannot
+        # refresh one (the refresh cookie is scoped to /auth/session/refresh).
+        return None
+
+    if session is None:
+        return None
+
+    session_user_id = session.get_user_id()
+    if not session_user_id:
+        return None
+
+    try:
+        user_info = await asyncio.wait_for(
+            get_supertokens_user_by_id(user_id=session_user_id),
+            timeout=_SUPERTOKENS_TIMEOUT,
+        )
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+    user_email = user_info.emails[0] if user_info and user_info.emails else None
+    if not user_email:
+        return None
+
+    user = await db_manager.get_user_with_email(email=user_email)
+    if not user:
+        return None
+
+    try:
+        return UUID(str(user.id))
+    except ValueError:
+        return None
 
 
 async def is_interactive_session(request: Request) -> bool:

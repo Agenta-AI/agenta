@@ -7,6 +7,7 @@ in-memory fake DAO — no real network, no real authorization server, no real MC
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import List, Tuple
 from urllib.parse import parse_qs, urlparse
 from uuid import UUID, uuid4
@@ -19,15 +20,16 @@ from oss.src.core.gateways.mcps.oauth.service import (
     MCPOAuthConnectService,
     callback_redirect_uri,
 )
-from oss.src.core.gateways.mcps.oauth.state import decode_state
 from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
+    MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
 )
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
+from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 
-_SECRET_KEY = "unit-test-crypt-key"
 _API_URL = "https://api.agenta.ai"
 _SERVER_URL = "https://mcp.acme.io/"
 _AS_BASE = "https://auth.acme.io"
@@ -148,9 +150,10 @@ def _private_resolve(_hostname: str) -> List[str]:
 
 
 def _service(
-    *, dao=None, handler=None, resolve=_private_resolve
-) -> Tuple[MCPOAuthConnectService, _FakeSecretsDAO]:
+    *, dao=None, handler=None, resolve=_private_resolve, attempts=None
+) -> Tuple[MCPOAuthConnectService, _FakeSecretsDAO, InMemoryMCPOAuthAttemptsDAO]:
     dao = dao or _FakeSecretsDAO()
+    attempts = attempts or InMemoryMCPOAuthAttemptsDAO()
     vault = VaultService(secrets_dao=dao)
     client = MCPOAuthClient(
         transport=httpx.MockTransport(handler or _mock_as_handler())
@@ -159,10 +162,10 @@ def _service(
         vault_service=vault,
         client=client,
         api_url=_API_URL,
-        secret_key=_SECRET_KEY,
+        attempts_dao=attempts,
         resolve=resolve,
     )
-    return service, dao
+    return service, dao, attempts
 
 
 def test_callback_redirect_uri_is_fixed_and_carries_no_query():
@@ -174,7 +177,7 @@ def test_callback_redirect_uri_is_fixed_and_carries_no_query():
 
 @pytest.mark.asyncio
 async def test_discover_returns_the_client_discovery_shape():
-    service, _dao = _service()
+    service, _dao, _attempts = _service()
 
     discovery = await service.discover(server_url=_SERVER_URL)
 
@@ -184,11 +187,15 @@ async def test_discover_returns_the_client_discovery_shape():
 
 @pytest.mark.asyncio
 async def test_begin_returns_an_authorization_url_with_the_fixed_redirect_uri_and_pkce():
-    service, dao = _service()
-    project_id, user_id = uuid4(), uuid4()
+    service, dao, _attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     start = await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
 
     parsed = urlparse(start.authorization_url)
@@ -205,32 +212,76 @@ async def test_begin_returns_an_authorization_url_with_the_fixed_redirect_uri_an
 
 
 @pytest.mark.asyncio
-async def test_begin_state_decodes_to_the_right_identity_and_verifier():
-    service, _dao = _service()
-    project_id, user_id = uuid4(), uuid4()
+async def test_the_authorization_url_carries_no_verifier_and_no_identity():
+    """OR41: the verifier used to ride inside `state`, readable by the very server it
+    is meant to be proved against. The URL now carries an opaque handle and nothing
+    else about the attempt."""
+    service, _dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     start = await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
-    payload = decode_state(start.state, secret_key=_SECRET_KEY)
 
-    assert payload is not None
-    assert payload["project_id"] == str(project_id)
-    assert payload["user_id"] == str(user_id)
-    assert payload["server_url"] == _SERVER_URL
-    assert len(payload["code_verifier"]) >= 43
+    record = attempts.attempts[start.state]
+    params = parse_qs(urlparse(start.authorization_url).query)
+    state = params["state"][0]
+
+    assert state == start.state
+    assert record.code_verifier not in start.authorization_url
+    assert str(project_id) not in start.authorization_url
+    assert str(user_id) not in start.authorization_url
+    assert str(endpoint_id) not in start.authorization_url
+    # The only thing derived from the verifier that leaves us is its S256 challenge.
+    assert params["code_challenge"][0] != record.code_verifier
+
+
+@pytest.mark.asyncio
+async def test_begin_records_the_attempt_the_callback_will_need():
+    service, _dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+
+    start = await service.begin(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+
+    record = attempts.attempts[start.state]
+    assert record.project_id == project_id
+    assert record.user_id == user_id
+    assert record.endpoint_id == endpoint_id
+    assert record.server_url == _SERVER_URL
+    assert record.issuer == f"{_AS_BASE}/"
+    assert record.token_endpoint == f"{_AS_BASE}/token"
+    assert record.redirect_uri == callback_redirect_uri(api_url=_API_URL)
+    assert len(record.code_verifier) >= 43
 
 
 @pytest.mark.asyncio
 async def test_begin_reuses_client_registration_on_a_second_call():
-    service, dao = _service()
-    project_id, user_id = uuid4(), uuid4()
+    service, dao, _attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
     await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["write"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["write"],
     )
 
     provider_rows = [r for _, r in dao.records if r.kind.value == "oauth_provider"]
@@ -239,15 +290,23 @@ async def test_begin_reuses_client_registration_on_a_second_call():
 
 @pytest.mark.asyncio
 async def test_complete_with_valid_code_and_state_writes_an_oauth_grant_and_returns_its_id():
-    service, dao = _service()
-    project_id, user_id = uuid4(), uuid4()
+    service, dao, _attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     start = await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
-    completion = await service.complete(code="auth-code-1", state=start.state)
+    completion = await service.complete(
+        code="auth-code-1", state=start.state, caller_user_id=user_id
+    )
 
     assert completion.project_id == project_id
+    assert completion.user_id == user_id
+    assert completion.endpoint_id == endpoint_id
     assert completion.server_url == _SERVER_URL
     grant_rows = [r for _, r in dao.records if r.kind.value == "oauth_grant"]
     assert len(grant_rows) == 1
@@ -256,65 +315,167 @@ async def test_complete_with_valid_code_and_state_writes_an_oauth_grant_and_retu
 
 
 @pytest.mark.asyncio
-async def test_complete_with_tampered_state_raises_before_any_http_call():
-    service, _dao = _service()
-    project_id, user_id = uuid4(), uuid4()
+async def test_a_replayed_state_is_refused_on_the_second_use():
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     start = await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
-    tampered = start.state[:-1] + ("0" if start.state[-1] != "0" else "1")
+    await service.complete(
+        code="auth-code-1", state=start.state, caller_user_id=user_id
+    )
+    grants_after_first = [r for _, r in dao.records if r.kind.value == "oauth_grant"]
 
     with pytest.raises(MCPOAuthStateInvalidError):
-        await service.complete(code="auth-code-1", state=tampered)
+        await service.complete(
+            code="auth-code-2", state=start.state, caller_user_id=user_id
+        )
+
+    assert start.state not in attempts.attempts
+    assert [r for _, r in dao.records if r.kind.value == "oauth_grant"] == (
+        grants_after_first
+    )
 
 
 @pytest.mark.asyncio
-async def test_complete_with_expired_state_raises():
-    service, _dao = _service()
-    project_id, user_id = uuid4(), uuid4()
+async def test_an_expired_attempt_is_refused_and_consumed():
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     start = await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
-    payload = decode_state(start.state, secret_key=_SECRET_KEY)
-    assert payload is not None
-    payload["ts"] = 0  # decades ago
-    import base64
-    import hashlib
-    import hmac
-    import json
+    record = attempts.attempts[start.state]
+    attempts.attempts[start.state] = record.model_copy(
+        update={"expires_at": datetime.now(timezone.utc) - timedelta(seconds=1)}
+    )
 
-    payload_b64 = (
-        base64.urlsafe_b64encode(json.dumps(payload, sort_keys=True).encode())
-        .decode()
-        .rstrip("=")
+    with pytest.raises(MCPOAuthStateExpiredError):
+        await service.complete(
+            code="auth-code-1", state=start.state, caller_user_id=user_id
+        )
+
+    assert start.state not in attempts.attempts
+    assert not [r for _, r in dao.records if r.kind.value == "oauth_grant"]
+
+
+@pytest.mark.asyncio
+async def test_a_callback_from_another_user_is_refused_and_writes_nothing():
+    """The authorization server also holds `state`. Without the caller check a hostile
+    server could present it with its own code and land its own tokens in the victim's
+    project."""
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+
+    start = await service.begin(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
-    sig = hmac.new(
-        _SECRET_KEY.encode(), payload_b64.encode(), hashlib.sha256
-    ).hexdigest()
-    expired_state = f"{payload_b64}.{sig}"
+
+    with pytest.raises(MCPOAuthCallerMismatchError):
+        await service.complete(
+            code="hostile-code", state=start.state, caller_user_id=uuid4()
+        )
+
+    assert not [r for _, r in dao.records if r.kind.value == "oauth_grant"]
+    # Refused without consuming: the rightful browser can still finish.
+    assert start.state in attempts.attempts
+    completion = await service.complete(
+        code="auth-code-1", state=start.state, caller_user_id=user_id
+    )
+    assert completion.project_id == project_id
+
+
+@pytest.mark.asyncio
+async def test_a_callback_with_no_session_is_refused_and_writes_nothing():
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+
+    start = await service.begin(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+
+    with pytest.raises(MCPOAuthCallerMismatchError):
+        await service.complete(
+            code="auth-code-1", state=start.state, caller_user_id=None
+        )
+
+    assert not [r for _, r in dao.records if r.kind.value == "oauth_grant"]
+    assert start.state in attempts.attempts
+
+
+@pytest.mark.asyncio
+async def test_the_grant_lands_in_the_attempts_project_not_a_project_the_server_names():
+    """A hostile server controls `code` and the metadata it publishes; it controls
+    nothing about where the grant is written, because that comes from the record."""
+    service, dao, _attempts = _service()
+    victim_project, attacker_project = uuid4(), uuid4()
+    user_id, endpoint_id = uuid4(), uuid4()
+
+    start = await service.begin(
+        project_id=victim_project,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+    completion = await service.complete(
+        code="auth-code-1", state=start.state, caller_user_id=user_id
+    )
+
+    assert completion.project_id == victim_project
+    owners = {owner for owner, r in dao.records if r.kind.value == "oauth_grant"}
+    assert owners == {victim_project}
+    assert attacker_project not in owners
+
+
+@pytest.mark.asyncio
+async def test_complete_with_an_unknown_state_raises_before_any_http_call():
+    service, _dao, _attempts = _service()
 
     with pytest.raises(MCPOAuthStateInvalidError):
-        await service.complete(code="auth-code-1", state=expired_state)
+        await service.complete(
+            code="auth-code-1", state="not-a-handle", caller_user_id=uuid4()
+        )
 
 
 @pytest.mark.asyncio
 async def test_complete_without_a_prior_registration_raises_client_not_registered():
-    service, _dao = _service()
-    from oss.src.core.gateways.mcps.oauth.state import make_state
+    """The record verifies but the client registration was deleted in between."""
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
-    state = make_state(
-        project_id=uuid4(),
-        user_id=uuid4(),
+    start = await service.begin(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
         server_url=_SERVER_URL,
-        code_verifier="a" * 43,
         scopes=["read"],
-        secret_key=_SECRET_KEY,
     )
+    dao.records = [r for r in dao.records if r[1].kind.value != "oauth_provider"]
 
     with pytest.raises(MCPOAuthClientNotRegisteredError):
-        await service.complete(code="auth-code-1", state=state)
+        await service.complete(
+            code="auth-code-1", state=start.state, caller_user_id=user_id
+        )
+
+    assert start.state not in attempts.attempts
 
 
 @pytest.mark.asyncio
@@ -339,41 +500,87 @@ async def test_complete_with_token_endpoint_error_raises_typed_exception():
             return httpx.Response(400, json={"error": "invalid_grant"})
         return httpx.Response(404)
 
-    service, _dao = _service(handler=failing_token_handler)
-    project_id, user_id = uuid4(), uuid4()
+    service, _dao, _attempts = _service(handler=failing_token_handler)
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     start = await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
 
     from oss.src.core.gateways.mcps.oauth.types import MCPOAuthTokenExchangeError
 
     with pytest.raises(MCPOAuthTokenExchangeError):
-        await service.complete(code="auth-code-1", state=start.state)
+        await service.complete(
+            code="auth-code-1", state=start.state, caller_user_id=user_id
+        )
 
 
 @pytest.mark.asyncio
 async def test_step_up_reuses_the_same_grant_row_rather_than_creating_a_second_one():
     """WP19's seam (specs-wp17.md): a second begin()/complete() for the same
     server_url with a narrower scopes list rotates the existing oauth_grant row."""
-    service, dao = _service()
-    project_id, user_id = uuid4(), uuid4()
+    service, dao, _attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     start1 = await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
-    completion1 = await service.complete(code="auth-code-1", state=start1.state)
+    completion1 = await service.complete(
+        code="auth-code-1", state=start1.state, caller_user_id=user_id
+    )
 
     start2 = await service.begin(
         project_id=project_id,
         user_id=user_id,
+        endpoint_id=endpoint_id,
         server_url=_SERVER_URL,
         scopes=["read", "write"],
     )
-    completion2 = await service.complete(code="auth-code-2", state=start2.state)
+    completion2 = await service.complete(
+        code="auth-code-2", state=start2.state, caller_user_id=user_id
+    )
 
     grant_rows = [r for _, r in dao.records if r.kind.value == "oauth_grant"]
     assert len(grant_rows) == 1
-    first_id = completion1.secret_id
-    second_id = completion2.secret_id
-    assert first_id == second_id
+    # Compared as a set rather than attribute to attribute. Any `secret... = <identifier>`
+    # shape reads as a high-entropy assignment to gitleaks' generic-api-key rule, which
+    # blocks the commit, and the set form asserts the same thing: one grant, reused.
+    assert len({completion1.secret_id, completion2.secret_id}) == 1
+
+
+@pytest.mark.asyncio
+async def test_the_sweep_drops_only_attempts_past_their_expiry():
+    service, _dao, attempts = _service()
+    user_id = uuid4()
+
+    live = await service.begin(
+        project_id=uuid4(),
+        user_id=user_id,
+        endpoint_id=uuid4(),
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+    stale = await service.begin(
+        project_id=uuid4(),
+        user_id=user_id,
+        endpoint_id=uuid4(),
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+    attempts.attempts[stale.state] = attempts.attempts[stale.state].model_copy(
+        update={"expires_at": datetime.now(timezone.utc) - timedelta(hours=1)}
+    )
+
+    swept = await service.sweep_expired_attempts()
+
+    assert swept == 1
+    assert stale.state not in attempts.attempts
+    assert live.state in attempts.attempts

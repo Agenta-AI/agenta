@@ -2,68 +2,40 @@
 
 ## Active review findings
 
-Twenty-four findings are open. Four of them wait on a design decision rather than on a
-repair: OR38 on OD24, OR41 on OD25, and OR40 and OR64 on OD26, the open decisions recorded as
-OD24 to OD27 in `open-designs.md`. The rest are repairs, and each entry states the closure that
-would settle it and the test that would prove it. A finding that closes moves to the closed
-record below.
+Twenty-two findings are open. None of them waits on a design decision any more. OD24 to OD27 in
+`open-designs.md` are all decided: OD26, OD24 and OD27 have landed, and OD25 is being built now.
+Every open entry is a repair, and each states the closure that would settle it and the test that
+would prove it. A finding that closes moves to the closed record below.
 
 ---
 
-### OR38. The credential handed to the sandbox is a general-purpose platform token that can read the vault
+### OR69. The Daytona runner puts the user's provider keys into the sandbox environment, around the gateway entirely
 
-The gateway exists so that a sandbox never holds anything able to reach a provider key. The
-credential the sandbox holds reaches provider keys directly. Reproduced against the worktree on
-2026-09-13: the sandbox's gateway credential authenticated a vault request and returned secret
-values.
+`sdks/python/agenta/sdk/engines/running/runners/daytona.py:140-200` reads the project's vault
+secrets and maps fourteen of them to conventional provider environment variables, `OPENAI_API_KEY`
+among them. `:286-291` passes that map, plus `AGENTA_API_KEY` and the run's granted
+`AGENTA_CREDENTIALS`, into the sandbox's environment at creation. Present in the branch as of
+2026-09-13, and unchanged by OR38.
 
-`sdks/python/agenta/sdk/agents/platform/connections.py:1019` reads the platform authorization value
-and passes it as the gateway credential at `:1068` and `:1099`, so one value serves both roles.
-`api/oss/src/core/workflows/service.py:3038-3047` mints that value with `SECRET_RESOLVE_GRANT`.
-`api/oss/src/middlewares/auth.py:64-67` accepts `X-AG-Credentials` on any route, not only on gateway
-routes. `api/oss/src/apis/fastapi/vault/router.py:242-244` then returns write-only secret values in
-plaintext to any caller holding that same grant. Each link is reasonable on its own; together they
-give a sandboxed agent the platform identity the gateway was built to withhold from it.
+This is the defect the gateway exists to remove, reached by a different road. OR38 narrowed the
+credential the gateway hands the agent, so agent code can no longer ask the vault for a provider
+key. It did not touch this path, which does not ask: the key is already in the environment when
+the sandbox starts. Anything that can read the environment of that sandbox, the harness process
+included, has the user's real provider key and can call the provider directly, with no endpoint,
+no allowlist, no ceiling and no audit record. The granted `AGENTA_CREDENTIALS` sits beside it, so
+the vault is reachable too for anything with shell access, which is why OR38's closure stops at
+the agent's own credential.
 
-Closure: the sandbox holds a gateway-audience credential that the vault routes reject, and the
-middleware accepts `X-AG-Credentials` only on gateway routes. Proven by a case in
-`api/oss/tests/pytest/unit/gateways/` that presents a sandbox gateway credential to
-`GET /vault/secrets` and asserts a refusal, alongside the existing gateway relay cases proving the
-same credential still relays.
+The severity does not rest on the sandbox being hostile. It rests on the gateway's guarantee being
+stated without qualification while a second, older path hands out the same secret. Either the
+guarantee is narrowed in writing to the agent's credential, or this path goes.
 
----
-
-### OR40. No egress check runs at request time on the LLM plane or on MCP OAuth discovery, so a registered hostname can resolve to an internal address
-
-Registration validates a URL once. The request that follows connects to whatever the hostname
-resolves to at that moment. Reproduced against the worktree on 2026-09-13: an MCP OAuth discovery
-fetch reached `http://169.254.169.254/latest/meta-data/`.
-
-`api/oss/src/core/webhooks/utils.py:83` is `validate_url_format_and_literal_ip`, and its docstring
-says what it does: it checks format and literal IP addresses, and defers hostname resolution to the
-caller. On the LLM plane no caller performs that deferred check.
-`api/oss/src/core/gateways/llms/providers/passthrough/adapter.py:151-156` builds the request against
-the stored URL and sends it, with no resolved-address check and no connection pinning anywhere in
-the file. MCP OAuth has the same hole on a different path:
-`api/oss/src/core/gateways/mcps/oauth/client.py:124` takes a metadata URL the upstream supplies in
-its `WWW-Authenticate` challenge and fetches it unguarded at `:131`. The ordinary MCP relay does this
-correctly, at `api/oss/src/core/gateways/mcps/providers/http/adapter.py:110-127`: it resolves,
-validates, and pins the connection to the resolved address. One boundary already exists; it is not
-applied to every outbound call.
-
-Two environment variables are easy to confuse here, and neither closes this. `AGENTA_INSECURE_EGRESS_ALLOWED`
-governs the guard and defaults to true (`api/oss/src/utils/env.py:461`); that default is inherited
-from `main` rather than introduced on this branch, and it means the guard is off unless a deployment
-turns it on. `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED`
-(`sdks/python/agenta/sdk/agents/connections/models.py:59`, mirrored at
-`services/runner/src/engines/sandbox_agent/run-plan.ts:440`) is a different control governing the SDK
-and runner hop into Agenta, and has no bearing on upstream egress.
-
-Closure: every outbound call on both planes resolves the hostname, validates the resolved address and
-pins the connection, and the guard defaults to on. Proven by cases beside
-`api/oss/tests/pytest/unit/gateways/test_gateways_ssrf_registration_gate.py` that drive the LLM relay
-and the OAuth discovery fetch against a hostname resolving to a link-local address and assert both
-refuse.
+Closure: a sandbox the Daytona backend creates carries no provider key and no granted platform
+credential in its environment, and a run still completes on every harness. Proven by a test that
+builds the environment map the backend passes and asserts no vault-derived provider value and no
+granted credential appears in it, plus the existing 27 harness cells still passing. The OTLP export
+that `AGENTA_CREDENTIALS` serves needs its own narrow credential rather than the run's granted one;
+say which in the fix.
 
 ---
 
@@ -428,27 +400,6 @@ beside `api/oss/tests/pytest/unit/gateways/` asserting no module under `core/gat
 
 ---
 
-### OR64. `providers/passthrough` does not pass anything through, and the egress boundary is duplicated instead of shared
-
-The names in this layer describe neither what the code does nor where the shared logic is. Present in
-the branch as of 2026-09-13.
-
-`api/oss/src/core/gateways/llms/providers/passthrough/` selects cloud routes
-(`routing.py`), mints Vertex credentials (`auth.py`) and rewrites request bodies
-(`adapter.py:137-141`). `upstreams/http`, or `relay` with explicit per-provider strategies, describes
-that. `api/oss/src/core/gateways/policy/resolution.py` resolves vault credentials rather than
-applying policy, while the allowlists and ceilings that are policy live in the protocol services
-(`api/oss/src/core/gateways/llms/service.py:502`, `:516`). The split between `llms/` and `mcps/` is
-right, and it is not what is duplicated. What is duplicated is the outbound egress boundary: URL
-validation, connection pinning, header isolation and credential-safe responses each exist once per
-plane, or once and not at all, which is the shape behind OR36, OR39 and OR40.
-
-Closure: the outbound boundary lives in one shared module both planes call, and the layer names match
-what the modules do. Proven by the OR36, OR39 and OR40 cases passing against both planes through that
-one module.
-
----
-
 ### OR65. The test suites replace the boundaries where the guarantees actually fail
 
 The suites are green, and they cannot see any of the defects above. Present in the branch as of
@@ -547,6 +498,85 @@ enum member and the retained rows, and the upgrade sets a `lock_timeout`.
 ---
 
 ## Closed review record
+
+### OR40 / OR64. No egress check runs at request time on the LLM plane or on MCP OAuth discovery, and the egress boundary is duplicated instead of shared — CLOSED, and the first attempt enforced nothing because it read a flag that defaults to on
+
+The two were recorded together and closed together, because one module closes both.
+
+**What the defect was.** Registration validated a URL once, and the request that followed connected
+to whatever the hostname resolved to at that moment. The LLM relay built its request against the
+stored URL and sent it, with no resolved-address check and no connection pinning anywhere in the
+file. MCP OAuth fetched the `resource_metadata` URL an upstream supplies in its `WWW-Authenticate`
+challenge with no check at all, which is how a discovery fetch reached the cloud metadata address.
+The MCP HTTP adapter did it correctly, and it did it alone. That is what OR64 named: the outbound
+boundary existed once per plane, or once and not at all.
+
+**One module, and it is the only way out.** `api/oss/src/core/gateways/egress.py` is now the only way
+the gateway makes an outbound call. It resolves the hostname once and refuses if any returned address
+is blocked, rather than only the first, so a name answering with one public address and one private
+address does not pass. It pins by swapping the host for the checked literal address, while the
+registered authority travels as `Host` and SNI keeps TLS verifying the real name, so the connection
+lands on the address that was checked and the certificate still has to match. It never follows a
+redirect, because a redirect names a second destination nobody validated. It carries the header
+allowlist and the no-store cookie jar from `api/oss/src/core/gateways/dtos.py`. Resolution runs off
+the event loop, because `getaddrinfo` blocks and both planes sit on the request path. The MCP HTTP
+adapter's private copy is deleted and the adapter calls the shared module, so `api/` holds one copy of
+the address predicates, in `api/oss/src/core/webhooks/utils.py`, rather than three. Every OAuth client
+call goes through the module too, the `resource_metadata` URL included.
+
+**The guard enforces by default, and the first attempt did not.** This is the part the original entry
+understated. The first implementation read `AGENTA_INSECURE_EGRESS_ALLOWED`, which defaults to true,
+so it resolved and pinned while the range check and the https requirement were inert. The module was
+present, its tests passed, and a deployment that changed nothing was still open. A new gateway-owned
+`AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` defaults to false and governs the gateway alone. Webhooks
+keep their own flag and their own default, so changing that remains a separate decision. Verified
+live: in the deployed API, with the webhooks flag permissive and the gateway flag unset, the cloud
+metadata address and a private address were both refused while the configured mock host was admitted.
+The one exemption is the operator's own configured mock hosts while the mocks flag is on, plus the
+existing host allowlist, so a tenant cannot name their way into it.
+
+**Both proxy entry points admit headers by the same allowlist.** The adapters already dropped the
+caller's cookie and Authorization before the wire, so nothing leaked to an upstream. The session
+still travelled through the service and the policy plane to get there. It is refused at the entry
+point now.
+
+Tests: `api/oss/tests/pytest/unit/gateways/test_gateways_egress.py`, 24 cases, plus the 27 live
+harness cells still passing with the check enforcing.
+
+### OR38. The credential handed to the sandbox is a general-purpose platform token that can read the vault — CLOSED for the credential the gateway hands the agent, and not for the sandbox's environment
+
+**What the defect was.** One value served two roles. The SDK read the platform authorization it was
+handed and passed that same value on as the sandbox's gateway credential, and the value was minted
+with `SECRET_RESOLVE_GRANT`. The auth middleware accepted `X-AG-Credentials` on any route. A vault
+request from the sandbox therefore authenticated and came back with secret values in plaintext.
+
+**The sandbox now receives its own credential.** It carries an audience of the gateway plus the
+project and the run, and no grants. The audience is checked inside token verification, which every
+entry path funnels through, so the credential is refused with an explicit 401 on any non-gateway
+route rather than falling through to anonymous. Minting refuses to put an audience and a grant on one
+token, and verification refuses a token that presents both, so only a forgery carries both and a
+forgery is rejected. The exchange route sits outside the data plane, so what it issues cannot buy
+another.
+
+**An audience rather than a new grant.** A grant widens a general-purpose token. This needed the
+opposite axis: a credential that authenticates one surface and nothing else.
+
+**Nothing lost the `secret-resolve` grant.** The services tier, which runs with the auth middleware
+disabled, keeps it at both mint sites, and so does the runner's refresh through the permissions
+check. What changed is that the sandbox stopped reusing a granted token. The runner needed no change.
+The SDK did, because the SDK was the component handing the platform authorization to the sandbox, and
+two SDK tests that asserted the sandbox held the caller's own credential now assert it holds the
+exchanged one.
+
+Tests: `api/oss/tests/pytest/unit/gateways/test_gateways_sandbox_credential.py`, whose cases drive the
+real auth middleware in front of the real exchange route rather than a substitute for either, plus
+the 27 live cells passing with 56 credential exchanges logged during the run.
+
+**The limit, stated plainly.** OR38 is closed for the credential the gateway hands the agent. It is
+not closed for the sandbox's environment as a whole. `OR69` records that the Daytona backend puts the
+user's real provider keys and a granted platform credential into that environment at creation, which
+reaches the same secret by a different road. Read OR69 before treating a sandbox as unable to see a
+provider key.
 
 ### OR36 / OR37. A proxied request relays the caller's session cookie and Authorization header upstream, and the injected authorization header is merged case-sensitively — CLOSED, and the strip list was replaced rather than widened
 

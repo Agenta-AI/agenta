@@ -35,18 +35,23 @@ The remaining documents are the design itself: `decisions.md`, `architecture.md`
 ## Current state
 
 **The branch is not mergeable as of 2026-09-13.** A security review of the credential boundary
-found thirty-three defects that every green suite ran straight past. Eight are now fixed and
-closed: request headers travel by allowlist rather than pass-through, so the caller's session no
-longer reaches a tenant's upstream (OR36, OR37); a response echoing the injected key is refused
-(OR39); every credential field is redacted rather than the first per kind (OR43); the migration
-declares the secret kind the OAuth code writes (OR46); and three ways a request escaped its
-endpoint's limits are shut (OR44, OR50, OR60, OR57).
+found thirty-three defects that every green suite ran straight past, and closing one of them turned
+up a thirty-fourth, OR69. Twelve are now fixed and closed: request headers travel by allowlist
+rather than pass-through, so the caller's session no longer reaches a tenant's upstream (OR36,
+OR37); a response echoing the injected key is refused (OR39); every credential field is redacted
+rather than the first per kind (OR43); the migration declares the secret kind the OAuth code writes
+(OR46); three ways a request escaped its endpoint's limits are shut (OR44, OR50, OR60); a mock
+endpoint is callable only while the mock flag is on (OR57); every outbound call resolves, checks and
+pins its address through one shared module that enforces by default (OR40, OR64); and the sandbox
+holds a gateway-audience credential the vault rejects (OR38).
 
-**Twenty-four remain open, OR38 to OR68.** Four of those wait on a decision rather than on code:
-OR38 on OD24, OR41 on OD25, OR40 and OR64 on OD26, all in `open-designs.md`. The largest still
-open is OR38: the credential the sandbox holds is a general platform token that can read the vault
-in plaintext, which is the feature's own premise inverted. Read `open-reviews.md` before planning
-work here. Green suites are not evidence on this branch, and `OR65` says why.
+**Twenty-two remain open, and OR69 is the largest.** The Daytona runner writes the user's real
+provider keys and a granted platform credential into the sandbox's environment at creation, which
+reaches by a different road the secret OR38 just took away from the agent's credential. Nothing
+waits on a decision any more: OD24 to OD27 in `open-designs.md` are all decided, OD26, OD24 and
+OD27 have landed, and OD25 is being built now. The open set is OR41, OR42, OR45, OR47, OR48, OR49,
+OR51 to OR56, OR58, OR59, OR61, OR62, OR63, OR65, OR66, OR67, OR68 and OR69. Read `open-reviews.md`
+before planning work here. Green suites are not evidence on this branch, and `OR65` says why.
 
 **The dashboard product path works end to end as of 2026-09-13**: a
 provider created in the dashboard registers its gateway endpoint, and Pi and Claude Code each
@@ -95,15 +100,18 @@ step.
   Traefik and the development client reloads the whole page every 50 to 60 seconds, taking every open
   form with it. **OR35** (no create control on the API keys page) reproduces on `main` and is tracked
   as issue #6803.
-- **Fixed and closed, 2026-09-13.** Eight of the thirty-three: **OR36** and **OR37** (headers
+- **Fixed and closed, 2026-09-13.** Twelve of the thirty-four: **OR36** and **OR37** (headers
   travel by allowlist, and the injected credential replaces the caller's in any casing),
   **OR39** (a response echoing the injected key is refused), **OR43** (every credential field is
   redacted), **OR44**, **OR50** and **OR60** (the three escapes from an endpoint's limits),
-  **OR46** (the missing secret-kind enum value) and **OR57** (mocks gated on their flag).
-- **Open.** **OR38 through OR68**, twenty-four entries. Six are P0, blocking on security
-  (OR38, OR40, OR41, OR42, OR45); twelve are P1, blocking on correctness; six are debt (OR63 to
-  OR68). Four wait on a decision rather than on code: OR38 on OD24, OR41 on OD25, OR40 and OR64
-  on OD26.
+  **OR46** (the missing secret-kind enum value), **OR57** (mocks gated on their flag), **OR40**
+  and **OR64** (one shared egress module resolves, checks and pins every outbound call, and it
+  enforces by default), and **OR38** (the sandbox holds a gateway-audience credential with no
+  grants, which the vault routes refuse).
+- **Open.** Twenty-two findings: **OR41**, **OR42**, **OR45**, **OR47**, **OR48**, **OR49**,
+  **OR51** to **OR56**, **OR58**, **OR59**, **OR61**, **OR62**, **OR63**, **OR65** to **OR69**.
+  Four are P0, blocking on security (OR41, OR42, OR45 and the new OR69); five are debt (OR63,
+  OR65 to OR68); the remaining thirteen are correctness repairs. None waits on a decision.
 
 ## The live evidence, 2026-09-13
 
@@ -195,26 +203,20 @@ does not exist on this one.
 
 ## Next steps
 
-The blocking set comes first, and it falls into two kinds of work.
+The blocking set comes first, and nothing in it waits on a decision.
 
-**Mechanical, one correct answer each.** Each of these is self-contained, and none of them needs a
-decision about the trust model. OR36 and OR37 replace the one-element strip list with an explicit
-forward allowlist, merge headers case-insensitively, and give the pooled client no cookie jar.
-OR43 redacts every credential-bearing field per secret kind and stops duplicating the client secret
-into `extra.client_info`. OR46 adds the missing `OAUTH_PROVIDER` enum value. OR57 registers the mock
-adapter only when the flag is on. OR50 enforces the token ceiling on every alias and on the omitted
-case. OR44 rejects the model-routing fields the allowlist does not check. OR60 restricts the model
-string before it reaches a URL path. Do these first: they are cheap, and OR46 unblocks any real test
-of the OAuth path.
+**OR69, before anything else.** It is the only open finding that puts the user's real provider key
+somewhere a caller can read it, and it does so outside the gateway entirely. OR38 shut the road
+through the agent's credential; this is the other road. The gateway's guarantee cannot be stated
+without qualification while it is open. Whoever takes it has to say which credential the OTLP export
+gets in place of the run's granted one.
 
-**Decisions, not repairs.** Four findings ask what the trust model is, and each needs an answer
-before code. OR38 asks what a sandbox-held credential may authenticate, which means minting a
-gateway-audience token rather than reusing the platform one. OR41 asks where the authorization
-attempt lives, which means an opaque server-side record rather than a signed blob in the URL. OR40
-and OR64 ask where the egress boundary belongs, given that the MCP HTTP adapter already does it
-correctly and the LLM adapter and the OAuth client do not. OR39 asks what the gateway owes a caller
-when an upstream echoes the injected key back. Settle these four before writing the fixes, because
-each one moves a seam.
+**Then the rest of the P0 set.** OR41 replaces the signed blob in the callback URL with an opaque
+server-side record. OR42 stops OAuth discovery from trusting the server it is authenticating
+against. OR45 puts a permission check on the credential issuer.
+
+**Then the correctness repairs and the debt**, in `open-reviews.md` order. Each entry states the
+closure that would settle it and the test that would prove it.
 
 **Then re-prove it.** OR65 is the reason the suites stayed green through all of this. A fix set that
 lands without the end-to-end path it names leaves the branch in the same position: green, and

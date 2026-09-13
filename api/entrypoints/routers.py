@@ -178,6 +178,7 @@ from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 # Gateway storage, services, management routers, and data-plane proxies.
 from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
+from oss.src.dbs.postgres.gateways.mcps.oauth_dao import MCPOAuthAttemptsDAO
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
@@ -1227,11 +1228,13 @@ mcp_gateway_service = MCPGatewayService(
     ),
 )
 
+mcp_oauth_attempts_dao = MCPOAuthAttemptsDAO(engine=_transactions_engine)
+
 mcp_oauth_connect_service = MCPOAuthConnectService(
     vault_service=vault_service,
     client=MCPOAuthClient(),
     api_url=env.agenta.api_url,
-    secret_key=env.agenta.crypt_key,
+    attempts_dao=mcp_oauth_attempts_dao,
 )
 
 gateway_credentials_router = GatewayCredentialsRouter()
@@ -1778,6 +1781,12 @@ app.include_router(
 app.include_router(
     router=mcp_oauth_client_metadata_router.router,
     prefix="/gateways/mcps",
+    include_in_schema=False,
+)
+app.include_router(
+    router=mcp_gateway_router.admin_router,
+    prefix="/admin/gateways",
+    tags=["Gateway: MCP", "Admin"],
     include_in_schema=False,
 )
 

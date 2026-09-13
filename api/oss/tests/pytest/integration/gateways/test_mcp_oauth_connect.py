@@ -88,10 +88,14 @@ def test_dashboard_connect_callback_and_scope_step_up_share_one_grant_handle(
         return True
 
     monkeypatch.setattr(router_module, "check_action_access", _allow)
-    # Production wires both the router and connect service from the same deployment
-    # crypt key. The reusable fixture uses a deterministic test key,
-    # so bind the router to that fixture key here rather than weakening state checks.
-    monkeypatch.setattr(router_module.env.agenta, "crypt_key", oauth_service.secret_key)
+
+    # The callback is exempt from the auth middleware and resolves its own principal,
+    # so the browser's session stands in here. It is the user that pressed connect —
+    # the case where it is not is covered in unit/gateways/test_gateways_mcp_router.py.
+    async def _session_user(_request):
+        return user_id
+
+    monkeypatch.setattr(router_module, "resolve_session_user_id", _session_user)
 
     with TestClient(app, raise_server_exceptions=False) as client:
         # Dashboard opening the dialog: discover and cache the offered-scope checklist.
@@ -135,14 +139,17 @@ async def test_local_provider_exchange_persists_a_handle_and_reconnect_reuses_it
     )
     assert discovery.authorization_endpoint == local_mcp_oauth_provider.authorize_url
 
+    endpoint_id = uuid4()
     first_start = await service.begin(
         project_id=project_id,
         user_id=user_id,
+        endpoint_id=endpoint_id,
         server_url=local_mcp_oauth_provider.server_url,
         scopes=["tools:call"],
     )
     first = await service.complete(
-        **local_mcp_oauth_provider.callback_params(state=first_start.state)
+        caller_user_id=user_id,
+        **local_mcp_oauth_provider.callback_params(state=first_start.state),
     )
 
     assert first.secret_id is not None
@@ -152,11 +159,13 @@ async def test_local_provider_exchange_persists_a_handle_and_reconnect_reuses_it
     second_start = await service.begin(
         project_id=project_id,
         user_id=user_id,
+        endpoint_id=endpoint_id,
         server_url=local_mcp_oauth_provider.server_url,
         scopes=["tools:call"],
     )
     second = await service.complete(
-        **local_mcp_oauth_provider.callback_params(state=second_start.state)
+        caller_user_id=user_id,
+        **local_mcp_oauth_provider.callback_params(state=second_start.state),
     )
 
     grants = [record for _, record in dao.records if record.kind.value == "oauth_grant"]

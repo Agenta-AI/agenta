@@ -15,11 +15,10 @@ import pytest
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.registration import client_metadata_url
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
-from oss.src.core.gateways.mcps.oauth.state import decode_state
+from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
 
-_SECRET_KEY = "unit-test-crypt-key"
 _API_URL = "https://api.agenta.ai"
 _SERVER_URL = "https://mcp.acme.io/"
 _AS_BASE = "https://auth.acme.io"
@@ -134,9 +133,10 @@ def _mock_as_handler(*, register_called: list):
 
 def _service(
     *, resolve, register_called=None
-) -> Tuple[MCPOAuthConnectService, _FakeSecretsDAO]:
+) -> Tuple[MCPOAuthConnectService, _FakeSecretsDAO, InMemoryMCPOAuthAttemptsDAO]:
     register_called = register_called if register_called is not None else []
     dao = _FakeSecretsDAO()
+    attempts = InMemoryMCPOAuthAttemptsDAO()
     vault = VaultService(secrets_dao=dao)
     client = MCPOAuthClient(
         transport=httpx.MockTransport(_mock_as_handler(register_called=register_called))
@@ -145,22 +145,26 @@ def _service(
         vault_service=vault,
         client=client,
         api_url=_API_URL,
-        secret_key=_SECRET_KEY,
+        attempts_dao=attempts,
         resolve=resolve,
     )
-    return service, dao
+    return service, dao, attempts
 
 
 @pytest.mark.asyncio
 async def test_begin_prefers_the_identity_document_when_publicly_resolvable():
     register_called: list = []
-    service, dao = _service(
+    service, dao, attempts = _service(
         resolve=lambda _h: ["1.1.1.1"], register_called=register_called
     )
-    project_id, user_id = uuid4(), uuid4()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     start = await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
 
     params = parse_qs(urlparse(start.authorization_url).query)
@@ -168,21 +172,23 @@ async def test_begin_prefers_the_identity_document_when_publicly_resolvable():
     assert register_called == []
     assert not [r for _, r in dao.records if r.kind.value == "oauth_provider"]
 
-    payload = decode_state(start.state, secret_key=_SECRET_KEY)
-    assert payload is not None
-    assert payload["strategy"] == "document"
+    assert attempts.attempts[start.state].strategy == "document"
 
 
 @pytest.mark.asyncio
 async def test_begin_falls_back_to_outbound_registration_when_not_publicly_resolvable():
     register_called: list = []
-    service, dao = _service(
+    service, dao, attempts = _service(
         resolve=lambda _h: ["10.0.0.5"], register_called=register_called
     )
-    project_id, user_id = uuid4(), uuid4()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     start = await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
 
     params = parse_qs(urlparse(start.authorization_url).query)
@@ -190,20 +196,24 @@ async def test_begin_falls_back_to_outbound_registration_when_not_publicly_resol
     assert register_called == [True]
     assert [r for _, r in dao.records if r.kind.value == "oauth_provider"]
 
-    payload = decode_state(start.state, secret_key=_SECRET_KEY)
-    assert payload is not None
-    assert payload["strategy"] == "outbound"
+    assert attempts.attempts[start.state].strategy == "outbound"
 
 
 @pytest.mark.asyncio
 async def test_complete_via_the_identity_document_needs_no_stored_client_info():
-    service, dao = _service(resolve=lambda _h: ["1.1.1.1"])
-    project_id, user_id = uuid4(), uuid4()
+    service, dao, _attempts = _service(resolve=lambda _h: ["1.1.1.1"])
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     start = await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
-    completion = await service.complete(code="auth-code-1", state=start.state)
+    completion = await service.complete(
+        code="auth-code-1", state=start.state, caller_user_id=user_id
+    )
 
     grant_rows = [r for _, r in dao.records if r.kind.value == "oauth_grant"]
     assert len(grant_rows) == 1
@@ -213,14 +223,22 @@ async def test_complete_via_the_identity_document_needs_no_stored_client_info():
 
 @pytest.mark.asyncio
 async def test_a_second_connect_reprobes_and_keeps_using_the_document_when_still_resolvable():
-    service, dao = _service(resolve=lambda _h: ["1.1.1.1"])
-    project_id, user_id = uuid4(), uuid4()
+    service, dao, _attempts = _service(resolve=lambda _h: ["1.1.1.1"])
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
     start2 = await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["write"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["write"],
     )
 
     params = parse_qs(urlparse(start2.authorization_url).query)
@@ -235,15 +253,21 @@ async def test_wrong_direction_2_split_horizon_still_completes_a_full_authorizat
     really public) simply takes WP17's always-safe outbound path. The flow still
     completes end to end — this is the harmless direction."""
     register_called: list = []
-    service, dao = _service(
+    service, dao, _attempts = _service(
         resolve=lambda _h: ["10.0.0.5"], register_called=register_called
     )
-    project_id, user_id = uuid4(), uuid4()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     start = await service.begin(
-        project_id=project_id, user_id=user_id, server_url=_SERVER_URL, scopes=["read"]
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
     )
-    completion = await service.complete(code="auth-code-1", state=start.state)
+    completion = await service.complete(
+        code="auth-code-1", state=start.state, caller_user_id=user_id
+    )
 
     assert register_called == [True]
     assert completion.secret_id is not None

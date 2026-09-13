@@ -1,5 +1,6 @@
 """Run the two-phase MCP OAuth connection flow."""
 
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 from uuid import UUID
 
@@ -7,19 +8,23 @@ from mcp.shared.auth import OAuthClientInformationFull
 
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.dtos import (
+    MCPOAuthAttemptCreate,
     MCPOAuthAuthorizationStart,
     MCPOAuthCompletion,
     MCPOAuthDiscovery,
 )
+from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthAttemptsDAOInterface
 from oss.src.core.gateways.mcps.oauth.registration import (
     Resolver,
     identity_document_client_info,
     is_publicly_resolvable,
 )
-from oss.src.core.gateways.mcps.oauth.state import decode_state, make_state
+from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS, new_state
 from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
 from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
+    MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
 )
 from oss.src.core.secrets.services import VaultService
@@ -39,13 +44,13 @@ class MCPOAuthConnectService:
         vault_service: VaultService,
         client: MCPOAuthClient,
         api_url: str,
-        secret_key: str,
+        attempts_dao: MCPOAuthAttemptsDAOInterface,
         resolve: Optional[Resolver] = None,
     ) -> None:
         self.vault_service = vault_service
         self.client = client
         self.api_url = api_url
-        self.secret_key = secret_key
+        self.attempts_dao = attempts_dao
         # Tests may inject DNS resolution.
         self._resolve_kwargs = {"resolve": resolve} if resolve is not None else {}
 
@@ -87,6 +92,7 @@ class MCPOAuthConnectService:
         *,
         project_id: UUID,
         user_id: UUID,
+        endpoint_id: UUID,
         server_url: str,
         scopes: List[str],
     ) -> MCPOAuthAuthorizationStart:
@@ -108,14 +114,27 @@ class MCPOAuthConnectService:
         )
 
         pkce = self.client.build_pkce()
-        state = make_state(
-            project_id=project_id,
-            user_id=user_id,
-            server_url=server_url,
-            code_verifier=pkce.code_verifier,
-            scopes=scopes,
-            secret_key=self.secret_key,
-            strategy=strategy,
+        state = new_state()
+
+        # The record is written BEFORE the browser is sent anywhere. A handle that
+        # reaches the authorization server always has a record behind it.
+        await self.attempts_dao.create_attempt(
+            attempt=MCPOAuthAttemptCreate(
+                state=state,
+                project_id=project_id,
+                user_id=user_id,
+                endpoint_id=endpoint_id,
+                server_url=server_url,
+                issuer=discovery.authorization_server,
+                token_endpoint=discovery.token_endpoint,
+                redirect_uri=redirect_uri,
+                resource=discovery.resource,
+                code_verifier=pkce.code_verifier,
+                scopes=list(scopes),
+                strategy=strategy,
+                expires_at=datetime.now(timezone.utc)
+                + timedelta(seconds=STATE_TTL_SECONDS),
+            )
         )
 
         authorization_url = self.client.authorization_url(
@@ -132,46 +151,74 @@ class MCPOAuthConnectService:
             authorization_url=authorization_url, state=state
         )
 
-    async def complete(self, *, code: str, state: str) -> MCPOAuthCompletion:
-        payload = decode_state(state, secret_key=self.secret_key)
-        if payload is None:
+    async def complete(
+        self,
+        *,
+        code: str,
+        state: str,
+        caller_user_id: Optional[UUID],
+    ) -> MCPOAuthCompletion:
+        """Exchange the code against the attempt the handle names.
+
+        `caller_user_id` is the user behind the browser that presented the callback.
+        The authorization server also holds the handle, so the attempt is checked
+        against that caller before anything is consumed or written.
+        """
+        attempt = await self.attempts_dao.fetch_attempt(state=state)
+        if attempt is None:
             raise MCPOAuthStateInvalidError()
 
-        project_id = UUID(payload["project_id"])
-        server_url = payload["server_url"]
-        code_verifier = payload["code_verifier"]
-        strategy = payload.get("strategy", "outbound")
+        # Refuse before consuming: a stranger presenting someone else's handle must
+        # not be able to burn it, and this path writes nothing at all.
+        if caller_user_id is None or caller_user_id != attempt.user_id:
+            raise MCPOAuthCallerMismatchError()
 
-        discovery = await self.client.discover(server_url=server_url)
-        redirect_uri = callback_redirect_uri(api_url=self.api_url)
+        consumed = await self.attempts_dao.consume_attempt(state=state)
+        if consumed is None:
+            # Another callback took it between the read and the delete.
+            raise MCPOAuthStateInvalidError()
 
+        if consumed.expires_at <= datetime.now(timezone.utc):
+            raise MCPOAuthStateExpiredError()
+
+        # Issuer, token endpoint and redirect URI come from the record, not from a
+        # fresh discovery round: the server cannot move its token endpoint between the
+        # redirect it was handed and the code it returns.
         storage = SecretsTokenStorage(
             vault_service=self.vault_service,
-            project_id=project_id,
-            server_url=server_url,
-            authorization_server=discovery.authorization_server,
+            project_id=consumed.project_id,
+            server_url=consumed.server_url,
+            authorization_server=consumed.issuer,
         )
 
-        if strategy == "document":
+        if consumed.strategy == "document":
             # Identity-document client information is deterministic and not persisted.
             client_info = identity_document_client_info(
-                api_url=self.api_url, redirect_uri=redirect_uri
+                api_url=self.api_url, redirect_uri=consumed.redirect_uri
             )
         else:
             client_info = await storage.get_client_info()
             if client_info is None:
-                raise MCPOAuthClientNotRegisteredError(server_url=server_url)
+                raise MCPOAuthClientNotRegisteredError(server_url=consumed.server_url)
 
         tokens = await self.client.exchange_token(
-            token_endpoint=discovery.token_endpoint,
+            token_endpoint=consumed.token_endpoint,
             code=code,
-            code_verifier=code_verifier,
-            redirect_uri=redirect_uri,
+            code_verifier=consumed.code_verifier,
+            redirect_uri=consumed.redirect_uri,
             client_info=client_info,
-            resource=discovery.resource,
+            resource=consumed.resource,
         )
         grant = await storage.write_tokens(tokens)
 
         return MCPOAuthCompletion(
-            project_id=project_id, server_url=server_url, secret_id=grant.id
+            project_id=consumed.project_id,
+            user_id=consumed.user_id,
+            endpoint_id=consumed.endpoint_id,
+            server_url=consumed.server_url,
+            secret_id=grant.id,
         )
+
+    async def sweep_expired_attempts(self) -> int:
+        """Drop attempts nobody came back for. Driven by the cron service."""
+        return await self.attempts_dao.sweep_expired_attempts()
