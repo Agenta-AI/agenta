@@ -1,80 +1,22 @@
-"""Create and validate signed OAuth state tokens."""
+"""Mint the opaque `state` handle for an MCP OAuth authorization attempt.
 
-import base64
-import hashlib
-import hmac
-import json
+The handle carries nothing. Everything the callback needs — the PKCE verifier, the
+initiating user, the project, the endpoint, the issuer, the token endpoint and the
+redirect URI — lives in a server-side authorization attempt record addressed by this
+handle. The handle travels through the authorization server's URL and logs, so the
+authorization server learns only an unguessable identifier it cannot decode.
+"""
+
 import secrets
-import time
-from typing import List, Optional, TypedDict
-from uuid import UUID
 
-_STATE_TTL_SECONDS = 3600
+# 32 bytes of entropy, 43 url-safe characters.
+_STATE_BYTES = 32
 
-
-class MCPOAuthStatePayload(TypedDict):
-    project_id: str
-    user_id: str
-    server_url: str
-    code_verifier: str
-    scopes: List[str]
-    strategy: str
-    nonce: str
-    ts: int
+# An attempt is a browser round trip through a consent screen. Ten minutes covers a
+# slow consent and leaves the verifier readable for as short a time as is practical.
+STATE_TTL_SECONDS = 600
 
 
-def make_state(
-    *,
-    project_id: UUID,
-    user_id: UUID,
-    server_url: str,
-    code_verifier: str,
-    scopes: List[str],
-    secret_key: str,
-    strategy: str = "outbound",
-) -> str:
-    """Create signed state carrying the client-registration strategy and PKCE verifier."""
-    payload = {
-        "project_id": str(project_id),
-        "user_id": str(user_id),
-        "server_url": server_url,
-        "code_verifier": code_verifier,
-        "scopes": scopes,
-        "strategy": strategy,
-        "nonce": secrets.token_hex(8),
-        "ts": int(time.time()),
-    }
-    payload_bytes = json.dumps(payload, sort_keys=True).encode()
-    payload_b64 = base64.urlsafe_b64encode(payload_bytes).decode().rstrip("=")
-    sig = hmac.new(
-        secret_key.encode(), payload_b64.encode(), hashlib.sha256
-    ).hexdigest()
-    return f"{payload_b64}.{sig}"
-
-
-def decode_state(
-    state: str,
-    *,
-    secret_key: str,
-    max_age: int = _STATE_TTL_SECONDS,
-) -> Optional[MCPOAuthStatePayload]:
-    try:
-        payload_b64, sig = state.rsplit(".", 1)
-        expected_sig = hmac.new(
-            secret_key.encode(), payload_b64.encode(), hashlib.sha256
-        ).hexdigest()
-        if not hmac.compare_digest(sig, expected_sig):
-            return None
-
-        padding = 4 - len(payload_b64) % 4
-        if padding != 4:
-            payload_b64 += "=" * padding
-
-        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
-
-        if time.time() - payload.get("ts", 0) > max_age:
-            return None
-
-        return payload
-    except Exception:
-        return None
+def new_state() -> str:
+    """Return an opaque, unguessable, single-use authorization attempt handle."""
+    return secrets.token_urlsafe(_STATE_BYTES)

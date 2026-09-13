@@ -35,10 +35,39 @@ class MCPOAuthTokenExchangeError(GatewaysError):
 
 
 class MCPOAuthStateInvalidError(GatewaysError):
-    """The callback's `state` parameter did not verify — tampered or expired."""
+    """No authorization attempt answers the callback's `state` handle.
+
+    Either it was never issued, or it has already been used: a handle is consumed by
+    the first callback that presents it, so a replay lands here.
+    """
+
+    def __init__(self, message: Optional[str] = None):
+        super().__init__(message or "OAuth state is invalid or expired")
+
+
+class MCPOAuthStateExpiredError(MCPOAuthStateInvalidError):
+    """The attempt exists but its window has closed. Consumed all the same, so an
+    expired handle cannot be presented twice either."""
 
     def __init__(self):
-        super().__init__("OAuth state is invalid or expired")
+        super().__init__("OAuth state has expired")
+
+
+class MCPOAuthCallerMismatchError(GatewaysError):
+    """The callback was presented by someone other than the user who started the
+    attempt, or by nobody at all.
+
+    The authorization server sees `state`, so a single-use record narrows the window
+    but does not by itself prove who is at the other end of the redirect. The session
+    behind the callback does. The attempt is left intact: refusing costs the rightful
+    browser nothing, and nothing is written on this path.
+    """
+
+    def __init__(self):
+        super().__init__(
+            "This connection was started by a different Agenta user, or by a "
+            "browser with no Agenta session"
+        )
 
 
 class MCPOAuthClientNotRegisteredError(GatewaysError):

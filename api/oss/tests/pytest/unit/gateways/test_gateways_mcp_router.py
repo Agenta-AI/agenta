@@ -24,10 +24,12 @@ from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthCompletion,
     MCPOAuthDiscovery,
 )
-from oss.src.core.gateways.mcps.oauth.state import make_state
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthDiscoveryError
+from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthCallerMismatchError,
+    MCPOAuthStateInvalidError,
+)
 from oss.src.utils.context import AuthScope
-from oss.src.utils.env import env
 
 
 FIXED_SCOPE = AuthScope(
@@ -128,6 +130,8 @@ class MockMCPOAuthConnectService:
             state="signed-state",
         )
         self.complete_return = None
+        self.complete_raises = None
+        self.begun_endpoint_ids = []
 
     async def discover(self, *, server_url):
         self.calls.append(("discover", server_url))
@@ -135,14 +139,20 @@ class MockMCPOAuthConnectService:
             raise self.discover_raises
         return self.discover_return
 
-    async def begin(self, *, project_id, user_id, server_url, scopes):
+    async def begin(self, *, project_id, user_id, endpoint_id, server_url, scopes):
         self.calls.append(("begin", server_url, tuple(scopes)))
+        self.begun_endpoint_ids.append(endpoint_id)
         return self.begin_return
 
-    async def complete(self, *, code, state):
+    async def complete(self, *, code, state, caller_user_id):
         self.calls.append(("complete", code, state))
+        if self.complete_raises is not None:
+            raise self.complete_raises
         if self.complete_return is None:
             raise AssertionError("complete_return not set")
+        # The real service refuses before consuming or writing anything.
+        if caller_user_id != self.complete_return.user_id:
+            raise MCPOAuthCallerMismatchError()
         return self.complete_return
 
 
@@ -345,61 +355,140 @@ def test_connect_discovery_failure_surfaces_its_own_message(
 
 
 # ---------------------------------------------------------------------------
-# GET /connect/callback — unauthenticated, driven entirely by `state`
+# GET /connect/callback — exempt from the middleware, bound by the attempt record
 # ---------------------------------------------------------------------------
 
 
-def _signed_state(*, project_id, user_id, scopes=None):
-    return make_state(
+@pytest.fixture
+def session_user(monkeypatch):
+    """Stand in for `resolve_session_user_id`, the browser's own Agenta session."""
+
+    def _apply(user_id):
+        async def _resolve(_request):
+            return user_id
+
+        monkeypatch.setattr(
+            "oss.src.apis.fastapi.gateways.mcps.router.resolve_session_user_id",
+            _resolve,
+        )
+
+    return _apply
+
+
+def _completion(*, project_id, user_id, endpoint_id, secret_id=None):
+    return MCPOAuthCompletion(
         project_id=project_id,
         user_id=user_id,
+        endpoint_id=endpoint_id,
         server_url=_SERVER_URL,
-        code_verifier="a" * 43,
-        scopes=scopes or ["read"],
-        secret_key=env.agenta.crypt_key,
+        secret_id=secret_id or uuid4(),
     )
 
 
-def test_callback_completes_and_puts_the_secret_id_onto_the_matching_endpoint(
-    client, service, oauth_service
+def test_callback_completes_and_puts_the_secret_id_onto_the_bound_endpoint(
+    client, service, oauth_service, session_user, allow
 ):
     endpoint_id = uuid4()
     project_id, user_id = uuid4(), uuid4()
     secret_id = uuid4()
-    service.query_return = [_oauth_endpoint(endpoint_id)]
-    oauth_service.complete_return = MCPOAuthCompletion(
-        project_id=project_id, server_url=_SERVER_URL, secret_id=secret_id
+    service.fetch_return = _oauth_endpoint(endpoint_id)
+    oauth_service.complete_return = _completion(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        secret_id=secret_id,
     )
-    state = _signed_state(project_id=project_id, user_id=user_id)
+    session_user(user_id)
 
     response = client.get(
-        "/connect/callback", params={"code": "auth-code", "state": state}
+        "/connect/callback", params={"code": "auth-code", "state": "opaque-handle"}
     )
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert "mcp:oauth:connected" in response.text
-    assert service.calls == ["query_endpoints", "edit_endpoint"]
-    assert oauth_service.calls == [("complete", "auth-code", state)]
+    # The endpoint came from the record's bound id, not a query by server URL.
+    assert service.calls == ["fetch_endpoint", "edit_endpoint"]
+    assert oauth_service.calls == [("complete", "auth-code", "opaque-handle")]
+
+
+def test_callback_from_a_different_user_writes_nothing(
+    client, service, oauth_service, session_user, allow
+):
+    """OR41's attack: a hostile server replays the victim's handle with its own code.
+    The record names the victim; the session behind the callback does not."""
+    endpoint_id = uuid4()
+    project_id, victim_id = uuid4(), uuid4()
+    service.fetch_return = _oauth_endpoint(endpoint_id)
+    oauth_service.complete_return = _completion(
+        project_id=project_id, user_id=victim_id, endpoint_id=endpoint_id
+    )
+    session_user(uuid4())  # somebody else's browser
+
+    response = client.get(
+        "/connect/callback", params={"code": "hostile-code", "state": "opaque-handle"}
+    )
+
+    assert response.status_code == 400
+    assert "different Agenta user" in response.text
+    assert service.calls == []  # nothing read from, nothing written to the project
+
+
+def test_callback_with_no_agenta_session_writes_nothing(
+    client, service, oauth_service, session_user, allow
+):
+    endpoint_id = uuid4()
+    project_id, user_id = uuid4(), uuid4()
+    service.fetch_return = _oauth_endpoint(endpoint_id)
+    oauth_service.complete_return = _completion(
+        project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+    session_user(None)
+
+    response = client.get(
+        "/connect/callback", params={"code": "auth-code", "state": "opaque-handle"}
+    )
+
+    assert response.status_code == 400
+    assert service.calls == []
+
+
+def test_callback_refuses_a_caller_who_lost_permission_on_the_project(
+    client, service, oauth_service, session_user, deny
+):
+    endpoint_id = uuid4()
+    project_id, user_id = uuid4(), uuid4()
+    service.fetch_return = _oauth_endpoint(endpoint_id)
+    oauth_service.complete_return = _completion(
+        project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+    session_user(user_id)
+
+    response = client.get(
+        "/connect/callback", params={"code": "auth-code", "state": "opaque-handle"}
+    )
+
+    assert response.status_code == 403
+    assert service.calls == []
 
 
 def test_callback_with_no_matching_endpoint_renders_a_failure_card(
-    client, service, oauth_service
+    client, service, oauth_service, session_user, allow
 ):
     project_id, user_id = uuid4(), uuid4()
-    service.query_return = []  # nothing registered for this server_url
-    oauth_service.complete_return = MCPOAuthCompletion(
-        project_id=project_id, server_url=_SERVER_URL, secret_id=uuid4()
+    service.fetch_return = None  # the bound endpoint is gone
+    oauth_service.complete_return = _completion(
+        project_id=project_id, user_id=user_id, endpoint_id=uuid4()
     )
-    state = _signed_state(project_id=project_id, user_id=user_id)
+    session_user(user_id)
 
     response = client.get(
-        "/connect/callback", params={"code": "auth-code", "state": state}
+        "/connect/callback", params={"code": "auth-code", "state": "opaque-handle"}
     )
 
     assert response.status_code == 400
     assert "No matching MCP endpoint" in response.text
-    assert service.calls == ["query_endpoints"]  # no edit_endpoint call
+    assert service.calls == ["fetch_endpoint"]  # no edit_endpoint call
 
 
 def test_callback_with_authorization_server_error_renders_a_failure_card_without_completing(
@@ -418,21 +507,34 @@ def test_callback_with_authorization_server_error_renders_a_failure_card_without
     assert service.calls == []
 
 
-def test_callback_with_a_tampered_state_renders_a_failure_card(
-    client, service, oauth_service
+def test_callback_with_a_replayed_state_renders_a_failure_card(
+    client, service, oauth_service, session_user, allow
 ):
-    project_id, user_id = uuid4(), uuid4()
-    state = _signed_state(project_id=project_id, user_id=user_id)
-    tampered = state[:-1] + ("0" if state[-1] != "0" else "1")
+    """The second callback for one handle finds no record."""
+    oauth_service.complete_raises = MCPOAuthStateInvalidError()
+    session_user(uuid4())
 
     response = client.get(
-        "/connect/callback", params={"code": "auth-code", "state": tampered}
+        "/connect/callback", params={"code": "auth-code", "state": "already-used"}
     )
 
     assert response.status_code == 400
     assert "invalid or expired" in response.text.lower()
-    assert oauth_service.calls == []
     assert service.calls == []
+
+
+def test_connect_binds_the_attempt_to_the_endpoint_it_was_started_from(
+    client, service, oauth_service, allow
+):
+    endpoint_id = uuid4()
+    service.fetch_return = _oauth_endpoint(endpoint_id)
+
+    response = client.post(
+        f"/endpoints/{endpoint_id}/connect", json={"scopes": ["read"]}
+    )
+
+    assert response.status_code == 200
+    assert oauth_service.begun_endpoint_ids == [endpoint_id]
 
 
 # ---------------------------------------------------------------------------

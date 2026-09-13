@@ -71,11 +71,21 @@ def test_sdk_provider_accepts_the_secrets_backed_storage_contract():
 def test_completion_wire_shape_contains_a_secret_handle_never_tokens():
     completion = MCPOAuthCompletion(
         project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint_id=uuid4(),
         server_url="https://mcp.example.test/",
         secret_id=uuid4(),
     )
 
     payload = completion.model_dump(mode="json")
-    assert set(payload) == {"project_id", "server_url", "secret_id"}
+    # `user_id` and `endpoint_id` come from the authorization attempt record (OD25);
+    # they are what binds the callback to its flow. Still no token of any kind.
+    assert set(payload) == {
+        "project_id",
+        "user_id",
+        "endpoint_id",
+        "server_url",
+        "secret_id",
+    }
     assert "access_token" not in payload
     assert "refresh_token" not in payload

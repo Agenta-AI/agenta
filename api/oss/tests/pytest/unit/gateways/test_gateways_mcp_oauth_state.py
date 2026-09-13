@@ -1,86 +1,52 @@
-"""Unit tests for the MCP OAuth state token."""
+"""Unit tests for the MCP OAuth state handle (OD25).
+
+The handle is opaque. These cases pin that it stays opaque: there is nothing in it to
+decode, and nothing about the attempt can be read back out of it.
+"""
 
 from __future__ import annotations
 
-import time
-from uuid import uuid4
+import base64
+import json
+import re
 
-from oss.src.core.gateways.mcps.oauth.state import decode_state, make_state
-
-_SECRET = "unit-test-secret"
-
-
-def test_state_round_trips_all_fields():
-    project_id, user_id = uuid4(), uuid4()
-
-    state = make_state(
-        project_id=project_id,
-        user_id=user_id,
-        server_url="https://mcp.acme.io/",
-        code_verifier="a" * 43,
-        scopes=["read", "write"],
-        secret_key=_SECRET,
-    )
-    payload = decode_state(state, secret_key=_SECRET)
-
-    assert payload is not None
-    assert payload["project_id"] == str(project_id)
-    assert payload["user_id"] == str(user_id)
-    assert payload["server_url"] == "https://mcp.acme.io/"
-    assert payload["code_verifier"] == "a" * 43
-    assert payload["scopes"] == ["read", "write"]
+from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS, new_state
 
 
-def test_tampered_state_is_rejected():
-    state = make_state(
-        project_id=uuid4(),
-        user_id=uuid4(),
-        server_url="https://mcp.acme.io/",
-        code_verifier="a" * 43,
-        scopes=[],
-        secret_key=_SECRET,
-    )
-    tampered = state[:-1] + ("0" if state[-1] != "0" else "1")
+def test_state_is_url_safe_and_high_entropy():
+    state = new_state()
 
-    assert decode_state(tampered, secret_key=_SECRET) is None
+    assert re.fullmatch(r"[A-Za-z0-9_-]+", state)
+    # 32 bytes of randomness, base64url without padding.
+    assert len(state) >= 43
 
 
-def test_expired_state_is_rejected():
-    state = make_state(
-        project_id=uuid4(),
-        user_id=uuid4(),
-        server_url="https://mcp.acme.io/",
-        code_verifier="a" * 43,
-        scopes=[],
-        secret_key=_SECRET,
-    )
+def test_two_states_never_collide():
+    states = {new_state() for _ in range(2000)}
 
-    assert decode_state(state, secret_key=_SECRET, max_age=-1) is None
+    assert len(states) == 2000
 
 
-def test_wrong_secret_key_is_rejected():
-    state = make_state(
-        project_id=uuid4(),
-        user_id=uuid4(),
-        server_url="https://mcp.acme.io/",
-        code_verifier="a" * 43,
-        scopes=[],
-        secret_key=_SECRET,
-    )
+def test_state_has_no_decodable_structure():
+    """The old handle was `base64url(json).hmac`, so the authorization server could
+    read the PKCE verifier straight out of the query string. Nothing decodes now."""
+    state = new_state()
 
-    assert decode_state(state, secret_key="a-different-secret") is None
+    assert "." not in state
+
+    padded = state + "=" * (-len(state) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode(padded)
+    except Exception:  # pylint: disable=broad-except
+        return
+
+    try:
+        payload = json.loads(decoded)
+    except Exception:  # pylint: disable=broad-except
+        return
+
+    raise AssertionError(f"state decoded to structured content: {payload}")
 
 
-def test_state_carries_a_fresh_timestamp():
-    state = make_state(
-        project_id=uuid4(),
-        user_id=uuid4(),
-        server_url="https://mcp.acme.io/",
-        code_verifier="a" * 43,
-        scopes=[],
-        secret_key=_SECRET,
-    )
-    payload = decode_state(state, secret_key=_SECRET)
-
-    assert payload is not None
-    assert abs(time.time() - payload["ts"]) < 5
+def test_the_attempt_window_is_minutes_not_an_hour():
+    assert 0 < STATE_TTL_SECONDS <= 900
