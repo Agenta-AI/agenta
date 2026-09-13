@@ -48,13 +48,22 @@ work that closed item 14.
 | Suite | Result |
 | --- | --- |
 | `ee/tests/pytest/unit/wallets/` plus `ee/tests/pytest/unit/measurements/` | 133 passed |
-| The whole of `ee/tests/pytest/unit` | 504 passed |
+| The whole of `ee/tests/pytest/unit` | 520 passed |
 | `integration/wallets/` and `integration/measurements/` together | 26 passed |
 
 The first integration run found four defects, two of them in production code. One of the two
 would have failed every signup the day the flag was turned on. All four are fixed. Section 9
 of the acceptance document records each defect, its cause, and the regression test that now
 pins it.
+
+An independent review of the branch since then found four more, all fixed and each pinned by a
+test. The plan-change hook read the subscription's anchor after the event had already
+overwritten it, so a cancellation prorated over a window starting today;
+`measurement_values.cost_musd` was a 32-bit column holding a micro-dollar amount, which
+overflows at about 2,147 dollars; neither worker enabled the shared consumer's reclaim pass, so
+an entry left pending by a retryable failure was never redelivered; and the `ee0000000005`
+backfill held every organization in memory at once. Three design questions the same review raised are recorded as
+items 20 to 22 of `open-designs.md` rather than fixed.
 
 What has not been done is the manual acceptance run in sections 0 through 8 of the acceptance
 document. That needs a local deployment with the flag on, and it is what closes checkpoint 1.
