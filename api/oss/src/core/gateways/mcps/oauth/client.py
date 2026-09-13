@@ -33,6 +33,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthRegistrationError,
     MCPOAuthTokenExchangeError,
 )
+from oss.src.utils.env import env
 
 _TIMEOUT_SECONDS = 15.0
 
@@ -40,6 +41,38 @@ _TIMEOUT_SECONDS = 15.0
 def _authorization_base_url(url: str) -> str:
     parsed = urlparse(url)
     return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def _origin(url: str) -> str:
+    """Scheme plus authority, lowercased. The unit an operator can read in an error."""
+    parsed = urlparse(url)
+    return f"{(parsed.scheme or '').lower()}://{(parsed.netloc or '').lower()}"
+
+
+def _same_origin(one: str, other: str) -> bool:
+    origin = _origin(one)
+    return origin != "://" and origin == _origin(other)
+
+
+def _normalized(url: str) -> str:
+    """An issuer identifier with its optional trailing slash removed.
+
+    RFC 8414 s3.3 compares issuer identifiers as strings. The one difference real
+    documents show is whether the value ends in `/`, because the well-known URL is built
+    by inserting a path segment into it, so that is the only difference normalized away.
+    """
+    return url.rstrip("/")
+
+
+def _requires_https() -> bool:
+    """The gateway's one egress switch, read per call so an operator's value is in force.
+
+    `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` already decides whether `core/gateways/
+    egress.py` enforces its address rules; a deployment that has turned that off is
+    dialling a plaintext box on purpose, and a second switch here would only let the two
+    answers drift apart.
+    """
+    return not env.gateway_egress.insecure_allowed
 
 
 def _protected_resource_urls(
@@ -92,6 +125,105 @@ def _authorization_server_metadata_urls(authorization_server: str) -> List[str]:
         )
     urls.append(f"{authorization_server.rstrip('/')}/.well-known/openid-configuration")
     return urls
+
+
+def _check_https(url: str, *, label: str, server_url: str) -> None:
+    if not _requires_https():
+        return
+    if urlparse(url).scheme.lower() != "https":
+        raise MCPOAuthDiscoveryError(
+            server_url=server_url,
+            detail=f"{label} is not https: {_origin(url)}",
+        )
+
+
+def _check_protected_resource(
+    prm: ProtectedResourceMetadata, *, server_url: str
+) -> None:
+    """RFC 9728 s3.3: the document must describe the resource that was asked about.
+
+    Compared by origin rather than by the string identity the RFC states, because a
+    tenant registers a server by the URL it is called on (`https://host/mcp`) while the
+    document names the resource identifier (`https://host/`). Origin equality is what
+    the security property needs: it is the hop from "the tenant registered this host" to
+    "this host's document may name an authorization server" that must not be crossable by
+    a third party.
+    """
+    if not _same_origin(str(prm.resource), server_url):
+        raise MCPOAuthDiscoveryError(
+            server_url=server_url,
+            detail=(
+                "protected-resource metadata describes a different resource: "
+                f"{_origin(str(prm.resource))}"
+            ),
+        )
+    if not prm.authorization_servers:
+        raise MCPOAuthDiscoveryError(
+            server_url=server_url,
+            detail="protected-resource metadata names no authorization server",
+        )
+    _check_https(
+        str(prm.authorization_servers[0]),
+        label="authorization server",
+        server_url=server_url,
+    )
+
+
+def _check_authorization_server(
+    metadata: OAuthMetadata, *, authorization_server: str
+) -> None:
+    """Pin the authorization server before its endpoints are used.
+
+    Two rules, and they are different in kind.
+
+    **Issuer identity** (RFC 8414 s3.3, and RFC 9728 s3.3 for how the issuer was reached).
+    The metadata's `issuer` must be the authorization server the protected resource named,
+    which is the URL whose well-known path this document was fetched from. A document that
+    answers at one issuer's well-known URL while claiming to be another issuer is refused;
+    without the check, a redirect or a shared host could substitute a document.
+
+    **Endpoint origin.** `authorization_endpoint`, `token_endpoint` and
+    `registration_endpoint` must be same-origin with that issuer. RFC 8414 does not
+    require this, and a few OpenID providers do split (Google authorizes at
+    `accounts.google.com` and takes tokens at `oauth2.googleapis.com`). The rule is
+    enforced anyway because the split is what the attack needs: the honest authorization
+    server mints the code and holds the client secret, and a metadata document that names
+    someone else's token endpoint sends both to that someone. A provider that genuinely
+    splits its endpoints cannot be used as an MCP authorization server here, and is
+    refused with the origin named rather than failing obscurely later; no authorization
+    server an MCP deployment meets today (Auth0, WorkOS, Stytch, Descope, Keycloak, Okta,
+    Entra, GitHub, and MCP vendors' own) splits them.
+
+    What this does NOT stop: a hostile MCP server naming an authorization server it owns
+    outright. That flow is self-consistent, and the person consenting sees the attacker's
+    own login page and grants the attacker access to the attacker. Pinning answers "is the
+    token endpoint where this issuer lives", never "is this issuer honest".
+    """
+    issuer = str(metadata.issuer)
+    if _normalized(issuer) != _normalized(authorization_server):
+        raise MCPOAuthDiscoveryError(
+            server_url=authorization_server,
+            detail=f"authorization-server metadata names a different issuer: {issuer}",
+        )
+    _check_https(issuer, label="issuer", server_url=authorization_server)
+
+    endpoints = [
+        ("authorization endpoint", str(metadata.authorization_endpoint)),
+        ("token endpoint", str(metadata.token_endpoint)),
+    ]
+    if metadata.registration_endpoint:
+        endpoints.append(("registration endpoint", str(metadata.registration_endpoint)))
+
+    for label, url in endpoints:
+        _check_https(url, label=label, server_url=authorization_server)
+        if not _same_origin(url, issuer):
+            raise MCPOAuthDiscoveryError(
+                server_url=authorization_server,
+                detail=(
+                    f"{label} is not on the issuer's origin: "
+                    f"{_origin(url)} is not {_origin(issuer)}"
+                ),
+            )
 
 
 class MCPOAuthClient:
@@ -164,9 +296,15 @@ class MCPOAuthClient:
             if response.status_code != 200:
                 continue
             try:
-                return ProtectedResourceMetadata.model_validate_json(response.content)
+                prm = ProtectedResourceMetadata.model_validate_json(response.content)
             except ValidationError:
                 continue
+            # Refuse rather than walk on. A document that parses but describes another
+            # resource is the upstream answering a question nobody asked; trying the
+            # next candidate would let a server publish one good document and one bad
+            # one and have the bad one taken when the good one is momentarily absent.
+            _check_protected_resource(prm, server_url=server_url)
+            return prm
         raise MCPOAuthDiscoveryError(
             server_url=server_url, detail="no protected-resource metadata found"
         )
@@ -189,9 +327,13 @@ class MCPOAuthClient:
             if response.status_code != 200:
                 continue
             try:
-                return OAuthMetadata.model_validate_json(response.content)
+                metadata = OAuthMetadata.model_validate_json(response.content)
             except ValidationError:
                 continue
+            _check_authorization_server(
+                metadata, authorization_server=authorization_server
+            )
+            return metadata
         raise MCPOAuthDiscoveryError(
             server_url=authorization_server,
             detail="no authorization-server metadata found",
@@ -237,16 +379,21 @@ class MCPOAuthClient:
                     authorization_server=authorization_server, detail=str(e)
                 ) from e
 
+        # Status and origin, never the body. The body is written by the upstream this
+        # call was pointed at, and this message travels to the browser and into agent
+        # transcripts; echoing it turns any discovery weakness into a read primitive
+        # (OR42). An operator still learns which host refused and how.
         if response.status_code not in (200, 201):
             raise MCPOAuthRegistrationError(
                 authorization_server=authorization_server,
-                detail=f"{response.status_code} {response.text}",
+                detail=f"{response.status_code} from {_origin(endpoint)}",
             )
         try:
             return OAuthClientInformationFull.model_validate_json(response.content)
         except ValidationError as e:
             raise MCPOAuthRegistrationError(
-                authorization_server=authorization_server, detail=str(e)
+                authorization_server=authorization_server,
+                detail=f"malformed registration response from {_origin(endpoint)}",
             ) from e
 
     def build_pkce(self) -> PKCEParameters:
@@ -299,6 +446,40 @@ class MCPOAuthClient:
         if resource:
             data["resource"] = resource
 
+        return await self._post_token_request(token_endpoint=token_endpoint, data=data)
+
+    async def refresh_token(
+        self,
+        *,
+        token_endpoint: str,
+        refresh_token: str,
+        client_info: OAuthClientInformationFull,
+        scopes: Optional[List[str]] = None,
+        resource: Optional[str] = None,
+    ) -> OAuthToken:
+        """RFC 6749 s6. Same endpoint, same client credentials, same egress boundary.
+
+        `scope` is sent only when the caller states one: omitting it asks for the scopes
+        the original grant already carries, while naming a narrower set would silently
+        shrink them on every refresh.
+        """
+        data: Dict[str, Any] = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": client_info.client_id,
+        }
+        if client_info.client_secret:
+            data["client_secret"] = client_info.client_secret
+        if scopes:
+            data["scope"] = " ".join(scopes)
+        if resource:
+            data["resource"] = resource
+
+        return await self._post_token_request(token_endpoint=token_endpoint, data=data)
+
+    async def _post_token_request(
+        self, *, token_endpoint: str, data: Dict[str, Any]
+    ) -> OAuthToken:
         try:
             target = await open_egress(
                 token_endpoint,
@@ -322,14 +503,16 @@ class MCPOAuthClient:
                     token_endpoint=token_endpoint, detail=str(e)
                 ) from e
 
+        # Status and origin only; see `register` above for why the body stays here.
         if response.status_code != 200:
             raise MCPOAuthTokenExchangeError(
                 token_endpoint=token_endpoint,
-                detail=f"{response.status_code} {response.text}",
+                detail=f"{response.status_code} from {_origin(token_endpoint)}",
             )
         try:
             return OAuthToken.model_validate_json(response.content)
         except ValidationError as e:
             raise MCPOAuthTokenExchangeError(
-                token_endpoint=token_endpoint, detail=str(e)
+                token_endpoint=token_endpoint,
+                detail=f"malformed token response from {_origin(token_endpoint)}",
             ) from e

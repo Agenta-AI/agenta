@@ -7,6 +7,7 @@ in-memory fake DAO — no real network, no real authorization server, no real MC
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import List, Tuple
 from urllib.parse import parse_qs, urlparse
@@ -14,15 +15,18 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from mcp.shared.auth import OAuthToken
 
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.service import (
     MCPOAuthConnectService,
     callback_redirect_uri,
 )
+from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
+    MCPOAuthRefreshFailedError,
     MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
 )
@@ -584,3 +588,180 @@ async def test_the_sweep_drops_only_attempts_past_their_expiry():
     assert swept == 1
     assert stale.state not in attempts.attempts
     assert live.state in attempts.attempts
+
+
+# --- OR55: renewing a stored grant ---------------------------------------------- #
+
+
+def _refreshing_as_handler(*, calls: List[str], refusal: bool = False):
+    """The mock authorization server, with a token endpoint that records each grant type.
+
+    `calls` receives one entry per token request, so a test can assert how many refreshes
+    actually travelled rather than inferring it from the stored result.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(200, json=_PRM)
+        if path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(200, json=_AS_METADATA)
+        if path == "/token":
+            form = parse_qs(request.content.decode())
+            grant_type = form.get("grant_type", [""])[0]
+            calls.append(grant_type)
+            if refusal:
+                return httpx.Response(400, json={"error": "invalid_grant"})
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": f"renewed-{len(calls)}",
+                    "token_type": "Bearer",
+                    "expires_in": 3600,
+                    "scope": "read write",
+                },
+            )
+        return httpx.Response(404)
+
+    return handler
+
+
+async def _seed_expired_grant(
+    *, service, project_id, renewable: bool = True
+) -> SecretsTokenStorage:
+    """Store a grant that expired an hour ago, as a long-lived connection would hold."""
+    storage = SecretsTokenStorage(
+        vault_service=service.vault_service,
+        project_id=project_id,
+        server_url=_SERVER_URL,
+        authorization_server=f"{_AS_BASE}/",
+    )
+    await storage.write_tokens(
+        OAuthToken(
+            access_token="stale-access",
+            token_type="Bearer",
+            expires_in=-3600,
+            refresh_token="renewal-handle-1" if renewable else None,
+            scope="read write",
+        )
+    )
+    return storage
+
+
+@pytest.mark.asyncio
+async def test_refresh_grant_exchanges_the_stored_refresh_token_and_stores_the_result():
+    calls: List[str] = []
+    service, _dao, _attempts = _service(handler=_refreshing_as_handler(calls=calls))
+    project_id = uuid4()
+    storage = await _seed_expired_grant(service=service, project_id=project_id)
+
+    await service.refresh_grant(project_id=project_id, server_url=_SERVER_URL)
+
+    assert calls == ["refresh_token"]
+    renewed = await storage.get_tokens()
+    assert renewed is not None
+    assert renewed.access_token == "renewed-1"
+    assert renewed.expires_in is not None and renewed.expires_in > 0
+
+
+@pytest.mark.asyncio
+async def test_refresh_grant_keeps_the_old_renewal_handle_when_the_server_rotates_none():
+    """RFC 6749 s6: a non-rotating server returns no new handle and the old one lives on.
+    Dropping it would make the next expiry unrecoverable."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(200, json=_PRM)
+        if path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(200, json=_AS_METADATA)
+        if path == "/token":
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "renewed-no-rotation",
+                    "token_type": "Bearer",
+                    "expires_in": 3600,
+                },
+            )
+        return httpx.Response(404)
+
+    service, _dao, _attempts = _service(handler=handler)
+    project_id = uuid4()
+    storage = await _seed_expired_grant(service=service, project_id=project_id)
+
+    await service.refresh_grant(project_id=project_id, server_url=_SERVER_URL)
+
+    renewed = await storage.get_tokens()
+    assert renewed is not None
+    assert renewed.refresh_token == "renewal-handle-1"
+
+
+@pytest.mark.asyncio
+async def test_refresh_grant_raises_a_typed_refusal_when_the_server_refuses():
+    calls: List[str] = []
+    service, _dao, _attempts = _service(
+        handler=_refreshing_as_handler(calls=calls, refusal=True)
+    )
+    project_id = uuid4()
+    await _seed_expired_grant(service=service, project_id=project_id)
+
+    with pytest.raises(MCPOAuthRefreshFailedError):
+        await service.refresh_grant(project_id=project_id, server_url=_SERVER_URL)
+
+
+@pytest.mark.asyncio
+async def test_refresh_grant_raises_when_the_stored_grant_has_no_renewal_handle():
+    calls: List[str] = []
+    service, _dao, _attempts = _service(handler=_refreshing_as_handler(calls=calls))
+    project_id = uuid4()
+    await _seed_expired_grant(service=service, project_id=project_id, renewable=False)
+
+    with pytest.raises(MCPOAuthRefreshFailedError):
+        await service.refresh_grant(project_id=project_id, server_url=_SERVER_URL)
+
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_two_concurrent_calls_on_one_expired_grant_perform_one_refresh():
+    """A rotating authorization server retires a renewal handle the instant it is spent,
+    so a second exchange would leave one caller holding a retired grant."""
+    calls: List[str] = []
+    service, _dao, _attempts = _service(handler=_refreshing_as_handler(calls=calls))
+    project_id = uuid4()
+    storage = await _seed_expired_grant(service=service, project_id=project_id)
+
+    await asyncio.gather(
+        service.refresh_grant(project_id=project_id, server_url=_SERVER_URL),
+        service.refresh_grant(project_id=project_id, server_url=_SERVER_URL),
+    )
+
+    assert calls == ["refresh_token"]
+    renewed = await storage.get_tokens()
+    assert renewed is not None and renewed.access_token == "renewed-1"
+
+
+@pytest.mark.asyncio
+async def test_refresh_grant_does_nothing_when_the_stored_grant_is_still_live():
+    calls: List[str] = []
+    service, _dao, _attempts = _service(handler=_refreshing_as_handler(calls=calls))
+    project_id = uuid4()
+    storage = SecretsTokenStorage(
+        vault_service=service.vault_service,
+        project_id=project_id,
+        server_url=_SERVER_URL,
+        authorization_server=f"{_AS_BASE}/",
+    )
+    await storage.write_tokens(
+        OAuthToken(
+            access_token="live-access",
+            token_type="Bearer",
+            expires_in=3600,
+            refresh_token="renewal-handle-1",
+        )
+    )
+
+    await service.refresh_grant(project_id=project_id, server_url=_SERVER_URL)
+
+    assert calls == []

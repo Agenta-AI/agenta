@@ -1,13 +1,34 @@
-"""Persistence interface for MCP OAuth authorization attempts."""
+"""Interfaces for MCP OAuth: attempt persistence, and grant refresh."""
 
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
 from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttempt,
     MCPOAuthAttemptCreate,
 )
+
+
+class MCPOAuthRefresherInterface(ABC):
+    """Exchange a stored refresh token for a fresh grant.
+
+    The data plane needs this and owns none of it: the tokens live in the vault and the
+    exchange is an OAuth call. Stating it as an interface keeps `MCPGatewayService`
+    unaware of the connect service, which in turn depends on the vault and the OAuth
+    client.
+    """
+
+    @abstractmethod
+    async def refresh_grant(self, *, project_id: UUID, server_url: str) -> None:
+        """Refresh the stored grant for one server, in place.
+
+        Returns nothing: the caller re-reads the secret it already holds a reference to,
+        because the refreshed tokens are written back to that same row. Raises
+        `MCPOAuthRefreshFailedError` when no usable grant can be produced.
+        """
+        raise NotImplementedError
 
 
 class MCPOAuthAttemptsDAOInterface(ABC):
