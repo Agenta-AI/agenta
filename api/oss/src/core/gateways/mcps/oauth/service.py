@@ -5,10 +5,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
-from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
+from mcp.shared.auth import OAuthClientInformationFull
 
-from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
+from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient, same_issuer
 from oss.src.core.gateways.mcps.oauth.dtos import (
+    MCPOAuthAttempt,
     MCPOAuthAttemptCreate,
     MCPOAuthAuthorizationStart,
     MCPOAuthCompletion,
@@ -26,16 +27,18 @@ from oss.src.core.gateways.mcps.oauth.registration import (
 from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS, new_state
 from oss.src.core.gateways.mcps.oauth.storage import (
     SecretsTokenStorage,
-    grant_is_expired,
+    grant_settings_expired,
 )
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
+    MCPOAuthIssuerChangedError,
     MCPOAuthRefreshFailedError,
     MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
     MCPOAuthTokenExchangeError,
 )
+from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO
 from oss.src.core.secrets.services import VaultService
 
 _CALLBACK_PATH = "/gateways/mcps/connect/callback"
@@ -162,18 +165,25 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             authorization_url=authorization_url, state=state
         )
 
-    async def complete(
+    async def claim(
         self,
         *,
-        code: str,
         state: str,
         caller_user_id: Optional[UUID],
-    ) -> MCPOAuthCompletion:
-        """Exchange the code against the attempt the handle names.
+    ) -> MCPOAuthAttempt:
+        """Consume the attempt the handle names and hand it to the caller.
+
+        This is the first half of the callback, split from `complete()` so that the
+        facts the caller must be authorised against — the project above all — are in
+        the caller's hands BEFORE any code is exchanged or any grant is written. The
+        record is consumed atomically (`DELETE ... RETURNING`), so there is no read
+        that leaves the handle probeable, and a caller refused after this point has
+        spent the attempt: single-use is the property that makes the handle safe, and
+        the person must start the connection again.
 
         `caller_user_id` is the user behind the browser that presented the callback.
         The authorization server also holds the handle, so the attempt is checked
-        against that caller before anything is consumed or written.
+        against that caller before anything is consumed at all.
         """
         attempt = await self.attempts_dao.fetch_attempt(state=state)
         if attempt is None:
@@ -192,41 +202,57 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         if consumed.expires_at <= datetime.now(timezone.utc):
             raise MCPOAuthStateExpiredError()
 
+        return consumed
+
+    async def complete(
+        self,
+        *,
+        attempt: MCPOAuthAttempt,
+        code: str,
+    ) -> MCPOAuthCompletion:
+        """Exchange the code for a grant and write it into the attempt's project.
+
+        Takes the attempt `claim()` returned rather than the `state` handle: everything
+        here writes, so the caller has already authorised itself against that record.
+        """
         # Issuer, token endpoint and redirect URI come from the record, not from a
         # fresh discovery round: the server cannot move its token endpoint between the
         # redirect it was handed and the code it returns.
         storage = SecretsTokenStorage(
             vault_service=self.vault_service,
-            project_id=consumed.project_id,
-            server_url=consumed.server_url,
-            authorization_server=consumed.issuer,
+            project_id=attempt.project_id,
+            server_url=attempt.server_url,
+            authorization_server=attempt.issuer,
         )
 
-        if consumed.strategy == "document":
+        if attempt.strategy == "document":
             # Identity-document client information is deterministic and not persisted.
             client_info = identity_document_client_info(
-                api_url=self.api_url, redirect_uri=consumed.redirect_uri
+                api_url=self.api_url, redirect_uri=attempt.redirect_uri
             )
         else:
             client_info = await storage.get_client_info()
             if client_info is None:
-                raise MCPOAuthClientNotRegisteredError(server_url=consumed.server_url)
+                raise MCPOAuthClientNotRegisteredError(server_url=attempt.server_url)
 
         tokens = await self.client.exchange_token(
-            token_endpoint=consumed.token_endpoint,
+            token_endpoint=attempt.token_endpoint,
             code=code,
-            code_verifier=consumed.code_verifier,
-            redirect_uri=consumed.redirect_uri,
+            code_verifier=attempt.code_verifier,
+            redirect_uri=attempt.redirect_uri,
             client_info=client_info,
-            resource=consumed.resource,
+            resource=attempt.resource,
         )
+        # `storage` carries the attempt's issuer, so the grant is written pinned to the
+        # authorization server that actually issued it. `refresh_grant` requires that
+        # pin to still hold before it presents the refresh token anywhere.
         grant = await storage.write_tokens(tokens)
 
         return MCPOAuthCompletion(
-            project_id=consumed.project_id,
-            user_id=consumed.user_id,
-            endpoint_id=consumed.endpoint_id,
-            server_url=consumed.server_url,
+            project_id=attempt.project_id,
+            user_id=attempt.user_id,
+            endpoint_id=attempt.endpoint_id,
+            server_url=attempt.server_url,
             secret_id=grant.id,
         )
 
@@ -263,12 +289,12 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 server_url=server_url,
             )
 
-            stored = await storage.get_tokens()
+            stored = await storage.get_grant()
             if stored is None:
                 raise MCPOAuthRefreshFailedError(
                     server_url=server_url, detail="no stored grant"
                 )
-            if not grant_is_expired(stored):
+            if not grant_settings_expired(stored):
                 # Another coroutine in this worker refreshed while we waited.
                 return
             if not stored.refresh_token:
@@ -276,12 +302,31 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                     server_url=server_url,
                     detail="the stored grant carries no refresh token",
                 )
+            if not stored.issuer:
+                # Nothing to check the resource's answer against, so there is no safe
+                # way to present this refresh token. Reconnecting writes the pin.
+                raise MCPOAuthIssuerChangedError(
+                    server_url=server_url, stored_issuer=None, named_issuer=None
+                )
 
-            # Rediscovered rather than stored: the token endpoint is not part of a grant,
-            # and discovery now pins it to the issuer the resource names
-            # (`oauth/client.py`), so re-reading it is not re-trusting the server.
+            # The token endpoint is rediscovered rather than stored — it is not part of a
+            # grant, and a server may move it within its own authorization server. The
+            # ISSUER is not rediscovered. Discovery's checks are only internally
+            # consistent: the protected-resource document is published by the MCP server
+            # itself, so a server that was honest at connect time can later name an
+            # authorization server it controls and satisfy every one of them. Pinning the
+            # refresh to the issuer that actually granted these tokens is what stops the
+            # refresh token being handed to that new server.
             discovery = await self.client.discover(server_url=server_url)
-            storage.authorization_server = discovery.authorization_server
+            if not same_issuer(discovery.authorization_server, stored.issuer):
+                raise MCPOAuthIssuerChangedError(
+                    server_url=server_url,
+                    stored_issuer=stored.issuer,
+                    named_issuer=discovery.authorization_server,
+                )
+            # The pinned value, not the discovered one: the client registration is
+            # addressed by issuer, and this keeps the rewritten grant pinned as it was.
+            storage.authorization_server = stored.issuer
 
             client_info = await storage.get_client_info()
             if client_info is None:
@@ -314,15 +359,15 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
 
     @staticmethod
     async def _another_worker_refreshed(
-        *, storage: SecretsTokenStorage, stored: OAuthToken
+        *, storage: SecretsTokenStorage, stored: OAuthGrantSettingsDTO
     ) -> bool:
         """Whether the row now holds a live grant someone else wrote."""
-        current = await storage.get_tokens()
+        current = await storage.get_grant()
         if current is None:
             return False
         if current.access_token == stored.access_token:
             return False
-        return not grant_is_expired(current)
+        return not grant_settings_expired(current)
 
     async def sweep_expired_attempts(self) -> int:
         """Drop attempts nobody came back for. Driven by the cron service."""

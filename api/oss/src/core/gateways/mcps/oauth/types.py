@@ -54,6 +54,40 @@ class MCPOAuthRefreshFailedError(GatewaysError):
         )
 
 
+class MCPOAuthIssuerChangedError(MCPOAuthRefreshFailedError):
+    """The MCP server now names an authorization server other than the one that issued
+    the stored grant, so the refresh token is not presented at all.
+
+    The protected-resource document is published by the MCP server itself, so a server
+    that was honest at connect time can later point at an authorization server it
+    controls; every discovery check still passes, because they only ask whether that
+    document is internally consistent. The grant records the issuer it was created
+    against, and a renewal must still meet it.
+
+    A `MCPOAuthRefreshFailedError` because that is exactly what it is for the caller:
+    the relay marks the endpoint invalid and offers the reconnect it offers any dead
+    grant. Reconnecting is also the legitimate way through a real issuer migration —
+    the person consents at the new authorization server, and the new grant pins it.
+    """
+
+    def __init__(
+        self,
+        *,
+        server_url: str,
+        stored_issuer: Optional[str],
+        named_issuer: Optional[str],
+    ):
+        self.stored_issuer = stored_issuer
+        self.named_issuer = named_issuer
+        detail = (
+            f"the stored grant was issued by {stored_issuer}, and {server_url} now "
+            f"names {named_issuer}"
+            if stored_issuer
+            else "the stored grant does not record which authorization server issued it"
+        )
+        super().__init__(server_url=server_url, detail=detail)
+
+
 class MCPOAuthStateInvalidError(GatewaysError):
     """No authorization attempt answers the callback's `state` handle.
 

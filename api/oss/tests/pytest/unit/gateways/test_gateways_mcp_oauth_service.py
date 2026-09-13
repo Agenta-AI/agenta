@@ -26,6 +26,7 @@ from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
+    MCPOAuthIssuerChangedError,
     MCPOAuthRefreshFailedError,
     MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
@@ -172,6 +173,17 @@ def _service(
     return service, dao, attempts
 
 
+async def _callback(service, *, code: str, state: str, caller_user_id):
+    """The two halves of the callback, as the router runs them back to back.
+
+    `claim()` consumes the attempt and `complete()` exchanges against it; the router
+    authorises the caller in between. Tests that are not about that gap say so once
+    here rather than spelling both calls out.
+    """
+    attempt = await service.claim(state=state, caller_user_id=caller_user_id)
+    return await service.complete(attempt=attempt, code=code)
+
+
 def test_callback_redirect_uri_is_fixed_and_carries_no_query():
     uri = callback_redirect_uri(api_url=_API_URL)
 
@@ -304,8 +316,8 @@ async def test_complete_with_valid_code_and_state_writes_an_oauth_grant_and_retu
         server_url=_SERVER_URL,
         scopes=["read"],
     )
-    completion = await service.complete(
-        code="auth-code-1", state=start.state, caller_user_id=user_id
+    completion = await _callback(
+        service, code="auth-code-1", state=start.state, caller_user_id=user_id
     )
 
     assert completion.project_id == project_id
@@ -330,14 +342,14 @@ async def test_a_replayed_state_is_refused_on_the_second_use():
         server_url=_SERVER_URL,
         scopes=["read"],
     )
-    await service.complete(
-        code="auth-code-1", state=start.state, caller_user_id=user_id
+    await _callback(
+        service, code="auth-code-1", state=start.state, caller_user_id=user_id
     )
     grants_after_first = [r for _, r in dao.records if r.kind.value == "oauth_grant"]
 
     with pytest.raises(MCPOAuthStateInvalidError):
-        await service.complete(
-            code="auth-code-2", state=start.state, caller_user_id=user_id
+        await _callback(
+            service, code="auth-code-2", state=start.state, caller_user_id=user_id
         )
 
     assert start.state not in attempts.attempts
@@ -364,8 +376,8 @@ async def test_an_expired_attempt_is_refused_and_consumed():
     )
 
     with pytest.raises(MCPOAuthStateExpiredError):
-        await service.complete(
-            code="auth-code-1", state=start.state, caller_user_id=user_id
+        await _callback(
+            service, code="auth-code-1", state=start.state, caller_user_id=user_id
         )
 
     assert start.state not in attempts.attempts
@@ -389,15 +401,15 @@ async def test_a_callback_from_another_user_is_refused_and_writes_nothing():
     )
 
     with pytest.raises(MCPOAuthCallerMismatchError):
-        await service.complete(
-            code="hostile-code", state=start.state, caller_user_id=uuid4()
+        await _callback(
+            service, code="hostile-code", state=start.state, caller_user_id=uuid4()
         )
 
     assert not [r for _, r in dao.records if r.kind.value == "oauth_grant"]
     # Refused without consuming: the rightful browser can still finish.
     assert start.state in attempts.attempts
-    completion = await service.complete(
-        code="auth-code-1", state=start.state, caller_user_id=user_id
+    completion = await _callback(
+        service, code="auth-code-1", state=start.state, caller_user_id=user_id
     )
     assert completion.project_id == project_id
 
@@ -416,8 +428,8 @@ async def test_a_callback_with_no_session_is_refused_and_writes_nothing():
     )
 
     with pytest.raises(MCPOAuthCallerMismatchError):
-        await service.complete(
-            code="auth-code-1", state=start.state, caller_user_id=None
+        await _callback(
+            service, code="auth-code-1", state=start.state, caller_user_id=None
         )
 
     assert not [r for _, r in dao.records if r.kind.value == "oauth_grant"]
@@ -439,8 +451,8 @@ async def test_the_grant_lands_in_the_attempts_project_not_a_project_the_server_
         server_url=_SERVER_URL,
         scopes=["read"],
     )
-    completion = await service.complete(
-        code="auth-code-1", state=start.state, caller_user_id=user_id
+    completion = await _callback(
+        service, code="auth-code-1", state=start.state, caller_user_id=user_id
     )
 
     assert completion.project_id == victim_project
@@ -454,8 +466,8 @@ async def test_complete_with_an_unknown_state_raises_before_any_http_call():
     service, _dao, _attempts = _service()
 
     with pytest.raises(MCPOAuthStateInvalidError):
-        await service.complete(
-            code="auth-code-1", state="not-a-handle", caller_user_id=uuid4()
+        await _callback(
+            service, code="auth-code-1", state="not-a-handle", caller_user_id=uuid4()
         )
 
 
@@ -475,8 +487,8 @@ async def test_complete_without_a_prior_registration_raises_client_not_registere
     dao.records = [r for r in dao.records if r[1].kind.value != "oauth_provider"]
 
     with pytest.raises(MCPOAuthClientNotRegisteredError):
-        await service.complete(
-            code="auth-code-1", state=start.state, caller_user_id=user_id
+        await _callback(
+            service, code="auth-code-1", state=start.state, caller_user_id=user_id
         )
 
     assert start.state not in attempts.attempts
@@ -518,8 +530,8 @@ async def test_complete_with_token_endpoint_error_raises_typed_exception():
     from oss.src.core.gateways.mcps.oauth.types import MCPOAuthTokenExchangeError
 
     with pytest.raises(MCPOAuthTokenExchangeError):
-        await service.complete(
-            code="auth-code-1", state=start.state, caller_user_id=user_id
+        await _callback(
+            service, code="auth-code-1", state=start.state, caller_user_id=user_id
         )
 
 
@@ -537,8 +549,8 @@ async def test_step_up_reuses_the_same_grant_row_rather_than_creating_a_second_o
         server_url=_SERVER_URL,
         scopes=["read"],
     )
-    completion1 = await service.complete(
-        code="auth-code-1", state=start1.state, caller_user_id=user_id
+    completion1 = await _callback(
+        service, code="auth-code-1", state=start1.state, caller_user_id=user_id
     )
 
     start2 = await service.begin(
@@ -548,8 +560,8 @@ async def test_step_up_reuses_the_same_grant_row_rather_than_creating_a_second_o
         server_url=_SERVER_URL,
         scopes=["read", "write"],
     )
-    completion2 = await service.complete(
-        code="auth-code-2", state=start2.state, caller_user_id=user_id
+    completion2 = await _callback(
+        service, code="auth-code-2", state=start2.state, caller_user_id=user_id
     )
 
     grant_rows = [r for _, r in dao.records if r.kind.value == "oauth_grant"]
@@ -765,3 +777,153 @@ async def test_refresh_grant_does_nothing_when_the_stored_grant_is_still_live():
     await service.refresh_grant(project_id=project_id, server_url=_SERVER_URL)
 
     assert calls == []
+
+
+# --- The issuer a grant was created against ------------------------------------- #
+
+
+_MOVED_AS_BASE = "https://auth.acme-successor.io"
+
+
+def _moved_issuer_handler(*, calls: List[Tuple[str, str]]):
+    """The same MCP server later in its life, naming an authorization server it now
+    controls. Every discovery check still passes: the protected-resource document is
+    same-origin with the server, and the new authorization server's metadata agrees
+    with itself. `calls` records every token request, host included, so a test can
+    assert that nothing travelled rather than infer it."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        host, path = request.url.host, request.url.path
+        if path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(
+                200,
+                json={**_PRM, "authorization_servers": [f"{_MOVED_AS_BASE}/"]},
+            )
+        if path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(
+                200,
+                json={
+                    "issuer": f"{_MOVED_AS_BASE}/",
+                    "authorization_endpoint": f"{_MOVED_AS_BASE}/authorize",
+                    "token_endpoint": f"{_MOVED_AS_BASE}/token",
+                    "scopes_supported": ["read", "write"],
+                },
+            )
+        if path == "/token":
+            form = parse_qs(request.content.decode())
+            calls.append((host, form.get("grant_type", [""])[0]))
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "issued-by-the-new-server",
+                    "token_type": "Bearer",
+                    "expires_in": 3600,
+                },
+            )
+        return httpx.Response(404)
+
+    return handler
+
+
+@pytest.mark.asyncio
+async def test_a_completed_grant_records_the_authorization_server_that_issued_it():
+    service, _dao, _attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+
+    start = await service.begin(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+    await _callback(
+        service, code="auth-code-1", state=start.state, caller_user_id=user_id
+    )
+
+    storage = SecretsTokenStorage(
+        vault_service=service.vault_service,
+        project_id=project_id,
+        server_url=_SERVER_URL,
+    )
+    stored = await storage.get_grant()
+    assert stored is not None
+    assert stored.issuer == f"{_AS_BASE}/"
+
+
+@pytest.mark.asyncio
+async def test_refresh_is_refused_when_the_resource_now_names_another_issuer():
+    """The MCP server publishes its own protected-resource document, so it can name a
+    different authorization server whenever it likes and every pinning check inside
+    discovery still passes. The renewal handle must not travel to that server."""
+    calls: List[Tuple[str, str]] = []
+    service, _dao, _attempts = _service(handler=_moved_issuer_handler(calls=calls))
+    project_id = uuid4()
+    storage = await _seed_expired_grant(service=service, project_id=project_id)
+
+    with pytest.raises(MCPOAuthIssuerChangedError):
+        await service.refresh_grant(project_id=project_id, server_url=_SERVER_URL)
+
+    assert calls == []
+    stored = await storage.get_grant()
+    assert stored is not None
+    assert stored.refresh_token == "renewal-handle-1"
+    assert stored.access_token == "stale-access"
+    assert stored.issuer == f"{_AS_BASE}/"
+
+
+@pytest.mark.asyncio
+async def test_the_issuer_refusal_is_a_refresh_failure_the_relay_already_handles():
+    """`MCPGatewayService._renewed` turns a refresh failure into "reconnect"; a moved
+    issuer is exactly that case, and a legitimate migration is the same reconnect."""
+    calls: List[Tuple[str, str]] = []
+    service, _dao, _attempts = _service(handler=_moved_issuer_handler(calls=calls))
+    project_id = uuid4()
+    await _seed_expired_grant(service=service, project_id=project_id)
+
+    with pytest.raises(MCPOAuthRefreshFailedError):
+        await service.refresh_grant(project_id=project_id, server_url=_SERVER_URL)
+
+
+@pytest.mark.asyncio
+async def test_refresh_is_refused_when_the_stored_grant_names_no_issuer():
+    """A grant with no pin cannot be checked against anything, so there is no safe
+    server to present its renewal handle to. Reconnecting writes the pin."""
+    calls: List[str] = []
+    service, _dao, _attempts = _service(handler=_refreshing_as_handler(calls=calls))
+    project_id = uuid4()
+    storage = SecretsTokenStorage(
+        vault_service=service.vault_service,
+        project_id=project_id,
+        server_url=_SERVER_URL,
+    )
+    await storage.write_tokens(
+        OAuthToken(
+            access_token="stale-access",
+            token_type="Bearer",
+            expires_in=-3600,
+            refresh_token="renewal-handle-1",
+            scope="read write",
+        )
+    )
+
+    with pytest.raises(MCPOAuthIssuerChangedError):
+        await service.refresh_grant(project_id=project_id, server_url=_SERVER_URL)
+
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_refresh_succeeds_and_keeps_the_pin_when_the_issuer_is_unchanged():
+    calls: List[str] = []
+    service, _dao, _attempts = _service(handler=_refreshing_as_handler(calls=calls))
+    project_id = uuid4()
+    storage = await _seed_expired_grant(service=service, project_id=project_id)
+
+    await service.refresh_grant(project_id=project_id, server_url=_SERVER_URL)
+
+    assert calls == ["refresh_token"]
+    stored = await storage.get_grant()
+    assert stored is not None
+    assert stored.access_token == "renewed-1"
+    assert stored.issuer == f"{_AS_BASE}/"

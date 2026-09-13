@@ -202,6 +202,11 @@ class OAuthGrantSettingsDTO(BaseModel):
     refresh_token: Optional[str] = None
     expires_at: Optional[int] = None
     scopes: List[str]
+    # The authorization server that issued these tokens, recorded when the grant is
+    # written. Not a credential and never redacted: it is the pin a renewal is checked
+    # against, so that a resource which later names a different authorization server
+    # cannot have the stored refresh token presented to it.
+    issuer: Optional[str] = None
 
 
 class OAuthGrantDTO(BaseModel):

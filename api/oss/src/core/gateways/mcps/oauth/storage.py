@@ -31,7 +31,9 @@ from oss.src.utils.helpers import get_slug_from_name_and_id
 REFRESH_SKEW_SECONDS = 60
 
 
-def grant_is_expired(tokens: OAuthToken, *, skew: int = REFRESH_SKEW_SECONDS) -> bool:
+def grant_settings_expired(
+    grant: Optional[OAuthGrantSettingsDTO], *, skew: int = REFRESH_SKEW_SECONDS
+) -> bool:
     """Whether a stored grant needs renewing before it is used.
 
     A grant whose authorization server stated no lifetime is never treated as expired:
@@ -39,15 +41,6 @@ def grant_is_expired(tokens: OAuthToken, *, skew: int = REFRESH_SKEW_SECONDS) ->
     call. Such a grant still dies as a 401 from the upstream, which is the behaviour for
     every token whose end nobody can predict.
     """
-    if tokens.expires_in is None:
-        return False
-    return tokens.expires_in <= skew
-
-
-def grant_settings_expired(
-    grant: Optional[OAuthGrantSettingsDTO], *, skew: int = REFRESH_SKEW_SECONDS
-) -> bool:
-    """The same question asked of a stored record rather than of a wire token."""
     if grant is None or grant.expires_at is None:
         return False
     return grant.expires_at - skew <= time.time()
@@ -99,6 +92,15 @@ class SecretsTokenStorage:
             None,
         )
 
+    async def get_grant(self) -> Optional[OAuthGrantSettingsDTO]:
+        """The stored grant as it is recorded, issuer included.
+
+        `get_tokens` below answers the same question in the OAuth client's vocabulary,
+        which has no room for the issuer. A renewal needs the issuer, so it reads this.
+        """
+        grant = await self._find_grant()
+        return grant.data.grant if grant is not None else None
+
     async def get_tokens(self) -> Optional[OAuthToken]:
         grant = await self._find_grant()
         if grant is None:
@@ -132,6 +134,10 @@ class SecretsTokenStorage:
             refresh_token=tokens.refresh_token,
             expires_at=expires_at,
             scopes=tokens.scope.split() if tokens.scope else [],
+            # Pinned at the moment of the write. A renewal refuses to present these
+            # tokens to any other authorization server, however the resource's own
+            # metadata document may read by then.
+            issuer=self.authorization_server,
         )
         secret = SecretDTO(
             kind=SecretKind.OAUTH_GRANT,

@@ -36,21 +36,25 @@ The remaining documents are the design itself: `decisions.md`, `architecture.md`
 
 **The branch is not mergeable as of 2026-09-13.** A security review of the credential boundary
 found thirty-three defects that every green suite ran straight past, and closing one of them turned
-up a thirty-fourth, OR69. Twelve are now fixed and closed: request headers travel by allowlist
+up a thirty-fourth, OR69. Seventeen are now fixed and closed: request headers travel by allowlist
 rather than pass-through, so the caller's session no longer reaches a tenant's upstream (OR36,
 OR37); a response echoing the injected key is refused (OR39); every credential field is redacted
 rather than the first per kind (OR43); the migration declares the secret kind the OAuth code writes
 (OR46); three ways a request escaped its endpoint's limits are shut (OR44, OR50, OR60); a mock
 endpoint is callable only while the mock flag is on (OR57); every outbound call resolves, checks and
-pins its address through one shared module that enforces by default (OR40, OR64); and the sandbox
-holds a gateway-audience credential the vault rejects (OR38).
+pins its address through one shared module that enforces by default (OR40, OR64); the sandbox holds
+a gateway-audience credential the vault rejects (OR38); the OAuth state is an opaque single-use
+handle over a server-side attempt record, which is also what made the callback's middleware
+exemption safe (OR41, OR47); discovery pins the authorization server and both its endpoints to the
+server the tenant registered (OR42); an expired grant is refreshed before use (OR55); and Postgres
+arbitrates the registration write instead of a read-modify-write race (OR61).
 
-**Twenty-two remain open, and OR69 is the largest.** The Daytona runner writes the user's real
+**Seventeen remain open, and OR69 is the largest.** The Daytona runner writes the user's real
 provider keys and a granted platform credential into the sandbox's environment at creation, which
 reaches by a different road the secret OR38 just took away from the agent's credential. Nothing
 waits on a decision any more: OD24 to OD27 in `open-designs.md` are all decided, OD26, OD24 and
-OD27 have landed, and OD25 is being built now. The open set is OR41, OR42, OR45, OR47, OR48, OR49,
-OR51 to OR56, OR58, OR59, OR61, OR62, OR63, OR65, OR66, OR67, OR68 and OR69. Read `open-reviews.md`
+OD27 have landed, and OD25 is being built now. The open set is OR45, OR48, OR49, OR51 to OR54,
+OR56, OR58, OR59, OR62, OR63, OR65, OR66, OR67, OR68 and OR69. Read `open-reviews.md`
 before planning work here. Green suites are not evidence on this branch, and `OR65` says why.
 
 **The dashboard product path works end to end as of 2026-09-13**: a
@@ -100,18 +104,22 @@ step.
   Traefik and the development client reloads the whole page every 50 to 60 seconds, taking every open
   form with it. **OR35** (no create control on the API keys page) reproduces on `main` and is tracked
   as issue #6803.
-- **Fixed and closed, 2026-09-13.** Twelve of the thirty-four: **OR36** and **OR37** (headers
+- **Fixed and closed, 2026-09-13.** Seventeen of the thirty-four: **OR36** and **OR37** (headers
   travel by allowlist, and the injected credential replaces the caller's in any casing),
   **OR39** (a response echoing the injected key is refused), **OR43** (every credential field is
   redacted), **OR44**, **OR50** and **OR60** (the three escapes from an endpoint's limits),
   **OR46** (the missing secret-kind enum value), **OR57** (mocks gated on their flag), **OR40**
   and **OR64** (one shared egress module resolves, checks and pins every outbound call, and it
-  enforces by default), and **OR38** (the sandbox holds a gateway-audience credential with no
-  grants, which the vault routes refuse).
-- **Open.** Twenty-two findings: **OR41**, **OR42**, **OR45**, **OR47**, **OR48**, **OR49**,
-  **OR51** to **OR56**, **OR58**, **OR59**, **OR61**, **OR62**, **OR63**, **OR65** to **OR69**.
-  Four are P0, blocking on security (OR41, OR42, OR45 and the new OR69); five are debt (OR63,
-  OR65 to OR68); the remaining thirteen are correctness repairs. None waits on a decision.
+  enforces by default), **OR38** (the sandbox holds a gateway-audience credential with no
+  grants, which the vault routes refuse), **OR41** and **OR47** (the state is an opaque
+  single-use handle over a server-side attempt record, and the callback's middleware exemption
+  rests on that record), **OR42** (discovery is pinned to the registered server, at the cost of
+  split-origin authorization servers), **OR55** (an expired grant is refreshed before use) and
+  **OR61** (Postgres arbitrates the registration write).
+- **Open.** Seventeen findings: **OR45**, **OR48**, **OR49**, **OR51** to **OR54**, **OR56**,
+  **OR58**, **OR59**, **OR62**, **OR63**, **OR65** to **OR69**.
+  Two are P0, blocking on security (OR45 and OR69); five are debt (OR63,
+  OR65 to OR68); the remaining ten are correctness repairs. None waits on a decision.
 
 ## The live evidence, 2026-09-13
 
@@ -211,9 +219,8 @@ through the agent's credential; this is the other road. The gateway's guarantee 
 without qualification while it is open. Whoever takes it has to say which credential the OTLP export
 gets in place of the run's granted one.
 
-**Then the rest of the P0 set.** OR41 replaces the signed blob in the callback URL with an opaque
-server-side record. OR42 stops OAuth discovery from trusting the server it is authenticating
-against. OR45 puts a permission check on the credential issuer.
+**Then OR45**, the one P0 left beside it. It puts a permission check on the credential issuer, so a
+caller stops choosing its own narrowing.
 
 **Then the correctness repairs and the debt**, in `open-reviews.md` order. Each entry states the
 closure that would settle it and the test that would prove it.
