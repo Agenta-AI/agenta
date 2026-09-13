@@ -213,7 +213,7 @@ async def test_custom_route_passes_custom_namespace_and_slug_as_name():
 
 
 @pytest.mark.asyncio
-async def test_gateway_credential_is_stripped_but_upstream_authorization_is_preserved():
+async def test_the_callers_authorization_and_cookie_never_enter_the_service():
     service = _MockLlmGatewayService(
         relay_result=_relay_result(status_code=200, chunks=[b"{}"])
     )
@@ -224,17 +224,24 @@ async def test_gateway_credential_is_stripped_but_upstream_authorization_is_pres
             _request(
                 body=_body(),
                 headers={
-                    "Authorization": "Bearer upstream-token",
+                    "Authorization": "Bearer caller-token",
+                    "Cookie": "sAccessToken=caller-session",
                     "X-AG-Credentials": "ApiKey gateway-token",
+                    "Content-Type": "application/json",
                 },
             ),
             "my-slug",
         )
 
+    # OR36: the edge admits headers by allowlist. The caller's Authorization and Cookie
+    # authenticate the caller to Agenta, so neither reaches the service, let alone an
+    # upstream. An allowlisted header still travels.
     headers = service.relay_calls[0]["headers"]
     normalized = {key.lower(): value for key, value in headers.items()}
-    assert normalized["authorization"] == "Bearer upstream-token"
+    assert "authorization" not in normalized
+    assert "cookie" not in normalized
     assert "x-ag-credentials" not in normalized
+    assert normalized["content-type"] == "application/json"
 
 
 @pytest.mark.asyncio

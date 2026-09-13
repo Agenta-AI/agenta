@@ -101,9 +101,11 @@ async def test_relay_chat_completion_returns_llm_relay_result(adapter):
         provider_key="mock",
         deployment_kind=LLMDeploymentKind.DIRECT,
         model="mock/echo",
-        # Unused by MockLLMAdapter; RelayLLMAdapter needs one to build an
-        # outbound URL, and the MockTransport above never dials it for real.
-        base_url="http://mock-passthrough-upstream.invalid",
+        # Unused by MockLLMAdapter; RelayLLMAdapter needs one to build an outbound URL,
+        # and the MockTransport above never dials it for real. https, because the shared
+        # egress boundary refuses plain http whenever the guard is live, which the suite's
+        # `secure_egress_by_default` fixture makes it.
+        base_url="https://mock-passthrough-upstream.example",
     )
     body = json.dumps(
         {"model": "mock/echo", "messages": [{"role": "user", "content": "hi"}]}
