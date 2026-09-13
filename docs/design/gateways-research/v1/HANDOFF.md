@@ -35,26 +35,35 @@ The remaining documents are the design itself: `decisions.md`, `architecture.md`
 ## Current state
 
 **The branch is not mergeable as of 2026-09-13.** A security review of the credential boundary
-recorded thirty-four findings that every green suite ran straight past, OR36 to OR69. One of them,
-OR69, was withdrawn, so thirty-three stand. Seventeen are now fixed and closed: request headers
-travel by allowlist, so the caller's session no longer reaches a tenant's upstream (OR36,
-OR37); a response echoing the injected key is refused (OR39); every credential field is redacted
-rather than the first per kind (OR43); the migration declares the secret kind the OAuth code writes
-(OR46); three ways a request escaped its endpoint's limits are shut (OR44, OR50, OR60); a mock
-endpoint is callable only while the mock flag is on (OR57); every outbound call resolves, checks and
-pins its address through one shared module that enforces by default (OR40, OR64); the sandbox holds
-a gateway-audience credential the vault rejects (OR38); the OAuth state is an opaque single-use
-handle over a server-side attempt record, which is also what made the callback's middleware
-exemption safe (OR41, OR47); discovery pins the authorization server and both its endpoints to the
-server the tenant registered (OR42); an expired grant is refreshed before use (OR55); and Postgres
-arbitrates the registration write instead of a read-modify-write race (OR61).
+recorded forty findings that every green suite ran straight past, OR36 to OR75. Six of them came out
+of reviewing the repairs rather than the original code (OR70 to OR75). One finding, OR69, was
+withdrawn, so thirty-nine stand. Twenty-three are now fixed and closed: request headers travel by
+allowlist, so the caller's session no longer reaches a tenant's upstream (OR36, OR37); a response
+echoing the injected key is refused, in the body and in the header block (OR39, OR70), and a
+credential split across two streamed chunks is withheld rather than relayed and regretted (OR71);
+every credential field is redacted rather than the first per kind (OR43), and `extras` stop
+travelling as authentication headers, which is what let a write-only entry both authenticate and be
+read back in plaintext (OR72); the migration declares the secret kind the OAuth code writes (OR46);
+three ways a request escaped its endpoint's limits are shut (OR44, OR50, OR60); a mock endpoint is
+callable only while the mock flag is on (OR57); every outbound call resolves, checks and pins its
+address through one shared module that enforces by default (OR40, OR64), the Vertex credential
+document is checked against that module before google-auth reads it (OR73), and pinned connections
+are pooled per original origin so two hostnames on one address no longer share a TLS connection
+(OR74); the sandbox holds a gateway-audience credential the vault rejects (OR38); the builtin Agenta
+credential issuer checks the permission its credential is spent under and bounds the tool list it
+signs (OR45); the OAuth state is an opaque single-use handle over a server-side attempt record,
+which is also what made the callback's middleware exemption safe (OR41, OR47); discovery fetches the
+authorization server's metadata from the issuer itself rather than from the MCP server (OR42); an
+expired grant is refreshed before use (OR55); and Postgres arbitrates the registration write instead
+of a read-modify-write race (OR61).
 
-**Sixteen remain open, and OR45 is the largest.** `POST /gateways/mcps/credentials/agenta` exists to
-hand out a credential narrowed to a chosen set of tools, and it runs no permission check and no
-narrowing check, so the caller picks the set. It is the only P0 left. Nothing waits on a decision any
-more: OD24 to OD27 in `open-designs.md` are all decided, OD26, OD24 and OD27 have landed, and OD25 is
-being built now. The open set is OR45, OR48, OR49, OR51 to OR54, OR56, OR58, OR59, OR62, OR63, and
-OR65 to OR68. Read `open-reviews.md` before planning work here. Green suites are not evidence on this
+**Sixteen remain open, and none of them is a P0.** OR45 was the last one, and it is closed. The
+highest severity open is P1, and OR75 is the only finding at it: the MCP relay returns an upstream's
+header block and body unread, so a server that echoes the grant it was sent hands a vault credential
+to the sandbox, where the LLM relay refuses exactly that. Nothing waits on a decision any more: OD24
+to OD27 in `open-designs.md` are all decided, OD26, OD24 and OD27 have landed, and OD25 is being
+built now. The open set is OR48, OR49, OR51 to OR54, OR56, OR58, OR59, OR62, OR63, OR65 to OR68, and
+OR75. Read `open-reviews.md` before planning work here. Green suites are not evidence on this
 branch, and `OR65` says why.
 
 **OR69 was recorded and then withdrawn on 2026-09-13**, after the file it cited,
@@ -109,22 +118,28 @@ step.
   Traefik and the development client reloads the whole page every 50 to 60 seconds, taking every open
   form with it. **OR35** (no create control on the API keys page) reproduces on `main` and is tracked
   as issue #6803.
-- **Fixed and closed, 2026-09-13.** Seventeen of the thirty-three that stand: **OR36** and
+- **Fixed and closed, 2026-09-13.** Twenty-three of the thirty-nine that stand: **OR36** and
   **OR37** (headers travel by allowlist, and the injected credential replaces the caller's in any
-  casing),
-  **OR39** (a response echoing the injected key is refused), **OR43** (every credential field is
-  redacted), **OR44**, **OR50** and **OR60** (the three escapes from an endpoint's limits),
-  **OR46** (the missing secret-kind enum value), **OR57** (mocks gated on their flag), **OR40**
-  and **OR64** (one shared egress module resolves, checks and pins every outbound call, and it
-  enforces by default), **OR38** (the sandbox holds a gateway-audience credential with no
-  grants, which the vault routes refuse), **OR41** and **OR47** (the state is an opaque
-  single-use handle over a server-side attempt record, and the callback's middleware exemption
-  rests on that record), **OR42** (discovery is pinned to the registered server, at the cost of
-  split-origin authorization servers), **OR55** (an expired grant is refreshed before use) and
+  casing), **OR39** and **OR70** (a response echoing the injected key is refused, on the body and
+  on the header block), **OR71** (a credential split across streamed chunks is withheld until it
+  cannot complete), **OR43** (every credential field is redacted) and **OR72** (`extras` no longer
+  travel as authentication headers, so nothing authenticates with a value the projection returns),
+  **OR44**, **OR50** and **OR60** (the three escapes from an endpoint's limits), **OR46** (the
+  missing secret-kind enum value), **OR57** (mocks gated on their flag), **OR40** and **OR64** (one
+  shared egress module resolves, checks and pins every outbound call, and it enforces by default),
+  **OR73** (the Vertex credential document is checked against that module before google-auth reads
+  it) and **OR74** (clients are pooled per original origin, so a pinned connection is not shared
+  across hostnames), **OR38** (the sandbox holds a gateway-audience credential with no
+  grants, which the vault routes refuse), **OR45** (the builtin Agenta credential issuer checks the
+  permission its credential is spent under, and bounds the tool list it signs), **OR41** and
+  **OR47** (the state is an opaque single-use handle over a server-side attempt record, and the
+  callback's middleware exemption rests on that record), **OR42** (discovery reads the authorization
+  server's metadata from the issuer's own well-known URL, which is what lets its endpoints be
+  accepted on any origin), **OR55** (an expired grant is refreshed before use) and
   **OR61** (Postgres arbitrates the registration write).
-- **Open.** Sixteen findings: **OR45**, **OR48**, **OR49**, **OR51** to **OR54**, **OR56**,
-  **OR58**, **OR59**, **OR62**, **OR63**, **OR65** to **OR68**.
-  One is P0, blocking on security (OR45); five are debt (OR63,
+- **Open.** Sixteen findings: **OR48**, **OR49**, **OR51** to **OR54**, **OR56**,
+  **OR58**, **OR59**, **OR62**, **OR63**, **OR65** to **OR68**, and **OR75**.
+  No P0 remains. One is P1 (OR75); five are debt (OR63,
   OR65 to OR68); the remaining ten are correctness repairs. None waits on a decision.
 - **Withdrawn.** **OR69**, on 2026-09-13. It counts as neither open nor closed.
 
@@ -220,9 +235,11 @@ does not exist on this one.
 
 The blocking set comes first, and nothing in it waits on a decision.
 
-**OR45, before anything else.** It is the only P0 left. It puts a permission check on the credential
-issuer and holds the issued tool set to a subset of the source credential's, so a caller stops
-choosing its own narrowing.
+**OR75, before anything else.** It is the only P1 left, and the only open finding above the
+correctness repairs. The MCP relay hands back an upstream's header block and body unread, so a
+server that echoes the grant it was sent puts a vault credential in the sandbox. The LLM relay
+already refuses that on both, so the repair is the same scan on the other plane, and the MCP relay
+reads its whole response before returning, so nothing needs withholding.
 
 **Then the correctness repairs and the debt**, in `open-reviews.md` order. Each entry states the
 closure that would settle it and the test that would prove it.

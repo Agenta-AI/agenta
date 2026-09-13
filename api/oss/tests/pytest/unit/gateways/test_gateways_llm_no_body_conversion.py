@@ -22,6 +22,10 @@ _ALLOWED = {
     # A literal Vertex-only field table applies only
     # on the Messages door. Not conversion — nothing here is read to decide anything.
     "providers/passthrough/static_fields.py",
+    # Parses the stored Vertex SERVICE-ACCOUNT document, not a request or a response, so
+    # every URL inside it can be checked against the egress boundary before google-auth
+    # dials one.
+    "providers/passthrough/auth.py",
 }
 
 _JSON_LOADS = re.compile(r"\bjson\.loads\(")

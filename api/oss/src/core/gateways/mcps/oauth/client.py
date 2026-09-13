@@ -117,23 +117,43 @@ def _resource_metadata_url_from_response(response: httpx.Response) -> Optional[s
     return match.group(1) or match.group(2)
 
 
-def _authorization_server_metadata_urls(authorization_server: str) -> List[str]:
-    parsed = urlparse(authorization_server)
-    base = _authorization_base_url(authorization_server)
+def _authorization_server_metadata_urls(issuer: str) -> List[str]:
+    """The issuer's own well-known URLs, derived from the issuer identifier alone.
+
+    This function is the whole security property of discovery: the authorization server's
+    metadata is fetched from a location the ISSUER controls, never from a document or a
+    URL the MCP server supplies. Everything the metadata then names — the authorization,
+    token and registration endpoints — is therefore named by the issuer itself, which is
+    why those endpoints need no origin check of their own.
+
+    Three forms, tried in this order (the order the MCP authorization spec states, and
+    the order the MCP Python SDK's own
+    `build_oauth_authorization_server_metadata_discovery_urls` uses):
+
+    1. RFC 8414 s3.1 — the well-known segment is INSERTED between the authority and the
+       issuer's path, so `https://auth.example/tenant` is described at
+       `https://auth.example/.well-known/oauth-authorization-server/tenant`. OAuth's own
+       document comes first because it is the one this client parses as `OAuthMetadata`.
+    2. RFC 8414 s5 — the same insertion with the `openid-configuration` suffix, for an
+       OpenID provider that only publishes the OIDC document.
+    3. OpenID Connect Discovery 1.0 s4.1 — the suffix APPENDED to the issuer, which is
+       the older and still common OIDC layout.
+
+    An issuer with no path component (`https://auth.example`, the ordinary case, and what
+    Google publishes) collapses forms 1 and 2 to the root well-known URLs, and form 3 to
+    the same URL as form 2, so two candidates remain.
+    """
+    parsed = urlparse(issuer)
+    base = _authorization_base_url(issuer)
     urls = []
     if parsed.path and parsed.path != "/":
-        urls.append(
-            urljoin(
-                base,
-                f"/.well-known/oauth-authorization-server{parsed.path.rstrip('/')}",
-            )
-        )
+        path = parsed.path.rstrip("/")
+        urls.append(urljoin(base, f"/.well-known/oauth-authorization-server{path}"))
+        urls.append(urljoin(base, f"/.well-known/openid-configuration{path}"))
+        urls.append(urljoin(base, f"{path}/.well-known/openid-configuration"))
+        return urls
     urls.append(urljoin(base, "/.well-known/oauth-authorization-server"))
-    if parsed.path and parsed.path != "/":
-        urls.append(
-            urljoin(base, f"/.well-known/openid-configuration{parsed.path.rstrip('/')}")
-        )
-    urls.append(f"{authorization_server.rstrip('/')}/.well-known/openid-configuration")
+    urls.append(urljoin(base, "/.well-known/openid-configuration"))
     return urls
 
 
@@ -184,30 +204,34 @@ def _check_authorization_server(
 ) -> None:
     """Pin the authorization server before its endpoints are used.
 
-    Two rules, and they are different in kind.
-
     **Issuer identity** (RFC 8414 s3.3, and RFC 9728 s3.3 for how the issuer was reached).
     The metadata's `issuer` must be the authorization server the protected resource named,
-    which is the URL whose well-known path this document was fetched from. A document that
-    answers at one issuer's well-known URL while claiming to be another issuer is refused;
-    without the check, a redirect or a shared host could substitute a document.
+    which is the issuer whose well-known URL this document was fetched from. A document
+    that answers at one issuer's well-known URL while claiming to be another issuer is
+    refused; without the check, a shared host could substitute a document.
 
-    **Endpoint origin.** `authorization_endpoint`, `token_endpoint` and
-    `registration_endpoint` must be same-origin with that issuer. RFC 8414 does not
-    require this, and a few OpenID providers do split (Google authorizes at
-    `accounts.google.com` and takes tokens at `oauth2.googleapis.com`). The rule is
-    enforced anyway because the split is what the attack needs: the honest authorization
-    server mints the code and holds the client secret, and a metadata document that names
-    someone else's token endpoint sends both to that someone. A provider that genuinely
-    splits its endpoints cannot be used as an MCP authorization server here, and is
-    refused with the origin named rather than failing obscurely later; no authorization
-    server an MCP deployment meets today (Auth0, WorkOS, Stytch, Descope, Keycloak, Okta,
-    Entra, GitHub, and MCP vendors' own) splits them.
+    **Endpoint provenance, not endpoint origin.** The authorization, token and
+    registration endpoints are taken exactly as this document publishes them, whatever
+    their origin. The attack OR42 named is trusting endpoints the MCP SERVER names; the
+    answer is that this document never comes from the MCP server. It is fetched from the
+    issuer's own well-known URL (`_authorization_server_metadata_urls`) and is refused
+    unless it claims that issuer, so an endpoint here is named by the authorization server
+    about itself. Requiring the three to be same-origin with the issuer on top of that
+    bought nothing and ruled out a real and common shape: Google publishes its issuer as
+    `accounts.google.com` and its token endpoint as `oauth2.googleapis.com`, and split
+    origins of that kind are what MCP deployments meet.
 
-    What this does NOT stop: a hostile MCP server naming an authorization server it owns
-    outright. That flow is self-consistent, and the person consenting sees the attacker's
-    own login page and grants the attacker access to the attacker. Pinning answers "is the
-    token endpoint where this issuer lives", never "is this issuer honest".
+    HTTPS is still required on the issuer and on every endpoint, gated on the gateway's
+    one egress switch, and an endpoint the issuer does not publish is still refused: a
+    document without `authorization_endpoint` or `token_endpoint` does not parse as
+    `OAuthMetadata`, so the candidate is skipped and discovery ends in a refusal rather
+    than in an endpoint guessed from somewhere else.
+
+    What this does NOT stop, unchanged: a hostile MCP server naming an authorization
+    server it owns outright. That flow is self-consistent, and the person consenting sees
+    the attacker's own login page and grants the attacker access to the attacker. Pinning
+    answers "does this issuer say the token endpoint is here", never "is this issuer
+    honest".
     """
     issuer = str(metadata.issuer)
     if _normalized(issuer) != _normalized(authorization_server):
@@ -226,14 +250,6 @@ def _check_authorization_server(
 
     for label, url in endpoints:
         _check_https(url, label=label, server_url=authorization_server)
-        if not _same_origin(url, issuer):
-            raise MCPOAuthDiscoveryError(
-                server_url=authorization_server,
-                detail=(
-                    f"{label} is not on the issuer's origin: "
-                    f"{_origin(url)} is not {_origin(issuer)}"
-                ),
-            )
 
 
 class MCPOAuthClient:
@@ -246,8 +262,8 @@ class MCPOAuthClient:
 
     # Every URL below is attacker-influenced: `server_url` is tenant data, the
     # `resource_metadata` location arrives in the upstream's own `WWW-Authenticate`
-    # challenge, and the authorization and token endpoints are read out of a metadata
-    # document the upstream published. All of them go through the shared egress boundary,
+    # challenge, and the authorization and token endpoints are read out of the issuer's
+    # own metadata document. All of them go through the shared egress boundary,
     # which resolves the name, refuses a blocked address and pins the connection (OD26).
 
     @staticmethod
@@ -330,6 +346,13 @@ class MCPOAuthClient:
     async def _discover_authorization_server(
         self, client: httpx.AsyncClient, *, authorization_server: str
     ) -> OAuthMetadata:
+        """Fetch the authorization server's metadata from the ISSUER's well-known URL.
+
+        `authorization_server` is the issuer identifier the protected-resource document
+        named, and it is the only input to the URLs walked here. No metadata document and
+        no metadata URL the MCP server supplies is ever read: that is what lets the
+        endpoints this document publishes be accepted on any origin.
+        """
         for url in _authorization_server_metadata_urls(authorization_server):
             response = await self._get(client, url)
             if response is None:

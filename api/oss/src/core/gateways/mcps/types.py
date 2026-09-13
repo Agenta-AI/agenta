@@ -88,3 +88,19 @@ class MCPUpstreamError(GatewaysError):
         self.status_code = status_code
         self.detail = detail
         super().__init__(f"Upstream {target} failed ({status_code})")
+
+
+class MCPAgentaToolNotEntitledError(GatewaysError):
+    """A credential mint named callback tools its caller is not entitled to.
+
+    Raised by the builtin Agenta MCP mint when the requested tool list is not within the
+    bound the caller may narrow from. Carries the refused entries so the caller learns
+    which ones, rather than guessing.
+    """
+
+    def __init__(self, *, tools: List[str]):
+        self.tools = tools
+        super().__init__(
+            "Agenta MCP credential requested tools outside the entitled set: "
+            + ", ".join(tools)
+        )

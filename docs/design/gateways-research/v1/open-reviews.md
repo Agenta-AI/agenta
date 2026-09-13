@@ -3,11 +3,12 @@
 ## Active review findings
 
 Sixteen findings are open. OR69 heads this section but counts as neither open nor closed: it was
-withdrawn on 2026-09-13, and its entry stays in place so the reading is not repeated. None of the
-sixteen waits on a design decision any more. OD24 to OD27 in `open-designs.md` are all decided:
-OD26, OD24 and OD27 have landed, and OD25 is being built now. Every open entry is a repair, and each
-states the closure that would settle it and the test that would prove it. A finding that closes
-moves to the closed record below.
+withdrawn on 2026-09-13, and its entry stays in place so the reading is not repeated. No P0 remains:
+OR45 was the last one and it is closed. The highest severity open is P1, and OR75 is the only
+finding at it. None of the sixteen waits on a design decision any more. OD24 to OD27 in
+`open-designs.md` are all decided: OD26, OD24 and OD27 have landed, and OD25 is being built now.
+Every open entry is a repair, and each states the closure that would settle it and the test that
+would prove it. A finding that closes moves to the closed record below.
 
 ---
 
@@ -38,26 +39,6 @@ What remains true is narrower and older than the entry claimed: the custom-code 
 sandbox receives vault-derived provider values as ordinary environment variables. That predates this
 work, has no gateway component, and belongs in an issue outside this document set rather than in a
 finding against this branch.
-
----
-
-### OR45. `POST /gateways/mcps/credentials/agenta` issues a narrowed credential with no permission check
-
-The endpoint exists to hand out a credential narrowed to a chosen set of tools. It performs no
-permission check and no narrowing check, so the caller chooses the set freely. Present in the branch
-as of 2026-09-13.
-
-`api/oss/src/apis/fastapi/gateways/mcps/router.py:165` is the handler, and `:178` reads a
-`gateway_run_id` claim. That claim is the only gate; unlike every other handler in the file, which
-calls the permission check from `:206` onward, this one never does. `:186-193` then dumps and signs
-the caller-supplied `tools` list verbatim, without comparing it against the tools the source
-credential or the run actually resolved. A credential narrowed by the party being narrowed is not
-narrowed.
-
-Closure: the handler runs the same permission check as its neighbours, and the issued tool set is a
-subset of the source credential's. Proven by cases in
-`api/oss/tests/pytest/unit/gateways/test_gateways_mcp_router.py` asserting a caller without the
-permission is refused, and that a request naming a tool outside the source credential is refused.
 
 ---
 
@@ -392,9 +373,202 @@ Closure: `downgrade()` states in its own body what it cannot reverse and what th
 the upgrade bounds its lock wait. Proven by reading the revision: the docstring names the retained
 enum member and the retained rows, and the upgrade sets a `lock_timeout`.
 
+### OR75. The MCP relay has no injected-credential echo scanner, so an upstream that returns the grant it was sent hands it to the caller
+
+The LLM plane refuses a response that carries the credential the gateway injected, on the body and
+on the header block. The MCP plane has neither check. Present in the branch as of 2026-09-13.
+Severity P1.
+
+`api/oss/src/core/gateways/mcps/providers/http/adapter.py` is the place to look. `relay` layers the
+endpoint's own `Authorization`, an OAuth access token or a direct secret read from the vault, onto
+the upstream request at `:80-84`, and then returns the upstream's `status_code`, `headers` and
+`body` untouched at `:104-107`. Nothing reads either of them on the way back.
+`injected_credential_values` and `CredentialEchoScanner` in
+`api/oss/src/core/gateways/dtos.py` have exactly one caller, the LLM passthrough adapter, and no MCP
+adapter is among them.
+
+What an upstream would have to do for this to matter: return the bearer token it was sent, in an
+error body or a debug header. Providers do that, which is why the LLM plane refuses it. The value at
+risk here is narrower. It is the endpoint's own grant rather than a platform-wide key, and the
+caller is an agent run in the same project, so the exposure is a write-only vault credential
+reaching a sandbox rather than one tenant reading another's.
+
+Closure: the MCP relay scans the upstream's header block and body for the credential it injected and
+refuses with the same envelope the LLM plane uses. The relay reads the whole response before it
+returns, so nothing needs withholding. Proven by cases beside
+`api/oss/tests/pytest/unit/gateways/test_gateways_http_mcp_adapter.py` driving an upstream that
+returns the grant in its body and an upstream that returns it in a header.
+
 ---
 
 ## Closed review record
+
+### OR45. `POST /gateways/mcps/credentials/agenta` issues a narrowed credential with no permission check — CLOSED, and the bound is two layers deep because a true per-run bound is not derivable
+
+**What the defect was.** The endpoint hands out a credential narrowed to a chosen set of tools, and
+the caller chose the set. A `gateway_run_id` claim was the only gate. Unlike every other handler in
+the file, this one ran no permission check, and it dumped and signed the caller-supplied `tools`
+list verbatim without comparing it to anything. Any holder of a run credential could name any
+`call_ref` reachable in the project.
+
+**The permission is the one the credential is spent under.** The handler now requires
+`USE_MCP_ENDPOINTS`, which is what the relay authorizes on every call through the builtin Agenta
+bridge. Nobody can mint what they could not spend. The issued value carries the gateway audience
+too, so it cannot be presented back to this route to buy a wider one, and it cannot be spent off the
+data plane.
+
+**The bound has two layers**, in `api/oss/src/core/gateways/mcps/providers/agenta/entitlement.py`. A
+presenting credential that already carries a tool list confines the request to a subset of that
+list, matched on the whole name and call_ref pair, because a rename is a widening: the name is what
+the model reads when it picks a tool. A credential carrying no list may name only call_refs the tool
+route will actually dispatch, which is a registered platform handler, one of the two runtime gateway
+refs, a well-formed workflow reference, or a connection slug. Exceeding either layer is refused with
+the shared envelope under `agenta_tool_not_entitled`, naming each refused tool, and no credential is
+signed.
+
+**The limit.** A true per-run bound is not derivable on the server. `gateway_run_id` is a signed
+claim with no row behind it, and the run's own tools are resolved by the party asking, the SDK
+inside the workflow service. The catalog bound is what remains. Each of its four shapes still
+resolves against the caller's own project, and re-checks its own permission, when the credential is
+finally spent.
+
+**The live matrix does not reach this route.** All 27 cells declare the mock provider, so none of
+them mints an Agenta credential. The route was verified by hand against the live stack instead.
+
+Tests: eight cases in `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_router.py`. They cover a
+caller with no invocation claim, a caller without the permission, the audience on the issued value,
+a call_ref outside the callback catalog across five spellings, every shape the tool route dispatches
+across seven, a request widening a carried tool set, a request renaming a carried call_ref, and a
+subset of a carried set signed as asked.
+
+### OR70. The credential-echo scanner reads the response body only, so a key returned in a response header reaches the caller — CLOSED, found by reviewing the repair rather than the original code
+
+**What the defect was.** The scanner that refuses a response echoing the injected provider key read
+the body and nothing else. An upstream answering 200 with that key in a header of its own, say
+`X-Debug-Auth`, had the header copied onto Agenta's own response by `response_headers` in
+`api/oss/src/apis/fastapi/gateways/utils.py`, which strips only hop-by-hop names and `set-cookie`.
+The caller read the credential without a byte of the body carrying it.
+
+**The header block is scanned too, before either response shape is built.**
+`CredentialEchoScanner.detects_headers` joins names and values into one CRLF-separated block, the
+way they travelled, and searches it for every injected value. An injected value cannot itself
+contain CRLF, so a match always lies inside a single header line and the join cannot manufacture
+one. A detection closes the upstream response and refuses under the same
+`upstream_echoed_credential` envelope the body path uses, before the error path reads a body and
+before the streaming generator starts.
+
+Tests: `test_a_credential_returned_in_a_response_header_is_refused` in
+`api/oss/tests/pytest/unit/gateways/test_gateways_header_contract.py`.
+
+### OR71. A credential split across two streamed chunks reaches the caller before the split is detected — CLOSED, by withholding bytes rather than watching them leave
+
+**What the defect was.** Found by reviewing the repair rather than the original code. The streaming
+scanner searched each chunk together with the tail of the one before it, so it did notice a
+credential straddling two chunks. It noticed after the first chunk had already reached the caller.
+Split a 26 byte key at byte 25 and 25 bytes escape, leaving one byte to guess.
+
+**The relay withholds what could still become the credential.** `CredentialEchoRelay` in
+`api/oss/src/core/gateways/dtos.py` appends each chunk to what it holds, searches the whole buffer,
+and releases everything except the longest suffix that is still a proper prefix of an injected
+value. That suffix is the only part the next chunk can complete into the credential, and every byte
+before it is already proven not to start one. A stream that does not resemble the credential
+therefore withholds zero bytes, so the ordinary path gains no latency. A stream that does resemble
+it withholds at most one byte less than the value's length, because a suffix as long as the value is
+a match and refuses instead. `flush` releases the held tail when the body ends, since a prefix that
+reaches the end of the stream is a prefix that never completed.
+
+**The residual.** A stalled upstream leaves those bytes pending until it sends more or closes. The
+held run is always shorter than the credential, so the delay is bounded, but it is real on a stream
+whose bytes happen to trail into a prefix of the key.
+
+Tests: in the same file, `test_a_credential_split_one_byte_from_its_end_never_reaches_the_caller`,
+`test_a_stream_that_never_echoes_is_relayed_whole_and_undelayed`,
+`test_relay_withholds_only_what_could_still_become_the_credential` and
+`test_relay_releases_a_held_tail_when_it_turns_out_to_be_innocent`.
+
+### OR72. `provider.extras` entries travel as authentication headers while the public projection scrubs a fixed vocabulary — CLOSED, by dropping the mapping rather than allowlisting it
+
+**What the defect was.** Found by reviewing the repair rather than the original code. `_custom_auth`
+copied every `extras` entry out as a header, one per entry, whatever the entry was named. The
+vault's public projection strips a declared vocabulary of SDK configuration keys and nothing else.
+Two definitions of "credential" therefore disagreed. A write-only record carrying a
+credential-shaped extras entry, `X-Api-Key` say, both authenticated with that value and returned it
+in plaintext.
+
+**A custom endpoint authenticates with its provider key and nothing else.** The extras-to-header
+mapping is gone from `api/oss/src/core/gateways/llms/providers/passthrough/auth.py`. Every remaining
+extras key the platform reads as credential material, `aws_bearer_token_bedrock` and
+`vertex_ai_credentials`, is named by a routing strategy and classified in the shared vocabulary,
+whose parity test fails the build on an unclassified key.
+
+**Why this direction.** An allowlist of permitted extras-as-headers would reopen the moment someone
+added a key to it without classifying it on the redaction side, which is exactly how this arrived.
+With no mapping at all there is nothing to add to.
+
+**The cost.** An endpoint that smuggled a header credential through `extras` now gets a 401. That
+header must move to the endpoint's own registered `headers`, which travel by design. Those headers
+are endpoint configuration, readable by anyone who can read the endpoint, so a secret placed there
+is not write-only and does not pretend to be.
+
+Tests: `test_custom_authenticates_with_its_key_and_sends_no_extras_as_headers` and
+`test_a_credential_shaped_extras_entry_is_neither_sent_nor_returned` in
+`api/oss/tests/pytest/unit/gateways/test_gateways_llm_auth_strategies.py`, and
+`test_custom_provider_secret_injects_bearer_and_leaves_extras_behind` in
+`test_gateways_llm_relay_adapter.py`.
+
+### OR73. Vertex credentials are minted before the egress boundary runs, so a tenant can name a loopback `token_uri` — CLOSED, by checking the document before the library receives it
+
+**What the defect was.** Found by reviewing the repair rather than the original code. Minting the
+Vertex token is an outbound call the gateway never makes itself. google-auth POSTs to the
+`token_uri` written inside the tenant-supplied service-account document, over its own transport, and
+it does so while the authentication headers are still being built, before the egress boundary has
+seen anything. A tenant could name `http://127.0.0.1:8080/token` in a document they control and have
+the platform dial an internal address with no check at all.
+
+**Every URL in the document is checked first.** `_guarded_credential_document` in
+`api/oss/src/core/gateways/llms/providers/passthrough/auth.py` walks the parsed document, collects
+every URL-shaped string, and puts each one through the shared egress boundary before the document
+reaches the library. Field names are not enumerated, because which URL a given google-auth version
+dials is the library's business and moves between releases: a service account also carries
+`auth_uri` and two certificate URLs, and a workload-identity document carries `token_url`,
+`token_info_url`, `service_account_impersonation_url` and a `credential_source.url`. The checks run
+concurrently, so a document with four URLs costs one resolution's latency. A document naming an
+executable credential source is refused outright, because nothing a tenant stores may name a program
+for the platform to run.
+
+**What this does not cover.** A file-based credential source is not checked as a path, and it is
+legitimate for self-hosted workload identity. And the check reads the bytes rather than wrapping the
+library's transport, so it proves what the document says, not what google-auth eventually dials.
+Wrapping the transport would mean tracking a dependency's internals across versions, and it would
+still leave the same question about every other library that reads one of these documents.
+
+Tests: in `api/oss/tests/pytest/unit/gateways/test_gateways_egress.py`,
+`test_vertex_token_uri_pointing_at_loopback_is_refused_without_minting`,
+`test_vertex_credential_urls_other_than_token_uri_are_checked_too`,
+`test_vertex_credential_naming_an_executable_source_is_refused` and
+`test_vertex_document_with_public_urls_still_mints`.
+
+### OR74. Pinning rewrites the URL host, so two hostnames on one address share a TLS connection checked for the first — CLOSED, by keeping one client per original origin
+
+**What the defect was.** Found by reviewing the repair rather than the original code. Pinning swaps
+the URL's host for the literal address the boundary checked, and httpcore keys connection reuse on
+that rewritten origin: `can_handle_request` compares scheme, host and port only. The SNI hostname
+rides in the request extensions and is read at handshake time, so it never enters the pool key. The
+relay adapter held one client for every tenant. Two hostnames resolving to one address therefore
+shared a single TLS connection, and the second tenant's provider key travelled over a connection
+established, and certificate-checked, for the first tenant's hostname.
+
+**Clients are kept per original origin.** `RelayLLMAdapter` holds an ordered map from the registered
+origin, which is the lowercased scheme, host and port, to that origin's own client, capped at 64
+entries with the least recently used dropped. Connection reuse is a per-origin concept to begin
+with, so partitioning on it loses nothing. An evicted entry is dropped rather than closed, because a
+response may still be streaming from it; its connections retire once the last reader finishes.
+
+Tests: in `api/oss/tests/pytest/unit/gateways/test_gateways_egress.py`,
+`test_two_hostnames_on_one_address_do_not_share_a_pooled_connection`,
+`test_repeated_calls_to_one_origin_still_share_a_pool`, and
+`test_pooled_clients_keep_the_pin_and_refuse_redirects`, which asserts that the pin, the SNI name,
+the absent cookie jar and the no-redirect guarantee are all still in place on a pooled client.
 
 ### OR41 / OR47. The OAuth state carries the PKCE verifier in readable form and is not bound to the browser that started the flow, and the callback is rejected by the middleware before its handler runs — CLOSED, and the middleware exemption became safe only once the state stopped carrying anything
 
@@ -436,7 +610,7 @@ Tests: cases across `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_oauth_
 state, an expired attempt, a callback from another user, a callback with no session, and one of two
 concurrent callbacks winning against real Postgres.
 
-### OR42. OAuth discovery trusts the server it is authenticating against, so a hostile MCP server can name its own token endpoint — CLOSED, by pinning discovery to the registered server, which costs a real class of authorization server
+### OR42. OAuth discovery trusts the server it is authenticating against, so a hostile MCP server can name its own token endpoint — CLOSED, by fetching the authorization server's metadata from the issuer itself rather than from the MCP server
 
 **What the defect was.** Discovery took the authorization and token endpoints verbatim from the
 upstream's own metadata, with no origin check and no HTTPS requirement. A hostile or compromised
@@ -444,24 +618,40 @@ server could name its own token endpoint and receive the user's authorization co
 Agenta's registered client secret. The same file reflected raw upstream bodies into user-visible
 errors, which turned any discovery weakness into a read primitive.
 
-**Three checks chain back to what the tenant registered.** The protected-resource metadata's
+**Two checks chain back to what the tenant registered.** The protected-resource metadata's
 `resource` must be same-origin with the registered server URL. The authorization server metadata's
-`issuer` must equal the server that document named. All three endpoints must be same-origin with
-that issuer. HTTPS is required throughout, gated on the gateway's own egress flag rather than a
-second switch. User-visible errors carry the status and the origin, never the upstream body, and
-the validation-error strings that used to carry it are gone.
+`issuer` must equal the issuer that document names. HTTPS is required throughout, gated on the
+gateway's own egress flag rather than a second switch. User-visible errors carry the status and the
+origin, never the upstream body, and the validation-error strings that used to carry it are gone.
 
-**The cost.** Requiring the endpoints to be same-origin with the issuer goes beyond RFC 8414. It is
-deliberate, because the split is the attack: the honest server mints the code and holds the client
-secret, and a document naming a foreign token endpoint sends both elsewhere. An authorization server
-that splits its endpoints across origins, in the style of Google's, cannot be used. It is refused
-with the offending origin named.
+**The metadata comes from the issuer, and that is the whole security property.** It is fetched from
+the issuer's own well-known URL, derived from the issuer identifier alone: RFC 8414 section 3.1
+first, then RFC 8414 section 5, then OpenID Connect Discovery section 4.1, tried in that order. It
+is never read from the MCP server's own document, and never from a URL that server supplies. The
+authorization, token and registration endpoints are then accepted exactly as the issuer's own
+metadata publishes them, whatever their origin, because an endpoint in that document is named by the
+authorization server about itself. An endpoint the issuer's metadata does not publish is still
+refused: a document missing `authorization_endpoint` or `token_endpoint` does not parse, so the
+candidate is skipped and discovery ends in a refusal rather than in an endpoint guessed from
+elsewhere.
 
-**The limit.** None of this stops a hostile MCP server naming an authorization server it owns
-outright. That flow is self-consistent, and the user sees the attacker's own login page. Pinning
-answers where an issuer lives, never whether it is honest.
+**This entry previously recorded a same-origin rule on the three endpoints, and the cost that came
+with it.** Both are gone. The rule required the authorization, token and registration endpoints to
+sit on the issuer's origin, and it ruled out any authorization server that splits them. Requiring it
+on top of issuer-sourced metadata bought nothing, and the shape it excluded is common: Google
+publishes its issuer as `accounts.google.com` and takes tokens at `oauth2.googleapis.com`. A split
+authorization server of that kind works now.
 
-Tests: twelve cases in `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_oauth_client.py`.
+**The limit, unchanged.** None of this stops a hostile MCP server naming an authorization server it
+owns outright. That flow is self-consistent, and the user sees the attacker's own login page.
+Discovery answers where an issuer says its endpoints live, never whether the issuer is honest.
+
+Tests: `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_oauth_client.py`. Four cases carry the
+relaxation: `test_discover_accepts_a_token_endpoint_the_issuer_publishes_on_another_origin`,
+`test_discover_takes_the_endpoints_from_the_issuer_not_from_the_mcp_servers_own_document`,
+`test_discover_refuses_when_the_issuers_metadata_publishes_no_token_endpoint` and
+`test_discovery_asks_the_issuers_own_well_known_urls_in_rfc_order`. The two cases that refused a
+split origin are gone with the rule they pinned.
 
 ### OR55. Stored refresh tokens are never used, so an endpoint reports READY while every call fails — CLOSED
 

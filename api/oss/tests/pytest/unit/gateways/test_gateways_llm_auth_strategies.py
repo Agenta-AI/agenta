@@ -94,12 +94,15 @@ async def test_direct_no_secret_returns_no_headers():
 
 
 @pytest.mark.asyncio
-async def test_custom_merges_extras_under_bearer_authorization():
+async def test_custom_authenticates_with_its_key_and_sends_no_extras_as_headers():
+    """`extras` are configuration, and the gateway states so in one place only if it also
+    behaves that way: an entry named like a credential header used to be sent as one while
+    the vault returned the same value in plaintext from a write-only record."""
     headers = await build_auth_headers(
         _route(deployment_kind=LLMDeploymentKind.CUSTOM),
         _custom_secret("sk-c", extras={"x-org-id": "org-1"}),
     )
-    assert headers == {"x-org-id": "org-1", "Authorization": "Bearer sk-c"}
+    assert headers == {"Authorization": "Bearer sk-c"}
 
 
 @pytest.mark.asyncio
@@ -151,8 +154,10 @@ async def test_vertex_mints_a_token_via_litellms_credential_helper():
         headers = await build_auth_headers(route, secret)
 
     assert headers == {"Authorization": "Bearer minted-token"}
+    # The parsed document is handed over, not the stored string: it has been walked and
+    # every URL in it checked, and a string is also what LiteLLM would treat as a file path.
     mocked.assert_awaited_once_with(
-        credentials='{"type": "service_account"}', project_id="acme"
+        credentials={"type": "service_account"}, project_id="acme"
     )
 
 
@@ -192,3 +197,32 @@ async def test_sagemaker_always_raises():
         await build_auth_headers(
             _route(deployment_kind=LLMDeploymentKind.SAGEMAKER), _custom_secret()
         )
+
+
+@pytest.mark.asyncio
+async def test_a_credential_shaped_extras_entry_is_neither_sent_nor_returned():
+    """The two definitions of "credential" had to agree, and now do.
+
+    `_custom_auth` used to send every `extras` entry as a header, so a write-only record
+    holding `extras = {"X-Api-Key": ...}` authenticated with that value — while the public
+    projection, which strips a fixed vocabulary of SDK configuration keys, returned the same
+    value in plaintext from the vault read. The gateway is the side that changed: extras are
+    configuration and no longer travel as headers, which is the direction no later extras key
+    can reopen, because there is no longer any mapping from an extras name to a header.
+    """
+    from oss.src.core.secrets.redaction import redact_secret_response
+
+    header_shaped = {"X-Api-Key": "synthetic-extras-000000000000001"}
+    resolved = _custom_secret("sk-custom-000000000001", extras=header_shaped)
+    resolved.secret.write_only = True
+
+    headers = await build_auth_headers(
+        _route(deployment_kind=LLMDeploymentKind.CUSTOM), resolved
+    )
+    projected = redact_secret_response(resolved.secret)
+    readable = projected.model_dump_json()
+
+    # Nothing the gateway sends as authentication survives the public projection.
+    assert header_shaped["X-Api-Key"] not in "".join(headers.values())
+    assert "sk-custom-000000000001" not in readable
+    assert headers == {"Authorization": "Bearer sk-custom-000000000001"}
