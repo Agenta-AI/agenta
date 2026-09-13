@@ -231,6 +231,10 @@ function geesefsArgs(
     "--region",
     creds.region,
     "--no-detect",
+    // SeaweedFS omits Initiated in ListMultipartUploads; GeeseFS dereferences it at startup.
+    // Session mounts must not run bucket-wide expiration (including other mounts' uploads).
+    // Leave abandoned-upload cleanup to the storage operator, for every backend.
+    "--no-expire-multipart",
     "--fsync-on-close",
     // -f keeps geesefs foreground as a tracked child locally (a detached daemon dies under
     // write-heavy load -> ENOTCONN); remote it must detach, else the blocking RPC times out.

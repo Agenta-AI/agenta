@@ -322,6 +322,8 @@ describe("mountStorage", () => {
     assert.ok(seenArgs.includes("--endpoint"));
     assert.ok(seenArgs.includes("http://seaweedfs:8333"));
     assert.ok(seenArgs.includes("allow_other"));
+    assert.ok(seenArgs.includes("--no-expire-multipart"));
+    assert.ok(seenArgs.includes("--fsync-on-close"));
     // -f keeps geesefs foreground (tracked child). Without it the detached daemon dies under
     // write-heavy load (git clone) and the mount goes ENOTCONN.
     assert.ok(seenArgs.includes("-f"));
@@ -351,6 +353,7 @@ describe("mountStorage", () => {
       },
     );
     assert.ok(!seenArgs.includes("--endpoint"));
+    assert.ok(seenArgs.includes("--no-expire-multipart"));
   });
 
   it("is a no-op when already mounted (idempotent)", async () => {
@@ -687,6 +690,8 @@ describe("mountStorageRemote", () => {
     );
     assert.ok(geesefs);
     const shellCmd = geesefs.args![1];
+    assert.ok(shellCmd.includes("--no-expire-multipart"));
+    assert.ok(shellCmd.includes("--fsync-on-close"));
     // Tunnel endpoint overrides the in-network one.
     assert.ok(shellCmd.includes("--endpoint' 'https://abc.ngrok.io"));
     assert.ok(shellCmd.includes("agenta-store:mounts/proj-1/mount-9"));
