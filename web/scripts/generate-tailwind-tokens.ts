@@ -177,6 +177,7 @@ const CORE: Row[] = [
     ["colorInfoBgHover", palette.surface.infoBgHover],
     ["controlItemBgActive", palette.surface.controlItemBgActive],
     ["controlItemBgActiveHover", palette.surface.controlItemBgActiveHover],
+    ["ring", palette.surface.ring],
     ["controlOutline", palette.surface.controlOutline],
     ["errorOutline", palette.surface.errorOutline],
     ["colorWhite", palette.surface.white],

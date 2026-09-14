@@ -19,7 +19,8 @@ export const shadcnTokens = {
     foreground: "var(--ag-colorText)",
     border: "var(--ag-colorBorder)",
     input: "var(--ag-colorBorder)",
-    ring: "var(--ag-colorPrimary)",
+    // shadcn's `ring` is a neutral grey, not the brand colour (palette `surface.ring`).
+    ring: "var(--ag-ring)",
     // antd's keyboard focus ring is `colorPrimaryBorder` (4px, offset 1px). NOTE: it equals
     // colorInfoBorder in LIGHT (both #d6dee6) but diverges in DARK (olive vs navy) — needs its
     // own token, which the forced-state gate caught.
