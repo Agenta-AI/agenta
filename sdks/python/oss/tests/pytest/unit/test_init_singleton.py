@@ -267,3 +267,51 @@ def test_resolve_scopes_uses_query_free_api_url(reset_singleton, monkeypatch):
     # appended path NOT swallowed into a query string.
     assert captured["url"] == "https://cloud.agenta.ai/api/projects/current"
     assert "tenant=x" not in captured["url"]
+
+
+def test_trailing_slash_before_query_does_not_produce_double_slash(reset_singleton, monkeypatch):
+    """A trailing slash before the query (e.g. "/api/?tenant=x") must not survive
+    into self.api_url — otherwise resolve_scopes() produces a double-slash URL
+    like ".../api//projects/current" when it concatenates the next path segment."""
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "organization_id": "org-1",
+                "workspace_id": "ws-1",
+                "project_id": "proj-1",
+            }
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, url, **kwargs):
+            captured["url"] = url
+            return FakeResponse()
+
+    monkeypatch.setattr("httpx.Client", FakeClient)
+
+    singleton = AgentaSingleton()
+    singleton.init(api_url="https://cloud.agenta.ai/api/?tenant=x", api_key="test-key")
+
+    # self.api_url must have no trailing slash, even though the input had one.
+    assert singleton.api_url == "https://cloud.agenta.ai/api"
+    assert not singleton.api_url.endswith("/")
+
+    scopes = singleton.resolve_scopes()
+
+    assert scopes == ("org-1", "ws-1", "proj-1")
+    # The concatenated request URL must have exactly one slash between /api and /projects.
+    assert captured["url"] == "https://cloud.agenta.ai/api/projects/current"
+    assert "//projects" not in captured["url"]

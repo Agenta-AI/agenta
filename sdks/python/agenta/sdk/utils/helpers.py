@@ -78,7 +78,7 @@ def strip_query_and_fragment(url: str) -> str:
     segment) is kept unchanged.
     """
     parts = urlsplit(url)
-    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path.rstrip("/"), "", ""))
 
 
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
