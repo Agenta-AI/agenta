@@ -15,11 +15,11 @@ import {readOnboardingDraft, saveOnboardingDraft} from "./draft"
 export interface OnboardingFlowViewProps {
     draftKey?: string
     variant: OnboardingVariant
-    tools: ReactNode
+    tools: ReactNode | ((ids: string[], onChange: (ids: string[]) => void) => ReactNode)
     model: ReactNode
     modelReady: boolean
     committing: boolean
-    onCreate: (input: {name: string; seedMessage: string}) => void
+    onCreate: (input: {name: string; seedMessage: string; connectionIds?: string[]}) => void
     onStep: (step: number, answers: {role: string; source: string}) => void
 }
 
@@ -34,6 +34,7 @@ export default function OnboardingFlowView({
     onStep,
 }: OnboardingFlowViewProps) {
     const draft = useMemo(() => readOnboardingDraft(draftKey), [draftKey])
+    const [connectionIds, setConnectionIds] = useState(draft.connectionIds ?? [])
     const [step, setStep] = useState(draft.step ?? 1)
     const [role, setRole] = useState(draft.role ?? "")
     const [source, setSource] = useState(draft.source ?? "")
@@ -41,8 +42,8 @@ export default function OnboardingFlowView({
     const [task, setTask] = useState(draft.task ?? "")
     const [templateKey, setTemplateKey] = useState<string | null>(draft.templateKey ?? null)
     useEffect(() => {
-        saveOnboardingDraft(draftKey, {step, role, source, name, task, templateKey})
-    }, [draftKey, step, role, source, name, task, templateKey])
+        saveOnboardingDraft(draftKey, {step, role, source, name, task, templateKey, connectionIds})
+    }, [draftKey, step, role, source, name, task, templateKey, connectionIds])
     const templates = suggestionsForRole(role)
     const selected = templates.find((item) => item.key === templateKey)
     const input = firstAgentInput(variant, name, task, templateKey)
@@ -114,7 +115,8 @@ export default function OnboardingFlowView({
                         ))}
                     </div>
                 )}
-                {step === 3 && tools}
+                {step === 3 &&
+                    (typeof tools === "function" ? tools(connectionIds, setConnectionIds) : tools)}
                 {step === 4 && model}
                 {step === 5 && (
                     <div
@@ -237,7 +239,11 @@ export default function OnboardingFlowView({
                             loading={committing}
                             disabled={!input || !modelReady}
                             onClick={() => {
-                                if (input) onCreate(input)
+                                if (input)
+                                    onCreate({
+                                        ...input,
+                                        ...(connectionIds.length ? {connectionIds} : {}),
+                                    })
                             }}
                         >
                             Create agent

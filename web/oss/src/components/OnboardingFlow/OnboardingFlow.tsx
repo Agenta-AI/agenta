@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef} from "react"
 
+import {useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {agentModelCandidatesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
     modelDisplayName,
@@ -10,7 +11,7 @@ import {
     withModel,
 } from "@agenta/entity-ui/drill-in"
 import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
-import {Button, Spin} from "antd"
+import {App, Button, Spin} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useOnboardingProviderSetup} from "@/oss/components/AgentChatSlice/hooks/useOnboardingProviderSetup"
@@ -20,9 +21,12 @@ import {projectIdAtom} from "@/oss/state/project"
 import ConnectToolsStep from "./ConnectToolsStep"
 import {onboardingDraftKey, saveOnboardingDraft} from "./draft"
 import OnboardingFlowView from "./OnboardingFlowView"
+import {withOnboardingTools} from "./tools"
 import {useOnboardingExperiment} from "./useOnboardingExperiment"
 
 export default function OnboardingFlow() {
+    const {message} = App.useApp()
+    const {connections: toolConnections} = useToolConnectionsQuery()
     const context = useOnboardingContext()
     const projectId = useAtomValue(projectIdAtom)
     const draftKey = projectId ? onboardingDraftKey(projectId) : undefined
@@ -77,7 +81,22 @@ export default function OnboardingFlow() {
                 variant={variant}
                 committing={context.committing}
                 modelReady={modelReady}
-                onCreate={({name, seedMessage}) => {
+                onCreate={({name, seedMessage, connectionIds = []}) => {
+                    try {
+                        updateConfiguration(
+                            context.ephemeralId,
+                            withOnboardingTools(
+                                configuration ?? {},
+                                toolConnections,
+                                connectionIds,
+                            ),
+                        )
+                    } catch (error) {
+                        message.error(
+                            error instanceof Error ? error.message : "Couldn't add your apps.",
+                        )
+                        return
+                    }
                     if (enrolled) posthog?.capture("onboarding_create_clicked", {variant})
                     context.commit(seedMessage, name)
                 }}
@@ -88,7 +107,9 @@ export default function OnboardingFlow() {
                         $set: {user_role_v2: answers.role, referral_source_v2: answers.source},
                     })
                 }
-                tools={<ConnectToolsStep />}
+                tools={(selectedIds, onChange) => (
+                    <ConnectToolsStep selectedIds={selectedIds} onChange={onChange} />
+                )}
                 model={
                     <div className="rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer p-6">
                         <h2 className="text-xl font-semibold">Your model connection</h2>

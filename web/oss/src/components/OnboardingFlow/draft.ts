@@ -1,6 +1,7 @@
 import {roles, sources} from "./choices"
 
 export interface OnboardingDraft {
+    connectionIds?: string[]
     step: number
     role: string
     source: string
@@ -17,6 +18,9 @@ export function readOnboardingDraft(key?: string): Partial<OnboardingDraft> {
         const draft = JSON.parse(window.sessionStorage.getItem(key) ?? "null")
         if (
             !draft ||
+            (draft.connectionIds !== undefined &&
+                (!Array.isArray(draft.connectionIds) ||
+                    !draft.connectionIds.every((id: unknown) => typeof id === "string"))) ||
             !Number.isInteger(draft.step) ||
             draft.step < 1 ||
             draft.step > 5 ||

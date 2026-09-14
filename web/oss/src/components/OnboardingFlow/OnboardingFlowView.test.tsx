@@ -72,7 +72,11 @@ describe("first agent onboarding", () => {
         const props = {
             draftKey: "onboarding:project-a",
             variant: "control" as const,
-            tools: <p>Tools</p>,
+            tools: (ids: string[], onChange: (ids: string[]) => void) => (
+                <button onClick={() => onChange(["connection-1"])}>
+                    Select GitHub {ids.length}
+                </button>
+            ),
             model: <p>Models</p>,
             modelReady: true,
             committing: false,
@@ -86,6 +90,7 @@ describe("first agent onboarding", () => {
         fireEvent.click(screen.getByRole("button", {name: "Next"}))
         first.unmount()
         const second = render(<OnboardingFlowView {...props} />)
+        fireEvent.click(screen.getByRole("button", {name: "Select GitHub 0"}))
         expect(screen.getByRole("heading", {name: "Connect your tools"})).toBeTruthy()
         fireEvent.click(screen.getByRole("button", {name: "Continue"}))
         fireEvent.click(screen.getByRole("button", {name: "Next"}))
@@ -96,7 +101,11 @@ describe("first agent onboarding", () => {
         second.unmount()
         const third = render(<OnboardingFlowView {...props} />)
         fireEvent.click(screen.getByRole("button", {name: "Create agent"}))
-        expect(props.onCreate).toHaveBeenCalledWith({name: "My agent", seedMessage: "Help me plan"})
+        expect(props.onCreate).toHaveBeenCalledWith({
+            name: "My agent",
+            seedMessage: "Help me plan",
+            connectionIds: ["connection-1"],
+        })
         third.unmount()
         render(<OnboardingFlowView {...props} draftKey="onboarding:project-b" />)
         expect(screen.getByRole("heading", {name: "What kind of work do you do?"})).toBeTruthy()
