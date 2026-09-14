@@ -204,6 +204,25 @@ def test_get_trace_url_with_query_string_api_url(monkeypatch):
     assert "tenant=x" not in trace_url
 
 
+def test_init_host_only_with_query_string_produces_clean_host_and_otlp_url(
+    reset_singleton,
+):
+    """Passing host= with a query string (no api_url) must still produce a clean
+    self.host — the elif _host: branch must strip query/fragment before appending
+    '/api', otherwise self.host carries the query and every downstream consumer
+    that concatenates a path onto it (the OTLP trace URL, get_trace_url()) breaks
+    the same way as the already-fixed api_url path."""
+    singleton = AgentaSingleton()
+    singleton.init(host="https://cloud.agenta.ai?tenant=x")
+
+    assert singleton.host == "https://cloud.agenta.ai"
+    assert "tenant=x" not in singleton.host
+    assert singleton.tracing.otlp_url == (
+        "https://cloud.agenta.ai/api/otlp/v1/traces"
+    )
+    assert "tenant=x" not in singleton.tracing.otlp_url
+
+
 def test_resolve_scopes_uses_query_free_api_url(reset_singleton, monkeypatch):
     """resolve_scopes() must send a well-formed request URL from a query-bearing
     api_url (the appended '/projects/current' path must not be swallowed into a

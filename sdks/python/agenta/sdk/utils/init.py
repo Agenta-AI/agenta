@@ -103,6 +103,7 @@ class AgentaSingleton:
             _host = strip_trailing_api_segment(_api_url)
         elif _host:
             _host = parse_url(url=_host)
+            _host = strip_query_and_fragment(_host)
             _api_url = _host + "/api"
 
         try:
