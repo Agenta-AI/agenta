@@ -55,10 +55,16 @@ def strip_trailing_api_segment(url: str) -> str:
     when it is a trailing path segment, so it never corrupts a host literally
     named ``api`` (e.g. ``http://api:8000/api`` -> ``http://api:8000``, not
     ``http://:8000``).
+
+    Query string and fragment are deliberately DROPPED (not preserved): callers
+    use the result as a plain string-concatenation base (e.g.
+    ``f"{host}/api/otlp/v1/traces"``), not as a proper URL-join target. If a
+    query were preserved here, an appended path would be swallowed into the
+    query string instead of becoming a real path segment.
     """
     parts = urlsplit(url)
     path = parts.path.rstrip("/").removesuffix("/api")
-    return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
+    return urlunsplit((parts.scheme, parts.netloc, path, "", ""))
 
 
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")

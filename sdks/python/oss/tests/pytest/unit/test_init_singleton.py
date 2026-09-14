@@ -151,3 +151,54 @@ def test_get_trace_url_does_not_corrupt_host_named_api(monkeypatch):
     assert expected_web == "http://api:8000"
     assert "http://api:8000/w/ws-1/p/proj-1" in trace_url
     assert "http://:8000" not in trace_url
+
+
+def test_init_query_string_api_url_produces_wellformed_otlp_url(reset_singleton):
+    """A query string in api_url must not leak into the constructed OTLP url.
+
+    The host is used as a string-concatenation base, so a preserved query would
+    swallow '/api/otlp/v1/traces' into the query string instead of the path.
+    """
+    singleton = AgentaSingleton()
+    singleton.init(api_url="https://cloud.agenta.ai/api?tenant=x")
+
+    assert singleton.host == "https://cloud.agenta.ai"
+    assert singleton.tracing.otlp_url == ("https://cloud.agenta.ai/api/otlp/v1/traces")
+
+
+def test_get_trace_url_with_query_string_api_url(monkeypatch):
+    """get_trace_url() must build a clean web_url from a query-bearing api_url."""
+    # Reset the singleton that get_trace_url() actually reads.
+    singleton = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE
+    singleton.host = None
+    singleton.api_url = None
+    singleton.api_key = None
+    singleton.scope_type = None
+    singleton.scope_id = None
+    singleton.organization_id = None
+    singleton.workspace_id = None
+    singleton.project_id = None
+    singleton.tracing = None
+    singleton.api = None
+    singleton.async_api = None
+    Singleton._instances.pop(Tracing, None)
+
+    monkeypatch.delenv("DOCKER_NETWORK_MODE", raising=False)
+    monkeypatch.delenv("AGENTA_API_URL", raising=False)
+    monkeypatch.delenv("AGENTA_API_INTERNAL_URL", raising=False)
+    monkeypatch.delenv("AGENTA_API_KEY", raising=False)
+
+    monkeypatch.setattr(
+        singleton,
+        "resolve_scopes",
+        lambda: ("org-1", "ws-1", "proj-1"),
+    )
+
+    singleton.init(api_url="https://cloud.agenta.ai/api?tenant=x")
+
+    trace_url = singleton.tracing.get_trace_url(trace_id="abc123")
+
+    assert trace_url == (
+        "https://cloud.agenta.ai/w/ws-1/p/proj-1/observability?trace=abc123"
+    )
+    assert "tenant=x" not in trace_url

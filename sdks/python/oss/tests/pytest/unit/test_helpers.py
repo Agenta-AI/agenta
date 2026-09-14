@@ -19,7 +19,12 @@ from agenta.sdk.utils.helpers import strip_trailing_api_segment
         ("http://api:8000/api/otlp/v1/traces", "http://api:8000/api/otlp/v1/traces"),
         ("http://api:8000/v1/api", "http://api:8000/v1"),
         ("http://example.com", "http://example.com"),
-        ("http://example.com/api?x=1", "http://example.com?x=1"),
+        # Query strings and fragments are DROPPED: callers use the result as a
+        # string-concatenation base, so a preserved query would swallow any
+        # appended path into the query string instead of being a real segment.
+        ("http://example.com/api?x=1", "http://example.com"),
+        ("https://cloud.agenta.ai?tenant=x", "https://cloud.agenta.ai"),
+        ("http://api:8000/api?tenant=x#frag", "http://api:8000"),
     ],
 )
 def test_strip_trailing_api_segment(url, expected):
