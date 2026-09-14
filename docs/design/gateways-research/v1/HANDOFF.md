@@ -24,7 +24,7 @@ series `plan.md` describes.
 | `open-reviews.md` | Active review findings and the closed record. The live backlog. |
 | `open-designs.md` | The historical design-finding record. **Not** a backlog; every entry is resolved or won't-fix. |
 | `scope-checklist.md` | Every capability either gateway could have, marked with the wave it lands in. |
-| `cleanups.md` | The twelve things that become possible only once the gateways run. Never a prerequisite. |
+| `cleanups.md` | Two registers under one roof. CU1 to CU14 are the twelve things that become possible only once the gateways run, never a prerequisite. CU15 to CU19 are the debt in the gateway code itself, and they are the same five findings as OR63 and OR65 to OR68 in `open-reviews.md`. |
 | `qa.md` | The manual dashboard procedure. The complement to the automated matrix, and the only check that exercises the product path. |
 | `workstreams/specs-wpN.md` and `workstreams/tasks-wpN.md` | One pair per work package: the target, and the ordered checklist. `workstreams/README.md` holds the file-ownership table and the parallel-work rules. |
 
@@ -34,10 +34,11 @@ The remaining documents are the design itself: `decisions.md`, `architecture.md`
 
 ## Current state
 
-**The branch is not mergeable as of 2026-09-13.** A security review of the credential boundary
-recorded forty findings that every green suite ran straight past, OR36 to OR75. Six of them came out
-of reviewing the repairs rather than the original code (OR70 to OR75). One finding, OR69, was
-withdrawn, so thirty-nine stand. Twenty-three are now fixed and closed: request headers travel by
+**The branch is not mergeable as of 2026-09-14.** A security review of the credential boundary
+recorded forty-one findings that every green suite ran straight past, OR36 to OR76. Six of them came
+out of reviewing the repairs rather than the original code (OR70 to OR75), and OR76 came out of
+closing OR49. One finding, OR69, was withdrawn, so forty stand. Thirty-four are now fixed and
+closed: request headers travel by
 allowlist, so the caller's session no longer reaches a tenant's upstream (OR36, OR37); a response
 echoing the injected key is refused, in the body and in the header block (OR39, OR70), and a
 credential split across two streamed chunks is withheld rather than relayed and regretted (OR71);
@@ -55,14 +56,25 @@ signs (OR45); the OAuth state is an opaque single-use handle over a server-side 
 which is also what made the callback's middleware exemption safe (OR41, OR47); discovery fetches the
 authorization server's metadata from the issuer itself rather than from the MCP server (OR42); an
 expired grant is refreshed before use (OR55); and Postgres arbitrates the registration write instead
-of a read-modify-write race (OR61).
+of a read-modify-write race (OR61). Eleven more closed on 2026-09-14: the MCP relays scan for the
+credential they injected (OR75); an API-key MCP endpoint binds its secret and sends it in the header
+the endpoint registered (OR54); a brokered builtin endpoint carries an explicit tool allowlist
+(OR58); every component performs MCP discovery with `initialize` (OR56); tool registration tracks
+its own names so a warm session's second turn keeps its tools (OR59); streaming cleanup is shielded,
+so an aborted stream still meters and still closes its upstream (OR48); a streamed call records
+usage on every route that reports it (OR49); a secret save writes only the fields the secret owns
+(OR51); the registrar carries the region and the Vertex project (OR52); a standard connection
+resolves by its slug (OR53); and endpoint writes refuse a secret the project does not own (OR62).
 
-**Sixteen remain open, and none of them is a P0.** OR45 was the last one, and it is closed. The
-highest severity open is P1, and OR75 is the only finding at it: the MCP relay returns an upstream's
-header block and body unread, so a server that echoes the grant it was sent hands a vault credential
-to the sandbox, where the LLM relay refuses exactly that. Nothing waits on a decision any more: OD24
-to OD27 in `open-designs.md` are all decided and all four have landed. The open set is OR48, OR49, OR51 to OR54, OR56, OR58, OR59, OR62, OR63, OR65 to OR68, and
-OR75. Read `open-reviews.md` before planning work here. Green suites are not evidence on this
+**Six remain open, and none is a P0 or a P1.** OR45 was the last P0 and OR75 the last P1, and both
+are closed. The highest severity open is P2, carried by OR76 alone: an OpenAI Chat Completions
+stream records no usage unless the caller itself sent `stream_options.include_usage`, while
+Responses and Messages meter on every call. Nothing prices usage yet, so it is a gap the metering
+work must settle rather than a defect with a consequence today, and the trade recorded under OR49
+says why adding the field was tried and backed out. The other five are debt: OR63 and OR65 to OR68,
+which `cleanups.md` also tracks as CU15 to CU19. Nothing waits on a decision any more: OD24 to OD27
+in `open-designs.md` are all decided and all four have landed. The open set is OR63, OR65 to OR68,
+and OR76. Read `open-reviews.md` before planning work here. Green suites are not evidence on this
 branch, and `OR65` says why.
 
 **OR69 was recorded and then withdrawn on 2026-09-13**, after the file it cited,
@@ -117,7 +129,7 @@ step.
   Traefik and the development client reloads the whole page every 50 to 60 seconds, taking every open
   form with it. **OR35** (no create control on the API keys page) reproduces on `main` and is tracked
   as issue #6803.
-- **Fixed and closed, 2026-09-13.** Twenty-three of the thirty-nine that stand: **OR36** and
+- **Fixed and closed, 2026-09-13.** Twenty-three of the forty that stand: **OR36** and
   **OR37** (headers travel by allowlist, and the injected credential replaces the caller's in any
   casing), **OR39** and **OR70** (a response echoing the injected key is refused, on the body and
   on the header block), **OR71** (a credential split across streamed chunks is withheld until it
@@ -136,10 +148,28 @@ step.
   server's metadata from the issuer's own well-known URL, which is what lets its endpoints be
   accepted on any origin), **OR55** (an expired grant is refreshed before use) and
   **OR61** (Postgres arbitrates the registration write).
-- **Open.** Sixteen findings: **OR48**, **OR49**, **OR51** to **OR54**, **OR56**,
-  **OR58**, **OR59**, **OR62**, **OR63**, **OR65** to **OR68**, and **OR75**.
-  No P0 remains. One is P1 (OR75); five are debt (OR63,
-  OR65 to OR68); the remaining ten are correctness repairs. None waits on a decision.
+- **Fixed and closed, 2026-09-14.** Eleven more: **OR75** (all three MCP relays scan the response
+  header block and the buffered body for the credential they injected, and an MCP credential header
+  is endpoint-named rather than fixed, so each header is normalized and scanned one at a time),
+  **OR54** (the key travels in the header the endpoint registered, verbatim and with no scheme
+  prefix, which is what the SDK sends when it dials the same server without a gateway), **OR58** (a
+  brokered builtin endpoint is built with an explicit list from the connection; nothing writes that
+  list yet, so brokered calls refuse everything until the connect flow records the grant),
+  **OR56** (the lifecycle is `initialize`, the `initialized` notification, `tools/list`, then
+  `tools/call`, and `initialize` is the only method every server must answer), **OR59** (tool
+  ownership is tracked per harness instance, so re-registering our own is a no-op and a real
+  collision is surfaced rather than swallowed), **OR48** (a shared helper runs each streaming
+  cleanup detached and shielded at all four sites), **OR49** (the drain reads forward and merges
+  usage field by field, and the audit record carries the counts; one route still reports nothing,
+  which is OR76), **OR51** (the secret save names both halves, so flags, the denylist, settings,
+  route headers, tags and meta are carried from the stored row), **OR52** (region and the Vertex
+  project carry through, and only a region-only Bedrock configuration was ever broken), **OR53** (a
+  standard connection is addressable as `standard/<connection slug>`, with the provider family tried
+  first) and **OR62** (a check in the persistence layer, called from the four DAO write methods
+  where all six write paths funnel, refuses a secret the project does not own).
+- **Open.** Six findings: **OR63**, **OR65** to **OR68**, and **OR76**. No P0 and no P1 remain. One
+  is P2 (OR76); the other five are debt (OR63, OR65 to OR68), and `cleanups.md` tracks the same five
+  as **CU15** to **CU19**, with a **Why it is still open** field on each. None waits on a decision.
 - **Withdrawn.** **OR69**, on 2026-09-13. It counts as neither open nor closed.
 
 ## The live evidence, 2026-09-13
@@ -223,25 +253,32 @@ because the shared `agenta-ee-dev-*:latest` tags are what every other stack recr
 
 PR #6050 is the wallets work, and it stacks on top of this one: metering and billing are among the
 six concerns the gateway owns (D12), and the wallet is what prices what the gateway meters.
-**The seam between them is not built.** Nothing in this branch records usage, and `plan.md` says
-why — WP11 and WP22 ship together with the pricing model, deliberately after the three waves,
-because no real traffic passes before C3 and so nothing can be lost by waiting. The wallets side
+**The seam between them is not built.** The gateway records usage on its audit record since OR49
+closed, and nothing prices it. One route still records nothing, which is OR76. `plan.md` says why
+the pricing half waits: WP11 and WP22 ship together with the pricing model, deliberately after the
+three waves, because no real traffic passes before C3 and so nothing can be lost by waiting. The wallets side
 states its expectations of that seam in `docs/design/wallets-research/v1/seams.md`; read it before
 changing anything on the gateway's metering surface, and read it on the wallets branch, since it
 does not exist on this one.
 
 ## Next steps
 
-The blocking set comes first, and nothing in it waits on a decision.
+The correctness repairs are done. What is left is one residual and five pieces of debt, and nothing
+in the set waits on a decision.
 
-**OR75, before anything else.** It is the only P1 left, and the only open finding above the
-correctness repairs. The MCP relay hands back an upstream's header block and body unread, so a
-server that echoes the grant it was sent puts a vault credential in the sandbox. The LLM relay
-already refuses that on both, so the repair is the same scan on the other plane, and the MCP relay
-reads its whole response before returning, so nothing needs withholding.
+**OR58's residual, before the brokered MCP route ships.** Brokered builtin endpoints now carry an
+explicit tool allowlist and nothing writes it, so a brokered call refuses every tool. That is safe
+only while the route has no live caller, and gateway connections resolve through the tools route
+instead. The connect flow must record the grant before that changes.
 
-**Then the correctness repairs and the debt**, in `open-reviews.md` order. Each entry states the
-closure that would settle it and the test that would prove it.
+**OR76, with the metering work rather than before it.** An OpenAI Chat Completions stream records no
+usage unless the caller asked for it. Read the trade under OR49 first: adding
+`stream_options.include_usage` was tried and backed out, because it breaks byte-preserving relay on
+that path, re-chunks the response, and risks a `400` from upstreams that reject unknown fields.
+
+**Then the debt**, OR63 and OR65 to OR68, in `open-reviews.md` order. Each entry states the closure
+that would settle it and the test that would prove it, and `cleanups.md` carries the same five as
+CU15 to CU19 with the reason each is still open.
 
 **Then re-prove it.** OR65 is the reason the suites stayed green through all of this. A fix set that
 lands without the end-to-end path it names leaves the branch in the same position: green, and

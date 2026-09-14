@@ -2,13 +2,14 @@
 
 ## Active review findings
 
-Sixteen findings are open. OR69 heads this section but counts as neither open nor closed: it was
-withdrawn on 2026-09-13, and its entry stays in place so the reading is not repeated. No P0 remains:
-OR45 was the last one and it is closed. The highest severity open is P1, and OR75 is the only
-finding at it. None of the sixteen waits on a design decision any more. OD24 to OD27 in
-`open-designs.md` are all decided: OD26, OD24 and OD27 have landed, and OD25 is being built now.
-Every open entry is a repair, and each states the closure that would settle it and the test that
-would prove it. A finding that closes moves to the closed record below.
+Six findings are open. OR69 heads this section but counts as neither open nor closed: it was
+withdrawn on 2026-09-13, and its entry stays in place so the reading is not repeated. No P0 and no
+P1 remain: OR45 was the last P0 and OR75 the last P1, and both are closed. The highest severity
+open is P2, carried by OR76 alone; the other five entries are debt and carry no severity. The open
+set is OR63, OR65 to OR68 and OR76. The five debt entries are also tracked as CU15 to CU19 in
+`cleanups.md`, which records why each is still open. None of the six waits on a design decision.
+OD24 to OD27 in `open-designs.md` are all decided. Every open entry states the closure that would
+settle it and the test that would prove it. A finding that closes moves to the closed record below.
 
 ---
 
@@ -42,218 +43,6 @@ finding against this branch.
 
 ---
 
-### OR48. Streaming cleanup is not shielded from cancellation, so an aborted stream is never metered and its upstream connection is never closed
-
-A caller who disconnects mid-stream leaves an open upstream connection and no usage record. Present
-in the branch as of 2026-09-13.
-
-`api/oss/src/core/gateways/llms/service.py:581-584` records usage in a bare `finally` that awaits,
-and `api/oss/src/core/gateways/llms/providers/passthrough/adapter.py:216-218` closes the upstream
-response the same way. Starlette cancels the task scope when the client disconnects. An `await`
-inside a `finally` in a cancelled scope raises immediately, so neither the record nor the close
-completes. The same shape appears at `service.py:556-565` and `adapter.py:203-204`.
-
-Closure: both cleanup paths run under `asyncio.shield` or an equivalent, so a cancelled stream still
-records and still closes. Proven by a case beside
-`api/oss/tests/pytest/unit/gateways/test_gateways_llm_nonstreaming_drain.py` that cancels the
-consuming task partway through a stream and asserts `policy.record` was called and the upstream
-response was closed.
-
----
-
-### OR49. Streamed calls record no usage, and the only consumer of usage discards it
-
-Every streamed call meters as zero. Present in the branch as of 2026-09-13.
-
-`api/oss/src/core/gateways/llms/providers/passthrough/adapter.py:89-92` reads usage by scanning
-backwards through a capped tail of the stream (`:214`). Anthropic sends `input_tokens` in
-`message_start`, at the front, so it is never in the tail. OpenAI sends streaming usage only when the
-request carries `stream_options.include_usage`, which the gateway does not add, so there is nothing
-to find in either position. The drain work is wasted anyway:
-`api/oss/src/core/gateways/policy/audit.py` never reads `outcome.usage`, although
-`api/oss/src/core/gateways/llms/service.py:531` populates it and
-`api/oss/src/core/gateways/policy/dtos.py:122` declares it.
-
-Closure: a streamed call records the same usage fields a non-streaming call records, and the audit
-record carries them. Proven by cases beside `test_gateways_llm_nonstreaming_drain.py` that drive a
-streamed Anthropic response and a streamed OpenAI response through the real service and assert the
-recorded usage matches the upstream's own totals.
-
----
-
-### OR51. Saving a secret resets the endpoint's governance fields
-
-Rotating a provider key reactivates a disabled endpoint, drops its model denylist and clears its
-token ceiling. The operator receives no notice, because the action they took was saving a key.
-Present in the branch as of 2026-09-13.
-
-`api/oss/src/core/gateways/llms/registrar.py:123-132` builds an `LLMEndpointEdit` carrying freshly
-mapped `data` and `flags`, and the edit is a full replace applied on every secret save at `:170-177`.
-`flags` is never derived from the secret, so it arrives as the `LLMEndpointCreate` default. The MCP
-side does the same thing from the browser:
-`web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/mcpEndpointRegistration.ts:89-102`
-builds a full PUT with no `flags`, and
-`api/oss/src/dbs/postgres/gateways/mcps/mappings.py:87-94` documents itself as a full PUT over the
-editable surface and writes `dbe.flags = dto.flags.model_dump(...)`, where the default is
-`is_active=True, is_valid=True`. Both are one defect: a field-ownership mistake. Secret
-synchronisation owns credential and routing fields. Gateway policy belongs to whoever set it.
-
-Closure: a secret save writes only credential and routing fields and leaves flags and policy
-untouched. Proven by cases in
-`api/oss/tests/pytest/unit/gateways/test_gateways_llm_endpoint_registrar.py` and
-`web/packages/agenta-entity-ui/tests/unit/mcpEndpointRegistration.test.ts` that disable an endpoint,
-save the secret, and assert it is still disabled with its denylist and ceiling intact.
-
----
-
-### OR52. The registrar drops the routing fields Bedrock and Vertex need, so cloud provider configurations cannot become working endpoints
-
-A Bedrock or Vertex provider configuration registers an endpoint that cannot route. Present in the
-branch as of 2026-09-13.
-
-`api/oss/src/core/gateways/llms/registrar.py:106-109` maps `base_url` and `api_version` only.
-`LLMEndpointRoute` also carries `region` and `extras`
-(`api/oss/src/core/gateways/llms/dtos.py:41-42`), and neither is populated. Bedrock routing at
-`api/oss/src/core/gateways/llms/providers/passthrough/routing.py:83-90` needs one of `base_url` or
-`region` and refuses when it has neither, so a configuration carrying only a region registers an
-endpoint that refuses. Vertex is unconditional: `auth.py:96-102` requires `vertex_project` from
-`route.extras` and refuses without it.
-
-Closure: the registrar maps every field the routing and auth paths read, including region and the
-Vertex project. Proven by cases in `test_gateways_llm_endpoint_registrar.py` that map a Bedrock
-region-only configuration and a Vertex configuration and assert the resulting route builds a URL and
-signs a request.
-
----
-
-### OR53. A standard connection cannot be selected by slug, so explicit credential choice is lost
-
-Naming a standard connection by slug fails to resolve, and omitting the slug lets the gateway pick a
-credential on the caller's behalf. Reproduced against the worktree on 2026-09-13:
-`custom/my-openai-key` was not found for a standard OpenAI connection.
-
-The frontend preserves a standard connection's slug
-(`web/packages/agenta-entities/src/secret/core/agentModelCandidates.ts:299`, carried onto the
-candidate at `:319`) and the SDK sends it as `connection_slug`.
-`api/oss/src/core/gateways/llms/service.py:258-270` treats any supplied slug as a custom endpoint or
-a builtin, and falls back to custom; the standard path is reachable only through the `provider_key`
-branch at `:271-273`. Omitting the slug is not a workaround, because
-`api/oss/src/core/gateways/policy/resolution.py:103-119` then takes the first matching provider
-secret with no disambiguation, so a project with two keys for one provider gets whichever comes back
-first. Existing custom connections have no endpoint rows either, since the migration performs no
-backfill.
-
-Closure: a standard connection resolves by its slug, and the migration backfills endpoint rows for
-existing custom connections. Proven by cases in `test_gateways_llm_service.py` asserting that a
-standard connection slug resolves to its own secret, and by a migration test asserting a
-pre-existing custom provider secret has an endpoint row after upgrade.
-
----
-
-### OR54. MCP API-key registration has no working credential binding on either side
-
-Registering an MCP server with an API key produces an endpoint that refuses every call. Present in
-the branch as of 2026-09-13.
-
-`web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/mcpEndpointRegistration.ts:75-81`
-sends `auth_mode: api_key` and no `secret_id`, and
-`api/oss/src/core/gateways/mcps/service.py:696-707` raises `SecretNotFoundError` for exactly that
-combination. Attaching a secret by hand does not finish the path, because
-`api/oss/src/core/gateways/mcps/providers/http/adapter.py:57-72` builds the Authorization header from
-an OAuth grant's `access_token` and reads nothing else, so an API-key secret produces no header.
-
-Closure: the registration form binds a secret, and the HTTP adapter builds a header from an API-key
-secret as well as from an OAuth grant. Proven by a case in
-`web/packages/agenta-entity-ui/tests/unit/mcpEndpointRegistration.test.ts` asserting the payload
-carries a `secret_id`, and a case beside
-`api/oss/tests/pytest/unit/gateways/` asserting an API-key endpoint relays with the expected header.
-
----
-
-### OR56. Three components disagree about which MCP method performs discovery
-
-A server that answers one component's discovery call refuses another's. Reproduced against the
-worktree on 2026-09-13: the builtin adapter rejected `server/discover`.
-
-`services/runner/src/extensions/pi-mcp.ts:167` sends `server/discover`.
-`services/runner/src/engines/sandbox_agent/mcp-handshake.ts:171` sends `initialize`.
-`api/oss/src/core/gateways/mcps/providers/agenta/adapter.py:46` handles `tools/list` and `:59-60`
-refuses anything that is not `tools/call`, with the message "Agenta MCP supports only tools/list and
-tools/call". Three components, three vocabularies, one protocol.
-
-Closure: every component performs discovery with the same method, and the builtin adapter answers
-it. Proven by a case beside
-`api/oss/tests/pytest/unit/gateways/test_mock_mcp_adapter.py` and a runner case in
-`services/runner/tests/unit/` asserting the runner's discovery call and the adapter's accepted
-method are the same string.
-
----
-
-### OR58. Brokered builtin MCP endpoints carry no tool allowlist, so any member can call any tool
-
-Any workspace member holding `USE_MCP_ENDPOINTS` can call any tool on a brokered connection. Present
-in the branch as of 2026-09-13.
-
-`api/oss/src/core/gateways/mcps/service.py:316-337` builds a builtin endpoint with a route and
-nothing else, so `tools` takes the `MCPToolFilter()` default
-(`api/oss/src/core/gateways/mcps/dtos.py:58`) with `allowlist=None`.
-`GatewayEndpointFilter.allows` at `api/oss/src/core/gateways/dtos.py:69-70` reads `None` as allow-all.
-A brokered endpoint is one Agenta holds credentials for on a tenant's behalf, so allow-all is the
-wrong default there specifically.
-
-Closure: a brokered endpoint is built with an explicit allowlist, and an empty allowlist denies.
-Proven by a case in `api/oss/tests/pytest/unit/gateways/` asserting a brokered builtin endpoint
-refuses a tool it was not granted.
-
----
-
-### OR59. MCP tool registration collides from the second turn of a session, and the tools disappear
-
-A pooled session's second turn runs without the MCP tools its first turn had. Nothing reports it.
-Present in the branch as of 2026-09-13.
-
-`services/runner/src/extensions/agenta.ts:471-473` re-registers the gateway MCP tools on every
-`before_agent_start`. `services/runner/src/extensions/pi-mcp.ts:231` seeds the registered-name set
-from `pi.getAllTools?.()`, which on a warm session already holds the tools from the previous turn, so
-`:254` throws `MCP tool name collision`. The per-tool catch at `:236-249` logs and continues, so each
-tool is skipped in turn and the run proceeds with none of them.
-
-Closure: re-registration on a warm session is a no-op rather than a collision, and a genuine
-collision is reported to the caller. Proven by a case in
-`services/runner/tests/unit/pi-gateway-mcp.test.ts` that drives two turns on one session and asserts
-the second turn still has the tools.
-
----
-
-### OR62. The schema does not constrain an endpoint's secret to the endpoint's project, so tenancy rests on one query filter
-
-An endpoint row can be written referencing a secret that belongs to another project. Present in the
-branch as of 2026-09-13.
-
-The foreign key covers `secret_id` alone, at `api/oss/src/dbs/postgres/gateways/llms/dbes.py:20` and
-`api/oss/src/dbs/postgres/gateways/mcps/dbes.py:20`, and in the migration at
-`api/oss/databases/postgres/migrations/core_oss/versions/oss000000030_add_gateway_endpoints.py:74-78`
-and `:137-141`. The primary key beside it is composite, `(project_id, id)`, so the schema already
-knows the tenancy shape and does not apply it here.
-
-Resolution does check ownership, which is why this is a hardening defect rather than a leak.
-`_resolve_bound_secret` at `api/oss/src/core/gateways/policy/resolution.py:63-70` passes
-`project_id` into `vault_service.get_secret_by_id`, and `SecretsDAO.get_by_id`
-(`api/oss/src/dbs/postgres/secrets/dao.py:88-93`) filters on the id plus the project scope, so a
-cross-project reference resolves to nothing rather than to the other project's secret. Route
-authorization is sound on the same terms: every gateway DAO query filters on `project_id` plus id or
-slug (`api/oss/src/dbs/postgres/gateways/llms/dao.py:91-92` and
-`api/oss/src/dbs/postgres/gateways/mcps/dao.py:93-94` among others), so a guessed slug or UUID
-returns 404. What remains is that the whole guarantee rests on one filter in one code path, with no
-schema backstop, and an endpoint may hold a reference that is silently dead.
-
-Closure: the foreign key is composite on `(project_id, secret_id)`, or endpoint writes reject a
-`secret_id` the project does not own. Proven by a case in
-`api/oss/tests/pytest/integration/gateways/test_gateways_llm_endpoints_dao.py` that writes an
-endpoint referencing another project's secret and asserts the write is refused.
-
----
-
 ### OR63. The gateways domain imports its transport, so the dependency direction runs inward from FastAPI
 
 `core/gateways` cannot be tested or reused without FastAPI, and two deployable web applications live
@@ -280,8 +69,8 @@ beside `api/oss/tests/pytest/unit/gateways/` asserting no module under `core/gat
 
 ### OR65. The test suites replace the boundaries where the guarantees actually fail
 
-The suites are green, and they cannot see any of the defects above. Present in the branch as of
-2026-09-13.
+The suites are green, and they could not see any of the defects this review found. Present in the
+branch as of 2026-09-13.
 
 The unit suites substitute fake DAOs and fake adapters, so they establish nothing about database
 tenancy, migration compatibility or upstream request semantics, which is where OR36, OR40, OR46 and
@@ -373,35 +162,278 @@ Closure: `downgrade()` states in its own body what it cannot reverse and what th
 the upgrade bounds its lock wait. Proven by reading the revision: the docstring names the retained
 enum member and the retained rows, and the upgrade sets a `lock_timeout`.
 
-### OR75. The MCP relay has no injected-credential echo scanner, so an upstream that returns the grant it was sent hands it to the caller
-
-The LLM plane refuses a response that carries the credential the gateway injected, on the body and
-on the header block. The MCP plane has neither check. Present in the branch as of 2026-09-13.
-Severity P1.
-
-`api/oss/src/core/gateways/mcps/providers/http/adapter.py` is the place to look. `relay` layers the
-endpoint's own `Authorization`, an OAuth access token or a direct secret read from the vault, onto
-the upstream request at `:80-84`, and then returns the upstream's `status_code`, `headers` and
-`body` untouched at `:104-107`. Nothing reads either of them on the way back.
-`injected_credential_values` and `CredentialEchoScanner` in
-`api/oss/src/core/gateways/dtos.py` have exactly one caller, the LLM passthrough adapter, and no MCP
-adapter is among them.
-
-What an upstream would have to do for this to matter: return the bearer token it was sent, in an
-error body or a debug header. Providers do that, which is why the LLM plane refuses it. The value at
-risk here is narrower. It is the endpoint's own grant rather than a platform-wide key, and the
-caller is an agent run in the same project, so the exposure is a write-only vault credential
-reaching a sandbox rather than one tenant reading another's.
-
-Closure: the MCP relay scans the upstream's header block and body for the credential it injected and
-refuses with the same envelope the LLM plane uses. The relay reads the whole response before it
-returns, so nothing needs withholding. Proven by cases beside
-`api/oss/tests/pytest/unit/gateways/test_gateways_http_mcp_adapter.py` driving an upstream that
-returns the grant in its body and an upstream that returns it in a header.
-
 ---
 
+### OR76. An OpenAI Chat Completions stream records no usage unless the caller asked for it
+
+A streamed call on `/v1/chat/completions` meters nothing, while the same call on Responses or on
+Messages meters every time. Present in the branch as of 2026-09-14. Severity P2.
+
+Responses and Messages report usage without being asked, so the drain finds it on both planes.
+Chat Completions reports streaming usage only when the request carries
+`stream_options.include_usage`. The gateway relays request bytes as it received them and adds
+nothing, so a caller who omits that field gets a stream with no usage in it for the drain to read.
+The call then records no usage at all rather than a zero, which keeps an absent count
+distinguishable from a measured zero, and leaves the route unmetered.
+
+Severity is P2 because nothing prices usage yet. No bill is wrong, no quota is wrong and no user
+sees anything. This is a gap the metering work has to settle, not a defect with a consequence
+today.
+
+The trade is recorded under OR49 in the closed record, and whoever settles this should read it
+before repeating the experiment. Adding `stream_options.include_usage` to a request that did not
+carry it was tried and backed out: it breaks byte-preserving relay on that path, it re-chunks the
+response, and it risks a `400` from upstreams that reject unknown fields.
+
+Closure: a streamed Chat Completions call records the same usage fields the Responses and Messages
+paths record, or the metering work states in its own text why that route is exempt and what it
+costs. Proven by a case beside
+`api/oss/tests/pytest/unit/gateways/test_gateways_llm_nonstreaming_drain.py` driving a streamed
+Chat Completions response whose request omits `stream_options` and asserting the recorded usage
+matches the upstream's own totals.
+
 ## Closed review record
+
+### OR75. The MCP relay has no injected-credential echo scanner, so an upstream that returns the grant it was sent hands it to the caller — CLOSED, and an MCP credential header is endpoint-named rather than fixed
+
+**What the defect was.** `relay` in
+`api/oss/src/core/gateways/mcps/providers/http/adapter.py` layered the endpoint's own
+`Authorization`, an OAuth access token or a direct vault secret onto the upstream request, and then
+returned the upstream's status, headers and body untouched. Nothing read either on the way back. An
+upstream that returned the bearer it was sent, in an error body or a debug header, handed a
+write-only vault credential to the agent run that made the call. The LLM plane refuses exactly that,
+on both.
+
+**The MCP relay scans what the LLM relay scans.** A new module reuses the LLM plane's
+`CredentialEchoScanner` and its `upstream_echoed_credential` envelope, and all three MCP relays call
+it on the response header block and on the buffered body. The MCP relay does not stream. It reads
+the whole response before it returns, so detection is sufficient and no withholding path was built.
+
+**One difference is worth recording.** An LLM credential always travels in a fixed header. An MCP
+credential travels in whichever header the endpoint registered, so there is no single name to read.
+Every header the adapter puts above the caller is therefore normalized and scanned one at a time.
+
+Tests: cases beside `api/oss/tests/pytest/unit/gateways/test_gateways_http_mcp_adapter.py` driving
+an upstream that returns the grant in its body and an upstream that returns it in a header.
+
+### OR54. MCP API-key registration has no working credential binding on either side — CLOSED, and the transport is the one the SDK already uses without a gateway
+
+**What the defect was.** The registration form sent `auth_mode: api_key` and no `secret_id`, which
+is the exact combination `api/oss/src/core/gateways/mcps/service.py` refuses with
+`SecretNotFoundError`. Attaching a secret by hand did not finish the path either, because the HTTP
+adapter built its `Authorization` header from an OAuth grant's `access_token` and read nothing else,
+so an API-key secret produced no header at all. Both halves were broken, so no API-key MCP endpoint
+could ever relay.
+
+**The key travels in the header the endpoint registered.** The adapter sends the secret's value
+verbatim under that header name, with no scheme prefix, and falls back to a bearer header when the
+endpoint registered no header name. An OAuth grant is unchanged and still uses its own token type.
+The route carries the header name only. The value is read from the vault inside the adapter and
+never crosses the registration surface.
+
+**The frontend binds the secret.** The registration payload builder resolves the drawer's secret
+slug to a secret id and states the binding in the create body and in the edit body, so an edit no
+longer drops what the create established.
+
+**Why that transport.** It is what the agent config already expresses, and what the SDK sends when
+it dials the same server directly with no gateway in the path. The upstream therefore sees the same
+request either way, which is the property the gateway is supposed to preserve.
+
+Tests: a case in `web/packages/agenta-entity-ui/tests/unit/mcpEndpointRegistration.test.ts`
+asserting the payload carries a `secret_id`, and cases beside
+`api/oss/tests/pytest/unit/gateways/` asserting an API-key endpoint relays under its registered
+header name and under the bearer fallback.
+
+### OR58. Brokered builtin MCP endpoints carry no tool allowlist, so any member can call any tool — CLOSED, and brokered calls now refuse everything until the connect flow records a grant
+
+**What the defect was.** A brokered builtin endpoint was built with a route and nothing else, so its
+tool filter took the `MCPToolFilter()` default with `allowlist=None`, and
+`GatewayEndpointFilter.allows` reads `None` as allow-all. A brokered endpoint is one Agenta holds
+credentials for on a tenant's behalf, which is where allow-all is wrong specifically.
+
+**The endpoint is built with an explicit list from the connection.** The meaning of an absent
+allowlist is unchanged. Four readers share that field, and flipping the default to deny would dark
+every builtin LLM endpoint and every stored custom MCP endpoint at once, so the fix is local to the
+construction site rather than global to the field.
+
+**The residual, plainly.** Nothing writes the connection's tool list yet, so a brokered call now
+refuses every tool. That is safe today because the brokered MCP route has no live caller: gateway
+connections resolve through the tools route instead. It stops being safe the moment that route
+ships, so the connect flow must record the grant before then.
+
+Tests: a case in `api/oss/tests/pytest/unit/gateways/` asserting a brokered builtin endpoint refuses
+a tool it was not granted.
+
+### OR56. Three components disagree about which MCP method performs discovery — CLOSED, and `initialize` is the only method every server must answer
+
+**What the defect was.** The Pi extension sent `server/discover`, the sandbox-agent handshake sent
+`initialize`, and the builtin Agenta adapter answered neither, refusing anything that was not
+`tools/call` after `tools/list`. Three components, three vocabularies, one protocol.
+
+**The lifecycle is now one sequence.** `initialize`, then the `initialized` notification, then
+`tools/list`, then `tools/call`. `server/discover` was never a client obligation, and the two MCP
+clients Agenta does not control open with `initialize` and cannot be told otherwise, so
+`initialize` is the only method every server must answer.
+
+**All three moved to it.** The Pi extension opens with `initialize`. The handshake probe imports the
+shared method constants instead of restating the strings, so the two runner paths cannot drift
+again. The builtin adapter answers `initialize` and returns `202` for a notification that carries no
+id, which is what a JSON-RPC notification requires.
+
+Tests: a case beside `api/oss/tests/pytest/unit/gateways/test_mock_mcp_adapter.py` and a runner case
+in `services/runner/tests/unit/`, asserting the runner's discovery call and the adapter's accepted
+method are the same string.
+
+### OR59. MCP tool registration collides from the second turn of a session, and the tools disappear — CLOSED, and ownership is tracked rather than read off the harness
+
+**What the defect was.** The gateway MCP tools are re-registered on every `before_agent_start`. The
+collision guard seeded its registered-name set from `pi.getAllTools?.()`, which on a warm session
+already held the previous turn's registrations, so from turn two every name collided with itself.
+The per-tool catch logged and continued, so each tool was skipped in turn and the run proceeded with
+none of them. Nothing surfaced it.
+
+**Ownership is now tracked per harness instance.** The extension records which names it registered
+on which harness, so re-registering a name it already owns is a no-op and only a name someone else
+owns is a real collision. A real collision is logged per tool, and the remaining servers still
+register rather than the run losing all of them, and it is surfaced to the caller rather than
+swallowed.
+
+Tests: a case in `services/runner/tests/unit/pi-gateway-mcp.test.ts` driving two turns on one
+session and asserting the second turn still has the tools.
+
+### OR48. Streaming cleanup is not shielded from cancellation, so an aborted stream is never metered and its upstream connection is never closed — CLOSED, and the regression test has to cancel the way Starlette does
+
+**What the defect was.** Usage was recorded in a bare `finally` that awaits, and the upstream
+response was closed the same way. Starlette cancels the task scope when the client disconnects, and
+an `await` inside a `finally` in a cancelled scope raises immediately, so a caller who disconnected
+mid-stream left an open upstream connection and no usage record. The same shape appeared at four
+sites across the service and the passthrough adapter.
+
+**A shared helper runs each cleanup detached and shielded.** All four sites call it. The cleanup
+therefore completes after the scope is cancelled, and the helper re-raises the cancellation rather
+than swallowing it, so the disconnect still propagates as a disconnect. Normal completion is
+unchanged: the same cleanup runs on the same path.
+
+**One property of the test is load-bearing.** It cancels through an `anyio` cancel scope, which is
+what Starlette does. A plain task cancel passes against the unfixed code, so a test written that way
+would have proved nothing.
+
+Tests: a case beside `api/oss/tests/pytest/unit/gateways/test_gateways_llm_nonstreaming_drain.py`
+that cancels a consuming task partway through a stream and asserts the usage record was written and
+the upstream response was closed.
+
+### OR49. Streamed calls record no usage, and the only consumer of usage discards it — CLOSED for the streams that report it, and an OpenAI Chat Completions stream still reports nothing unless the caller asked
+
+**What the defect was.** The drain scanned backwards through a capped tail of the stream. Anthropic
+sends `input_tokens` in `message_start`, at the front, so it was never in the tail. The audit record
+never read `outcome.usage` anyway, although the service populated it and the DTO declared it. Every
+streamed call therefore metered as nothing.
+
+**The drain reads forward and merges field by field.** Anthropic's head and its tail are both
+captured, and a Responses terminal event larger than any tail is found rather than missed. The audit
+record now carries the counts, so the field has a consumer.
+
+**The gap that remains, because it is load-bearing.** The gateway does not add
+`stream_options.include_usage` to a request that did not ask for it, so an OpenAI Chat Completions
+stream meters nothing unless the caller asked. Adding the field was tried and backed out. It breaks
+byte-preserving relay on that path, it re-chunks the response, and it risks a `400` from upstreams
+that reject unknown fields, all to populate a sink nothing prices yet. A stream that reports nothing
+records no usage at all rather than a zero, so an absent count stays distinguishable from a measured
+zero. OR76 carries the open half.
+
+Tests: cases beside `test_gateways_llm_nonstreaming_drain.py` driving a streamed Anthropic response
+and a streamed Responses stream through the real service and asserting the recorded usage matches
+the upstream's own totals.
+
+### OR51. Saving a secret resets the endpoint's governance fields — CLOSED, by naming both halves of the write rather than adding a field to it
+
+**What the defect was.** The secret save built a full endpoint replace and omitted everything it did
+not map, so `flags` arrived as the create default. Rotating a provider key therefore reactivated a
+disabled endpoint, dropped its model denylist and cleared its token ceiling, and the operator saw no
+notice, because the action they took was saving a key. The MCP drawer did the same thing from the
+browser, sending a full `PUT` with no `flags` against a mapping that documents itself as a full
+replace.
+
+**The write names both halves.** Secret-owned, and rewritten on every save: name, description,
+secret id, provider key, the route's base URL, API version, region and Vertex project, and the model
+allowlist. Endpoint-owned, and carried from the stored row: flags, the model denylist, settings,
+route headers, tags and meta. Route extras are merged key-wise, so a routing key the secret owns is
+updated without discarding a key the endpoint owns. The MCP drawer echoes the stored row's flags
+back rather than omitting them.
+
+Tests: cases in
+`api/oss/tests/pytest/unit/gateways/test_gateways_llm_endpoint_registrar.py` and
+`web/packages/agenta-entity-ui/tests/unit/mcpEndpointRegistration.test.ts` that disable an endpoint,
+save the secret, and assert it is still disabled with its denylist and its ceiling intact.
+
+### OR52. The registrar drops the routing fields Bedrock and Vertex need, so cloud provider configurations cannot become working endpoints — CLOSED, and only a region-only Bedrock configuration was broken
+
+**What the defect was.** The registrar mapped `base_url` and `api_version` and nothing else, while
+`LLMEndpointRoute` also carries `region` and `extras`. Vertex refuses unconditionally without
+`vertex_project` from `route.extras`, so no Vertex configuration could route at all.
+
+**Region and the Vertex project carry through.** Both are translated from the vault's own spelling
+into the route's, so a provider configuration written through the dashboard registers an endpoint
+that routes.
+
+**The correction the entry already carried.** Bedrock accepts a base URL or a region, so only a
+region-only Bedrock configuration was broken. A Bedrock configuration naming a base URL routed
+before this change and routes after it.
+
+**The tests changed shape too.** The conversion is exercised through the real routing and auth
+adapters rather than against the mapped dictionary. Asserting on the mapping is what let this
+through in the first place: the mapping was self-consistent and the adapters read fields it never
+wrote.
+
+Tests: cases in `test_gateways_llm_endpoint_registrar.py` that map a Bedrock region-only
+configuration and a Vertex configuration and assert the resulting route builds a URL and signs a
+request.
+
+### OR53. A standard connection cannot be selected by slug, so explicit credential choice is lost — CLOSED, and the missing backfill stays a separate concern
+
+**What the defect was.** The frontend preserves a standard connection's slug and the SDK sends it as
+`connection_slug`, but the service treated any supplied slug as a custom endpoint or a builtin and
+fell back to custom, so `custom/my-openai-key` was not found for a standard OpenAI connection.
+Omitting the slug was not a workaround: resolution then took the first matching provider secret with
+no disambiguation, so a project holding two keys for one provider got whichever came back first.
+
+**A standard connection is addressable by its slug.** `standard/<connection slug>` resolves
+alongside `standard/<provider family>`. The resolver tries the family first, so every reference that
+resolved before resolves to the same place. An unknown slug still fails as a custom endpoint, which
+is the behaviour a typo should get. The lookup returns the secret id and the provider key only, so
+no credential crosses the resolve endpoint.
+
+**What stays out.** Existing custom connections still have no endpoint rows, because the migration
+performs no backfill. That is a data migration, and it changes nothing about standard selection, so
+it stays a separate concern rather than a condition of this closure.
+
+Tests: cases in `test_gateways_llm_service.py` asserting that a standard connection slug resolves to
+its own secret, that the provider family still resolves, and that an unknown slug fails as a custom
+endpoint.
+
+### OR62. The schema does not constrain an endpoint's secret to the endpoint's project, so tenancy rests on one query filter — CLOSED in the persistence layer, because a composite foreign key was not available
+
+**What the defect was.** The foreign key covered `secret_id` alone, on both endpoint tables and in
+the migration, while the primary key beside it is composite on `(project_id, id)`. The schema
+already knew the tenancy shape and did not apply it here. Resolution did check ownership, so a
+cross-project reference resolved to nothing rather than to another project's secret, which is why
+this was hardening rather than a leak. What remained was that the whole guarantee rested on one
+filter in one code path, with no backstop, and an endpoint could hold a reference that was silently
+dead.
+
+**The check sits in the persistence layer.** It is called from the four DAO write methods, which is
+where all six write paths funnel, including the registrar, which bypasses the service entirely. A
+write naming a secret the project does not own is refused, reusing the existing invalid-secret
+error rather than introducing a new one.
+
+**Why not the composite foreign key.** It was not available rather than merely risky. The secrets
+table has no unique constraint on `(project_id, id)` to reference. Its `project_id` is nullable,
+because a secret may be organization-scoped. And adding the constraint would take an
+access-exclusive lock plus a validation pass that aborts on any existing row outside the rule.
+
+Tests: a case in
+`api/oss/tests/pytest/integration/gateways/test_gateways_llm_endpoints_dao.py` that writes an
+endpoint referencing another project's secret and asserts the write is refused.
 
 ### OR45. `POST /gateways/mcps/credentials/agenta` issues a narrowed credential with no permission check — CLOSED, and the bound is two layers deep because a true per-run bound is not derivable
 

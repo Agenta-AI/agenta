@@ -243,6 +243,118 @@ the two are read together.
 
 ---
 
+## Debt in the gateway code itself
+
+**These entries are a different kind, and the difference matters.** CU1 to CU14 are things the
+gateways make possible, and none of them blocks a wave. The five below are defects found by reading
+the gateway code as it stands. They are not unlocked by anything and nothing prevents fixing them
+today; they stay open because they were judged not worth holding this branch for. Read the list as
+two registers under one roof: what the gateways cost, and what the gateway code owes.
+
+Each of the five keeps the same three fields as the entries above, with **Why it is still open**
+standing where **Why not sooner** stands there, because "sooner" does not apply.
+
+## CU15. Take FastAPI out of the gateways domain
+
+**What.** `core/gateways` cannot be imported, tested or reused without a web framework.
+`api/oss/src/core/gateways/mcps/providers/agenta/adapter.py:6` imports `HTTPException` and `Request`
+from FastAPI at runtime, and `Request` is in the domain signatures at `:19` and `:35`.
+`api/oss/src/core/gateways/mcps/service.py:453-455` constructs an adapter that calls `ToolsRouter`,
+so the domain reaches back into transport to run a tool. Two deployable FastAPI applications live
+inside the domain as well, at `api/oss/src/core/gateways/llms/providers/mock/app.py:24` and
+`api/oss/src/core/gateways/mcps/providers/mock/app.py:32`. The neighbouring layers are clean: `dbs/`
+and `core/secrets/` import no transport, so the gateways are the exception rather than the house
+style.
+
+**Why it is still open.** The direction is wrong but nothing misbehaves because of it today. Turning
+it around means a domain interface for tool execution and a new home for the two mock applications,
+which is a refactor across the whole boundary rather than a patch.
+
+**Done.** `core/gateways` imports no web framework, tool execution enters through a domain
+interface, and the mock applications sit in development infrastructure. An import-boundary test
+beside `api/oss/tests/pytest/unit/gateways/` asserts no module under `core/gateways` imports
+`fastapi`. Tracked as OR63 in `open-reviews.md`.
+
+## CU16. Drive one real gateway path end to end
+
+**What.** The suites are green and blind in the same places. The unit suites substitute fake DAOs
+and fake adapters, so they establish nothing about database tenancy, migration compatibility or
+upstream request semantics. `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_router.py:166-178`
+builds a bare FastAPI application and replaces `get_auth_scope`, so the real middleware never runs.
+Five tests in `test_gateways_llm_service.py:217-282` assert only that the service forwards to its
+DAO and returns what the DAO returned. The acceptance suites that do open a real socket need
+`AGENTA_GATEWAYS_MOCKS_ENABLED`, which is set in the two development compose files and in
+`hosting/docker-compose/test.sh` and nowhere else, so ten of them skip in the PR preview. The
+missing case is one real path: the real middleware, the real gateway service, a migrated database
+and a controlled upstream, driven with a second tenant present and a sandbox-held credential.
+
+**Why it is still open.** That case needs a migrated database and a controlled upstream in CI, so it
+is infrastructure work rather than a test to write.
+
+**Done.** The path exists as an integration case under
+`api/oss/tests/pytest/integration/gateways/` and fails when any of the tenancy, header, migration or
+auth-scope defects it covers is reintroduced. Tracked as OR65 in `open-reviews.md`.
+
+## CU17. Record what the gateway decided and what came of it
+
+**What.** The audit trail cannot answer what the gateway refused, what tool ran, or what a call
+cost. Model and tool refusals happen before the recorded authorization path, so a refusal leaves no
+trace. A streaming failure keeps the status assigned when the response first arrived
+(`api/oss/src/core/gateways/llms/service.py:529-530`, set once at
+`api/oss/src/core/gateways/llms/providers/passthrough/adapter.py:180`), so a stream that dies
+mid-flight is recorded as the 200 it started as.
+`api/oss/src/core/gateways/policy/audit.py:26-45` builds the record without the MCP method, without
+the tool and without any usage field, although `GatewayTarget.method` and `.tool` exist at
+`api/oss/src/core/gateways/policy/dtos.py:96-97` and `GatewayOutcome.usage` at `:122`, which
+`service.py:531` already populates.
+
+**Why it is still open.** Recording refusals means moving the audit write to before the
+authorization verdict, and recording a stream's final status means the adapter reporting back after
+the body drains. Both change the shape of the recorded path rather than adding a field to it.
+
+**Done.** Every refusal is recorded, a stream records its final status, and the record carries the
+MCP method, the tool and the usage fields. Cases beside `api/oss/tests/pytest/unit/gateways/` assert
+a record exists for a refused model, for a refused tool, and for a mid-stream failure with the
+failing status. Tracked as OR66 in `open-reviews.md`.
+
+## CU18. Tear down the MCP connect dialog's listener and interval
+
+**What.** Closing the connect dialog while the authorization popup is still open leaves a `message`
+listener and a polling interval behind, and every reopen adds another pair.
+`web/oss/src/components/pages/settings/MCPEndpoints/MCPConnectDialog.tsx:126` registers the listener
+and `:128` starts the interval, both inside the `handleConnect` callback at `:69-143`. The `cleanup`
+function at `:93-99` runs only from the message handler or from the popup-closed poll. Neither fires
+on unmount, and there is no `useEffect` teardown.
+
+**Why it is still open.** It is small and local, and the leak costs a user one listener per
+abandoned connect attempt in a settings dialog. It is the cheapest of the five and the easiest to
+pick up cold.
+
+**Done.** The listener and the interval are torn down when the dialog unmounts. A case beside
+`web/oss/tests/` opens and unmounts the dialog with the popup still open and asserts neither
+remains. Tracked as OR67 in `open-reviews.md`.
+
+## CU19. Say what the gateway migration cannot undo, and bound the lock it takes
+
+**What.** Running `downgrade()` leaves a database the previous revision's code cannot read.
+`api/oss/databases/postgres/migrations/core_oss/versions/oss000000030_add_gateway_endpoints.py:156-168`
+drops both gateway tables, their indexes and the two gateway enums. It leaves the `OAUTH_GRANT`
+member added to `secretkind_enum` at `:27`, which PostgreSQL cannot remove, and it leaves every
+OAuth vault row written under that kind, which the previous revision's `SecretKind` cannot
+deserialize. Separately, creating the foreign keys at `:69-78` and `:132-141` takes
+`SHARE ROW EXCLUSIVE` on `projects` and `secrets`, blocking writes to both for the duration on a busy
+database.
+
+**Why it is still open.** Neither half is reachable on this branch: no deployment has downgraded,
+and the lock only bites on a database under load. Both become real the first time the migration runs
+against production traffic.
+
+**Done.** `downgrade()` states in its own body what it cannot reverse and what that leaves behind,
+and the upgrade sets a `lock_timeout`. Proven by reading the revision. Tracked as OR68 in
+`open-reviews.md`.
+
+---
+
 ## What is not on this list
 
 **Anything that is genuinely a prerequisite.** If something must be true before a wave can start,
