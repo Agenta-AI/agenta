@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from oss.src.core.gateways.cleanup import run_shielded
 from oss.src.core.gateways.dtos import (
     CredentialEchoDetected,
     CredentialEchoRelay,
@@ -86,12 +87,6 @@ async def _outbound_target(
     return target, injected_credential_values(auth_headers)
 
 
-# Enough to hold the last SSE frames; the usage frame is the final data frame before the
-# stream's own terminator (`[DONE]` for Chat Completions, `message_stop`/`response.completed`
-# for the other two).
-_USAGE_TAIL_BYTES = 8192
-
-
 # Usage fields differ by protocol but are read without rewriting the response.
 def _usage_from_payload(payload: Any, protocol: LLMProtocol) -> Optional[GatewayUsage]:
     if not isinstance(payload, dict):
@@ -103,6 +98,13 @@ def _usage_from_payload(payload: Any, protocol: LLMProtocol) -> Optional[Gateway
         # nested under `response` rather than at the frame's top level.
         response = payload.get("response")
         usage = response.get("usage") if isinstance(response, dict) else None
+    if usage is None and protocol == LLMProtocol.MESSAGES:
+        # A Messages stream splits its usage in two: `message_start`, the FIRST frame,
+        # carries the input tokens inside the message object, and `message_delta`, near
+        # the end, carries the output tokens at the frame's top level. Neither frame on
+        # its own is the call's usage (OR49).
+        message = payload.get("message")
+        usage = message.get("usage") if isinstance(message, dict) else None
 
     if not isinstance(usage, dict):
         return None
@@ -120,24 +122,29 @@ def _usage_from_payload(payload: Any, protocol: LLMProtocol) -> Optional[Gateway
     )
 
 
-def _usage_from_stream_tail(
-    tail: bytes, protocol: LLMProtocol
+def _merge_usage(
+    base: Optional[GatewayUsage], later: Optional[GatewayUsage]
 ) -> Optional[GatewayUsage]:
-    for line in reversed(tail.split(b"\n")):
-        line = line.strip()
-        if not line.startswith(b"data:"):
-            continue
-        chunk = line[len(b"data:") :].strip()
-        if chunk == b"[DONE]":
-            continue
-        try:
-            payload = json.loads(chunk) if chunk else None
-        except (json.JSONDecodeError, TypeError):
-            continue
-        usage = _usage_from_payload(payload, protocol)
-        if usage is not None:
-            return usage
-    return None
+    """One call's usage, assembled from however many frames carried a piece of it.
+
+    Field by field, the later value wins where it has one. That is what turns Anthropic's
+    head-and-tail split into a single record, and it leaves a protocol that sends its usage
+    whole, in one frame, with exactly that frame's numbers.
+    """
+    if later is None:
+        return base
+    if base is None:
+        return later
+    return GatewayUsage(
+        calls=1,
+        input_tokens=later.input_tokens
+        if later.input_tokens is not None
+        else base.input_tokens,
+        output_tokens=later.output_tokens
+        if later.output_tokens is not None
+        else base.output_tokens,
+        cost=later.cost if later.cost is not None else base.cost,
+    )
 
 
 def _usage_from_body(content: bytes, protocol: LLMProtocol) -> Optional[GatewayUsage]:
@@ -146,6 +153,73 @@ def _usage_from_body(content: bytes, protocol: LLMProtocol) -> Optional[GatewayU
     except (json.JSONDecodeError, TypeError):
         return None
     return _usage_from_payload(payload, protocol)
+
+
+# How much of a single SSE frame the reader will hold while it waits for the newline that
+# ends it. The cap bounds the READER only — every byte is relayed as it arrives either way.
+# A Responses `response.completed` frame carries the whole response object, so it is
+# generous; a frame past it is relayed and left unread.
+_MAX_FRAME_BYTES = 1_048_576
+
+
+def _frame_payload(line: bytes) -> Any:
+    """The JSON object an SSE `data:` line carries, or None when it carries none."""
+    stripped = line.strip()
+    if not stripped.startswith(b"data:"):
+        return None
+    chunk = stripped[len(b"data:") :].strip()
+    if not chunk or chunk == b"[DONE]":
+        return None
+    try:
+        return json.loads(chunk)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+class _StreamUsageReader:
+    """Read usage out of a relayed SSE stream without touching a byte of it.
+
+    Frames are read forward, as they pass, rather than out of a buffered tail. A tail never
+    held the whole story: Anthropic's input-token count arrives in `message_start`, the
+    first frame of the stream, and a Responses `response.completed` frame can be larger on
+    its own than any tail worth keeping (OR49).
+
+    Reading only, never rewriting: the relay hands the caller the upstream's own bytes, in
+    the upstream's own chunks, and this reads a copy of them on the way past. A stream that
+    reports no usage leaves `usage` as None, which is not the same record as a call that
+    reported zero.
+    """
+
+    def __init__(self, protocol: LLMProtocol) -> None:
+        self._protocol = protocol
+        self._buffer = b""
+        self.usage: Optional[GatewayUsage] = None
+
+    def feed(self, chunk: bytes) -> None:
+        """Read `chunk` for usage. The chunk itself is relayed by the caller, untouched."""
+        self._buffer += chunk
+        while True:
+            if len(self._buffer) > _MAX_FRAME_BYTES:
+                # Longer than any frame this reader can use, so stop holding it.
+                self._buffer = b""
+                break
+            end = self._buffer.find(b"\n")
+            if end < 0:
+                break
+            line, self._buffer = self._buffer[: end + 1], self._buffer[end + 1 :]
+            self._read(line)
+
+    def flush(self) -> None:
+        """Read the last line of a stream that ended without a newline."""
+        if not self._buffer:
+            return
+        line, self._buffer = self._buffer, b""
+        self._read(line)
+
+    def _read(self, line: bytes) -> None:
+        usage = _usage_from_payload(_frame_payload(line), self._protocol)
+        if usage is not None:
+            self.usage = _merge_usage(self.usage, usage)
 
 
 # How many per-origin clients the adapter keeps. Origins come from tenant-registered URLs,
@@ -332,7 +406,8 @@ class RelayLLMAdapter(LLMUpstreamInterface):
             yield content
             result.usage = _usage_from_body(content, protocol)
         finally:
-            await response.aclose()
+            # Shielded for the reason given on `_stream_body` (OR48).
+            await run_shielded(response.aclose())
 
     @staticmethod
     async def _stream_body(
@@ -343,13 +418,14 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         scanner: CredentialEchoScanner,
         provider_key: Optional[str],
     ) -> AsyncIterator[bytes]:
-        # Preserve upstream SSE chunk boundaries while extracting trailing usage. Bytes are
-        # relayed only once they cannot still begin the credential (`CredentialEchoRelay`),
-        # so a value split across two chunks is withheld rather than yielded and regretted:
-        # noticing the split after the first half has left the generator leaves the caller
-        # holding all but the last byte of the key.
+        # Preserve upstream SSE chunk boundaries while reading usage out of the frames as
+        # they pass — the reader takes a copy, and relays nothing of its own. Bytes reach
+        # the caller only once they cannot still begin the credential
+        # (`CredentialEchoRelay`), so a value split across two chunks is withheld rather
+        # than yielded and regretted: noticing the split after the first half has left the
+        # generator leaves the caller holding all but the last byte of the key.
         relay = CredentialEchoRelay(scanner.secrets)
-        tail = b""
+        reader = _StreamUsageReader(protocol)
         try:
             async for chunk in response.aiter_bytes():
                 try:
@@ -360,16 +436,22 @@ class RelayLLMAdapter(LLMUpstreamInterface):
                     ) from exc
                 if not safe:
                     continue
-                tail = (tail + safe)[-_USAGE_TAIL_BYTES:]
+                reader.feed(safe)
                 yield safe
             # A prefix that reached the end of the body never completed into the credential.
             remainder = relay.flush()
             if remainder:
-                tail = (tail + remainder)[-_USAGE_TAIL_BYTES:]
+                reader.feed(remainder)
                 yield remainder
+            # A stream whose last frame ended without a newline still carries usage.
+            reader.flush()
         finally:
-            result.usage = _usage_from_stream_tail(tail, protocol) or result.usage
-            await response.aclose()
+            result.usage = reader.usage or result.usage
+            # A client that disconnects mid-stream cancels this task, and a bare `await`
+            # in a `finally` under cancellation raises before it runs: the upstream
+            # response stayed open and its connection leaked until the pool timed it out
+            # (OR48). Shielded, the close completes; the cancellation still propagates.
+            await run_shielded(response.aclose())
 
 
 async def _empty_body() -> AsyncIterator[bytes]:

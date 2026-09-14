@@ -16,7 +16,10 @@ from oss.src.core.gateways.policy.dtos import (
     ResolvedSecret,
     SecretOrigin,
 )
-from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
+from oss.src.core.gateways.policy.interfaces import (
+    NamedProviderConnection,
+    SecretsResolverInterface,
+)
 from oss.src.core.gateways.policy.types import (
     SecretNotFoundError,
 )
@@ -57,6 +60,27 @@ class SecretsResolver(SecretsResolverInterface):
             for secret in secrets
             if secret.kind in (SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER)
         }
+
+    async def provider_connection_by_slug(
+        self, *, scope: AuthScope, slug: str
+    ) -> Optional[NamedProviderConnection]:
+        secrets = await self.vault_service.list_secrets(project_id=scope.project_id)
+
+        for secret in secrets or []:
+            if secret.kind != SecretKind.PROVIDER_KEY or secret.slug != slug:
+                continue
+            if secret.id is None:
+                continue
+            provider_key = getattr(secret.data, "kind", None)
+            provider_key = getattr(provider_key, "value", provider_key)
+            if not provider_key:
+                continue
+            return NamedProviderConnection(
+                secret_id=secret.id,
+                provider_key=str(provider_key),
+            )
+
+        return None
 
     # --- BoundSecretRef -------------------------------------------------------- #
 

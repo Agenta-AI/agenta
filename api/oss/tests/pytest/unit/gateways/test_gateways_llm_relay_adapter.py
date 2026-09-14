@@ -681,3 +681,178 @@ async def test_default_timeout_used_when_route_leaves_it_unset():
     )
 
     assert captured["request"].extensions["timeout"]["connect"] == 60.0
+
+
+# --- OR49: usage on the streaming path ------------------------------------------ #
+
+
+_CHAT_USAGE_FRAME = (
+    b'data: {"id":"chatcmpl-1","choices":[],'
+    b'"usage":{"prompt_tokens":11,"completion_tokens":7}}\n\n'
+)
+_CHAT_CONTENT_FRAME = (
+    b'data: {"id":"chatcmpl-1","choices":[{"delta":{"content":"hi"}}]}\n\n'
+)
+_DONE_FRAME = b"data: [DONE]\n\n"
+
+
+def _sse_handler(payload: bytes):
+    def handler(request: httpx.Request) -> httpx.Response:
+        handler.request = request  # type: ignore[attr-defined]
+        return httpx.Response(
+            200, content=payload, headers={"content-type": "text/event-stream"}
+        )
+
+    return handler
+
+
+@pytest.mark.asyncio
+async def test_a_streaming_chat_request_is_relayed_exactly_as_the_caller_sent_it():
+    """The gateway does not add `stream_options.include_usage` to a body that lacks it.
+
+    Asking for usage the caller did not ask for would buy a metering number at the cost of
+    the byte-for-byte relay this door promises (D34), a re-framed response, and a refusal
+    from any upstream that rejects unknown fields. The call is relayed untouched instead,
+    and a Chat Completions stream that reports no usage is recorded as reporting none.
+    """
+    handler = _sse_handler(_CHAT_CONTENT_FRAME + _DONE_FRAME)
+    adapter = _adapter(handler)
+    sent = json.dumps(
+        {
+            "model": "gpt-4o",
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": True,
+        }
+    ).encode()
+
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=_context(stream=True),
+        body=sent,
+        headers={},
+    )
+    relayed = b"".join(await _drain(result.body))
+
+    assert handler.request.content == sent
+    assert b"stream_options" not in handler.request.content
+    assert relayed == _CHAT_CONTENT_FRAME + _DONE_FRAME
+    assert result.usage is None, "no usage was reported, which is not usage of zero"
+
+
+@pytest.mark.asyncio
+async def test_a_caller_that_asked_for_stream_usage_is_metered_from_the_frame_it_asked_for():
+    """Its body travels unchanged, it keeps the frame, and the call meters from that frame."""
+    handler = _sse_handler(_CHAT_CONTENT_FRAME + _CHAT_USAGE_FRAME + _DONE_FRAME)
+    adapter = _adapter(handler)
+    asked = json.dumps(
+        {
+            "model": "gpt-4o",
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+    ).encode()
+
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=_context(stream=True),
+        body=asked,
+        headers={},
+    )
+    relayed = b"".join(await _drain(result.body))
+
+    assert handler.request.content == asked
+    assert relayed == _CHAT_CONTENT_FRAME + _CHAT_USAGE_FRAME + _DONE_FRAME
+    assert result.usage.input_tokens == 11
+    assert result.usage.output_tokens == 7
+
+
+@pytest.mark.asyncio
+async def test_a_non_streaming_chat_request_is_relayed_exactly_as_the_caller_sent_it():
+    handler = _sse_handler(b'{"id":"x","choices":[]}')
+    adapter = _adapter(handler)
+
+    await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=_context(stream=False),
+        body=_body(),
+        headers={},
+    )
+
+    assert handler.request.content == _body()
+
+
+@pytest.mark.asyncio
+async def test_a_streamed_messages_call_adds_up_its_head_and_tail_usage():
+    """Anthropic reports input tokens in `message_start`, the FIRST frame, and output
+    tokens near the end. A tail scan saw only half of that (OR49)."""
+    head = (
+        b'event: message_start\ndata: {"type":"message_start","message":'
+        b'{"id":"msg-1","usage":{"input_tokens":11,"output_tokens":0}}}\n\n'
+    )
+    filler = (
+        b'event: content_block_delta\ndata: {"type":"content_block_delta",'
+        b'"delta":{"text":"' + b"x" * 9000 + b'"}}\n\n'
+    )
+    tail = (
+        b'event: message_delta\ndata: {"type":"message_delta",'
+        b'"usage":{"output_tokens":7}}\n\n'
+        b'event: message_stop\ndata: {"type":"message_stop"}\n\n'
+    )
+    handler = _sse_handler(head + filler + tail)
+    adapter = _adapter(handler)
+    context = LLMCallContext(model="gpt-4o", stream=True, protocol=LLMProtocol.MESSAGES)
+
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=context,
+        body=json.dumps(
+            {"model": "gpt-4o", "max_tokens": 16, "messages": [], "stream": True}
+        ).encode(),
+        headers={},
+    )
+    relayed = b"".join(await _drain(result.body))
+
+    assert relayed == head + filler + tail, "a Messages stream is relayed untouched"
+    assert result.usage.input_tokens == 11
+    assert result.usage.output_tokens == 7
+
+
+@pytest.mark.asyncio
+async def test_a_streamed_responses_call_reads_a_terminal_event_larger_than_any_tail():
+    """A `response.completed` event carries the whole response object, so the usage can sit
+    further from the end of the stream than a tail buffer reaches (OR49)."""
+    completed = {
+        "type": "response.completed",
+        "response": {
+            "id": "resp-1",
+            "output": [{"type": "output_text", "text": "x" * 9000}],
+            "usage": {"input_tokens": 11, "output_tokens": 7},
+        },
+    }
+    payload = (
+        b'event: response.created\ndata: {"type":"response.created"}\n\n'
+        + f"event: response.completed\ndata: {json.dumps(completed)}\n\n".encode()
+    )
+    handler = _sse_handler(payload)
+    adapter = _adapter(handler)
+    context = LLMCallContext(
+        model="gpt-4o", stream=True, protocol=LLMProtocol.RESPONSES
+    )
+
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=context,
+        body=json.dumps({"model": "gpt-4o", "input": "hi", "stream": True}).encode(),
+        headers={},
+    )
+    relayed = b"".join(await _drain(result.body))
+
+    assert relayed == payload, "a Responses stream is relayed untouched"
+    assert result.usage.input_tokens == 11
+    assert result.usage.output_tokens == 7

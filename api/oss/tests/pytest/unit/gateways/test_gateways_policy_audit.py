@@ -35,6 +35,7 @@ from oss.src.core.gateways.policy.audit import (
 )
 from oss.src.core.gateways.policy.dtos import (
     GatewayOutcome,
+    GatewayUsage,
     GatewayPlane,
     GatewayTarget,
     PolicyDecision,
@@ -165,6 +166,39 @@ def test_attributes_carry_no_request_or_response_body_value():
     assert forbidden.isdisjoint({key.lower() for key in attributes})
     for value in attributes.values():
         assert "X-AG-Credentials" not in str(value)
+
+
+def test_attributes_carry_the_usage_the_call_reported():
+    """OR49: the audit event is the only consumer of `outcome.usage`, and it used to read
+    none of it, so every token count the relay collected was thrown away here."""
+    attributes = build_gateway_call_attributes(
+        scope=_scope(),
+        target=_llm_target(),
+        decision=_allowed(),
+        outcome=GatewayOutcome(
+            status_code=200,
+            usage=GatewayUsage(calls=1, input_tokens=11, output_tokens=7, cost=0.25),
+        ),
+    )
+
+    assert attributes["calls"] == 1
+    assert attributes["input_tokens"] == 11
+    assert attributes["output_tokens"] == 7
+    assert attributes["cost"] == 0.25
+
+
+def test_a_call_that_reported_no_usage_carries_no_token_counts():
+    """An unmetered call must not read as a call that cost nothing."""
+    attributes = build_gateway_call_attributes(
+        scope=_scope(),
+        target=_llm_target(),
+        decision=_allowed(),
+        outcome=GatewayOutcome(status_code=200, usage=None),
+    )
+
+    assert "calls" not in attributes
+    assert "input_tokens" not in attributes
+    assert "output_tokens" not in attributes
 
 
 # --- publish_gateway_call ---------------------------------------------------- #

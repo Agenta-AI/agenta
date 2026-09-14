@@ -15,6 +15,8 @@ from oss.src.core.gateways.llms.interfaces import LLMEndpointsDAOInterface
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.gateways.llms.dbes import LLMEndpointDBE
+from oss.src.core.gateways.policy.types import SecretInvalidError
+from oss.src.dbs.postgres.gateways.tenancy import check_secret_is_owned_by_project
 from oss.src.dbs.postgres.gateways.llms.mappings import (
     map_llm_endpoint_create_to_dbe,
     map_llm_endpoint_dbe_to_dto,
@@ -43,7 +45,7 @@ class LLMEndpointsDAO(LLMEndpointsDAOInterface):
             engine = get_transactions_engine()
         self.engine = engine
 
-    @suppress_exceptions(exclude=[EntityCreationConflict])
+    @suppress_exceptions(exclude=[EntityCreationConflict, SecretInvalidError])
     async def create_endpoint(
         self,
         *,
@@ -61,6 +63,13 @@ class LLMEndpointsDAO(LLMEndpointsDAOInterface):
 
         try:
             async with self.engine.session() as session:
+                await check_secret_is_owned_by_project(
+                    session,
+                    project_id=project_id,
+                    bound_secret=dbe.secret_id,
+                    target=f"custom/{dbe.slug}",
+                )
+
                 session.add(dbe)
                 await session.commit()
                 await session.refresh(dbe)
@@ -125,7 +134,7 @@ class LLMEndpointsDAO(LLMEndpointsDAOInterface):
 
             return map_llm_endpoint_dbe_to_dto(dbe=dbe)
 
-    @suppress_exceptions(default=None)
+    @suppress_exceptions(default=None, exclude=[SecretInvalidError])
     async def edit_endpoint(
         self,
         *,
@@ -147,6 +156,16 @@ class LLMEndpointsDAO(LLMEndpointsDAOInterface):
 
             if not dbe:
                 return None
+
+            # Before the mapping, not after: this edit is a full PUT that assigns the
+            # row's credential from the payload, and a query issued against a session
+            # holding a modified row would autoflush that row on its way out.
+            await check_secret_is_owned_by_project(
+                session,
+                project_id=project_id,
+                bound_secret=endpoint.secret_id,
+                target=f"custom/{dbe.slug}",
+            )
 
             dbe = map_llm_endpoint_edit_to_dbe(
                 dbe=dbe,

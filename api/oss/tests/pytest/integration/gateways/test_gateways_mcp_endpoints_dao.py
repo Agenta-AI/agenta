@@ -16,6 +16,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointRoute,
     MCPToolFilter,
 )
+from oss.src.core.gateways.policy.types import SecretInvalidError
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
@@ -244,3 +245,67 @@ async def test_deleting_secret_sets_endpoint_secret_id_null(seeded_project):
     )
     assert survivor is not None
     assert survivor.secret_id is None
+
+
+async def test_create_refuses_a_credential_from_another_project(
+    seeded_project, other_project
+):
+    """OR62 on the MCP plane: same foreign key, same gap, same check."""
+    dao = MCPEndpointsDAO(engine=get_transactions_engine())
+    project_id = seeded_project["project_id"]
+    user_id = seeded_project["user_id"]
+
+    create = _create_dto(slug="acme-foreign-create")
+    create.secret_id = other_project["secret_id"]
+
+    with pytest.raises(SecretInvalidError):
+        await dao.create_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            endpoint=create,
+        )
+
+    assert (
+        await dao.fetch_endpoint_by_slug(
+            project_id=project_id,
+            #
+            slug="acme-foreign-create",
+        )
+        is None
+    )
+
+
+async def test_edit_refuses_rebinding_to_another_projects_credential(
+    seeded_project, other_project
+):
+    """The MCP edit path re-binds the credential on every call (OAuth connect, invalidate)."""
+    dao = MCPEndpointsDAO(engine=get_transactions_engine())
+    project_id = seeded_project["project_id"]
+    user_id = seeded_project["user_id"]
+
+    created = await dao.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint=_create_dto(slug="acme-foreign-edit"),
+    )
+    assert created.secret_id is None
+
+    with pytest.raises(SecretInvalidError):
+        await dao.edit_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            endpoint=MCPEndpointEdit(
+                id=created.id,
+                auth_mode=MCPAuthScheme.OAUTH,
+                secret_id=other_project["secret_id"],
+                data=MCPEndpointData(
+                    route=MCPEndpointRoute(base_url="https://mcp.acme.com"),
+                ),
+            ),
+        )
+
+    refetched = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
+    assert refetched.secret_id is None
