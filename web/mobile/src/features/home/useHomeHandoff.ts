@@ -49,6 +49,11 @@ export const useHomeHandoff = (base: string) => {
             const {staged, parts} = stagedParts()
             stash({sessionId, task: {agentId, text, parts}})
             setStarting(true)
+            // Cleared BEFORE the navigation. The chat route seeds its own tray from the
+            // per-session store on mount, and `router.push` resolves only after that mount — a
+            // clear that waited for it landed on this unmounting hook, never reached the store,
+            // and the sent file stayed in the chat composer (#6777).
+            attachments.clearAttachments(staged.map((file) => file.uid))
             // A cancelled navigation RESOLVES false rather than throwing, so both outcomes have to
             // land here — the same hazard `useNewAgentAction` documents. Catching alone cleared the
             // attachments while the task sat unplayed in the stash.
@@ -57,13 +62,12 @@ export const useHomeHandoff = (base: string) => {
                 .catch(() => false)
             if (!navigated) {
                 // The chat route never mounted, so drop the stash — otherwise the task replays the
-                // next time this session id is opened. Attachments stay staged, still sendable.
+                // next time this session id is opened. The attachments go back, still sendable.
                 dropPendingTask(sessionId)
+                attachments.restoreAttachments(staged)
                 setStarting(false)
                 return
             }
-            // Cleared only once the destination is committed to.
-            attachments.clearAttachments(staged.map((file) => file.uid))
         },
         [attachments, base, dropPendingTask, router, sessionId, stagedParts, stash],
     )
@@ -71,6 +75,9 @@ export const useHomeHandoff = (base: string) => {
     const onCreateFromPrompt = useCallback(
         async ({text, templateName}: {text: string; templateName?: string}) => {
             const {staged, parts} = stagedParts()
+            // Same ordering as `onStartTask`: the create navigates to the chat route, which seeds
+            // its tray from the store on mount, so the rows must be gone before that.
+            attachments.clearAttachments(staged.map((file) => file.uid))
             const ok = await newAgent.createFromPrompt({
                 text,
                 sessionId,
@@ -79,14 +86,12 @@ export const useHomeHandoff = (base: string) => {
                 // own default to name it from the task.
                 name: templateName,
             })
-            if (ok) {
-                attachments.clearAttachments(staged.map((file) => file.uid))
-                return
-            }
+            if (ok) return
             // The same channel the chat composer uses for a send that did not land: docked above
             // the input, dismissable, and the draft is still there. Without it a failed create
             // just stopped spinning and said nothing. Generic on purpose: `newAgent.error` here
             // is this closure's copy from before the failure, and would always read null.
+            attachments.restoreAttachments(staged)
             attachments.setRejections([{name: "Agent", reason: "couldn't be created — try again."}])
         },
         [attachments, newAgent, sessionId, stagedParts],

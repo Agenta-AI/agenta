@@ -35,17 +35,18 @@ export const AgentComposer = ({
         const staged = attachments.files
         const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined
         stash({sessionId, task: {agentId, text, parts}})
+        // Cleared BEFORE the navigation — the chat route seeds its own tray from the per-session
+        // store on mount, which `router.push` resolves after (see [[useHomeHandoff]], #6777).
+        attachments.clearAttachments(staged.map((file) => file.uid))
         try {
             await router.push(`${base}/sessions/${sessionId}?agent=${agentId}`)
         } catch (error) {
             // The chat route never mounted, so drop the stash — otherwise the task replays the
-            // next time this session id is opened. Attachments stay staged, still sendable.
+            // next time this session id is opened. The attachments go back, still sendable.
             dropPendingTask(sessionId)
+            attachments.restoreAttachments(staged)
             console.error("[AgentComposer] could not open the session", error)
-            return
         }
-        // Cleared only once the destination is committed to.
-        attachments.clearAttachments(staged.map((file) => file.uid))
     }
 
     return (
