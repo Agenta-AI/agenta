@@ -105,23 +105,28 @@ app's hot-reload websocket fails through Traefik and the development client relo
 50 to 60 seconds, discarding every open form. **OR35** (no create control on the API keys page)
 reproduces on `main` and is tracked as issue #6803.
 
-### The security review, as of 2026-09-13
+### The security review, as of 2026-09-14
 
-The credential-boundary review recorded forty findings, OR36 to OR75. Six of them came from
-reviewing the repairs rather than the original code: OR70 to OR74, all five closed, and OR75, which
-is open. One finding, OR69, was withdrawn on 2026-09-13, so it counts as neither open nor closed and
-thirty-nine stand. Twenty-three are fixed and closed, and sixteen are open: OR48, OR49, OR51 to
-OR54, OR56, OR58, OR59, OR62, OR63, OR65 to OR68, and OR75.
+The credential-boundary review recorded forty-one findings, OR36 to OR76. Six of them came from
+reviewing the repairs rather than the original code: OR70 to OR75, all six closed. OR76 came from
+closing OR49: the usage repair meters every stream that reports usage, and one route still does not
+report it. One finding, OR69, was withdrawn on 2026-09-13, so it counts as neither open nor closed
+and forty stand. Thirty-four are fixed and closed, and six are open: OR63, OR65 to OR68, and OR76.
 
-No P0 remains. OR45 was the last one, and it is closed: the credential issuer at
-`POST /gateways/mcps/credentials/agenta` now requires the permission its credential is spent under,
-and bounds the tool list it signs instead of signing what the caller asked for. The highest severity
-open is P1, and OR75 is the only finding at it: the MCP relay reads neither the header block nor the
-body of an upstream response, so a server that returns the grant it was sent hands that grant to the
-caller, where the LLM relay refuses exactly that. Of the remaining fifteen, ten are correctness
-repairs and five are debt (OR63, OR65 to OR68). `open-reviews.md` carries the mechanism, the fix and
-the tests for each. The suites in the table above stayed green through every one of these defects,
-which is what OR65 records.
+No P0 and no P1 remain. OR45 was the last P0 and it is closed: the credential issuer at
+`POST /gateways/mcps/credentials/agenta` requires the permission its credential is spent under, and
+bounds the tool list it signs instead of signing what the caller asked for. OR75 was the last P1 and
+it is closed: all three MCP relays now scan the upstream's header block and buffered body for the
+credential they injected, and refuse with the envelope the LLM plane uses.
+
+The highest severity open is P2, and OR76 is the only finding carrying one: an OpenAI Chat
+Completions stream records no usage unless the caller itself sent `stream_options.include_usage`,
+while Responses and Messages streams meter on every call because both report usage unasked. Nothing
+prices usage yet, so this is a gap the metering work must settle rather than a defect with a
+consequence today. The other five open entries are debt, carry no severity, and are also tracked as
+CU15 to CU19 in `cleanups.md`. `open-reviews.md` carries the mechanism, the fix and the tests for
+each. The suites in the table above stayed green through every one of these defects, which is what
+OR65 records.
 
 ### Deployment flags
 
