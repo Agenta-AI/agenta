@@ -62,7 +62,12 @@ export const useAutomations = (search?: string) => {
             ...schedules.map((schedule) => toAutomation(schedule, "schedule")),
             ...subscriptions.map((subscription) => toAutomation(subscription, "event")),
         ]
-            .map((automation) => ({...automation, agentId: resolveAgentId(automation.agentId)}))
+            // A binding still resolving keeps its leaf id: the row is gated blank by `agentsReady`
+            // until the workflow id arrives, so the leaf id is never read as an agent.
+            .map((automation) => ({
+                ...automation,
+                agentId: resolveAgentId(automation.agentId) ?? automation.agentId,
+            }))
             .sort((a, b) => (b.raw.created_at ?? "").localeCompare(a.raw.created_at ?? ""))
 
         const term = search?.trim().toLowerCase()
@@ -89,7 +94,10 @@ export const useAutomations = (search?: string) => {
         agentNames,
         /** False until every row's agent can be named — a binding still resolving is not unknown. */
         agentsReady: !agentsQuery.isPending && !bindingsPending,
-        /** The workflow id behind a bound id; the id itself when it needs no lookup or has none. */
+        /**
+         * The workflow id behind a bound id; the id itself when it needs no lookup or resolves
+         * to nothing; null while its lookup is pending or failed — an id that cannot be trusted.
+         */
         resolveAgentId,
     }
 }
@@ -109,21 +117,24 @@ function useBoundAgentIds(schedules: TriggerSchedule[], subscriptions: TriggerSu
             const lookup = agentBindingLookup(trigger.data?.references)
             if (lookup) byId.set(lookup.id, lookup)
         }
-        return [...byId.values()]
+        return byId
     }, [schedules, subscriptions])
 
+    // `ids` holds only SETTLED lookups: a workflow id, or null for a binding that names nothing.
+    // A pending or failed lookup stays absent, so a transport error can never read as "this
+    // variant is the agent" — that leaf id would seed the editor's draft and be written back as
+    // the agent on the next Save.
     const resolvedAtom = useMemo(
         () =>
             atom((get) => {
                 const ids = new Map<string, string | null>()
                 let pending = false
-                for (const {kind, id} of lookups) {
+                for (const {kind, id} of lookups.values()) {
                     let revisionId: string | null = id
                     if (kind === "variant") {
-                        if (get(workflowRevisionsQueryAtomFamily(id)).isPending) {
-                            pending = true
-                            continue
-                        }
+                        const query = get(workflowRevisionsQueryAtomFamily(id))
+                        if (query.isPending) pending = true
+                        if (query.isPending || query.isError) continue
                         // Newest first; any revision of the variant names the same workflow.
                         revisionId = get(workflowRevisionRefsByVariantAtomFamily(id))[0]?.id ?? null
                         if (!revisionId) {
@@ -132,10 +143,8 @@ function useBoundAgentIds(schedules: TriggerSchedule[], subscriptions: TriggerSu
                         }
                     }
                     const revision = get(workflowQueryAtomFamily(revisionId))
-                    if (revision.isPending) {
-                        pending = true
-                        continue
-                    }
+                    if (revision.isPending) pending = true
+                    if (revision.isPending || revision.isError) continue
                     ids.set(id, revision.data?.workflow_id ?? null)
                 }
                 return {ids, pending}
@@ -145,8 +154,12 @@ function useBoundAgentIds(schedules: TriggerSchedule[], subscriptions: TriggerSu
     const resolved = useAtomValue(resolvedAtom)
 
     const resolveAgentId = useCallback(
-        (agentId: string | null) => (agentId && resolved.ids.get(agentId)) || agentId,
-        [resolved.ids],
+        (agentId: string | null): string | null => {
+            if (!agentId || !lookups.has(agentId)) return agentId
+            if (!resolved.ids.has(agentId)) return null
+            return resolved.ids.get(agentId) || agentId
+        },
+        [lookups, resolved.ids],
     )
 
     return {resolveAgentId, pending: resolved.pending}

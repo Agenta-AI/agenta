@@ -1,7 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {buildAutomationEdit} from "./automationEdit"
-import {agentLabel} from "./automationModel"
+import {agentBindingLookup, agentLabel} from "./automationModel"
 import {useAutomation} from "./useAutomation"
 import {useAutomationDraft} from "./useAutomationDraft"
 import {useAutomationRuns} from "./useAutomationRuns"
@@ -37,13 +37,17 @@ export const useAutomationEditor = (automationId: string | undefined) => {
         setActive,
     } = useAutomation(listed ? automationId : undefined, listed?.kind ?? "schedule")
     // The fetched row comes straight off the endpoint, so its binding is resolved here the way
-    // the list's was. Nothing is handed out until the agents can be named: the draft seeds its
+    // the list's was. Nothing is handed out until that binding has settled: the draft seeds its
     // baseline from this row, and a baseline that still holds a variant id would turn the next
-    // Save into a rebind to that variant once the real workflow id arrived underneath it.
+    // Save into a rebind to that variant once the real workflow id arrived underneath it. A
+    // failed lookup counts as unsettled too — it may recover on a refetch, with the same effect.
     const automation = useMemo(() => {
-        if (!agentsReady) return null
-        return fetched ? {...fetched, agentId: resolveAgentId(fetched.agentId)} : (listed ?? null)
-    }, [agentsReady, fetched, listed, resolveAgentId])
+        const row = fetched ?? listed ?? null
+        if (!row) return null
+        const bound = agentBindingLookup(row.raw.data?.references)
+        if (bound && resolveAgentId(bound.id) === null) return null
+        return fetched ? {...fetched, agentId: resolveAgentId(fetched.agentId)} : row
+    }, [fetched, listed, resolveAgentId])
 
     const draft = useAutomationDraft(automation, edit)
 
@@ -85,8 +89,9 @@ export const useAutomationEditor = (automationId: string | undefined) => {
         runHistoryCaption,
         failureReason,
         /** Neither the list nor the entity has it — the id is stale. */
-        missing: !automation && !listLoading && agentsReady,
-        loading: !automation && (listLoading || !agentsReady),
+        // A row that exists but whose binding has not settled is loading, not missing.
+        missing: !automation && !listLoading && !listed,
+        loading: !automation && (listLoading || !!listed),
         onRename,
         onToggle,
         ...draft,
