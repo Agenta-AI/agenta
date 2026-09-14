@@ -14,8 +14,10 @@ import {
 import {ClockCounterClockwise, DotsThreeVertical, Pause, Play, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
-import {useStartBlankSession} from "../chat/useStartBlankSession"
+import {useStartTaskSession} from "../chat/useStartTaskSession"
 import {useConfirmModal} from "../settings/useConfirmModal"
+
+import {testRunBlockedReason} from "./AutomationTestRunButton"
 
 /**
  * The automation's own actions — everything that acts on the row rather than on a field.
@@ -51,7 +53,7 @@ export const AutomationActionsMenu = ({
 }) => {
     const router = useRouter()
     const {remove, setActive} = useAutomation(automation.id, automation.kind)
-    const startSession = useStartBlankSession(base)
+    const startTask = useStartTaskSession(base)
     const {confirm, modal} = useConfirmModal()
 
     const onToggle = useCallback(async () => {
@@ -65,15 +67,17 @@ export const AutomationActionsMenu = ({
     }, [automation.id, automation.isActive, setActive])
 
     const onTestRun = useCallback(() => {
-        if (!automation.agentId) {
-            message.error("Pick the agent this automation runs first")
+        const instruction = getScheduleMessagePreview(automation.raw.data?.inputs_fields).trim()
+        // A menu item has no disabled-with-tooltip state, so the detail button's reasons surface
+        // as a toast instead.
+        const blocked = testRunBlockedReason({agentId: automation.agentId, instruction})
+        if (blocked || !automation.agentId) {
+            message.error(blocked)
             return
         }
-        // Unsent, like the detail screen's Test run: a rehearsal leaves the last press to the user.
-        startSession(automation.agentId, {
-            draft: getScheduleMessagePreview(automation.raw.data?.inputs_fields),
-        })
-    }, [automation.agentId, automation.raw.data?.inputs_fields, startSession])
+        // Sent on landing, like the detail screen's Test run.
+        void startTask(automation.agentId, instruction)
+    }, [automation.agentId, automation.raw.data?.inputs_fields, startTask])
 
     const onDelete = useCallback(() => {
         confirm({
