@@ -280,7 +280,14 @@ export const useComposerAttachments = ({
     /** Drop the attachments a send just carried, plus any rejection notice. */
     const clearAttachments = (consumedUids: string[]) => {
         // Only what this send carried: anything staged while it was in flight belongs to the next message.
-        setFiles((prev) => prev.filter((file) => !consumedUids.includes(file.uid)))
+        const keep = (file: StagedFile) => !consumedUids.includes(file.uid)
+        setFiles((prev) => prev.filter(keep))
+        // The store is also written here, not only by the sync effect: a hand-off navigates right
+        // after this call, and the destination composer seeds its tray from the store on mount.
+        const owner = filesOwnerRef.current
+        const remaining = files.filter(keep)
+        if (remaining.length > 0) attachmentsBySession.set(owner, remaining)
+        else attachmentsBySession.delete(owner)
         setRejections([])
     }
 

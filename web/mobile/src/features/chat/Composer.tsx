@@ -177,15 +177,22 @@ export const Composer = ({
             // `stagedFilesToParts` THROWS on a file whose upload hasn't settled — reachable via
             // Enter, which the send button's `sendDisabled` guard doesn't cover.
             const parts = outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
+            // The tray empties the moment the message leaves the composer, alongside the text
+            // the editor already cleared and the echo the transcript already shows. `onSend`
+            // resolves only once the run is admitted — seconds on a cold sandbox — and holding
+            // the chips until then read as "the attachment didn't go" (#6777).
+            attachments.clearAttachments(staged.map((file) => file.uid))
             if (policy === "steer" && onSteer) await onSteer({text, parts})
             else await onSend({text, parts})
             draft.clearDraft()
-            attachments.clearAttachments(staged.map((file) => file.uid))
         } catch {
             // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so an
             // uncaught rejection would leave the user with no message, no error, and no idea a
-            // send even failed. Keep the attachments staged, put the text back, and say so
-            // through the composer's own inline channel.
+            // send even failed. Put the attachments and the text back, and say so through the
+            // composer's own inline channel. `outbound`, not `staged`: a voice take never sat in
+            // the tray, and restoring it there is what makes it retryable. Idempotent: a throw
+            // before the clear leaves the tray as it was.
+            attachments.restoreAttachments(outbound)
             richInputRef.current?.setMarkdown(text)
             attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
         }
