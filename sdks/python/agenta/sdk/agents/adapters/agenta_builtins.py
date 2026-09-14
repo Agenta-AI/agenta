@@ -740,8 +740,8 @@ On a provider event:
 ## The canonical pattern
 
 Your agent reads its task from `inputs.messages` (the same shape `test_run` uses). Give every
-trigger an explicit imperative `messages` entry so the run starts from a command, not an empty
-context.
+trigger an explicit imperative `messages` entry containing only the task, not schedule/trigger
+metadata, timing checks, or skip-run guards. Configure when to run in the schedule or trigger settings.
 
 A schedule that runs a fixed job every fire:
 
