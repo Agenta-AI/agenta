@@ -34,6 +34,9 @@ PRIMARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, str]] = {
     "webhook_provider": ("provider", "key"),
     "sso_provider": ("provider", "client_secret"),
     "custom_secret": ("secret", "content"),
+    # A channel credential is the bot token; the signing secret beside it verifies inbound
+    # requests and is never the value a caller probes or previews.
+    "channel_secret": ("channel", "bot_token"),
 }
 
 

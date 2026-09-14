@@ -201,6 +201,7 @@ import {
 import { uploadToolMcpAssets, type ToolMcpAssets } from "./tool-mcp-assets.ts";
 import { prepareWorkspace } from "./workspace.ts";
 import { prepareEnvironmentSetup } from "./environment-setup.ts";
+import { wrapMockSandbox } from "./mock-session.ts";
 
 function log(message: string): void {
   process.stderr.write(`[sandbox-agent] ${message}\n`);
@@ -797,6 +798,10 @@ async function acquireEnvironmentOnce(
     );
     environment.sandbox = acquiredSandbox.sandbox;
     throwIfAcquireAborted(signal);
+    // "mock" runs in-process on the real sandbox: only createSession is replaced.
+    if (plan.acpAgent === "mock" && environment.sandbox) {
+      environment.sandbox = wrapMockSandbox(environment.sandbox, plan.isDaytona);
+    }
     environment.resumable = acquiredSandbox.resumable;
     // The sandbox is up and the reconnect ladder is done, so a "sandbox not found" from here on is
     // a real death rather than a proxy that has not caught up. See the latch above.
@@ -963,6 +968,7 @@ async function acquireEnvironmentOnce(
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              storeEndpoint,
               log: logger,
               signal,
             })) ?? undefined);
@@ -1035,6 +1041,7 @@ async function acquireEnvironmentOnce(
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              storeEndpoint,
               log: logger,
               signal,
             })) ?? undefined);

@@ -1,0 +1,148 @@
+from typing import Optional
+from uuid import UUID
+
+from oss.src.core.channels.dtos import ChannelPolicyLevel
+
+
+class ChannelsError(Exception):
+    """Base exception for the channels domain."""
+
+    def __init__(self, message: str = "Channels error"):
+        self.message = message
+        super().__init__(self.message)
+
+
+class ChannelNotSupported(ChannelsError):
+    """Raised when a channel key has no registered adapter."""
+
+    def __init__(self, *, channel: str):
+        self.channel = channel
+        super().__init__(f"Channel not supported: {channel}")
+
+
+class ChannelSpaceNotFound(ChannelsError):
+    def __init__(
+        self,
+        *,
+        space_id: Optional[UUID] = None,
+        external_key: Optional[UUID] = None,
+    ):
+        self.space_id = space_id
+        self.external_key = external_key
+        super().__init__(f"Channel space not found: {space_id or external_key}")
+
+
+class ChannelLocatorIncomplete(ChannelsError):
+    """A declared key field is missing from the locator. Raised rather than
+    composing over what is present, which would key a different conversation."""
+
+    def __init__(self, *, channel: str, grain: str, missing: str):
+        self.channel = channel
+        self.grain = grain
+        self.missing = missing
+        super().__init__(
+            f"Locator for {channel} is missing declared {grain} key field: {missing}"
+        )
+
+
+class ChannelConnectionKeyUndeclared(ChannelsError):
+    """A channel names no CONNECTION-grain key fields at all. Unlike THREAD,
+    there is no legitimate "no connection identity" case: a channel that
+    cannot be keyed at this grain cannot be routed to, and returning None
+    would resolve to no connection and refuse every event silently."""
+
+    def __init__(self, *, channel: str):
+        self.channel = channel
+        super().__init__(f"Channel {channel} declares no CONNECTION-grain key fields")
+
+
+class ChannelGrantRuleInvalid(ChannelsError):
+    """Raised when a grant edit would leave the row violating its own rule
+    (a DENY carrying is_default) that the create-time validator already
+    enforces at construction."""
+
+    def __init__(self, *, grant_id: UUID):
+        self.grant_id = grant_id
+        super().__init__(f"Invalid grant rule for grant {grant_id}")
+
+
+class ChannelAgentNotFound(ChannelsError):
+    def __init__(
+        self,
+        *,
+        agent_id: Optional[UUID] = None,
+        slug: Optional[str] = None,
+    ):
+        self.agent_id = agent_id
+        self.slug = slug
+        super().__init__(f"Channel agent not found: {agent_id or slug}")
+
+
+class ChannelAgentNotGranted(ChannelsError):
+    """Raised when an agent has grants, but none for this space."""
+
+    def __init__(self, *, agent_id: UUID, space_id: UUID):
+        self.agent_id = agent_id
+        self.space_id = space_id
+        super().__init__(f"Agent {agent_id} is not granted in space {space_id}")
+
+
+class ChannelThreadNotFound(ChannelsError):
+    def __init__(self, *, thread_id: UUID):
+        self.thread_id = thread_id
+        super().__init__(f"Channel thread not found: {thread_id}")
+
+
+class ChannelSignatureInvalid(ChannelsError):
+    """Raised when ingress HMAC verification fails. Carries no detail on purpose."""
+
+    def __init__(self, *, channel: str):
+        self.channel = channel
+        super().__init__(f"Invalid signature for channel: {channel}")
+
+
+class ChannelConnectionNotFound(ChannelsError):
+    def __init__(self, *, connection_id: UUID):
+        self.connection_id = connection_id
+        super().__init__(f"Connection not found: {connection_id}")
+
+
+class ChannelConnectionIncomplete(ChannelsError):
+    """Raised when a connection exists but lacks credentials it needs."""
+
+    def __init__(self, *, channel: str, field: str):
+        self.channel = channel
+        self.field = field
+        super().__init__(f"Connection for channel {channel} is missing: {field}")
+
+
+class ChannelConnectionIdentityConflict(ChannelsError):
+    """Raised when an install's composed identity already belongs to a
+    connection in a different project. An upsert never crosses tenants --
+    that would silently move an installation between projects rather than
+    refusing it."""
+
+    def __init__(self, *, channel: str):
+        self.channel = channel
+        super().__init__(
+            f"This {channel} installation is already connected to a different project"
+        )
+
+
+class ChannelConnectionVerificationFailed(ChannelsError):
+    """Raised by `verify_connection` when the platform rejects a credential.
+    Nothing is written on this path — surfaced as the platform said it,
+    since "invalid token" is a genuinely useful message rather than a leak."""
+
+    def __init__(self, *, channel: str, message: str):
+        self.channel = channel
+        super().__init__(message)
+
+
+class ChannelPolicyDenied(ChannelsError):
+    """Raised when the effective policy forbids what was asked."""
+
+    def __init__(self, *, field: str, level: ChannelPolicyLevel):
+        self.field = field
+        self.level = level
+        super().__init__(f"Denied by {level.value} policy: {field}")

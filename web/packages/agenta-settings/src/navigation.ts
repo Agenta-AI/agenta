@@ -5,6 +5,7 @@ export type SettingsTabKey =
     | "secrets"
     | "llms"
     | "tools"
+    | "channels"
     | "webhooks"
     | "workspace"
     | "projects"
@@ -72,6 +73,11 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         scope: "project",
         description: "Configure integrations your agents can use.",
         docs: {label: "About tools", href: `${DOCS_BASE}/concepts/tools-and-integrations`},
+    },
+    {
+        key: "channels",
+        scope: "project",
+        description: "Let agents answer in Slack and other messaging platforms.",
     },
     {
         key: "webhooks",
@@ -154,6 +160,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     // The tab key stays `llms` so existing `?tab=llms` links keep working.
     llms: "AI providers",
     tools: "Tools",
+    channels: "Channels",
     webhooks: "Webhooks",
     workspace: "Members",
     projects: "Projects",

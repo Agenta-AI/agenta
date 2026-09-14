@@ -48,6 +48,7 @@
         "@agenta/skills-ui": "workspace:../packages/agenta-skills-ui",
         "@agenta/ui": "workspace:../packages/agenta-ui",
         "@agenta/web-tests": "workspace:../tests",
+        "@agentaai/api-client": "workspace:../packages/agenta-api-client",
         "@agentaai/nextstepjs": "^2.1.3-agenta.1",
         "@ai-sdk/react": "3.0.0-beta.153",
         "@ant-design/colors": "^7.2.1",

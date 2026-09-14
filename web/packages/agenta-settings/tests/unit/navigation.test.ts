@@ -96,7 +96,14 @@ describe("settings sidebar scopes", () => {
         const keysForScope = (scope: (typeof SETTINGS_SCOPES)[number]["key"]) =>
             tabs.filter((tab) => tab.scope === scope).map(({key}) => key)
 
-        expect(keysForScope("project")).toEqual(["apiKeys", "secrets", "llms", "tools", "webhooks"])
+        expect(keysForScope("project")).toEqual([
+            "apiKeys",
+            "secrets",
+            "llms",
+            "tools",
+            "channels",
+            "webhooks",
+        ])
         expect(keysForScope("organization")).toEqual([
             "organizationGeneral",
             "workspace",

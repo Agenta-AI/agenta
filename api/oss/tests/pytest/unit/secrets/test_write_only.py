@@ -1104,6 +1104,7 @@ def test_primary_credential_fields_cover_every_secret_kind():
         "webhook_provider",
         "sso_provider",
         "custom_secret",
+        "channel_secret",
     }
     # A subscription keeps its credential on the data object, not in a nested container,
     # and it has no readable form at all: both fields are stripped whatever write_only says.

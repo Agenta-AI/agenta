@@ -175,6 +175,11 @@ class Permission(str, Enum):
     EDIT_MOUNTS = "edit_mounts"
     USE_MOUNTS = "use_mounts"
 
+    # Channels
+    VIEW_CHANNELS = "view_channels"
+    EDIT_CHANNELS = "edit_channels"
+    RUN_CHANNELS = "run_channels"
+
     @classmethod
     def default_permissions(cls, role):
         VIEWER_PERMISSIONS = [
@@ -201,6 +206,7 @@ class Permission(str, Enum):
             cls.VIEW_TOOLS,
             cls.VIEW_TRIGGERS,
             cls.VIEW_MOUNTS,
+            cls.VIEW_CHANNELS,
         ]
         ANNOTATOR_PERMISSIONS = VIEWER_PERMISSIONS + [
             cls.EDIT_ANNOTATIONS,
@@ -230,6 +236,8 @@ class Permission(str, Enum):
             cls.EDIT_INVOCATIONS,
             cls.EDIT_TOOLS,
             cls.EDIT_TRIGGERS,
+            cls.EDIT_CHANNELS,
+            cls.RUN_CHANNELS,
         ]
         DEVELOPER_PERMISSIONS = EDITOR_PERMISSIONS + [
             cls.VIEW_API_KEYS,
