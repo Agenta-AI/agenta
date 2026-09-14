@@ -237,6 +237,104 @@ async def _fresh_engine_per_test():
 
 
 @pytest.fixture
+async def other_project():
+    """A second tenant, with its own project and one bare `secrets` row.
+
+    `seeded_project` alone cannot express the case OR62 is about: a credential that
+    genuinely exists, so the `secret_id` foreign key is satisfied, and belongs to somebody
+    else. Same FK chain, same NULL `data` — nothing here is ever decrypted.
+    """
+    engine = get_transactions_engine()
+    user_id = uuid.uuid4()
+    organization_id = uuid.uuid4()
+    workspace_id = uuid.uuid4()
+    project_id = uuid.uuid4()
+    credential_id = uuid.uuid4()
+
+    async with engine.session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO users (id, uid, username, email) "
+                "VALUES (:id, :uid, :username, :email)"
+            ),
+            {
+                "id": user_id,
+                "uid": str(user_id),
+                "username": "gateways-dao-other",
+                "email": f"gateways-other-{user_id.hex[:8]}@example.com",
+            },
+        )
+        await session.execute(
+            text(
+                "INSERT INTO organizations (id, name, owner_id) "
+                "VALUES (:id, :name, :owner_id)"
+            ),
+            {"id": organization_id, "name": "gw-other-org", "owner_id": user_id},
+        )
+        await session.execute(
+            text(
+                "INSERT INTO workspaces (id, name, organization_id) "
+                "VALUES (:id, :name, :organization_id)"
+            ),
+            {
+                "id": workspace_id,
+                "name": "gw-other-ws",
+                "organization_id": organization_id,
+            },
+        )
+        await session.execute(
+            text(
+                "INSERT INTO projects "
+                "(id, project_name, workspace_id, organization_id) "
+                "VALUES (:id, :name, :workspace_id, :organization_id)"
+            ),
+            {
+                "id": project_id,
+                "name": "gw-other-project",
+                "workspace_id": workspace_id,
+                "organization_id": organization_id,
+            },
+        )
+        await session.execute(
+            text("INSERT INTO secrets (id, project_id) VALUES (:id, :project_id)"),
+            {"id": credential_id, "project_id": project_id},
+        )
+        await session.commit()
+
+    yield {
+        "project_id": project_id,
+        "user_id": user_id,
+        "secret_id": credential_id,
+    }
+
+    async with engine.session() as session:
+        await session.execute(
+            text("DELETE FROM llms_endpoints WHERE project_id = :project_id"),
+            {"project_id": project_id},
+        )
+        await session.execute(
+            text("DELETE FROM mcps_endpoints WHERE project_id = :project_id"),
+            {"project_id": project_id},
+        )
+        await session.execute(
+            text("DELETE FROM secrets WHERE project_id = :project_id"),
+            {"project_id": project_id},
+        )
+        await session.execute(
+            text("DELETE FROM projects WHERE id = :id"), {"id": project_id}
+        )
+        await session.execute(
+            text("DELETE FROM workspaces WHERE id = :id"), {"id": workspace_id}
+        )
+        await session.execute(
+            text("DELETE FROM organizations WHERE id = :id"),
+            {"id": organization_id},
+        )
+        await session.execute(text("DELETE FROM users WHERE id = :id"), {"id": user_id})
+        await session.commit()
+
+
+@pytest.fixture
 async def seeded_project():
     """Provision the FK chain (org -> workspace -> project) and one bare
     `secrets` row, so llms_endpoints.secret_id / mcps_endpoints.secret_id

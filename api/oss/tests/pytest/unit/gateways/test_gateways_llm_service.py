@@ -25,6 +25,7 @@ from oss.src.core.gateways.llms.interfaces import (
     LLMRelayResult,
     LLMUpstreamInterface,
 )
+from oss.src.core.gateways.llms.catalog import standard_llm_endpoint
 from oss.src.core.gateways.llms.registrar import map_custom_provider_secret_to_endpoint
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
@@ -36,6 +37,8 @@ from oss.src.core.gateways.llms.types import (
     LLMRoutingFieldNotAllowedError,
 )
 from oss.src.core.gateways.policy.dtos import (
+    BoundSecretRef,
+    ProviderKeyRef,
     SecretMode,
     SecretOwner,
     SecretOwnerKind,
@@ -44,7 +47,10 @@ from oss.src.core.gateways.policy.dtos import (
     ResolvedSecret,
     SecretOrigin,
 )
-from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
+from oss.src.core.gateways.policy.interfaces import (
+    NamedProviderConnection,
+    SecretsResolverInterface,
+)
 from oss.src.core.gateways.policy.types import CeilingExceededError, PolicyDeniedError
 from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
@@ -144,9 +150,11 @@ class _MockResolver(SecretsResolverInterface):
         *,
         provider_keys: Optional[Set[str]] = None,
         secret: Optional[ResolvedSecret] = None,
+        connections: Optional[Dict[str, NamedProviderConnection]] = None,
     ):
         self.provider_keys = provider_keys or set()
         self.secret = secret
+        self.connections = connections or {}
         self.resolve_calls: List[tuple] = []
 
     async def resolve(self, *, scope, ref, mode):
@@ -156,6 +164,9 @@ class _MockResolver(SecretsResolverInterface):
 
     async def available_provider_keys(self, *, scope) -> Set[str]:
         return self.provider_keys
+
+    async def provider_connection_by_slug(self, *, scope, slug):
+        return self.connections.get(slug)
 
 
 class _MockPolicy:
@@ -393,6 +404,135 @@ async def test_resolve_agent_connection_of_a_provider_less_endpoint_accepts_a_re
     )
 
     assert resolved.provider_key == "openai"
+
+
+# --- OR53: a standard connection is selectable by its slug ------------------ #
+
+
+def _named_openai_connection() -> NamedProviderConnection:
+    """One of the project's several OpenAI connections, as the resolver names it."""
+    return NamedProviderConnection(secret_id=uuid4(), provider_key="openai")
+
+
+def _first_standard_model(provider_key: str) -> str:
+    """A model the generated endpoint for this provider admits."""
+    endpoint = standard_llm_endpoint(provider_key=provider_key)
+    assert endpoint is not None
+    return endpoint.data.models.allowlist[0]
+
+
+@pytest.mark.asyncio
+async def test_resolve_agent_connection_finds_a_standard_connection_by_its_slug():
+    """OR53: `custom/my-openai-key` was not found, because a slug only ever meant a row.
+
+    The frontend keeps a standard connection's slug and the SDK sends it as
+    `connection_slug`, so a slug naming a provider-key connection has to reach that
+    connection instead of failing as a custom endpoint nobody ever registered.
+    """
+    connection = _named_openai_connection()
+    resolver = _MockResolver(connections={"my-openai-key": connection})
+
+    resolved = await _service(resolver=resolver).resolve_agent_connection(
+        scope=_scope(),
+        model="gpt-4o",
+        provider_key=None,
+        connection_slug="my-openai-key",
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.STANDARD
+    assert resolved.name == "my-openai-key"
+    assert resolved.provider_key == "openai"
+    # Route metadata only: naming the connection must not read its credential.
+    assert resolver.resolve_calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_custom_endpoint_row_still_owns_the_slug_it_is_stored_under():
+    """The stored namespaces are asked first, so nothing that resolves today moves."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(slug="acme")
+    resolver = _MockResolver(connections={"acme": _named_openai_connection()})
+
+    resolved = await _service(dao=dao, resolver=resolver).resolve_agent_connection(
+        scope=_scope(), model="gpt-4o", provider_key=None, connection_slug="acme"
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.CUSTOM
+
+
+@pytest.mark.asyncio
+async def test_relaying_through_a_named_standard_connection_uses_that_connection():
+    """The explicit choice survives to the vault read, which is the point of naming it.
+
+    Resolution by provider family takes the first matching key in the project, so a project
+    holding two OpenAI keys gets whichever comes back first. A named connection is bound to
+    its own secret instead.
+    """
+    connection = _named_openai_connection()
+    resolver = _MockResolver(
+        secret=_secret(), connections={"my-openai-key": connection}
+    )
+    adapter = _MockAdapter(
+        result=LLMRelayResult(
+            status_code=200, headers={}, body=_one_chunk_body(b'{"ok": true}')
+        )
+    )
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+
+    body = json.dumps(
+        {"model": _first_standard_model("openai"), "messages": []}
+    ).encode()
+    await _service(resolver=resolver, registry=registry).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.STANDARD,
+        name="my-openai-key",
+        body=body,
+        headers={},
+    )
+
+    assert len(resolver.resolve_calls) == 1
+    ref = resolver.resolve_calls[0][1]
+    assert isinstance(ref, BoundSecretRef)
+    assert ref.secret_id == connection.secret_id
+
+
+@pytest.mark.asyncio
+async def test_relaying_through_a_provider_family_still_scans_for_a_key():
+    """The unnamed route is unchanged: no connection is named, so the family is the ref."""
+    resolver = _MockResolver(secret=_secret())
+    adapter = _MockAdapter(
+        result=LLMRelayResult(
+            status_code=200, headers={}, body=_one_chunk_body(b'{"ok": true}')
+        )
+    )
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+
+    body = json.dumps(
+        {"model": _first_standard_model("openai"), "messages": []}
+    ).encode()
+    await _service(resolver=resolver, registry=registry).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.STANDARD,
+        name="openai",
+        body=body,
+        headers={},
+    )
+
+    assert isinstance(resolver.resolve_calls[0][1], ProviderKeyRef)
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_slug_still_fails_as_a_custom_endpoint():
+    """The familiar refusal survives: a slug naming nothing is still `custom/<slug>`."""
+    with pytest.raises(LLMEndpointNotFoundError) as raised:
+        await _service().resolve_agent_connection(
+            scope=_scope(),
+            model="gpt-4o",
+            provider_key=None,
+            connection_slug="nothing-here",
+        )
+
+    assert "custom/nothing-here" in raised.value.message
 
 
 @pytest.mark.asyncio

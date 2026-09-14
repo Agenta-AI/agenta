@@ -205,9 +205,12 @@ def test_policy_exceptions():
     assert ceiling.requested == 8192
 
 
-def test_secret_resolver_interface_is_abstract_with_two_methods():
+def test_secret_resolver_interface_is_abstract_with_three_methods():
+    # `provider_connection_by_slug` joined the two originals when a standard connection
+    # became addressable by its own slug (OR53): the slug names a stored secret, so only
+    # the resolver can say which connection it is and which provider family it speaks.
     assert SecretsResolverInterface.__abstractmethods__ == frozenset(
-        {"resolve", "available_provider_keys"}
+        {"resolve", "available_provider_keys", "provider_connection_by_slug"}
     )
     with pytest.raises(TypeError):
         SecretsResolverInterface()

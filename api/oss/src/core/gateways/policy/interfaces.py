@@ -1,7 +1,10 @@
 """Interface for resolving gateway secrets."""
 
 from abc import ABC, abstractmethod
-from typing import Set
+from typing import Optional, Set
+from uuid import UUID
+
+from pydantic import BaseModel
 
 from oss.src.core.gateways.policy.dtos import (
     SecretMode,
@@ -9,6 +12,17 @@ from oss.src.core.gateways.policy.dtos import (
     ResolvedSecret,
 )
 from oss.src.utils.context import AuthScope
+
+
+class NamedProviderConnection(BaseModel):
+    """Which stored connection a slug names, and which provider family it speaks.
+
+    Names only, never a value: the pair is what a route is built from, and it travels
+    where `ResolvedSecret` must not (the resolve endpoint answers with route metadata
+    while the credential stays in the API process)."""
+
+    secret_id: UUID
+    provider_key: str
 
 
 class SecretsResolverInterface(ABC):
@@ -59,4 +73,19 @@ class SecretsResolverInterface(ABC):
         when nothing matches: the empty set is the correct answer for a project
         with no keys, whereas a caller reaching resolve() has already committed
         to needing one."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def provider_connection_by_slug(
+        self, *, scope: AuthScope, slug: str
+    ) -> Optional[NamedProviderConnection]:
+        """The project's provider-key connection stored under this slug, or None.
+
+        A project may hold several keys for one provider, so the provider family alone
+        does not say which credential a caller chose; the slug does (OR53). The same
+        names-only contract as available_provider_keys(): it answers which secret and
+        which provider family, and never reads the credential.
+
+        `provider_key` secrets only. A `custom_provider` connection is addressed by the
+        endpoint row the vault registers for it, which is a different namespace."""
         raise NotImplementedError

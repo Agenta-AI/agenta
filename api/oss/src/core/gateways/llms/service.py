@@ -7,6 +7,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.gateways.cleanup import run_shielded
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.catalog import (
     builtin_llm_endpoint,
@@ -87,10 +88,14 @@ class _ResolvedLlmTarget:
         )
 
     def secret_ref(self) -> Optional[SecretRef]:
-        if self.namespace == GatewayEndpointNamespace.STANDARD:
-            return ProviderKeyRef(provider_key=self.provider_key)
+        # A named secret wins over the provider scan, on every namespace. A standard
+        # target carries one only when the caller named the connection by slug (OR53),
+        # and the whole point of naming it is that the scan — first match for the
+        # provider family — is not what the caller asked for.
         if self.secret_id is not None:
             return BoundSecretRef(secret_id=self.secret_id)
+        if self.namespace == GatewayEndpointNamespace.STANDARD:
+            return ProviderKeyRef(provider_key=self.provider_key)
         # Custom endpoints without a secret require no secret resolution.
         return None
 
@@ -292,27 +297,15 @@ class LLMGatewayService:
         field, so the invariant no construction path can dodge is still enforced underneath.
         """
         if connection_slug:
-            custom = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
-                project_id=scope.project_id, slug=connection_slug
-            )
-            if custom is not None:
-                namespace = GatewayEndpointNamespace.CUSTOM
-                name = connection_slug
-            elif builtin_llm_endpoint(provider_key=connection_slug) is not None:
-                namespace = GatewayEndpointNamespace.BUILTIN
-                name = connection_slug
-            else:
-                namespace = GatewayEndpointNamespace.CUSTOM
-                name = connection_slug
+            namespace = await self._namespace_of_slug(scope=scope, slug=connection_slug)
+            name = connection_slug
         elif provider_key:
             namespace = GatewayEndpointNamespace.STANDARD
             name = provider_key
         else:
             raise LLMConnectionProviderRequiredError()
 
-        target = await self._resolve_target(
-            project_id=scope.project_id, namespace=namespace, name=name
-        )
+        target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
         self._check_active(target=target)
         resolved_provider = target.provider_key or provider_key
         if not resolved_provider:
@@ -341,9 +334,7 @@ class LLMGatewayService:
     ) -> List[str]:
         """Backs `GET /v1/models` (R3): the allowlist itself, per endpoint. No secret
         resolved, no upstream called."""
-        target = await self._resolve_target(
-            project_id=scope.project_id, namespace=namespace, name=name
-        )
+        target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
         self._check_active(target=target)
 
         decision = await self.policy.authorize(
@@ -376,9 +367,7 @@ class LLMGatewayService:
         protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS,
     ) -> LLMRelayResult:
         """Relay one request for the specified protocol."""
-        target = await self._resolve_target(
-            project_id=scope.project_id, namespace=namespace, name=name
-        )
+        target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
         self._check_active(target=target)
         context = _parse_call_context(body, protocol)
         payload = _json_object(body)
@@ -481,13 +470,71 @@ class LLMGatewayService:
 
     # --- internals ------------------------------------------------------------ #
 
+    async def _namespace_of_slug(
+        self, *, scope: AuthScope, slug: str
+    ) -> GatewayEndpointNamespace:
+        """Which of the three namespaces a `connection_slug` names (OR53).
+
+        The two stored namespaces are asked first, in the order that keeps today's answers:
+        a custom endpoint row owns its slug, then a builtin provider. A standard connection
+        is reached last, and it is reached: `standard` is not only the provider families —
+        a project may hold several keys for one family, and the slug of the one the caller
+        chose names it. Anything else stays a custom miss, so an unknown slug still fails as
+        `custom/<slug>`, which is the message the operator already knows.
+        """
+        custom = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
+            project_id=scope.project_id, slug=slug
+        )
+        if custom is not None:
+            return GatewayEndpointNamespace.CUSTOM
+
+        if builtin_llm_endpoint(provider_key=slug) is not None:
+            return GatewayEndpointNamespace.BUILTIN
+
+        if await self._standard_connection(scope=scope, name=slug) is not None:
+            return GatewayEndpointNamespace.STANDARD
+
+        return GatewayEndpointNamespace.CUSTOM
+
+    async def _standard_connection(
+        self, *, scope: AuthScope, name: str
+    ) -> Optional[Tuple[LLMEndpoint, Optional[UUID]]]:
+        """The standard endpoint `name` addresses, with the secret it pins, or None.
+
+        Two spellings reach the same generated endpoint, and the difference between them is
+        the whole of OR53. A provider family (`openai`) leaves the credential to the
+        provider scan, which is how every standard route has always resolved. The slug of a
+        `provider_key` connection pins that connection's own secret instead, so a project
+        holding two OpenAI keys can route through the one it named rather than whichever the
+        scan returns first. A connection created before connections were slugged has no slug
+        and is still addressed by its family, unchanged.
+        """
+        endpoint = standard_llm_endpoint(provider_key=name)
+        if endpoint is not None:
+            return endpoint, None
+
+        connection = await self.resolver.provider_connection_by_slug(
+            scope=scope, slug=name
+        )
+        if connection is None:
+            return None
+
+        endpoint = standard_llm_endpoint(provider_key=connection.provider_key)
+        if endpoint is None:
+            return None
+
+        return endpoint, connection.secret_id
+
     async def _resolve_target(
-        self, *, project_id: UUID, namespace: GatewayEndpointNamespace, name: str
+        self, *, scope: AuthScope, namespace: GatewayEndpointNamespace, name: str
     ) -> _ResolvedLlmTarget:
+        project_id = scope.project_id
+
         if namespace == GatewayEndpointNamespace.STANDARD:
-            endpoint = standard_llm_endpoint(provider_key=name)
-            if endpoint is None:
+            standard = await self._standard_connection(scope=scope, name=name)
+            if standard is None:
                 raise LLMEndpointNotFoundError(namespace=namespace, name=name)
+            endpoint, pinned = standard
             return _ResolvedLlmTarget(
                 namespace=GatewayEndpointNamespace.STANDARD,
                 name=name,
@@ -496,6 +543,7 @@ class LLMGatewayService:
                 models=endpoint.data.models,
                 route_data=endpoint.data.route,
                 settings=endpoint.data.settings,
+                secret_id=pinned,
             )
 
         if namespace == GatewayEndpointNamespace.CUSTOM:
@@ -666,12 +714,15 @@ class LLMGatewayService:
         finally:
             # In a `finally` for the same reason the streaming drain is: a body that failed
             # part-way is still a call that happened, and it records whatever usage the
-            # adapter had reached.
-            await self.policy.record(
-                scope=scope,
-                target=target,
-                decision=decision,
-                outcome=self._outcome_from(result=result, secret=secret),
+            # adapter had reached. Shielded for the reason given on the streaming drain
+            # below (OR48).
+            await run_shielded(
+                self.policy.record(
+                    scope=scope,
+                    target=target,
+                    decision=decision,
+                    outcome=self._outcome_from(result=result, secret=secret),
+                )
             )
         return _replay_body(b"".join(chunks))
 
@@ -691,9 +742,15 @@ class LLMGatewayService:
         finally:
             # Fires on natural exhaustion and on a mid-stream break alike — usage is
             # whatever the adapter had populated by then, None if the crash pre-dated it.
-            await self.policy.record(
-                scope=scope,
-                target=target,
-                decision=decision,
-                outcome=self._outcome_from(result=result, secret=secret),
+            # A mid-stream break is usually a client disconnect, which reaches this
+            # `finally` as a cancellation of the whole task: a bare `await` here would
+            # raise before the record was made and the call would leave no trace at all
+            # (OR48). Shielded, the record completes and the cancellation still propagates.
+            await run_shielded(
+                self.policy.record(
+                    scope=scope,
+                    target=target,
+                    decision=decision,
+                    outcome=self._outcome_from(result=result, secret=secret),
+                )
             )
