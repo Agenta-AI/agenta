@@ -186,11 +186,15 @@ export {
     type AvatarShape,
 } from "./avatar"
 export {
-    EmptyState,
-    emptyStateVariants,
-    emptyImageVariants,
-    type EmptyStateProps,
-} from "./empty-state"
+    Empty,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+    EmptyDescription,
+    EmptyContent,
+    emptyMediaVariants,
+} from "./empty"
+export {EmptyState, type EmptyStateProps} from "./empty-state"
 export {Label} from "./label"
 export {Field, fieldLabelVariants, type FieldProps} from "./field"
 export {
