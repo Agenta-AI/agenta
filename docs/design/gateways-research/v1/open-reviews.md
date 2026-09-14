@@ -185,12 +185,18 @@ before repeating the experiment. Adding `stream_options.include_usage` to a requ
 carry it was tried and backed out: it breaks byte-preserving relay on that path, it re-chunks the
 response, and it risks a `400` from upstreams that reject unknown fields.
 
-Closure: a streamed Chat Completions call records the same usage fields the Responses and Messages
-paths record, or the metering work states in its own text why that route is exempt and what it
-costs. Proven by a case beside
-`api/oss/tests/pytest/unit/gateways/test_gateways_llm_nonstreaming_drain.py` driving a streamed
-Chat Completions response whose request omits `stream_options` and asserting the recorded usage
-matches the upstream's own totals.
+Closure: the caller sets the field, not the relay. Every gateway-routed Chat Completions request
+that a harness issues carries `stream_options.include_usage` because the connection path put it
+there, so the stream arrives carrying usage and the relay keeps passing bytes through untouched.
+That means the Pi extension, the Codex configuration and the Claude harness each set it on the
+requests they build, and each is verified separately, because they construct their requests in
+three different places and a fix in one proves nothing about the others. Proven per harness by a
+case asserting the outbound request carries the field, plus a streamed cell in
+`services/oss/tests/pytest/acceptance/test_agent_gateway_route.py` asserting the recorded usage
+matches the upstream's own totals for that harness.
+
+The relay stays out of it. Nothing in `providers/passthrough/adapter.py` should add the field, and
+a future reader who reaches for that shortcut should read the OR49 record first.
 
 ## Closed review record
 
