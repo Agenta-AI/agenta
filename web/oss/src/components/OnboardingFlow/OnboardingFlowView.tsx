@@ -57,7 +57,7 @@ export default function OnboardingFlowView({
         "Pick a starting point. You can change everything later.",
     ][step]
     const move = (next: number) => {
-        onStep(step, {role, source})
+        if (next > step) onStep(step, {role, source})
         setStep(next)
     }
     const choiceClass = (active: boolean) =>

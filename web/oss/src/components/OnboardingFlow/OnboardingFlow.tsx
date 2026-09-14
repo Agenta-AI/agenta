@@ -76,7 +76,7 @@ export default function OnboardingFlow() {
                 }}
                 onStep={(step, answers) =>
                     posthog?.capture("onboarding_step_completed", {
-                        variant,
+                        ...(enrolled ? {variant} : {}),
                         step,
                         $set: {user_role_v2: answers.role, referral_source_v2: answers.source},
                     })

@@ -108,6 +108,25 @@ describe("first agent onboarding", () => {
             true,
         )
     })
+    it("does not record a completed step when going back", () => {
+        const onStep = vi.fn()
+        render(
+            <OnboardingFlowView
+                variant="control"
+                tools={null}
+                model={null}
+                modelReady
+                committing={false}
+                onCreate={vi.fn()}
+                onStep={onStep}
+            />,
+        )
+        fireEvent.click(screen.getByRole("button", {name: "Engineering"}))
+        fireEvent.click(screen.getByRole("button", {name: "Next"}))
+        expect(onStep).toHaveBeenCalledOnce()
+        fireEvent.click(screen.getByRole("button", {name: "Back"}))
+        expect(onStep).toHaveBeenCalledOnce()
+    })
     it("rejects blank input and trims custom tasks", () => {
         expect(firstAgentInput("control", " ", "do this", null)).toBeNull()
         expect(firstAgentInput("task-first", "", "  ", null)).toBeNull()

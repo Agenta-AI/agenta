@@ -9,6 +9,7 @@ import {
 } from "@agenta/entities/gatewayTool"
 import {ConnectDrawer} from "@agenta/entity-ui/gatewayTool"
 import {Button, Input, Spin} from "antd"
+import Image from "next/image"
 
 export default function ConnectToolsStep() {
     const catalog = useToolCatalogIntegrations()
@@ -42,7 +43,7 @@ export default function ConnectToolsStep() {
             {!catalog.isLoading && !catalog.error && catalog.integrations.length === 0 && (
                 <p>No apps found.</p>
             )}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+            <div className="grid max-h-[360px] grid-cols-1 gap-3 overflow-auto pr-1 sm:grid-cols-2 md:grid-cols-3">
                 {catalog.integrations.map((integration) => {
                     const connected = connections.some(
                         (connection) =>
@@ -58,7 +59,18 @@ export default function ConnectToolsStep() {
                             onClick={() => setSelected(integration)}
                             className="flex items-center justify-between gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer p-4 text-left hover:bg-colorFillQuaternary disabled:cursor-default"
                         >
-                            <span className="font-medium">{integration.name}</span>
+                            <span className="flex items-center gap-2 font-medium">
+                                {integration.logo && (
+                                    <Image
+                                        src={integration.logo}
+                                        alt=""
+                                        width={24}
+                                        height={24}
+                                        unoptimized
+                                    />
+                                )}
+                                {integration.name}
+                            </span>
                             <span
                                 className={`text-xs ${connected ? "text-colorSuccess" : "text-colorTextSecondary"}`}
                             >
