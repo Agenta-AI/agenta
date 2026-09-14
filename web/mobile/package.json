@@ -1,6 +1,6 @@
 {
     "name": "@agenta/mobile",
-    "version": "0.118.0",
+    "version": "0.118.1",
     "private": true,
     "engines": {
         "node": "24.x"
@@ -56,7 +56,7 @@
         "jotai-tanstack-query": "^0.11.0",
         "lucide-react": "^0.479.0",
         "motion": "^12.0.0",
-        "next": "16.3.1",
+        "next": "16.3.3",
         "radix-ui": "^1.6.2",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",

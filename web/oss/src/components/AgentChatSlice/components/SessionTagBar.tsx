@@ -107,7 +107,7 @@ interface SessionTagProps {
     // would change identity every render and drag each chip's Tooltip/Button subtree with them.
     onSelect: (id: string) => void
     onClose: (id: string) => void
-    onRename: (id: string, title: string) => void
+    onRename: (id: string, title: string) => void | boolean | Promise<boolean | void>
     /** Right-click actions, from the shared `useSessionActions` set. */
     menu: {items: SessionMenuItem[]; onClick: MenuSelect}
 }
@@ -263,7 +263,7 @@ export interface SessionTagBarProps {
     onClose: (id: string) => void
     /** Bulk closes from a tab's context menu ("Close other tabs" / "Close tabs to the right"). */
     onCloseMany?: (ids: string[]) => void
-    onRename: (id: string, title: string) => void
+    onRename: (id: string, title: string) => void | boolean | Promise<boolean | void>
     /** Right-aligned extras (e.g. the session-history menu). */
     extra?: React.ReactNode
     /** Left-aligned extra (the config-panel reveal control) — rendered at the strip's leading
