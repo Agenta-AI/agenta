@@ -73,6 +73,39 @@ export interface ToolActivity {
 }
 
 /**
+ * The closed set of activity-step glyphs. Chosen from the resolved `ToolKind` and the canonical
+ * tool name, never per raw tool: a new tool inherits its kind's glyph, and a new glyph starts as a
+ * new member here. Rendering maps each token to one icon.
+ */
+export type ActivityIcon =
+    | "brain"
+    | "terminal"
+    | "file-read"
+    | "file-write"
+    | "file-list"
+    | "file-search"
+    | "web-search"
+    | "web-fetch"
+    | "subtask"
+    | "task-list"
+    | "commit"
+    | "config"
+    | "rename"
+    | "test"
+    | "schedule"
+    | "trigger"
+    | "runs"
+    | "annotation"
+    | "deliveries"
+    | "tool-search"
+    | "connections"
+    | "gateway"
+    | "mcp"
+    | "platform"
+    | "ask"
+    | "connect"
+
+/**
  * One toolDisplay registry entry — mirrors the *registration-time* shape OSS actually stores in its
  * `BY_TOOL_NAME` map (`toolDisplay.ts`'s unexported `ToolDisplayOverride`: `{label?; source?;
  * summary?}`), generalized with an optional `kind` override since a skin registration is not
@@ -95,6 +128,11 @@ export interface ToolDisplayEntry {
     app?: (input: unknown, output: unknown) => {slug?: string; action?: string}
     /** Friendly one-liner for a settled row; null/absent falls back to the generic summary. */
     summary?: (input: unknown, output: unknown) => string | null
+    /** The verb forms a static `activity` opens with ("Reading" / "Read"), so a row can bold what
+     * follows. Conjugated sentences carry theirs automatically. */
+    verb?: ToolActivity
+    /** The step glyph; overrides the kind's default. */
+    icon?: ActivityIcon
 }
 
 /**
@@ -113,6 +151,11 @@ export interface ResolvedToolDisplay {
     /** Short technical detail for the row's secondary slot (a command, a filename). */
     detail?: string
     summary?: (input: unknown, output: unknown) => string | null
+    /** The verb alone, in both tenses, when the sentence was built from one ("Read" of "Read a
+     * file"). A row bolds whatever follows it. */
+    verb?: ToolActivity
+    /** The step glyph, from the override or the kind's default. */
+    icon: ActivityIcon
 }
 
 /**
@@ -132,4 +175,7 @@ export interface ChatSkinRegistration {
     approvals?: Record<string, ApprovalDescriber>
     /** Raw tool name → display override (mirrors OSS `BY_TOOL_NAME`). */
     toolDisplay?: Record<string, ToolDisplayEntry>
+    /** Integration slugs the agent is connected to. A bare tool name that carries one of them as a
+     * word (`list-devto-articles`) is read as that app's tool, so it wears the app's logo. */
+    appHints?: string[]
 }

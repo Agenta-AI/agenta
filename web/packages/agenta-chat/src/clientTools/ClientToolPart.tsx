@@ -31,12 +31,15 @@ const ClientToolPart = ({
     onOutput,
     renderMap,
     degradedEarlierInTurn,
+    bare,
 }: {
     part: ToolUIPart
     onOutput: ClientToolOutputHandler
     renderMap?: Map<string, RenderHintLike>
     /** Retry cap: an earlier part in this turn already auto-settled as an elicitation degradation. */
     degradedEarlierInTurn?: boolean
+    /** See `ClientToolWidgetProps.bare`. */
+    bare?: boolean
 }) => {
     const meta = clientToolMeta(part, renderMap)
     // The handler is a STABLE module-level component picked from the registry (not created during
@@ -71,7 +74,7 @@ const ClientToolPart = ({
 
     return (
         <div data-client-tool-call-id={meta.toolCallId}>
-            {createElement(handler, {meta, settle, degradedEarlierInTurn, askerLabel})}
+            {createElement(handler, {meta, settle, degradedEarlierInTurn, askerLabel, bare})}
         </div>
     )
 }

@@ -115,6 +115,9 @@ export interface ClientToolWidgetProps {
     /** An earlier part in this turn already auto-settled as a degradation; the widget should park
      * (visible notice, no auto-settle) instead of looping. */
     degradedEarlierInTurn?: boolean
+    /** The host draws the tool's own mark beside the row (a timeline node), so the widget renders
+     * its sentence without an icon of its own, in the host's row type. */
+    bare?: boolean
 }
 
 /**
