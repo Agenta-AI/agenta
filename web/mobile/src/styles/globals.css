@@ -280,7 +280,6 @@
     --animate-accordion-down: accordion-down 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
     --animate-accordion-up: accordion-up 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
     --animate-skeleton: skeleton 1.4s ease infinite;
-    --animate-spin-move: spin-move 1s linear infinite alternate;
     --animate-config-shimmer: config-shimmer 1.8s ease-in-out 2 forwards;
     /* Home's create-mode ring. The component lives in @agenta/home-ui, which ships no CSS. */
     --animate-composer-ring: composer-ring-spin 3s linear infinite;
@@ -413,11 +412,6 @@
     }
     100% {
         background-position: 0 50%;
-    }
-}
-@keyframes spin-move {
-    to {
-        opacity: 1;
     }
 }
 @keyframes config-shimmer {
