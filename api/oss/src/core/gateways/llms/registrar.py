@@ -5,11 +5,12 @@ routable endpoint under the same slug the SDK sends as `connection_slug`. It wor
 `LLMEndpointsDAOInterface` alone, which depends on nothing in secrets.
 """
 
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.gateways.llms.dtos import (
     LLMDeploymentKind,
+    LLMEndpoint,
     LLMEndpointCreate,
     LLMEndpointData,
     LLMEndpointEdit,
@@ -48,6 +49,57 @@ def custom_provider_deployment_kind(
 ) -> LLMDeploymentKind:
     """The deployment an endpoint of this custom-provider kind is reached through."""
     return CUSTOM_PROVIDER_DEPLOYMENT_KINDS.get(kind, LLMDeploymentKind.CUSTOM)
+
+
+# The vault's own names for the cloud deployments' routing configuration, which live in the
+# secret's `provider.extras` beside its credentials. Both are classified as configuration,
+# not credential material (`agenta.sdk.agents.connections.credentials.CONFIG_EXTRAS_KEYS`),
+# which is what makes them safe to copy onto a route anyone who can read the endpoint reads.
+# Nothing else from `extras` is copied: the rest of that dict is the credential.
+SECRET_REGION_EXTRAS_KEYS = ("aws_region_name", "vertex_ai_location")
+SECRET_VERTEX_PROJECT_EXTRAS_KEY = "vertex_ai_project"
+
+# The route's own name for the Vertex project. The two sides spell it differently, so the
+# translation happens here rather than at the two read sites:
+# `providers/passthrough/routing.py::_vertex_base_prefix` and
+# `providers/passthrough/auth.py::_vertex_auth` both read `route.extras["vertex_project"]`.
+ROUTE_VERTEX_PROJECT_KEY = "vertex_project"
+
+
+def _provider_extras(data: SecretDataDTO) -> Dict[str, Any]:
+    provider = getattr(data, "provider", None)
+    return getattr(provider, "extras", None) or {}
+
+
+def custom_provider_route_region(data: SecretDataDTO) -> Optional[str]:
+    """The cloud region the endpoint is reached in, under whichever name the secret uses.
+
+    Bedrock and SageMaker store an AWS region; Vertex stores a GCP location, which is the
+    same field on the route. Bedrock accepts either a base URL or a region
+    (`routing.py::_bedrock_url`), so a region-only configuration is a complete one and
+    dropping the region here is what made it unroutable.
+    """
+    extras = _provider_extras(data)
+
+    for key in SECRET_REGION_EXTRAS_KEYS:
+        region = str(extras.get(key) or "").strip()
+        if region:
+            return region
+
+    return None
+
+
+def custom_provider_route_extras(data: SecretDataDTO) -> Optional[Dict[str, Any]]:
+    """The non-secret route fields that have no column of their own.
+
+    Only the Vertex project, and only under the name the route reads it by. An empty result
+    is None rather than `{}` so an endpoint with nothing to carry stores nothing.
+    """
+    project = str(
+        _provider_extras(data).get(SECRET_VERTEX_PROJECT_EXTRAS_KEY) or ""
+    ).strip()
+
+    return {ROUTE_VERTEX_PROJECT_KEY: project} if project else None
 
 
 def custom_provider_model_allowlist(data: SecretDataDTO) -> List[str]:
@@ -106,6 +158,8 @@ def map_custom_provider_secret_to_endpoint(
             route=LLMEndpointRoute(
                 base_url=getattr(provider, "url", None),
                 api_version=getattr(provider, "version", None),
+                region=custom_provider_route_region(data),
+                extras=custom_provider_route_extras(data),
             ),
             models=LLMModelFilter(
                 allowlist=custom_provider_model_allowlist(data),
@@ -114,12 +168,63 @@ def map_custom_provider_secret_to_endpoint(
     )
 
 
+def _route_extras(
+    stored: Optional[Dict[str, Any]],
+    mapped: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """The stored extras with the registrar's own key re-derived from the secret.
+
+    The registrar owns `vertex_project` and nothing else in this dict, so a key it does not
+    write survives, and a project the operator removed from the connection is removed here
+    rather than left behind as a stale route.
+    """
+    merged = dict(stored or {})
+    merged.pop(ROUTE_VERTEX_PROJECT_KEY, None)
+    merged.update(mapped or {})
+
+    return merged or None
+
+
 def endpoint_edit_from_create(
     *,
     endpoint_id: UUID,
     endpoint: LLMEndpointCreate,
+    stored: LLMEndpoint,
 ) -> LLMEndpointEdit:
-    """Project a mapped endpoint onto the editable surface of an existing row."""
+    """The editable surface of `stored`, with the fields a secret owns taken from `endpoint`.
+
+    Two owners share this row, and the edit is a full PUT
+    (`dbs/postgres/gateways/llms/mappings.py::map_llm_endpoint_edit_to_dbe`), so every field
+    the registrar does not restate is erased. Both halves are therefore named here.
+
+    The secret owns identity and address: who the endpoint is (`name`, `description`, the
+    vault record it is backed by, the provider family its protocol declares) and how the
+    upstream is reached (`base_url`, `api_version`, `region`, and the route `extras` derived
+    from the connection). It also owns the model allowlist, which is the list of models the
+    operator put on the connection.
+
+    Everything else is gateway policy, configured against the endpoint and not against the
+    secret, so it survives a key rotation: `flags` (whether the endpoint is active), the
+    model `denylist`, the endpoint `settings` (the output-token ceiling and the timeout),
+    the route `headers` the endpoint sends upstream, and the row's `tags` and `meta`.
+
+    `stored` is required rather than optional because a caller without the current row
+    cannot tell those two halves apart, and defaulting it would silently restore the
+    reset this function exists to prevent.
+    """
+    mapped_route = endpoint.data.route
+    route = stored.data.route.model_copy(
+        update={
+            "base_url": mapped_route.base_url,
+            "api_version": mapped_route.api_version,
+            "region": mapped_route.region,
+            "extras": _route_extras(stored.data.route.extras, mapped_route.extras),
+        }
+    )
+    models = stored.data.models.model_copy(
+        update={"allowlist": endpoint.data.models.allowlist}
+    )
+
     return LLMEndpointEdit(
         id=endpoint_id,
         name=endpoint.name,
@@ -128,8 +233,14 @@ def endpoint_edit_from_create(
         provider_key=endpoint.provider_key,
         secret_id=endpoint.secret_id,
         #
-        data=endpoint.data,
-        flags=endpoint.flags,
+        data=LLMEndpointData(
+            route=route,
+            models=models,
+            settings=stored.data.settings,
+        ),
+        flags=stored.flags,
+        tags=stored.tags,
+        meta=stored.meta,
     )
 
 
@@ -173,6 +284,7 @@ class LLMEndpointRegistrar(LLMEndpointRegistrarInterface):
                     endpoint=endpoint_edit_from_create(
                         endpoint_id=stored.id,
                         endpoint=endpoint,
+                        stored=stored,
                     ),
                 )
         except Exception as exception:  # noqa: BLE001 - the vault write must still stand.
