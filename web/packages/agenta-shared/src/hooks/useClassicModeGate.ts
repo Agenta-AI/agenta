@@ -111,6 +111,13 @@ export const useClassicModeCookieSync = () => {
  * preference, the middleware does this before anything renders. Pass `enabled: false` while a
  * sign-in is still in flight; see the `/auth` note below for why that matters.
  *
+ * `locationKey` is the app's current route (Next's `router.asPath`), and it is what makes the
+ * post-sign-in hop happen at all. The effect reads `window.location` but cannot watch it, and a
+ * sign-in ends with a CLIENT-SIDE push from `/auth` to the workspace: the preference, the user
+ * id and `enabled` all settle while the page is still `/auth` (where this bails on purpose),
+ * and nothing changes afterwards. Without the route in the deps a user with Classic mode off
+ * signs in and stays on the desktop until a hard reload lets the middleware act.
+ *
  * `location.replace`, not the router: `/m` is a different Next app behind the same origin, so
  * this is a document navigation whichever way it is spelled — and replace keeps the desktop URL
  * out of history, where Back would bounce off it.
@@ -121,7 +128,7 @@ export const useClassicModeCookieSync = () => {
  * `/w` ↔ `/m` bounce instead of a stop. Leaving `/m` is the proxy's job — one cookie, and the
  * desktop gate yields to it through `wantsClassic`.
  */
-export const useClassicModeRedirect = (enabled = true) => {
+export const useClassicModeRedirect = (enabled = true, locationKey?: string) => {
     const userId = useAtomValue(activeUserIdAtom)
     const advancedNavHidden = useSettledAdvancedNavHidden()
 
@@ -149,7 +156,8 @@ export const useClassicModeRedirect = (enabled = true) => {
         // to the device check, and bounces a desktop UA straight back here. That is a loop.
         writeClassicModeCookie(false)
         window.location.replace(target)
-    }, [enabled, userId, advancedNavHidden])
+        // `locationKey` is a dependency for its changes, not its value: the route is read live.
+    }, [enabled, userId, advancedNavHidden, locationKey])
 }
 
 /**
