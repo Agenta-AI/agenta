@@ -2,8 +2,8 @@ import {useCallback, useState} from "react"
 
 import {useApiKeys} from "@agenta/settings"
 import {ApiKeysPage} from "@agenta/settings-ui"
+import {Button} from "@agenta/ui/ui"
 
-import {Button} from "@/components/ui/button"
 import {
     Sheet,
     SheetContent,
