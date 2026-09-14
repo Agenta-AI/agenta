@@ -121,9 +121,10 @@ function useBoundAgentIds(schedules: TriggerSchedule[], subscriptions: TriggerSu
     }, [schedules, subscriptions])
 
     // `ids` holds only SETTLED lookups: a workflow id, or null for a binding that names nothing.
-    // A pending or failed lookup stays absent, so a transport error can never read as "this
-    // variant is the agent" — that leaf id would seed the editor's draft and be written back as
-    // the agent on the next Save.
+    // A pending or failed lookup stays absent and keeps `pending` up, so a transport error can
+    // never read as "Unknown agent" in a row, nor as "this variant is the agent" in the editor —
+    // that leaf id would seed the draft and be written back as the agent on the next Save. The
+    // query retries on its own; until it settles, "not known yet" is the only honest label.
     const resolvedAtom = useMemo(
         () =>
             atom((get) => {
@@ -133,8 +134,10 @@ function useBoundAgentIds(schedules: TriggerSchedule[], subscriptions: TriggerSu
                     let revisionId: string | null = id
                     if (kind === "variant") {
                         const query = get(workflowRevisionsQueryAtomFamily(id))
-                        if (query.isPending) pending = true
-                        if (query.isPending || query.isError) continue
+                        if (query.isPending || query.isError) {
+                            pending = true
+                            continue
+                        }
                         // Newest first; any revision of the variant names the same workflow.
                         revisionId = get(workflowRevisionRefsByVariantAtomFamily(id))[0]?.id ?? null
                         if (!revisionId) {
@@ -143,8 +146,10 @@ function useBoundAgentIds(schedules: TriggerSchedule[], subscriptions: TriggerSu
                         }
                     }
                     const revision = get(workflowQueryAtomFamily(revisionId))
-                    if (revision.isPending) pending = true
-                    if (revision.isPending || revision.isError) continue
+                    if (revision.isPending || revision.isError) {
+                        pending = true
+                        continue
+                    }
                     ids.set(id, revision.data?.workflow_id ?? null)
                 }
                 return {ids, pending}
