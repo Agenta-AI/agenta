@@ -8,6 +8,9 @@ from fastapi import HTTPException, Request
 from oss.src.core.gateways.mcps.interfaces import MCPRelayResult
 from oss.src.core.tools.dtos import ToolCall
 
+_PROTOCOL_VERSION = "2026-07-28"  # pinned per MCPCallContext's own docstring
+_SERVER_INFO = {"name": "agenta-builtin-mcp", "version": "0.1.0"}
+
 
 class AgentaMCPAdapter:
     """Bridge one scoped gateway credential to the existing ``/tools/call`` seam."""
@@ -43,6 +46,36 @@ class AgentaMCPAdapter:
         method = payload.get("method")
         request_id = payload.get("id")
         tools = self._tools(request)
+
+        # OR56. A JSON-RPC request with no id is a notification, and `notifications/initialized`
+        # is the second call of every handshake, so answering one at all is a protocol violation.
+        if request_id is None:
+            return MCPRelayResult(status_code=202, headers={}, body=b"")
+
+        # `initialize` is the handshake every MCP client opens with, this gateway's own clients
+        # included. Refusing it made the builtin unreachable: the client never got to
+        # `tools/list`. Same answer shape as the mock adapter and the runner's own tool server,
+        # which echo the client's protocol version rather than imposing one.
+        if method == "initialize":
+            handshake = payload.get("params")
+            requested = (
+                handshake.get("protocolVersion")
+                if isinstance(handshake, dict)
+                else None
+            )
+            return self._response(
+                request_id=request_id,
+                result={
+                    "protocolVersion": (
+                        requested
+                        if isinstance(requested, str) and requested
+                        else _PROTOCOL_VERSION
+                    ),
+                    "capabilities": {"tools": {}},
+                    "serverInfo": _SERVER_INFO,
+                },
+            )
+
         if method == "tools/list":
             result = {
                 "tools": [
@@ -57,7 +90,9 @@ class AgentaMCPAdapter:
             return self._response(request_id=request_id, result=result)
 
         if method != "tools/call":
-            raise ValueError("Agenta MCP supports only tools/list and tools/call")
+            raise ValueError(
+                "Agenta MCP supports only initialize, tools/list and tools/call"
+            )
         params = payload.get("params")
         if not isinstance(params, dict):
             raise ValueError("tools/call requires object params")

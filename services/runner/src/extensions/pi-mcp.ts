@@ -7,7 +7,24 @@
 
 export const PI_GATEWAY_MCP_SERVERS_ENV = "AGENTA_AGENT_GATEWAY_MCP_SERVERS";
 
-const MCP_PROTOCOL_VERSION = "2026-07-28";
+export const MCP_PROTOCOL_VERSION = "2026-07-28";
+
+/**
+ * The method every MCP client on this runner opens a connection with, and the one every MCP
+ * server on this runner answers: `initialize`, the specification's handshake.
+ *
+ * OR56. This client used to open with `server/discover`, the capability-negotiation call the
+ * 2026-07-28 revision adds. Nothing needs it. That revision makes it a server obligation and a
+ * client option ("servers MUST implement it; clients MAY call it"), while the two harness MCP
+ * clients we do not control — Claude Code's and Codex's — open with `initialize` and cannot be
+ * told otherwise. So `initialize` is the only method every server we speak to must answer
+ * anyway, and it is what the runner's own MCP server (`tools/tool-mcp-http.ts`), its handshake
+ * probe (`engines/sandbox_agent/mcp-handshake.ts`), and the gateway's builtin adapter answer.
+ * Discovery then proceeds `tools/list` -> `tools/call`.
+ *
+ * Exported so the probe imports this string rather than repeating it: one lifecycle, one symbol.
+ */
+export const MCP_DISCOVERY_METHOD = "initialize";
 
 export interface PiGatewayMcpServer {
   name: string;
@@ -130,7 +147,7 @@ class PiHttpMcpClient {
 
   constructor(private readonly server: PiGatewayMcpServer) {}
 
-  private async request(method: string, params?: unknown): Promise<unknown> {
+  private post(message: Record<string, unknown>): Promise<Response> {
     const headers: Record<string, string> = {
       Accept: "application/json, text/event-stream",
       "Content-Type": "application/json",
@@ -138,18 +155,35 @@ class PiHttpMcpClient {
       ...this.server.headers,
     };
     if (this.sessionId) headers["Mcp-Session-Id"] = this.sessionId;
-    const response = await fetch(this.server.url, {
+    return fetch(this.server.url, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: this.nextId++,
-        method,
-        params: {
-          ...(isRecord(params) ? params : {}),
-          _meta: { "io.modelcontextprotocol/protocolVersion": MCP_PROTOCOL_VERSION },
-        },
-      }),
+      body: JSON.stringify(message),
+    });
+  }
+
+  /**
+   * A JSON-RPC notification: no id, so the server owes no response and a conforming one answers
+   * `202` with an empty body. Best effort by design — `notifications/initialized` completes the
+   * handshake for servers that require it, and a server that ignores it is not a failure.
+   */
+  private async notify(method: string): Promise<void> {
+    try {
+      await this.post({ jsonrpc: "2.0", method, params: {} });
+    } catch {
+      // Deliberately ignored: the `initialize` answer already proved the connection.
+    }
+  }
+
+  private async request(method: string, params?: unknown): Promise<unknown> {
+    const response = await this.post({
+      jsonrpc: "2.0",
+      id: this.nextId++,
+      method,
+      params: {
+        ...(isRecord(params) ? params : {}),
+        _meta: { "io.modelcontextprotocol/protocolVersion": MCP_PROTOCOL_VERSION },
+      },
     });
     if (!response.ok) {
       throw new PiMcpRequestError(`MCP ${method} failed (${response.status})`, response.status);
@@ -164,7 +198,12 @@ class PiHttpMcpClient {
   }
 
   async discover(): Promise<PiMcpTool[]> {
-    await this.request("server/discover");
+    await this.request(MCP_DISCOVERY_METHOD, {
+      protocolVersion: MCP_PROTOCOL_VERSION,
+      capabilities: {},
+      clientInfo: { name: "agenta-pi-extension", version: "1" },
+    });
+    await this.notify("notifications/initialized");
     const result = await this.request("tools/list");
     if (!isRecord(result) || !Array.isArray(result.tools)) {
       throw new Error("MCP tools/list returned no tools array");
@@ -218,17 +257,38 @@ export function parsePiGatewayMcpConfig(raw: string | undefined): PiGatewayMcpSe
   }
 }
 
+interface PiToolRegistry {
+  registerTool: (tool: any) => void;
+  getAllTools?: () => Array<{ name: string }>;
+}
+
+/**
+ * The gateway MCP tool names this module has already registered on a given Pi instance.
+ *
+ * OR59. `before_agent_start` fires once per turn and a pooled session runs many turns through
+ * one Pi instance, so from turn two `pi.getAllTools()` returns the tools turn one registered.
+ * Seeding the collision guard from that list alone made the session's own tools collide with
+ * themselves, and the tools vanished for the rest of the session. A name cannot be judged by
+ * spelling — the tool a foreign server wants to shadow and the tool we registered last turn
+ * spell the same — so ownership has to be remembered. Weakly keyed, so the names go when the
+ * session's Pi instance does.
+ */
+const registeredNamesByPi = new WeakMap<PiToolRegistry, Set<string>>();
+
 /** Register external MCP tools through Pi's supported native extension API. */
 export async function registerPiGatewayMcpTools(
-  pi: {
-    registerTool: (tool: any) => void;
-    getAllTools?: () => Array<{ name: string }>;
-  },
+  pi: PiToolRegistry,
   raw: string | undefined,
   log: (message: string) => void,
 ): Promise<void> {
   const servers = parsePiGatewayMcpConfig(raw);
+  let ours = registeredNamesByPi.get(pi);
+  if (!ours) {
+    ours = new Set<string>();
+    registeredNamesByPi.set(pi, ours);
+  }
   const registered = new Set((pi.getAllTools?.() ?? []).map((tool) => tool.name));
+  const collisions: string[] = [];
   let connected = 0;
   for (const server of servers) {
     const client = new PiHttpMcpClient(server);
@@ -251,8 +311,22 @@ export async function registerPiGatewayMcpTools(
     for (const tool of tools) {
       if (!allowsTool(server, tool.name)) continue;
       const name = piMcpToolName(server.name, tool.name);
-      if (registered.has(name)) throw new Error(`MCP tool name collision: ${name}`);
+      // Already live on this session from an earlier turn: re-registering it is the no-op that
+      // keeps a warm turn's tools, not a collision.
+      if (ours.has(name)) continue;
+      if (registered.has(name)) {
+        // A genuine collision: some tool Pi already holds that this module did not put there.
+        // Report it per tool and keep going, so one shadowed name does not cost every other
+        // server's tools, then fail the registration at the end so the caller sees it too.
+        log(
+          `[mcp] error: server '${server.name}' tool '${tool.name}' collides with an existing ` +
+            `tool named '${name}'; it was not registered`,
+        );
+        collisions.push(name);
+        continue;
+      }
       registered.add(name);
+      ours.add(name);
       pi.registerTool({
         name,
         label: name,
@@ -270,6 +344,9 @@ export async function registerPiGatewayMcpTools(
   }
   if (servers.length > 0) {
     log(`registered gateway MCP tools from ${connected}/${servers.length} server(s)`);
+  }
+  if (collisions.length > 0) {
+    throw new Error(`MCP tool name collision: ${collisions.join(", ")}`);
   }
 }
 
