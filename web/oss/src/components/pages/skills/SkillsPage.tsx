@@ -15,9 +15,15 @@ import {
     SkillsGalleryPage,
     type SkillListItem,
 } from "@agenta/skills-ui"
+import {PageLayout} from "@agenta/ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import clsx from "clsx"
 import {useAtom, useAtomValue} from "jotai"
 
+import {BROWSE_RAIL_MODE} from "../agent-home/assets/constants"
+
 // The skill registry page: @agenta/skills atoms feeding the presentational SkillsGalleryPage.
+// `BROWSE_RAIL_MODE` picks the shell, the same way agents and templates do.
 export default function SkillsPage() {
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)
@@ -54,21 +60,34 @@ export default function SkillsPage() {
         [openWrite, openUpload, openImport],
     )
 
+    const gallery = (
+        <SkillsGalleryPage
+            layout={BROWSE_RAIL_MODE ? "rail" : "toolbar"}
+            sources={sources}
+            selectedSource={selectedSource}
+            onSelectSource={setSelectedSource}
+            search={search}
+            onSearchChange={setSearch}
+            sections={sections}
+            onOpenSkill={openSkill}
+            createActions={createActions}
+            loading={query.isPending}
+            showArchived={showArchived}
+            onShowArchivedChange={setShowArchived}
+        />
+    )
+
     return (
-        <div className="flex h-full min-h-0 flex-col">
-            <SkillsGalleryPage
-                sources={sources}
-                selectedSource={selectedSource}
-                onSelectSource={setSelectedSource}
-                search={search}
-                onSearchChange={setSearch}
-                sections={sections}
-                onOpenSkill={openSkill}
-                createActions={createActions}
-                loading={query.isPending}
-                showArchived={showArchived}
-                onShowArchivedChange={setShowArchived}
-            />
+        <>
+            {BROWSE_RAIL_MODE ? (
+                <PageLayout className="grow min-h-0 !p-0">{gallery}</PageLayout>
+            ) : (
+                // The page's own title and gutters, so the grid shares one column width with the
+                // rest of the app; create, search and the archived toggle are a toolbar above it.
+                <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")} title="Skills">
+                    {gallery}
+                </PageLayout>
+            )}
             <SkillDetailDrawer
                 open={detailOpen}
                 onClose={closeDetail}
@@ -86,6 +105,6 @@ export default function SkillsPage() {
                 projectId={projectId ?? ""}
                 mode={createMode ?? "write"}
             />
-        </div>
+        </>
     )
 }

@@ -3,7 +3,7 @@ import {useState} from "react"
 import {SkillsGalleryPage, type SkillListItem} from "@agenta/skills-ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// The registry page: source rail + search + sectioned card grid (artboard 1).
+// The registry page: create + search + source facets + sectioned card grid (artboard 1).
 const meta = {
     title: "@agenta/skills-ui/SkillsGalleryPage",
     component: SkillsGalleryPage,
@@ -12,9 +12,11 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The skill registry browse page on FilterRailLayout: a source rail " +
-                    "(All / This project / Agenta / per-imported-repo with counts), search, " +
-                    "and sectioned 3-column card grids. One `+ New skill ▾` action.",
+                    "The skill registry browse page in its two frames. `toolbar` (the default, " +
+                    "what desktop ships): one row with `+ New skill ▾`, search and the archived " +
+                    "toggle, source chips once a repo is imported, then the sectioned card grid. " +
+                    "`rail`: the FilterRailLayout variant with title, search and sources in a " +
+                    "side rail (behind NEXT_PUBLIC_AGENT_BROWSE_RAIL).",
             },
         },
     },
@@ -81,12 +83,18 @@ const SOURCES = [
     {key: "anthropics-skills", label: "anthropics/skills", count: 1},
 ]
 
-function GalleryHarness({empty}: {empty?: boolean}) {
+function GalleryHarness({empty, layout}: {empty?: boolean; layout?: "toolbar" | "rail"}) {
     const [source, setSource] = useState("all")
     const [search, setSearch] = useState("")
+    const [showArchived, setShowArchived] = useState(false)
     return (
-        <div className="flex h-screen flex-col">
+        <div
+            className={layout === "rail" ? "flex h-screen flex-col" : "flex h-screen flex-col p-6"}
+        >
             <SkillsGalleryPage
+                layout={layout}
+                showArchived={showArchived}
+                onShowArchivedChange={setShowArchived}
                 sources={empty ? [{key: "all", label: "All skills", count: 0}] : SOURCES}
                 selectedSource={source}
                 onSelectSource={setSource}
@@ -120,4 +128,14 @@ export const Populated: Story = {
 export const Empty: Story = {
     args: {} as never,
     render: () => <GalleryHarness empty />,
+}
+
+export const Rail: Story = {
+    args: {} as never,
+    render: () => <GalleryHarness layout="rail" />,
+}
+
+export const RailEmpty: Story = {
+    args: {} as never,
+    render: () => <GalleryHarness layout="rail" empty />,
 }
