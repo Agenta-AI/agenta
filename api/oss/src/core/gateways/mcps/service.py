@@ -325,6 +325,38 @@ class MCPGatewayService:
             data=MCPEndpointData(route=MCPEndpointRoute()),
         )
 
+    @staticmethod
+    def _brokered_tools(connection: Connection) -> MCPToolFilter:
+        """The tools a brokered connection grants, deny-by-default (OR58).
+
+        A brokered endpoint spends a credential Agenta holds on the tenant's behalf, so
+        the filter is built explicitly instead of taking `MCPToolFilter()`'s default,
+        whose `allowlist=None` `GatewayEndpointFilter.allows` reads as allow-all. Any
+        member with `USE_MCP_ENDPOINTS` could otherwise call every tool on the connection.
+
+        The grant is the connection row's own `data.tools`, the place the connect flow
+        records what was approved for it. A connection that names none grants none: the
+        empty allowlist refuses every tool, and `_filter_tool_list` lists none, because on
+        this namespace an unstated grant is not the same as an unlimited one.
+
+        The default itself is left alone. `GatewayEndpointFilter.allows` is shared with
+        the LLM plane, where `models` with no allowlist means a built-in endpoint serving
+        Agenta's whole catalogue, and with every stored custom MCP endpoint, which is
+        registered with no tool filter and would go dark. Those are the field's other
+        readers: `MCPGatewayService._check_allowlist`, `_filter_tool_list`,
+        `LLMGatewayService._check_allowlist` and `GatewayEndpointFilter.enumerate`, which
+        backs `GET /v1/models`.
+        """
+        data = connection.data if isinstance(connection.data, dict) else {}
+        granted = data.get("tools")
+        return MCPToolFilter(
+            allowlist=(
+                [tool for tool in granted if isinstance(tool, str) and tool]
+                if isinstance(granted, list)
+                else []
+            )
+        )
+
     def _builtin_endpoint(self, connection: Connection) -> MCPEndpoint:
         """Build one generated MCP endpoint for a Composio connection."""
         return MCPEndpoint(
@@ -344,7 +376,8 @@ class MCPGatewayService:
                         integration=connection.integration_key,
                         slug=connection.slug,
                     )
-                )
+                ),
+                tools=self._brokered_tools(connection),
             ),
         )
 
@@ -840,6 +873,7 @@ class MCPGatewayService:
             url=endpoint.data.route.base_url or "",
             headers=endpoint.data.route.headers or {},
             settings=endpoint.data.settings,
+            credential_header=endpoint.data.route.credential_header,
             project_id=(
                 project_id
                 if target.namespace == GatewayEndpointNamespace.STANDARD

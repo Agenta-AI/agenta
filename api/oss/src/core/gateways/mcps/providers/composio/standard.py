@@ -18,6 +18,10 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPRelayAuth,
     MCPResolvedRoute,
 )
+from oss.src.core.gateways.mcps.echo import (
+    credential_echo_scanner,
+    refuse_credential_echo,
+)
 from oss.src.core.gateways.mcps.interfaces import MCPRelayResult, MCPUpstreamInterface
 from oss.src.core.gateways.mcps.types import MCPUpstreamError
 from oss.src.core.secrets.enums import SecretKind
@@ -118,6 +122,16 @@ class StandardComposioMCPAdapter(MCPUpstreamInterface):
                 )
         except httpx.RequestError as exc:
             raise MCPUpstreamError(target=session_url, detail=str(exc)) from exc
+
+        # OR75: same refusal as the other two relays — the session credential injected
+        # above the caller's headers must not come back in the response.
+        refuse_credential_echo(
+            scanner=credential_echo_scanner(session_headers),
+            target=session_url,
+            status_code=response.status_code,
+            headers=response.headers,
+            body=response.content,
+        )
 
         return MCPRelayResult(
             status_code=response.status_code,

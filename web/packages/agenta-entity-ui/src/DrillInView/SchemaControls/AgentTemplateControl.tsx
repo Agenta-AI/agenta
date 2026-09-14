@@ -24,6 +24,7 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
+import {customNamedSecretsAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     agentCreationPrefsAtom,
@@ -200,12 +201,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const [permissionTarget, setPermissionTarget] = useState<GatewayConnectionTarget | null>(null)
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
     const projectId = useAtomValue(projectIdAtom)
+    // The drawer binds a project secret by slug; the endpoint row binds one by id, so the
+    // registration needs the project's named secrets to translate between the two.
+    const namedSecrets = useAtomValue(customNamedSecretsAtom)
     // An MCP server is routed by the gateway under its own name, so saving one must first register
     // the endpoint row that knows its URL (D35). A failure aborts the save.
     const prepareItemCommit = useCallback(
         async (kind: ItemKind, item: Record<string, unknown>) =>
-            kind === "mcp" ? registerMcpServerDraft(item, projectId) : item,
-        [projectId],
+            kind === "mcp" ? registerMcpServerDraft(item, projectId, namedSecrets) : item,
+        [projectId, namedSecrets],
     )
     const {
         editing,
