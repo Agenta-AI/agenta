@@ -207,6 +207,8 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
 // `unwrap` yields undefined until the import settles, which is all the suffix below needs.
 const versionAtom = unwrap(atom(async () => (await import("../../../package.json")).version))
 
+export const useMobileVersion = () => useAtomValue(versionAtom)
+
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
@@ -235,7 +237,7 @@ export const useMobileBottomNavItems = (
 export const useMobileHelpItem = ({
     onOpenShortcuts,
 }: {onOpenShortcuts?: () => void} = {}): SidebarConfig => {
-    const version = useAtomValue(versionAtom)
+    const version = useMobileVersion()
 
     return useMemo(
         () =>
