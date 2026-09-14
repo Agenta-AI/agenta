@@ -21,10 +21,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@astrojs/mdx": "^5.0.6",
-    "@astrojs/react": "^5.0.7",
-    "@astrojs/sitemap": "^3.7.3",
-    "astro": "^6.4.8",
+    "@astrojs/mdx": "^7.0.6",
+    "@astrojs/react": "^6.0.5",
+    "@astrojs/sitemap": "^3.7.4",
+    "astro": "^7.2.8",
     "posthog-js": "^1.406.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -33,6 +33,6 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "vitest": "^4.1.11",
-    "wrangler": "4.113.0"
+    "wrangler": "4.131.1"
   }
 }

@@ -7,18 +7,22 @@ import {
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 import {slugifyName} from "@agenta/shared/utils"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
-
-import {Button} from "@/components/ui/button"
-import {Input} from "@/components/ui/input"
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet"
+    Button,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/ui/ui"
+
+import {Input} from "@/components/ui/input"
 
 import {Field} from "./Field"
 
@@ -119,21 +123,21 @@ export const SecretFormSheet = ({
     const canSubmit = Boolean(name.trim() && slug.trim() && value.trim()) && !saving
 
     return (
-        <Sheet
+        <Dialog
             open={open}
             onOpenChange={(next) => {
                 if (!next && !saving) onClose()
             }}
         >
-            <SheetContent side="responsive">
-                <SheetHeader>
-                    <SheetTitle>{isEditing ? "Edit secret" : "Create secret"}</SheetTitle>
-                    <SheetDescription>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{isEditing ? "Edit secret" : "Create secret"}</DialogTitle>
+                    <DialogDescription>
                         Agents reference a secret by its slug, never by its value.
-                    </SheetDescription>
-                </SheetHeader>
+                    </DialogDescription>
+                </DialogHeader>
 
-                <div className="flex flex-col gap-3 px-4">
+                <div className="flex flex-col gap-3">
                     <Field label="Name">
                         <Input
                             autoFocus
@@ -205,15 +209,15 @@ export const SecretFormSheet = ({
                     {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
                 </div>
 
-                <SheetFooter>
-                    <Button disabled={!canSubmit} onClick={submit}>
-                        {saving ? "Saving…" : isEditing ? "Save" : "Create secret"}
-                    </Button>
+                <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={saving}>
                         Cancel
                     </Button>
-                </SheetFooter>
-            </SheetContent>
-        </Sheet>
+                    <Button disabled={!canSubmit} onClick={submit}>
+                        {saving ? "Saving…" : isEditing ? "Save" : "Create secret"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }

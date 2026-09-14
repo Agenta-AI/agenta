@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.118.0",
+    "version": "0.118.1",
     "private": true,
     "engines": {
         "node": "24.x"
@@ -118,7 +118,7 @@
         "lodash": "^4.17.23",
         "lucide-react": "^0.479.0",
         "motion": "^12.0.0",
-        "next": "15.5.21",
+        "next": "15.5.24",
         "papaparse": "^5.5.3",
         "pdfjs-dist": "^4.10.38",
         "postcss": "^8.5.23",

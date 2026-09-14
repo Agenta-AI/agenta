@@ -2,23 +2,24 @@ import {useState} from "react"
 
 import {deleteAccount} from "@agenta/entities/profile"
 import {AccountPage} from "@agenta/settings-ui"
-import {useMutation} from "@tanstack/react-query"
-
-import {Button} from "@/components/ui/button"
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet"
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
+import {useMutation} from "@tanstack/react-query"
 
 import {useLogout} from "../auth/useLogout"
 
 /**
- * Mobile binding: the shared account page, with this app's delete call and its confirm as a
- * bottom sheet (the desktop uses a modal — same typed-email gate, each app's own idiom).
+ * Mobile binding: the shared account page, with this app's delete call and its confirm as an
+ * alert dialog — the same typed-email gate the desktop uses.
  */
 export const AccountTab = ({
     user,
@@ -47,39 +48,45 @@ export const AccountTab = ({
                 deleteMutation.mutate()
             }}
             renderConfirm={({open, onClose, onConfirm, confirmed, body}) => (
-                <Sheet
+                <AlertDialog
                     open={open}
                     onOpenChange={(next) => {
-                        if (!next) onClose()
+                        if (!next && !deleteMutation.isPending) onClose()
                     }}
                 >
-                    <SheetContent side="responsive">
-                        <SheetHeader>
-                            <SheetTitle>Delete account</SheetTitle>
-                            <SheetDescription>This cannot be undone.</SheetDescription>
-                        </SheetHeader>
-                        <div className="px-4 text-sm">{body}</div>
-                        {error ? (
-                            <p className="px-4 pt-3 text-sm text-colorError">{error}</p>
-                        ) : null}
-                        <SheetFooter>
-                            <Button
-                                variant="destructive"
-                                disabled={!confirmed || deleteMutation.isPending}
-                                onClick={onConfirm}
-                            >
-                                {deleteMutation.isPending ? "Deleting…" : "Delete account"}
-                            </Button>
-                            <Button
-                                variant="outline"
-                                onClick={onClose}
-                                disabled={deleteMutation.isPending}
-                            >
-                                Cancel
-                            </Button>
-                        </SheetFooter>
-                    </SheetContent>
-                </Sheet>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Delete account</AlertDialogTitle>
+                            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <div className="m-0 text-sm">{body}</div>
+                        {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
+                        <AlertDialogFooter>
+                            <AlertDialogCancel asChild>
+                                <Button
+                                    variant="outline"
+                                    onClick={onClose}
+                                    disabled={deleteMutation.isPending}
+                                >
+                                    Cancel
+                                </Button>
+                            </AlertDialogCancel>
+                            {/* Stays open for the error; success signs out, which unmounts it. */}
+                            <AlertDialogAction asChild>
+                                <Button
+                                    variant="destructive"
+                                    disabled={!confirmed || deleteMutation.isPending}
+                                    onClick={(event) => {
+                                        event.preventDefault()
+                                        onConfirm()
+                                    }}
+                                >
+                                    {deleteMutation.isPending ? "Deleting…" : "Delete account"}
+                                </Button>
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             )}
         />
     )

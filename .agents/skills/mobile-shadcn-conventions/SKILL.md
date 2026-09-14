@@ -9,9 +9,13 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
 
 ## Installing registry components
 
-- Always install via the CLI from `web/mobile/`:
-  `pnpm dlx shadcn@latest add <component>` (e.g. `button`, `sheet`, `dialog`,
-  `command`, `skeleton`, `input`).
+- Prefer the shared primitive first: if `@agenta/ui/ui` already exports it
+  (`Button`, `Input`, `Select`, `Dialog`, `Sheet`, `DropdownMenu`, ...), import it
+  from there. Do not install a local copy of a component the kit already has —
+  `button` in particular lives ONLY in `@agenta/ui` (Nova preset on the shared
+  `control-*` scale), so both apps render one button.
+- Otherwise install via the CLI from `web/mobile/`:
+  `pnpm dlx shadcn@latest add <component>` (e.g. `sheet`, `command`, `skeleton`).
 - Components land in `src/components/ui/` (aliases in `components.json`). They
   are owned code: you may adapt them, but keep diffs minimal and expressed in
   semantic tokens so upstream refreshes stay cheap.

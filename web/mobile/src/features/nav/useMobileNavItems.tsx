@@ -20,11 +20,11 @@ import {
 } from "@agenta/navigation"
 import {buildReleaseNavItems, SessionFilterMenu} from "@agenta/navigation-ui"
 import {SessionRowActions, useSessionActions, useSessionRowChrome} from "@agenta/sessions-ui"
+import {Spinner} from "@agenta/ui/ui"
 import {
     ChartLineUpIcon,
     ChatsCircleIcon,
     CircleIcon,
-    CircleNotchIcon,
     GearIcon,
     GithubLogoIcon,
     HouseIcon,
@@ -76,8 +76,7 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
             // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
             const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
             const live = session.waiting || session.alive
-            if (session.running)
-                return createElement(CircleNotchIcon, {size: 12, className: "animate-spin"})
+            if (session.running) return createElement(Spinner, {className: "size-3"})
             if (session.isAutomation)
                 return createElement(LightningIcon, {
                     size: 12,
@@ -207,6 +206,8 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
 // `unwrap` yields undefined until the import settles, which is all the suffix below needs.
 const versionAtom = unwrap(atom(async () => (await import("../../../package.json")).version))
 
+export const useMobileVersion = () => useAtomValue(versionAtom)
+
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
@@ -235,7 +236,7 @@ export const useMobileBottomNavItems = (
 export const useMobileHelpItem = ({
     onOpenShortcuts,
 }: {onOpenShortcuts?: () => void} = {}): SidebarConfig => {
-    const version = useAtomValue(versionAtom)
+    const version = useMobileVersion()
 
     return useMemo(
         () =>

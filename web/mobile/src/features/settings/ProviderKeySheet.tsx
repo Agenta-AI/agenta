@@ -2,17 +2,17 @@ import {useEffect, useState} from "react"
 
 import {useVaultSecret} from "@agenta/entities/secret"
 import type {LlmProvider} from "@agenta/shared/types"
-
-import {Button} from "@/components/ui/button"
-import {Input} from "@/components/ui/input"
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet"
+    Button,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/ui/ui"
+
+import {Input} from "@/components/ui/input"
 
 import {Field} from "./Field"
 
@@ -57,21 +57,21 @@ export const ProviderKeySheet = ({
     }
 
     return (
-        <Sheet
+        <Dialog
             open={open}
             onOpenChange={(next) => {
                 if (!next && !saving) onClose()
             }}
         >
-            <SheetContent side="responsive">
-                <SheetHeader>
-                    <SheetTitle>{provider?.title ?? "Provider"} API key</SheetTitle>
-                    <SheetDescription>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{provider?.title ?? "Provider"} API key</DialogTitle>
+                    <DialogDescription>
                         Stored in this project&apos;s vault and never shown in full again.
-                    </SheetDescription>
-                </SheetHeader>
+                    </DialogDescription>
+                </DialogHeader>
 
-                <div className="flex flex-col gap-3 px-4">
+                <div className="flex flex-col gap-3">
                     <Field label="API key">
                         <Input
                             autoFocus
@@ -86,15 +86,15 @@ export const ProviderKeySheet = ({
                     {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
                 </div>
 
-                <SheetFooter>
-                    <Button disabled={!key.trim() || saving} onClick={submit}>
-                        {saving ? "Saving…" : "Save key"}
-                    </Button>
+                <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={saving}>
                         Cancel
                     </Button>
-                </SheetFooter>
-            </SheetContent>
-        </Sheet>
+                    <Button disabled={!key.trim() || saving} onClick={submit}>
+                        {saving ? "Saving…" : "Save key"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }

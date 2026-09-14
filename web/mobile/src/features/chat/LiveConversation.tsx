@@ -42,13 +42,13 @@ import {
 } from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
+import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 import {User} from "lucide-react"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {Button} from "@/components/ui/button"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 import {failPendingTaskAtom, pendingTasksAtom, sendPendingTaskAtom} from "../home/pendingTask"

@@ -180,6 +180,7 @@ export interface ModalFuncProps {
     afterClose?: () => void
     okButtonProps?: ModalButtonProps
     cancelButtonProps?: ModalButtonProps
+    /** Centered by default; `false` pins the modal 100px from the top like antd. */
     centered?: boolean
     width?: string | number
     okText?: React.ReactNode

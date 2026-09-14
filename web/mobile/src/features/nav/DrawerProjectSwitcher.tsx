@@ -17,7 +17,7 @@ import {useLogout} from "../auth/useLogout"
 import {groupByOrganization} from "../context/workspaceGroups"
 
 import {CreateProjectSheet} from "./CreateProjectSheet"
-import {useMobileHelpItem} from "./useMobileNavItems"
+import {useMobileHelpItem, useMobileVersion} from "./useMobileNavItems"
 
 /**
  * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
@@ -41,6 +41,7 @@ export const DrawerProjectSwitcher = ({
     const helpItem = useMobileHelpItem({
         onOpenShortcuts: useCallback(() => setShortcutsOpen(true), []),
     })
+    const version = useMobileVersion()
     const query = useQuery({
         queryKey: ["mobile", "projects"],
         queryFn: () => fetchProjects(),
@@ -154,7 +155,16 @@ export const DrawerProjectSwitcher = ({
                 theme={theme}
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
-                trailing={<SidebarIconMenu item={helpItem} />}
+                trailing={
+                    <div className="flex shrink-0 items-center gap-1">
+                        {!collapsed && version ? (
+                            <span className="text-muted-foreground text-[10px] leading-none">
+                                v{version}
+                            </span>
+                        ) : null}
+                        <SidebarIconMenu item={helpItem} />
+                    </div>
+                }
             />
             <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             <CreateProjectSheet
