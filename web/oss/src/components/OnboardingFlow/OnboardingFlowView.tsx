@@ -1,4 +1,4 @@
-import {useState, type ReactNode} from "react"
+import {useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {Robot, ArrowLeft, ArrowRight, Check} from "@phosphor-icons/react"
 import {Button, Input} from "antd"
@@ -10,8 +10,10 @@ import {
     suggestionsForRole,
     type OnboardingVariant,
 } from "./choices"
+import {readOnboardingDraft, saveOnboardingDraft} from "./draft"
 
 export interface OnboardingFlowViewProps {
+    draftKey?: string
     variant: OnboardingVariant
     tools: ReactNode
     model: ReactNode
@@ -22,6 +24,7 @@ export interface OnboardingFlowViewProps {
 }
 
 export default function OnboardingFlowView({
+    draftKey,
     variant,
     tools,
     model,
@@ -30,12 +33,16 @@ export default function OnboardingFlowView({
     onCreate,
     onStep,
 }: OnboardingFlowViewProps) {
-    const [step, setStep] = useState(1)
-    const [role, setRole] = useState("")
-    const [source, setSource] = useState("")
-    const [name, setName] = useState("")
-    const [task, setTask] = useState("")
-    const [templateKey, setTemplateKey] = useState<string | null>(null)
+    const draft = useMemo(() => readOnboardingDraft(draftKey), [draftKey])
+    const [step, setStep] = useState(draft.step ?? 1)
+    const [role, setRole] = useState(draft.role ?? "")
+    const [source, setSource] = useState(draft.source ?? "")
+    const [name, setName] = useState(draft.name ?? "")
+    const [task, setTask] = useState(draft.task ?? "")
+    const [templateKey, setTemplateKey] = useState<string | null>(draft.templateKey ?? null)
+    useEffect(() => {
+        saveOnboardingDraft(draftKey, {step, role, source, name, task, templateKey})
+    }, [draftKey, step, role, source, name, task, templateKey])
     const templates = suggestionsForRole(role)
     const selected = templates.find((item) => item.key === templateKey)
     const input = firstAgentInput(variant, name, task, templateKey)

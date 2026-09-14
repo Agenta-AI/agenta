@@ -42,7 +42,10 @@ beforeAll(() => {
         })),
     })
 })
-afterEach(cleanup)
+afterEach(() => {
+    cleanup()
+    window.sessionStorage.clear()
+})
 const setup = (variant: "control" | "task-first" = "control", modelReady = true) => {
     const onCreate = vi.fn()
     render(
@@ -65,6 +68,40 @@ const setup = (variant: "control" | "task-first" = "control", modelReady = true)
 }
 
 describe("first agent onboarding", () => {
+    it("preserves answers and the current step across a redirect remount", () => {
+        const props = {
+            draftKey: "onboarding:project-a",
+            variant: "control" as const,
+            tools: <p>Tools</p>,
+            model: <p>Models</p>,
+            modelReady: true,
+            committing: false,
+            onCreate: vi.fn(),
+            onStep: vi.fn(),
+        }
+        const first = render(<OnboardingFlowView {...props} />)
+        fireEvent.click(screen.getByRole("button", {name: "Engineering"}))
+        fireEvent.click(screen.getByRole("button", {name: "Next"}))
+        fireEvent.click(screen.getByRole("button", {name: "GitHub"}))
+        fireEvent.click(screen.getByRole("button", {name: "Next"}))
+        first.unmount()
+        const second = render(<OnboardingFlowView {...props} />)
+        expect(screen.getByRole("heading", {name: "Connect your tools"})).toBeTruthy()
+        fireEvent.click(screen.getByRole("button", {name: "Continue"}))
+        fireEvent.click(screen.getByRole("button", {name: "Next"}))
+        fireEvent.change(screen.getByLabelText("Agent name"), {target: {value: "My agent"}})
+        fireEvent.change(screen.getByLabelText("What would you like it to do?"), {
+            target: {value: "Help me plan"},
+        })
+        second.unmount()
+        const third = render(<OnboardingFlowView {...props} />)
+        fireEvent.click(screen.getByRole("button", {name: "Create agent"}))
+        expect(props.onCreate).toHaveBeenCalledWith({name: "My agent", seedMessage: "Help me plan"})
+        third.unmount()
+        render(<OnboardingFlowView {...props} draftKey="onboarding:project-b" />)
+        expect(screen.getByRole("heading", {name: "What kind of work do you do?"})).toBeTruthy()
+    })
+
     it("requires a runnable model before proceeding", () => {
         setup("control", false)
         expect(screen.getByRole("button", {name: "Next"}).hasAttribute("disabled")).toBe(true)

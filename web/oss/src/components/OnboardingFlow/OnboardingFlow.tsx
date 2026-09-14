@@ -15,13 +15,17 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {useOnboardingProviderSetup} from "@/oss/components/AgentChatSlice/hooks/useOnboardingProviderSetup"
 import {useOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
+import {projectIdAtom} from "@/oss/state/project"
 
 import ConnectToolsStep from "./ConnectToolsStep"
+import {onboardingDraftKey, saveOnboardingDraft} from "./draft"
 import OnboardingFlowView from "./OnboardingFlowView"
 import {useOnboardingExperiment} from "./useOnboardingExperiment"
 
 export default function OnboardingFlow() {
     const context = useOnboardingContext()
+    const projectId = useAtomValue(projectIdAtom)
+    const draftKey = projectId ? onboardingDraftKey(projectId) : undefined
     const candidates = useAtomValue(agentModelCandidatesAtomFamily(true))
     const configuration = useAtomValue(
         useMemo(
@@ -50,12 +54,13 @@ export default function OnboardingFlow() {
     useEffect(() => {
         if (!context.realEntityId || completed.current) return
         completed.current = true
+        saveOnboardingDraft(draftKey, null)
         if (enrolled)
             posthog?.capture("onboarding_agent_created", {
                 variant,
                 revision_id: context.realEntityId,
             })
-    }, [context.realEntityId, posthog, variant, enrolled])
+    }, [context.realEntityId, posthog, variant, enrolled, draftKey])
     if (context.realEntityId) return null
     if (!variant)
         return (
@@ -67,6 +72,8 @@ export default function OnboardingFlow() {
     return (
         <>
             <OnboardingFlowView
+                key={draftKey}
+                draftKey={draftKey}
                 variant={variant}
                 committing={context.committing}
                 modelReady={modelReady}
