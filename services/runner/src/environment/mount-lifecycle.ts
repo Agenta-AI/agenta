@@ -203,6 +203,36 @@ export async function activateAgentMountGuidance(
   ctx.setRunAgentDir(ctx.reprepareLocalPiAssets());
 }
 
+/**
+ * Cold acquisition (including approval resume) must not start a harness in scratch storage
+ * after a signed mount fails. Keep recovery helpers boolean: their callers own retry policy.
+ * Unsigned mounts remain optional, as signing also returns null when storage is disabled.
+ */
+export async function mountInitialLocalStorage(
+  ctx: AcquireContext,
+  deps: MountDeps,
+): Promise<void> {
+  if (ctx.plan.isDaytona) return;
+  if (ctx.env.mountCreds) {
+    const mounted = await mountLocalDurableCwd(ctx, deps, "initial");
+    throwIfAcquireAborted(deps.signal);
+    if (!mounted) {
+      throw new Error(
+        "Durable session storage could not be mounted. The run was stopped to avoid saving work in temporary storage. Retry when storage is available.",
+      );
+    }
+  }
+  if (ctx.env.agentMountCreds) {
+    const mounted = await mountLocalAgentCwd(ctx, deps);
+    throwIfAcquireAborted(deps.signal);
+    if (!mounted) {
+      throw new Error(
+        "Durable agent storage could not be mounted. The run was stopped because agent-files is unavailable. Retry when storage is available.",
+      );
+    }
+  }
+}
+
 /** Mount the durable cwd on the local host. Returns whether it is live. */
 export async function mountLocalDurableCwd(
   ctx: AcquireContext,

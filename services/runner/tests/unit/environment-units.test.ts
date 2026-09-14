@@ -367,8 +367,8 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
     }
     assert.equal(
       source.split("ctx: AcquireContext").length - 1,
-      8,
-      "all eight helpers take ctx; a captured variable would defeat the split",
+      9,
+      "all nine helpers take ctx; a captured variable would defeat the split",
     );
   });
 
@@ -430,6 +430,8 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
     const source = SRC("engines/sandbox_agent/environment.ts");
     const freeze = source.indexOf("ctx.freezeDaemonEnv()");
     const provider = source.indexOf("buildSandboxProvider)(");
+    const mounts = source.indexOf("await mountInitialLocalStorage(ctx, mountDeps)");
+    assert.ok(mounts > 0 && mounts < freeze, "required storage must succeed before daemon env freeze");
     assert.ok(freeze > 0, "the composer must freeze the daemon env");
     assert.ok(provider > 0);
     assert.ok(
@@ -443,8 +445,7 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
     // ENOTCONN handler, so it is now internal to the unit.
     const source = SRC("engines/sandbox_agent/environment.ts");
     for (const call of [
-      'mountLocalDurableCwd("initial")',
-      "mountLocalAgentCwd()",
+      "mountInitialLocalStorage(ctx, mountDeps)",
       "activateAgentMountGuidance()",
       "reSignAndRemountLocalCwd()",
       "remountLocalCwdAfterRuntimeEnotconn",

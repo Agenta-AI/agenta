@@ -192,8 +192,7 @@ import {
 import {
   activateAgentMountGuidance as activateAgentMountGuidanceUnit,
   activateAgentMountUnavailableGuidance as activateAgentMountUnavailableGuidanceUnit,
-  mountLocalAgentCwd as mountLocalAgentCwdUnit,
-  mountLocalDurableCwd as mountLocalDurableCwdUnit,
+  mountInitialLocalStorage,
   reSignAndRemountLocalCwd as reSignAndRemountLocalCwdUnit,
   remountLocalCwdAfterRuntimeEnotconn as remountLocalCwdAfterRuntimeEnotconnUnit,
   type MountDeps,
@@ -634,9 +633,6 @@ async function acquireEnvironmentOnce(
     daytonaPiDir: DAYTONA_PI_DIR,
     signal,
   };
-  const mountLocalDurableCwd = (reason: string) =>
-    mountLocalDurableCwdUnit(ctx, mountDeps, reason);
-  const mountLocalAgentCwd = () => mountLocalAgentCwdUnit(ctx, mountDeps);
   const reSignAndRemountLocalCwd = () =>
     reSignAndRemountLocalCwdUnit(ctx, mountDeps);
   const activateAgentMountGuidance = () =>
@@ -712,17 +708,12 @@ async function acquireEnvironmentOnce(
       deps.startSandboxAgent ??
       ((options: Parameters<typeof SandboxAgent.start>[0]) =>
         SandboxAgent.start(options));
-    // Local geesefs runs on the host, so mount before spawning the daemon. This lets the
-    // mount-success path add guidance/env atomically, while a failed mount starts a normal
-    // scratch-only harness with no false durable-storage signal.
-    if (environment.mountCreds && !plan.isDaytona) {
-      const mounted = await mountLocalDurableCwd("initial");
-      if (mounted && piSessionDir) environment.nativeHistoryDurable = true;
-      throwIfAcquireAborted(signal);
-    }
-    if (environment.agentMountCreds && !plan.isDaytona) {
-      await mountLocalAgentCwd();
-      throwIfAcquireAborted(signal);
+    // Mount before spawning the daemon. A signed local mount failure stops acquisition,
+    // including cold approval resume, instead of handing the harness a temporary directory
+    // or the serialized zero-byte agent-files link. The outer catch owns safe teardown.
+    await mountInitialLocalStorage(ctx, mountDeps);
+    if (environment.mountedCwd && !plan.isDaytona && piSessionDir) {
+      environment.nativeHistoryDurable = true;
     }
     // INVARIANT 1: the provider takes `env` and `piExtEnv` BY REFERENCE and hands them to the
     // daemon, after which the daemon environment is fixed. Every local mount had to land above

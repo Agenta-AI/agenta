@@ -1070,7 +1070,7 @@ describe("runSandboxAgent orchestration", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("removes a safe failed agent mountpoint without advertising it to Pi", async () => {
+  it("stops before starting Pi when a signed agent mount fails", async () => {
     const cwd = join(
       tmpdir(),
       `agenta-agent-mount-failure-${process.pid}-${Date.now()}`,
@@ -1101,12 +1101,13 @@ describe("runSandboxAgent orchestration", () => {
       deps,
     );
 
-    assert.equal(result.ok, true);
-    assert.equal(
-      (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
-      undefined,
+    assert.equal(result.ok, false);
+    assert.match(
+      result.error ?? "",
+      /Durable agent storage could not be mounted/,
     );
-    assert.equal(calls.workspacePlan.prompt.appendSystemPrompt, undefined);
+    assert.deepEqual(calls.providerArgs, [], "the daemon must not start");
+    assert.equal(calls.workspacePlan, undefined);
     assert.equal(existsSync(`${cwd}-agent`), false);
     rmSync(cwd, { recursive: true, force: true });
   });
