@@ -1367,3 +1367,119 @@ async def test_an_expired_grant_with_no_refresher_wired_refuses_rather_than_rela
         )
 
     assert adapter.relay_calls == 0
+
+
+# ---------------------------------------------------------------------------
+# Brokered builtin endpoints deny by default (OR58)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_brokered_builtin_refuses_a_tool_the_connection_did_not_grant():
+    """A brokered endpoint spends a credential Agenta holds for the tenant, so its tool
+    filter is built explicitly rather than left at the allow-all default. The connection
+    grants one tool; the other is refused before the relay, and before any vault read."""
+    connection = _connection(slug="my-notion", integration_key="notion")
+    connection.data = {"tools": ["NOTION_CREATE_PAGE"]}
+    adapter = MockUpstreamAdapter()
+    service = _relay_service(
+        connections_service=MockConnectionsService([connection]),
+        adapters={"composio": adapter},
+    )
+
+    with pytest.raises(MCPToolNotAllowedError) as excinfo:
+        await service.relay(
+            scope=_scope(),
+            namespace="builtin",
+            name="my-notion",
+            provider="composio",
+            integration="notion",
+            context=MCPCallContext(method="tools/call", target="GMAIL_SEND_EMAIL"),
+            body=b'{"jsonrpc":"2.0","id":1,"method":"tools/call"}',
+            headers={},
+        )
+
+    assert excinfo.value.tool == "GMAIL_SEND_EMAIL"
+    assert adapter.relay_calls == 0
+
+    result = await service.relay(
+        scope=_scope(),
+        namespace="builtin",
+        name="my-notion",
+        provider="composio",
+        integration="notion",
+        context=MCPCallContext(method="tools/call", target="NOTION_CREATE_PAGE"),
+        body=b'{"jsonrpc":"2.0","id":1,"method":"tools/call"}',
+        headers={},
+    )
+
+    assert result.status_code == 200
+    assert adapter.relay_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_brokered_builtin_granting_nothing_allows_nothing():
+    """An absent grant is an empty allowlist, not an unlimited one. `MCPToolFilter()`'s
+    own default would have been `allowlist=None`, which `allows` reads as allow-all."""
+    connection = _connection(slug="my-notion", integration_key="notion")
+    adapter = MockUpstreamAdapter()
+    service = _relay_service(
+        connections_service=MockConnectionsService([connection]),
+        adapters={"composio": adapter},
+    )
+
+    with pytest.raises(MCPToolNotAllowedError):
+        await service.relay(
+            scope=_scope(),
+            namespace="builtin",
+            name="my-notion",
+            provider="composio",
+            integration="notion",
+            context=MCPCallContext(method="tools/call", target="NOTION_CREATE_PAGE"),
+            body=b'{"jsonrpc":"2.0","id":1,"method":"tools/call"}',
+            headers={},
+        )
+
+    assert adapter.relay_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_brokered_builtin_lists_only_the_tools_it_granted():
+    """`tools/list` carries no tool name, so the allowlist has to bite on the way back
+    too: an ungranted tool must not be advertised to a run that could not call it."""
+    connection = _connection(slug="my-notion", integration_key="notion")
+    connection.data = {"tools": ["NOTION_CREATE_PAGE"]}
+    listing = MCPRelayResult(
+        status_code=200,
+        headers={},
+        body=json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "tools": [
+                        {"name": "NOTION_CREATE_PAGE"},
+                        {"name": "GMAIL_SEND_EMAIL"},
+                    ]
+                },
+            }
+        ).encode(),
+    )
+    service = _relay_service(
+        connections_service=MockConnectionsService([connection]),
+        adapters={"composio": MockUpstreamAdapter(result=listing)},
+    )
+
+    result = await service.relay(
+        scope=_scope(),
+        namespace="builtin",
+        name="my-notion",
+        provider="composio",
+        integration="notion",
+        context=MCPCallContext(method="tools/list"),
+        body=b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
+        headers={},
+    )
+
+    listed = json.loads(result.body)["result"]["tools"]
+    assert [entry["name"] for entry in listed] == ["NOTION_CREATE_PAGE"]

@@ -18,6 +18,10 @@ export interface McpEndpointRegistration {
     name: string
     baseUrl: string
     authMode: McpEndpointAuthMode
+    /** The header the server wants its key in, taken from the drawer's secret-header row. */
+    credentialHeader?: string
+    /** The project secret the drawer bound, named by slug because that is what the config stores. */
+    secretSlug?: string
 }
 
 interface McpEndpointRow {
@@ -25,7 +29,28 @@ interface McpEndpointRow {
     slug?: string | null
     auth_mode?: McpEndpointAuthMode
     secret_id?: string | null
-    data?: {route?: {base_url?: string | null; headers?: Record<string, string> | null}}
+    data?: {
+        route?: {
+            base_url?: string | null
+            headers?: Record<string, string> | null
+            credential_header?: string | null
+        }
+        /** The tool allow/denylist and the endpoint's own settings: policy, carried over. */
+        tools?: Record<string, unknown> | null
+        settings?: Record<string, unknown> | null
+    }
+    /**
+     * Whether the endpoint is active and valid. Set against the endpoint, never by this
+     * drawer, and the `PUT` replaces them wholesale, so the row's own values are echoed
+     * back rather than left to the backend default of active-and-valid.
+     */
+    flags?: Record<string, unknown> | null
+}
+
+/** One row of the project's named secrets, as the vault list returns it. */
+export interface NamedSecretOption {
+    id?: string | null
+    slug?: string | null
 }
 
 const ENDPOINTS_URL = () => `${getAgentaApiUrl()}/gateways/mcps/endpoints/`
@@ -68,37 +93,101 @@ export function mcpEndpointRegistrationFromDraft(
         connection.credentials && typeof connection.credentials === "object"
             ? (connection.credentials as Record<string, unknown>)
             : {}
-    return {slug, name, baseUrl, authMode: mcpEndpointAuthMode(credentials.type)}
-}
-
-/** The `POST /gateways/mcps/endpoints/` body for a server the project has never registered. */
-export function buildMcpEndpointCreate(registration: McpEndpointRegistration) {
+    // `header_secret_refs` is a `{header name: secret slug}` map, and the drawer writes at most
+    // one entry. Both halves are needed: the gateway resolves the secret and puts it in that
+    // header, which is the same request the SDK sends when it dials the server without a gateway.
+    const [header, secretSlug] = Object.entries(
+        (credentials.headers && typeof credentials.headers === "object"
+            ? (credentials.headers as Record<string, unknown>)
+            : {}) as Record<string, unknown>,
+    )[0] ?? [undefined, undefined]
     return {
-        slug: registration.slug,
-        name: registration.name || registration.slug,
-        auth_mode: registration.authMode,
-        data: {route: {base_url: registration.baseUrl}},
+        slug,
+        name,
+        baseUrl,
+        authMode: mcpEndpointAuthMode(credentials.type),
+        credentialHeader: typeof header === "string" && header ? header : undefined,
+        secretSlug: typeof secretSlug === "string" && secretSlug ? secretSlug : undefined,
     }
 }
 
 /**
- * The `PUT` body for a slug the project already registered: the URL and name follow the drawer,
- * the rest of the stored route is carried over. An OAuth-connected row keeps `auth_mode: oauth` —
- * the drawer cannot express OAuth, so its choice must not disconnect an endpoint.
+ * The id of the project secret the drawer bound, or null when it bound none.
+ *
+ * The agent config names a secret by slug, because that is the name an author writes and the
+ * SDK resolves. The endpoint row names one by id. This is the single place the two meet, so a
+ * slug the project no longer has resolves to null and the endpoint registers unauthenticated
+ * rather than pointing at a secret that is not there.
+ */
+export function resolveMcpEndpointSecretId(
+    slug: string | undefined,
+    namedSecrets: NamedSecretOption[],
+): string | null {
+    if (!slug) return null
+    const match = namedSecrets.find((row) => row.slug === slug && row.id)
+    return match?.id ?? null
+}
+
+/**
+ * The `POST /gateways/mcps/endpoints/` body for a server the project has never registered.
+ *
+ * `secret_id` is always present, `null` included: an `api_key` endpoint without one is refused
+ * by the service on every call, so leaving the field off the payload is what made an API-key
+ * registration produce an endpoint that could never run.
+ */
+export function buildMcpEndpointCreate(
+    registration: McpEndpointRegistration,
+    secretId: string | null = null,
+) {
+    return {
+        slug: registration.slug,
+        name: registration.name || registration.slug,
+        auth_mode: registration.authMode,
+        secret_id: secretId,
+        data: {
+            route: {
+                base_url: registration.baseUrl,
+                credential_header: registration.credentialHeader ?? null,
+            },
+        },
+    }
+}
+
+/**
+ * The `PUT` body for a slug the project already registered: the URL, name and credential binding
+ * follow the drawer, the rest of the stored route is carried over. An OAuth-connected row keeps
+ * `auth_mode: oauth` — the drawer cannot express OAuth, so its choice must not disconnect an
+ * endpoint, and it keeps the row's own `secret_id`, which holds the grant.
+ *
+ * The row's `flags` are carried over for the same reason (OR51). The request is a full PUT over
+ * the editable surface, and a body that omits `flags` is not read as "leave them alone": the
+ * backend fills in its default of active-and-valid, so saving a drawer that knows nothing about
+ * them re-enabled an endpoint an administrator had disabled.
  */
 export function buildMcpEndpointEdit(
     registration: McpEndpointRegistration,
     existing: McpEndpointRow,
+    secretId: string | null = null,
 ) {
+    const keepsOAuth = existing.auth_mode === "oauth"
+    // The drawer owns the binding only when it names a secret. An OAuth row's `secret_id` holds
+    // the grant, and a row the drawer left unauthenticated keeps whatever it already had, so
+    // neither is overwritten by a registration that says nothing about a secret.
+    const boundSecretId = registration.secretSlug ? secretId : (existing.secret_id ?? null)
     return {
         id: existing.id as string,
         name: registration.name || registration.slug,
-        auth_mode: existing.auth_mode === "oauth" ? "oauth" : registration.authMode,
-        secret_id: existing.secret_id ?? null,
+        auth_mode: keepsOAuth ? "oauth" : registration.authMode,
+        secret_id: keepsOAuth ? (existing.secret_id ?? null) : boundSecretId,
         data: {
             ...existing.data,
-            route: {...existing.data?.route, base_url: registration.baseUrl},
+            route: {
+                ...existing.data?.route,
+                base_url: registration.baseUrl,
+                credential_header: registration.credentialHeader ?? null,
+            },
         },
+        ...(existing.flags ? {flags: existing.flags} : {}),
     }
 }
 
@@ -118,10 +207,12 @@ export function registrationErrorDetail(error: unknown): string {
 export async function registerMcpServerDraft(
     draft: Record<string, unknown>,
     projectId: string | null | undefined,
+    namedSecrets: NamedSecretOption[] = [],
 ): Promise<Record<string, unknown>> {
     const registration = mcpEndpointRegistrationFromDraft(draft)
     if (!registration) return draft
 
+    const boundSecretId = resolveMcpEndpointSecretId(registration.secretSlug, namedSecrets)
     const params = projectId ? {project_id: projectId} : undefined
     try {
         const listed = await axios.get(ENDPOINTS_URL(), {params})
@@ -131,13 +222,13 @@ export async function registerMcpServerDraft(
         if (existing) {
             await axios.put(
                 `${ENDPOINTS_URL()}${existing.id}`,
-                {endpoint: buildMcpEndpointEdit(registration, existing)},
+                {endpoint: buildMcpEndpointEdit(registration, existing, boundSecretId)},
                 {params},
             )
         } else {
             await axios.post(
                 ENDPOINTS_URL(),
-                {endpoint: buildMcpEndpointCreate(registration)},
+                {endpoint: buildMcpEndpointCreate(registration, boundSecretId)},
                 {params},
             )
         }

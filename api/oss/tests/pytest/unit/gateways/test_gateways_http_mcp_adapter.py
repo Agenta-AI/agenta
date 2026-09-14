@@ -9,11 +9,14 @@ AGENTA_INSECURE_EGRESS_ALLOWED=false explicitly" means operationally: the guard 
 live, not defaulted off, for every one of these cases.
 """
 
+import json
 from types import SimpleNamespace
 
 import httpx
 import pytest
 
+from oss.src.core.gateways.dtos import CREDENTIAL_ECHO_CODE
+from oss.src.core.gateways.mcps.echo import MCPUpstreamCredentialEchoError
 from oss.src.core.gateways.mcps.dtos import (
     MCPBrokeredAuth,
     MCPCallContext,
@@ -520,3 +523,246 @@ async def test_endpoint_without_a_secret_still_calls_the_server_unauthenticated(
 
     assert result.status_code == 200
     assert "authorization" not in captured["headers"]
+
+
+# ---------------------------------------------------------------------------
+# API-key credential binding (OR54)
+#
+# An MCP server names the header it wants its key in, and the agent config already says
+# so (`credentials.header_secret_refs`). The endpoint carries that name on its route and
+# the key itself only as an opaque `secret_id`, so these cases pin what the relay puts on
+# the wire for each vault shape a bound secret can have.
+# ---------------------------------------------------------------------------
+
+_SYNTHETIC_API_KEY = "synthetic-mcp-api-key-0123456789"  # gitleaks:allow
+
+
+def _named_secret_auth(content):
+    """An `MCPDirectAuth` over a project-named secret (`custom_secret`), the kind the
+    agent config's `header_secret_refs` picks."""
+    return MCPDirectAuth.model_construct(
+        secret=SimpleNamespace(
+            secret=SimpleNamespace(
+                data=SimpleNamespace(secret=SimpleNamespace(content=content))
+            )
+        )
+    )
+
+
+def _provider_key_auth(key):
+    """An `MCPDirectAuth` over a provider-key record, which keeps its value elsewhere."""
+    return MCPDirectAuth.model_construct(
+        secret=SimpleNamespace(
+            secret=SimpleNamespace(
+                data=SimpleNamespace(provider=SimpleNamespace(key=key))
+            )
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_api_key_travels_in_the_header_the_endpoint_registered():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["headers"] = request.headers
+        return _json_response()
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    await adapter.relay(
+        route=MCPResolvedRoute(
+            url=f"https://{_PUBLIC_IP}/mcp", credential_header="x-api-key"
+        ),
+        auth=_named_secret_auth(_SYNTHETIC_API_KEY),
+        context=_context(),
+        body=b"{}",
+        headers={},
+    )
+
+    # Verbatim, with no scheme prefix: this is the request the SDK sends when it dials the
+    # same server without a gateway (`agenta/sdk/agents/mcp/resolver.py`).
+    assert captured["headers"]["x-api-key"] == _SYNTHETIC_API_KEY
+    assert "authorization" not in captured["headers"]
+
+
+@pytest.mark.asyncio
+async def test_api_key_without_a_registered_header_falls_back_to_bearer():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["headers"] = request.headers
+        return _json_response()
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    await adapter.relay(
+        route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+        auth=_provider_key_auth(_SYNTHETIC_API_KEY),
+        context=_context(),
+        body=b"{}",
+        headers={},
+    )
+
+    assert captured["headers"]["authorization"] == f"Bearer {_SYNTHETIC_API_KEY}"
+
+
+@pytest.mark.asyncio
+async def test_json_named_secret_carries_no_single_key_so_nothing_is_sent():
+    """A JSON-format named secret is a map, not one credential. Picking an entry out of it
+    would be a guess, so the relay sends nothing rather than the wrong value."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["headers"] = request.headers
+        return _json_response()
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    await adapter.relay(
+        route=MCPResolvedRoute(
+            url=f"https://{_PUBLIC_IP}/mcp", credential_header="x-api-key"
+        ),
+        auth=_named_secret_auth({"token": _SYNTHETIC_API_KEY}),
+        context=_context(),
+        body=b"{}",
+        headers={},
+    )
+
+    assert "x-api-key" not in captured["headers"]
+    assert "authorization" not in captured["headers"]
+
+
+# ---------------------------------------------------------------------------
+# Injected-credential echo (OR75)
+#
+# The relay reads the whole response before it returns, so detection is enough and
+# nothing needs withholding. Both surfaces are covered: the body, and the response's own
+# header block, which the proxy copies onto Agenta's response.
+# ---------------------------------------------------------------------------
+
+_SYNTHETIC_GRANT = "synthetic-mcp-grant-0123456789"
+
+
+def _grant_auth(access_token):
+    return MCPDirectAuth.model_construct(
+        secret=SimpleNamespace(
+            secret=SimpleNamespace(
+                data=SimpleNamespace(
+                    grant=SimpleNamespace(
+                        access_token=access_token, token_type="Bearer"
+                    )
+                )
+            )
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_upstream_echoing_the_grant_in_its_body_is_refused():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            401,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {
+                    "code": -32000,
+                    "message": f"rejected Authorization: Bearer {_SYNTHETIC_GRANT}",
+                },
+            },
+        )
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(MCPUpstreamCredentialEchoError) as excinfo:
+        await adapter.relay(
+            route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+            auth=_grant_auth(_SYNTHETIC_GRANT),
+            context=_context(),
+            body=b"{}",
+            headers={},
+        )
+
+    envelope = excinfo.value.envelope
+    assert envelope["code"] == CREDENTIAL_ECHO_CODE
+    assert envelope["retryable"] is False
+    # The refusal reaches the sandbox and the transcript, which is the disclosure it
+    # exists to prevent.
+    assert _SYNTHETIC_GRANT not in json.dumps(envelope)
+    assert _SYNTHETIC_GRANT not in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_upstream_echoing_the_grant_in_a_response_header_is_refused():
+    """A 200 whose body is clean still discloses the credential when a debug header holds
+    it, because the proxy copies the upstream's headers onto Agenta's own response."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"x-debug-auth": f"Bearer {_SYNTHETIC_GRANT}"},
+            content=b'{"jsonrpc":"2.0","id":1,"result":{}}',
+        )
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(MCPUpstreamCredentialEchoError):
+        await adapter.relay(
+            route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+            auth=_grant_auth(_SYNTHETIC_GRANT),
+            context=_context(),
+            body=b"{}",
+            headers={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_upstream_echoing_an_api_key_from_a_named_header_is_refused():
+    """The scan follows the value, not the header name: an endpoint's key travels in a
+    name the endpoint chose, which the LLM plane's fixed list of credential headers would
+    never have recognised."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=f'{{"jsonrpc":"2.0","id":1,"result":{{"sent":"{_SYNTHETIC_API_KEY}"}}}}'.encode(),
+        )
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(MCPUpstreamCredentialEchoError):
+        await adapter.relay(
+            route=MCPResolvedRoute(
+                url=f"https://{_PUBLIC_IP}/mcp", credential_header="x-exa-api-key"
+            ),
+            auth=_named_secret_auth(_SYNTHETIC_API_KEY),
+            context=_context(),
+            body=b"{}",
+            headers={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_response_that_merely_resembles_the_credential_is_relayed():
+    """The refusal is for the value itself. A body carrying a prefix of it, or an endpoint
+    with no credential at all, must not cost the caller its response."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=f'{{"echo":"{_SYNTHETIC_GRANT[:-1]}"}}'.encode(),
+        )
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    result = await adapter.relay(
+        route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+        auth=_grant_auth(_SYNTHETIC_GRANT),
+        context=_context(),
+        body=b"{}",
+        headers={},
+    )
+
+    assert result.status_code == 200
+    assert _SYNTHETIC_GRANT.encode()[:-1] in result.body

@@ -29,6 +29,7 @@ import {
     mcpEndpointRegistrationFromDraft,
     registerMcpServerDraft,
     registrationErrorDetail,
+    resolveMcpEndpointSecretId,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/mcpEndpointRegistration"
 
 beforeEach(() => {
@@ -90,6 +91,10 @@ describe("mcpEndpointRegistrationFromDraft", () => {
             name: "gw-mock-mcp",
             baseUrl: "https://mcp.example.com/mcp",
             authMode: "api_key",
+            // Both halves of `header_secret_refs`: the gateway needs the secret to resolve and
+            // the header name to put it in, or the endpoint registers unrunnable.
+            credentialHeader: "x-api-key",
+            secretSlug: "exa",
         })
     })
 
@@ -116,41 +121,118 @@ describe("registration payloads", () => {
         name: "Acme Notion",
         baseUrl: "https://mcp.acme.test/mcp",
         authMode: "api_key" as const,
+        credentialHeader: "x-api-key",
+        secretSlug: "exa",
     }
 
-    it("builds the create body the endpoints API expects", () => {
-        expect(buildMcpEndpointCreate(registration)).toEqual({
+    // CHANGED (OR54): this case used to assert a create body with no `secret_id` and no
+    // credential header, which is the defect — the service refuses every call on an
+    // `api_key` endpoint that names no secret, so that payload registered an endpoint that
+    // could never run. The binding is now part of the contract and the assertion says so.
+    it("builds the create body the endpoints API expects, credential binding included", () => {
+        expect(buildMcpEndpointCreate(registration, "secret-row-1")).toEqual({
             slug: "acme-notion",
             name: "Acme Notion",
             auth_mode: "api_key",
-            data: {route: {base_url: "https://mcp.acme.test/mcp"}},
+            secret_id: "secret-row-1",
+            data: {
+                route: {
+                    base_url: "https://mcp.acme.test/mcp",
+                    credential_header: "x-api-key",
+                },
+            },
         })
+    })
+
+    it("sends an explicit null when the drawer bound no secret", () => {
+        const body = buildMcpEndpointCreate({
+            ...registration,
+            authMode: "none",
+            credentialHeader: undefined,
+            secretSlug: undefined,
+        })
+        expect(body.secret_id).toBeNull()
+        expect(body.data.route.credential_header).toBeNull()
     })
 
     it("falls back to the slug when the server has no display name", () => {
         expect(buildMcpEndpointCreate({...registration, name: ""}).name).toBe("acme-notion")
     })
 
+    it("rebinds an existing row to the secret the drawer now names", () => {
+        const edit = buildMcpEndpointEdit(
+            registration,
+            {id: "row-1", auth_mode: "api_key", data: {route: {base_url: "https://old.test/mcp"}}},
+            "secret-row-2",
+        )
+        expect(edit.secret_id).toBe("secret-row-2")
+        expect(edit.data.route.credential_header).toBe("x-api-key")
+    })
+
     it("updates an existing row in place, carrying the rest of its stored route over", () => {
         expect(
-            buildMcpEndpointEdit(registration, {
-                id: "row-1",
-                slug: "acme-notion",
-                auth_mode: "none",
-                secret_id: "secret-9",
-                data: {
-                    route: {base_url: "https://old.test/mcp", headers: {"x-tenant": "acme"}},
+            buildMcpEndpointEdit(
+                {...registration, credentialHeader: undefined, secretSlug: undefined},
+                {
+                    id: "row-1",
+                    slug: "acme-notion",
+                    auth_mode: "none",
+                    secret_id: "secret-9",
+                    data: {
+                        route: {base_url: "https://old.test/mcp", headers: {"x-tenant": "acme"}},
+                    },
                 },
-            }),
+            ),
         ).toEqual({
             id: "row-1",
             name: "Acme Notion",
             auth_mode: "api_key",
+            // A registration that names no secret says nothing about the binding, so the
+            // row keeps the one it had rather than being silently unbound.
             secret_id: "secret-9",
             data: {
-                route: {base_url: "https://mcp.acme.test/mcp", headers: {"x-tenant": "acme"}},
+                route: {
+                    base_url: "https://mcp.acme.test/mcp",
+                    headers: {"x-tenant": "acme"},
+                    credential_header: null,
+                },
             },
         })
+    })
+
+    // OR51: the drawer collects a URL and a credential binding. Everything else on the row
+    // belongs to whoever administers the endpoint, and a full PUT that says nothing about
+    // those fields is read by the backend as "use the defaults", not as "leave them alone".
+    it("leaves a disabled endpoint disabled, with its tool denylist and its ceiling", () => {
+        const edit = buildMcpEndpointEdit(registration, {
+            id: "row-3",
+            slug: "acme-notion",
+            auth_mode: "api_key",
+            secret_id: "secret-9",
+            data: {
+                route: {base_url: "https://old.test/mcp"},
+                tools: {denylist: ["delete_page"]},
+                settings: {timeout_seconds: 12},
+            },
+            flags: {is_active: false, is_valid: true},
+        })
+
+        expect(edit.flags).toEqual({is_active: false, is_valid: true})
+        expect(edit.data.tools).toEqual({denylist: ["delete_page"]})
+        expect(edit.data.settings).toEqual({timeout_seconds: 12})
+        // ...while the fields the drawer does own still follow the drawer.
+        expect(edit.data.route.base_url).toBe("https://mcp.acme.test/mcp")
+        expect(edit.data.route.credential_header).toBe("x-api-key")
+    })
+
+    it("sends no flags for a row that reported none, so the backend keeps its defaults", () => {
+        const edit = buildMcpEndpointEdit(registration, {
+            id: "row-4",
+            auth_mode: "api_key",
+            data: {route: {base_url: "https://old.test/mcp"}},
+        })
+
+        expect("flags" in edit).toBe(false)
     })
 
     it("never downgrades an OAuth-connected row, which the drawer cannot express", () => {
@@ -180,7 +262,10 @@ describe("registerMcpServerDraft", () => {
                     slug: "Acme-Notion",
                     name: "Acme Notion",
                     auth_mode: "none",
-                    data: {route: {base_url: "https://mcp.acme.test/mcp"}},
+                    // CHANGED (OR54): the create body now always states the binding. This
+                    // draft binds nothing, so both fields are an explicit null.
+                    secret_id: null,
+                    data: {route: {base_url: "https://mcp.acme.test/mcp", credential_header: null}},
                 },
             },
             {params: {project_id: "proj-42"}},
@@ -238,5 +323,85 @@ describe("registrationErrorDetail", () => {
     it("falls back to the error message, then to a generic reason", () => {
         expect(registrationErrorDetail(new Error("Network Error"))).toBe("Network Error")
         expect(registrationErrorDetail({})).toBe("the request failed")
+    })
+})
+
+describe("resolveMcpEndpointSecretId", () => {
+    const rows = [
+        {id: "row-exa", slug: "exa"},
+        {id: null, slug: "half-written"},
+    ]
+
+    it("translates the config's secret slug into the id the endpoint row binds", () => {
+        expect(resolveMcpEndpointSecretId("exa", rows)).toBe("row-exa")
+    })
+
+    it("resolves nothing for a slug the project no longer has", () => {
+        expect(resolveMcpEndpointSecretId("gone", rows)).toBeNull()
+        expect(resolveMcpEndpointSecretId("half-written", rows)).toBeNull()
+        expect(resolveMcpEndpointSecretId(undefined, rows)).toBeNull()
+    })
+})
+
+describe("registering an API-key server (OR54)", () => {
+    const draft = {
+        name: "Exa",
+        connection: {
+            type: "http",
+            url: "https://mcp.exa.test/mcp",
+            credentials: {type: "header_secret_refs", headers: {"x-api-key": "exa"}},
+        },
+    }
+
+    it("binds the drawer's project secret to the endpoint it registers", async () => {
+        await registerMcpServerDraft(draft, "proj-42", [{id: "row-exa", slug: "exa"}])
+
+        expect(post).toHaveBeenCalledWith(
+            "https://api.test/gateways/mcps/endpoints/",
+            {
+                endpoint: {
+                    slug: "Exa",
+                    name: "Exa",
+                    auth_mode: "api_key",
+                    secret_id: "row-exa",
+                    data: {
+                        route: {
+                            base_url: "https://mcp.exa.test/mcp",
+                            credential_header: "x-api-key",
+                        },
+                    },
+                },
+            },
+            {params: {project_id: "proj-42"}},
+        )
+    })
+
+    it("rebinds a row registered before the secret was chosen", async () => {
+        get.mockResolvedValue({
+            data: {
+                endpoints: [
+                    {
+                        id: "row-1",
+                        slug: "Exa",
+                        auth_mode: "none",
+                        secret_id: null,
+                        data: {route: {}},
+                    },
+                ],
+            },
+        })
+
+        await registerMcpServerDraft(draft, "proj-42", [{id: "row-exa", slug: "exa"}])
+
+        expect(put).toHaveBeenCalledWith(
+            "https://api.test/gateways/mcps/endpoints/row-1",
+            {
+                endpoint: expect.objectContaining({
+                    auth_mode: "api_key",
+                    secret_id: "row-exa",
+                }),
+            },
+            {params: {project_id: "proj-42"}},
+        )
     })
 })

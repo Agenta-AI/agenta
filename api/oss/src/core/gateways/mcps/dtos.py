@@ -34,7 +34,18 @@ MOCK_PROVIDER = "mock"
 
 
 class MCPEndpointRoute(GatewayEndpointRoute):
-    """Route for one MCP server."""
+    """Route for one MCP server.
+
+    `credential_header` names the header an API-key endpoint's credential travels in, and
+    nothing more: the value stays in the vault behind the endpoint's `secret_id`, so this
+    field is configuration and is as readable as `base_url` is. It exists because an MCP
+    server picks its own name for that header (`x-api-key`, `x-exa-api-key`, ...), which
+    is what the agent config already expresses as `credentials.header_secret_refs`. None
+    falls back to `Authorization: Bearer <key>`, and an OAuth endpoint ignores the field
+    because a grant travels under the scheme its authorization server issued it with.
+    """
+
+    credential_header: Optional[str] = None
 
 
 # The MCP plane's name for the shared filter. Same shape, same storage.
@@ -110,6 +121,10 @@ class MCPResolvedRoute(BaseModel):
     url: str
     headers: Dict[str, str] = Field(default_factory=dict)
     settings: MCPEndpointSettings = Field(default_factory=MCPEndpointSettings)
+    # Carried from the endpoint's `MCPEndpointRoute`: the header name an API-key
+    # credential travels in. The name, never the value — the adapter reads the value from
+    # the resolved secret it is handed alongside this route.
+    credential_header: Optional[str] = None
     # Standard Composio sessions bind external accounts to this project scope.
     project_id: Optional[UUID] = None
 

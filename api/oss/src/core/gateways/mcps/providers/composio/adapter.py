@@ -20,6 +20,10 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPRelayAuth,
     MCPResolvedRoute,
 )
+from oss.src.core.gateways.mcps.echo import (
+    credential_echo_scanner,
+    refuse_credential_echo,
+)
 from oss.src.core.gateways.mcps.interfaces import MCPRelayResult, MCPUpstreamInterface
 from oss.src.core.gateways.mcps.types import MCPUpstreamError
 from oss.src.utils.env import env
@@ -113,6 +117,17 @@ class ComposioMCPAdapter(MCPUpstreamInterface):
                 )
         except httpx.RequestError as exc:
             raise MCPUpstreamError(target=session.mcp_url, detail=str(exc)) from exc
+
+        # OR75: the session credential Composio issued for this connection is injected
+        # above the caller's headers, so a response that returns it is refused rather
+        # than relayed into the sandbox.
+        refuse_credential_echo(
+            scanner=credential_echo_scanner(session.mcp_headers),
+            target=session.mcp_url,
+            status_code=response.status_code,
+            headers=response.headers,
+            body=response.content,
+        )
 
         return MCPRelayResult(
             status_code=response.status_code,
