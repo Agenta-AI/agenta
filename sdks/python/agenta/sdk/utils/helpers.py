@@ -67,6 +67,20 @@ def strip_trailing_api_segment(url: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, path, "", ""))
 
 
+def strip_query_and_fragment(url: str) -> str:
+    """Drop any query string and fragment from a URL, keeping the path intact.
+
+    Callers use the result as a plain string-concatenation base (e.g.
+    ``f"{api_url}/projects/current"``), not as a proper URL-join target. If a
+    query were preserved here, an appended path would be swallowed into the
+    query string instead of becoming a real path segment. Unlike
+    ``strip_trailing_api_segment``, the path (including a trailing ``/api``
+    segment) is kept unchanged.
+    """
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+
+
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
 
 

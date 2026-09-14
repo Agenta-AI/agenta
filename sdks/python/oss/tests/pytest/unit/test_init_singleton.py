@@ -202,3 +202,49 @@ def test_get_trace_url_with_query_string_api_url(monkeypatch):
         "https://cloud.agenta.ai/w/ws-1/p/proj-1/observability?trace=abc123"
     )
     assert "tenant=x" not in trace_url
+
+
+def test_resolve_scopes_uses_query_free_api_url(reset_singleton, monkeypatch):
+    """resolve_scopes() must send a well-formed request URL from a query-bearing
+    api_url (the appended '/projects/current' path must not be swallowed into a
+    query string)."""
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "organization_id": "org-1",
+                "workspace_id": "ws-1",
+                "project_id": "proj-1",
+            }
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            # AgentaApi/AsyncAgentaApi also construct an httpx.Client during
+            # init(); accept and ignore their arguments.
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def get(self, url, **kwargs):
+            captured["url"] = url
+            return FakeResponse()
+
+    monkeypatch.setattr("httpx.Client", FakeClient)
+
+    singleton = AgentaSingleton()
+    singleton.init(api_url="https://cloud.agenta.ai/api?tenant=x", api_key="test-key")
+    scopes = singleton.resolve_scopes()
+
+    assert scopes == ("org-1", "ws-1", "proj-1")
+    # The actual URL sent to client.get() must be well-formed: /api path intact,
+    # appended path NOT swallowed into a query string.
+    assert captured["url"] == "https://cloud.agenta.ai/api/projects/current"
+    assert "tenant=x" not in captured["url"]
