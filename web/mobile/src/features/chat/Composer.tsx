@@ -189,9 +189,10 @@ export const Composer = ({
             // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so an
             // uncaught rejection would leave the user with no message, no error, and no idea a
             // send even failed. Put the attachments and the text back, and say so through the
-            // composer's own inline channel. Idempotent: a throw before the clear leaves the
-            // tray as it was.
-            attachments.restoreAttachments(staged)
+            // composer's own inline channel. `outbound`, not `staged`: a voice take never sat in
+            // the tray, and restoring it there is what makes it retryable. Idempotent: a throw
+            // before the clear leaves the tray as it was.
+            attachments.restoreAttachments(outbound)
             richInputRef.current?.setMarkdown(text)
             attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
         }
