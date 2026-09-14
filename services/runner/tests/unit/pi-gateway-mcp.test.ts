@@ -2,17 +2,77 @@ import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
+  MCP_DISCOVERY_METHOD,
   parsePiGatewayMcpConfig,
   piMcpToolName,
   registerPiGatewayMcpTools,
   serializePiGatewayMcpConfig,
 } from "../../src/extensions/pi-mcp.ts";
+import { probeMcpServerHandshake } from "../../src/engines/sandbox_agent/mcp-handshake.ts";
 
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
 });
+
+/**
+ * A stand-in for the gateway's builtin adapter
+ * (`api/oss/src/core/gateways/mcps/providers/agenta/adapter.py`): it answers the handshake, then
+ * `tools/list` and `tools/call`, and refuses every other method the way that adapter does — the
+ * gateway turns its `ValueError` into a non-2xx, not a JSON-RPC error. Written as the narrow set
+ * it is, so a client that opens with anything else fails here exactly as it failed in production.
+ */
+function builtinAdapterFetch(options: { onRequest?: (method: string) => void } = {}) {
+  return (async (_url: string | URL | Request, init?: RequestInit) => {
+    const payload = JSON.parse(String(init?.body));
+    options.onRequest?.(payload.method);
+    if (payload.id === undefined) return new Response("", { status: 202 });
+    const result =
+      payload.method === "initialize"
+        ? {
+            protocolVersion: payload.params?.protocolVersion ?? "2026-07-28",
+            capabilities: { tools: {} },
+            serverInfo: { name: "agenta-builtin-mcp", version: "0.1.0" },
+          }
+        : payload.method === "tools/list"
+          ? { tools: [{ name: "echo", description: "echo", inputSchema: { type: "object" } }] }
+          : payload.method === "tools/call"
+            ? { content: [{ type: "text", text: "ok" }] }
+            : undefined;
+    if (result === undefined) {
+      return new Response(
+        `Agenta MCP supports only initialize, tools/list and tools/call`,
+        { status: 502 },
+      );
+    }
+    return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+}
+
+function oneServerConfig(name = "mock"): string {
+  return serializePiGatewayMcpConfig([
+    {
+      name,
+      url: `https://api.example.test/gateways/mcps/custom/${name}`,
+      headers: { "X-AG-Credentials": "short-lived-gateway-token" },
+      policy: { tools: { mode: "all" } },
+    },
+  ]);
+}
+
+/** A Pi instance that keeps its registry across turns, the way a pooled session's does. */
+function fakePi() {
+  const tools: any[] = [];
+  return {
+    tools,
+    registerTool: (tool: any) => tools.push(tool),
+    getAllTools: () => tools.map((tool) => ({ name: tool.name })),
+  };
+}
 
 describe("Pi gateway MCP extension", () => {
   it("discovers and calls a gateway-backed HTTP MCP tool without naming an upstream", async () => {
@@ -50,7 +110,11 @@ describe("Pi gateway MCP extension", () => {
     assert.equal(registered[0].name, "mcp__mock__echo");
     const value = await registered[0].execute("call-1", { marker: "WP34-ECHO" });
     assert.match(value.content[0].text, /WP34-ECHO/);
-    assert.ok(requests.some((request) => request.method === "server/discover"));
+    // OR56. This asserted `server/discover`, the method this client used to open with. That
+    // string was the defect: it is optional for clients under the 2026-07-28 revision and no
+    // server here is obliged to answer it, while `initialize` is what the runner's probe, the
+    // runner's own MCP server and the gateway's builtin adapter all speak.
+    assert.ok(requests.some((request) => request.method === MCP_DISCOVERY_METHOD));
     assert.ok(requests.some((request) => request.method === "tools/list"));
     assert.ok(requests.some((request) => request.method === "tools/call"));
     assert.ok(requests.every((request) => request.headers.get("x-ag-credentials") === "short-lived-gateway-token"));
@@ -137,5 +201,137 @@ describe("Pi gateway MCP extension", () => {
       logs.join("\n"),
     );
     assert.ok(logs.some((line) => line.includes("from 1/2 server(s)")), logs.join("\n"));
+  });
+
+  it("opens discovery with the one method the gateway's builtin adapter answers", async () => {
+    // OR56. Three components each named a different method for the same step: this client sent
+    // `server/discover`, the runner's handshake probe sent `initialize`, and the builtin adapter
+    // answered neither — it accepted only `tools/list` and `tools/call`. A server that satisfied
+    // one client refused the next. `initialize` is the specification's handshake and the method
+    // the two harness clients we do not control (Claude Code, Codex) open with, so it is the one
+    // string all of them use. This drives the client and the probe against the same adapter
+    // stand-in: before the fix the client's first call was refused and it registered nothing.
+    const methods: string[] = [];
+    globalThis.fetch = builtinAdapterFetch({ onRequest: (method) => methods.push(method) });
+
+    const registered: any[] = [];
+    await registerPiGatewayMcpTools(
+      { registerTool: (tool) => registered.push(tool), getAllTools: () => [] },
+      oneServerConfig(),
+      () => {},
+    );
+
+    assert.equal(MCP_DISCOVERY_METHOD, "initialize");
+    assert.equal(methods[0], MCP_DISCOVERY_METHOD);
+    assert.deepEqual(
+      registered.map((tool) => tool.name),
+      ["mcp__mock__echo"],
+    );
+
+    // The same adapter stand-in, driven by the runner's own handshake probe: one lifecycle means
+    // the probe's verdict is evidence about the client that follows it, not about a third method.
+    const probeMethods: string[] = [];
+    const failure = await probeMcpServerHandshake(
+      {
+        name: "mock",
+        connection: {
+          type: "http",
+          url: "https://api.example.test/gateways/mcps/custom/mock",
+          credentials: [
+            {
+              binding: { kind: "header", name: "X-AG-Credentials" },
+              value: "short-lived-gateway-token",
+              usage: "opaque_http",
+            },
+          ],
+        },
+      },
+      {
+        fetchImpl: (async (url: string, init: any) => {
+          probeMethods.push(JSON.parse(String(init.body)).method);
+          return builtinAdapterFetch()(url, init) as any;
+        }) as any,
+      },
+    );
+    assert.equal(failure, undefined);
+    assert.deepEqual(probeMethods, [MCP_DISCOVERY_METHOD]);
+  });
+
+  it("keeps a pooled session's MCP tools on its second turn", async () => {
+    // OR59. `before_agent_start` runs once per turn and a pooled session runs many turns through
+    // one Pi instance. The collision guard was seeded from `pi.getAllTools()`, which on turn two
+    // already holds turn one's gateway tools, so the session collided with itself and the tools
+    // went missing for the rest of the session. Re-registering what this module itself put there
+    // is a no-op; only a name someone else owns is a collision.
+    globalThis.fetch = builtinAdapterFetch();
+    const pi = fakePi();
+    const raw = oneServerConfig();
+    const logs: string[] = [];
+
+    await registerPiGatewayMcpTools(pi, raw, (message) => logs.push(message));
+    assert.deepEqual(
+      pi.tools.map((tool) => tool.name),
+      ["mcp__mock__echo"],
+      "first turn registers the server's tool",
+    );
+
+    await registerPiGatewayMcpTools(pi, raw, (message) => logs.push(message));
+    assert.deepEqual(
+      pi.tools.map((tool) => tool.name),
+      ["mcp__mock__echo"],
+      "second turn keeps it, exactly once",
+    );
+    assert.ok(
+      !logs.some((line) => line.includes("collision")),
+      logs.join("\n"),
+    );
+
+    // Present is not enough: the tool the second turn hands the model must still run.
+    const value: any = await pi.tools[0].execute("call-1", {});
+    assert.match(value.content[0].text, /ok/);
+  });
+
+  it("reports a genuine collision instead of leaving the turn unexplained", async () => {
+    // OR59's other half. A name Pi already holds that this module did not register is a real
+    // defect, and it must cost only its own tool: the other server's tools still register, the
+    // log names the offending tool, and the caller still sees the failure.
+    globalThis.fetch = builtinAdapterFetch();
+    const raw = serializePiGatewayMcpConfig([
+      {
+        name: "shadow",
+        url: "https://api.example.test/gateways/mcps/custom/shadow",
+        headers: { "X-AG-Credentials": "short-lived-gateway-token" },
+        policy: { tools: { mode: "all" } },
+      },
+      {
+        name: "healthy",
+        url: "https://api.example.test/gateways/mcps/custom/healthy",
+        headers: { "X-AG-Credentials": "short-lived-gateway-token" },
+        policy: { tools: { mode: "all" } },
+      },
+    ]);
+    const registered: string[] = [];
+    const logs: string[] = [];
+
+    await assert.rejects(
+      () =>
+        registerPiGatewayMcpTools(
+          {
+            registerTool: (tool: any) => registered.push(tool.name),
+            getAllTools: () => [{ name: "mcp__shadow__echo" }],
+          },
+          raw,
+          (message) => logs.push(message),
+        ),
+      /MCP tool name collision: mcp__shadow__echo/,
+    );
+    assert.deepEqual(registered, ["mcp__healthy__echo"]);
+    assert.ok(
+      logs.some(
+        (line) =>
+          line.startsWith("[mcp] error:") && line.includes("mcp__shadow__echo"),
+      ),
+      logs.join("\n"),
+    );
   });
 });

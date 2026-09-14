@@ -469,7 +469,19 @@ const factory = (pi: ExtensionAPI): void => {
   if (hasTools) registerTools(pi);
   if (gatewayMcpServers) {
     pi.on("before_agent_start", async () => {
-      await registerPiGatewayMcpTools(pi, gatewayMcpServers, log);
+      try {
+        await registerPiGatewayMcpTools(pi, gatewayMcpServers, log);
+      } catch (error) {
+        // OR59. A registration failure used to leave `before_agent_start` as a bare rejection:
+        // the turn either died with a generic error or ran on with no tools and no line saying
+        // why. Registration already logged the offending tool; this is the one sentence that
+        // says the registration as a whole failed. The turn survives, as it does for a server
+        // that fails its handshake (OR32) — the tools that did register still work.
+        log(
+          `[mcp] error: gateway MCP tool registration failed: ` +
+            `${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     });
   }
   if (hasBuiltinActivation) registerBuiltinActivation(pi);

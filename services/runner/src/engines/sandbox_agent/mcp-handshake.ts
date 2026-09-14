@@ -19,6 +19,16 @@
  * nothing.
  */
 
+// The method and protocol version the probe negotiates, taken from the Pi extension's MCP client
+// rather than written out again. OR56: the two were written out separately and drifted — the
+// probe handshook with `initialize` while the extension handshook with `server/discover`, so a
+// server could pass this probe and still refuse the client that follows it. `pi-mcp.ts` is a leaf
+// module with no imports of its own, so reading two constants from it pulls nothing else in.
+import {
+  MCP_DISCOVERY_METHOD,
+  MCP_PROTOCOL_VERSION,
+} from "../../extensions/pi-mcp.ts";
+
 /** Why a server's handshake did not succeed. Stable string codes, never display strings. */
 export type McpHandshakeReasonCode =
   /** The request never got an answer: DNS, TLS, connection refused, or the probe timeout. */
@@ -69,9 +79,6 @@ type FetchLike = (
   headers: { get(name: string): string | null };
   text(): Promise<string>;
 }>;
-
-/** The protocol version the probe negotiates. Matches the Pi extension's client. */
-const MCP_PROTOCOL_VERSION = "2026-07-28";
 
 /** How long one server's handshake may take before it counts as unreachable. */
 export const MCP_HANDSHAKE_PROBE_TIMEOUT_MS = 10_000;
@@ -168,7 +175,7 @@ export async function probeMcpServerHandshake(
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "initialize",
+        method: MCP_DISCOVERY_METHOD,
         params: {
           protocolVersion: MCP_PROTOCOL_VERSION,
           capabilities: {},
