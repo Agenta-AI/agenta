@@ -338,10 +338,10 @@ export function EnhancedModal(props: EnhancedModalProps) {
                     if (!maskClosable) e.preventDefault()
                 }}
             >
-                {/* antd modal: header marginBottom 8px (pb-2), footer marginTop 12px (pt-3). */}
+                {/* 16px rhythm; the footer band supplies its own padding. */}
                 {title != null ? (
                     <DialogHeader
-                        className={cn("shrink-0 px-6 pb-2 pt-5", resolvedClassNames?.header)}
+                        className={cn("shrink-0 px-4 pb-4 pt-4", resolvedClassNames?.header)}
                         style={resolved?.header}
                     >
                         <DialogTitle>{title}</DialogTitle>
@@ -354,9 +354,8 @@ export function EnhancedModal(props: EnhancedModalProps) {
                 <div
                     data-slot="modal-body"
                     className={cn(
-                        "min-h-0 flex-1 overflow-y-auto px-6 text-field-md text-colorText",
-                        title == null && "pt-5",
-                        footerNode == null && "pb-5",
+                        "min-h-0 flex-1 overflow-y-auto px-4 pb-4 text-field-md text-colorText",
+                        title == null && "pt-4",
                         resolvedClassNames?.body,
                     )}
                     style={resolved?.body}
@@ -365,7 +364,8 @@ export function EnhancedModal(props: EnhancedModalProps) {
                 </div>
                 {footerNode != null ? (
                     <DialogFooter
-                        className={cn("shrink-0 px-6 pb-5 pt-3", resolvedClassNames?.footer)}
+                        // The content is p-0 here, so the band's -m bleed is undone.
+                        className={cn("mx-0 mb-0 shrink-0", resolvedClassNames?.footer)}
                         style={resolved?.footer}
                     >
                         {footerNode}

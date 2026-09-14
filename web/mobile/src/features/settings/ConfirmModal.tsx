@@ -1,25 +1,20 @@
 import type {ReactNode} from "react"
 
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
 } from "@agenta/ui/ui"
 
 /**
- * The confirm-then-act modal every destructive action uses, so a delete reads the same wherever
- * it is triggered from.
- *
- * A modal rather than a sheet: these questions interrupt — the answer is one keystroke from being
- * irreversible — and a sheet sliding in from the edge reads as somewhere you can look past.
- *
- * It closes on Escape and on an outside click, but never while the work is running: a modal
- * dismissed mid-delete would leave the reader with no idea whether it happened, and no way back
- * to the error if it did not.
+ * The confirm-then-act alert every destructive action uses: no close X, outside clicks ignored,
+ * Escape cancels — but never while the work is running, so the error stays visible.
  */
 export const ConfirmModal = ({
     open,
@@ -47,42 +42,46 @@ export const ConfirmModal = ({
     onConfirm: () => void
     onClose: () => void
 }) => (
-    <Dialog
+    <AlertDialog
         open={open}
         onOpenChange={(next) => {
             if (!next && !pending) onClose()
         }}
     >
-        <DialogContent
-            className="sm:max-w-[420px]"
-            // Both routes out are the same close, and neither fires mid-flight.
-            onInteractOutside={(event) => {
-                if (pending) event.preventDefault()
-            }}
+        <AlertDialogContent
             onEscapeKeyDown={(event) => {
                 if (pending) event.preventDefault()
             }}
         >
-            <DialogHeader>
-                <DialogTitle>{title}</DialogTitle>
+            <AlertDialogHeader>
+                <AlertDialogTitle>{title}</AlertDialogTitle>
                 {/* Radix warns when a modal has no description, and the body is the description
                     here whenever there is no separate line. */}
-                <DialogDescription>{description ?? body ?? ""}</DialogDescription>
-            </DialogHeader>
+                <AlertDialogDescription>{description ?? body ?? ""}</AlertDialogDescription>
+            </AlertDialogHeader>
             {description && body ? <div className="text-sm">{body}</div> : null}
             {error ? <p className="m-0 text-sm text-destructive">{error}</p> : null}
-            <DialogFooter>
-                <Button variant="outline" onClick={onClose} disabled={pending}>
-                    Cancel
-                </Button>
-                <Button
-                    variant={destructive ? "destructive" : "default"}
-                    disabled={pending}
-                    onClick={onConfirm}
-                >
-                    {pending ? "Working…" : confirmLabel}
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+            <AlertDialogFooter>
+                <AlertDialogCancel asChild>
+                    <Button variant="outline" onClick={onClose} disabled={pending}>
+                        Cancel
+                    </Button>
+                </AlertDialogCancel>
+                {/* preventDefault keeps the alert open: it closes itself on success, and stays
+                    for the error otherwise. */}
+                <AlertDialogAction asChild>
+                    <Button
+                        variant={destructive ? "destructive" : "default"}
+                        disabled={pending}
+                        onClick={(event) => {
+                            event.preventDefault()
+                            onConfirm()
+                        }}
+                    >
+                        {pending ? "Working…" : confirmLabel}
+                    </Button>
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
 )

@@ -6,8 +6,7 @@ import {
     switchBillingPlan,
     type BillingPlanOption,
 } from "@agenta/settings-ui"
-
-import {Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@/components/ui/sheet"
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from "@agenta/ui/ui"
 
 interface Props {
     open: boolean
@@ -18,13 +17,13 @@ interface Props {
     currentPlan?: string | null
     freePlanSlug?: string | null
     isCurrentPlanCustom?: boolean
-    /** Moving down to the free tier is a cancellation, which has its own sheet. */
+    /** Moving down to the free tier is a cancellation, which has its own modal. */
     onCancelSubscription: () => void
     onChanged: () => void
 }
 
 /**
- * The plan chooser as a bottom sheet. Picking a paid plan from the free tier hands off to
+ * The plan chooser as a modal. Picking a paid plan from the free tier hands off to
  * Stripe Checkout in a new tab; paid → paid switches server-side and closes.
  */
 export const PlanChooserSheet = ({
@@ -74,13 +73,13 @@ export const PlanChooserSheet = ({
     }
 
     return (
-        <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent side="responsive">
-                <SheetHeader>
-                    <SheetTitle>Plans</SheetTitle>
-                    <SheetDescription>Choose the plan for this organization.</SheetDescription>
-                </SheetHeader>
-                <div className="px-4 pb-4">
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Plans</DialogTitle>
+                    <DialogDescription>Choose the plan for this organization.</DialogDescription>
+                </DialogHeader>
+                <div>
                     {error ? <p className="m-0 pb-2 text-sm text-colorError">{error}</p> : null}
                     <PricingPlans
                         plans={plans}
@@ -92,7 +91,7 @@ export const PlanChooserSheet = ({
                         onSelectPlan={(plan) => void selectPlan(plan)}
                     />
                 </div>
-            </SheetContent>
-        </Sheet>
+            </DialogContent>
+        </Dialog>
     )
 }
