@@ -23,10 +23,12 @@ import {LiveConversation} from "./LiveConversation"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {SessionWorkspace} from "./SessionWorkspace"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
-import {TurnRow} from "./TurnRow"
-import {TurnStatusLine} from "./TurnStatusLine"
+import {PendingTurn, TurnRow} from "./TurnRow"
+import {mergeAssistantRuns} from "./turnRuns"
+import {runIdFor} from "./turnStatus"
 import {useAgentEntity} from "./useAgentEntity"
 import {useApprovalActions} from "./useApprovalActions"
+import {useReferenceToolDisplays} from "./useReferenceToolDisplays"
 import {useSessionTranscript} from "./useSessionTranscript"
 import {useSessionWatch} from "./useSessionWatch"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
@@ -78,6 +80,7 @@ export const ChatScreen = ({
     const lastAgentIdRef = useRef<string | null>(null)
     if (resolvedAgentId) lastAgentIdRef.current = resolvedAgentId
     const heldAgentId = resolvedAgentId ?? lastAgentIdRef.current
+    useReferenceToolDisplays(heldAgentId)
     // Only a FIRST load has nothing to hold — that is the one time a spinner is honest.
     const showLoading = resolving && !heldEntityId
     const liveness = useLivenessPoll(projectId)
@@ -190,6 +193,10 @@ const ReplayScreen = ({
         () => buildTurnViewModels(messages, {busy: false, executedFor, cache: turnCache}),
         [messages, executedFor, turnCache],
     )
+    const visibleTurns = useMemo(
+        () => mergeAssistantRuns(turns.filter((turn) => !turn.hidden)),
+        [turns],
+    )
     // Keyed on `turns` (new array per poll) so streamed growth also re-pins.
     const autoScroll = useTranscriptAutoScroll(turns)
 
@@ -201,17 +208,22 @@ const ReplayScreen = ({
     } else {
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-                {turns
-                    .filter((turn) => !turn.hidden)
-                    .map((turn) => (
-                        <TurnRow
-                            workflowId={agentId}
-                            key={turn.message.id}
-                            turn={turn}
-                            sessionId={sessionId}
-                        />
-                    ))}
-                <TurnStatusLine working={running} waitingForInput={pendingCount > 0} />
+                {visibleTurns.map((turn, i) => (
+                    <TurnRow
+                        key={turn.message.id}
+                        turn={turn}
+                        sessionId={sessionId}
+                        remoteRunning={running}
+                        waitingOnUser={pendingCount > 0}
+                        runId={runIdFor(visibleTurns, i)}
+                    />
+                ))}
+                {running && visibleTurns[visibleTurns.length - 1]?.isUser ? (
+                    <PendingTurn
+                        sessionId={sessionId}
+                        runId={runIdFor(visibleTurns, visibleTurns.length)}
+                    />
+                ) : null}
             </ContentRail>
         )
     }

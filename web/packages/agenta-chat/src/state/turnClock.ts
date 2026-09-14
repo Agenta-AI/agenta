@@ -34,3 +34,41 @@ export const clearTurnClockAtom = atom(null, (get, set, sessionId: string) => {
 /** The latest observed startup label for a session, or null when no turn is being narrated. */
 export const useStartupPhase = (sessionId: string): string | null =>
     useAtomValue(turnStartAtomFamily(sessionId)) ?? null
+
+/**
+ * How long each turn worked, measured on this client: the fold's collapsed line counts up while
+ * the turn is live and freezes when it settles. Only turns streamed in this session have one — a
+ * turn loaded from history never started a clock here.
+ */
+interface TurnSpan {
+    startedAt: number
+    endedAt?: number
+}
+
+const turnSpanMapAtom = atom<Record<string, TurnSpan>>({})
+
+export const turnSpanAtomFamily = atomFamily((messageId: string) =>
+    selectAtom(turnSpanMapAtom, (m): TurnSpan | undefined => m[messageId]),
+)
+
+/**
+ * Start the clock, or resume a paused one. Resuming shifts the start forward by the pause, so
+ * the count is working time only: a gate the reader sat on for a week adds nothing to it.
+ */
+export const startTurnSpanAtom = atom(null, (get, set, messageId: string) => {
+    const current = get(turnSpanMapAtom)
+    const span = current[messageId]
+    if (span && !span.endedAt) return
+    const now = Date.now()
+    const startedAt = span?.endedAt ? span.startedAt + (now - span.endedAt) : now
+    set(turnSpanMapAtom, {...current, [messageId]: {startedAt}})
+})
+
+/** Freeze the clock — on settle, or while the run is parked on the reader. A clock never
+ * started stays absent: nothing to freeze. */
+export const settleTurnSpanAtom = atom(null, (get, set, messageId: string) => {
+    const current = get(turnSpanMapAtom)
+    const span = current[messageId]
+    if (!span || span.endedAt) return
+    set(turnSpanMapAtom, {...current, [messageId]: {...span, endedAt: Date.now()}})
+})
