@@ -71,8 +71,13 @@ export const surface = {
     controlItemBgActive: {light: PAPER_SOFT, dark: "#57572a"},
     controlItemBgActiveHover: {light: HAIRLINE, dark: "#57572a"},
     infoBgHover: {light: "#d3e7f5", dark: "#111a2c"}, // one step down from infoBg
-    controlOutline: {light: "rgba(217, 217, 44, 0.35)", dark: "rgba(251, 251, 96, 0.29)"}, // antd input/select focus glow
-    errorOutline: {light: "rgba(217, 76, 74, 0.12)", dark: "rgba(238, 38, 56, 0.11)"}, // antd focus glow on error
+    // shadcn's `ring`: a neutral grey, never the brand colour — the faint ink in light (their
+    // neutral-400), the tertiary white in dark. `border-ring` is the focused control's edge.
+    ring: {light: INK_FAINT, dark: "rgba(255, 255, 255, 0.45)"},
+    // The control focus ring: `ring` at 50%.
+    controlOutline: {light: "rgba(163, 161, 159, 0.5)", dark: "rgba(255, 255, 255, 0.25)"},
+    // The invalid-control ring: destructive at 20%, 40% in dark.
+    errorOutline: {light: "rgba(217, 76, 74, 0.2)", dark: "rgba(238, 38, 56, 0.4)"},
     white: {light: "#ffffff", dark: "#ffffff"},
 } satisfies Record<string, Pair>
 

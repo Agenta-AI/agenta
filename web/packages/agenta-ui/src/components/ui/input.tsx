@@ -5,39 +5,27 @@ import {cva, type VariantProps} from "class-variance-authority"
 import {cn} from "./utils"
 
 /**
- * Input / Textarea — cva-styled native controls in @agenta/ui, following shadcn's source
- * conventions: no `forwardRef` (React 19 passes `ref` as a prop) and a `data-slot` attribute.
- *
- * antd-only features are NOT props here — they are compositions (the shadcn way):
- *   prefix/suffix + allowClear → `InputAffix` · Search/Password → `SearchInput`/
- *   `PasswordInput` · autoSize → `AutosizeTextarea`. All in ./input-composed.
- *
- * Geometry comes from the `control-*`/`input-*` theme scale, never raw pixels. Heights are
- * padding + line-height derived rather than fixed (antd's model — a fixed height diverges
- * as soon as font-size changes); `ghost` adds 1px of vertical padding to compensate for
- * its missing border so the totals line up.
+ * Input / Textarea — the shadcn input, sized off the `control-*`/`input-*` scale. The focus ring
+ * is a box-shadow on `focus-within` so the affix wrapper rings too; antd's prefix/suffix/search/
+ * password/autoSize are compositions in ./input-composed.
  */
 const inputVariants = cva(
     [
         // CONTROL_RESET — see button.tsx. Preflight is off app-wide for antd's sake, so a
         // bare <input> keeps the UA font (Arial) and a <textarea> keeps monospace.
         "box-border border-solid font-[inherit]",
-        "w-full border text-foreground outline-none transition-colors",
+        "w-full border text-foreground outline-none transition-[color,box-shadow,border-color]",
         "placeholder:text-placeholder",
-        "disabled:cursor-not-allowed disabled:bg-disabled-bg disabled:text-disabled disabled:border-disabled-border",
-        // Error border must survive focus (antd keeps it red, not primary — the `!` beats the
-        // variant's focus border), + red focus glow. `focus-within` (not `focus`) so the glow
-        // ALSO fires on the affix wrapper (a span) when its inner <input> is focused — antd's
-        // `.ant-input-affix-wrapper:focus-within`. On a bare <input> it behaves like `:focus`.
-        "aria-[invalid=true]:border-error aria-[invalid=true]:focus-within:!border-error aria-[invalid=true]:focus-within:shadow-[0_0_0_2px_var(--ag-errorOutline)]",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        // Invalid: red border + 3px red ring, focused or not; `!` keeps the border red on focus.
+        "aria-[invalid=true]:border-error aria-[invalid=true]:focus-within:!border-error aria-[invalid=true]:shadow-[0_0_0_3px_var(--ag-errorOutline)]",
     ],
     {
         variants: {
             variant: {
                 default:
-                    "bg-background border-border hover:border-btn-primary-hover focus-within:border-primary focus-within:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
-                // antd's filled input has NO focus glow (only the outlined `default` does).
-                filled: "bg-muted border-transparent hover:bg-secondary focus-within:bg-background focus-within:border-primary",
+                    "bg-background border-border focus-within:border-ring focus-within:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
+                filled: "bg-muted border-transparent focus-within:bg-background focus-within:border-ring focus-within:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
                 ghost: "bg-transparent border-0",
             },
             size: {

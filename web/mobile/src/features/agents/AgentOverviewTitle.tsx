@@ -9,9 +9,9 @@ import {
 } from "@agenta/entity-ui/agent"
 import {InlineRenameInput, useDeferredMenuSelect, useInlineRename} from "@agenta/sessions-ui"
 import {useMediaQuery} from "@agenta/ui/hooks"
+import {Button} from "@agenta/ui/ui"
 import {ChatCircleDots} from "@phosphor-icons/react"
 
-import {Button} from "@/components/ui/button"
 import {Skeleton} from "@/components/ui/skeleton"
 import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"

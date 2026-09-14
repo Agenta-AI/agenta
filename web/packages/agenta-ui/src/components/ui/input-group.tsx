@@ -1,11 +1,7 @@
 "use client"
 
 /**
- * shadcn `input-group` (new-york), installed and then owned.
- *
- * Upstream minus `InputGroupTextarea`: the group is used for search fields, and nothing here
- * wraps a textarea in one yet. Everything else is the registry's, so a future `shadcn add`
- * diffs cleanly against it.
+ * shadcn `input-group`, installed and then owned (minus `InputGroupTextarea`, unused here).
  */
 import * as React from "react"
 
@@ -21,22 +17,23 @@ function InputGroup({className, ...props}: React.ComponentProps<"div">) {
             data-slot="input-group"
             role="group"
             className={cn(
-                "group/input-group border-input dark:bg-input/30 shadow-xs relative flex w-full items-center rounded-md border outline-none transition-[color,box-shadow]",
-                "h-9 has-[>textarea]:h-auto",
+                // box-border + border-solid: preflight is off app-wide.
+                "group/input-group box-border border-solid border-input bg-background relative flex w-full min-w-0 items-center rounded-control border outline-none transition-[color,box-shadow,border-color]",
+                "h-control has-[>textarea]:h-auto",
+                "has-[:disabled]:opacity-50",
 
-                // Variants based on alignment.
-                "has-[>[data-align=inline-start]]:[&>input]:pl-2",
-                "has-[>[data-align=inline-end]]:[&>input]:pr-2",
+                // Inner gutters next to an addon.
+                "has-[>[data-align=inline-start]]:[&>input]:pl-1.5",
+                "has-[>[data-align=inline-end]]:[&>input]:pr-1.5",
                 "has-[>[data-align=block-start]]:h-auto has-[>[data-align=block-start]]:flex-col has-[>[data-align=block-start]]:[&>input]:pb-3",
                 "has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-end]]:[&>input]:pt-3",
 
-                // Focus state — the group wears the app's control outline, the same 2px ring an
-                // Input paints on its own, so a grouped field and a bare one focus alike.
-                "has-[[data-slot=input-group-control]:focus-within]:border-primary",
-                "has-[[data-slot=input-group-control]:focus-within]:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
+                // The group wears the same 3px ring a bare Input does.
+                "has-[[data-slot=input-group-control]:focus-within]:border-ring",
+                "has-[[data-slot=input-group-control]:focus-within]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
 
-                // Error state.
-                "has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[[data-slot][aria-invalid=true]]:border-destructive dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40",
+                // Error state: red border + 3px red ring.
+                "has-[[data-slot][aria-invalid=true]]:border-error has-[[data-slot][aria-invalid=true]]:shadow-[0_0_0_3px_var(--ag-errorOutline)]",
 
                 className,
             )}
@@ -51,8 +48,8 @@ const inputGroupAddonVariants = cva(
         variants: {
             align: {
                 "inline-start":
-                    "order-first pl-3 has-[>button]:ml-[-0.45rem] has-[>kbd]:ml-[-0.35rem]",
-                "inline-end": "order-last pr-3 has-[>button]:mr-[-0.4rem] has-[>kbd]:mr-[-0.35rem]",
+                    "order-first pl-2 has-[>button]:ml-[-0.3rem] has-[>kbd]:ml-[-0.15rem]",
+                "inline-end": "order-last pr-2 has-[>button]:mr-[-0.3rem] has-[>kbd]:mr-[-0.15rem]",
                 "block-start":
                     "[.border-b]:pb-3 order-first w-full justify-start px-3 pt-3 group-has-[>input]/input-group:pt-2.5",
                 "block-end":
@@ -142,9 +139,7 @@ function InputGroupInput({className, ...props}: InputProps) {
             data-slot="input-group-control"
             className={cn(
                 "flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent",
-                // The control inside draws no focus chrome of its own: this package's Input
-                // rings itself on focus-within, which inside a group put a second outline
-                // within the group's own.
+                // No focus chrome of its own: the group rings instead.
                 "focus-within:border-0 focus-within:shadow-none focus-visible:shadow-none",
                 className,
             )}

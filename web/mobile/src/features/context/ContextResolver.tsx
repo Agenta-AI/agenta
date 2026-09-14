@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
@@ -86,13 +87,9 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
                 <p className="text-muted-foreground text-xs">
                     {result?.kind === "ok" ? "No projects found." : "Something went wrong."}
                 </p>
-                <button
-                    type="button"
-                    className="border-border min-h-11 cursor-pointer rounded-md border px-3 py-2 text-xs"
-                    onClick={() => void query.refetch()}
-                >
+                <Button type="button" variant="outline" onClick={() => void query.refetch()}>
                     Retry
-                </button>
+                </Button>
             </div>
         )
     } else {

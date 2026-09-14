@@ -10,6 +10,7 @@ import {
     type SessionMenuEntry,
 } from "@agenta/sessions-ui"
 import {timeAgo} from "@agenta/shared/utils"
+import {Button} from "@agenta/ui/ui"
 import {ChatCircle, Lightning, PencilSimple, PushPin} from "@phosphor-icons/react"
 
 import {cn} from "@/lib/utils"
@@ -29,16 +30,17 @@ const RowActionButton = ({
     onClick: () => void
     children: ReactNode
 }) => (
-    <button
+    <Button
         type="button"
+        variant="ghost"
+        size="icon-xs"
         aria-label={label}
         onClick={onClick}
-        // The transparent ::after is the hit extender: 20px is under the touch guideline, and
-        // growing the box itself would grow the row.
-        className="relative flex size-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary transition-colors after:absolute after:inset-[-10px] after:content-[''] hover:bg-colorFillSecondary hover:text-colorText [@media(hover:hover)]:after:inset-[-4px]"
+        // 20px box (icon-xs is 24) so the row keeps its height; the ::after is the hit extender.
+        className="relative size-5 rounded text-colorTextTertiary after:absolute after:inset-[-10px] after:content-[''] hover:text-colorText [@media(hover:hover)]:after:inset-[-4px] [&_svg:not([class*='size-'])]:size-3.5"
     >
         {children}
-    </button>
+    </Button>
 )
 
 /** The Status column's dot: filled while something is happening, a hollow ring when not. */
