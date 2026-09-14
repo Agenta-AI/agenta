@@ -85,6 +85,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const [chromeRevealed, setChromeRevealed] = useState(false)
     const [error, setError] = useState(false)
     const startedRef = useRef(false)
+    const commitInFlightRef = useRef(false)
 
     // Publish the onboarding lifecycle to a globally-readable atom so surfaces outside the playground
     // subtree (the sidebar, the layout) can adjust without the playground-scoped OnboardingContext.
@@ -194,7 +195,8 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     // Next page → would remount; a reload then lands on the app playground).
     const commit = useCallback(
         (seedMessage: string, name?: string) => {
-            if (!entityId || committing || realEntityId) return
+            if (!entityId || commitInFlightRef.current || realEntityId) return
+            commitInFlightRef.current = true
             setCommitting(true)
             // Surface the seed so the chat can render it as an optimistic user turn during commit.
             setCommittingSeed(seedMessage.trim() || null)
@@ -234,6 +236,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                     }
                 },
             }).finally(() => {
+                commitInFlightRef.current = false
                 setCommitting(false)
                 // On a failed commit (createAgent resolves without onCommitted), drop the optimistic
                 // seed so no stale "sent" turn can be re-surfaced by a later render.

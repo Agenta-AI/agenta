@@ -1,0 +1,93 @@
+import {useEffect, useState} from "react"
+
+import {
+    isConnectionActive,
+    isConnectionValid,
+    useToolCatalogIntegrations,
+    useToolConnectionsQuery,
+    type ToolCatalogIntegration,
+} from "@agenta/entities/gatewayTool"
+import {ConnectDrawer} from "@agenta/entity-ui/gatewayTool"
+import {Button, Input, Spin} from "antd"
+
+export default function ConnectToolsStep() {
+    const catalog = useToolCatalogIntegrations()
+    const {connections} = useToolConnectionsQuery()
+    const [selected, setSelected] = useState<ToolCatalogIntegration | null>(null)
+    const [search, setSearch] = useState("")
+    const {setSearch: searchCatalog, setCategory} = catalog
+    useEffect(() => {
+        setCategory(null)
+        return () => searchCatalog("")
+    }, [searchCatalog, setCategory])
+    return (
+        <div>
+            <Input.Search
+                aria-label="Search tools"
+                placeholder="Search apps (at least 3 characters)"
+                value={search}
+                onChange={(event) => {
+                    setSearch(event.target.value)
+                    searchCatalog(event.target.value)
+                }}
+                className="mb-5"
+            />
+            {catalog.isLoading && <Spin aria-label="Loading tools" />}
+            {catalog.error && (
+                <div role="alert" className="mb-4">
+                    Tools couldn't load. You can continue and connect them later.{" "}
+                    <Button onClick={() => void catalog.refetch()}>Retry</Button>
+                </div>
+            )}
+            {!catalog.isLoading && !catalog.error && catalog.integrations.length === 0 && (
+                <p>No apps found.</p>
+            )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {catalog.integrations.map((integration) => {
+                    const connected = connections.some(
+                        (connection) =>
+                            connection.integration_key === integration.key &&
+                            isConnectionActive(connection) &&
+                            isConnectionValid(connection),
+                    )
+                    return (
+                        <button
+                            type="button"
+                            key={integration.key}
+                            disabled={connected}
+                            onClick={() => setSelected(integration)}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer p-4 text-left hover:bg-colorFillQuaternary disabled:cursor-default"
+                        >
+                            <span className="font-medium">{integration.name}</span>
+                            <span
+                                className={`text-xs ${connected ? "text-colorSuccess" : "text-colorTextSecondary"}`}
+                            >
+                                {connected ? "Connected" : "Connect"}
+                            </span>
+                        </button>
+                    )
+                })}
+            </div>
+            {catalog.hasNextPage && (
+                <Button
+                    className="mt-4"
+                    loading={catalog.isFetchingNextPage}
+                    onClick={catalog.requestMore}
+                >
+                    Show more apps
+                </Button>
+            )}
+            {selected && (
+                <ConnectDrawer
+                    open
+                    integrationKey={selected.key}
+                    integrationName={selected.name}
+                    integrationLogo={selected.logo ?? undefined}
+                    authSchemes={selected.auth_schemes ?? []}
+                    onClose={() => setSelected(null)}
+                    onSuccess={() => setSelected(null)}
+                />
+            )}
+        </div>
+    )
+}
