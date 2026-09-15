@@ -192,7 +192,14 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
 
             return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
 
-    @suppress_exceptions()
+    # Excluded for the same reason `edit_endpoint` excludes it: this write refuses a
+    # credential the project does not own, and a swallowed refusal returns `None`, which
+    # the connect route reported as `count=1` with no endpoint. A success that did
+    # nothing is worse to debug than a refusal, which is the reading recorded above for
+    # `create_endpoint` (D20). Nothing cross-tenant is written either way — the exception
+    # aborts the transaction before the commit — so what this restores is the typed
+    # refusal, not the isolation.
+    @suppress_exceptions(default=None, exclude=[SecretInvalidError])
     async def bind_endpoint_secret(
         self,
         *,

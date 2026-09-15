@@ -618,6 +618,13 @@ class MCPGatewayRouter:
             endpoint_id=endpoint.id,
             secret_id=None,
         )
+        if disconnected is None:
+            # A write that produced no row is not a disconnect. Reporting one would say
+            # the authorization is gone while the connection still names it (D20).
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="endpoint not found",
+            )
 
         return MCPEndpointResponse(count=1, endpoint=disconnected)
 
@@ -741,13 +748,25 @@ class MCPGatewayRouter:
                 ),
             )
 
-        await self.service.bind_endpoint_secret(
+        bound = await self.service.bind_endpoint_secret(
             project_id=completion.project_id,
             user_id=completion.user_id,
             #
             endpoint_id=target.id,
             secret_id=completion.secret_id,
         )
+        if bound is None:
+            # The grant was written and the connection does not name it, so the person
+            # would be told they were connected by a card over a connection that still
+            # reads as needing authorization (D20).
+            return HTMLResponse(
+                status_code=400,
+                content=_connect_card(
+                    success=False,
+                    error="The authorization could not be saved to this connection.",
+                    agenta_url=env.agenta.web_url,
+                ),
+            )
 
         return HTMLResponse(
             status_code=200,

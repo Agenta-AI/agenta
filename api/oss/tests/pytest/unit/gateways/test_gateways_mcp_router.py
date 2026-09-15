@@ -624,6 +624,9 @@ def test_callback_completes_and_puts_the_secret_id_onto_the_bound_endpoint(
     project_id, user_id = uuid4(), uuid4()
     secret_id = uuid4()
     service.fetch_return = _oauth_endpoint(endpoint_id)
+    # The bound row the write returns. A binding that produced none is a failure now,
+    # not a success card over a connection that names no grant (D20).
+    service.edit_return = _oauth_endpoint(endpoint_id, secret_id=secret_id)
     oauth_service.claim_return = _attempt(
         project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
     )
@@ -1243,3 +1246,51 @@ def test_probe_refuses_a_url_a_create_would_refuse(probe_client, probe, allow, u
 
     assert response.status_code == 400, response.text
     assert probe.probed == []
+
+
+# ---------------------------------------------------------------------------
+# D20: a credential write that produced no row is not a success
+# ---------------------------------------------------------------------------
+
+
+def test_disconnect_that_wrote_no_row_is_not_reported_as_a_disconnect(
+    client, service, oauth_service, allow
+):
+    """The write refuses a credential the project does not own, and the refusal used to
+    be swallowed into `None`. Answering `count=1` then says the authorization is gone
+    while the connection still names it."""
+    endpoint_id = uuid4()
+    service.fetch_return = _oauth_endpoint(endpoint_id, secret_id=uuid4())
+    service.edit_return = None
+
+    response = client.delete(f"/endpoints/{endpoint_id}/connect")
+
+    assert response.status_code == 404, response.text
+
+
+def test_a_callback_whose_binding_wrote_no_row_does_not_show_a_success_card(
+    client, service, oauth_service, session_user, allow
+):
+    """The grant is written before the connection is pointed at it, so a binding that
+    produced nothing leaves a person told they are connected over a connection that
+    still reads as needing authorization."""
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+    service.fetch_return = _oauth_endpoint(endpoint_id)
+    service.edit_return = None
+    oauth_service.claim_return = _attempt(
+        project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+    oauth_service.complete_return = _completion(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        secret_id=uuid4(),
+    )
+    session_user(user_id)
+
+    response = client.get(
+        "/connect/callback", params={"code": "auth-code", "state": "opaque-handle"}
+    )
+
+    assert response.status_code == 400, response.text
+    assert '"success": false' in response.text
