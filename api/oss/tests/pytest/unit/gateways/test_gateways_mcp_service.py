@@ -122,6 +122,43 @@ class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
         self._by_id[endpoint.id] = updated
         return updated
 
+    async def bind_endpoint_secret(
+        self, *, project_id, user_id, endpoint_id, secret_id
+    ) -> Optional[MCPEndpoint]:
+        self.calls.append("bind_endpoint_secret")
+        existing = self._by_id.get(endpoint_id)
+        if existing is None:
+            return None
+        updated = existing.model_copy(
+            update={
+                "secret_id": secret_id,
+                "flags": MCPEndpointFlags(
+                    is_active=existing.flags.is_active, is_valid=True
+                ),
+            }
+        )
+        self._by_id[endpoint_id] = updated
+        return updated
+
+    async def invalidate_endpoint_secret(
+        self, *, project_id, user_id, endpoint_id
+    ) -> Optional[MCPEndpoint]:
+        self.calls.append("invalidate_endpoint_secret")
+        existing = self._by_id.get(endpoint_id)
+        if existing is None:
+            return None
+        if existing.secret_id is None:
+            return existing
+        updated = existing.model_copy(
+            update={
+                "flags": MCPEndpointFlags(
+                    is_active=existing.flags.is_active, is_valid=False
+                )
+            }
+        )
+        self._by_id[endpoint_id] = updated
+        return updated
+
     async def delete_endpoint(self, *, project_id, endpoint_id) -> bool:
         self.calls.append("delete_endpoint")
         return self._by_id.pop(endpoint_id, None) is not None

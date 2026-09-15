@@ -104,6 +104,10 @@ def _as_edit(
         auth_mode=endpoint.auth_mode,
         secret_id=None if clear_secret_id else (secret_id or endpoint.secret_id),
         data=endpoint.data,
+        # Carried, not defaulted. The edit mapping assigns both unconditionally, so a
+        # builder that omits them nulls whatever the connection was created with (D3).
+        tags=endpoint.tags,
+        meta=endpoint.meta,
         flags=flags,
     )
 
@@ -607,11 +611,12 @@ class MCPGatewayRouter:
         # The handle goes whether or not a row was there to delete: a `secret_id`
         # pointing at nothing is the state that made an endpoint report itself ready
         # and then fail every call.
-        disconnected = await self.service.edit_endpoint(
+        disconnected = await self.service.bind_endpoint_secret(
             project_id=scope.project_id,
             user_id=scope.user_id,
             #
-            endpoint=_as_edit(endpoint, clear_secret_id=True),
+            endpoint_id=endpoint.id,
+            secret_id=None,
         )
 
         return MCPEndpointResponse(count=1, endpoint=disconnected)
@@ -736,11 +741,12 @@ class MCPGatewayRouter:
                 ),
             )
 
-        await self.service.edit_endpoint(
+        await self.service.bind_endpoint_secret(
             project_id=completion.project_id,
             user_id=completion.user_id,
             #
-            endpoint=_as_edit(target, secret_id=completion.secret_id),
+            endpoint_id=target.id,
+            secret_id=completion.secret_id,
         )
 
         return HTMLResponse(

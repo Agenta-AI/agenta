@@ -28,7 +28,6 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
     MCPEndpointCreate,
     MCPEndpointData,
-    MCPEndpointFlags,
     MCPEndpointRoute,
     MCPEndpointEdit,
     MCPEndpointQuery,
@@ -306,6 +305,24 @@ class MCPGatewayService:
             project_id=project_id,
             #
             endpoint_id=endpoint_id,
+        )
+
+    async def bind_endpoint_secret(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        secret_id: Optional[UUID],
+    ) -> Optional[MCPEndpoint]:
+        """Bind a connection to its stored authorization, or clear it. See the DAO."""
+        return await self.mcp_endpoints_dao.bind_endpoint_secret(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            endpoint_id=endpoint_id,
+            secret_id=secret_id,
         )
 
     async def edit_endpoint(
@@ -1010,21 +1027,15 @@ class MCPGatewayService:
             return
         if not endpoint.flags.is_valid:
             return
-        await self.mcp_endpoints_dao.edit_endpoint(
+        # One column. This used to be a full PUT built from `endpoint`, which is the
+        # snapshot read before the relay dialled the upstream, so an administrator who
+        # deactivated the connection or tightened its tool filter while the call was in
+        # flight had that change reverted by the eventual 401 (D3).
+        await self.mcp_endpoints_dao.invalidate_endpoint_secret(
             project_id=scope.project_id,
             user_id=scope.user_id,  # type: ignore[arg-type]
             #
-            endpoint=MCPEndpointEdit(
-                id=endpoint.id,
-                name=endpoint.name,
-                description=endpoint.description,
-                auth_mode=endpoint.auth_mode,
-                secret_id=endpoint.secret_id,
-                data=endpoint.data,
-                flags=MCPEndpointFlags(
-                    is_active=endpoint.flags.is_active, is_valid=False
-                ),
-            ),
+            endpoint_id=endpoint.id,
         )
 
     def _route_for(

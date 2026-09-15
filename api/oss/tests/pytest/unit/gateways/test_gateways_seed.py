@@ -412,6 +412,11 @@ def test_mcp_relay_result_and_ports():
             "fetch_endpoint",
             "fetch_endpoint_by_slug",
             "edit_endpoint",
+            # A credential transition is not an edit of the connection: these two
+            # write the two columns it owns, rather than replacing the row from a
+            # snapshot (D3).
+            "bind_endpoint_secret",
+            "invalidate_endpoint_secret",
             "delete_endpoint",
             "query_endpoints",
         }
