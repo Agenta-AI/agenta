@@ -36,6 +36,11 @@ RUN apt-get update \
     && sed -i -E "s/^(passwd|group):(.*)/\1:\2 unknown/" /etc/nsswitch.conf \
     && grep -E "^(passwd|group):.* unknown$" /etc/nsswitch.conf
 
+# Same setuid strip as Dockerfile.gh, so the session prelude takes the identical code path in both
+# images and a dev test proves the published one. This image runs as root, which may mount either
+# way; the strip also closes the last route by which a capability-stripped agent could mount again.
+RUN chmod u-s /usr/bin/mount /usr/bin/umount
+
 # geesefs static binary (FUSE-over-S3) for the durable cwd. Pinned release; arch-matched.
 ARG GEESEFS_VERSION=v0.43.0
 RUN set -eux; \

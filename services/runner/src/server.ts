@@ -305,6 +305,11 @@ const realKeepaliveEngine: KeepaliveEngine = {
   // every one of those cases there is no host mountpoint to probe and no claim to falsify, so the
   // answer is "alive" and the reuse proceeds unchanged.
   isMountAlive: async (env) => {
+    // With per-session mount isolation the probe below is the WRONG ORACLE: it answers for the
+    // runner's mount namespace, and the daemon is looking at a bind in its own. A repaired mount
+    // reads as alive here while the harness still sees the dead one, so the marker the ENOTCONN
+    // path sets is the only trustworthy answer for that daemon.
+    if (env.daemonMountViewStale) return false;
     const cwd = env.mountedCwd;
     if (!cwd) return true;
     return isMounted(cwd, klog);

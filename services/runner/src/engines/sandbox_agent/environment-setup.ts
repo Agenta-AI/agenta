@@ -455,6 +455,10 @@ export async function prepareEnvironmentSetup(
     mountedCwd: undefined,
     agentMountedPath: undefined,
     installedMountExpiries: {},
+    // Both decided later: isolation is planned after the local mounts land, and the stale marker
+    // is only ever set by the ENOTCONN path.
+    daemonMountNamespaceIsolated: false,
+    daemonMountViewStale: false,
     durableCwdSafeToDelete: true,
     // Local runs get a plain rmSync cleanup for the throwaway cwd; Daytona has none on this host.
     workspace: plan.isDaytona

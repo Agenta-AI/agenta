@@ -397,6 +397,18 @@ export function remountLocalCwdAfterRuntimeEnotconn(
   if (!cwdEligible && !agentEligible) return;
   if (ctx.env.runtimeRemount || !containsTransportEndpointDisconnected(event))
     return;
+  // An isolated daemon holds a BIND of the mount it started with, in its own mount namespace. A
+  // repair here replaces the mount in the RUNNER's namespace; `--propagation private` keeps that
+  // replacement from reaching the daemon, so the harness would keep looking at the dead one while
+  // the log said the mount was restored — and the one-shot remount budget would be spent, leaving
+  // no retry. Only a new daemon gets a new namespace, so mark it for a cold rebuild instead.
+  if (ctx.env.daemonMountNamespaceIsolated) {
+    ctx.markDaemonMountViewStale();
+    ctx.log(
+      `local durable mount ENOTCONN observed in ACP event session=${ctx.sessionForMount} cwd=${plan.workspace.cwd}; the daemon runs in an isolated mount namespace and cannot see an in-place remount, so this session will be rebuilt cold`,
+    );
+    return;
+  }
   ctx.log(
     `local durable mount ENOTCONN observed in ACP event session=${ctx.sessionForMount} cwd=${plan.workspace.cwd}; re-signing and remounting`,
   );
