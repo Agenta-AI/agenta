@@ -2,19 +2,130 @@
 
 ## Active review findings
 
-The record runs OR36 to OR81, forty-six findings: thirty-eight closed, seven open and one
+The record runs OR36 to OR82, forty-seven findings: thirty-eight closed, eight open and one
 withdrawn.
 Entries numbered below OR36 predate that record and are all closed.
 
-Seven findings are open. OR69 heads this section but counts as neither open nor closed: it was
+Eight findings are open. OR69 heads this section but counts as neither open nor closed: it was
 withdrawn on 2026-09-13, and its entry stays in place so the reading is not repeated. No P0 and no
 P1 remain: OR79, opened and closed on 2026-09-15, was the last P0 and OR80 the last P1, and both
-are closed. The highest severity open is P2, carried by OR76 alone; the other six entries are
-debt and carry no severity. The open set is OR63, OR65 to OR68, OR76 and OR81. The six debt entries
-are also tracked as CU15 to CU20 in `cleanups.md`, which records why each is still open. None of
-the six waits on a design decision. OD24 to OD27 in `open-designs.md` are all decided. Every open
+are closed. The highest severity open is P2, carried by OR76 alone; the other seven entries are
+debt and carry no severity. The open set is OR63, OR65 to OR68, OR76, OR81 and OR82. OR82 asks a
+question of the PR author rather than of an implementer: one of its six items is an untested
+evaluation change that is not gateway work. Six of the debt entries are also tracked as CU15 to
+CU20 in `cleanups.md`, which records why each is still open. None of them waits on a design
+decision. OD24 to OD27 in `open-designs.md` are all decided. Every open
 entry states the closure that would settle it and the test that would prove it. A finding that
 closes moves to the closed record below.
+
+---
+
+### OR82. Six changes to the legacy path that no flag covers
+
+Added 2026-09-15 alongside the plane switches. Five dispositioned "keep"; the fourth, the
+evaluation streaming change, needs a decision from the PR author. Debt where it stays; no
+severity.
+
+`AGENTA_LLM_GATEWAY_ENABLED` and `AGENTA_MCP_GATEWAY_ENABLED` decide whether each gateway
+serves. They do not cover everything this branch changed on the path a deployment with both
+planes off still walks. Six such changes exist. Each is recorded here with what it does, what
+it costs a deployment that routes nothing through a gateway, and whether it stays.
+
+The one that mattered most — the routing swap in the agent SDK, where the vault call site was
+deleted rather than branched around — is not in this list, because it is now covered: the SDK
+restores the `GET /secrets/` path when the API answers `llm_gateway_disabled`, and every other
+refusal still fails the run.
+
+**1. Vault writes also write gateway rows. Keep.** `VaultService` takes an
+`llm_endpoint_registrar` (`api/oss/src/core/secrets/services.py:389`), injected unconditionally
+at `api/entrypoints/routers.py:669`. Creating, updating or deleting a `custom_provider` secret
+upserts or drops a row in `llms_endpoints`. Standard `provider_key` secrets return early
+(`services.py:508-513`), and the whole call is wrapped in a bare `except Exception` that logs
+and swallows (`services.py:522-527`), so it cannot fail a vault write. The cost to a
+gateway-less deployment is one extra database round trip per custom-provider write, and rows in
+a table nothing reads. That is the point: the endpoints already exist when an operator later
+turns the plane on, so nobody has to re-save their providers to make the gateway work.
+
+**2. Every workflow invocation mints a gateway run id. Keep.**
+`api/oss/src/core/workflows/service.py:3034` generates it, `:3043` signs it into the secret
+token, `:3049` injects it into the caller's request meta. A run with both planes off carries a
+claim and a meta key that nothing reads: the only consumers are the credential exchange
+(`apis/fastapi/gateways/credentials_router.py:91`) and the Agenta builtin MCP route
+(`core/gateways/mcps/providers/agenta/adapter.py:23`), neither of which a gateway-less run
+reaches. Cost is one `uuid4().hex` per invocation. Removing it would mean gating the token
+minting on a flag read inside the workflows service, which buys nothing measurable and adds a
+second place the plane state has to be correct.
+
+**3. Auth middleware header precedence changed globally. Keep.** `_credentials_header`
+(`api/oss/src/middlewares/auth.py:64-75`) prefers `X-AG-Credentials` over `Authorization`, and
+on gateway data-plane paths (the regex at `:59-61`) ignores `Authorization` entirely. Used at
+`:401` and `:416`, where `main` read `Authorization` directly. A legacy caller sends no
+`X-AG-Credentials` — the header is introduced by this branch — so `ours` is `None`, the path
+does not match, and the function returns exactly what `main` returned. The regex matches only
+`/gateways/{llms,mcps}/{builtin,standard,custom}`, which no pre-existing route can spell. The
+blast radius is every endpoint, and that is the reason to name it here rather than the reason
+to change it: the behaviour is identical for every caller that existed before this branch.
+
+**4. Evaluations are forced out of streaming. NEEDS A DECISION.** `_force_batch_mode`
+(`api/oss/src/core/evaluations/runtime/adapters.py:93-104`, called at `:129`) and
+`flags = {**(flags or {}), "stream": False}` at `:507`, with `_response_outputs` (`:81-90`)
+reading outputs from `data.outputs` instead of `response.outputs`.
+
+This has nothing to do with gateways, and the evidence is unambiguous rather than suggestive.
+It arrived in `8620618851` ("feat: complete gateway provider integration", 2026-08-27, 87 files,
++3881/-4482) on the pre-squash series, in a commit with an empty message body that explains
+none of it. Nothing on this branch changes streaming: the only diff in
+`core/workflows/service.py` is the six lines of item 2 above, and `WorkflowServiceBatchResponse`
+is unchanged and predates the branch.
+
+The two halves are both defensible on their own terms, and neither is gateway work:
+
+- `_response_outputs` fixes a real pre-existing bug. `WorkflowBatchResponse`
+  (`sdks/python/agenta/sdk/models/workflows.py:390`) has no `outputs` attribute — outputs live
+  at `data.outputs` (`:262-263`) — so `main`'s `getattr(response, "outputs", None)` in
+  `APIWorkflowServiceRunner.run` always read `None`.
+- Forcing `stream: False` is correct reasoning: an evaluation step consumes a completed value
+  as the next step's input, so invoking a revision whose interactive default is streaming would
+  hand it a generator.
+
+What makes it a decision rather than a keep is that neither function is covered by a single
+test anywhere in the repository, both are behaviour changes on the evaluation path, and both
+ride a gateway PR where nobody reviewing gateways would look for them. A reviewer approving
+this PR is approving an untested change to how every evaluation invokes a workflow.
+
+Closure, either way: the author states whether the change is intended for this release. If yes,
+it needs two unit tests beside `api/oss/tests/pytest/unit/evaluations/test_run_flags.py` —
+outputs read from the batch envelope, and a revision with a streaming default invoked in batch
+mode by an evaluation — and one line in the PR description saying an unrelated evaluation fix
+rides along. If no, both halves lift out cleanly into their own PR; nothing in the gateway code
+references either function.
+
+**5. Secret redaction and conflict types changed. Keep.** `CREDENTIAL_FIELDS`
+(`api/oss/src/core/secrets/redaction.py:37-45`) replaces the single-field map and redaction now
+walks nested maps (`:116-142`, `:186-207`). Required, not incidental: the MCP OAuth work adds
+the `oauth_provider` and `oauth_grant` kinds, and an `oauth_grant` holds two tokens under
+`grant`, which a single-field flat map cannot redact. Leaving them out would print refresh
+tokens.
+
+`SecretsDAO.create` now raises `SecretSlugConflict` (`api/oss/src/dbs/postgres/secrets/dao.py:79`)
+for any non-subscription kind on a duplicate `(project, slug)`, where `main` re-raised the raw
+`IntegrityError`. Only the MCP OAuth storage catches it (`mcps/oauth/storage.py:203,294`); the
+vault router does not. The HTTP contract is nevertheless unchanged: `main`'s `IntegrityError`
+and this branch's `SecretSlugConflict` both fall through to `intercept_exceptions`
+(`api/oss/src/utils/exceptions.py:200`), which answers 500 with the same generic body either
+way. A caller sees no difference; what changed is that a caller writing under a slug it derives
+can now catch a typed exception instead of parsing a driver error.
+
+**6. The `request_connection` tool schema changed for every agent. Keep, with a copy caveat.**
+`api/oss/src/core/workflows/static_catalog.py:119-186`: `required` drops from `["integration"]`
+to a `oneOf` over `integration` and `target`, and the description gains two sentences teaching
+models about gateway targets and planes. This reaches the prompt surface of every agent run,
+gateways or not, which is the cost: a model on a gateway-less deployment reads about a `target`
+it can never usefully request, and the `oneOf` makes `integration` optional where it used to be
+required. Keep, because the tool is one static catalogue entry shared by both worlds and
+splitting it per plane state would mean a second reserved workflow name and a divergence to
+maintain. The caveat belongs to the owner, not to review: this is user-facing copy that a model
+reads aloud, and it was written by an engineer.
 
 ---
 
