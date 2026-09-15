@@ -33,14 +33,14 @@ const DriveExplorer = dynamic(() => import("./DriveExplorer").then((m) => m.Driv
 // The pane's open flag belongs to the chat PANEL (keyed by the app scope), not to one session:
 // adding or switching tabs must not snap an open pane shut. Quick-look + staged drops stay
 // per-session (they are selection state) and latch this flag open via the effect below.
-const filesPaneOpenAtomFamily = atomFamily((_scope: string) => atom(false))
+export const sessionFilesPaneOpenAtomFamily = atomFamily((_scope: string) => atom(false))
 
 /** The pane's open/close/toggle — one hook so the splitter host, the session bar toggle, and
  * every opener (config Files section, context rail, inspector) drive the SAME state. */
 /** `scope` is the HOST's to resolve (the desktop passes its chat scope key) — the package must
  * not reach into the app's chat slice for it. */
 export const useSessionFilesPane = (scope: string, sessionId: string) => {
-    const [scopeOpen, setScopeOpen] = useAtom(filesPaneOpenAtomFamily(scope))
+    const [scopeOpen, setScopeOpen] = useAtom(sessionFilesPaneOpenAtomFamily(scope))
     const [quickLook, setQuickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
     const [staged, setStaged] = useAtom(filesDrawerStagedAtomFamily(sessionId))
     // A per-session opener (file card, chat link, staged drop) latches the panel-level flag, so
@@ -84,8 +84,14 @@ export function SessionFilesPane({
     )
 
     // Resolve the quick-look path (possibly a tail) to the presented drive path the tree selects by.
+    // An empty path is a request for the root itself (the config pane's "browse all"), not a tail.
     const initialPath = useMemo(
-        () => (quickLook ? resolveQuickLookPath(drive.recents, quickLook.path) : null),
+        () =>
+            quickLook
+                ? quickLook.path
+                    ? resolveQuickLookPath(drive.recents, quickLook.path)
+                    : ""
+                : null,
         [quickLook, drive.recents],
     )
 
