@@ -18,9 +18,9 @@ import {SecretKind} from "./types"
  * would then read past. Strip it and let the separator do the work.
  */
 export const credentialStatusLine = (message: string, modelCount: number | null): string => {
-    const verdict = message.trim().replace(/\.$/, "")
+    const verdict = message.trim()
     if (modelCount === null) return verdict
-    return `${verdict} · ${modelCount} ${modelCount === 1 ? "model" : "models"} fetched`
+    return `${verdict.replace(/\.$/, "")} · ${modelCount} ${modelCount === 1 ? "model" : "models"} fetched`
 }
 
 /** The header's live count — checked against fetched, never a claim about defaults. */
