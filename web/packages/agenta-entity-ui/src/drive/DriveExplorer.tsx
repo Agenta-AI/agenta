@@ -29,7 +29,11 @@ import {
     isMarkdownPath,
     resolveDriveFileKind,
 } from "@agenta/entities/drive"
-import {useDriveFileEditor} from "@agenta/entities/drive"
+import {
+    DRIVE_CODE_EDIT_CAP,
+    DRIVE_MARKDOWN_EDIT_CAP,
+    useDriveFileEditor,
+} from "@agenta/entities/drive"
 import {useDriveFilters} from "@agenta/entities/drive"
 import {useDriveSelection} from "@agenta/entities/drive"
 import {useDriveTreeKeyboard} from "@agenta/entities/drive"
@@ -380,9 +384,13 @@ export function DriveExplorer({
 
     // ---- File editing (markdown / code) --------------------------------------------------------
     const editableFile = chrome && canWrite && !selectedIsFolder && !!selectedPath
-    const editableMarkdown = editableFile && isMarkdownPath(selectedPath)
-    const editableCode =
-        editableFile && !editableMarkdown && CODE_EDIT_KINDS.has(resolveDriveFileKind(selectedPath))
+    // Over the caps a file opens read-only (the preview) — see the caps for the numbers.
+    const markdownKind = editableFile && isMarkdownPath(selectedPath)
+    const codeKind =
+        editableFile && !markdownKind && CODE_EDIT_KINDS.has(resolveDriveFileKind(selectedPath))
+    const editableMarkdown = markdownKind && (selectedFileSize ?? 0) <= DRIVE_MARKDOWN_EDIT_CAP
+    const editableCode = codeKind && (selectedFileSize ?? 0) <= DRIVE_CODE_EDIT_CAP
+    const tooLargeToEdit = (markdownKind || codeKind) && !editableMarkdown && !editableCode
     const editing = editableMarkdown || editableCode
     const editor = useDriveFileEditor(
         editing ? selectedMount : null,
@@ -480,6 +488,7 @@ export function DriveExplorer({
                 path={selectedPath ?? ""}
                 actions={fileActions}
                 draft={editableCode ? {status: editor.status, onRetry: onSave} : undefined}
+                note={tooLargeToEdit ? "Read-only · too large to edit here" : undefined}
             />
         )
 
@@ -537,20 +546,16 @@ export function DriveExplorer({
                     path={selectedMountPath}
                     mode={editorMode}
                     toolbarContainer={toolbarEl}
-                    value={editor.value}
                     loading={editor.loading}
                     failed={editor.failed}
-                    onChange={editor.onChange}
                     onSave={onSave}
                 />
             ) : editableCode ? (
                 <DriveCodeEditor
                     mount={selectedMount}
                     path={selectedMountPath}
-                    value={editor.value}
                     loading={editor.loading}
                     failed={editor.failed}
-                    onChange={editor.onChange}
                     onSave={onSave}
                 />
             ) : (

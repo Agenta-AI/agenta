@@ -102,6 +102,8 @@ export type DriveToolbarProps =
           actions?: DriveFileActions
           /** Present while the file is open in the code editor: its draft state. */
           draft?: {status: DriveSaveStatus; onRetry: () => void}
+          /** A muted line after the name — why the file isn't editable, say. */
+          note?: string
       }
 
 /** The draft's save state — autosave narrates itself; a failed write offers Retry. */
@@ -299,7 +301,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
         )
     }
 
-    const {path, actions, draft} = props
+    const {path, actions, draft, note} = props
     return (
         <Row>
             <DriveInlineName
@@ -307,6 +309,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 validate={actions?.validateName}
                 onRename={actions?.renameTo}
             />
+            {note ? <span className="truncate pl-1 text-xs text-colorTextTertiary">{note}</span> : null}
             <span className="flex-1" />
             {draft ? <DraftStatus {...draft} /> : null}
             <FileActionsMenu actions={actions} />
