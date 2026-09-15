@@ -378,12 +378,25 @@ class SecretsTokenStorage:
         """
         slug = grant.client_registration_slug
         if slug:
+            # Carried forward even when the row behind it is gone. `write_tokens` persists
+            # whatever this holds, so leaving it unset made the renewal rewrite the grant
+            # with no registration reference at all: the pin survived the first consent
+            # and died on the first refresh, and every refresh after that resolved
+            # "whatever registration this issuer has now" — which is the failure D6 closed
+            # (D24). A slug naming a registration that has been deleted still records
+            # which client these tokens belong to, and is the honest thing to keep.
+            self.resolved_registration_slug = slug
             provider = await self._provider_by_slug(slug)
             # Nothing else can stand in for a registration that is gone: any other client
             # at this issuer was never issued these tokens.
             return self._as_client_info(provider) if provider is not None else None
         found = await self._find_provider(current_address=False)
-        return self._as_client_info(found[1]) if found is not None else None
+        if found is None:
+            return None
+        # A grant written before the reference existed gains one here, so the next
+        # renewal is pinned even though this one had to resolve by issuer.
+        self.resolved_registration_slug = found[0]
+        return self._as_client_info(found[1])
 
     async def set_client_info(self, client_info: OAuthClientInformationFull) -> None:
         issuer = self.authorization_server or self.server_url
