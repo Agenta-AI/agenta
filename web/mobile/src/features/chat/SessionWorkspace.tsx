@@ -302,6 +302,7 @@ export const SessionWorkspace = ({
                                     // config split's is.
                                     fillMin={360}
                                     animate={filesSlide.animate}
+                                    revealContent
                                     barHidden={!twoPane || !filesOpen}
                                     resizable={twoPane && filesOpen}
                                     // Controlled width, so the drag must write through per tick or the
