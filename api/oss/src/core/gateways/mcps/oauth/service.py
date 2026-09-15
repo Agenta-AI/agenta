@@ -167,6 +167,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             server_url=server_url,
             endpoint_id=endpoint_id,
             authorization_server=discovery.authorization_server,
+            redirect_uri=redirect_uri,
         )
 
         client_info, strategy = await self._resolve_client_info(
@@ -277,6 +278,10 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             # first one's.
             endpoint_id=attempt.endpoint_id,
             authorization_server=attempt.issuer,
+            # From the record, like the issuer and the token endpoint beside it: the
+            # registration to present is the one `begin()` resolved, and the deployment's
+            # address could have changed since the browser left.
+            redirect_uri=attempt.redirect_uri,
         )
 
         if attempt.strategy == "document":
@@ -443,7 +448,12 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             # addressed by issuer, and this keeps the rewritten grant pinned as it was.
             storage.authorization_server = stored.issuer
 
-            client_info = await storage.get_client_info()
+            # The registration this grant was issued against, not the one this
+            # deployment would register today. An authorization server refuses a refresh
+            # presented by a client it never issued those tokens to, so reading "the
+            # current registration for this issuer" is what made a changed public address
+            # quietly stop every connection that was working (D6).
+            client_info = await storage.get_client_info_for_grant(stored)
             if client_info is None:
                 client_info = identity_document_client_info(
                     api_url=self.api_url,

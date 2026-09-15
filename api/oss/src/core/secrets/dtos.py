@@ -271,6 +271,14 @@ class OAuthGrantSettingsDTO(BaseModel):
     # or a migration does not have to reverse the slug to find out. Optional because
     # rows written before the key moved off the server URL do not carry it.
     endpoint_id: Optional[UUID] = None
+    # The client registration these tokens were issued against, by vault slug. A renewal
+    # must present the client the authorization server bound the grant to, and a
+    # deployment can hold more than one registration at a single issuer once its public
+    # address changes, so "the registration for this issuer" stopped being one answer.
+    # Optional: a grant written before this carries none, and so does one from the
+    # identity-document strategy, which persists no registration at all. Both fall back
+    # to the issuer's registration, which is where they were already looking.
+    client_registration_slug: Optional[str] = None
 
 
 class OAuthGrantDTO(BaseModel):

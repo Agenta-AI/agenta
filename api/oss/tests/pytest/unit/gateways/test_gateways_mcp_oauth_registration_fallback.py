@@ -5,18 +5,24 @@ Same mock-authorization-server-behind-`httpx.MockTransport` pattern as
 network, no real authorization server.
 """
 
+import time
 from typing import List, Tuple
 from urllib.parse import parse_qs, urlparse
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.registration import client_metadata_url
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
+from oss.src.core.gateways.mcps.oauth.storage import (
+    SecretsTokenStorage,
+    registration_slug,
+)
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
-from oss.src.core.secrets.dtos import SecretResponseDTO
+from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO, SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
 
 _API_URL = "https://api.agenta.ai"
@@ -152,6 +158,7 @@ def _service(
     advertise_registration: bool = True,
     api_url: str = _API_URL,
     dao=None,
+    handler=None,
 ) -> Tuple[MCPOAuthConnectService, _FakeSecretsDAO, InMemoryMCPOAuthAttemptsDAO]:
     register_called = register_called if register_called is not None else []
     dao = dao if dao is not None else _FakeSecretsDAO()
@@ -159,7 +166,8 @@ def _service(
     vault = VaultService(secrets_dao=dao)
     client = MCPOAuthClient(
         transport=httpx.MockTransport(
-            _mock_as_handler(
+            handler
+            or _mock_as_handler(
                 register_called=register_called,
                 advertise_registration=advertise_registration,
             )
@@ -379,10 +387,17 @@ async def test_a_changed_public_address_registers_again_instead_of_reusing_a_sta
     assert register_called == [True, True]
     params = parse_qs(urlparse(start.authorization_url).query)
     assert params["redirect_uri"][0].startswith(_MOVED_API_URL)
-    # The fresh registration replaced the stale one rather than accumulating beside it.
+    # The fresh registration sits BESIDE the old one rather than replacing it (D6).
+    # Inverted on purpose: the previous assertion stated the defect as an expectation.
+    # Every grant already issued was bound to the old client, and an authorization server
+    # refuses a refresh presented by a client it never issued those tokens to, so
+    # overwriting the row turned "one endpoint cannot connect" into "the endpoints that
+    # could stop refreshing".
     providers = [r for _, r in dao.records if r.kind.value == "oauth_provider"]
-    assert len(providers) == 1
-    assert _MOVED_API_URL in str(providers[0].data.provider.extra["client_info"])
+    assert len(providers) == 2
+    addresses = [str(p.data.provider.extra["client_info"]) for p in providers]
+    assert any(_API_URL in address for address in addresses)
+    assert any(_MOVED_API_URL in address for address in addresses)
 
 
 @pytest.mark.asyncio
@@ -446,3 +461,239 @@ def test_registration_covers_accepts_any_of_several_registered_callbacks():
 
     assert registration_covers(registered, redirect_uri=first)
     assert registration_covers(registered, redirect_uri=second)
+
+
+# --- D6: a re-registration must not strand the grants the old client holds -------- #
+
+
+def _client_binding_as_handler(*, registrations: list):
+    """An authorization server that issues a distinct client per registration and refuses
+    a refresh presented by a client it did not issue those tokens to.
+
+    Both behaviours are ordinary. RFC 7591 gives every registration its own `client_id`,
+    and a refresh token belongs to the client it was issued to; presenting someone else's
+    is `invalid_client`. Keeping one mutable registration per issuer overwrote the client
+    every existing grant depended on, and this is the refusal those grants then got.
+    """
+    issued_to: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json as _json
+
+        path = request.url.path
+        if path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(200, json=_PRM)
+        if path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(200, json=_AS_METADATA)
+        if path == "/register":
+            body = _json.loads(request.content)
+            client_id = f"client-{len(registrations) + 1}"
+            registrations.append(
+                {"client_id": client_id, "redirect_uris": body.get("redirect_uris")}
+            )
+            return httpx.Response(
+                201, json={**body, "client_id": client_id, "client_secret": "secret"}
+            )
+        if path == "/token":
+            form = dict(parse_qs(request.content.decode()))
+            presented = form.get("client_id", [""])[0]
+            if form.get("grant_type", [""])[0] == "refresh_token":
+                handle = form.get("refresh_token", [""])[0]
+                owner = issued_to.get(handle)
+                if owner != presented:
+                    return httpx.Response(
+                        400,
+                        json={
+                            "error": "invalid_client",
+                            "error_description": (
+                                f"these tokens were issued to {owner}, not {presented}"
+                            ),
+                        },
+                    )
+                return httpx.Response(
+                    200,
+                    json={
+                        "access_token": "renewed",
+                        "token_type": "Bearer",
+                        "expires_in": 3600,
+                        "refresh_token": handle,
+                        "scope": "read",
+                    },
+                )
+            handle = f"refresh-for-{presented}"
+            issued_to[handle] = presented
+            # Already expired, so a renewal can be reached without waiting.
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "first",
+                    "token_type": "Bearer",
+                    "expires_in": -1,
+                    "refresh_token": handle,
+                    "scope": "read",
+                },
+            )
+        return httpx.Response(404)
+
+    return handler
+
+
+async def _connect(service, *, project_id, user_id, endpoint_id):
+    start = await service.begin(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+    attempt = await service.claim(state=start.state, caller_user_id=user_id)
+    return await service.complete(attempt=attempt, code="code-1")
+
+
+def _grant_storage(dao, *, project_id, endpoint_id, authorization_server=None):
+    return SecretsTokenStorage(
+        vault_service=VaultService(secrets_dao=dao),
+        project_id=project_id,
+        server_url=_SERVER_URL,
+        endpoint_id=endpoint_id,
+        authorization_server=authorization_server,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_grant_still_refreshes_after_the_address_change_re_registers():
+    """The defect D6 names, end to end.
+
+    Connection A connects at the deployment's original address. The address changes, so
+    connection B's connect registers a new client. A's grant was bound to the old client
+    and its renewal has to keep presenting that one.
+    """
+    registrations: list = []
+    dao = _FakeSecretsDAO()
+    project_id, user_id = uuid4(), uuid4()
+    endpoint_a, endpoint_b = uuid4(), uuid4()
+    # One authorization server across both services: it is the deployment's address that
+    # changes, and the server is what remembers which client each refresh token belongs to.
+    authorization_server = _client_binding_as_handler(registrations=registrations)
+
+    before, _dao, _attempts = _service(
+        resolve=lambda _h: ["10.0.0.5"], dao=dao, handler=authorization_server
+    )
+    await _connect(
+        before, project_id=project_id, user_id=user_id, endpoint_id=endpoint_a
+    )
+    assert [r["client_id"] for r in registrations] == ["client-1"]
+
+    after, _dao, _attempts = _service(
+        resolve=lambda _h: ["10.0.0.5"],
+        dao=dao,
+        api_url=_MOVED_API_URL,
+        handler=authorization_server,
+    )
+    await _connect(
+        after, project_id=project_id, user_id=user_id, endpoint_id=endpoint_b
+    )
+    assert [r["client_id"] for r in registrations] == ["client-1", "client-2"]
+
+    await after.refresh_grant(
+        project_id=project_id, endpoint_id=endpoint_a, server_url=_SERVER_URL
+    )
+
+    renewed = await _grant_storage(
+        dao, project_id=project_id, endpoint_id=endpoint_a
+    ).get_grant()
+    assert renewed is not None
+    assert renewed.access_token == "renewed"
+    assert renewed.expires_at is not None and renewed.expires_at > time.time()
+
+
+@pytest.mark.asyncio
+async def test_a_grant_records_the_registration_it_was_issued_against():
+    """The bookkeeping the renewal above depends on."""
+    registrations: list = []
+    dao = _FakeSecretsDAO()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+
+    service, _dao, _attempts = _service(
+        resolve=lambda _h: ["10.0.0.5"],
+        dao=dao,
+        handler=_client_binding_as_handler(registrations=registrations),
+    )
+    await _connect(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+
+    grant = await _grant_storage(
+        dao, project_id=project_id, endpoint_id=endpoint_id
+    ).get_grant()
+
+    assert grant is not None
+    assert grant.client_registration_slug == registration_slug(
+        issuer_url=f"{_AS_BASE}/",
+        redirect_uri=f"{_API_URL}/gateways/mcps/connect/callback",
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_grant_that_records_no_registration_still_finds_the_issuers():
+    """Every grant written before the reference existed carries none, and the issuer's
+    registration is exactly where they were already being resolved."""
+    dao = _FakeSecretsDAO()
+    project_id, endpoint_id = uuid4(), uuid4()
+
+    await _grant_storage(
+        dao,
+        project_id=project_id,
+        endpoint_id=endpoint_id,
+        authorization_server=f"{_AS_BASE}/",
+    ).set_client_info(
+        OAuthClientInformationFull(
+            redirect_uris=[f"{_API_URL}/gateways/mcps/connect/callback"],
+            client_id="legacy-client",
+        )
+    )
+    # Its own instance, so nothing has resolved a registration on it and the grant records
+    # none — the shape of every grant written before the reference existed.
+    legacy = _grant_storage(
+        dao,
+        project_id=project_id,
+        endpoint_id=endpoint_id,
+        authorization_server=f"{_AS_BASE}/",
+    )
+    await legacy.write_tokens(
+        OAuthToken(access_token="stale", token_type="Bearer", expires_in=-1)
+    )
+    stored = await legacy.get_grant()
+    assert stored is not None and stored.client_registration_slug is None
+
+    resolved = await legacy.get_client_info_for_grant(stored)
+
+    assert resolved is not None and resolved.client_id == "legacy-client"
+
+
+@pytest.mark.asyncio
+async def test_a_grant_whose_registration_is_gone_gets_no_substitute():
+    """Any other client at this issuer was never issued these tokens, so there is nothing
+    to fall back to; the caller turns that into a reconnect."""
+    dao = _FakeSecretsDAO()
+    project_id, endpoint_id = uuid4(), uuid4()
+    storage = _grant_storage(
+        dao,
+        project_id=project_id,
+        endpoint_id=endpoint_id,
+        authorization_server=f"{_AS_BASE}/",
+    )
+    await storage.set_client_info(
+        OAuthClientInformationFull(
+            redirect_uris=[f"{_API_URL}/gateways/mcps/connect/callback"],
+            client_id="another-client",
+        )
+    )
+    stored = OAuthGrantSettingsDTO(
+        server=_SERVER_URL,
+        scopes=["read"],
+        issuer=f"{_AS_BASE}/",
+        client_registration_slug="oauth-provider-does-not-exist",
+    )
+
+    assert await storage.get_client_info_for_grant(stored) is None
