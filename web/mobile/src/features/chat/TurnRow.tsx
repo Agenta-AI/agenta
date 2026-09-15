@@ -1,4 +1,4 @@
-import {memo, useCallback, useMemo, useRef, type ReactNode} from "react"
+import {memo, useCallback, useMemo, useRef} from "react"
 
 import {
     getMessageTraceId,
@@ -29,30 +29,15 @@ import {
 } from "@agenta/ui/components/presentational"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
-import {motion} from "motion/react"
 
-import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
+import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown} from "./AssistantMarkdown"
 import {continuationRetryAction} from "./continuationRetry"
 import {isLiveTextItem} from "./markdownStream"
 import {RunErrorCallout} from "./RunErrorCallout"
 import {mobileTurnRowClass} from "./turnRowClass"
-
-/** The answer fades in as the fold settles, so the reply arrives instead of popping. */
-const AnswerReveal = ({animate, children}: {animate: boolean; children: ReactNode}) => {
-    const presets = useMotionPresets()
-    return (
-        <motion.div
-            initial={animate ? "initial" : false}
-            animate="animate"
-            variants={presets.crossfade}
-        >
-            {children}
-        </motion.div>
-    )
-}
 
 /** The content endpoint carries the session cookie, so a same-origin anchor saves it directly. */
 const downloadAttachment = (url: string, name: string) => {
