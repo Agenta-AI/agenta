@@ -21,6 +21,8 @@ from uuid import uuid4
 
 import pytest
 
+from oss.tests.pytest.acceptance.gateways.conftest import skip_without_llm_gateway
+
 
 _MOCKS_ENABLED = os.getenv("AGENTA_GATEWAYS_MOCKS_ENABLED", "").lower() == "true"
 
@@ -87,11 +89,7 @@ def mock_llm_endpoint(authed_api, llm_gateway_plane):
     endpoint through the LLM management route: with the plane off it is refused, and a
     function-scoped skip runs after this has already failed.
     """
-    if not llm_gateway_plane:
-        pytest.skip(
-            "the LLM gateway plane is disabled on this deployment "
-            "(set AGENTA_LLM_GATEWAY_ENABLED=true to run it)"
-        )
+    skip_without_llm_gateway(llm_gateway_plane)
     return _create_custom_endpoint(authed_api, models=["mock/echo"])
 
 

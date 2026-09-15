@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from oss.tests.pytest.acceptance.gateways.conftest import skip_without_llm_gateway
 from oss.tests.pytest.acceptance.gateways.mock_matrix import (
     CredentialOwner,
     GATEWAY_MOCK_CASES,
@@ -177,11 +178,8 @@ def provisioned_gateway_mock_case(
     case = gateway_mock_case
     # Per row, not per module: the MCP half of the matrix ships on and must keep running on a
     # deployment that has the LLM plane switched off, which is the shape of this release.
-    if case.plane is GatewayPlane.LLM and not llm_gateway_plane:
-        pytest.skip(
-            "the LLM gateway plane is disabled on this deployment "
-            "(set AGENTA_LLM_GATEWAY_ENABLED=true to run it)"
-        )
+    if case.plane is GatewayPlane.LLM:
+        skip_without_llm_gateway(llm_gateway_plane)
     cleanup: list[tuple[str, str]] = []
     name: str | None = None
     try:
