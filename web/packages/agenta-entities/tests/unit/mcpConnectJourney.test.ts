@@ -236,6 +236,34 @@ describe("Waiting for consent", () => {
     })
 })
 
+describe("a name the project has already taken", () => {
+    it("goes back to the name, not to a generic retry", () => {
+        // Retrying a create_failed would submit the same name and be refused the same way.
+        const refused = run(...beforeCreate("oauth"), {
+            type: "name_taken",
+            error: "Another connection in this project already uses this name.",
+        })
+
+        expect(refused.status).toBe("naming")
+        expect(refused.error).toContain("already uses this name")
+    })
+
+    it("keeps the URL and the probe, so only the name has to change", () => {
+        const refused = run(...beforeCreate("oauth"), {type: "name_taken", error: "taken"})
+
+        expect(refused.url).toBe(URL)
+        expect(refused.probe).not.toBeNull()
+    })
+
+    it("clears the refusal as soon as the name is edited", () => {
+        const refused = run(...beforeCreate("oauth"), {type: "name_taken", error: "taken"})
+        const edited = journeyReducer(refused, {type: "name_changed", name: "Acme (work)"})
+
+        expect(edited.error).toBeNull()
+        expect(edited.nameTouched).toBe(true)
+    })
+})
+
 describe("choosing scopes", () => {
     it("pre-checks everything the server offered", () => {
         const state = run(...upToCreated("oauth"), {

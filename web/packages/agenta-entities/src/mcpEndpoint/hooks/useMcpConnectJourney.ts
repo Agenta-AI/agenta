@@ -43,7 +43,7 @@ import {
 } from "../core/connectJourney"
 import {buildTrustedOrigins} from "../core/connectMessage"
 import {watchOauthConsent} from "../core/connectWatch"
-import {gatewayRefusalMessage} from "../core/refusal"
+import {gatewayRefusalMessage, isNameTakenRefusal} from "../core/refusal"
 import type {MCPAuthMode, MCPEndpoint} from "../core/types"
 import {refreshMcpEndpointsAtom} from "../state/atoms"
 
@@ -227,10 +227,14 @@ export function useMcpConnectJourney({
                 dispatch({type: "verify_succeeded"})
             }
         } catch (error) {
-            dispatch({
-                type: "create_failed",
-                error: gatewayRefusalMessage(error) || "The connection could not be saved.",
-            })
+            const refusal = gatewayRefusalMessage(error) || "The connection could not be saved."
+            // A taken name is the one create failure the person can fix where they are
+            // standing; everything else is a retry.
+            dispatch(
+                isNameTakenRefusal(error)
+                    ? {type: "name_taken", error: refusal}
+                    : {type: "create_failed", error: refusal},
+            )
         }
     }, [discoverScopes, projectId, state.name, state.probe, state.url])
 

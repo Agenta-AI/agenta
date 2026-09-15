@@ -182,7 +182,11 @@ export default function McpConnectJourney({
 
                     {state.status === "naming" ? (
                         <>
-                            <Field label="Name" required error={nameProblem ?? undefined}>
+                            <Field
+                                label="Name"
+                                required
+                                error={nameProblem ?? state.error ?? undefined}
+                            >
                                 <Input
                                     autoFocus
                                     value={state.name}

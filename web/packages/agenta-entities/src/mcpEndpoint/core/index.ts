@@ -41,7 +41,7 @@ export type {
     MCPServerProbe,
     MCPToolFilter,
 } from "./types"
-export {gatewayRefusalMessage} from "./refusal"
+export {gatewayRefusalMessage, isNameTakenRefusal, MCP_NAME_TAKEN_CODE} from "./refusal"
 export {
     cancelDeletesEndpoint,
     isBusy,

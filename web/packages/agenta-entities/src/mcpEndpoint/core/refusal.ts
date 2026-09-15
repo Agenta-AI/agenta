@@ -38,3 +38,19 @@ export const gatewayRefusalMessage = (error: unknown): string | null => {
 
     return null
 }
+
+/** The code the API refuses a duplicate display name with. */
+export const MCP_NAME_TAKEN_CODE = "mcp_connection_name_taken"
+
+/**
+ * Whether this refusal is "that name is taken".
+ *
+ * Worth telling apart from every other create failure: it is the one the person can fix in
+ * the field they are looking at, and retrying the same name would only repeat it.
+ */
+export function isNameTakenRefusal(error: unknown): boolean {
+    const detail = (error as {response?: {data?: {detail?: unknown}}} | null | undefined)?.response
+        ?.data?.detail
+    if (!detail || typeof detail !== "object") return false
+    return (detail as {code?: unknown}).code === MCP_NAME_TAKEN_CODE
+}
