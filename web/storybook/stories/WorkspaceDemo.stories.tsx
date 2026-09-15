@@ -3,6 +3,7 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 import {demoTheme} from "../../website/src/components/workspace-demo/theme"
 import WorkspaceDemo from "../../website/src/components/WorkspaceDemo"
 import "../../website/src/styles/workspace-demo.css"
+import "../../website/src/styles/playground-settings.css"
 
 const meta = {
     title: "Marketing/Workspace demo",
@@ -42,4 +43,11 @@ export const EmptyAutomationHistory: StoryObj<typeof meta> = {
         initialState: {view: "automations", automation: 0, historyOpen: true},
         emptyHistory: true,
     },
+}
+
+export const PlaygroundSettings: StoryObj<typeof meta> = {
+    args: {initialState: {view: "playground", session: 0}},
+}
+export const SalesSettings: StoryObj<typeof meta> = {
+    args: {initialState: {view: "playground", session: 7}},
 }

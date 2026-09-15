@@ -248,7 +248,7 @@ export function deriveWorkspace(state, setState) {
       "event",
       "When a pull request is opened",
       "42m ago · needs attention",
-      15,
+      16,
       "Review this pull request for edge cases and missing checks.",
     ],
     [
@@ -275,7 +275,7 @@ export function deriveWorkspace(state, setState) {
       "event",
       "When a release is tagged",
       "3d ago · paused",
-      17,
+      18,
       "Draft the changelog for this release.",
     ],
   ].map(([name, desc, kind, runsWhen, lastRun, ai, instruction], i) => {
@@ -295,6 +295,7 @@ export function deriveWorkspace(state, setState) {
       lastRun,
       instruction,
       agent: ag.title,
+      area: ag.area,
       agentInitials: ag.initials,
       agentChipStyle: chipStyle(ag.color, 20, 5),
       edited: whens[i + 2],
@@ -445,7 +446,33 @@ export function deriveWorkspace(state, setState) {
   const ssAutos = AUTOS.filter((au) => au.agent === ss.title);
   const ssFull = {
     ...ss,
-    autos: ssAutos.length ? ssAutos : [AUTOS[0]],
+    autos: ssAutos.length
+      ? ssAutos
+      : AUTOS.filter((automation) => automation.area === ss.area),
+    configIntegrations: [...new Set([...ss.tools, "Slack"])],
+    configSkills: skillsAll
+      .filter((skill) =>
+        (ss.area === "Marketing"
+          ? ["research-brief", "draft-article", "publish-digest"]
+          : ss.area === "Sales"
+            ? ["score-fit", "publish-digest", "schedule-run"]
+            : ss.area === "Support"
+              ? ["classify-ticket", "publish-digest", "schedule-run"]
+              : ["review-diff", "publish-digest", "schedule-run"]
+        ).includes(skill.slug),
+      )
+      .map((skill) => ({
+        ...skill,
+        open: () =>
+          setState({
+            view: "skills",
+            skill: skillsAll.indexOf(skill),
+            skillVersion: "v4",
+          }),
+      })),
+    subagents: sessions
+      .filter((agent) => agent.area === ss.area && agent.title !== ss.title)
+      .slice(0, 2),
     autoCount:
       (ssAutos.length || 1) +
       (ssAutos.length === 1 || !ssAutos.length
