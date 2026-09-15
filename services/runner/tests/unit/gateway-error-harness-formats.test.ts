@@ -84,7 +84,12 @@ function markedMessage(r: Refusal): string {
 
 function gatewayBody(r: Refusal): string {
   return JSON.stringify({
-    error: { message: markedMessage(r), type: r.type, code: r.code, ...r.extra },
+    error: {
+      message: markedMessage(r),
+      type: r.type,
+      code: r.code,
+      ...r.extra,
+    },
   });
 }
 
@@ -118,7 +123,10 @@ describe("Codex shape (OD18: body is stripped -> marker fallback recovers code o
       const detail = parseGatewayErrorDetail(harnessText);
       assert.equal(detail?.code, r.code);
       // The marker is stripped from the recovered message for display.
-      assert.equal(detail?.message, `unexpected status ${r.status}: ${r.message}`);
+      assert.equal(
+        detail?.message,
+        `unexpected status ${r.status}: ${r.message}`,
+      );
       assert.equal(detail?.retryable, false);
       // Marker-only recovery exposes the code without next steps or details.
       assert.equal(detail?.next_step, undefined);
@@ -129,7 +137,9 @@ describe("Codex shape (OD18: body is stripped -> marker fallback recovers code o
 
 describe("upstream_error: no marker, by design (D16 passthrough)", () => {
   it("stays undefined when neither the body nor a marker is present", () => {
-    const detail = parseGatewayErrorDetail("unexpected status 401: invalid api key");
+    const detail = parseGatewayErrorDetail(
+      "unexpected status 401: invalid api key",
+    );
     assert.equal(detail, undefined);
   });
 });
@@ -178,6 +188,17 @@ const MCP_REFUSALS: Refusal[] = [
     message: "Additional scopes required for custom/acme-notion: ['write']",
     type: "invalid_request_error",
   },
+  {
+    // A connection with no usable authorization: never connected, disconnected, or one
+    // whose credential the provider retired. The gateway's envelope carries the action
+    // that fixes it in `error.data.requirement.connect`; see the case below for how much
+    // of that survives to here.
+    name: "unauthorized connection",
+    status: 409,
+    code: "auth_required",
+    message: "custom/acme-notion requires authorization",
+    type: "invalid_request_error",
+  },
 ];
 
 function mcpJsonRpcBody(r: Refusal): string {
@@ -214,4 +235,45 @@ describe("MCP plane, Codex-stripped shape (message only, marker still recovers c
       assert.equal(detail?.details, undefined);
     });
   }
+});
+
+describe("MCP plane: a refusal's structured action does not reach the runner", () => {
+  it("recovers the auth_required cause but drops the connect action beside it", () => {
+    // The gateway answers an unauthorized MCP connection with a `requirement` carrying the
+    // connect action, precisely so a run can tell someone how to fix it. None of it
+    // survives: the JSON-RPC body's `error.code` is the numeric -32000 rather than our
+    // string cause, so the body path declines the whole envelope and the marker path
+    // recovers `code` alone. What a caller gets is the fact that authorization is needed,
+    // never the endpoint that would grant it.
+    //
+    // Asserted as it is rather than as it should be, so that a change to the parsing has
+    // to come here and say so. Recorded as OR85.
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      id: null,
+      error: {
+        code: -32000,
+        message:
+          "custom/acme-notion requires authorization ⟦agenta_code:auth_required⟧",
+        data: {
+          cause: "auth_required",
+          requirement: {
+            target: "custom/acme-notion",
+            state: "needs_auth",
+            connect: {
+              endpoint: "/gateways/mcps/endpoints/acme/connect",
+              body: {},
+            },
+          },
+        },
+      },
+    });
+
+    const detail = parseGatewayErrorDetail(`MCP tool call failed: ${body}`);
+
+    assert.equal(detail?.code, "auth_required");
+    assert.equal(detail?.retryable, false);
+    assert.equal(detail?.details, undefined);
+    assert.equal(detail?.next_step, undefined);
+  });
 });

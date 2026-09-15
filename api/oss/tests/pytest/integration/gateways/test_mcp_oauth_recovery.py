@@ -219,6 +219,25 @@ async def _consent(*, service, provider, project, endpoint):
     )
 
 
+async def _disconnect(*, project, connect_service, connection):
+    """Drop a connection's grant and clear its handle, the way the route does.
+
+    `_as_edit(clear_secret_id=True)` is the router's own helper again: both halves belong
+    to one operation, and a test that dropped only the vault row would leave the
+    connection naming a grant nothing holds, which is a different case.
+    """
+    await connect_service.disconnect(
+        project_id=project["project_id"],
+        endpoint_id=connection.id,
+        server_url=connection.data.route.base_url,
+    )
+    return await _dao().edit_endpoint(
+        project_id=project["project_id"],
+        user_id=project["user_id"],
+        endpoint=_as_edit(connection, clear_secret_id=True),
+    )
+
+
 async def _connected(*, project, connect_service, provider, slug, name):
     """A connection that exists, has consented, and relays."""
     endpoint = await _create_connection(
@@ -310,6 +329,126 @@ async def _connection_state(service, project, connection) -> GatewayConnectionSt
     return await service._connection_state(  # noqa: SLF001 - the state the UI reads
         project_id=project["project_id"], user_id=project["user_id"], endpoint=listed
     )
+
+
+# --- a connection holding no authorization at all ---------------------------- #
+
+
+async def test_a_connection_that_never_consented_is_told_how_to_connect(
+    project, relay_service, local_mcp_oauth_provider
+):
+    """The state every OAuth connection starts in. The refusal has to carry the action
+    that ends it, or an agent is told a credential is missing with no way to supply one.
+    """
+    connection = await _create_connection(
+        project=project,
+        slug="never-connected",
+        name="Acme",
+        base_url=local_mcp_oauth_provider.server_url,
+    )
+
+    with pytest.raises(MCPAuthRequiredError) as excinfo:
+        await _call(relay_service, project, connection)
+
+    envelope = _envelope(excinfo.value)
+    assert envelope["error"]["data"]["cause"] == "auth_required"
+    requirement = envelope["error"]["data"]["requirement"]
+    assert requirement["state"] == "needs_auth"
+    assert requirement["connect"]["endpoint"] == (
+        f"/gateways/mcps/endpoints/{connection.id}/connect"
+    )
+    # Nothing is wrong with the connection; it simply holds no authorization.
+    assert (await _reload(project, connection)).flags.is_valid is True
+    assert (
+        await _connection_state(relay_service, project, connection)
+        == GatewayConnectionState.NEEDS_AUTH
+    )
+    assert await _grants(project=project) == []
+
+
+async def test_a_disconnected_connection_is_told_how_to_connect_again(
+    project, relay_service, connect_service, local_mcp_oauth_provider
+):
+    """Pressing Disconnect and then running an agent is the ordinary way to reach this,
+    and it used to answer `secret_missing` with no action at all."""
+    connection = await _connected(
+        project=project,
+        connect_service=connect_service,
+        provider=local_mcp_oauth_provider,
+        slug="disconnected",
+        name="Acme",
+    )
+    assert (await _call(relay_service, project, connection)).status_code == 200
+
+    await _disconnect(
+        project=project, connect_service=connect_service, connection=connection
+    )
+
+    with pytest.raises(MCPAuthRequiredError) as excinfo:
+        await _call(relay_service, project, await _reload(project, connection))
+
+    envelope = _envelope(excinfo.value)
+    assert envelope["error"]["data"]["cause"] == "auth_required"
+    assert envelope["error"]["data"]["requirement"]["connect"]["endpoint"] == (
+        f"/gateways/mcps/endpoints/{connection.id}/connect"
+    )
+    assert await _grants(project=project) == []
+
+
+async def test_a_disconnected_connection_works_again_after_following_the_action(
+    project, relay_service, connect_service, local_mcp_oauth_provider
+):
+    """The affordance is only worth carrying if following it is the whole cure."""
+    connection = await _connected(
+        project=project,
+        connect_service=connect_service,
+        provider=local_mcp_oauth_provider,
+        slug="disconnected-reconnects",
+        name="Acme",
+    )
+    await _disconnect(
+        project=project, connect_service=connect_service, connection=connection
+    )
+
+    reconnected = await _consent(
+        service=connect_service,
+        provider=local_mcp_oauth_provider,
+        project=project,
+        endpoint=await _reload(project, connection),
+    )
+
+    assert (await _call(relay_service, project, reconnected)).status_code == 200
+    grants = await _grants(project=project)
+    assert len(grants) == 1
+    assert grants[0].slug == grant_slug(connection.id)
+
+
+async def test_disconnecting_one_connection_does_not_refuse_another_at_the_same_url(
+    project, relay_service, connect_service, local_mcp_oauth_provider
+):
+    project_provider = local_mcp_oauth_provider
+    dropped = await _connected(
+        project=project,
+        connect_service=connect_service,
+        provider=project_provider,
+        slug="dropped",
+        name="Acme, work",
+    )
+    kept = await _connected(
+        project=project,
+        connect_service=connect_service,
+        provider=project_provider,
+        slug="kept",
+        name="Acme, personal",
+    )
+
+    await _disconnect(
+        project=project, connect_service=connect_service, connection=dropped
+    )
+
+    with pytest.raises(MCPAuthRequiredError):
+        await _call(relay_service, project, await _reload(project, dropped))
+    assert (await _call(relay_service, project, kept)).status_code == 200
 
 
 # --- a credential the provider retired --------------------------------------- #

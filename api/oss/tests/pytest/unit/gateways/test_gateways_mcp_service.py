@@ -50,10 +50,11 @@ from oss.src.core.gateways.policy.dtos import (
     SecretOwnerKind,
     PolicyDecision,
     ResolvedSecret,
+    SecretMode,
     SecretOrigin,
 )
 from oss.src.core.gateways.policy.service import GatewayPolicyService
-from oss.src.core.gateways.policy.types import PolicyDeniedError
+from oss.src.core.gateways.policy.types import PolicyDeniedError, SecretNotFoundError
 from oss.src.core.gateways.dtos import GatewayConnectionState
 from oss.src.core.gateways.mcps.dtos import MCPAuthScheme
 from oss.src.core.secrets.dtos import (
@@ -1191,19 +1192,155 @@ async def test_relay_tools_list_passes_through_untouched_when_policy_is_all():
 # Relay scope challenge
 
 
-async def _oauth_endpoint(dao: "MockMCPEndpointsDAO") -> MCPEndpoint:
+async def _oauth_endpoint(
+    dao: "MockMCPEndpointsDAO", *, connected: bool = True
+) -> MCPEndpoint:
     return await dao.create_endpoint(
         project_id=uuid4(),
         user_id=uuid4(),
         endpoint=MCPEndpointCreate(
             slug="acme-notion",
             auth_mode=MCPAuthScheme.OAUTH,
-            secret_id=uuid4(),
+            secret_id=uuid4() if connected else None,
             data=MCPEndpointData(
                 route=MCPEndpointRoute(base_url="https://example.com/mcp")
             ),
         ),
     )
+
+
+@pytest.mark.asyncio
+async def test_an_oauth_connection_with_no_grant_offers_a_reconnect():
+    """Every OAuth connection is in this state before its first consent and again after a
+    disconnect. It used to refuse with `secret_missing` and no action at all, which is a
+    true statement and a dead end: the caller was told a credential was missing and given
+    no way to supply one."""
+    dao = MockMCPEndpointsDAO()
+    endpoint = await _oauth_endpoint(dao, connected=False)
+    resolver = MockResolver()
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=resolver,
+        adapters={"http": MockUpstreamAdapter()},
+    )
+
+    with pytest.raises(MCPAuthRequiredError) as excinfo:
+        await service.relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=MCPCallContext(method="tools/call", target="write_page"),
+            body=b"{}",
+            headers={},
+        )
+
+    requirement = excinfo.value.requirement
+    assert requirement.state == GatewayConnectionState.NEEDS_AUTH
+    assert requirement.connect is not None
+    assert requirement.connect.endpoint == (
+        f"/gateways/mcps/endpoints/{endpoint.id}/connect"
+    )
+    assert requirement.target == "custom/acme-notion"
+    # A connection with no grant costs no vault read: there is nothing to look up.
+    assert resolver.resolve_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_a_connection_with_no_grant_is_not_marked_invalid():
+    """Nothing died. A missing grant already reads as needing authorization on its own,
+    and marking the connection invalid would say its credential failed."""
+    dao = MockMCPEndpointsDAO()
+    endpoint = await _oauth_endpoint(dao, connected=False)
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=MockResolver(),
+        adapters={"http": MockUpstreamAdapter()},
+    )
+    scope = _scope()
+
+    with pytest.raises(MCPAuthRequiredError):
+        await service.relay(
+            scope=scope,
+            namespace="custom",
+            name="acme-notion",
+            context=MCPCallContext(method="tools/call", target="write_page"),
+            body=b"{}",
+            headers={},
+        )
+
+    stored = await dao.fetch_endpoint(
+        project_id=scope.project_id, endpoint_id=endpoint.id
+    )
+    assert stored is not None and stored.flags.is_valid is True
+
+
+@pytest.mark.asyncio
+async def test_an_oauth_connection_naming_a_grant_the_vault_lost_offers_a_reconnect():
+    """The row still holds a handle and the vault no longer holds the row. The caller's
+    position is the same as having never connected, so the answer is too."""
+    dao = MockMCPEndpointsDAO()
+    endpoint = await _oauth_endpoint(dao)
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=MockResolver(
+            raise_exc=SecretNotFoundError(
+                missing=SecretOwnerKind.PROJECT,
+                target="custom/acme-notion",
+                mode=SecretMode.PROJECT_ONLY,
+            )
+        ),
+        adapters={"http": MockUpstreamAdapter()},
+    )
+
+    with pytest.raises(MCPAuthRequiredError) as excinfo:
+        await service.relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=MCPCallContext(method="tools/call", target="write_page"),
+            body=b"{}",
+            headers={},
+        )
+
+    assert excinfo.value.requirement.connect is not None
+    assert excinfo.value.requirement.connect.endpoint == (
+        f"/gateways/mcps/endpoints/{endpoint.id}/connect"
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_api_key_connection_with_no_secret_still_says_the_secret_is_missing():
+    """Only OAuth has a consent flow to send anyone back through. An API-key connection
+    needs a value typed into its configuration, which is a different instruction, and
+    `/connect` would not produce one."""
+    dao = MockMCPEndpointsDAO()
+    await dao.create_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=MCPEndpointCreate(
+            slug="acme-notion",
+            auth_mode=MCPAuthScheme.API_KEY,
+            secret_id=None,
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://example.com/mcp")
+            ),
+        ),
+    )
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=MockResolver(),
+        adapters={"http": MockUpstreamAdapter()},
+    )
+
+    with pytest.raises(SecretNotFoundError):
+        await service.relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=MCPCallContext(method="tools/call", target="write_page"),
+            body=b"{}",
+            headers={},
+        )
 
 
 def _challenge_result(*, www_authenticate: str) -> MCPRelayResult:
