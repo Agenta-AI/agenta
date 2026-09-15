@@ -45,6 +45,16 @@ RUN apt-get update \
     && sed -i -E "s/^(passwd|group):(.*)/\1:\2 unknown/" /etc/nsswitch.conf \
     && grep -E "^(passwd|group):.* unknown$" /etc/nsswitch.conf
 
+# Take the setuid bit off mount/umount. The runner starts each local session's agent daemon inside
+# its own mount namespace, and it holds an AMBIENT CAP_SYS_ADMIN to do so (runner-entrypoint.sh)
+# rather than running as root. Exec'ing a setuid binary CLEARS the ambient capability set, so
+# `mount` would lose the very capability it needs and fail with "must be superuser". Stripped of
+# the bit it runs as an ordinary binary and the ambient capability carries through.
+# This removes privilege rather than adding it: the setuid helper exists only to serve non-root
+# callers, and in this image the agent is the non-root caller. fusermount keeps its bit — geesefs
+# needs it to mount every durable session drive.
+RUN chmod u-s /usr/bin/mount /usr/bin/umount
+
 # geesefs static binary (FUSE-over-S3) for the durable cwd. Pinned release; arch-matched.
 ARG GEESEFS_VERSION=v0.43.0
 RUN set -eux; \
@@ -156,6 +166,19 @@ RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --age
 # than silently shipping cold approvals. Retires when upstream codex-acp#310 lands.
 RUN node_modules/.bin/tsx scripts/patch-codex-acp-approvals.ts
 
+# Back to root for the runtime, and NOT because the server should run as root — it must not. The
+# container has to START privileged so that runner-entrypoint.sh can hand the server an AMBIENT
+# CAP_SYS_ADMIN and drop it to `node` in the same step. The server then runs as `node`, exactly as
+# it did when this line was a bare `USER node`, and every file it creates keeps that ownership.
+# The capability is what lets it start each local session's agent daemon in its own mount
+# namespace, so one session cannot reach another session's drive.
+#
+# An operator who overrides the compose `user:` (the documented subscription self-host scheme)
+# starts the container unprivileged instead. Nothing here breaks: the entrypoint sees it is not
+# root and execs the server unchanged, and the session prelude reports that it is starting without
+# mount isolation.
+USER root
+
 # Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the
 # container runs as a non-root host uid.
-CMD ["node_modules/.bin/tsx", "src/server.ts"]
+CMD ["scripts/runner-entrypoint.sh", "node", "node_modules/.bin/tsx", "src/server.ts"]

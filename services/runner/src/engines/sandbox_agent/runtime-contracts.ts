@@ -387,6 +387,19 @@ export interface SessionEnvironment {
    * cwd mount with the same TTL, so their expiry is never the minimum.
    */
   installedMountExpiries: InstalledMountExpiries;
+  /**
+   * This environment's daemon was started inside a PRIVATE mount namespace holding a bind of its
+   * own drive only (see `session-mount-namespace.ts`). The runner's namespace and the daemon's
+   * therefore disagree about what is mounted, which is what makes an in-place repair of a dead
+   * geesefs mount invisible to the harness.
+   */
+  daemonMountNamespaceIsolated: boolean;
+  /**
+   * The daemon's view of its durable mount is dead and cannot be repaired from this process. The
+   * only fix is a cold rebuild, which spawns a new daemon with a fresh namespace, so this marks
+   * the environment for eviction rather than reuse.
+   */
+  daemonMountViewStale: boolean;
   durableCwdSafeToDelete: boolean;
   workspace: { cleanup: () => Promise<void> } | undefined;
   runtimeRemount: Promise<boolean> | undefined;

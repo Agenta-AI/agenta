@@ -154,6 +154,7 @@ export interface EnvironmentView {
   readonly piPromptDir: string | undefined;
   readonly durableCwdSafeToDelete: boolean;
   readonly runtimeRemount: Promise<boolean> | undefined;
+  readonly daemonMountNamespaceIsolated: boolean;
 }
 
 /**
@@ -309,6 +310,15 @@ export interface AcquireContext {
    * half-torn-down environment.
    */
   setRuntimeRemount(remount: Promise<boolean> | undefined): void;
+
+  /**
+   * Mark the daemon's view of its durable mount dead beyond in-process repair.
+   *
+   * Set only on an isolated daemon, where the runner cannot remount into the namespace the harness
+   * is looking at. The mount-lost machinery reads it and evicts the environment, so the next turn
+   * rebuilds cold with a new daemon and a new namespace.
+   */
+  markDaemonMountViewStale(): void;
 
   /**
    * The per-run agent directory.
