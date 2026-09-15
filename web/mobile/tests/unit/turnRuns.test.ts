@@ -69,6 +69,29 @@ describe("mergeAssistantRuns", () => {
         expect(texts).toEqual(["thinking", "tools", "next"])
     })
 
+    it("keeps only the new call of a tool group that echoes an earlier one beside it", () => {
+        const c1 = {type: "tool-bash", toolCallId: "c1", state: "output-available"}
+        const c2 = {type: "tool-read", toolCallId: "c2", state: "output-available"}
+        const merged = mergeAssistantRuns([
+            turn("u1", true),
+            turn("a1", false, {
+                items: [{kind: "tools", index: 0, parts: [c1]}],
+                message: {id: "a1", role: "assistant", parts: [c1]},
+            } as Partial<TurnViewModel>),
+            turn("a2", false, {
+                items: [{kind: "tools", index: 0, parts: [c1, c2]}],
+                message: {id: "a2", role: "assistant", parts: [c1, c2]},
+            } as Partial<TurnViewModel>),
+        ])
+        const calls = merged[1].items.flatMap((i) =>
+            i.kind === "tools" ? i.parts.map((p) => p.toolCallId) : [],
+        )
+        expect(calls).toEqual(["c1", "c2"])
+        expect(merged[1].message.parts.map((p) => (p as {toolCallId?: string}).toolCallId)).toEqual(
+            ["c1", "c2"],
+        )
+    })
+
     it("keeps a thought the model genuinely repeats later in the run", () => {
         const say = (text: string) =>
             ({
