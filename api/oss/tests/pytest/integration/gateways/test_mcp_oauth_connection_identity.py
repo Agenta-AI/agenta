@@ -22,7 +22,6 @@ from uuid import uuid4
 
 import pytest
 from mcp.shared.auth import OAuthToken
-from sqlalchemy import text
 
 from oss.src.core.gateways.mcps.dtos import (
     MCPAuthScheme,
@@ -31,8 +30,6 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointEdit,
     MCPEndpointRoute,
 )
-from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
-from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
 from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage, grant_slug
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
 from oss.src.core.secrets.enums import SecretKind
@@ -40,36 +37,8 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
-from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
-
-
-@pytest.fixture
-async def project(seeded_project):
-    """`seeded_project` plants one `secrets` row whose `data` is NULL as a bare FK
-    target. Reading the vault decrypts every row in the project, so it has to go before
-    these cases list anything."""
-    engine = get_transactions_engine()
-    async with engine.session() as session:
-        await session.execute(
-            text("DELETE FROM secrets WHERE id = :id"),
-            {"id": seeded_project["secret_id"]},
-        )
-        await session.commit()
-    return seeded_project
-
-
-@pytest.fixture
-def connect_service(local_mcp_oauth_provider, _public_dns_for_the_oauth_provider):
-    """The real connect service over the local provider, writing to real Postgres."""
-    return MCPOAuthConnectService(
-        vault_service=VaultService(secrets_dao=SecretsDAO()),
-        client=MCPOAuthClient(transport=local_mcp_oauth_provider.transport),
-        api_url="https://api.oauth.local",
-        attempts_dao=InMemoryMCPOAuthAttemptsDAO(),
-        resolve=lambda _hostname: ["10.0.0.1"],
-    )
 
 
 async def _create_connection(*, project, slug: str, name: str, base_url: str):

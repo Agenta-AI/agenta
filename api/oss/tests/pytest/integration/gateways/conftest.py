@@ -17,6 +17,7 @@ from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
+from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 from oss.tests.pytest.utils.postgres import use_reachable_core_uri
 
@@ -295,6 +296,38 @@ class _InMemorySecretsDAO:
             for owner, record in self.records
             if not (owner == project_id and record.id == secret_id)
         ]
+
+
+@pytest.fixture
+async def project(seeded_project):
+    """`seeded_project` plants one `secrets` row whose `data` is NULL as a bare FK
+    target. Reading the vault decrypts every row in the project, so it has to go before
+    these cases list anything."""
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        await session.execute(
+            text("DELETE FROM secrets WHERE id = :id"),
+            {"id": seeded_project["secret_id"]},
+        )
+        await session.commit()
+    return seeded_project
+
+
+@pytest.fixture
+def connect_service(local_mcp_oauth_provider, _public_dns_for_the_oauth_provider):
+    """The real connect service over the local provider, writing to real Postgres.
+
+    Distinct from `local_mcp_oauth_connect_service` below, which hands back an in-memory
+    secrets DAO beside the service: the cases that use this one assert on rows a unique
+    index arbitrates, which only real Postgres has.
+    """
+    return MCPOAuthConnectService(
+        vault_service=VaultService(secrets_dao=SecretsDAO()),
+        client=MCPOAuthClient(transport=local_mcp_oauth_provider.transport),
+        api_url="https://api.oauth.local",
+        attempts_dao=InMemoryMCPOAuthAttemptsDAO(),
+        resolve=lambda _hostname: ["10.0.0.1"],
+    )
 
 
 @pytest.fixture
