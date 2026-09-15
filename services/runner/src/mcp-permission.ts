@@ -154,6 +154,8 @@ export function mcpToolPermission(
   return entry.newTool;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+/** Exported so the Pi extension, which already imports this module, does not carry a second
+ *  copy into the same bundle. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

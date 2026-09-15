@@ -5,7 +5,7 @@
  * Agenta credential; upstream URLs and credentials never enter this configuration.
  */
 
-import { mcpToolPermission, normalizeMcpServerPermissions } from "../mcp-permission.ts";
+import { isRecord, mcpToolPermission, normalizeMcpServerPermissions } from "../mcp-permission.ts";
 
 export const PI_GATEWAY_MCP_SERVERS_ENV = "AGENTA_AGENT_GATEWAY_MCP_SERVERS";
 
@@ -137,10 +137,6 @@ export function piGatewayMcpServersFromWire(
 interface JsonRpcResponse {
   result?: unknown;
   error?: { code?: number; message?: string };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function readJsonResponse(raw: string): JsonRpcResponse {
@@ -340,17 +336,37 @@ export async function registerPiGatewayMcpTools(
   // looked new and the second silently shadowed the first (OR80).
   const claimedBy = new Map<string, string>();
   let connected = 0;
-  for (const server of servers) {
-    const permissions = normalizeMcpServerPermissions(server.policy);
-    const client = new PiHttpMcpClient(server);
-    let tools: PiMcpTool[];
-    try {
-      tools = await client.discover();
-    } catch (error) {
+
+  // Handshakes run together, registration runs in configuration order. This is called from
+  // `before_agent_start`, so every turn waits on it, and each `discover()` is three round trips
+  // through the gateway to the upstream — serially that was 3xN hops before the first token.
+  // The results are consumed in the array's own order, which is what the collision rules below
+  // depend on, so only the I/O overlaps.
+  type Discovery = {
+    server: PiGatewayMcpServer;
+    // The same client the registered tools call through, so a tool call reuses the connection
+    // its handshake opened rather than opening a second one.
+    client: PiHttpMcpClient;
+  } & ({ tools: PiMcpTool[]; error?: undefined } | { tools?: undefined; error: unknown });
+  const discoveries = await Promise.all(
+    servers.map(async (server): Promise<Discovery> => {
+      const client = new PiHttpMcpClient(server);
+      try {
+        return { server, client, tools: await client.discover() };
+      } catch (error) {
+        return { server, client, error };
+      }
+    }),
+  );
+
+  for (const discovery of discoveries) {
+    const { server, client } = discovery;
+    if (discovery.tools === undefined) {
       // NON-FATAL, per server. Pi used to let a failed handshake escape `before_agent_start` and
       // kill the whole turn, which is both harsher than the ACP harnesses (they run on without
       // the server) and less informative: the person saw a generic run failure, never the server
       // name. The runner's acquire-time probe is what tells them; this is the operator's log line.
+      const { error } = discovery;
       const status = error instanceof PiMcpRequestError ? error.status : undefined;
       log(
         `[mcp] warn: server '${server.name}' failed its handshake: ` +
@@ -358,6 +374,8 @@ export async function registerPiGatewayMcpTools(
       );
       continue;
     }
+    const tools = discovery.tools;
+    const permissions = normalizeMcpServerPermissions(server.policy);
     connected += 1;
     for (const tool of tools) {
       if (!allowsTool(server, tool.name)) continue;
