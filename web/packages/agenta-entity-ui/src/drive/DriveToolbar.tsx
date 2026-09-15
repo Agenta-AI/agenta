@@ -170,9 +170,9 @@ export function DriveToolbar(props: DriveToolbarProps) {
                             aria-label="Sort"
                             className={ROW_TEXT_BTN}
                         >
-                            <SortAscending size={13} />
+                            <SortAscending />
                             {SORT_LABELS[sort]}
-                            <CaretDown size={10} weight="bold" />
+                            <CaretDown weight="bold" className="size-3 opacity-70" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="min-w-[170px]">
@@ -277,9 +277,9 @@ export function DriveToolbar(props: DriveToolbarProps) {
                             aria-label="Editor mode"
                             className={ROW_TEXT_BTN}
                         >
-                            {rendered ? <TextAa size={13} /> : <TextT size={13} />}
+                            {rendered ? <TextAa /> : <TextT />}
                             {rendered ? "Markdown" : "Plain text"}
-                            <CaretDown size={10} weight="bold" />
+                            <CaretDown weight="bold" className="size-3 opacity-70" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-[200px]">
