@@ -57,11 +57,12 @@ export const RunErrorCallout = ({
                 className="max-w-[520px] px-3.5 py-3"
                 message="Couldn't start the run"
                 description={
-                    <div className="flex flex-col gap-2.5">
-                        <p className="m-0 text-[13px] leading-relaxed">
+                    <div className="flex flex-col gap-1.5">
+                        {/* Not a <p>: the Alert gives every non-last paragraph a 16px margin. */}
+                        <span className="block text-[13px] leading-relaxed">
                             {error.headline}
                             {error.remedy ? ` ${error.remedy}` : null}
-                        </p>
+                        </span>
                         <div className="flex flex-wrap items-center gap-3">
                             {onRetry ? (
                                 <Button size="sm" variant="outline" onClick={onRetry}>
