@@ -12,7 +12,7 @@ import type {ToolUIPart} from "ai"
 
 import RevealCollapse from "../RevealCollapse"
 
-import {ActivityNode, type ActivityState} from "./activityIcons"
+import {ActivityNode, LIVE_TEXT_CLASS, type ActivityState} from "./activityIcons"
 
 /**
  * A question on the timeline, in the same row shape as every other step: while open, that the
@@ -95,7 +95,11 @@ export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
     const header = (
         <>
             <ActivityNode icon="ask" state={state} yourTurn={settled === "pending"} />
-            <span className="min-w-0 truncate text-sm text-colorText transition-colors group-hover:text-colorTextSecondary">
+            <span
+                className={`min-w-0 truncate text-sm text-colorText transition-colors group-hover:text-colorTextSecondary ${
+                    settled === "pending" ? LIVE_TEXT_CLASS : ""
+                }`}
+            >
                 {sentence}
             </span>
             {expandable ? (
