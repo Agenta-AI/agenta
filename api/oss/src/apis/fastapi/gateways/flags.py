@@ -19,37 +19,26 @@ changes nothing. A test that needs a plane off patches `env.llm_gateway.enabled`
 `test_gateways_plane_flags.py` does; an operator restarts the process (D16).
 """
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 
-from oss.src.apis.fastapi.gateways.exceptions import plane_disabled_envelope
+from oss.src.apis.fastapi.gateways.exceptions import plane_disabled_http_exception
 from oss.src.core.gateways.types import (
-    GatewayPlaneDisabledError,
     LLMGatewayDisabledError,
     MCPGatewayDisabledError,
 )
 from oss.src.utils.env import env
 
 
-def _refuse(exc: GatewayPlaneDisabledError) -> HTTPException:
-    # 403, not 404 or 503: the route exists and the deployment is healthy, the operator has
-    # decided this plane does not serve. Retrying changes nothing, which is what separates
-    # it from the 502/424 an upstream failure sends.
-    return HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail=plane_disabled_envelope(exc),
-    )
-
-
 def require_llm_gateway_enabled() -> None:
     """Router dependency: refuse every LLM gateway route while the plane is off."""
     if not env.llm_gateway.enabled:
-        raise _refuse(LLMGatewayDisabledError())
+        raise plane_disabled_http_exception(LLMGatewayDisabledError())
 
 
 def require_mcp_gateway_enabled() -> None:
     """Router dependency: refuse every MCP gateway route while the plane is off."""
     if not env.mcp_gateway.enabled:
-        raise _refuse(MCPGatewayDisabledError())
+        raise plane_disabled_http_exception(MCPGatewayDisabledError())
 
 
 LLM_GATEWAY_ENABLED = Depends(require_llm_gateway_enabled)

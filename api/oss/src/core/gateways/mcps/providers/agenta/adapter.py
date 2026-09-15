@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 from fastapi import HTTPException, Request
 
 from oss.src.core.gateways.mcps.interfaces import MCPRelayResult
+from oss.src.core.gateways.run_claims import gateway_run_id, gateway_tools
 from oss.src.core.tools.dtos import ToolCall
 
 _PROTOCOL_VERSION = "2026-07-28"  # pinned per MCPCallContext's own docstring
@@ -20,9 +21,9 @@ class AgentaMCPAdapter:
 
     @staticmethod
     def _tools(request: Request) -> List[Dict[str, Any]]:
-        run_id = getattr(request.state, "gateway_run_id", None)
-        tools = getattr(request.state, "gateway_tools", None)
-        if not isinstance(run_id, str) or not run_id or not isinstance(tools, list):
+        run_id = gateway_run_id(request)
+        tools = gateway_tools(request)
+        if run_id is None or tools is None:
             raise ValueError("Agenta MCP requires a scoped invocation credential")
         valid = [
             item

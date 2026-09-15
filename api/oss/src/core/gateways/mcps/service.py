@@ -43,6 +43,7 @@ from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthRefresherInterfa
 from oss.src.core.gateways.mcps.oauth.storage import grant_settings_expired
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
+from oss.src.core.gateways.run_claims import gateway_run_id
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
@@ -144,21 +145,6 @@ def _elapsed_ms(started: float) -> int:
     negative, or minutes long, when the clock is stepped mid-call.
     """
     return max(0, round((monotonic() - started) * 1000))
-
-
-def _run_id(request: Optional["Request"]) -> Optional[str]:
-    """The workflow invocation this relay belongs to, if the caller is on one.
-
-    The auth middleware reads it off the audience-bound gateway credential the SDK
-    exchanges for a run and puts it on request state; a caller holding a session cookie
-    or an API key carries no such credential and belongs to no run, so this is None for
-    them rather than something invented. It is read here rather than plumbed through the
-    signature because the router already hands `relay` the request.
-    """
-    if request is None:
-        return None
-    value = getattr(request.state, "gateway_run_id", None)
-    return value if isinstance(value, str) and value else None
 
 
 def _target_path(
@@ -586,7 +572,7 @@ class MCPGatewayService:
         namespace = GatewayEndpointNamespace(namespace)
 
         started = monotonic()
-        run_id = _run_id(request)
+        run_id = gateway_run_id(request)
 
         # 1. Resolve target.
         target = await self._resolve_target(

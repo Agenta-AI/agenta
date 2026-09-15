@@ -90,6 +90,23 @@ def plane_disabled_envelope(exc: GatewayPlaneDisabledError) -> Dict[str, Any]:
     )
 
 
+def plane_disabled_http_exception(exc: GatewayPlaneDisabledError) -> HTTPException:
+    """The control plane's refusal of a switched-off plane.
+
+    403, not 404 or 503: the route exists and the deployment is healthy, the operator has
+    decided this plane does not serve. Retrying changes nothing, which is what separates it
+    from the 502/424 an upstream failure sends.
+
+    Assembled here rather than at each surface because a router dependency refuses before
+    `handle_gateway_exceptions` wraps anything, so the two would otherwise build the same
+    response independently.
+    """
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=plane_disabled_envelope(exc),
+    )
+
+
 def _target_of(exc) -> str:
     """The `namespace/name` path an endpoint error names, for the envelope's `details`."""
     namespace = getattr(exc, "namespace", None)
@@ -128,10 +145,7 @@ def handle_gateway_exceptions():
                     ),
                 ) from e
             except GatewayPlaneDisabledError as e:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=plane_disabled_envelope(e),
-                ) from e
+                raise plane_disabled_http_exception(e) from e
             except GatewayEndpointInactiveError as e:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
