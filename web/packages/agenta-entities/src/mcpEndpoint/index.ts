@@ -10,4 +10,5 @@
  */
 export * from "./api"
 export * from "./core"
+export * from "./hooks"
 export * from "./state"

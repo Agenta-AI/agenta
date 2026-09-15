@@ -13,6 +13,9 @@ export interface MCPOAuthData {
 export interface MCPEndpointRoute {
     base_url?: string | null
     headers?: Record<string, string> | null
+    // Names the header an API-key endpoint's credential travels in. Configuration, not the
+    // credential: the value stays in the vault behind `secret_id`.
+    credential_header?: string | null
 }
 
 // GatewayEndpointFilter in api/oss/src/core/gateways/dtos.py.
@@ -85,4 +88,33 @@ export interface MCPConnectResponse {
     count: number
     redirect_url?: string | null
     scopes_offered?: string[]
+}
+
+// Mirror of MCPServerProbeResult in api/oss/src/core/gateways/mcps/probe.py.
+export type MCPProbeAuthMode = "none" | "oauth" | "unknown"
+export type MCPProbeRegistration = "dynamic" | "metadata" | "unavailable"
+
+export interface MCPProbeProblem {
+    cause: string
+    message: string
+}
+
+export interface MCPProbeAuth {
+    mode: MCPProbeAuthMode
+    authorization_server?: string | null
+    scopes_offered?: string[]
+    registration?: MCPProbeRegistration | null
+}
+
+export interface MCPServerProbe {
+    reachable: boolean
+    server_name?: string | null
+    protocol_version?: string | null
+    auth: MCPProbeAuth
+    problem?: MCPProbeProblem | null
+}
+
+export interface MCPEndpointProbeResponse {
+    count: number
+    probe?: MCPServerProbe | null
 }
