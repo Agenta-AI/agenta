@@ -1,5 +1,7 @@
 # Gateways: out of scope
 
+> **MCP release scope update (2026-09-15):** Read [confirmed decisions](release-decisions-2026-09-15.md) and the [release-ready handoff](MCP-RELEASE-HANDOFF.md) first. They govern current scope and the target connection UX where this baseline differs. Existing code-review findings remain independent and must be resolved or explicitly dispositioned; no implementation or QA is implied by a product decision.
+
 Things this design deliberately does **not** build, with enough of the research kept that
 picking one up later starts from an argument rather than a blank page. Distinct from
 [`cleanups.md`](cleanups.md), which is repo debt this work touches, and from

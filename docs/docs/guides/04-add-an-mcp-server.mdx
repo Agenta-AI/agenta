@@ -10,6 +10,10 @@ import { Stream } from "@cloudflare/stream-react";
 
 An MCP server gives your agent tools it can call. Connect one over HTTP and keep its key in an Agenta project secret. To learn how MCP compares with built-in integrations, see [Tools and integrations](/concepts/tools-and-integrations).
 
+:::info Planned MCP connection flow
+The gateway work in PR #6049 targets a single Connect flow: enter the MCP URL, confirm an editable suggested name, complete OAuth when supported, then open the connection to inspect tools and change their permissions. This flow is not yet release-ready. The instructions below describe the earlier flow and will be updated with verified steps before the MCP release.
+:::
+
 ## Before you start
 
 Have these ready:
