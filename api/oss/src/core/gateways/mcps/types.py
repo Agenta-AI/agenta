@@ -104,3 +104,26 @@ class MCPAgentaToolNotEntitledError(GatewaysError):
             "Agenta MCP credential requested tools outside the entitled set: "
             + ", ".join(tools)
         )
+
+
+class MCPConnectionNameTakenError(GatewaysError):
+    """Another connection in this project already answers to this display name.
+
+    The name is not merely a label. A harness renders one of this server's tools as
+    `mcp__<name>__<tool>`, and the model chooses a tool by that string, so two
+    connections sharing a name give the model no way to say which account it means and
+    give the runner two tools it cannot tell apart.
+
+    Compared after normalization rather than verbatim, because that rendering maps every
+    character outside `[A-Za-z0-9_]` to an underscore: "Acme Notion" and "Acme-Notion"
+    are two display names that produce one tool prefix, and refusing only exact matches
+    would let that pair through.
+    """
+
+    def __init__(self, *, name: str, conflicting_slug: str):
+        self.name = name
+        self.conflicting_slug = conflicting_slug
+        super().__init__(
+            "Another connection in this project already uses this name; "
+            "pick a different one."
+        )

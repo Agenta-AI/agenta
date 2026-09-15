@@ -1092,3 +1092,37 @@ def test_create_that_produced_no_record_is_not_reported_as_a_success(
 
     assert response.status_code == 500, response.text
     assert response.json() != {"count": 0}
+
+
+def test_a_duplicate_display_name_is_refused_as_a_conflict(client, service, allow):
+    """A name is what a harness renders in front of this server's tools, so two
+    connections sharing one give the model no way to say which account it means."""
+    from oss.src.core.gateways.mcps.types import MCPConnectionNameTakenError
+
+    class _Refusing(MockMCPGatewayService):
+        async def create_endpoint(self, *, project_id, user_id, endpoint):
+            raise MCPConnectionNameTakenError(name="Acme", conflicting_slug="acme-work")
+
+    refusing = _Refusing()
+    router = MCPGatewayRouter(
+        mcp_gateway_service=refusing, oauth_connect_service=MockMCPOAuthConnectService()
+    )
+    app = FastAPI()
+    app.include_router(router.router)
+
+    with TestClient(app, raise_server_exceptions=False) as refusing_client:
+        response = refusing_client.post(
+            "/endpoints/",
+            json={
+                "endpoint": {
+                    "name": "Acme",
+                    "auth_mode": "none",
+                    "data": {"route": {"base_url": _SERVER_URL}},
+                }
+            },
+        )
+
+    assert response.status_code == 409, response.text
+    detail = response.json()["detail"]
+    assert detail["code"] == "mcp_connection_name_taken"
+    assert "already uses this name" in detail["message"]

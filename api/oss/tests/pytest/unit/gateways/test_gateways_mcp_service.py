@@ -38,6 +38,7 @@ from oss.src.core.gateways.mcps.service import MCPGatewayService
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
+    MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
     MCPToolNotAllowedError,
@@ -1540,31 +1541,26 @@ async def test_create_falls_back_to_the_server_hostname_when_there_is_no_name():
     assert created.slug.startswith("mcpacmeio-")
 
 
-@pytest.mark.asyncio
-async def test_two_connections_with_one_display_name_get_distinct_slugs():
-    """Two accounts at one server are commonly given the same name before anyone
-    renames them, and a derived slug must not be what refuses the second."""
-    dao = MockMCPEndpointsDAO()
-    service = _service(mcp_endpoints_dao=dao)
-    project_id, user_id = uuid4(), uuid4()
+def test_one_display_name_seeds_two_different_slugs():
+    """The seed is readability; uniqueness is the suffix.
 
-    slugs = set()
-    for _ in range(2):
-        created = await service.create_endpoint(
-            project_id=project_id,
-            user_id=user_id,
-            endpoint=MCPEndpointCreate(
-                name="Acme",
-                auth_mode=MCPAuthScheme.NONE,
-                data=MCPEndpointData(
-                    route=MCPEndpointRoute(base_url="https://mcp.acme.io/")
-                ),
-            ),
-        )
-        assert created is not None
-        slugs.add(created.slug)
+    A name is free again the moment its connection is deleted, and reusing that name
+    must not reuse the slug: agent configurations and grant rows are addressed by the
+    identity it stands for, so a second connection seeded from the same name has to get
+    a slug of its own.
+    """
+    from oss.src.core.gateways.mcps.service import derive_endpoint_slug
 
-    assert len(slugs) == 2
+    create = MCPEndpointCreate(
+        name="Acme",
+        auth_mode=MCPAuthScheme.NONE,
+        data=MCPEndpointData(route=MCPEndpointRoute(base_url="https://mcp.acme.io/")),
+    )
+
+    first, second = derive_endpoint_slug(create), derive_endpoint_slug(create)
+
+    assert first != second
+    assert first.startswith("acme-") and second.startswith("acme-")
 
 
 @pytest.mark.asyncio
@@ -1581,3 +1577,207 @@ async def test_create_keeps_a_slug_the_caller_supplied():
 
     assert created is not None
     assert created.slug == "chosen-by-the-caller"
+
+
+# --- a display name is a tool prefix, so it has to be unique -------------------- #
+
+
+def test_tool_prefix_matches_the_runners_own_normalization():
+    """`piMcpToolName` in services/runner/src/extensions/pi-mcp.ts maps everything
+    outside [A-Za-z0-9_] to an underscore. If these two ever disagree, the check below
+    permits a pair the runner then refuses."""
+    from oss.src.core.gateways.mcps.service import tool_prefix
+
+    assert tool_prefix("acme") == "acme"
+    assert tool_prefix("Acme Notion") == "Acme_Notion"
+    assert tool_prefix("Acme-Notion") == "Acme_Notion"
+    assert tool_prefix("acme.prod") == "acme_prod"
+    assert tool_prefix("  padded  ") == "padded"
+    assert tool_prefix(None) == ""
+
+
+@pytest.mark.asyncio
+async def test_create_refuses_a_display_name_another_connection_already_uses():
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    project_id, user_id = uuid4(), uuid4()
+
+    await service.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint=MCPEndpointCreate(
+            slug="first",
+            name="Acme",
+            auth_mode=MCPAuthScheme.NONE,
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://mcp.acme.io/")
+            ),
+        ),
+    )
+
+    with pytest.raises(MCPConnectionNameTakenError):
+        await service.create_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            endpoint=MCPEndpointCreate(
+                slug="second",
+                name="Acme",
+                auth_mode=MCPAuthScheme.NONE,
+                data=MCPEndpointData(
+                    route=MCPEndpointRoute(base_url="https://mcp.acme.io/")
+                ),
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_refuses_two_names_that_render_one_tool_prefix():
+    """The reason the comparison is on the rendered prefix. These are different strings
+    and the same tool name to a model."""
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    project_id, user_id = uuid4(), uuid4()
+
+    await service.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint=MCPEndpointCreate(
+            slug="first",
+            name="Acme Notion",
+            auth_mode=MCPAuthScheme.NONE,
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://mcp.acme.io/")
+            ),
+        ),
+    )
+
+    with pytest.raises(MCPConnectionNameTakenError):
+        await service.create_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            endpoint=MCPEndpointCreate(
+                slug="second",
+                name="Acme-Notion",
+                auth_mode=MCPAuthScheme.NONE,
+                data=MCPEndpointData(
+                    route=MCPEndpointRoute(base_url="https://mcp.acme.io/")
+                ),
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_two_accounts_at_one_url_are_allowed_when_their_names_differ():
+    """The whole point of the release. The name check must not be what refuses them."""
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    project_id, user_id = uuid4(), uuid4()
+
+    created = []
+    for name, slug in (("Acme work", "work"), ("Acme personal", "personal")):
+        created.append(
+            await service.create_endpoint(
+                project_id=project_id,
+                user_id=user_id,
+                endpoint=MCPEndpointCreate(
+                    slug=slug,
+                    name=name,
+                    auth_mode=MCPAuthScheme.NONE,
+                    data=MCPEndpointData(
+                        route=MCPEndpointRoute(base_url="https://mcp.acme.io/")
+                    ),
+                ),
+            )
+        )
+
+    assert all(row is not None for row in created)
+    assert {row.slug for row in created} == {"work", "personal"}
+
+
+@pytest.mark.asyncio
+async def test_an_unnamed_connection_is_not_checked():
+    """An unnamed connection renders no prefix worth colliding, and a name has never
+    been required here."""
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    project_id, user_id = uuid4(), uuid4()
+
+    for slug in ("first", "second"):
+        created = await service.create_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            endpoint=_endpoint_create(slug=slug),
+        )
+        assert created is not None
+
+
+@pytest.mark.asyncio
+async def test_edit_refuses_renaming_onto_another_connections_name():
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    project_id, user_id = uuid4(), uuid4()
+
+    for name, slug in (("Acme work", "work"), ("Acme personal", "personal")):
+        await service.create_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            endpoint=MCPEndpointCreate(
+                slug=slug,
+                name=name,
+                auth_mode=MCPAuthScheme.NONE,
+                data=MCPEndpointData(
+                    route=MCPEndpointRoute(base_url="https://mcp.acme.io/")
+                ),
+            ),
+        )
+    personal = next(row for row in dao._by_id.values() if row.slug == "personal")
+
+    with pytest.raises(MCPConnectionNameTakenError):
+        await service.edit_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            endpoint=MCPEndpointEdit(
+                id=personal.id,
+                name="Acme work",
+                auth_mode=MCPAuthScheme.NONE,
+                data=personal.data,
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_edit_allows_a_connection_to_keep_the_name_it_already_has():
+    """Re-saving without touching the name is not a collision with itself. Every save
+    from the settings drawer and every reconnect goes through this path."""
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    project_id, user_id = uuid4(), uuid4()
+
+    created = await service.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint=MCPEndpointCreate(
+            slug="work",
+            name="Acme work",
+            auth_mode=MCPAuthScheme.NONE,
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://mcp.acme.io/")
+            ),
+        ),
+    )
+    assert created is not None
+
+    edited = await service.edit_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint=MCPEndpointEdit(
+            id=created.id,
+            name="Acme work",
+            auth_mode=MCPAuthScheme.NONE,
+            secret_id=uuid4(),
+            data=created.data,
+        ),
+    )
+
+    assert edited is not None
+    assert edited.name == "Acme work"

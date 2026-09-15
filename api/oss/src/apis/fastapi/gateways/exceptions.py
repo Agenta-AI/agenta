@@ -18,6 +18,7 @@ from oss.src.core.gateways.llms.types import (
 from oss.src.core.gateways.mcps.types import (
     MCPAgentaToolNotEntitledError,
     MCPAuthRequiredError,
+    MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
     MCPToolNotAllowedError,
@@ -173,6 +174,17 @@ def handle_gateway_exceptions():
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=e.message,
+                ) from e
+            except MCPConnectionNameTakenError as e:
+                # A conflict rather than a validation failure: the request is
+                # well-formed and would be accepted in a project where the name is free.
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=gateway_error_envelope(
+                        code="mcp_connection_name_taken",
+                        message=e.message,
+                        next_step="Give this connection a name no other one in the project uses.",
+                    ),
                 ) from e
             except (LLMModelNotAllowedError, MCPToolNotAllowedError) as e:
                 raise HTTPException(

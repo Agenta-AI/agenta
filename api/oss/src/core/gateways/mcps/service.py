@@ -46,6 +46,7 @@ from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
+    MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
     MCPToolNotAllowedError,
@@ -162,16 +163,33 @@ def derive_endpoint_slug(endpoint: MCPEndpointCreate) -> str:
     them to change it later.
 
     The display name seeds it, falling back to the server's hostname, which is what the
-    connection flow shows when a server offers no usable name. Uniqueness comes from a
-    `uuid4` suffix rather than from the seed, matching how secrets, testsets and
-    evaluators derive theirs: two connections may legitimately carry one display name
-    across a project's lifetime, and a derived slug must not be the thing that refuses
-    the second one.
+    connection flow shows when a server offers no usable name. The seed is readability
+    and nothing else: uniqueness comes from a `uuid4` suffix, matching how secrets,
+    testsets and evaluators derive theirs.
+
+    Not from the name, for two reasons. A name is free again the moment its connection is
+    deleted, and a slug must never be reused for a different connection, because agent
+    configurations and grant rows are addressed by the identity it stands for. And a slug
+    computed from the name would track the name, which is the coupling this exists to
+    remove.
     """
     seed = (endpoint.name or "").strip()
     if not seed:
         seed = urlparse(endpoint.data.route.base_url or "").hostname or ""
     return get_slug_from_name_and_id(seed or _FALLBACK_SLUG_BASE, uuid4())
+
+
+# Exactly the runner's own normalization (`piMcpToolName` in
+# services/runner/src/extensions/pi-mcp.ts), because the string this produces is what a
+# harness puts in front of the model. Two display names that normalize to one prefix are
+# one name as far as a tool call is concerned, so that is the comparison a uniqueness
+# check has to make.
+_TOOL_PREFIX_UNSAFE = re.compile(r"[^A-Za-z0-9_]")
+
+
+def tool_prefix(display_name: Optional[str]) -> str:
+    """The token a harness renders as `mcp__<this>__<tool>` for a connection."""
+    return _TOOL_PREFIX_UNSAFE.sub("_", (display_name or "").strip())
 
 
 class MCPGatewayService:
@@ -210,12 +228,47 @@ class MCPGatewayService:
             endpoint = endpoint.model_copy(
                 update={"slug": derive_endpoint_slug(endpoint)}
             )
+        await self._check_name_is_free(project_id=project_id, name=endpoint.name)
         return await self.mcp_endpoints_dao.create_endpoint(
             project_id=project_id,
             user_id=user_id,
             #
             endpoint=endpoint,
         )
+
+    async def _check_name_is_free(
+        self,
+        *,
+        project_id: UUID,
+        name: Optional[str],
+        excluding: Optional[UUID] = None,
+    ) -> None:
+        """Refuse a display name another connection in this project already answers to.
+
+        Not cosmetic. A harness renders a connection's tools as `mcp__<name>__<tool>` and
+        the model chooses a tool by that string, so two connections sharing a name give
+        the model no way to say which account it means. The runner refuses the whole
+        registration on the collision, which takes down both connections rather than the
+        second one.
+
+        Compared on the rendered prefix rather than the raw string, because the
+        rendering maps everything outside `[A-Za-z0-9_]` to an underscore and an exact
+        comparison would let "Acme Notion" and "Acme-Notion" through.
+
+        An unnamed connection is not checked: it renders no prefix worth colliding, and
+        nothing has ever required a name here.
+        """
+        prefix = tool_prefix(name)
+        if not prefix:
+            return
+        existing = await self.mcp_endpoints_dao.query_endpoints(project_id=project_id)
+        for other in existing:
+            if excluding is not None and other.id == excluding:
+                continue
+            if tool_prefix(other.name) == prefix:
+                raise MCPConnectionNameTakenError(
+                    name=name or "", conflicting_slug=other.slug or str(other.id)
+                )
 
     async def fetch_endpoint(
         self,
@@ -238,6 +291,11 @@ class MCPGatewayService:
         #
         endpoint: MCPEndpointEdit,
     ) -> Optional[MCPEndpoint]:
+        # Excluding itself, so re-saving a connection without touching its name is not a
+        # collision with the name it already has.
+        await self._check_name_is_free(
+            project_id=project_id, name=endpoint.name, excluding=endpoint.id
+        )
         return await self.mcp_endpoints_dao.edit_endpoint(
             project_id=project_id,
             user_id=user_id,

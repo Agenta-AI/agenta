@@ -35,12 +35,23 @@ def _gateway_mcp_route(
 ) -> str:
     """Build the selected public MCP gateway route.
 
-    A plain author-owned HTTP connection keeps the established
-    ``custom/{name}`` route. A platform gateway connection selects a builtin,
-    standard, or persisted custom route explicitly.
+    A platform gateway connection names the connection it means. Everything else falls
+    back to the server's ``name``, which is deprecated; see below.
     """
     base = f"{gateway_base_url.rstrip('/')}/gateways/mcps"
     if connection is None:
+        # DEPRECATED, and kept only for configurations that predate the connection
+        # reference. This line is what made the author's display name the project's
+        # endpoint slug: one string had to be both the label the model sees and the
+        # identity of a stored connection, so an agent could not say which of two
+        # accounts at one server it meant, and renaming the server moved it to a
+        # different connection or to none.
+        #
+        # A connection now carries a slug the platform derives once and never changes,
+        # and configurations written since say `connection={"type": "gateway",
+        # "namespace": "custom", "slug": ...}`. Committed agent revisions are immutable,
+        # so the ones already written still arrive here and must keep resolving; do not
+        # remove this until none of them can reach it.
         return f"{base}/custom/{name}"
     if connection.namespace == "custom":
         assert connection.slug is not None
