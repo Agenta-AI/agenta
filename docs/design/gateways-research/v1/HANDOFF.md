@@ -260,6 +260,22 @@ because the shared `agenta-ee-dev-*:latest` tags are what every other stack recr
    The other suites follow the same shape with `--api -i`, `--sdk -a`, `--services -a`,
    `--services -i` and `--runner -a`. `implementation-status.md` names the target of each.
 
+   **A browser goes through the tunnel; suites do not.** When a stack publishes itself on a
+   public tunnel, the three `AGENTA_*_URL` variables point at that address, and `test.sh`
+   reads them, so every suite drives its requests through the tunnel too. A tunnel does not
+   survive that. The acceptance matrix runs twenty workers in parallel and collapsed into 234
+   TLS errors and 56 connection errors, taking unrelated modules down with it and reporting
+   setup failures that look like product defects. The same matrix against the local Traefik
+   address passes 27 of 27.
+
+   So keep a second env file whose three URLs point at `http://localhost:<TRAEFIK_PORT>` and
+   pass it to `test.sh`, while the stack itself stays configured for the tunnel. The
+   containers keep agreeing with each other, which is what matters, and only the test client
+   takes the short path. Note that all four of `api`, `web`, `services` and `runner` must
+   agree on the public URL: the runner drops its own credential when the heartbeat endpoint
+   does not match its configured ingest host, and that surfaces as "this session is already
+   running a turn" rather than as anything about URLs.
+
 7. **Manual QA.** Follow `qa.md`. Provider creation registers the endpoint on its own; the API call
    in step 2 is a fallback for a stack that predates that change. Step 4 names the two preconditions
    the MCP cells need.
