@@ -37,6 +37,11 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 import requests
 
+from oss.src.core.gateways.mcps.oauth.registration import (
+    client_metadata_url,
+    is_publicly_resolvable,
+)
+
 BASE_TIMEOUT = 60
 
 _MOCKS_ENABLED = os.getenv("AGENTA_GATEWAYS_MOCKS_ENABLED", "").lower() == "true"
@@ -55,6 +60,11 @@ _PUBLISHED_MOCK_URL = os.getenv(
 # The OAuth-protected MCP surface. `/` stays unauthenticated for every other suite.
 _OAUTH_MCP_PATH = "/oauth/mcp"
 _OAUTH_MCP_URL = f"{_MCP_MOCK_URL}{_OAUTH_MCP_PATH}"
+
+# The mock's second issuer, which advertises no registration endpoint and so forces the
+# client-identity-document branch of `_resolve_client_info`.
+_UNREGISTERED_PREFIX = "/noreg"
+_UNREGISTERED_MCP_URL = f"{_MCP_MOCK_URL}{_UNREGISTERED_PREFIX}{_OAUTH_MCP_PATH}"
 
 pytestmark = [
     pytest.mark.acceptance,
@@ -185,11 +195,9 @@ def browser(ag_env) -> Iterator[_Browser]:
     yield _Browser(api_url=ag_env["api_url"])
 
 
-@pytest.fixture
-def oauth_endpoint(browser: _Browser) -> Iterator[Dict[str, Any]]:
-    """A custom MCP endpoint pointing at the mock's OAuth-protected surface."""
+def _create_endpoint(browser: _Browser, *, base_url: str) -> Dict[str, Any]:
     slug = f"oauth-consent-{uuid.uuid4().hex[:8]}"
-    endpoint = _assert_ok(
+    return _assert_ok(
         browser.api(
             "POST",
             "/gateways/mcps/endpoints/",
@@ -197,11 +205,27 @@ def oauth_endpoint(browser: _Browser) -> Iterator[Dict[str, Any]]:
                 "endpoint": {
                     "slug": slug,
                     "auth_mode": "oauth",
-                    "data": {"route": {"base_url": _OAUTH_MCP_URL}},
+                    "data": {"route": {"base_url": base_url}},
                 }
             },
         )
     )["endpoint"]
+
+
+@pytest.fixture
+def oauth_endpoint(browser: _Browser) -> Iterator[Dict[str, Any]]:
+    """A custom MCP endpoint pointing at the mock's OAuth-protected surface."""
+    endpoint = _create_endpoint(browser, base_url=_OAUTH_MCP_URL)
+    try:
+        yield endpoint
+    finally:
+        browser.api("DELETE", f"/gateways/mcps/endpoints/{endpoint['id']}")
+
+
+@pytest.fixture
+def unregistered_oauth_endpoint(browser: _Browser) -> Iterator[Dict[str, Any]]:
+    """An endpoint on the issuer that offers no registration endpoint."""
+    endpoint = _create_endpoint(browser, base_url=_UNREGISTERED_MCP_URL)
     try:
         yield endpoint
     finally:
@@ -470,3 +494,98 @@ def test_the_probe_refuses_a_url_the_gateway_would_refuse(browser: _Browser):
             "POST", "/gateways/mcps/endpoints/probe", json={"url": url}
         )
         assert response.status_code == 400, f"{url!r}: {response.text}"
+
+
+@pytest.mark.acceptance
+def test_a_registered_client_may_not_come_back_to_another_callback(
+    browser: _Browser, oauth_endpoint: Dict[str, Any]
+):
+    """RFC 7591 binds a registration to the callbacks it was created with.
+
+    The gateway re-registers when a stored registration no longer names the callback it
+    would send (OR78), and that repair is only worth anything if an authorization server
+    actually refuses the stale client. This pins the mock to that behaviour: were it to
+    take any redirect URI, a gateway that never re-registered would still pass every
+    other test in this file.
+    """
+    _assert_ok(
+        browser.api(
+            "POST", f"/gateways/mcps/endpoints/{oauth_endpoint['id']}/connect", json={}
+        )
+    )
+    redirect_url = _begin(browser, oauth_endpoint, ["tools:call"])
+    query = parse_qs(urlparse(redirect_url).query)
+
+    refused = requests.get(
+        f"{_PUBLISHED_MOCK_URL}/oauth/authorize",
+        params={
+            "response_type": "code",
+            "client_id": query["client_id"][0],
+            "redirect_uri": "https://not-the-callback.test/cb",
+            "code_challenge": query["code_challenge"][0],
+            "code_challenge_method": "S256",
+        },
+        allow_redirects=False,
+        timeout=BASE_TIMEOUT,
+    )
+    # Refused outright rather than redirected: an authorization server that bounced the
+    # browser to an unregistered address would be an open redirector.
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["error"] == "invalid_request", refused.text
+
+
+@pytest.mark.acceptance
+def test_an_issuer_offering_no_registration_names_us_by_identity_document(
+    browser: _Browser, unregistered_oauth_endpoint: Dict[str, Any]
+):
+    """The other half of `_resolve_client_info`: no registration endpoint, so the gateway
+    names itself with the client-identity document it publishes.
+
+    The mock's `/noreg` issuer advertises no `registration_endpoint`, which leaves the
+    gateway nothing to register with. It may then only identify itself by a document an
+    authorization server can fetch, so the branch exists solely for a deployment whose own
+    API URL is publicly resolvable — `is_publicly_resolvable` is https-only and rejects
+    every private and loopback address. A stack on loopback, which is how this suite
+    usually runs, cannot take the branch at all and the connect call is expected to refuse.
+
+    That issuer also carries a path, so this is the one test that covers the RFC 8414 s3.1
+    path-inserted metadata location: `/.well-known/oauth-authorization-server/noreg`.
+    """
+    discovered = browser.api(
+        "POST",
+        f"/gateways/mcps/endpoints/{unregistered_oauth_endpoint['id']}/connect",
+        json={},
+    )
+    # Discovery itself does not care how a client is named, so it succeeds either way and
+    # proves the path-inserted metadata document resolved.
+    assert discovered.status_code == 200, discovered.text
+    assert discovered.json()["scopes_offered"]
+
+    if not is_publicly_resolvable(browser.api_url):
+        refused = browser.api(
+            "POST",
+            f"/gateways/mcps/endpoints/{unregistered_oauth_endpoint['id']}/connect",
+            json={"scopes": ["tools:call"]},
+        )
+        assert refused.status_code == 424, refused.text
+        pytest.skip(
+            "the identity-document branch needs a publicly resolvable https API URL; "
+            f"this deployment is reached at {browser.api_url}, so the gateway has no "
+            "document an authorization server could fetch and refuses, as asserted above"
+        )
+
+    redirect_url = _begin(browser, unregistered_oauth_endpoint, ["tools:call"])
+    query = parse_qs(urlparse(redirect_url).query)
+    # The client names itself with the URL of the document it serves, not with an id an
+    # authorization server issued, because this issuer issues none.
+    assert query["client_id"] == [client_metadata_url(api_url=browser.api_url)]
+
+    authorized = requests.get(
+        _on_host(redirect_url), allow_redirects=False, timeout=BASE_TIMEOUT
+    )
+    assert authorized.status_code == 302, authorized.text
+    callback = browser.session.get(
+        _on_api_host(browser, authorized.headers["location"]), timeout=BASE_TIMEOUT
+    )
+    assert callback.status_code == 200, callback.text
+    assert '"success": true' in callback.text
