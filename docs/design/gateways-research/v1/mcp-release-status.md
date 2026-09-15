@@ -26,3 +26,22 @@ Product scope is confirmed. This commit records the handoff and target UX; it do
 Mahmoud confirmed project-wide multiple accounts, stable slugs/IDs, editable names, configured selection, our own MCP gateway, deferred infrastructure work and phased release. He clarified that LiteLLM SDK applies only to LLM evaluation. He requested the integration-style MCP Connect flow, auditability in this PR and autonomous work through the release-ready gate with Astra medium and CodeRabbit feedback loops.
 
 Name suggestions and authentication discovery use fallbacks because arbitrary server metadata is not guaranteed. No runtime proof has yet validated the target UX.
+
+## Getting this pull request reviewed by CodeRabbit
+
+CodeRabbit refuses a review above 300 changed files and reports the refusal as a passing check, so its green mark on this pull request means nothing was read. The cap is a platform limit rather than a setting, and neither a plan change nor `@coderabbitai full review` gets past it, because the count is checked before the review runs.
+
+Files excluded by path filters are not counted. CodeRabbit's own skip comment listed seven files ignored by the organization's filters and then reported 518 files selected against 525 changed, which is the subtraction made visible. CodeRabbit also reads this configuration from the branch under review, so filters committed here scope to this pull request and change nothing for any other one. `inheritance: true` merges arrays child-first, so the organization's exclusions still apply on top.
+
+The review therefore runs in two passes, each well under the cap:
+
+| Pass | Contents | Files |
+| --- | --- | --- |
+| 1 | Production source and infrastructure. The `path_filters` block now in `.coderabbit.yaml` | 259 |
+| 2 | Tests. Swap that block for the inverse list and request another review | 179 |
+
+Counts measured at the revision that added this note, with the organization's inherited exclusions applied, against base `236619ebb768`. The branch is still growing and gained three source files during the few minutes this note was being written, so re-measure before each pass rather than trusting these numbers; pass 1 had 41 files of headroom when written. If a later pass approaches the cap, move infrastructure and configuration into pass 2 before splitting anything.
+
+Run each pass with `@coderabbitai full review` after pushing, and confirm the skip banner is gone before reading the findings. Design-doc markdown under `docs/design/` is in neither pass: it is this team's working notes, not shipped code.
+
+**The block must be deleted before this pull request merges.** Left in place it would narrow reviews for every future pull request in the repository. Confirm `git diff main -- .coderabbit.yaml` is empty before merging. Note also that CodeRabbit stored a learning on 2026-09-12 advising against repository-wide path filters for this pull request; that advice predates the branch-scoped approach described here and should be removed from its learnings so it does not argue against the fix.

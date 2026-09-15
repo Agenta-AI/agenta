@@ -1,5 +1,11 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 
+# TEMPORARY — the `reviews.path_filters` block at the bottom of this file exists only to
+# get PR #6049 reviewed, and MUST BE REMOVED BEFORE THAT PR MERGES. Leaving it in place
+# would narrow reviews for every future pull request in this repository, which is the
+# opposite of what it is for. Before merging, delete the block and confirm
+# `git diff main -- .coderabbit.yaml` is empty.
+
 # CodeRabbit only auto-reviews PRs whose base is the default branch, so every PR into a
 # release/* branch was skipped ("Auto reviews are disabled on base/target branches other
 # than the default branch") — which is most of the review traffic during a release.
@@ -18,3 +24,37 @@ reviews:
     # release/v0.112.0 and every release branch after it.
     base_branches:
       - "release/.*"
+
+  # TEMPORARY, PR #6049 ONLY. DELETE BEFORE MERGE. See the note at the top of this file.
+  #
+  # CodeRabbit caps a review at 300 files and refuses larger ones outright, reporting the
+  # refusal as a PASSING check: "Review skipped: 518 files exceed the limit of 300". The cap
+  # is a platform limit, not a setting, and no plan or `@coderabbitai full review` gets past
+  # it — the count is checked before the review runs.
+  #
+  # Path-filtered files do not count toward it. CodeRabbit's own skip comment listed 7 files
+  # ignored by the organization's filters and then "Files selected for processing (518)"
+  # against 525 changed, so the filtered ones were already subtracted. Filters drive a
+  # sparse checkout, so an excluded file is never even cloned.
+  #
+  # CodeRabbit reads this file from the branch under review, so the block below scopes to
+  # this PR alone and leaves every other pull request untouched. `inheritance: true` merges
+  # arrays child-first, so the organization's own exclusions (lock files, generated code)
+  # still apply on top of these.
+  #
+  # This is pass 1: production source and infrastructure, which is what actually needs
+  # reviewing. Pass 2 swaps this list for the tests. Neither pass covers the design-doc
+  # markdown under docs/design/**, which is this team's working notes rather than shipped
+  # code and is reviewed by the people writing it.
+  path_filters:
+    - "!docs/design/**"
+    - "!docs/designs/**"
+    - "!**/tests/**"
+    - "!**/test/**"
+    - "!**/test_*.py"
+    - "!**/*.test.ts"
+    - "!**/*.test.tsx"
+    - "!**/*.spec.ts"
+    - "!**/*.spec.tsx"
+    - "!**/pytest.ini"
+    - "!**/run-tests.py"
