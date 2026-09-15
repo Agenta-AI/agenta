@@ -141,6 +141,7 @@ export default class WorkspaceDemo extends Component {
         ref={(node) => {
           this.frame = node;
         }}
+        data-sidebar-collapsed={this.state.sidebarCollapsed || false}
         data-mobile-config={this.state.mobileConfig || false}
         aria-label="Interactive Agenta workspace demo"
         style={css(
@@ -198,13 +199,25 @@ export default class WorkspaceDemo extends Component {
               alt={`Agenta`}
               style={css(`height:18px;display:block;`)}
             />
-            <span
+            <button
+              type="button"
+              aria-label={
+                this.state.sidebarCollapsed
+                  ? "Expand sidebar"
+                  : "Collapse sidebar"
+              }
+              aria-expanded={!this.state.sidebarCollapsed}
+              onClick={() =>
+                this.setState((state) => ({
+                  sidebarCollapsed: !state.sidebarCollapsed,
+                }))
+              }
               style={css(
-                `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
+                `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border:0;background:transparent;border-radius:6px;color:var(--muted-foreground);`,
               )}
             >
               <SidebarSimple size={16} weight="regular" aria-hidden="true" />
-            </span>
+            </button>
           </div>
           <nav
             style={css(
@@ -214,6 +227,7 @@ export default class WorkspaceDemo extends Component {
           >
             <button
               type={`button`}
+              aria-label="Home"
               onClick={nav.home.go}
               style={css(nav.home.style)}
             >
@@ -230,6 +244,7 @@ export default class WorkspaceDemo extends Component {
             </button>
             <button
               type={`button`}
+              aria-label="Agents"
               onClick={nav.agents.go}
               style={css(nav.agents.style)}
             >
@@ -246,6 +261,7 @@ export default class WorkspaceDemo extends Component {
             </button>
             <button
               type={`button`}
+              aria-label="Automations"
               onClick={nav.automations.go}
               style={css(nav.automations.style)}
             >
@@ -262,6 +278,7 @@ export default class WorkspaceDemo extends Component {
             </button>
             <button
               type={`button`}
+              aria-label="Skills"
               onClick={nav.skills.go}
               style={css(nav.skills.style)}
             >
@@ -288,6 +305,7 @@ export default class WorkspaceDemo extends Component {
                   nav.sessions.go();
                 }
               }}
+              aria-label="Sessions"
               onClick={nav.sessions.go}
             >
               <span
@@ -321,8 +339,18 @@ export default class WorkspaceDemo extends Component {
             >
               {railGroups.map((g, index4) => (
                 <Fragment key={index4}>
-                  <div
-                    role={`button`}
+                  <button
+                    type="button"
+                    className="ag-demo-group-toggle"
+                    aria-expanded={!this.state.closedGroups?.[g.agent]}
+                    onClick={() =>
+                      this.setState((state) => ({
+                        closedGroups: {
+                          ...state.closedGroups,
+                          [g.agent]: !state.closedGroups?.[g.agent],
+                        },
+                      }))
+                    }
                     style={css(
                       `margin:0 auto;display:flex;width:calc(100% - 16px);flex:0 0 auto;cursor:default;user-select:none;align-items:center;gap:4px;border-radius:6px;padding:8px 0 2px 12px;font:400 12px/16px var(--font-sans);color:var(--muted-foreground);`,
                     )}
@@ -336,7 +364,7 @@ export default class WorkspaceDemo extends Component {
                     </span>
                     <span
                       style={css(
-                        `margin-right:4px;display:flex;width:22px;height:22px;flex:0 0 auto;align-items:center;justify-content:center;transform:rotate(90deg);`,
+                        `margin-right:4px;display:flex;width:22px;height:22px;flex:0 0 auto;align-items:center;justify-content:center;transform:rotate(${this.state.closedGroups?.[g.agent] ? 0 : 90}deg);`,
                       )}
                     >
                       <CaretRight
@@ -345,48 +373,49 @@ export default class WorkspaceDemo extends Component {
                         aria-hidden="true"
                       />
                     </span>
-                  </div>
-                  {g.rows.map((r, index5) => (
-                    <Fragment key={index5}>
-                      <button
-                        type={`button`}
-                        onClick={r.open}
-                        style={css(r.style)}
-                      >
-                        <span
-                          style={css(
-                            `display:flex;flex:0 0 auto;align-items:center;justify-content:center;width:12px;color:${r.railDot};`,
-                          )}
+                  </button>
+                  {!this.state.closedGroups?.[g.agent] &&
+                    g.rows.map((r, index5) => (
+                      <Fragment key={index5}>
+                        <button
+                          type={`button`}
+                          onClick={r.open}
+                          style={css(r.style)}
                         >
-                          {r.auto && (
-                            <>
-                              <Lightning
-                                size={12}
-                                weight="regular"
-                                aria-hidden="true"
-                              />
-                            </>
-                          )}
-                          {r.chat && (
-                            <>
-                              <span
-                                style={css(
-                                  `width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor;background:${r.railFill};`,
-                                )}
-                              ></span>
-                            </>
-                          )}
-                        </span>
-                        <span
-                          style={css(
-                            `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
-                          )}
-                        >
-                          {r.ask}
-                        </span>
-                      </button>
-                    </Fragment>
-                  ))}
+                          <span
+                            style={css(
+                              `display:flex;flex:0 0 auto;align-items:center;justify-content:center;width:12px;color:${r.railDot};`,
+                            )}
+                          >
+                            {r.auto && (
+                              <>
+                                <Lightning
+                                  size={12}
+                                  weight="regular"
+                                  aria-hidden="true"
+                                />
+                              </>
+                            )}
+                            {r.chat && (
+                              <>
+                                <span
+                                  style={css(
+                                    `width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor;background:${r.railFill};`,
+                                  )}
+                                ></span>
+                              </>
+                            )}
+                          </span>
+                          <span
+                            style={css(
+                              `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
+                            )}
+                          >
+                            {r.ask}
+                          </span>
+                        </button>
+                      </Fragment>
+                    ))}
                 </Fragment>
               ))}
             </div>
