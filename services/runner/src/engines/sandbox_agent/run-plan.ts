@@ -324,8 +324,7 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  | { ok: true; plan: RunPlan }
-  | { ok: false; error: string };
+  { ok: true; plan: RunPlan } | { ok: false; error: string };
 
 // The five wire fields this change RETIRED. They are listed here so the runner can reject a
 // request that still sends them, rather than ignore them.
@@ -422,6 +421,27 @@ export const LOCAL_DURABLE_MOUNT_ROOT = "/var/lib/agenta";
 
 /** Root of the DAYTONA provider's durable mounts. Each session owns its sandbox, so it is safe. */
 export const DAYTONA_DURABLE_MOUNT_ROOT = "/home/sandbox/agenta";
+
+/**
+ * The provider a run will actually execute on.
+ *
+ * Every decision that differs by provider has to ask this one function. The durable mount root is
+ * the reason it exists: it is chosen before `buildRunPlan` runs, and when the two disagreed a run
+ * that `buildRunPlan` sent to Daytona could be handed the LOCAL root, which does not exist in a
+ * Daytona sandbox, so the mount failed. The precedence is the request first, then the caller's
+ * resolved provider, then the deployment default.
+ */
+export function resolveSandboxProviderId(
+  request: Pick<AgentRunRequest, "sandbox">,
+  sandboxProvider?: string,
+): string {
+  return (
+    request.sandbox ||
+    sandboxProvider ||
+    loadRunnerConfig().providers.default ||
+    "local"
+  );
+}
 
 function defaultLocalCwd(durableCwd?: string): string {
   // When the caller pre-computed a durable cwd from the sign prefix, use it — same prefix means
@@ -561,7 +581,6 @@ export function buildRunPlan(
   }: BuildRunPlanDeps = {},
 ): BuildRunPlanResult {
   const runnerConfig = loadRunnerConfig();
-  const defaultProvider = sandboxProvider ?? runnerConfig.providers.default;
   const enabled = enabledProviders ?? runnerConfig.providers.enabled;
   // Fail CLOSED on a non-string harness, matching `harnessKindOf`: `/stream` decodes with an
   // unchecked `JSON.parse`, so a malformed payload can put `null`, `0`, or `false` here, and a
@@ -582,7 +601,7 @@ export function buildRunPlan(
     };
   }
   const harness = request.harness || "pi_core";
-  const sandboxId = request.sandbox || defaultProvider || "local";
+  const sandboxId = resolveSandboxProviderId(request, sandboxProvider);
 
   // Deployment posture gate (interface.md section 2, rule 7): a request for a known but disabled
   // provider fails here, before any cwd/temp dir, mount, file, secret, or sandbox is created.

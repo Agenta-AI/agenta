@@ -39,6 +39,7 @@ import {
   buildRunPlan,
   DAYTONA_DURABLE_MOUNT_ROOT,
   LOCAL_DURABLE_MOUNT_ROOT,
+  resolveSandboxProviderId,
 } from "./run-plan.ts";
 import {
   materializeSubscriptionLoginForRun,
@@ -61,7 +62,6 @@ import {
   projectScopeFor,
   resolvesToLocalProvider,
 } from "./session-identity.ts";
-import { loadRunnerConfig } from "../../config/runner-config.ts";
 import { buildRuntimeEnvironment } from "../../environment/runtime-lifecycle.ts";
 import { createTimingLog } from "../../environment/timing.ts";
 
@@ -160,8 +160,11 @@ export async function prepareEnvironmentSetup(
   // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
   let durableCwd: string | undefined;
   if (mountCreds?.prefix) {
+    // Same resolver `buildRunPlan` uses, not a second reading of the config: this choice is made
+    // BEFORE the plan exists, and when the two disagreed a Daytona run selected here by
+    // `deps.sandboxProvider` alone got the local root, which no Daytona sandbox has.
     const isDaytonaReq =
-      (request.sandbox ?? loadRunnerConfig().providers.default) === "daytona";
+      resolveSandboxProviderId(request, deps.sandboxProvider) === "daytona";
     const root = isDaytonaReq
       ? DAYTONA_DURABLE_MOUNT_ROOT
       : LOCAL_DURABLE_MOUNT_ROOT;

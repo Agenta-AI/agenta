@@ -12,6 +12,7 @@ import {
   buildRunPlan,
   DAYTONA_DURABLE_MOUNT_ROOT,
   LOCAL_DURABLE_MOUNT_ROOT,
+  resolveSandboxProviderId,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
 
 const PREFIX = "mounts/proj-1/mount-abc";
@@ -70,5 +71,58 @@ describe("durable mount roots", () => {
       "/var/lib/agenta/mounts/proj-1/mount-abc",
     );
     assert.ok(!result.plan.workspace.cwd.startsWith("/tmp/"));
+  });
+});
+
+describe("provider resolution behind the durable root", () => {
+  // The root is chosen before the plan exists, so the choice and `buildRunPlan` each resolve the
+  // provider themselves. While they did that separately, a run the plan sent to Daytona could be
+  // handed the LOCAL root, which no Daytona sandbox has, and the durable mount failed.
+  it("prefers the request over the caller's provider and the deployment default", () => {
+    assert.equal(
+      resolveSandboxProviderId(
+        { sandbox: "local" } as AgentRunRequest,
+        "daytona",
+      ),
+      "local",
+    );
+  });
+
+  it("uses the caller's resolved provider when the request names none", () => {
+    // This is the case that was wrong: `buildRunPlan` reads `sandboxProvider`, the root did not.
+    assert.equal(
+      resolveSandboxProviderId({} as AgentRunRequest, "daytona"),
+      "daytona",
+    );
+  });
+
+  it("falls back to local when nothing names a provider", () => {
+    assert.equal(
+      resolveSandboxProviderId({} as AgentRunRequest, undefined),
+      "local",
+    );
+  });
+
+  it("agrees with the plan for a provider only the caller named", () => {
+    const request = {
+      harness: "claude",
+      messages: [{ role: "user", content: "hello" }],
+    } as AgentRunRequest;
+    const provider = resolveSandboxProviderId(request, "daytona");
+    const result = buildRunPlan(request, {
+      sandboxProvider: "daytona",
+      enabledProviders: ["local", "daytona"],
+      durableCwd: `${DAYTONA_DURABLE_MOUNT_ROOT}/${PREFIX}`,
+      createDaytonaCwd: (durable) => durable ?? "/home/sandbox/agenta-fallback",
+    });
+
+    assert.equal(provider, "daytona");
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.isDaytona, true);
+    assert.equal(
+      result.plan.workspace.cwd,
+      `${DAYTONA_DURABLE_MOUNT_ROOT}/${PREFIX}`,
+    );
   });
 });
