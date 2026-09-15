@@ -2,7 +2,7 @@
 
 ## Active review findings
 
-The record runs OR36 to OR82, forty-seven findings: thirty-eight closed, eight open and one
+The record runs OR36 to OR83, forty-eight findings: thirty-nine closed, eight open and one
 withdrawn.
 Entries numbered below OR36 predate that record and are all closed.
 
@@ -350,6 +350,58 @@ The relay stays out of it. Nothing in `providers/passthrough/adapter.py` should 
 a future reader who reaches for that shortcut should read the OR49 record first.
 
 ## Closed review record
+
+### OR83. An upstream that refuses the stored grant is relayed back as a 401, so a dead connection goes on reporting itself connected — CLOSED, by treating a refused credential as a reconnect
+
+Found on 2026-09-15 while writing the recovery cases for the release. Severity P2.
+
+`MCPGatewayService.relay` (`api/oss/src/core/gateways/mcps/service.py`) renews a grant only when
+this deployment can see that it has expired: `_renewed` reads `expires_at` off the stored row and
+refreshes when it is in the past. A provider can retire a grant long before that — a person
+removing the application at the provider, an administrator revoking the account's authorization, a
+server that expires a token sooner than the `expires_in` it issued. In every one of those the
+stored row still looks live, nothing renews it, the relay sends it, and the upstream answers 401.
+
+That 401 was returned to the caller as the upstream's own response. Three consequences, and the
+second is the one that made the connection unrecoverable without someone guessing.
+
+The connection went on reporting itself connected. `_connection_state` reads
+`endpoint.flags.is_valid`, which only the refresh-failure path ever cleared, so the settings screen
+showed a connected account whose every call failed.
+
+The caller was given no way back. A 401 relayed verbatim carries no connect affordance, so an agent
+saw an authentication error from a server it had no route to re-authorize, and retrying — the only
+thing a caller can do with an upstream error — could never succeed.
+
+The 403 case was already handled and the 401 case was not, which is what made the gap easy to
+miss: an insufficient-scope challenge has raised `MCPScopeInsufficientError` with a connect
+affordance since WP18, and a reader seeing that code would reasonably assume its neighbour was
+covered too. `test_gateways_mcp_service.py` even names the behaviour in a comment — "the relay
+sends the stale token and the upstream 401s" — while asserting only the renewal case.
+
+**Closed 2026-09-15.** A 401 from a stored OAuth connection now records the outcome, marks the
+connection invalid, and raises `MCPAuthRequiredError`, which the proxy already renders as a 409
+`auth_required` envelope carrying the connect affordance. The connection then reads
+`needs_auth` in settings and one Connect puts it back, which is the same recovery the
+refresh-failure path already offered.
+
+Deliberately scoped to a stored OAuth connection. A `none`-scheme or API-key connection's 401 is
+that server's own answer about a credential Agenta did not issue and has no consent flow to send
+anyone back through, so it still passes through byte for byte.
+
+Deliberately not added: an opportunistic refresh-then-retry on the 401. A refresh handle can
+outlive an access token the provider retired early, so a retry would sometimes recover; but
+replaying a `tools/call` whose side effect the upstream may already have performed needs a
+retry-safety story the relay does not have, and the reconnect is correct for the revocation case
+either way.
+
+Proven by three unit cases in `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_service.py` —
+the refusal carries the connect affordance, the stored connection stops reading valid, and a
+`none`-scheme connection's 401 still passes through — and end to end against real Postgres and a
+controlled upstream in
+`api/oss/tests/pytest/integration/gateways/test_mcp_oauth_recovery.py::test_a_revoked_credential_asks_for_a_reconnect_rather_than_relaying_a_401`.
+
+---
 
 ### OR79. The Pi harness never gates an MCP tool, so a server configured `deny` executes anyway — CLOSED, and the gate became a required argument rather than an optional one
 
