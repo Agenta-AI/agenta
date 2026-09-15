@@ -17,6 +17,13 @@ the same Docker network the gateway already dials:
     GET  /.well-known/oauth-authorization-server          RFC 8414
     GET  /oauth/authorize                                 redirects back with a code
     POST /oauth/token                                     code (or refresh) -> bearer
+    POST /oauth/register                                  RFC 7591 -> a client_id
+
+It serves a SECOND issuer under `/noreg` that advertises no registration endpoint, so
+both branches of client identity stay testable: registration, which every real server
+this gateway has met uses, and the client-id metadata document, which is the fallback for
+a server that cannot be registered with. The `/noreg` issuer has a path, so it also
+covers the RFC 8414 s3.1 path-inserted metadata location.
 
 There is no consent screen and no login. The authorize endpoint redirects straight back,
 because what has to be testable is the *shape* of the flow — a redirect a browser and a
@@ -54,8 +61,19 @@ from oss.src.utils.env import env
 MCP_PATH = "/oauth/mcp"
 AUTHORIZE_PATH = "/oauth/authorize"
 TOKEN_PATH = "/oauth/token"
+REGISTER_PATH = "/oauth/register"
 PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource"
 AUTHORIZATION_SERVER_PATH = "/.well-known/oauth-authorization-server"
+
+# A SECOND issuer identity, serving the same authorize and token endpoints but
+# advertising no registration endpoint. It exists so the identity-document branch of
+# `_resolve_client_info` stays reachable now that the default issuer registers.
+#
+# It is a path under the same origin, which makes it the RFC 8414 s3.1 path-inserted
+# case: its metadata is fetched from `/.well-known/oauth-authorization-server/noreg`,
+# not from a well-known URL under the path. That is a second thing worth testing, since
+# every real issuer this gateway has met so far has been path-less.
+UNREGISTERED_PREFIX = "/noreg"
 
 SCOPES_SUPPORTED = ["tools:list", "tools:call"]
 
@@ -80,9 +98,14 @@ def base_url() -> str:
     return (env.mock_gateways.mcp_public_url or env.mock_gateways.mcp_url).rstrip("/")
 
 
-def resource_metadata_url() -> str:
+def unregistered_base_url() -> str:
+    """The issuer identity that advertises no registration endpoint."""
+    return f"{base_url()}{UNREGISTERED_PREFIX}"
+
+
+def resource_metadata_url(*, base: Optional[str] = None) -> str:
     """The RFC 9728 s3.1 location for `MCP_PATH`: the path is INSERTED after the segment."""
-    return f"{base_url()}{PROTECTED_RESOURCE_PATH}{MCP_PATH}"
+    return f"{base or base_url()}{PROTECTED_RESOURCE_PATH}{MCP_PATH}"
 
 
 def _s256(verifier: str) -> str:
@@ -101,6 +124,20 @@ class _AuthorizationCode:
 
 
 @dataclass
+class _RegisteredClient:
+    """What RFC 7591 registration binds a `client_id` to.
+
+    `redirect_uris` is the load-bearing member: a registration is bound to the callbacks
+    it was created with, and an authorization server that took any redirect URI would let
+    a broken re-registration path pass as working. That is the defect `registration_covers`
+    exists to catch, so this mock has to be strict about it for the test to mean anything.
+    """
+
+    redirect_uris: List[str]
+    scope: Optional[str]
+
+
+@dataclass
 class _Grant:
     scopes: List[str]
     client_id: str
@@ -112,6 +149,7 @@ class _Store:
     """Process-local issuer state. A fixture keeps nothing across a restart."""
 
     codes: Dict[str, _AuthorizationCode] = field(default_factory=dict)
+    clients: Dict[str, _RegisteredClient] = field(default_factory=dict)
     access_tokens: Dict[str, _Grant] = field(default_factory=dict)
     refresh_tokens: Dict[str, _Grant] = field(default_factory=dict)
 
@@ -147,7 +185,7 @@ def is_authorized(token: Optional[str]) -> bool:
     return True
 
 
-def challenge() -> Response:
+def challenge(*, base: Optional[str] = None) -> Response:
     """RFC 9728 s5.1: the 401 that tells a client where to start discovery."""
     return JSONResponse(
         status_code=401,
@@ -158,7 +196,7 @@ def challenge() -> Response:
         headers={
             "WWW-Authenticate": (
                 'Bearer realm="agenta-mock-mcp", '
-                f'resource_metadata="{resource_metadata_url()}"'
+                f'resource_metadata="{resource_metadata_url(base=base)}"'
             )
         },
     )
@@ -218,9 +256,104 @@ def build_oauth_router(*, relay: Relay) -> APIRouter:
                 "grant_types_supported": ["authorization_code", "refresh_token"],
                 "code_challenge_methods_supported": ["S256"],
                 "token_endpoint_auth_methods_supported": ["none"],
-                # No `registration_endpoint`: a deployment whose API URL is publicly
-                # resolvable uses an OAuth client identity document instead of RFC 7591
-                # registration, and that is the branch a live stack takes.
+                # RFC 7591 registration, which is what the real servers this gateway has
+                # met do: Linear and Axiom both advertise one, and a client-id metadata
+                # document is a draft almost nothing implements. It is advertised by
+                # default so the mock exercises the branch `_resolve_client_info` takes
+                # against a real provider. The identity-document branch keeps its own
+                # issuer at `UNREGISTERED_PREFIX`, which advertises no registration.
+                "registration_endpoint": f"{base_url()}{REGISTER_PATH}",
+            }
+        )
+
+    @router.post(REGISTER_PATH)
+    async def register(request: Request) -> Response:
+        """RFC 7591 s3.1: take client metadata, answer with a `client_id`.
+
+        The registration is bound to the `redirect_uris` it was given, and `authorize`
+        refuses any other callback for this client. A mock that took whatever redirect URI
+        arrived would let a stale or mis-scoped registration pass as working, which is the
+        failure `registration_covers` was written for.
+        """
+        try:
+            body = await request.json()
+        except Exception:  # pylint: disable=broad-except
+            body = None
+        if not isinstance(body, dict):
+            return _error(400, "invalid_client_metadata", "a JSON object is required")
+
+        redirect_uris = body.get("redirect_uris")
+        if not isinstance(redirect_uris, list) or not redirect_uris:
+            return _error(
+                400, "invalid_redirect_uri", "at least one redirect_uri is required"
+            )
+
+        scope = body.get("scope")
+        client_id = f"mock-client-{secrets.token_urlsafe(12)}"
+        _store.clients[client_id] = _RegisteredClient(
+            redirect_uris=[str(uri) for uri in redirect_uris],
+            scope=scope if isinstance(scope, str) else None,
+        )
+
+        registered = {
+            "client_id": client_id,
+            "client_id_issued_at": int(time.time()),
+            "redirect_uris": [str(uri) for uri in redirect_uris],
+            "grant_types": ["authorization_code", "refresh_token"],
+            "response_types": ["code"],
+            # No secret is issued: the token endpoint authenticates nobody, which is what
+            # `token_endpoint_auth_methods_supported` already advertises.
+            "token_endpoint_auth_method": "none",
+            "client_name": body.get("client_name") or "Agenta",
+        }
+        if isinstance(scope, str) and scope:
+            registered["scope"] = scope
+        return JSONResponse(status_code=201, content=registered)
+
+    # The second issuer: no registration endpoint, so a client must name itself with an
+    # identity document. Same authorize and token endpoints — an authorization server is
+    # free to place those on another origin, and `_check_authorization_server` checks only
+    # that the issuer identifier matches, never where the endpoints live.
+
+    @router.get(f"{UNREGISTERED_PREFIX}{MCP_PATH}")
+    async def unregistered_challenge_on_probe() -> Response:
+        return challenge(base=unregistered_base_url())
+
+    @router.post(f"{UNREGISTERED_PREFIX}{MCP_PATH}")
+    async def unregistered_protected_relay(request: Request) -> Response:
+        if not is_authorized(bearer_token(request)):
+            return challenge(base=unregistered_base_url())
+        return await relay(request)
+
+    @router.get(f"{UNREGISTERED_PREFIX}{PROTECTED_RESOURCE_PATH}{MCP_PATH}")
+    async def unregistered_protected_resource_metadata() -> Response:
+        return JSONResponse(
+            content={
+                "resource": f"{unregistered_base_url()}{MCP_PATH}",
+                "authorization_servers": [unregistered_base_url()],
+                "scopes_supported": SCOPES_SUPPORTED,
+                "bearer_methods_supported": ["header"],
+                "resource_name": "Agenta mock MCP server, unregistered clients",
+            }
+        )
+
+    @router.get(f"{AUTHORIZATION_SERVER_PATH}{UNREGISTERED_PREFIX}")
+    async def unregistered_authorization_server_metadata() -> Response:
+        """RFC 8414 s3.1: for an issuer WITH a path, the well-known segment is inserted
+        between the authority and that path, so this issuer is described here rather than
+        under its own path."""
+        return JSONResponse(
+            content={
+                "issuer": unregistered_base_url(),
+                "authorization_endpoint": f"{base_url()}{AUTHORIZE_PATH}",
+                "token_endpoint": f"{base_url()}{TOKEN_PATH}",
+                "scopes_supported": SCOPES_SUPPORTED,
+                "response_types_supported": ["code"],
+                "grant_types_supported": ["authorization_code", "refresh_token"],
+                "code_challenge_methods_supported": ["S256"],
+                "token_endpoint_auth_methods_supported": ["none"],
+                # No `registration_endpoint`, deliberately: this is the issuer that forces
+                # the identity-document branch.
                 "client_id_metadata_document_supported": True,
             }
         )
@@ -244,6 +377,17 @@ def build_oauth_router(*, relay: Relay) -> APIRouter:
         redirect_uri = params.get("redirect_uri")
         if not redirect_uri:
             return _error(400, "invalid_request", "redirect_uri is required")
+
+        # A registered client may only come back to a callback it registered. An
+        # unregistered `client_id` — the identity-document strategy sends a URL — is left
+        # alone, because there is no registration to check it against.
+        registered = _store.clients.get(params.get("client_id") or "")
+        if registered is not None and redirect_uri not in registered.redirect_uris:
+            return _error(
+                400,
+                "invalid_request",
+                "redirect_uri is not registered for this client",
+            )
 
         code_challenge = params.get("code_challenge")
         if not code_challenge:
