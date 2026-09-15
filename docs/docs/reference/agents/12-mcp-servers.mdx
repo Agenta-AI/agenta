@@ -103,6 +103,17 @@ With both fields absent, the entry carries no per-tool policy and `permission` g
 
 MCP tool calls are not covered by the `Always auto-approve` checkbox on an approval card. A tool resolved to `ask` asks on every call.
 
+### What these permissions are, and are not
+
+They decide what the **agent** may do on its own. They are a control over the agent's behaviour, not a boundary around the tool.
+
+`deny` stops the agent from calling a tool, and on the harnesses that support it the tool is not offered to the model at all. It does not make the tool unreachable. The permission lives in the agent's configuration and is enforced while the agent runs; the MCP server itself is reached through your connection, whose own access is governed by the credentials you connected it with and by the endpoint's tool allowlist. An agent with shell access inside its sandbox holds those connection details, so treat `deny` as "do not do this" rather than "cannot do this".
+
+Two consequences worth stating plainly:
+
+- Use `deny` to keep an agent away from a tool it should not be using. Do not use it to protect data the agent must not reach. For that, do not connect the credential, or narrow what the connection can see on the server's side.
+- A connection's reach is the right place to set a hard limit. Connect an account whose own permissions match what the agent is allowed to do.
+
 ## Troubleshooting
 
 - A connection failure usually means DNS, TLS, network policy, or server availability.
