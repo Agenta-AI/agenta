@@ -27,6 +27,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { PKG_ROOT } from "../../src/engines/sandbox_agent/daemon.ts";
+import {
+  ambientCapabilities,
+  withoutAmbientCapabilities,
+} from "../../src/engines/sandbox_agent/session-mount-namespace.ts";
 
 const ENTRYPOINT = join(PKG_ROOT, "scripts", "runner-entrypoint.sh");
 const PRELUDE = join(PKG_ROOT, "scripts", "session-mount-namespace.sh");
@@ -263,6 +267,66 @@ describe("session-mount-namespace.sh: the agent never keeps the runner's capabil
     // An empty variable would otherwise exec the empty string and fail with nothing to read.
     assert.throws(() =>
       run(PRELUDE, ["server"], { AGENTA_SESSION_MOUNT_ISOLATION: "0" }),
+    );
+  });
+});
+
+describe("nothing else the runner spawns inherits the capability", () => {
+  // The runner carries an ambient CAP_SYS_ADMIN so it can build each session's mount namespace,
+  // and the kernel hands ambient capabilities to EVERY child. The agent's daemon is stripped by
+  // the prelude. This covers the others, and geesefs above all: it is long-lived and serves
+  // object data the agent writes, so it must run with the capabilities it had before any of this.
+  it("wraps a command in a capability drop when this process holds one", () => {
+    const wrapped = withoutAmbientCapabilities(
+      "geesefs",
+      ["--region", "us-east-1", "bucket:prefix", "/mnt"],
+      () => 0x200000n,
+    );
+
+    assert.equal(wrapped.command, "setpriv");
+    assert.deepEqual(wrapped.args.slice(0, 2), [
+      "--inh-caps=-all",
+      "--ambient-caps=-all",
+    ]);
+    assert.deepEqual(wrapped.args.slice(2), [
+      "geesefs",
+      "--region",
+      "us-east-1",
+      "bucket:prefix",
+      "/mnt",
+    ]);
+    // --no-new-privs would break the mount: geesefs elevates through the SETUID `fusermount`
+    // helper, and that flag is exactly what stops a setuid binary elevating.
+    assert.ok(
+      !wrapped.args.includes("--no-new-privs"),
+      "geesefs still needs the setuid fusermount helper",
+    );
+  });
+
+  it("changes nothing when this process holds no ambient capability", () => {
+    // Every deployment that predates this mechanism, and the dev image, where the runner is root
+    // and its children inherit root's capabilities exactly as they always did.
+    const plain = withoutAmbientCapabilities("geesefs", ["-f"], () => 0n);
+
+    assert.equal(plain.command, "geesefs");
+    assert.deepEqual(plain.args, ["-f"]);
+  });
+
+  it("reads the ambient set from /proc, and reports none when it cannot", () => {
+    assert.equal(
+      ambientCapabilities(() => "Name:\tnode\nCapAmb:\t0000000000200000\n"),
+      0x200000n,
+    );
+    assert.equal(
+      ambientCapabilities(() => "Name:\tnode\n"),
+      0n,
+    );
+    assert.equal(
+      ambientCapabilities(() => {
+        throw new Error("no /proc here");
+      }),
+      0n,
+      "an unreadable /proc must degrade to 'no capability', never throw into a mount",
     );
   });
 });

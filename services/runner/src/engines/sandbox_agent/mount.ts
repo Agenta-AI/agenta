@@ -15,6 +15,8 @@
  */
 
 import { execFile, spawn } from "node:child_process";
+
+import { withoutAmbientCapabilities } from "./session-mount-namespace.ts";
 import { promisify } from "node:util";
 
 import {
@@ -351,7 +353,13 @@ export async function mountStorage(
   const run =
     deps.runGeesefs ??
     (async (a: string[], e: Record<string, string>) => {
-      const child = spawn("geesefs", a, {
+      // Strip the ambient CAP_SYS_ADMIN the runner carries for its OWN mount-namespace work
+      // before handing control to geesefs. The kernel gives ambient capabilities to every child,
+      // and this one is long-lived and serves object data the agent writes, so it runs with
+      // exactly the capabilities it had before per-session isolation existed. No-op on a runner
+      // that holds no ambient capability.
+      const geesefs = withoutAmbientCapabilities("geesefs", a);
+      const child = spawn(geesefs.command, geesefs.args, {
         env: { ...process.env, ...e },
         detached: true,
         stdio: ["ignore", "ignore", "pipe"],

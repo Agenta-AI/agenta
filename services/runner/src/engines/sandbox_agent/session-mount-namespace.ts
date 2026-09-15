@@ -42,7 +42,7 @@
  * only it can see (no `unshare`, a host that forbids unprivileged user namespaces).
  */
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 
 import { PKG_ROOT } from "./daemon.ts";
@@ -256,5 +256,58 @@ export function planSessionMountNamespace(
           }
         : {}),
     },
+  };
+}
+
+/**
+ * This process's ambient capability set, or `0n` when it cannot be read.
+ *
+ * Ambient capabilities are the mechanism `runner-entrypoint.sh` uses to give the server
+ * CAP_SYS_ADMIN without making it root, and the kernel passes them to EVERY child. So this is
+ * also the question "does anything I spawn inherit a capability it did not use to have?".
+ */
+export function ambientCapabilities(
+  readStatus = (): string => readFileSync("/proc/self/status", "utf8"),
+): bigint {
+  try {
+    const line = readStatus()
+      .split("\n")
+      .find((row) => row.startsWith("CapAmb:"));
+    if (!line) return 0n;
+    return BigInt(`0x${line.split(/\s+/)[1]}`);
+  } catch {
+    // Not Linux, or /proc is not mounted. Treat it as "no ambient capability", which is the
+    // behavior this whole mechanism degrades to anyway.
+    return 0n;
+  }
+}
+
+/**
+ * Wrap an argv so the child runs WITHOUT the ambient capability this process carries.
+ *
+ * The runner holds an ambient CAP_SYS_ADMIN so that it can build each session's mount namespace,
+ * and the kernel hands ambient capabilities to every child. The agent daemon is stripped by the
+ * prelude, which is the one child the agent can reach. This is for the others: nothing else the
+ * runner spawns needs the capability, and geesefs in particular is long-lived and serves object
+ * data the agent writes, so it must run with exactly the capabilities it had before any of this
+ * existed.
+ *
+ * `--no-new-privs` is deliberately NOT set here, unlike in the prelude. geesefs mounts through the
+ * setuid `fusermount` helper, and no-new-privs is precisely what stops a setuid binary elevating.
+ *
+ * Wrapping only when an ambient capability is actually present makes this a no-op everywhere the
+ * mechanism is not in play, and means `setpriv` is provably installed whenever it is needed: the
+ * only thing that sets an ambient capability here is the entrypoint, which is itself a setpriv
+ * call.
+ */
+export function withoutAmbientCapabilities(
+  command: string,
+  args: string[],
+  ambient = ambientCapabilities,
+): { command: string; args: string[] } {
+  if (ambient() === 0n) return { command, args };
+  return {
+    command: "setpriv",
+    args: ["--inh-caps=-all", "--ambient-caps=-all", command, ...args],
   };
 }
