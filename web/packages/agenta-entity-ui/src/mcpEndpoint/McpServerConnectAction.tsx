@@ -4,23 +4,24 @@
  * A server the author registers with OAuth is useless until someone completes the consent flow,
  * and until now the only place to do that was the Settings MCP dashboard — a different page, in a
  * different tab, halfway through configuring an agent. This renders the endpoint's derived
- * connection state next to the row and runs the same discover / scopes / popup / callback flow
- * the dashboard runs.
+ * connection state next to the row and asks its host to run the consent flow.
+ *
+ * It reports the request rather than mounting the dialog itself. The row is clickable, `extra`
+ * renders inside that click target, and React events propagate through the React tree rather than
+ * the DOM tree — so a dialog mounted here sends every click inside it, portal or not, back to the
+ * row's own `onClick`. The host mounts one dialog outside the rows instead.
  */
-import {useCallback, useMemo, useState} from "react"
+import {useMemo} from "react"
 
 import {
     findCustomMcpEndpoint,
     getMcpConnectionState,
     getMcpConnectionStateLabel,
     mcpEndpointsQueryAtom,
-    refreshMcpEndpointsAtom,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
 import {Tag} from "@agenta/ui/components/presentational"
-import {useAtomValue, useSetAtom} from "jotai"
-
-import McpConnectDialog from "./McpConnectDialog"
+import {useAtomValue} from "jotai"
 
 const TAG_CLS = "m-0 text-xs leading-[22.4px]"
 
@@ -77,23 +78,17 @@ export interface McpServerConnectActionProps {
     /** The slug the server registered under — the agent config item's `name` after registration. */
     slug?: string
     disabled?: boolean
+    /** Asks the host to authorize this endpoint. The host owns the dialog. */
+    onConnect: (endpoint: MCPEndpoint) => void
 }
 
-export function McpServerConnectAction({slug, disabled}: McpServerConnectActionProps) {
+export function McpServerConnectAction({slug, disabled, onConnect}: McpServerConnectActionProps) {
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
-    const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
-    const [connecting, setConnecting] = useState(false)
 
     const endpoint = useMemo(
         () => findCustomMcpEndpoint(endpointsQuery.data, slug),
         [endpointsQuery.data, slug],
     )
-
-    const openConnect = useCallback(() => setConnecting(true), [])
-    const closeConnect = useCallback(() => setConnecting(false), [])
-    const onConnected = useCallback(() => {
-        void refreshEndpoints()
-    }, [refreshEndpoints])
 
     if (!endpoint || endpoint.auth_mode !== "oauth") return null
 
@@ -102,17 +97,8 @@ export function McpServerConnectAction({slug, disabled}: McpServerConnectActionP
             <McpEndpointConnectStatus
                 endpoint={endpoint}
                 disabled={disabled}
-                onConnect={openConnect}
+                onConnect={() => onConnect(endpoint)}
             />
-            {/* Mounted only once the author asks for it, so a list of servers does not carry a
-                modal (and a scope discovery request) per row. */}
-            {connecting ? (
-                <McpConnectDialog
-                    endpoint={endpoint}
-                    onClose={closeConnect}
-                    onSuccess={onConnected}
-                />
-            ) : null}
         </span>
     )
 }
