@@ -20,17 +20,18 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuRadioGroup,
-    DropdownMenuRadioItem,
     DropdownMenuSeparator,
     DropdownMenuShortcut,
     DropdownMenuTrigger,
     LoadingButton,
-    Segmented,
     SimpleTooltip as Tooltip,
+    Tabs,
+    TabsList,
+    TabsTrigger,
 } from "@agenta/ui/ui"
 import {
     CaretDown,
+    Check,
     DotsThreeVertical,
     ListBullets,
     SortAscending,
@@ -44,6 +45,16 @@ import {DriveTypeMark} from "./DriveTypeMark"
 
 /** Row 2's text buttons (Sort ▾, Revert, the mode dropdown): the kit's ghost sm, muted until hover. */
 const ROW_TEXT_BTN = "h-[26px] gap-1 px-2 text-xs text-colorTextSecondary hover:text-colorText"
+
+/** The chosen entry of a single-choice menu — a check on the RIGHT, no radio dot. */
+const SelectedMark = ({on, className = "ml-auto"}: {on: boolean; className?: string}) => (
+    <Check
+        size={14}
+        weight="bold"
+        aria-hidden
+        className={`shrink-0 pl-2 ${className} ${on ? "text-colorText" : "invisible"}`}
+    />
+)
 
 const SORT_LABELS: Record<DriveSortKey, string> = {
     name: "Name",
@@ -142,15 +153,16 @@ export function DriveToolbar(props: DriveToolbarProps) {
         const {view, setView, sort, setSort, actions, onDownloadAll, downloadingAll} = props
         return (
             <Row>
-                <Segmented
-                    size="sm"
-                    value={view}
-                    onChange={(v) => setView(v as DriveViewMode)}
-                    options={[
-                        {value: "grid", icon: <SquaresFour size={14} />, "aria-label": "Grid"},
-                        {value: "list", icon: <ListBullets size={14} />, "aria-label": "List"},
-                    ]}
-                />
+                <Tabs value={view} onValueChange={(v) => setView(v as DriveViewMode)}>
+                    <TabsList variant="pill" aria-label="View">
+                        <TabsTrigger value="grid" aria-label="Grid" title="Grid">
+                            <SquaresFour size={14} />
+                        </TabsTrigger>
+                        <TabsTrigger value="list" aria-label="List" title="List">
+                            <ListBullets size={14} />
+                        </TabsTrigger>
+                    </TabsList>
+                </Tabs>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button
@@ -165,16 +177,12 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="min-w-[170px]">
-                        <DropdownMenuRadioGroup
-                            value={sort}
-                            onValueChange={(v) => setSort(v as DriveSortKey)}
-                        >
-                            {(Object.keys(SORT_LABELS) as DriveSortKey[]).map((key) => (
-                                <DropdownMenuRadioItem key={key} value={key}>
-                                    Sort by {SORT_LABELS[key].toLowerCase()}
-                                </DropdownMenuRadioItem>
-                            ))}
-                        </DropdownMenuRadioGroup>
+                        {(Object.keys(SORT_LABELS) as DriveSortKey[]).map((key) => (
+                            <DropdownMenuItem key={key} onSelect={() => setSort(key)}>
+                                Sort by {SORT_LABELS[key].toLowerCase()}
+                                <SelectedMark on={sort === key} />
+                            </DropdownMenuItem>
+                        ))}
                     </DropdownMenuContent>
                 </DropdownMenu>
                 <span className="flex-1" />
@@ -275,20 +283,17 @@ export function DriveToolbar(props: DriveToolbarProps) {
                             <CaretDown size={10} weight="bold" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-[180px]">
-                        <DropdownMenuRadioGroup
-                            value={mode}
-                            onValueChange={(v) => setMode(v as DriveEditorMode)}
-                        >
-                            <DropdownMenuRadioItem value="rendered">
-                                Markdown
-                                <DropdownMenuShortcut>rendered</DropdownMenuShortcut>
-                            </DropdownMenuRadioItem>
-                            <DropdownMenuRadioItem value="source">
-                                Plain text
-                                <DropdownMenuShortcut>source</DropdownMenuShortcut>
-                            </DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
+                    <DropdownMenuContent align="end" className="min-w-[200px]">
+                        <DropdownMenuItem onSelect={() => setMode("rendered")}>
+                            Markdown
+                            <span className="ml-auto text-xs text-colorTextTertiary">rendered</span>
+                            <SelectedMark on={rendered} className="ml-2" />
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setMode("source")}>
+                            Plain text
+                            <span className="ml-auto text-xs text-colorTextTertiary">source</span>
+                            <SelectedMark on={!rendered} className="ml-2" />
+                        </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
                 <FileActionsMenu actions={actions} />
