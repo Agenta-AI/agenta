@@ -849,7 +849,15 @@ services:
                 "0.0.0.0",
                 "--port",
                 "9091",
+                "--reload",
             ]
+        # === SOURCE =============================================== #
+        # The mock gateways run a module out of the api image. Without this mount they are
+        # the one part of the stack nobody can iterate on cheaply, which is why the mock MCP
+        # server went so long without an OAuth issuer to test the consent flow against.
+        volumes:
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
         # === NETWORK ============================================== #
         environment:
             AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
@@ -878,7 +886,15 @@ services:
                 "0.0.0.0",
                 "--port",
                 "9092",
+                "--reload",
             ]
+        # === SOURCE =============================================== #
+        # The mock gateways run a module out of the api image. Without this mount they are
+        # the one part of the stack nobody can iterate on cheaply, which is why the mock MCP
+        # server went so long without an OAuth issuer to test the consent flow against.
+        volumes:
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
         # === NETWORK ============================================== #
         environment:
             AGENTA_GATEWAYS_MOCKS_ENABLED: "true"

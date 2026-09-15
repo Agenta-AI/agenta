@@ -11,6 +11,10 @@ implementation of the control convention, including the opening handshake and th
 JSON-RPC error an unknown method gets. Both tiers therefore answer any given
 request with the same bytes, which is the only way a client debugged against one
 can be trusted against the other.
+
+While `AGENTA_GATEWAYS_MOCKS_ENABLED` is on, this process also serves a mock OAuth
+authorization server and a second, OAuth-protected MCP surface at `/oauth/mcp`
+(`issuer.py`). `/` stays unauthenticated, because every other mock suite speaks to it.
 """
 
 import json
@@ -24,6 +28,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPResolvedRoute,
 )
 from oss.src.core.gateways.mcps.providers.mock.adapter import MockMCPAdapter
+from oss.src.core.gateways.mcps.providers.mock.issuer import build_oauth_router
 from oss.src.core.gateways.mcps.types import MCPUpstreamError
 from oss.src.utils.env import env
 
@@ -74,6 +79,16 @@ async def relay(request: Request) -> Response:
     if denied is not None:
         return denied
 
+    return await _serve(request)
+
+
+async def _serve(request: Request) -> Response:
+    """Answer one JSON-RPC request through the shared adapter.
+
+    Split out of `relay` so the OAuth-protected surface (`issuer.MCP_PATH`) answers with
+    the same bytes once its bearer is accepted, rather than with a second implementation
+    of the same protocol.
+    """
     profile = _profile(request)
     body = await request.body()
     try:
@@ -124,3 +139,11 @@ async def reject_get() -> Response:
 @app.delete("/")
 async def reject_delete() -> Response:
     return Response(status_code=405)
+
+
+# The OAuth issuer and the MCP surface it protects, behind the same operator switch the
+# mock adapters are registered behind in `api/entrypoints/routers.py`. With the flag off
+# the routes do not exist at all, so a process that is not a development mock cannot serve
+# an authorization server by accident.
+if env.mock_gateways.enabled:
+    app.include_router(build_oauth_router(relay=_serve))
