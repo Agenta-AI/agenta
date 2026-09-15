@@ -2,6 +2,12 @@
 
 Traefik strips the prefix; a managed ingress (GKE) forwards it verbatim. Both shapes must
 reach the same route, and no redirect may be issued on the way.
+
+The dev stacks add a third shape: Traefik strips the prefix, then uvicorn's `--root-path
+/services` puts it back on `scope["path"]` and sets `scope["root_path"]`. Starlette
+subtracts that `root_path` again at every `Mount`, so the prefix must survive there.
+`TestClient(root_path=...)` reproduces that shape: it sets `scope["root_path"]` and sends
+the request path verbatim, so a test writes the full path the app would see from uvicorn.
 """
 
 import pytest
@@ -66,3 +72,76 @@ def test_raw_path_keeps_the_wire_encoding():
     r = _app().get("/services/raw/caf%C3%A9")
     assert r.status_code == 200
     assert r.json()["raw_path"] == "/raw/caf%C3%A9"
+
+
+# --------------------------------------------------------------------------------------
+# Mounted sub-apps under a server-set root_path
+#
+# `/health` is a top-level route and keeps working whatever the scope looks like, so it
+# cannot catch this class of bug. Every real services route lives in a mounted sub-app.
+# --------------------------------------------------------------------------------------
+
+
+def _mounted_app(root_path: str = "", prefix=None) -> TestClient:
+    """An app shaped like `entrypoints.main`: a top-level route plus mounted sub-apps."""
+    sub = FastAPI()
+
+    @sub.get("/inspect")
+    async def inspect():
+        return {"inspected": True}
+
+    app = FastAPI()
+
+    @app.get("/health")
+    async def health():
+        return {"status": "ok"}
+
+    @app.get("/raw/{name}")
+    async def raw(request: Request, name: str):
+        return {"raw_path": request.scope["raw_path"].decode("latin-1")}
+
+    app.mount("/agent/v0", sub)
+    app.add_middleware(ServicesPrefixStripMiddleware, prefix=prefix)
+    return TestClient(app, root_path=root_path)
+
+
+def test_mounted_route_at_root_without_root_path():
+    r = _mounted_app().get("/agent/v0/inspect")
+    assert r.status_code == 200
+    assert r.json() == {"inspected": True}
+
+
+def test_mounted_route_with_public_prefix_and_no_root_path():
+    # The managed-ingress shape: the prefix arrives verbatim and must be stripped.
+    r = _mounted_app().get("/services/agent/v0/inspect", follow_redirects=False)
+    assert r.status_code == 200
+    assert r.json() == {"inspected": True}
+
+
+def test_mounted_route_under_uvicorn_root_path():
+    # The dev-stack shape: uvicorn `--root-path /services` re-prepends the prefix that
+    # Traefik stripped, so `root_path` already accounts for it and nothing may be consumed.
+    client = _mounted_app(root_path="/services")
+    r = client.get("/services/agent/v0/inspect", follow_redirects=False)
+    assert r.status_code == 200
+    assert r.json() == {"inspected": True}
+    assert client.get("/services/health").status_code == 200
+
+
+def test_double_prefix_under_root_path_strips_only_the_extra_one():
+    # A managed ingress in front of a `--root-path` server: one prefix belongs to
+    # `root_path`, the other is the ingress's and has to go.
+    r = _mounted_app(root_path="/services").get("/services/services/agent/v0/inspect")
+    assert r.status_code == 200
+    assert r.json() == {"inspected": True}
+
+
+def test_double_prefix_without_root_path_still_strips_both():
+    assert _mounted_app().get("/services/services/agent/v0/inspect").status_code == 200
+
+
+def test_raw_path_keeps_the_root_path_head():
+    # `raw_path` must stay in lockstep with `path`, root_path head included.
+    r = _mounted_app(root_path="/services").get("/services/services/raw/caf%C3%A9")
+    assert r.status_code == 200
+    assert r.json()["raw_path"] == "/services/raw/caf%C3%A9"
