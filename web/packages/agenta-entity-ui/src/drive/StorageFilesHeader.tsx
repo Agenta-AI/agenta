@@ -2,17 +2,18 @@
  * StorageFilesHeader — the right-side content of the config panel's "Files" header bar.
  *
  * Mirrors the sibling Triggers header's count, and doubles as the "browse all" entry: clicking it
- * opens the overlay Files DRAWER (the body's rows open the docked pane on one file instead).
+ * opens the docked Files pane at its root (the body's rows open it on one file instead).
  * Slotted into the entity-ui `AgentOperationsSections` header by the app layer, which owns the
  * chat session state that package can't reach.
  */
-import {configFilesDrawerOpenAtomFamily, useConfigDrive} from "@agenta/entities/drive"
+import {useConfigDrive} from "@agenta/entities/drive"
 import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {CircleNotch, FolderOpen} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {DriveWarningBadge, FOCUS_RING} from "./DriveFileRow"
+import {driveQuickLookAtomFamily} from "./quickLook"
 
 // `-mr-1` bleeds the hit area's right padding outward so the folder glyph, not the padding, lands
 // on the panel's affordance axis.
@@ -27,7 +28,10 @@ export default function StorageFilesHeader({
     sessionId?: string | null
 }) {
     const {drive} = useConfigDrive(revisionId, sessionId)
-    const setDrawerOpen = useSetAtom(configFilesDrawerOpenAtomFamily(revisionId ?? ""))
+    // A quick look at the root: the per-session request the docked pane latches open on, so no
+    // panel scope key has to reach this header.
+    const setQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
+    const openPane = () => setQuickLook({path: ""})
 
     if (drive.isLoading) {
         return (
@@ -60,7 +64,7 @@ export default function StorageFilesHeader({
                     type="button"
                     onClick={(e) => {
                         e.currentTarget.blur()
-                        setDrawerOpen(true)
+                        openPane()
                     }}
                     className={BROWSE_BUTTON}
                 >
@@ -86,16 +90,16 @@ export default function StorageFilesHeader({
     return (
         <button
             type="button"
-            // Blur on open so the drawer's ESC-close doesn't restore a (keyboard-modality) focus ring
-            // to this trigger. Genuine Tab focus still shows the ring via FOCUS_RING.
+            // Blur on open so focus doesn't sit on this trigger under the opened pane. Genuine Tab
+            // focus still shows the ring via FOCUS_RING.
             onClick={(e) => {
                 e.currentTarget.blur()
-                setDrawerOpen(true)
+                openPane()
             }}
             className={BROWSE_BUTTON}
         >
             <ConfigRowTrailing
-                // Opens the Files drawer (a side panel), NOT a new tab — a folder-open glyph, not the
+                // Opens the docked Files pane, NOT a new tab — a folder-open glyph, not the
                 // external-link arrow that read as "leaves the page". A mount failure badges it.
                 affordance={
                     <DriveWarningBadge show={drive.partialErrored}>
