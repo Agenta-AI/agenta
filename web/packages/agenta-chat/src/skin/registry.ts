@@ -155,6 +155,25 @@ const firstCapability = (output: unknown): Record<string, unknown> | undefined =
     ) as Record<string, unknown> | undefined
 }
 
+/** A tool output as a record: the runtime pair returns its JSON as a string. */
+const outputRecord = (output: unknown): Record<string, unknown> | undefined => {
+    if (isRecord(output)) return output
+    if (typeof output !== "string" || !output.startsWith("{")) return undefined
+    try {
+        const parsed: unknown = JSON.parse(output)
+        return isRecord(parsed) ? parsed : undefined
+    } catch {
+        return undefined
+    }
+}
+
+/** The first hit of a `search_tools` call: `{results: [{integration, tool}]}`, best match first. */
+const firstResult = (output: unknown): {slug?: string; action?: string} => {
+    const results = outputRecord(output)?.results
+    const hit = Array.isArray(results) ? results.find(isRecord) : undefined
+    return hit ? {slug: stringAt(hit.integration), action: stringAt(hit.tool)} : {}
+}
+
 /** The matched app and its tool's ACTION token — the same token a gateway wire name carries, so
  * both rows word it alike. One read: the result is large and both halves share a capability. */
 const matchedTool = (output: unknown): {slug?: string; action?: string} => {
@@ -178,6 +197,8 @@ const PLATFORM_OPS = new Set([
     "discover_tools",
     "discover_triggers",
     "list_connections",
+    "run_tool",
+    "search_tools",
     "list_deliveries",
     "list_schedules",
     "list_subscriptions",
@@ -224,6 +245,21 @@ const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
     // A tool search reports which tool it landed on. That name is worth far more than the keywords
     // it searched with, which are model-written and shapeless.
     discover_tools: {app: (_input, output) => matchedTool(output)},
+    // The runtime pair every connected agent gets (SDK `platform/gateway.py`): a search that
+    // names the tool it landed on, and a run that IS that tool's call — logo, wording and all.
+    search_tools: {
+        icon: "tool-search",
+        app: (_input, output) => firstResult(output),
+        activity: (app) =>
+            app ? undefined : {running: "Searching for tools", done: "Searched for tools"},
+    },
+    run_tool: {
+        kind: "gateway",
+        app: (input) =>
+            isRecord(input)
+                ? {slug: stringAt(input.integration), action: stringAt(input.tool), ran: true}
+                : {},
+    },
     // These two prompt the user, so they are written from the reader's side, not the agent's. The
     // running form says the run is blocked on the reader, which "Asking" left implicit.
     request_connection: {
@@ -316,6 +352,7 @@ const PLATFORM_ICONS: Record<string, ActivityIcon> = {
     annotate_trace: "annotation",
     commit_revision: "commit",
     discover_tools: "tool-search",
+    search_tools: "tool-search",
     discover_triggers: "trigger",
     list_connections: "connections",
     list_deliveries: "deliveries",
@@ -775,15 +812,18 @@ const overrideActivity = (
     const activity = override?.activity
     if (!activity) return null
     if (typeof activity !== "function") return {activity, namedApp: false, verb: override.verb}
-    return {activity: activity(ownApp), namedApp: Boolean(ownApp), verb: override.verb}
+    const built = activity(ownApp)
+    // A function may decline (undefined) and let the reported tool's own wording speak.
+    return built ? {activity: built, namedApp: Boolean(ownApp), verb: override.verb} : null
 }
 
 /** How a tool another call merely *reported* reads. Read-only verbs only: the call found the
- * tool, it did not run it, so "Sent a Gmail email" would be a false claim. */
-const reportedActivity = (action: string, appName: string): BuiltActivity | null => {
+ * tool, it did not run it, so "Sent a Gmail email" would be a false claim. A call that RAN the
+ * tool (`run_tool`) keeps every verb: it did send that email. */
+const reportedActivity = (action: string, appName: string, ran: boolean): BuiltActivity | null => {
     const label = parseGatewayToolName(action).label
     const split = splitVerb(label, appName)
-    if (!split || !QUERY_VERBS.has(split.verb)) return null
+    if (!split || (!ran && !QUERY_VERBS.has(split.verb))) return null
     return conjugate(label, false, appName)
 }
 
@@ -822,7 +862,7 @@ export const resolveToolDisplay = (
     // Until the catalog answers, the slug title-cased reads as a gateway name does ("Googlecalendar").
     const bare = !ours && isTokenName(raw) && !raw.includes("__") && !/^mcp(__|\.)/.test(raw)
     const hinted = bare ? hintedApp(canonical) : undefined
-    const own: {slug?: string; action?: string} | undefined =
+    const own: {slug?: string; action?: string; ran?: boolean} | undefined =
         override?.app?.(input, output) ?? (hinted ? {slug: hinted} : undefined)
     const ownApp = own?.slug ? (appName ?? parseGatewayToolName(own.slug).label) : undefined
     // An override that names its own app already shows it as the logo; the sentence keeps the
@@ -834,7 +874,7 @@ export const resolveToolDisplay = (
     // Whichever sentence wins answers "is the app already in it?", which decides the chip.
     const built =
         overrideActivity(override, ownApp) ??
-        (own?.action && appName ? reportedActivity(own.action, appName) : null) ??
+        (own?.action && appName ? reportedActivity(own.action, appName, !!own.ran) : null) ??
         parsed.activity
     return {
         raw,

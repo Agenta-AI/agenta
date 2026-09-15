@@ -188,6 +188,36 @@ describe("toolDisplay registry — built-in defaults", () => {
         expect(display.summary).toBe(summary)
     })
 
+    it("reads the runtime pair as the app they reach", () => {
+        // `search_tools` returns its JSON as a string; the first hit names the app and the tool.
+        const found = JSON.stringify({
+            results: [{integration: "github", tool: "FIND_PULL_REQUESTS", name: "Find PRs"}],
+        })
+        const search = resolveToolDisplay(
+            "search_tools",
+            {query: "list merged pull requests"},
+            "GitHub",
+            found,
+        )
+        expect(search.sourceKey).toBe("github")
+        expect(search.kind).toBe("gateway")
+        expect(search.icon).toBe("tool-search")
+        expect(search.activity.done).toBe("Found GitHub pull requests")
+        // Nothing matched: the row says what it did, not what the query asked for.
+        const empty = resolveToolDisplay("search_tools", {query: "list merged pull requests"})
+        expect(empty.sourceKey).toBeUndefined()
+        expect(empty.activity.done).toBe("Searched for tools")
+        // `run_tool` IS the tool's call, so it keeps every verb — it did create the release.
+        const run = resolveToolDisplay(
+            "run_tool",
+            {integration: "github", tool: "CREATE_RELEASE", arguments: {}},
+            "GitHub",
+        )
+        expect(run.sourceKey).toBe("github")
+        expect(run.kind).toBe("gateway")
+        expect(run.activity.done).toBe("Created a GitHub release")
+    })
+
     it("puts the call's own detail in the secondary slot", () => {
         expect(resolveToolDisplay("Read", {file_path: "/repo/src/index.ts"}).detail).toBe(
             "index.ts",
