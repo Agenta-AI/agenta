@@ -38,6 +38,38 @@ API-only request: those prove the proxy, not the product path.
    `builtin/agenta/run` is not a mock route: it requires an invocation-scoped credential and is
    verified through an agent/runner run with an existing Agenta callback tool.
 
+4. To run the gateway **integration** suites from the host rather than inside the compose
+   network, every backing service the suites touch has to be reachable by an address the host
+   understands. The application defaults name compose hostnames, which is right for a container
+   and unresolvable from outside it, so a host-side run needs all five of these:
+
+   ```bash
+   export POSTGRES_URI_CORE="postgresql+asyncpg://<user>:<password>@127.0.0.1:<pg-port>/agenta_ee_core"
+   export REDIS_URI_VOLATILE="redis://127.0.0.1:<volatile-port>/0"
+   export REDIS_URI_DURABLE="redis://127.0.0.1:<durable-port>/0"
+   export AGENTA_MOCK_LLM_GATEWAY_URL="http://127.0.0.1:<mock-llm-port>"
+   export AGENTA_MOCK_MCP_GATEWAY_URL="http://127.0.0.1:<mock-mcp-port>"
+   export AGENTA_GATEWAYS_MOCKS_ENABLED=true
+   export AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN=<the stack's token>
+   ```
+
+   Take each port from `docker ps` for the stack. Postgres and the two mock upstreams are
+   published by the compose files; **Redis is not published by default** and a stack that wants
+   host-side runs has to publish both instances in its local override, the way Postgres already
+   is. Without the Redis addresses the symptom is misleading rather than obvious: the cache sits
+   in front of the endpoint lookup, so every cache operation fails to resolve and a
+   whole-directory run reports a different connection missing on each run while each file passes
+   on its own. The mock addresses fail more plainly, as read timeouts.
+
+   The two mock-upstream variables matter for more than `test_mock_upstreams.py`. The OAuth
+   endpoint-write and recovery suites relay through the mock MCP server too, and they fail
+   without it.
+
+   One residual, unrelated to addressing. The mock upstreams are single-process, so under
+   pytest's default `-n auto` the HTTP tests in `test_mock_upstreams.py` occasionally read-time
+   out behind the deliberately slow `test_slow_model_hangs_past_a_short_client_timeout`. Add
+   `-n0` for a deterministic result; the full directory passes serially every time.
+
 ## Dashboard procedure
 
 Use the dashboard's managed-agent creation and run flow. For each harness available in the
