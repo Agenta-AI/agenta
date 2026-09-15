@@ -7,19 +7,19 @@
  * dashboard and the agent config form, which registers a server and must then offer
  * authorization without sending the author out of the playground.
  */
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     beginMcpConnect,
     buildTrustedOrigins,
     discoverMcpConnect,
     gatewayRefusalMessage,
-    isTrustedOauthConnectedMessage,
+    watchOauthConsent,
     type MCPEndpoint,
-    type McpOauthCompletionMessage,
 } from "@agenta/entities/mcpEndpoint"
-import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
+import {getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
+import {randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter, message} from "@agenta/ui"
 import {Checkbox} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
@@ -38,7 +38,22 @@ export default function McpConnectDialog({endpoint, onClose, onSuccess}: McpConn
     const [selectedScopes, setSelectedScopes] = useState<Set<string>>(new Set())
     const [discoverError, setDiscoverError] = useState<string | null>(null)
 
+    // The consent watch outlives the call that starts it, so its teardown is held here rather
+    // than in that closure: the agent config row unmounts this dialog on close, with the popup
+    // still open, and an unreleased listener and poll would survive every reopen.
+    const stopWatchRef = useRef<(() => void) | null>(null)
+    // One window name per dialog instance. A shared name lets a second attempt reuse — and so
+    // hijack — the first attempt's popup.
+    const popupNameRef = useRef(`mcp_oauth_${randomAlphanumeric(6)}`)
+
     const open = !!endpoint
+
+    const stopWatch = useCallback(() => {
+        stopWatchRef.current?.()
+        stopWatchRef.current = null
+    }, [])
+
+    useEffect(() => stopWatch, [stopWatch])
 
     useEffect(() => {
         if (!endpoint?.id) return
@@ -62,12 +77,13 @@ export default function McpConnectDialog({endpoint, onClose, onSuccess}: McpConn
     }, [endpoint?.id, projectId])
 
     const handleClose = useCallback(() => {
+        stopWatch()
         setScopesOffered([])
         setSelectedScopes(new Set())
         setDiscoverError(null)
         setLoading(false)
         onClose()
-    }, [onClose])
+    }, [onClose, stopWatch])
 
     const toggleScope = useCallback((scope: string) => {
         setSelectedScopes((prev) => {
@@ -92,7 +108,11 @@ export default function McpConnectDialog({endpoint, onClose, onSuccess}: McpConn
                 throw new Error("No authorization URL returned.")
             }
 
-            const popup = window.open(redirectUrl, "mcp_oauth", "width=600,height=700,popup=yes")
+            const popup = window.open(
+                redirectUrl,
+                popupNameRef.current,
+                "width=600,height=700,popup=yes",
+            )
             if (!popup) {
                 setLoading(false)
                 message.warning("Popup blocked. Redirecting in this tab.")
@@ -100,59 +120,32 @@ export default function McpConnectDialog({endpoint, onClose, onSuccess}: McpConn
                 return
             }
 
-            let finished = false
-            let pollTimer: ReturnType<typeof setInterval> | undefined
-            const cleanup = (handler: (event: MessageEvent) => void) => {
-                if (finished) return false
-                finished = true
-                window.removeEventListener("message", handler)
-                if (pollTimer) clearInterval(pollTimer)
-                return true
-            }
+            // The callback page is served by the API, so the API's origin is the only one that
+            // can legitimately post this completion. Trusting the app or web origin as well
+            // widens it for no gain.
+            const trustedOrigins = buildTrustedOrigins([getAgentaApiUrl()])
 
-            const onAuthDone = () => {
-                window.focus()
-                handleClose()
-                onSuccess?.()
-            }
-
-            const trustedOrigins = buildTrustedOrigins([
-                window.location.origin,
-                getAgentaApiUrl(),
-                getAgentaWebUrl(),
-            ])
-
-            const handler = (event: MessageEvent) => {
-                if (isTrustedOauthConnectedMessage(event.data, event.origin, trustedOrigins)) {
-                    const completion = event.data as McpOauthCompletionMessage
-                    if (completion.endpoint_id && completion.endpoint_id !== endpoint.id) return
-                    if (!cleanup(handler)) return
-                    if (completion.success) {
-                        onAuthDone()
-                    } else {
-                        setLoading(false)
-                        setDiscoverError(completion.error || "Authorization was not completed.")
-                    }
-                }
-            }
-            window.addEventListener("message", handler)
-
-            pollTimer = setInterval(() => {
-                if (popup && popup.closed) {
-                    // A manually closed authorization window is not proof that the
-                    // callback exchanged a code. Only the typed callback message
-                    // above may move the dashboard to success.
-                    if (cleanup(handler)) {
-                        setLoading(false)
-                        setDiscoverError("Authorization window closed before completion.")
-                    }
-                }
-            }, 1000)
+            stopWatch()
+            stopWatchRef.current = watchOauthConsent({
+                popup,
+                endpointId: endpoint.id,
+                trustedOrigins,
+                target: window,
+                onConnected: () => {
+                    window.focus()
+                    handleClose()
+                    onSuccess?.()
+                },
+                onFailed: (reason) => {
+                    setLoading(false)
+                    setDiscoverError(reason)
+                },
+            })
         } catch (error) {
             setLoading(false)
             message.error(gatewayRefusalMessage(error) || "Failed to start the connection.")
         }
-    }, [endpoint, selectedScopes, projectId, handleClose, onSuccess])
+    }, [endpoint, selectedScopes, projectId, handleClose, onSuccess, stopWatch])
 
     return (
         <EnhancedModal

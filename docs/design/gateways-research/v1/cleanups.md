@@ -317,22 +317,20 @@ MCP method, the tool and the usage fields. Cases beside `api/oss/tests/pytest/un
 a record exists for a refused model, for a refused tool, and for a mid-stream failure with the
 failing status. Tracked as OR66 in `open-reviews.md`.
 
-## CU18. Tear down the MCP connect dialog's listener and interval
+## CU18. Tear down the MCP connect dialog's listener and interval — DONE 2026-09-15
 
-**What.** Closing the connect dialog while the authorization popup is still open leaves a `message`
-listener and a polling interval behind, and every reopen adds another pair.
-`web/oss/src/components/pages/settings/MCPEndpoints/MCPConnectDialog.tsx:126` registers the listener
-and `:128` starts the interval, both inside the `handleConnect` callback at `:69-143`. The `cleanup`
-function at `:93-99` runs only from the message handler or from the popup-closed poll. Neither fires
-on unmount, and there is no `useEffect` teardown.
+**What it was.** Closing the connect dialog while the authorization popup is still open left a
+`message` listener and a polling interval behind, and every reopen added another pair. The dialog
+had moved to `web/packages/agenta-entity-ui/src/mcpEndpoint/McpConnectDialog.tsx` and carried the
+defect with it; the agent config row unmounts it on close, which is the path that leaked.
 
-**Why it is still open.** It is small and local, and the leak costs a user one listener per
-abandoned connect attempt in a settings dialog. It is the cheapest of the five and the easiest to
-pick up cold.
-
-**Done.** The listener and the interval are torn down when the dialog unmounts. A case beside
-`web/oss/tests/` opens and unmounts the dialog with the popup still open and asserts neither
-remains. Tracked as OR67 in `open-reviews.md`.
+**How it closed.** The listener, the poll and a new 180 second timeout are started by
+`watchOauthConsent` in `web/packages/agenta-entities/src/mcpEndpoint/core/connectWatch.ts`, which
+returns an idempotent `stop()` releasing all three. The dialog holds it in a ref and calls it from a
+`useEffect` cleanup and from `handleClose`. Covered by
+`web/packages/agenta-entities/tests/unit/mcpConnectWatch.test.ts` and
+`web/packages/agenta-entity-ui/tests/unit/mcpConnectDialog.unmount.test.tsx`. Recorded as OR67 in
+`open-reviews.md`.
 
 ## CU19. Say what the gateway migration cannot undo, and bound the lock it takes
 

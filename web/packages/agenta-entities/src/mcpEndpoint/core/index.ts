@@ -5,6 +5,15 @@ export {
 } from "./connectMessage"
 export type {McpOauthCompletionMessage} from "./connectMessage"
 export {
+    CONSENT_CLOSED_MESSAGE,
+    CONSENT_FAILED_MESSAGE,
+    CONSENT_POLL_MS,
+    CONSENT_TIMEOUT_MESSAGE,
+    CONSENT_TIMEOUT_MS,
+    watchOauthConsent,
+} from "./connectWatch"
+export type {OauthConsentTarget, OauthConsentTimers, WatchOauthConsentOptions} from "./connectWatch"
+export {
     findCustomMcpEndpoint,
     getMcpConnectionState,
     getMcpConnectionStateLabel,
