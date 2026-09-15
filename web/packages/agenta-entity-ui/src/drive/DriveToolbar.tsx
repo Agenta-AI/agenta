@@ -44,6 +44,7 @@ import {ROW_ICON_BTN} from "./DriveHeader"
 import {DriveTypeMark} from "./DriveTypeMark"
 
 /** Row 2's text buttons (Sort ▾, Revert, the mode dropdown): the kit's ghost sm, muted until hover. */
+const SEG_TRIGGER = "h-full rounded-[5px] px-1.5 py-0"
 const ROW_TEXT_BTN = "h-[26px] gap-1 px-2 text-xs text-colorTextSecondary hover:text-colorText"
 
 /** The chosen entry of a single-choice menu — a check on the RIGHT, no radio dot. */
