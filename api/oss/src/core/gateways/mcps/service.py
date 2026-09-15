@@ -3,6 +3,7 @@
 import json
 import re
 from dataclasses import dataclass
+from time import monotonic
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -135,6 +136,30 @@ def _parse_scope_challenge(headers: Dict[str, str]) -> Optional[List[str]]:
         return None
     match = _SCOPE_PARAM_RE.search(header)
     return match.group(1).split() if match else []
+
+
+def _elapsed_ms(started: float) -> int:
+    """Milliseconds since `started`, on the monotonic clock.
+
+    Monotonic rather than wall clock: a duration read off the system clock can come out
+    negative, or minutes long, when the clock is stepped mid-call.
+    """
+    return max(0, round((monotonic() - started) * 1000))
+
+
+def _run_id(request: Optional["Request"]) -> Optional[str]:
+    """The workflow invocation this relay belongs to, if the caller is on one.
+
+    The auth middleware reads it off the audience-bound gateway credential the SDK
+    exchanges for a run and puts it on request state; a caller holding a session cookie
+    or an API key carries no such credential and belongs to no run, so this is None for
+    them rather than something invented. It is read here rather than plumbed through the
+    signature because the router already hands `relay` the request.
+    """
+    if request is None:
+        return None
+    value = getattr(request.state, "gateway_run_id", None)
+    return value if isinstance(value, str) and value else None
 
 
 def _target_path(
@@ -529,6 +554,9 @@ class MCPGatewayService:
         # needs a real enum member.
         namespace = GatewayEndpointNamespace(namespace)
 
+        started = monotonic()
+        run_id = _run_id(request)
+
         # 1. Resolve target.
         target = await self._resolve_target(
             project_id=scope.project_id,
@@ -560,13 +588,27 @@ class MCPGatewayService:
             permission=Permission.USE_MCP_ENDPOINTS,
             target=policy_target,
         )
-        if not decision.allowed:
+
+        async def record(outcome: GatewayOutcome) -> None:
+            """Record one ending of this relay.
+
+            Every `policy.record` below goes through here, so the two things a call site
+            cannot know on its own — how long the call took, and which run it belongs
+            to — are stamped in one place rather than five, and an ending added later
+            cannot quietly omit them.
+            """
             await self.policy.record(
                 scope=scope,
                 target=policy_target,
                 decision=decision,
-                outcome=GatewayOutcome(status_code=403),
+                outcome=outcome.model_copy(
+                    update={"duration_ms": _elapsed_ms(started)}
+                ),
+                run_id=run_id,
             )
+
+        if not decision.allowed:
+            await record(GatewayOutcome(status_code=403))
             raise PolicyDeniedError(
                 permission=Permission.USE_MCP_ENDPOINTS,
                 target=_target_path(
@@ -590,13 +632,8 @@ class MCPGatewayService:
             result = await AgentaMCPAdapter(
                 tools_router=self.agenta_tools_router
             ).relay(request=request, body=body)
-            await self.policy.record(
-                scope=scope,
-                target=policy_target,
-                decision=decision,
-                outcome=self._outcome_for(
-                    result=result, auth=MCPDirectAuth(secret=None)
-                ),
+            await record(
+                self._outcome_for(result=result, auth=MCPDirectAuth(secret=None))
             )
             return result
 
@@ -624,12 +661,7 @@ class MCPGatewayService:
                 headers=headers,
             )
         except MCPUpstreamError as exc:
-            await self.policy.record(
-                scope=scope,
-                target=policy_target,
-                decision=decision,
-                outcome=GatewayOutcome(status_code=exc.status_code),
-            )
+            await record(GatewayOutcome(status_code=exc.status_code))
             raise
 
         # Convert OAuth insufficient-scope challenges into a reconnect interaction.
@@ -640,12 +672,7 @@ class MCPGatewayService:
         ):
             challenged_scopes = _parse_scope_challenge(result.headers)
             if challenged_scopes is not None:
-                await self.policy.record(
-                    scope=scope,
-                    target=policy_target,
-                    decision=decision,
-                    outcome=GatewayOutcome(status_code=403),
-                )
+                await record(GatewayOutcome(status_code=403))
                 raise MCPScopeInsufficientError(
                     target=_target_path(
                         namespace=namespace,
@@ -658,12 +685,7 @@ class MCPGatewayService:
                 )
 
         # Record the relay and filter tool listings when configured.
-        await self.policy.record(
-            scope=scope,
-            target=policy_target,
-            decision=decision,
-            outcome=self._outcome_for(result=result, auth=auth),
-        )
+        await record(self._outcome_for(result=result, auth=auth))
 
         if context.method == "tools/list":
             result = _filter_tool_list(result=result, tools=target.endpoint.data.tools)

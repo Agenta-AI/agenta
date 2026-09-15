@@ -117,6 +117,11 @@ class GatewayOutcome(BaseModel):
     """How the call ended, for the audit event (§2.7)."""
 
     status_code: Optional[int] = None
+    # Wall-clock milliseconds the gateway spent on this call, measured from the moment
+    # the relay was entered — so it covers target resolution, the authorization check and
+    # the credential read as well as the upstream round trip, which is the whole of what
+    # the gateway is answerable for. Recorded on every ending, including a denial and an
+    # upstream failure, because the slow endings are the ones worth having a number for.
     duration_ms: Optional[int] = None
     #
     usage: Optional[GatewayUsage] = None
