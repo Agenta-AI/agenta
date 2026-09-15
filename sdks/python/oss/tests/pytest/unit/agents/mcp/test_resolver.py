@@ -177,6 +177,79 @@ def test_tool_policy_rejects_ambiguous_combinations():
         MCPToolPolicy(mode="include")
 
 
+async def test_per_tool_permissions_ride_the_wire_in_camel_case():
+    """The runner protocol is camelCase; the fields that shipped first were single words."""
+    resolved = await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+        [
+            server(
+                policy=MCPPolicy(
+                    permission="ask",
+                    tool_permissions={"search": "allow", "purge": "deny"},
+                )
+            )
+        ]
+    )
+    assert resolved[0].to_wire()["policy"] == {
+        "tools": {"mode": "all"},
+        "permission": "ask",
+        "toolPermissions": {"search": "allow", "purge": "deny"},
+        # Unset, so it falls to the server permission rather than to the run default: an author
+        # who wrote a per-tool table gets a table that a run default cannot widen.
+        "newToolPermission": "ask",
+    }
+
+
+async def test_new_tool_permission_floor_is_ask_when_nothing_else_says():
+    """A tool nobody has looked at yet reaches a human, even on an otherwise silent policy."""
+    resolved = await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+        [server(policy=MCPPolicy(tool_permissions={"search": "allow"}))]
+    )
+    assert resolved[0].to_wire()["policy"]["newToolPermission"] == "ask"
+
+
+async def test_new_tool_permission_alone_is_a_valid_opt_in():
+    """Declaring only the new-tool default is how an author says 'gate everything I have not seen'."""
+    resolved = await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+        [server(policy=MCPPolicy(permission="allow", new_tool_permission="deny"))]
+    )
+    assert resolved[0].to_wire()["policy"] == {
+        "tools": {"mode": "all"},
+        "permission": "allow",
+        "toolPermissions": {},
+        "newToolPermission": "deny",
+    }
+
+
+async def test_a_policy_without_per_tool_intent_emits_nothing_new():
+    """The compatibility pin: an existing configuration must produce an unchanged wire."""
+    resolved = await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+        [server(policy=MCPPolicy(permission="ask"))]
+    )
+    policy = resolved[0].to_wire()["policy"]
+    assert policy == {"tools": {"mode": "all"}, "permission": "ask"}
+    assert "toolPermissions" not in policy
+    assert "newToolPermission" not in policy
+
+
+def test_per_tool_permissions_are_refused_for_tools_the_filter_hides():
+    """Dead permission configuration is the OR79 class; refuse it rather than drop it."""
+    with pytest.raises(ValidationError, match="the include filter hides: purge"):
+        MCPPolicy(
+            tools=MCPToolPolicy(mode="include", names=["search"]),
+            tool_permissions={"search": "allow", "purge": "deny"},
+        )
+
+
+def test_per_tool_permissions_reject_a_blank_tool_name():
+    with pytest.raises(ValidationError, match="non-empty tool names"):
+        MCPPolicy(tool_permissions={"  ": "allow"})
+
+
+def test_per_tool_permissions_reject_an_unknown_verdict():
+    with pytest.raises(ValidationError):
+        MCPPolicy.model_validate({"tool_permissions": {"search": "maybe"}})
+
+
 async def test_http_server_url_blocked_by_ssrf_guard():
     with pytest.raises(MCPServerURLBlockedError):
         await MCPResolver(secret_provider=DictSecretProvider({})).resolve(

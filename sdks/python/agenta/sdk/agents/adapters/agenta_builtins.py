@@ -214,6 +214,21 @@ Declared external MCP servers. Each has `name`, an HTTP `connection` with `url`,
 public `headers`, and discriminated `credentials`, plus a `policy` for tools and permission.
 Secret header references resolve from the vault at run time; values never live in the config.
 
+`policy` carries four fields, and they answer different questions:
+
+- `tools` — the filter: `{ "mode": "all" }`, or `{ "mode": "include", "names": [...] }`. A tool it
+  hides is never offered to the model.
+- `permission` — `allow` / `ask` / `deny` for the whole server.
+- `tool_permissions` — `allow` / `ask` / `deny` per tool, keyed by the name the SERVER advertises
+  (`"echo"`), never the harness-rendered name (`"mcp__acme__echo"`).
+- `new_tool_permission` — what a tool the server starts advertising later gets before anyone has
+  seen it. Defaults to `permission`, and to `ask` when that is unset too.
+
+Setting either of the last two makes the per-tool table authoritative for that server: an
+unlisted tool gets `new_tool_permission`, and the run's own default permission cannot widen it.
+Setting neither leaves the server exactly as it behaved before per-tool policy existed. A
+`tool_permissions` entry for a tool an `include` filter hides is refused, not ignored.
+
 ### skills
 
 A list; each entry is either an inline skill template or an `@ag.embed` reference.
