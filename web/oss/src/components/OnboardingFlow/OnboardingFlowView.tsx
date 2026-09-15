@@ -258,6 +258,7 @@ export default function OnboardingFlowView({
                                             setTemplateKey(template.key)
                                             setName(template.name)
                                             setTask("")
+                                            onTemplate?.(index)
                                         }}
                                     >
                                         <span
