@@ -630,42 +630,42 @@ class TestCredentialNormalization:
     call, and the failure quoted the key back to the caller."""
 
     def test_a_pasted_provider_key_loses_its_trailing_newline(self):
-        settings = StandardProviderSettingsDTO(key="sk-live-abc123\n")
+        settings = StandardProviderSettingsDTO(key="placeholder-provider-key\n")
 
-        assert settings.key == "sk-live-abc123"
+        assert settings.key == "placeholder-provider-key"
 
     def test_surrounding_whitespace_goes_on_an_oauth_token(self):
         grant = OAuthGrantSettingsDTO(
             server="https://mcp.example.com/",
-            access_token="  at-abc123\r\n",
-            refresh_token="rt-abc123\n",
+            access_token="  placeholder-access-token\r\n",
+            refresh_token="placeholder-refresh-token\n",
             scopes=[],
         )
 
-        assert grant.access_token == "at-abc123"
-        assert grant.refresh_token == "rt-abc123"
+        assert grant.access_token == "placeholder-access-token"
+        assert grant.refresh_token == "placeholder-refresh-token"
 
     def test_an_interior_control_character_is_refused(self):
         with pytest.raises(ValidationError):
-            StandardProviderSettingsDTO(key="sk-live\nabc123")
+            StandardProviderSettingsDTO(key="placeholder\nprovider-key")
 
     def test_the_refusal_does_not_repeat_the_credential(self):
         """The whole point of the finding: the value must not travel on an error anyone
         sees, and a validation error is shown to the person saving the connection."""
         with pytest.raises(ValidationError) as excinfo:
-            StandardProviderSettingsDTO(key="sk-live\nDO-NOT-LEAK")
+            StandardProviderSettingsDTO(key="placeholder\nDO-NOT-LEAK")
 
         assert "DO-NOT-LEAK" not in str(excinfo.value)
 
     def test_a_client_secret_is_normalized_the_same_way(self):
         provider = OAuthProviderSettingsDTO(
             client_id="client-1",
-            client_secret="cs-abc123\n",
+            client_secret="placeholder-client-secret\n",
             issuer_url="https://auth.example.com/",
             scopes=[],
         )
 
-        assert provider.client_secret == "cs-abc123"
+        assert provider.client_secret == "placeholder-client-secret"
 
     def test_an_absent_credential_stays_absent(self):
         assert StandardProviderSettingsDTO(key=None).key is None
