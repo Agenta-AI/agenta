@@ -142,7 +142,9 @@ export default function McpServersSection({
                 key: "name",
                 title: "Name",
                 render: (record) => (
-                    <span className="font-medium">{record.name || record.slug}</span>
+                    <span data-testid="mcp-connection-name" className="font-medium">
+                        {record.name || record.slug}
+                    </span>
                 ),
             },
             {
@@ -163,7 +165,11 @@ export default function McpServersSection({
                 render: (record) => {
                     const state = getMcpConnectionState(record)
                     return (
-                        <Tag tone={state === "ready" ? "green" : "gold"} className="m-0 text-xs">
+                        <Tag
+                            data-testid="mcp-connection-status"
+                            tone={state === "ready" ? "green" : "gold"}
+                            className="m-0 text-xs"
+                        >
                             {getMcpConnectionStateLabel(state)}
                         </Tag>
                     )
@@ -177,7 +183,7 @@ export default function McpServersSection({
         <div className="flex flex-col gap-3">
             <div className="flex justify-end">
                 {readOnly ? null : (
-                    <Button onClick={openConnect}>
+                    <Button data-testid="mcp-connect-open" onClick={openConnect}>
                         <Plus size={14} />
                         {copy.connect}
                     </Button>
@@ -186,7 +192,11 @@ export default function McpServersSection({
 
             {!isPending && rows.length === 0 ? (
                 <EmptyState image="simple" description={copy.emptyBody} title={copy.emptyTitle}>
-                    {readOnly ? null : <Button onClick={openConnect}>{copy.connect}</Button>}
+                    {readOnly ? null : (
+                        <Button data-testid="mcp-connect-open" onClick={openConnect}>
+                            {copy.connect}
+                        </Button>
+                    )}
                 </EmptyState>
             ) : (
                 <DataTable<MCPEndpoint>
@@ -215,8 +225,12 @@ export default function McpServersSection({
                                   {
                                       key: "disconnect",
                                       label: "Disconnect",
-                                      // Only where there is a grant to revoke.
-                                      hidden: getMcpConnectionState(record) !== "ready",
+                                      // Only where there is a grant to revoke. A server that
+                                      // needs no authentication is ready without holding one,
+                                      // and the route refuses a non-OAuth endpoint outright.
+                                      hidden:
+                                          record.auth_mode !== "oauth" ||
+                                          getMcpConnectionState(record) !== "ready",
                                       onClick: () => handleDisconnect(record),
                                   },
                                   {

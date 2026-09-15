@@ -162,7 +162,7 @@ export default function McpConnectJourney({
             destroyOnClose
         >
             <ModalContent>
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4" data-testid="mcp-connect-journey">
                     {state.status === "url_entry" || state.status === "checking_url" ? (
                         <Field label="MCP server URL" required>
                             <Input
