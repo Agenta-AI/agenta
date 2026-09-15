@@ -23,9 +23,8 @@ import {LiveConversation} from "./LiveConversation"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {SessionWorkspace} from "./SessionWorkspace"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
-import {PendingTurn, TurnRow} from "./TurnRow"
+import {TranscriptTurns} from "./TranscriptTurns"
 import {mergeAssistantRuns} from "./turnRuns"
-import {isFirstResponse, runIdFor} from "./turnStatus"
 import {useAgentEntity} from "./useAgentEntity"
 import {useApprovalActions} from "./useApprovalActions"
 import {useReferenceToolDisplays} from "./useReferenceToolDisplays"
@@ -208,24 +207,13 @@ const ReplayScreen = ({
     } else {
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-                {visibleTurns.map((turn, i) => (
-                    <TurnRow
-                        key={turn.message.id}
-                        turn={turn}
-                        sessionId={sessionId}
-                        remoteRunning={running}
-                        waitingOnUser={pendingCount > 0}
-                        runId={runIdFor(visibleTurns, i)}
-                        firstTurn={isFirstResponse(visibleTurns, i)}
-                    />
-                ))}
-                {running && visibleTurns[visibleTurns.length - 1]?.isUser ? (
-                    <PendingTurn
-                        sessionId={sessionId}
-                        runId={runIdFor(visibleTurns, visibleTurns.length)}
-                        firstTurn={isFirstResponse(visibleTurns, visibleTurns.length)}
-                    />
-                ) : null}
+                <TranscriptTurns
+                    turns={visibleTurns}
+                    sessionId={sessionId}
+                    remoteRunning={running}
+                    waitingOnUser={pendingCount > 0}
+                    pending={running && !!visibleTurns[visibleTurns.length - 1]?.isUser}
+                />
             </ContentRail>
         )
     }

@@ -68,30 +68,30 @@ const isFoldable = (item: RenderItem): boolean =>
 const showsInFold = (item: RenderItem): boolean =>
     item.kind === "tools" ? item.parts.some((part) => !hiddenFromFold(part)) : isFoldable(item)
 
-/** The last text is the answer only once closed (`text-end`) and followed by nothing the fold shows. */
-const findAnswer = (items: RenderItem[], holdClosedText: boolean): number => {
+/** Position of the trailing text — the candidate answer — or -1 when something the fold shows follows it. */
+const trailingText = (items: RenderItem[]): number => {
     for (let i = items.length - 1; i >= 0; i--) {
         const item = items[i]
-        if (item.kind === "part" && item.part.type === "text") {
-            const state = (item.part as {state?: string}).state
-            if (state === "streaming" || holdClosedText) return -1
-            return (item.part.text ?? "").trim() ? i : -1
-        }
+        if (item.kind === "part" && item.part.type === "text") return i
         if (showsInFold(item)) return -1
     }
     return -1
 }
 
+const textState = (items: RenderItem[], i: number): string | undefined =>
+    ((items[i] as {part: {state?: string}}).part as {state?: string}).state
+
+const findAnswer = (items: RenderItem[], holdClosedText: boolean): number => {
+    const i = trailingText(items)
+    if (i < 0 || textState(items, i) === "streaming" || holdClosedText) return -1
+    const text = ((items[i] as {part: TextUIPart}).part.text ?? "").trim()
+    return text ? i : -1
+}
+
 /** Whether the turn ends on a text no longer being written: the candidate answer. */
 export const endsOnClosedText = (items: RenderItem[]): boolean => {
-    for (let i = items.length - 1; i >= 0; i--) {
-        const item = items[i]
-        if (item.kind === "part" && item.part.type === "text") {
-            return (item.part as {state?: string}).state !== "streaming"
-        }
-        if (showsInFold(item)) return false
-    }
-    return false
+    const i = trailingText(items)
+    return i >= 0 && textState(items, i) !== "streaming"
 }
 
 export interface SplitTurnActivityOptions {
