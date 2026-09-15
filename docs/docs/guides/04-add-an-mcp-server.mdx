@@ -64,6 +64,12 @@ Two kinds of row behave differently:
 MCP tools are not covered by the `Always auto-approve` checkbox on an approval card. A tool on `Ask` asks every time it runs, so give a tool you run often its own `Allow` rule instead. See [Control what an agent can do](/guides/control-what-an-agent-can-do) for the agent-wide policy these rules sit inside.
 :::
 
+:::caution
+`Deny` tells the agent not to use a tool. It does not put the tool out of reach.
+
+These rules govern the agent's own behaviour while it runs. What the connection itself can do on the server is decided by the credentials you connected it with. So use `Deny` to keep an agent away from a tool it should not be using, and connect an account whose own permissions match what the agent is allowed to do when something must be unreachable.
+:::
+
 ## Connect a second account at the same server
 
 Run `Connect MCP` again with the same URL. Agenta suggests a name that does not collide, such as `Acme (secondary)`. The two connections are separate. Each holds its own authorization, and each agent picks one of them by name.
