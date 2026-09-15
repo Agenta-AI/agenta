@@ -330,21 +330,109 @@ async def test_failed_tool_result_cannot_prove_mock_mcp_delivery():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "protocol,expected",
-    [
-        (LLMProtocol.MESSAGES, "mcp__mock-mcp__echo"),
-        (LLMProtocol.RESPONSES, "mcp.mock-mcp.echo"),
-    ],
+    "rendered",
+    ["mcp__mock-mcp__echo", "mcp.mock-mcp.echo", "mock-mcp/echo", "echo"],
 )
-async def test_each_acp_harness_gets_its_own_mcp_tool_spelling(protocol, expected):
-    """Claude renders `mcp__<server>__<tool>`; Codex renders `mcp.<server>.<tool>`.
+async def test_the_harness_own_spelling_is_read_from_the_request(rendered):
+    """Whatever the harness calls the echo tool, the mock calls it back by that name.
 
-    Both configure remote MCP servers at session start, so their tool catalog is not in the
-    request and the name has to be known here. Emitting Claude's spelling to Codex names a tool
-    Codex does not have, which is how the Codex row passed on 2026-09-15 for a call that never
-    left the sandbox.
+    Reading the catalog beats knowing it. Hardcoding a spelling per protocol made the Codex cell
+    falsely pass in one direction on 2026-09-15 and then fail in the other, both times for a tool
+    name no harness actually had.
     """
-    marker = "MCP-ACCEPTANCE-acp"
+    marker = "MCP-ACCEPTANCE-read"
+    body = json.dumps(
+        {
+            "model": "mock/echo",
+            "input": [{"role": "user", "content": f"Use echo {marker}"}],
+            "tools": [{"type": "function", "name": "shell"}, {"name": rendered}],
+        }
+    ).encode()
+    result = await MockLLMAdapter().relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo", protocol=LLMProtocol.RESPONSES),
+        body=body,
+        headers={},
+    )
+
+    payload = json.loads((await _drain(result.body))[0])
+    assert payload["output"][0]["name"] == rendered
+
+
+@pytest.mark.asyncio
+async def test_a_namespaced_tool_is_named_by_its_namespace():
+    """Codex groups remote MCP tools under a `type: "namespace"` entry.
+
+    Measured from a live Codex catalog on 2026-09-15: the mock MCP server arrives as
+    `{"type": "namespace", "name": "mcp__mock_mcp", "tools": [echo, fail, slow]}`, and Codex also
+    groups its own `multi_agent_v1` tools the same way. The bare nested name is not what the model
+    calls, so a catalog read that ignores the nesting produces a tool call the harness refuses.
+    """
+    marker = "MCP-ACCEPTANCE-ns"
+    body = json.dumps(
+        {
+            "model": "mock/echo",
+            "input": [{"role": "user", "content": f"Use echo {marker}"}],
+            "tools": [
+                {"type": "function", "name": "exec_command"},
+                {
+                    "type": "namespace",
+                    "name": "mcp__mock_mcp",
+                    "tools": [
+                        {"type": "function", "name": "echo"},
+                        {"type": "function", "name": "fail"},
+                    ],
+                },
+            ],
+        }
+    ).encode()
+    result = await MockLLMAdapter().relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo", protocol=LLMProtocol.RESPONSES),
+        body=body,
+        headers={},
+    )
+
+    payload = json.loads((await _drain(result.body))[0])
+    assert payload["output"][0]["name"] == "mcp__mock_mcp.echo"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decoy", ["echo_service_health", "fetch_echoes", "shell"])
+async def test_a_tool_that_merely_mentions_echo_is_not_the_echo_tool(decoy):
+    """The match is anchored at the end of the name, so a longer word never stands in for it."""
+    marker = "MCP-ACCEPTANCE-decoy"
+    body = json.dumps(
+        {
+            "model": "mock/echo",
+            "input": [{"role": "user", "content": f"Use echo {marker}"}],
+            "tools": [{"name": decoy}],
+        }
+    ).encode()
+    result = await MockLLMAdapter().relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo", protocol=LLMProtocol.RESPONSES),
+        body=body,
+        headers={},
+    )
+
+    payload = json.loads((await _drain(result.body))[0])
+    # No catalog entry is the echo tool and Responses has no measured fallback, so the mock has
+    # no tool to call and answers as text instead of inventing a name.
+    assert "name" not in payload["output"][0]
+
+
+@pytest.mark.asyncio
+async def test_claude_keeps_its_measured_fallback_when_no_catalog_is_sent():
+    """The ACP harnesses configure remote MCP at session start, so the request may carry none.
+
+    Only the Messages spelling is in the fallback table, because only it has been measured on a
+    live run. Codex is deliberately absent; see the table's own note.
+    """
+    marker = "MCP-ACCEPTANCE-fb"
     body = json.dumps(
         {
             "model": "mock/echo",
@@ -354,18 +442,13 @@ async def test_each_acp_harness_gets_its_own_mcp_tool_spelling(protocol, expecte
     result = await MockLLMAdapter().relay_chat_completion(
         route=_route(),
         secret=None,
-        context=LLMCallContext(model="mock/echo", protocol=protocol),
+        context=LLMCallContext(model="mock/echo", protocol=LLMProtocol.MESSAGES),
         body=body,
         headers={},
     )
 
     payload = json.loads((await _drain(result.body))[0])
-    name = (
-        payload["output"][0]["name"]
-        if protocol == LLMProtocol.RESPONSES
-        else payload["content"][0]["name"]
-    )
-    assert name == expected
+    assert payload["content"][0]["name"] == "mcp__mock-mcp__echo"
 
 
 @pytest.mark.asyncio

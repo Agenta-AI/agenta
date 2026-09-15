@@ -32,6 +32,9 @@ from oss.src.core.gateways.llms.dtos import (
 from oss.src.core.gateways.llms.interfaces import LLMRelayResult, LLMUpstreamInterface
 from oss.src.core.gateways.llms.types import LLMUpstreamError
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 _ERROR_PREFIX = "mock/error"
 _SLOW_RE = re.compile(r"^mock/slow-(\d+)")
@@ -156,61 +159,105 @@ def _contains_successful_mcp_echo_result(body: bytes, marker: str) -> bool:
     return False
 
 
+#: The MCP tool the acceptance cells drive, and the server they must declare it under.
+MCP_ECHO_TOOL = "echo"
+MCP_ECHO_SERVER_NAME = "mock-mcp"
+
+#: A tool-catalog entry names the echo tool when it ends with it, either exactly or after whatever
+#: separator the harness renders: Claude writes ``mcp__mock-mcp__echo``, and a harness that renders
+#: ``mcp.mock-mcp.echo`` or ``mock-mcp/echo`` matches the same way. Anchored at the end so a tool
+#: merely mentioning echo in a longer word does not.
+_ECHO_TOOL_NAME_RE = re.compile(rf"(?:^|[^A-Za-z0-9]){MCP_ECHO_TOOL}$", re.IGNORECASE)
+
+
+def _tool_catalog_names(value: Any, namespace: str | None = None) -> Iterator[str]:
+    """Yield every tool name in a request's tool catalog, as the model would have to CALL it.
+
+    Three shapes, and the third is the one that cost two wrong guesses. Chat Completions nests the
+    name under ``function``; Responses and Messages put it on the entry. Codex groups its remote
+    MCP tools under a ``{"type": "namespace", "name": "mcp__<server>", "tools": [...]}`` entry, and
+    a tool inside one is called as ``<namespace>.<tool>`` — the bare nested name is not callable on
+    its own, which is exactly how a catalog read that ignored the nesting still produced a tool
+    call Codex refused (2026-09-15, observed in the live catalog).
+
+    Measured, not assumed: this is the shape the Codex harness put on the wire for the mock MCP
+    server, recorded in `qa.md`'s MCP permissions section.
+    """
+    if isinstance(value, list):
+        for item in value:
+            yield from _tool_catalog_names(item, namespace)
+        return
+    if not isinstance(value, dict):
+        return
+
+    name = value.get("name")
+    own = name if isinstance(name, str) and name else None
+
+    if value.get("type") == "namespace" and own:
+        # The namespace itself is not callable; its members are, under its name.
+        for item in value.get("tools") or []:
+            yield from _tool_catalog_names(item, own)
+        return
+
+    if own:
+        yield f"{namespace}.{own}" if namespace else own
+
+    for key, child in value.items():
+        # `name` is this entry's own identity, already handled; every other value may nest a tool.
+        if key in ("name", "tools"):
+            continue
+        yield from _tool_catalog_names(child, namespace)
+
+
 def _echo_tool_name(body: bytes) -> str | None:
-    """Find the harness-rendered MCP echo tool name from the provider tool list."""
+    """Read the harness's OWN name for the MCP echo tool out of the request's tool catalog.
+
+    This is the only spelling that can be trusted, and reading it beats knowing it. Claude renders
+    ``mcp__<server>__<tool>`` while Codex renders ``mcp__<server>.<tool>`` through a namespace
+    entry; hardcoding a guess per protocol made the Codex cell falsely pass on one guess and then
+    fail on the next, both times naming a tool no harness had.
+
+    The names seen are logged, because when the cell fails for a harness whose catalog is absent or
+    differently shaped, the list of what WAS offered is the one thing that says why.
+    """
     try:
         payload = json.loads(body)
     except (json.JSONDecodeError, TypeError):
         return None
 
-    def visit(value: Any) -> str | None:
-        if isinstance(value, dict):
-            name = value.get("name")
-            if isinstance(name, str) and "echo" in name.lower():
-                return name
-            for child in value.values():
-                found = visit(child)
-                if found:
-                    return found
-        elif isinstance(value, list):
-            for child in value:
-                found = visit(child)
-                if found:
-                    return found
-        return None
+    names = list(_tool_catalog_names(payload.get("tools", [])))
+    matched = next(
+        (name for name in names if _ECHO_TOOL_NAME_RE.search(name)),
+        None,
+    )
+    if names:
+        log.debug(
+            "mock LLM: tool catalog carried %d tool(s); echo tool resolved to %r. Names: %s",
+            len(names),
+            matched,
+            ", ".join(names[:24]),
+        )
+    else:
+        log.debug(
+            "mock LLM: request carried no tool catalog; falling back to the per-protocol name"
+        )
+    return matched
 
-    return visit(payload.get("tools", []))
 
-
-#: The MCP server name every harness cell must use, because the two fallbacks below hard-code it.
-MCP_ECHO_SERVER_NAME = "mock-mcp"
-
-#: Claude renders an MCP tool as ``mcp__<server>__<tool>``; Codex renders it as
-#: ``mcp.<server>.<tool>``. The runner states both spellings in one place —
-#: ``services/runner/src/engines/sandbox_agent/acp-interactions.ts``, where the gate lookup splits
-#: a rendered name back into its server — and these follow it.
+#: The fallback when a harness sends no tool catalog in the request, which the ACP harnesses do
+#: when they configure remote MCP servers at session start. Only Claude's spelling is MEASURED —
+#: it is what `mcp__<server>__<tool>` renders to and what the live Messages cell exercises. Codex
+#: is deliberately absent: its spelling was twice guessed wrong, and a wrong entry here is worse
+#: than none, because it sends a call for a tool the harness does not have and the cell fails for a
+#: reason that looks like the product. Add it only once a live run has printed it (the debug line
+#: in `_echo_tool_name`), and pin it with a case in `test_mock_llm_adapter.py`.
 MCP_ECHO_TOOL_BY_PROTOCOL: Dict[LLMProtocol, str] = {
-    LLMProtocol.MESSAGES: f"mcp__{MCP_ECHO_SERVER_NAME}__echo",
-    LLMProtocol.RESPONSES: f"mcp.{MCP_ECHO_SERVER_NAME}.echo",
+    LLMProtocol.MESSAGES: f"mcp__{MCP_ECHO_SERVER_NAME}__{MCP_ECHO_TOOL}",
 }
 
 
 def _default_mcp_echo_tool(protocol: LLMProtocol) -> str | None:
-    """Return the remote-MCP tool name the ACP harnesses expose to the model.
-
-    Codex and Claude configure remote MCP servers at session start rather than serialising their
-    tool catalog into every model request, so there is nothing in the request to read the name off
-    and it has to be known here. They do not spell it the same way, and assuming they did is what
-    made the Codex cell report a pass for a call that never left the sandbox on 2026-09-15: the
-    mock emitted Claude's spelling on the Responses protocol, Codex had no such tool, and the
-    round-trip check accepted an unrelated tool result as the echo (see
-    ``_contains_successful_mcp_echo_result``).
-
-    A cell that still finds no matching tool now fails rather than passing, which is the property
-    that matters here: this mapping is read from the runner's own gate-lookup convention, not
-    measured against a live Codex, so it must not be the only thing standing between a broken
-    harness and a green row.
-    """
+    """The echo tool name for a harness whose request carried no tool catalog to read."""
     return MCP_ECHO_TOOL_BY_PROTOCOL.get(protocol)
 
 
