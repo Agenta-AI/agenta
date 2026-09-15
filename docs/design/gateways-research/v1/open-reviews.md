@@ -2,17 +2,17 @@
 
 ## Active review findings
 
-The record runs OR36 to OR83, forty-eight findings: forty closed, seven open and one withdrawn.
+The record runs OR36 to OR85, fifty findings: forty-one closed, eight open and one withdrawn.
 Every number in that range is present. Entries numbered below OR36 predate the record and are
 all closed. Recounted from the headings on 2026-09-15, after several findings closed the same
 day.
 
-Seven findings are open: OR63, OR65 to OR68, OR76 and OR81. OR69 heads this section but counts
-as neither open nor closed; it was withdrawn on 2026-09-13, and its entry stays in place so the
-reading is not repeated.
+Eight findings are open: OR63, OR65 to OR68, OR76, OR81 and OR85. OR69 heads this section but
+counts as neither open nor closed; it was withdrawn on 2026-09-13, and its entry stays in place so
+the reading is not repeated.
 
 No P0 and no P1 remain. OR79, opened and closed on 2026-09-15, was the last P0 and OR80 the last
-P1. The highest severity open is P2, carried by OR76 alone. The other six carry no severity and
+P1. The highest severity open is P2, carried by OR76 and OR85. The other six carry no severity and
 are debt, each also tracked in `cleanups.md` as CU15 to CU20, which records why it is still open.
 None of them waits on a design decision, and OD24 to OD27 in `open-designs.md` are all decided.
 
@@ -139,6 +139,55 @@ required. Keep, because the tool is one static catalogue entry shared by both wo
 splitting it per plane state would mean a second reserved workflow name and a divergence to
 maintain. The caveat belongs to the owner, not to review: this is user-facing copy that a model
 reads aloud, and it was written by an engineer.
+
+---
+
+### OR85. An MCP refusal's connect action never reaches the runner, so a harness is told authorization is needed and not where to get it
+
+Found on 2026-09-15 while closing OR84, which is the API half of the same journey. Severity P2.
+
+OR84 made the gateway answer an unauthorized MCP connection with a `requirement` carrying the
+connect action. On the API side that lands: the proxy renders
+`{"error": {"code": -32000, "message": "...", "data": {"cause": "auth_required", "requirement":
+{...}}}}`, and the settings screen and the web client read it. The runner does not.
+
+`parseGatewayErrorDetail` (`services/runner/src/gateway-error.ts`) has two paths. The body path
+(`parseFromBody`) requires `error.code` to be a string, because it was written for the LLM plane's
+OpenAI-shaped body. An MCP refusal's `error.code` is the numeric JSON-RPC code `-32000` and its
+stable cause lives one level down at `error.data.cause`, so the body path declines the envelope
+whole. What remains is the marker path (`parseFromMarker`), which by design recovers `code` alone
+and omits `next_step` and `details`.
+
+Measured against the real parser on 2026-09-15, with the full envelope above as the harness text:
+
+```
+{ "code": "auth_required", "message": "<the whole body, marker stripped>", "retryable": false }
+```
+
+`details` absent, `next_step` absent. The `requirement.connect` endpoint the API went to the
+trouble of minting is inside `message` as text and nowhere a caller can read it.
+
+The existing test file states the marker-only behaviour as intended for this plane, and for
+recovering a *cause* it is. It is not sufficient for a refusal whose whole point is to carry an
+action. Every MCP cause loses its structured data this way; `auth_required` and
+`scope_insufficient` are the two where that data is the remedy.
+
+Not fixed here, and deliberately so. The fix belongs in the runner's parsing — teach `parseFromBody`
+the JSON-RPC shape, reading the cause from `error.data.cause` and lifting `error.data` as
+`details` — which changes a documented decision (OD18) about which channel carries what, and
+changes what `AgentErrorDetail` holds for every MCP refusal, not just these two. That is the
+runner's call to make, not a side effect of an API-side affordance fix. Adding a `NEXT_STEPS`
+entry for `auth_required` was tried and reverted: on this plane that table is never read, so it
+would have been dead code with a test that only passed by constructing a body shape the MCP plane
+never emits.
+
+Closure: an MCP refusal recovered by the runner carries its `cause` as `code` and its `error.data`
+as `details`, so a caller can read `requirement.connect`. Proven by turning the characterization
+case at the end of
+`services/runner/tests/unit/gateway-error-harness-formats.test.ts` — which asserts today's loss
+rather than tomorrow's fix, so that a change to the parsing has to come there and say so — into the
+opposite assertion, and by a live agent run against a disconnected connection showing the reconnect
+offered rather than the bare cause.
 
 ---
 
@@ -351,6 +400,47 @@ The relay stays out of it. Nothing in `providers/passthrough/adapter.py` should 
 a future reader who reaches for that shortcut should read the OR49 record first.
 
 ## Closed review record
+
+### OR84. A connection that has never consented, or has been disconnected, refuses with `secret_missing` and no way to connect — CLOSED, by answering the state every OAuth connection starts in with the action that ends it
+
+Found live on 2026-09-15 by the connection-identity work and handed over with the recovery scope.
+Severity P2.
+
+`MCPGatewayService._resolve_auth` (`api/oss/src/core/gateways/mcps/service.py`) raised
+`SecretNotFoundError` when an OAuth connection held no grant, which the proxy renders as a 409
+`secret_missing` carrying no affordance. A true statement and a dead end: the caller was told a
+credential was missing and given nothing that would supply one.
+
+This is not an edge. Every OAuth connection is in that state before its first consent and again
+after a disconnect, so the ordinary way to reach it is to press Disconnect and then run an agent.
+The connect route, the consent flow and the `needs_auth` envelope all already existed; only the
+failed-renewal path raised them. `_renewed`'s own docstring even describes what it raises as "the
+same reconnect affordance a never-connected endpoint gets", which is precisely what a
+never-connected endpoint did not get.
+
+**Closed 2026-09-15.** An OAuth connection with no grant now raises `MCPAuthRequiredError` with the
+connect affordance, the same refusal a failed renewal raises, which the proxy renders as 409
+`auth_required` with `requirement.connect`. A connection whose `secret_id` names a grant the vault
+no longer holds gets the same answer, because the caller's position is identical.
+
+Two things deliberately unchanged. The connection is not marked invalid: nothing died, and
+`_connection_state` already reads a missing handle as needing authorization, which is the reading
+the router relies on when a disconnect clears one. And an API-key connection with no secret still
+refuses with `secret_missing`: it needs a value typed into its configuration, which is a different
+instruction, and `/connect` would not produce one.
+
+Proven by four unit cases in `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_service.py` —
+the refusal carries the affordance and costs no vault read, the connection stays valid, a lost
+grant row gets the same answer, and the API-key case is untouched — and by four integration cases
+in `api/oss/tests/pytest/integration/gateways/test_mcp_oauth_recovery.py` covering a
+never-connected connection, a disconnected one, following the affordance back to a working call,
+and a sibling at the same URL that keeps working throughout.
+
+OR85 records what happens to this envelope after it leaves the API: the runner recovers the cause
+and drops the action beside it, so the agent path does not yet offer the reconnect this makes
+available.
+
+---
 
 ### OR83. An upstream that refuses the stored grant is relayed back as a 401, so a dead connection goes on reporting itself connected — CLOSED, by treating a refused credential as a reconnect
 

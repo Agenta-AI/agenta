@@ -871,22 +871,43 @@ class MCPGatewayService:
             return MCPDirectAuth(secret=None)
 
         if endpoint.auth_mode == MCPAuthScheme.OAUTH:
+            # An OAuth connection with no grant is one consent away from working, so the
+            # refusal has to say so and carry the action that does it.
+            #
+            # This used to raise `SecretNotFoundError`, which the proxy renders as
+            # `secret_missing` with no affordance at all: a true statement and a dead end.
+            # Every OAuth connection is in this state before its first consent and again
+            # after a disconnect, so the ordinary way to reach it was to press Disconnect
+            # and then run the agent. `_renewed` below already raises the reconnect when a
+            # renewal fails, and its own docstring calls that "the same reconnect
+            # affordance a never-connected endpoint gets" — which is what a
+            # never-connected endpoint did not get.
+            #
+            # A missing grant is not a dead credential, so the connection is left valid
+            # rather than marked invalid. `_connection_state` reads a missing handle as
+            # needing authorization on its own, which is the same reading the router uses
+            # when a disconnect clears one.
+            path = _target_path(
+                namespace=target.namespace,
+                provider=target.provider,
+                integration=target.integration,
+                name=target.name,
+            )
             if endpoint.secret_id is None:
-                raise SecretNotFoundError(
-                    missing=SecretOwnerKind.PROJECT,
-                    target=_target_path(
-                        namespace=target.namespace,
-                        provider=target.provider,
-                        integration=target.integration,
-                        name=target.name,
-                    ),
+                raise self._reconnect_required(endpoint=endpoint, path=path)
+            try:
+                secret = await self.resolver.resolve(
+                    scope=scope,
+                    ref=BoundSecretRef(secret_id=endpoint.secret_id),
+                    # one consent per server (out-of-scope.md)
                     mode=SecretMode.PROJECT_ONLY,
                 )
-            secret = await self.resolver.resolve(
-                scope=scope,
-                ref=BoundSecretRef(secret_id=endpoint.secret_id),
-                mode=SecretMode.PROJECT_ONLY,  # one consent per server (out-of-scope.md)
-            )
+            except SecretNotFoundError as e:
+                # The row names a grant the vault no longer holds. Reachable only if a
+                # grant was removed without its connection being disconnected, but the
+                # caller's position is identical to having never connected, so the answer
+                # is too.
+                raise self._reconnect_required(endpoint=endpoint, path=path) from e
             secret = await self._renewed(
                 scope=scope, target=target, endpoint=endpoint, secret=secret
             )
