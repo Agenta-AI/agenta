@@ -47,10 +47,15 @@ export const clientToolMeta = (
  *
  *  1. **Known client tool** — its `render.kind`/`toolName` is in the registry. Rendered in every
  *     state so the result UX (chip) shows after it settles.
- *  2. **Parked unknown client tool** — the turn has finished (not streaming) yet a non-provider-
- *     executed tool part is still unsettled and is not an approval gate. The runner only leaves a
- *     part in this "turn done, part unsettled, not providerExecuted" state for a client tool, so we
- *     surface the neutral "not handled" widget (which settles the part so it never hangs).
+ *  2. **Parked unknown client tool** — the turn has finished (not streaming) yet a tool part the
+ *     runner marked for the browser (a `render` hint, inline or on the sibling `data-render`
+ *     part) is still unsettled and is not an approval gate. This host has no widget for it, so
+ *     we surface the neutral "not handled" widget (which settles the part so it never hangs).
+ *
+ * A server tool still running when this client's stream detached (a long `test_run` across a
+ * gate round-trip) looks the same from here — last message, not streaming, no output — but
+ * carries no render hint. It is NOT claimed: auto-settling it would send the runner a bogus
+ * "not handled" result for a call it is still executing.
  */
 export const isClientToolPart = (
     part: ToolUIPart,
@@ -68,5 +73,5 @@ export const isClientToolPart = (
 
     // Keep this last-message-only so old parked parts are not auto-settled.
     const parkedUnsettled = !ctx.isStreaming && ctx.isLastMessage && !meta.settled
-    return parkedUnsettled
+    return parkedUnsettled && meta.renderKind !== undefined
 }
