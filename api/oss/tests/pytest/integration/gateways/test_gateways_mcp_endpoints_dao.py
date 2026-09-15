@@ -309,3 +309,57 @@ async def test_edit_refuses_rebinding_to_another_projects_credential(
 
     refetched = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
     assert refetched.secret_id is None
+
+
+async def test_a_create_with_no_slug_is_given_one_rather_than_silently_failing(
+    seeded_project,
+):
+    """`slug` is NOT NULL, and a create without one used to raise a not-null violation
+    that the DAO's suppress decorator swallowed: the route answered `200 {"count": 0}`
+    and wrote nothing. The service derives the slug now, so the row exists and is
+    reachable by it."""
+    from oss.src.core.gateways.mcps.service import derive_endpoint_slug
+
+    dao = MCPEndpointsDAO(engine=get_transactions_engine())
+    project_id = seeded_project["project_id"]
+    user_id = seeded_project["user_id"]
+
+    create = MCPEndpointCreate(
+        name="Acme, personal",
+        auth_mode=MCPAuthScheme.NONE,
+        data=MCPEndpointData(route=MCPEndpointRoute(base_url="https://mcp.acme.com")),
+    )
+    assert create.slug is None
+    create.slug = derive_endpoint_slug(create)
+
+    created = await dao.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint=create,
+    )
+
+    assert created is not None
+    assert created.slug.startswith("acme-personal-")
+    fetched = await dao.fetch_endpoint_by_slug(
+        project_id=project_id,
+        #
+        slug=created.slug,
+    )
+    assert fetched is not None and fetched.id == created.id
+
+
+async def test_a_create_the_database_refuses_reaches_the_caller(seeded_project):
+    """The other half: whatever the derivation does not cover must not be swallowed
+    into a `None` the route reports as a zero-count success."""
+    from sqlalchemy.exc import IntegrityError
+
+    dao = MCPEndpointsDAO(engine=get_transactions_engine())
+
+    with pytest.raises(IntegrityError):
+        await dao.create_endpoint(
+            project_id=seeded_project["project_id"],
+            user_id=seeded_project["user_id"],
+            #
+            endpoint=_create_dto(slug=None),
+        )

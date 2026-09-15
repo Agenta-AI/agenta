@@ -288,8 +288,16 @@ class MCPGatewayRouter:
             #
             endpoint=body.endpoint,
         )
+        if endpoint is None:
+            # A create that produced no record is not a success with a zero count. The
+            # route used to answer `200 {"count": 0}` here, which reads as "done" to
+            # every client and leaves nobody anything to act on.
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="the MCP endpoint could not be created",
+            )
 
-        return MCPEndpointResponse(count=1 if endpoint else 0, endpoint=endpoint)
+        return MCPEndpointResponse(count=1, endpoint=endpoint)
 
     @intercept_exceptions()
     @handle_gateway_exceptions()
