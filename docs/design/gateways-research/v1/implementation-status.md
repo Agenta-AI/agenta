@@ -113,9 +113,14 @@ The credential-boundary review recorded forty-one findings, OR36 to OR76. Six of
 reviewing the repairs rather than the original code: OR70 to OR75, all six closed. OR76 came from
 closing OR49: the usage repair meters every stream that reports usage, and one route still does not
 report it. OR77 came from the playground surface rather than the credential boundary, and it is
-closed. The record therefore runs OR36 to OR77, forty-two findings. One of them, OR69, was withdrawn
-on 2026-09-13, so it counts as neither open nor closed and forty-one stand. Thirty-five are fixed
-and closed, and six are open: OR63, OR65 to OR68, and OR76.
+closed. The record therefore runs OR36 to OR78, forty-three findings. One of them, OR69, was withdrawn
+on 2026-09-13, so it counts as neither open nor closed and forty-two stand. Thirty-five are fixed
+and closed, and seven are open: OR63, OR65 to OR68, OR76 and OR78.
+
+OR78 is the odd one: a client registration is keyed on the issuer alone, so a deployment that
+changes its public address silently reuses a registration the authorization server will refuse. It
+has not bitten, because no registration is stored anywhere yet. It was found while proving that the
+Linear failure was something else.
 
 OR77 is the product-reach entry. The agent config's MCP server form offered OAuth as a disabled
 option behind a `Soon` badge, so only the settings drawer could register an OAuth server and the
