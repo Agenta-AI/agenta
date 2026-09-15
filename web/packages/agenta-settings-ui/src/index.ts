@@ -75,6 +75,11 @@ export {
 export {DomainsSection, type DomainsSectionProps} from "./access/DomainsSection"
 export {SsoProvidersSection, type SsoProvidersSectionProps} from "./access/SsoProvidersSection"
 export {
+    default as McpServersSection,
+    type McpServersSectionCopy,
+    type McpServersSectionProps,
+} from "./mcp/McpServersSection"
+export {
     default as GatewayToolsSection,
     type GatewayToolsSectionCopy,
     type GatewayToolsSectionProps,

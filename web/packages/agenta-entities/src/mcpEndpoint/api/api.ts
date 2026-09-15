@@ -1,6 +1,7 @@
 // This domain uses the shared Axios client the host configures.
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 
+import type {McpToolSummary} from "../core/connectJourney"
 import type {
     MCPConnectResponse,
     MCPEndpointCreate,
@@ -111,4 +112,70 @@ export const beginMcpConnect = async (
         {params: projectId ? {project_id: projectId} : undefined},
     )
     return response.data
+}
+
+/**
+ * The project's own MCP connections.
+ *
+ * `GET /endpoints/` mixes synthesized builtin and provider rows, which carry no id, into the
+ * list. This route answers from stored rows only, which is what a list called "MCP servers"
+ * means and what every caller here already filtered down to.
+ */
+export const queryMcpEndpoints = async (projectId?: string): Promise<MCPEndpointsResponse> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}${BASE}/query`,
+        {},
+        {params: projectId ? {project_id: projectId} : undefined},
+    )
+    return response.data
+}
+
+/**
+ * The tools one connected server exposes.
+ *
+ * There is no control-plane route for this, so it goes through the JSON-RPC data plane the
+ * agents use. That plane reads `X-AG-Credentials` and ignores `Authorization`, so a
+ * gateway-audience credential is minted first. Two calls, because `tools/list` is only
+ * meaningful after the handshake, and a stateful server answers the first with a session id
+ * the second has to carry.
+ */
+export const listMcpTools = async (slug: string, projectId?: string): Promise<McpToolSummary[]> => {
+    const params = projectId ? {project_id: projectId} : undefined
+    const minted = await axios.post(`${getAgentaApiUrl()}/gateways/credentials`, {}, {params})
+    const credentials = minted.data?.credentials
+    if (!credentials) throw new Error("Could not authorize the tool list request.")
+
+    const url = `${getAgentaApiUrl()}${BASE.replace("/endpoints", "")}/custom/${slug}`
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "X-AG-Credentials": credentials,
+    }
+
+    const handshake = await axios.post(
+        url,
+        {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "initialize",
+            params: {
+                protocolVersion: "2025-06-18",
+                capabilities: {},
+                clientInfo: {name: "agenta-web", version: "1"},
+            },
+        },
+        {headers, params},
+    )
+    const sessionId = handshake.headers?.["mcp-session-id"]
+    if (sessionId) headers["mcp-session-id"] = String(sessionId)
+
+    const listed = await axios.post(
+        url,
+        {jsonrpc: "2.0", id: 2, method: "tools/list", params: {}},
+        {headers, params},
+    )
+    const tools = listed.data?.result?.tools
+    if (!Array.isArray(tools)) return []
+    return tools
+        .filter((tool): tool is {name: string; description?: string} => !!tool?.name)
+        .map((tool) => ({name: tool.name, description: tool.description}))
 }

@@ -6,5 +6,7 @@ export {
     discoverMcpConnect,
     editMcpEndpoint,
     listMcpEndpoints,
+    listMcpTools,
     probeMcpUrl,
+    queryMcpEndpoints,
 } from "./api"
