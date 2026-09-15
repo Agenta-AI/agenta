@@ -55,6 +55,44 @@ const config: StorybookConfig = {
     },
     core: {disableTelemetry: true},
     webpackFinal: async (cfg) => {
+        cfg.module ||= {}
+        cfg.module.rules ||= []
+        // Resolve PostCSS here, including CSS imported from another workspace.
+        const prepareRules = (rules: NonNullable<NonNullable<typeof cfg.module>["rules"]>) => {
+            for (const rule of rules) {
+                if (!rule || typeof rule !== "object") continue
+                if (rule.oneOf) prepareRules(rule.oneOf)
+                if (rule.rules) prepareRules(rule.rules)
+                if (rule.test instanceof RegExp && rule.test.test("demo.css")) {
+                    rule.resourceQuery = {not: [/raw/]}
+                }
+                if (Array.isArray(rule.use))
+                    for (const use of rule.use) {
+                        if (
+                            use &&
+                            typeof use === "object" &&
+                            use.loader?.includes("postcss-loader")
+                        ) {
+                            use.options = {
+                                postcssOptions: {
+                                    config: false,
+                                    plugins: [
+                                        require("tailwindcss")({
+                                            config: path.resolve(
+                                                __dirname,
+                                                "../tailwind.config.ts",
+                                            ),
+                                        }),
+                                        require("autoprefixer")(),
+                                    ],
+                                },
+                            }
+                        }
+                    }
+            }
+        }
+        prepareRules(cfg.module.rules)
+        cfg.module.rules.unshift({resourceQuery: /raw/, type: "asset/source"})
         cfg.resolve ||= {}
         // webpack types alias as an array OR a record; we only ever build the record form.
         const alias: Record<string, string | false | string[]> = {
