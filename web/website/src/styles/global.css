@@ -411,10 +411,6 @@ html,
 .ag-foot-social:hover {
   background: var(--th-active);
 }
-.ag-oss-chip:hover {
-  color: rgba(255, 255, 255, 0.95);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
-}
 
 /* ── buttons: ONE definition for the whole site ──────────────────────
    Framer draws every button at the same size — 36px tall, 0/12px padding, an
@@ -628,30 +624,8 @@ html,
   }
 }
 @media (max-width: 1100px) {
-  .ag-oss {
-    grid-template-columns: 1fr !important;
-    gap: 48px !important;
-  }
-  .ag-oss-strip {
-    grid-template-columns: 1fr !important;
-  }
-  .ag-oss-strip > a {
-    border-left: none !important;
-  }
-  .ag-oss-strip > a + a {
-    border-top: 1px solid rgba(255, 255, 255, 0.09);
-  }
   .ag-int {
     grid-template-columns: repeat(2, 1fr) !important;
-  }
-  .ag-rel {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-  .ag-rel > div:nth-child(3) {
-    border-left: none !important;
-  }
-  .ag-rel > div:nth-child(n + 3) {
-    border-top: 1px solid rgba(255, 255, 255, 0.09);
   }
 }
 @media (max-width: 860px) {
@@ -681,15 +655,6 @@ html,
     flex-wrap: wrap !important;
     justify-content: center !important;
     border-radius: 16px !important;
-  }
-  .ag-rel {
-    grid-template-columns: 1fr !important;
-  }
-  .ag-rel > div {
-    border-left: none !important;
-  }
-  .ag-rel > div + div {
-    border-top: 1px solid rgba(255, 255, 255, 0.09);
   }
   .ag-row {
     flex-direction: column !important;
@@ -1093,17 +1058,6 @@ html,
   .hosting-tab-sub {
     white-space: nowrap;
   }
-
-  /* Open-source section CTAs: keep "Explore on GitHub" / "Self-hosting docs" side
-     by side (they otherwise stack). Split the row evenly and trim the type/padding
-     so both labels fit on one line each. */
-  .ag-oss-btns > a {
-    flex: 1 1 0;
-    min-width: 0;
-    justify-content: center;
-    padding: 0 8px !important;
-    font-size: 13px !important;
-  }
 }
 
 /* How-it-works "Automate" tool rows (React island): the file + timestamp meta
@@ -1124,4 +1078,47 @@ html,
     font-size: 10.5px !important;
     white-space: nowrap;
   }
+}
+
+/* Stay in control bento: the two panel columns collapse to one on small
+   screens, and the panels give back some horizontal padding. */
+@media (max-width: 860px) {
+  .ag-bento {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .ag-bento > div {
+    padding: 40px 24px 48px !important;
+  }
+}
+/* The secret-vault mock: its fixed sidebar and mono key names do not fit a
+   phone side by side, so the two panes stack. */
+@media (max-width: 560px) {
+  .ag-vault {
+    flex-direction: column !important;
+  }
+  .ag-vault > div {
+    flex: none !important;
+    border-radius: 10px !important;
+  }
+}
+
+/* Continuous inner rails from the coworkers design, aligned with the panel grid. */
+.ag-controls { position: relative; }
+.ag-controls::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: min(1072px, calc(100% - 48px));
+  transform: translateX(-50%);
+  border-inline: 1px solid var(--th-darksec-border);
+  pointer-events: none;
+}
+/* Preserve readable list columns instead of clipping skill names on phones. */
+@media (max-width: 560px) {
+  .ag-controls-diagram { grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr) !important; }
+  .ag-controls-diagram > div:nth-child(2) { transform: scaleX(calc(64 / 140)); transform-origin: left; width: 140px; }
+  .ag-controls-diagram > div:nth-child(2) > div { transform: scaleX(calc(140 / 64)); }
+  .ag-controls-diagram > div:first-child, .ag-controls-diagram > div:last-child { padding: 4px !important; }
+  .ag-controls-diagram > div:first-child > span, .ag-controls-diagram > div:last-child > span { padding-inline: 4px !important; font-size: 10px !important; gap: 4px !important; white-space: normal !important; }
 }
