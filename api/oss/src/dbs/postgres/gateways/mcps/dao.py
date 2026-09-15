@@ -47,7 +47,15 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
             engine = get_transactions_engine()
         self.engine = engine
 
-    @suppress_exceptions(exclude=[EntityCreationConflict, SecretInvalidError])
+    # `IntegrityError` is excluded because a write the database refused must not be
+    # reported as a create that produced nothing. A missing slug raised a not-null
+    # violation here, the decorator swallowed it, the DAO returned `None`, and the route
+    # answered `200 {"count": 0}` — a success that created no record, which is worse to
+    # debug than a refusal. The slug-unique case is still converted below into the
+    # `EntityCreationConflict` callers expect; everything else now reaches the caller.
+    @suppress_exceptions(
+        exclude=[EntityCreationConflict, SecretInvalidError, IntegrityError]
+    )
     async def create_endpoint(
         self,
         *,

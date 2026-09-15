@@ -1490,3 +1490,94 @@ async def test_brokered_builtin_lists_only_the_tools_it_granted():
 
     listed = json.loads(result.body)["result"]["tools"]
     assert [entry["name"] for entry in listed] == ["NOTION_CREATE_PAGE"]
+
+
+# --- a connection's slug is derived, not typed ---------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_create_derives_a_slug_from_the_display_name_when_none_is_given():
+    """A slug is identity and a name is a label. Asking a person to invent the identity
+    at setup put both in front of them and invited them to change the wrong one."""
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+
+    created = await service.create_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=MCPEndpointCreate(
+            name="Acme, personal",
+            auth_mode=MCPAuthScheme.NONE,
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://mcp.acme.io/")
+            ),
+        ),
+    )
+
+    assert created is not None
+    assert created.slug.startswith("acme-personal-")
+    # `get_slug_from_name_and_id` appends the last twelve hex characters of a uuid4.
+    assert len(created.slug) == len("acme-personal-") + 12
+
+
+@pytest.mark.asyncio
+async def test_create_falls_back_to_the_server_hostname_when_there_is_no_name():
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+
+    created = await service.create_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=MCPEndpointCreate(
+            auth_mode=MCPAuthScheme.NONE,
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://mcp.acme.io/oauth/mcp")
+            ),
+        ),
+    )
+
+    assert created is not None
+    assert created.slug.startswith("mcpacmeio-")
+
+
+@pytest.mark.asyncio
+async def test_two_connections_with_one_display_name_get_distinct_slugs():
+    """Two accounts at one server are commonly given the same name before anyone
+    renames them, and a derived slug must not be what refuses the second."""
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    project_id, user_id = uuid4(), uuid4()
+
+    slugs = set()
+    for _ in range(2):
+        created = await service.create_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            endpoint=MCPEndpointCreate(
+                name="Acme",
+                auth_mode=MCPAuthScheme.NONE,
+                data=MCPEndpointData(
+                    route=MCPEndpointRoute(base_url="https://mcp.acme.io/")
+                ),
+            ),
+        )
+        assert created is not None
+        slugs.add(created.slug)
+
+    assert len(slugs) == 2
+
+
+@pytest.mark.asyncio
+async def test_create_keeps_a_slug_the_caller_supplied():
+    """Existing callers choose their own, and the derived slug must not overwrite it."""
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+
+    created = await service.create_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=_endpoint_create(slug="chosen-by-the-caller"),
+    )
+
+    assert created is not None
+    assert created.slug == "chosen-by-the-caller"

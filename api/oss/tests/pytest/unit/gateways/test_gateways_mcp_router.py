@@ -1068,3 +1068,27 @@ def test_deleting_an_endpoint_with_no_oauth_grant_drops_nothing(
     assert response.status_code == 204, response.text
     assert oauth_service.disconnected == []
     assert "delete_endpoint" in service.calls
+
+
+def test_create_that_produced_no_record_is_not_reported_as_a_success(
+    client, service, allow
+):
+    """The route used to answer `200 {"count": 0}`, which reads as "done" to every
+    client and leaves nobody anything to act on. A create with no slug hit a not-null
+    violation, the DAO's suppress decorator swallowed it, and this was the whole visible
+    symptom."""
+    service.create_return = None
+
+    response = client.post(
+        "/endpoints/",
+        json={
+            "endpoint": {
+                "slug": "acme-notion",
+                "auth_mode": "none",
+                "data": {"route": {"base_url": _SERVER_URL}},
+            }
+        },
+    )
+
+    assert response.status_code == 500, response.text
+    assert response.json() != {"count": 0}

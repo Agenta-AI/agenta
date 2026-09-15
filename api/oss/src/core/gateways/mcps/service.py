@@ -4,7 +4,8 @@ import json
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
-from uuid import UUID
+from urllib.parse import urlparse
+from uuid import UUID, uuid4
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateway.connections.dtos import Connection
@@ -70,6 +71,7 @@ from oss.src.core.gateways.policy.types import (
 from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.context import AuthScope
 from oss.src.utils.env import env
+from oss.src.utils.helpers import get_slug_from_name_and_id
 
 # Built-in endpoints select adapters by provider segment.
 if TYPE_CHECKING:
@@ -144,6 +146,34 @@ def _target_path(
     return "/".join(s for s in (namespace.value, provider, integration, name) if s)
 
 
+# Last resort when a connection is created with neither a name nor a parseable URL host.
+# Never reached from the API, whose create route requires a valid URL before the service
+# sees it, but a slug is NOT NULL and nothing is served by failing over a label.
+_FALLBACK_SLUG_BASE = "mcp-connection"
+
+
+def derive_endpoint_slug(endpoint: MCPEndpointCreate) -> str:
+    """The stable identity for a new connection, derived once at creation.
+
+    Callers do not choose it. A connection's slug is its identity: agent configuration
+    references it, the data-plane route is built from it, and its grant is addressed by
+    the id beside it, so it has to survive every later edit to the display name. Asking a
+    person to invent one at setup put identity in the same field as a label and invited
+    them to change it later.
+
+    The display name seeds it, falling back to the server's hostname, which is what the
+    connection flow shows when a server offers no usable name. Uniqueness comes from a
+    `uuid4` suffix rather than from the seed, matching how secrets, testsets and
+    evaluators derive theirs: two connections may legitimately carry one display name
+    across a project's lifetime, and a derived slug must not be the thing that refuses
+    the second one.
+    """
+    seed = (endpoint.name or "").strip()
+    if not seed:
+        seed = urlparse(endpoint.data.route.base_url or "").hostname or ""
+    return get_slug_from_name_and_id(seed or _FALLBACK_SLUG_BASE, uuid4())
+
+
 class MCPGatewayService:
     def __init__(
         self,
@@ -176,6 +206,10 @@ class MCPGatewayService:
         #
         endpoint: MCPEndpointCreate,
     ) -> Optional[MCPEndpoint]:
+        if not endpoint.slug:
+            endpoint = endpoint.model_copy(
+                update={"slug": derive_endpoint_slug(endpoint)}
+            )
         return await self.mcp_endpoints_dao.create_endpoint(
             project_id=project_id,
             user_id=user_id,
