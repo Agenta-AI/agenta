@@ -75,8 +75,16 @@ export function DriveCodeEditor({mount, path, loading, failed, onSave}: DriveCod
     // Keyed by mount + path: a different file is a different editor, never a re-seeded one.
     const editorId = `drive-code-${mount?.id ?? ""}-${path}`
     return (
+        // The kit editor sizes to its content; here every wrapper takes the column's height and the
+        // <code> element is the scroller, so the body fills the pane and scrolls inside it.
         <div
-            className="flex min-h-0 flex-1 flex-col overflow-auto p-2 text-xs [&_.editor-code]:!bg-transparent [&_.editor-container]:!bg-transparent [&_.editor-inner]:!border-0 [&_.editor-inner]:!bg-transparent"
+            className={[
+                "flex min-h-0 flex-1 flex-col overflow-hidden text-xs",
+                "[&_.agenta-rich-text-editor]:h-full [&_.agenta-shared-editor]:h-full [&_.agenta-shared-editor]:!min-h-0 [&_.agenta-shared-editor]:!border-0 [&_.agenta-shared-editor]:!rounded-none [&_.agenta-shared-editor]:!p-0",
+                "[&_.agenta-editor-wrapper]:h-full [&_.editor-container]:h-full [&_.editor-container]:!overflow-visible",
+                "[&_.editor-inner]:h-full [&_.editor-input]:h-full [&_.editor-code]:h-full [&_.editor-code]:!overflow-auto [&_.editor-code]:!p-2",
+                "[&_.editor-code]:!bg-transparent [&_.editor-container]:!bg-transparent [&_.editor-inner]:!border-0 [&_.editor-inner]:!bg-transparent",
+            ].join(" ")}
             onKeyDown={onKeyDown}
         >
             <EditorProvider
