@@ -45,15 +45,17 @@ const Page = ({size}: {size: number}) => (
         // `size-auto`: inside a kit Button the svg would otherwise be sized as a button icon.
         className="block size-auto"
     >
+        {/* Elevated fill (not the container tone) so the page lifts off the pane in dark mode,
+            where container and pane are the same black; the fold a step brighter again there. */}
         <path
             d="M4 3h24l14 14v33a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z"
-            className="fill-colorBgContainer stroke-colorBorder"
+            className="fill-colorBgElevated stroke-colorBorder"
             strokeWidth={1.5}
             strokeLinejoin="round"
         />
         <path
             d="M28 3v14h14"
-            className="fill-colorFillTertiary stroke-colorBorder"
+            className="fill-colorFillTertiary stroke-colorBorder dark:fill-colorFillSecondary"
             strokeWidth={1.5}
             strokeLinejoin="round"
         />
