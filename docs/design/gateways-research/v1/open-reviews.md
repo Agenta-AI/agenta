@@ -2,19 +2,21 @@
 
 ## Active review findings
 
-The record runs OR36 to OR85, fifty findings: forty-two closed, seven open and one withdrawn.
+The record runs OR36 to OR85, fifty findings: forty-three closed, six open and one withdrawn.
 Every number in that range is present. Entries numbered below OR36 predate the record and are
 all closed. Recounted from the headings on 2026-09-15, after several findings closed the same
 day.
 
-Seven findings are open: OR63, OR65 to OR68, OR76 and OR81. OR69 heads this section but
-counts as neither open nor closed; it was withdrawn on 2026-09-13, and its entry stays in place so
-the reading is not repeated.
+Six findings are open: OR63, OR65, OR66, OR68, OR76 and OR81. OR67 closed on 2026-09-15
+with the connect dialog's watch teardown. OR69 heads this section but counts as neither open nor
+closed; it was withdrawn on 2026-09-13, and its entry stays in place so the reading is not
+repeated.
 
 No P0 and no P1 remain. OR79, opened and closed on 2026-09-15, was the last P0 and OR80 the last
-P1. The highest severity open is P2, carried by OR76 alone. The other six carry no severity and
-are debt, each also tracked in `cleanups.md` as CU15 to CU20, which records why it is still open.
-None of them waits on a design decision, and OD24 to OD27 in `open-designs.md` are all decided.
+P1. The highest severity open is P2, carried by OR76 alone. The other five carry no severity
+and are debt, each also tracked in `cleanups.md` as CU15 to CU17, CU19 and CU20, which records why
+it is still open. CU18 closed with OR67. None of them waits on a design decision, and OD24 to
+OD27 in `open-designs.md` are all decided.
 
 Every open entry states the closure that would settle it and the test that would prove it. A
 finding that closes moves to the closed record below.
@@ -277,23 +279,6 @@ Closure: every refusal is recorded, a stream records its final status, and the r
 method, the tool and the usage fields. Proven by cases beside
 `api/oss/tests/pytest/unit/gateways/` asserting an audit record exists for a refused model, for a
 refused tool, and for a mid-stream failure with the failing status.
-
----
-
-### OR67. The MCP connect dialog leaks a message listener and an interval on every open
-
-Closing the connect dialog while the authorization popup is still open leaves a `message` listener
-and a polling interval behind, and every reopen adds another pair. Present in the branch as of
-2026-09-13.
-
-`web/oss/src/components/pages/settings/MCPEndpoints/MCPConnectDialog.tsx:126` registers the listener
-and `:128` starts the interval, both inside the `handleConnect` callback at `:69-143`. The `cleanup`
-function at `:93-99` runs only from the message handler or from the popup-closed poll. Neither fires
-when the dialog unmounts, and there is no `useEffect` teardown.
-
-Closure: the listener and the interval are torn down when the dialog unmounts. Proven by a case
-beside `web/oss/tests/` that opens and unmounts the dialog with the popup still open and asserts no
-listener and no interval remain.
 
 ---
 
@@ -690,6 +675,50 @@ stored under one public address followed by a connect from another registers aga
 carries the new address; an unchanged address reuses the registration it has, so a connect does not
 mint a client each time; and `registration_covers` itself accepts a trailing-slash difference while
 refusing a different host, a different scheme and a different path.
+
+---
+
+### OR67. The MCP connect dialog leaks a message listener and an interval on every open — CLOSED, and the watch now owns a teardown the dialog can hang off unmount
+
+**What the defect was.** Closing the connect dialog while the authorization popup was still open
+left a `message` listener and a polling interval behind, and every reopen added another pair. The
+entry was written against
+`web/oss/src/components/pages/settings/MCPEndpoints/MCPConnectDialog.tsx`; the dialog has since
+moved to `web/packages/agenta-entity-ui/src/mcpEndpoint/McpConnectDialog.tsx` and carried the defect
+with it. There the listener was added at `:138` and the interval started at `:140`, both inside the
+`handleConnect` callback, and the `cleanup` at `:105` ran only from the message handler or from the
+popup-closed poll. Neither fires on unmount, and the agent config row unmounts this dialog on close
+(`McpServerConnectAction.tsx:109`), which is the path that leaked.
+
+**The watch is a value now, so its teardown has somewhere to live.** The listener, the poll and a
+new timeout are started by `watchOauthConsent` in
+`web/packages/agenta-entities/src/mcpEndpoint/core/connectWatch.ts`, which returns an idempotent
+`stop()` releasing all three together. The dialog holds that `stop` in a ref and calls it from
+`useEffect(() => stopWatch, [stopWatch])` and from `handleClose`. Being a plain function rather than
+a closure inside a callback is what makes the teardown reachable from unmount, and what makes it
+testable without rendering React — the same reason `connectMessage.ts` was factored out.
+
+**Two further gaps closed with it, both taken from the integrations flow's own state machine.**
+There was no timeout backstop, so a popup abandoned on a provider's error page left the dialog
+waiting forever; `useConnectFlow.ts:426` has had one for exactly that reason, and the watch now
+terminates every attempt after 180 seconds. And the popup window name was the fixed string
+`"mcp_oauth"`, which lets a second attempt reuse — and so hijack — the first attempt's window;
+`useConnectFlow.ts:217` avoids this with a per-call name, and the dialog now generates one per
+instance. The trusted-origin set was also narrowed from three origins to the API origin alone, which
+is the only one that can legitimately post: the callback page is served by the API
+(`api/oss/src/apis/fastapi/gateways/mcps/router.py:459`).
+
+**What proves it.** `web/packages/agenta-entities/tests/unit/mcpConnectWatch.test.ts` asserts the
+watch attaches exactly one listener, one poll and one timeout, releases all three on `stop()` with
+the popup still open, is idempotent, delivers no outcome once stopped, and refuses both an untrusted
+origin and a completion naming a different endpoint. It also pins the behaviour the dialog already
+had right: a closed popup is a failure, never a success.
+`web/packages/agenta-entity-ui/tests/unit/mcpConnectDialog.unmount.test.tsx` covers the wiring the
+pure test cannot: it mounts the dialog, starts a connect, unmounts with the popup still open, and
+asserts the listener count balances and the interval was cleared, over three open/connect/close
+cycles. Removing the `useEffect` teardown fails two of those four cases.
+
+Tracked as CU18 in `cleanups.md`, now closed there too.
 
 ---
 
