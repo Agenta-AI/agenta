@@ -1,7 +1,15 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
-import {agentModelCandidatesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {
+    createToolConnection,
+    invalidateToolConnections,
+    useToolConnectionsQuery,
+} from "@agenta/entities/gatewayTool"
+import {
+    agentIconAtomFamily,
+    agentModelCandidatesAtomFamily,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 import {
     readHarnessKind,
     readModelId,
@@ -14,6 +22,8 @@ import {
     SubscriptionConnectionCard,
     providerIconFor,
 } from "@agenta/entity-ui/secretProvider"
+import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
+import {AGENT_ICON_COLORS, loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {ArrowSquareOut, Check, Coins} from "@phosphor-icons/react"
 import {App, Button, Modal, Spin} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -30,12 +40,26 @@ import {withOnboardingTools} from "./tools"
 import {useOnboardingExperiment} from "./useOnboardingExperiment"
 
 const BYOM_ICON_KEYS = ["openai", "anthropic", "gemini", "openrouter"]
+// One glyph per suggestion slot, mirroring the tiles on the suggestion cards.
+// Zero-auth Composio integrations every new workspace starts with.
+const SEED_TOOLS: [string, string][] = [
+    ["composio_search", "Composio Search"],
+    ["browser_tool", "Browser Tool"],
+]
+const TEMPLATE_GLYPHS = [
+    "git-pull-request",
+    "bug",
+    "lightning",
+    "chat-circle-dots",
+    "chart-line-up",
+]
 const OpenAIIcon = providerIconFor("openai")
 const AnthropicIcon = providerIconFor("anthropic")
 
 export default function OnboardingFlow() {
     const {message} = App.useApp()
-    const {connections: toolConnections} = useToolConnectionsQuery()
+    const {connections: toolConnections, isLoading: toolConnectionsLoading} =
+        useToolConnectionsQuery()
     const context = useOnboardingContext()
     const projectId = useAtomValue(projectIdAtom)
     const draftKey = projectId ? onboardingDraftKey(projectId) : undefined
@@ -62,6 +86,29 @@ export default function OnboardingFlow() {
     const chatgptReady = chatgptConnection?.subscription?.loginState === "ready"
     const keyConnections = candidates.connections.filter((item) => !item.subscription)
     const [chatgptOpen, setChatgptOpen] = useState(false)
+    const setAgentIcon = useSetAtom(agentIconAtomFamily(context.ephemeralId))
+
+    // Web search and a browser need no sign-in, so they connect silently on arrival,
+    // show as connected in place, and join the first agent like any other connection.
+    const seeded = useRef(false)
+    useEffect(() => {
+        if (seeded.current || toolConnectionsLoading) return
+        seeded.current = true
+        for (const [key, name] of SEED_TOOLS) {
+            if (toolConnections.some((item) => item.integration_key === key)) continue
+            void createToolConnection({
+                connection: {
+                    slug: generateDefaultSlug(name, randomAlphanumeric(3)),
+                    name,
+                    provider_key: "composio",
+                    integration_key: key,
+                    data: {},
+                },
+            })
+                .then(() => invalidateToolConnections())
+                .catch(() => {})
+        }
+    }, [toolConnectionsLoading, toolConnections])
 
     const setup = useOnboardingProviderSetup(context.ephemeralId, {gateActive: true})
     const {variant, posthog, enrolled} = useOnboardingExperiment()
@@ -157,6 +204,24 @@ export default function OnboardingFlow() {
                         $set: {user_role_v2: answers.role, referral_source_v2: answers.source},
                     })
                 }
+                onTemplate={(index) => {
+                    void loadAgentIconCatalog()
+                        .then((items) => {
+                            const glyph = items.find(
+                                (item) =>
+                                    item.name === TEMPLATE_GLYPHS[index % TEMPLATE_GLYPHS.length],
+                            )
+                            if (glyph)
+                                setAgentIcon({
+                                    icon: glyph.name,
+                                    path: glyph.path,
+                                    color: AGENT_ICON_COLORS[
+                                        (index + 1) % AGENT_ICON_COLORS.length
+                                    ][0],
+                                })
+                        })
+                        .catch(() => {})
+                }}
                 tools={(selectedIds, onChange) => (
                     <ConnectToolsStep selectedIds={selectedIds} onChange={onChange} />
                 )}
@@ -201,8 +266,16 @@ export default function OnboardingFlow() {
                             <p>Connect ChatGPT or add a provider key to run your first agent.</p>
                         )}
                         <p className="mb-3 mt-8 text-sm font-medium">
-                            Have a subscription? Use it instead{" "}
-                            <span className="font-normal text-colorTextSecondary">(optional)</span>
+                            {managedCandidate ? (
+                                <>
+                                    Have a subscription? Use it instead{" "}
+                                    <span className="font-normal text-colorTextSecondary">
+                                        (optional)
+                                    </span>
+                                </>
+                            ) : (
+                                "Run it on your subscription or your own key"
+                            )}
                         </p>
                         <div className="flex flex-col gap-3">
                             <div className={rowClass}>

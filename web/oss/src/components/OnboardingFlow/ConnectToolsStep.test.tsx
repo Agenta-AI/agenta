@@ -79,16 +79,18 @@ describe("onboarding app pagination", () => {
         render(<ConnectToolsStep selectedIds={[]} onChange={vi.fn()} />)
         expect(screen.getAllByRole("status")[0].textContent).toContain("Loading more apps")
     })
-    it("moves a newly connected app to the first grid position", () => {
+    it("keeps a newly connected app in its catalog position", () => {
         const view = render(<ConnectToolsStep selectedIds={[]} onChange={vi.fn()} />)
         state.connections = [
             {id: "new", slug: "new", integration_key: "app-8", name: "Connected account"},
         ]
         view.rerender(<ConnectToolsStep selectedIds={[]} onChange={vi.fn()} />)
-        expect(
-            screen
-                .getAllByRole("button")
-                .filter((button) => button.textContent?.startsWith("App"))[0].textContent,
-        ).toContain("App 8")
+        const cards = screen
+            .getAllByRole("button")
+            .filter((button) => button.textContent?.startsWith("App"))
+        expect(cards[0].textContent).toContain("App 0")
+        expect(cards.find((card) => card.textContent?.includes("App 8"))?.textContent).toContain(
+            "Connected",
+        )
     })
 })

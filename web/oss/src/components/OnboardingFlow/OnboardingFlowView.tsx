@@ -59,6 +59,8 @@ export interface OnboardingFlowViewProps {
     committing: boolean
     onCreate: (input: {name: string; seedMessage: string; connectionIds?: string[]}) => void
     onStep: (step: number, answers: {role: string; source: string}) => void
+    /** A suggestion was picked — the owner refreshes the agent's icon and color to match. */
+    onTemplate?: (index: number) => void
 }
 
 export default function OnboardingFlowView({
@@ -72,6 +74,7 @@ export default function OnboardingFlowView({
     committing,
     onCreate,
     onStep,
+    onTemplate,
 }: OnboardingFlowViewProps) {
     const draft = useMemo(() => readOnboardingDraft(draftKey), [draftKey])
     const [connectionIds, setConnectionIds] = useState(draft.connectionIds ?? [])
@@ -88,21 +91,21 @@ export default function OnboardingFlowView({
     const custom = templateKey === "__custom__"
     const selected = templates.find((item) => item.key === templateKey)
     const input = firstAgentInput(variant, name, task, templateKey)
-    const nextEnabled = step === 1 ? !!role : step === 2 ? !!source : step === 4 ? modelReady : true
+    const nextEnabled = step === 1 ? !!role : step === 3 ? modelReady : step === 4 ? !!source : true
     const title = [
         "",
         "What will you be working on most?",
-        "How did you hear about Agenta?",
         "What do you use every day?",
         "Choose how to run your agent",
+        "How did you hear about Agenta?",
         variant === "control" ? "Create your first agent" : "What would you like done first?",
     ][step]
     const subtitle = [
         "",
         "We'll suggest agents that fit how you work.",
-        "One pick is enough.",
-        "Connect the apps your agents should work in. Each one signs in on its own; add more any time.",
+        "Connect the apps your agents should work in.",
         "Use available credits, your ChatGPT subscription, or a provider key.",
+        "One pick is enough.",
         "Pick a starting point. You can change everything later.",
     ][step]
     const move = (next: number) => {
@@ -122,6 +125,7 @@ export default function OnboardingFlowView({
         step === 1
             ? [Code, Lightbulb, Target, Megaphone, Headset, GearSix, ChartBar, Briefcase, DotsThree]
             : [GithubLogo, MagnifyingGlass, Sparkle, XLogo, Users, Newspaper, RedditLogo, DotsThree]
+    const choiceStep = step === 1 || step === 4
     const tones = [
         "bg-[var(--ag-preset-purple-bg)] text-[var(--ag-preset-purple-text)]",
         "bg-[var(--ag-preset-cyan-bg)] text-[var(--ag-preset-cyan-text)]",
@@ -169,9 +173,9 @@ export default function OnboardingFlowView({
                 ))}
             </div>
             <div
-                className={`flex w-[92%] flex-col ${step === 5 ? "max-w-[1200px]" : step === 4 ? "max-w-[600px]" : "max-w-[700px]"}`}
+                className={`flex w-[92%] flex-col ${step === 5 ? "max-w-[1200px]" : step === 3 ? "max-w-[600px]" : "max-w-[700px]"}`}
             >
-                {step < 4 && (
+                {step !== 3 && step < 5 && (
                     <>
                         <h1 className="mb-2 mt-16 text-center text-[30px] font-semibold leading-tight">
                             {title}
@@ -181,7 +185,7 @@ export default function OnboardingFlowView({
                         </p>
                     </>
                 )}
-                {(step === 1 || step === 2) && (
+                {choiceStep && (
                     <div
                         className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${step === 1 ? "md:grid-cols-3" : ""}`}
                     >
@@ -217,9 +221,9 @@ export default function OnboardingFlowView({
                         })}
                     </div>
                 )}
-                {step === 3 &&
+                {step === 2 &&
                     (typeof tools === "function" ? tools(connectionIds, setConnectionIds) : tools)}
-                {step === 4 && <div className="mt-14">{model}</div>}
+                {step === 3 && <div className="mt-14">{model}</div>}
                 {step === 5 && variant === "control" && (
                     <>
                         <div className="flex min-h-[440px] flex-col items-center justify-center pt-6">
@@ -304,6 +308,7 @@ export default function OnboardingFlowView({
                                         onClick={() => {
                                             setTemplateKey(template.key)
                                             setTask("")
+                                            onTemplate?.(index)
                                         }}
                                     >
                                         <span className="flex items-center gap-2">
@@ -433,7 +438,7 @@ export default function OnboardingFlowView({
                             disabled={!nextEnabled}
                             onClick={() => move(step + 1)}
                         >
-                            {step === 4 ? modelNextLabel : "Next"}
+                            {step === 3 ? modelNextLabel : "Next"}
                         </Button>
                     )}
                 </footer>

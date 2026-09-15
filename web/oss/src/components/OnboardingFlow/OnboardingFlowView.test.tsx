@@ -61,9 +61,9 @@ const setup = (variant: "control" | "task-first" = "control", modelReady = true)
     )
     fireEvent.click(screen.getByRole("button", {name: "Engineering"}))
     fireEvent.click(screen.getByRole("button", {name: "Next"}))
+    fireEvent.click(screen.getByRole("button", {name: "Next"}))
+    fireEvent.click(screen.getByRole("button", {name: "Next"}))
     fireEvent.click(screen.getByRole("button", {name: "GitHub"}))
-    fireEvent.click(screen.getByRole("button", {name: "Next"}))
-    fireEvent.click(screen.getByRole("button", {name: "Next"}))
     return onCreate
 }
 
@@ -86,13 +86,13 @@ describe("first agent onboarding", () => {
         const first = render(<OnboardingFlowView {...props} />)
         fireEvent.click(screen.getByRole("button", {name: "Engineering"}))
         fireEvent.click(screen.getByRole("button", {name: "Next"}))
-        fireEvent.click(screen.getByRole("button", {name: "GitHub"}))
-        fireEvent.click(screen.getByRole("button", {name: "Next"}))
         first.unmount()
         const second = render(<OnboardingFlowView {...props} />)
         fireEvent.click(screen.getByRole("button", {name: "Select GitHub 0"}))
         expect(screen.getByRole("heading", {name: "What do you use every day?"})).toBeTruthy()
         fireEvent.click(screen.getByRole("button", {name: "Next"}))
+        fireEvent.click(screen.getByRole("button", {name: "Next"}))
+        fireEvent.click(screen.getByRole("button", {name: "GitHub"}))
         fireEvent.click(screen.getByRole("button", {name: "Next"}))
         fireEvent.change(screen.getByLabelText("Name"), {target: {value: "My agent"}})
 
@@ -112,7 +112,20 @@ describe("first agent onboarding", () => {
     })
 
     it("requires a runnable model before proceeding", () => {
-        setup("control", false)
+        render(
+            <OnboardingFlowView
+                variant="control"
+                tools={<p>Tools</p>}
+                model={<p>Models</p>}
+                modelReady={false}
+                committing={false}
+                onCreate={vi.fn()}
+                onStep={vi.fn()}
+            />,
+        )
+        fireEvent.click(screen.getByRole("button", {name: "Engineering"}))
+        fireEvent.click(screen.getByRole("button", {name: "Next"}))
+        fireEvent.click(screen.getByRole("button", {name: "Next"}))
         expect(screen.getByRole("button", {name: "Next"}).hasAttribute("disabled")).toBe(true)
     })
     it("creates A with the edited name and the selected template's first message", () => {

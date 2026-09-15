@@ -49,11 +49,10 @@ export default function ConnectToolsStep({
             .filter((item) => isConnectionActive(item) && isConnectionValid(item))
             .map((item) => item.integration_key),
     )
-    const sorted = [...catalog.integrations].sort(
-        (a, b) => Number(activeKeys.has(b.key)) - Number(activeKeys.has(a.key)),
-    )
+    // Cards keep their catalog position when they connect — no reshuffling underfoot.
+    const items = catalog.integrations
     const visible =
-        hasNextPage && !catalog.error ? sorted.slice(0, Math.floor(sorted.length / 3) * 3) : sorted
+        hasNextPage && !catalog.error ? items.slice(0, Math.floor(items.length / 3) * 3) : items
     return (
         <div>
             <Input.Search
@@ -118,7 +117,7 @@ export default function ConnectToolsStep({
                                                 ).length,
                                             })
                                         }}
-                                        className={`flex items-center justify-between gap-3 rounded-xl border border-solid p-4 text-left ${connected ? "border-colorSuccessBorder bg-colorSuccessBg" : "border-colorBorderSecondary bg-colorBgContainer hover:bg-colorFillQuaternary"}`}
+                                        className={`flex items-center justify-between gap-3 rounded-xl border border-solid p-4 text-left ${connected ? "border-colorSuccessBorder bg-colorBgContainer" : "border-colorBorderSecondary bg-colorBgContainer hover:bg-colorFillQuaternary"}`}
                                     >
                                         <span className="flex items-center gap-2 font-medium">
                                             {integration.logo && (
