@@ -2,7 +2,8 @@
  * DriveToolbar — row 2 of the Files pane ("what can I do with what I'm looking at"), in the
  * content column under row 1 ({@link DriveHeader}). Its contents follow the selection:
  *
- *   folder   — grid / list · Sort ▾ · ⋯ (New folder · New file · Upload files… · Download all)
+ *   folder   — grid / list · Sort ▾ · ⋯ (New folder · New file · Upload files… · Copy path ·
+ *              Download all)
  *   markdown — the formatting bar (portalled in by the editor) · Revert / Save while dirty ·
  *              save status · the Markdown / Plain text mode dropdown · ⋯ (Rename · Duplicate · Delete)
  *   other    — the type mark + the file name, renamed in place · save status while a code draft
@@ -33,13 +34,20 @@ import {
 import {
     CaretDown,
     CircleNotch,
+    CopySimple,
     DotsThreeVertical,
     DownloadSimple,
+    FilePlus,
+    FolderPlus,
+    LinkSimple,
     ListBullets,
+    PencilSimple,
     SortAscending,
     SquaresFour,
     TextAa,
     TextT,
+    Trash,
+    UploadSimple,
 } from "@phosphor-icons/react"
 
 import {ROW_ICON_BTN} from "./DriveHeader"
@@ -73,7 +81,9 @@ export interface DriveFileActions {
 export interface DriveFolderActions {
     onNewFolder: () => void
     onNewFile: () => void
+    /** Pick files — or, with files staged from a drop elsewhere, write those here. */
     onUpload: () => void
+    stagedCount?: number
 }
 
 export type DriveToolbarProps =
@@ -84,6 +94,8 @@ export type DriveToolbarProps =
           sort: DriveSortKey
           setSort: (sort: DriveSortKey) => void
           actions?: DriveFolderActions
+          /** Absent at the root (nothing to copy). */
+          onCopyPath?: () => void
           onDownloadAll?: () => void
           downloadingAll?: boolean
       }
@@ -96,6 +108,7 @@ export type DriveToolbarProps =
           status: DriveSaveStatus
           onRetry: () => void
           actions?: DriveFileActions
+          onCopyPath?: () => void
           onDownload?: () => void
       }
     | {
@@ -106,6 +119,7 @@ export type DriveToolbarProps =
           draft?: {status: DriveSaveStatus; onRetry: () => void}
           /** A muted line after the name — why the file isn't editable, say. */
           note?: string
+          onCopyPath?: () => void
           onDownload?: () => void
       }
 
@@ -133,10 +147,12 @@ const DraftStatus = ({status, onRetry}: {status: DriveSaveStatus; onRetry: () =>
 
 const FileActionsMenu = ({
     actions,
+    onCopyPath,
     onDownload,
 }: {
     actions?: DriveFileActions
-    /** The file's bytes — offered on a read-only mount too. */
+    /** Read-side actions — offered on a read-only mount too. */
+    onCopyPath?: () => void
     onDownload?: () => void
 }) => (
     <DropdownMenu>
@@ -156,11 +172,17 @@ const FileActionsMenu = ({
                 <DownloadSimple />
                 Download
             </DropdownMenuItem>
+            <DropdownMenuItem disabled={!onCopyPath} onSelect={onCopyPath}>
+                <LinkSimple />
+                Copy path
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={!actions} onSelect={actions?.onRename}>
+                <PencilSimple />
                 Rename
             </DropdownMenuItem>
             <DropdownMenuItem disabled={!actions} onSelect={actions?.onDuplicate}>
+                <CopySimple />
                 Duplicate
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -169,6 +191,7 @@ const FileActionsMenu = ({
                 onSelect={actions?.onDelete}
                 className="text-colorError focus:text-colorError"
             >
+                <Trash />
                 Delete
             </DropdownMenuItem>
         </DropdownMenuContent>
@@ -184,7 +207,8 @@ const Row = ({children}: {children: ReactNode}) => (
 
 export function DriveToolbar(props: DriveToolbarProps) {
     if (props.variant === "folder") {
-        const {view, setView, sort, setSort, actions, onDownloadAll, downloadingAll} = props
+        const {view, setView, sort, setSort, actions, onCopyPath, onDownloadAll, downloadingAll} =
+            props
         return (
             <Row>
                 <Tabs value={view} onValueChange={(v) => setView(v as DriveViewMode)}>
@@ -246,19 +270,29 @@ export function DriveToolbar(props: DriveToolbarProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-[180px]">
                         <DropdownMenuItem disabled={!actions} onSelect={actions?.onNewFolder}>
+                            <FolderPlus />
                             New folder
                         </DropdownMenuItem>
                         <DropdownMenuItem disabled={!actions} onSelect={actions?.onNewFile}>
+                            <FilePlus />
                             New file
                         </DropdownMenuItem>
                         <DropdownMenuItem disabled={!actions} onSelect={actions?.onUpload}>
-                            Upload files…
+                            <UploadSimple />
+                            {actions?.stagedCount
+                                ? `Upload ${actions.stagedCount} staged file${actions.stagedCount === 1 ? "" : "s"} here`
+                                : "Upload files…"}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
+                        <DropdownMenuItem disabled={!onCopyPath} onSelect={onCopyPath}>
+                            <LinkSimple />
+                            Copy path
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                             disabled={!onDownloadAll || downloadingAll}
                             onSelect={onDownloadAll}
                         >
+                            <DownloadSimple />
                             {downloadingAll ? "Preparing download…" : "Download all"}
                             <DropdownMenuShortcut>.zip</DropdownMenuShortcut>
                         </DropdownMenuItem>
@@ -269,7 +303,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
     }
 
     if (props.variant === "markdown") {
-        const {toolbarRef, mode, setMode, status, onRetry, actions, onDownload} = props
+        const {toolbarRef, mode, setMode, status, onRetry, actions, onCopyPath, onDownload} = props
         const rendered = mode === "rendered"
         return (
             <Row>
@@ -312,12 +346,12 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
-                <FileActionsMenu actions={actions} onDownload={onDownload} />
+                <FileActionsMenu actions={actions} onCopyPath={onCopyPath} onDownload={onDownload} />
             </Row>
         )
     }
 
-    const {path, actions, draft, note, onDownload} = props
+    const {path, actions, draft, note, onCopyPath, onDownload} = props
     return (
         <Row>
             <DriveInlineName
@@ -328,7 +362,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
             {note ? <span className="truncate pl-1 text-xs text-colorTextTertiary">{note}</span> : null}
             <span className="flex-1" />
             {draft ? <DraftStatus {...draft} /> : null}
-            <FileActionsMenu actions={actions} onDownload={onDownload} />
+            <FileActionsMenu actions={actions} onCopyPath={onCopyPath} onDownload={onDownload} />
         </Row>
     )
 }

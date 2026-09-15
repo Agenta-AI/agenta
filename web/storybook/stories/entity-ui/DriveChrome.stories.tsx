@@ -41,8 +41,6 @@ const headerBase = {
     onForward: noop,
     copyText,
     ids: [],
-    onDownload: noop,
-    onUpload: noop,
     showOrigin: true,
     showTemporary: false,
     onToggleTemporary: noop,
@@ -74,7 +72,6 @@ export const Row1: Story = {
                     {...headerBase}
                     selectedPath="agent-files/article.md"
                     isFolder={false}
-                    fileSize={6963}
                 />
             </Frame>
             <Frame>
