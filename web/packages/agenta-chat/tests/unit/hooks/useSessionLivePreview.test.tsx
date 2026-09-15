@@ -785,7 +785,9 @@ describe("useSessionLivePreview", () => {
             document.dispatchEvent(new Event("visibilitychange"))
         })
         await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(2))
-        expect(result.current.messages[0].parts).toEqual([{type: "text", state: "streaming", text: "Live prefix"}])
+        expect(result.current.messages[0].parts).toEqual([
+            {type: "text", state: "streaming", text: "Live prefix"},
+        ])
         const second = mocks.connectSessionLiveEvents.mock.calls[1][0]
         expect(second.after).toBe(1)
         act(() => emit(second, 5, "text-delta", {delta: " continues"}, "text-2"))
