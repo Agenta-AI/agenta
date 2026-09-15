@@ -16,7 +16,11 @@ from oss.src.core.gateways.dtos import (
     forwardable_request_headers,
 )
 from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMProtocol
-from oss.src.core.gateways.types import GatewayEndpointInactiveError
+from oss.src.core.gateways.types import (
+    GatewayEndpointInactiveError,
+    GatewayPlaneDisabledError,
+    LLMGatewayDisabledError,
+)
 from oss.src.core.gateways.llms.types import (
     LLMAdapterNotFoundError,
     LLMEndpointNotFoundError,
@@ -33,6 +37,7 @@ from oss.src.core.gateways.policy.types import (
     PolicyDeniedError,
 )
 from oss.src.utils.context import get_auth_scope
+from oss.src.utils.env import env
 
 if TYPE_CHECKING:
     from oss.src.core.gateways.llms.service import LLMGatewayService
@@ -44,6 +49,7 @@ if TYPE_CHECKING:
 _forward_inbound_headers = forwardable_request_headers
 
 _DOMAIN_EXCEPTIONS = (
+    GatewayPlaneDisabledError,
     GatewayEndpointInactiveError,
     LLMAdapterNotFoundError,
     PolicyDeniedError,
@@ -76,6 +82,13 @@ def _openai_error(
 
 def _map_domain_exception(exc: Exception) -> JSONResponse:
     """Map gateway failures to OpenAI-compatible error responses."""
+    if isinstance(exc, GatewayPlaneDisabledError):
+        return _openai_error(
+            status_code=403,
+            message=exc.message,
+            error_type="invalid_request_error",
+            code=exc.code,
+        )
     if isinstance(exc, (PolicyDeniedError, EntitlementDeniedError)):
         return _openai_error(
             status_code=403,
@@ -346,6 +359,11 @@ class LLMGatewayProxy:
         parser: Callable[..., LLMCallContext],
         protocol: LLMProtocol,
     ) -> Response:
+        # Checked before the body is read: with the plane off there is nothing to relay to,
+        # and a harness that pointed at this base URL needs the refusal, not a parse error.
+        if not env.llm_gateway.enabled:
+            return _map_domain_exception(LLMGatewayDisabledError())
+
         scope = get_auth_scope()
         raw_body = await request.body()
 
@@ -412,6 +430,9 @@ class LLMGatewayProxy:
         # Any, not Dict[str, Any]: the success path returns the OpenAI list body,
         # the denial path returns a JSONResponse — FastAPI passes a Response
         # instance through unprocessed either way.
+        if not env.llm_gateway.enabled:
+            return _map_domain_exception(LLMGatewayDisabledError())
+
         scope = get_auth_scope()
 
         try:

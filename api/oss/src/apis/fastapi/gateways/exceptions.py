@@ -5,7 +5,10 @@ from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, status
 
-from oss.src.core.gateways.types import GatewayEndpointInactiveError
+from oss.src.core.gateways.types import (
+    GatewayEndpointInactiveError,
+    GatewayPlaneDisabledError,
+)
 from oss.src.core.gateways.llms.types import (
     LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
@@ -71,6 +74,22 @@ def gateway_error_envelope(
     return envelope
 
 
+def plane_disabled_envelope(exc: GatewayPlaneDisabledError) -> Dict[str, Any]:
+    """The one rendering of a switched-off plane, shared by every surface that refuses one.
+
+    The control plane sends it as the HTTP `detail`; the two data planes translate the same
+    code and message into their own protocol shape. Keeping the strings on the exception and
+    the assembly here is what stops the three surfaces from naming the same refusal three
+    different ways, which is what a fallback in the SDK would then have to match three ways.
+    """
+    return gateway_error_envelope(
+        code=exc.code,
+        message=exc.message,
+        next_step=exc.next_step,
+        details={"flag": exc.flag},
+    )
+
+
 def _target_of(exc) -> str:
     """The `namespace/name` path an endpoint error names, for the envelope's `details`."""
     namespace = getattr(exc, "namespace", None)
@@ -107,6 +126,11 @@ def handle_gateway_exceptions():
                         ),
                         details={"target": _target_of(e)},
                     ),
+                ) from e
+            except GatewayPlaneDisabledError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=plane_disabled_envelope(e),
                 ) from e
             except GatewayEndpointInactiveError as e:
                 raise HTTPException(
