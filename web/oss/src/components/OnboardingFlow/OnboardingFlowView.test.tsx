@@ -94,7 +94,7 @@ describe("first agent onboarding", () => {
         expect(screen.getByRole("heading", {name: "What do you use every day?"})).toBeTruthy()
         fireEvent.click(screen.getByRole("button", {name: "Next"}))
         fireEvent.click(screen.getByRole("button", {name: "Next"}))
-        fireEvent.change(screen.getByLabelText("Agent name"), {target: {value: "My agent"}})
+        fireEvent.change(screen.getByLabelText("Name"), {target: {value: "My agent"}})
 
         second.unmount()
         const third = render(<OnboardingFlowView {...props} />)
@@ -124,7 +124,7 @@ describe("first agent onboarding", () => {
                 .hasAttribute("disabled"),
         ).toBe(true)
         fireEvent.click(screen.getByRole("button", {name: /PR reviewer/}))
-        fireEvent.change(screen.getByLabelText("Agent name"), {target: {value: "My reviewer"}})
+        fireEvent.change(screen.getByLabelText("Name"), {target: {value: "My reviewer"}})
         fireEvent.click(screen.getByRole("button", {name: /Get started|Set up this agent/}))
         expect(onCreate).toHaveBeenCalledWith({
             name: "My reviewer",

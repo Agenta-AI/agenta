@@ -34,6 +34,13 @@ import {
 } from "./choices"
 import {readOnboardingDraft, saveOnboardingDraft} from "./draft"
 
+const Radio = ({active}: {active: boolean}) => (
+    <span
+        aria-hidden
+        className={`ml-auto size-4 shrink-0 rounded-full border-solid ${active ? "border-[5px] border-colorText" : "border border-colorBorderSecondary"}`}
+    />
+)
+
 export interface OnboardingFlowViewProps {
     draftKey?: string
     variant: OnboardingVariant
@@ -71,6 +78,7 @@ export default function OnboardingFlowView({
         saveOnboardingDraft(draftKey, {step, role, source, name, task, templateKey, connectionIds})
     }, [draftKey, step, role, source, name, task, templateKey, connectionIds])
     const templates = suggestionsForRole(role)
+    const custom = templateKey === "__custom__"
     const selected = templates.find((item) => item.key === templateKey)
     const input = firstAgentInput(variant, name, task, templateKey)
     const nextEnabled = step === 1 ? !!role : step === 2 ? !!source : step === 4 ? modelReady : true
@@ -212,7 +220,7 @@ export default function OnboardingFlowView({
                                 <Robot size={96} weight="fill" className="mb-6 text-colorPrimary" />
                             )}
                             <label className="flex w-full max-w-[440px] flex-col gap-2 text-sm text-colorTextSecondary">
-                                Agent name
+                                Name
                                 <Input
                                     size="large"
                                     value={name}
@@ -277,7 +285,7 @@ export default function OnboardingFlowView({
                                 Pick a task and see what you'll get. We'll build the agent for it.
                             </p>
                             <div className="flex flex-col gap-2">
-                                {templates.map((template) => (
+                                {templates.map((template, index) => (
                                     <button
                                         type="button"
                                         key={template.key}
@@ -288,41 +296,53 @@ export default function OnboardingFlowView({
                                             setTask("")
                                         }}
                                     >
-                                        <strong className="block">
-                                            {taskTitles[template.name] ??
-                                                template.example?.prompt ??
-                                                template.name}
-                                        </strong>
-                                        <span className="mt-1 block text-xs text-colorTextSecondary">
-                                            {template.description}
-                                        </span>
-                                        <span className="mt-2 flex gap-1">
+                                        <span className="flex items-center gap-2">
+                                            <strong>
+                                                {taskTitles[template.name] ??
+                                                    template.example?.prompt ??
+                                                    template.name}
+                                            </strong>
                                             {template.logoSlugs?.map((slug) => (
                                                 <Image
                                                     key={slug}
                                                     src={`https://logos.composio.dev/api/${slug}`}
                                                     alt={slug}
-                                                    width={16}
-                                                    height={16}
+                                                    width={14}
+                                                    height={14}
                                                     unoptimized
                                                 />
                                             ))}
+                                            {index === 0 && (
+                                                <span className="rounded bg-colorInfoBg px-1.5 py-0.5 text-[11px] text-colorInfo">
+                                                    Recommended
+                                                </span>
+                                            )}
+                                            <Radio active={templateKey === template.key} />
+                                        </span>
+                                        <span className="mt-1 block text-xs text-colorTextSecondary">
+                                            {template.description}
                                         </span>
                                     </button>
                                 ))}
                                 <button
                                     type="button"
-                                    className={choiceClass(!templateKey)}
-                                    aria-pressed={!templateKey}
+                                    className={choiceClass(custom)}
+                                    aria-pressed={custom}
                                     onClick={() => {
-                                        setTemplateKey(null)
+                                        setTemplateKey("__custom__")
                                         setTask("")
                                     }}
                                 >
-                                    Something else
+                                    <span className="flex items-center gap-2">
+                                        <strong>Something else</strong>
+                                        <Radio active={custom} />
+                                    </span>
+                                    <span className="mt-1 block text-xs text-colorTextSecondary">
+                                        Describe it in your own words.
+                                    </span>
                                 </button>
                             </div>
-                            {!templateKey && (
+                            {custom && (
                                 <label className="mt-4 flex flex-col gap-2">
                                     What would you like it to do?
                                     <Input.TextArea
@@ -335,19 +355,30 @@ export default function OnboardingFlowView({
                             )}
                         </div>
                         <aside className="border-0 md:border-l md:border-solid md:border-colorBorderSecondary md:pl-8">
-                            <p className="mb-4 text-sm text-colorTextSecondary">
-                                Agent we'll create
+                            <p className="mb-4 flex items-center gap-2 text-sm text-colorTextSecondary">
+                                <Robot size={16} /> Agent we'll create
                             </p>
                             <div className="flex items-center gap-3">
-                                <Robot size={40} weight="fill" className="text-colorPrimary" />
-                                <h2 className="text-lg font-semibold">
-                                    {selected?.name ?? "Your first agent"}
-                                </h2>
+                                <span
+                                    className={`flex h-10 w-10 items-center justify-center rounded-lg ${selected ? "bg-colorText text-colorBgContainer" : "bg-colorFillTertiary text-colorTextSecondary"}`}
+                                >
+                                    <Robot size={22} weight="fill" />
+                                </span>
+                                <span>
+                                    <h2 className="text-lg font-semibold leading-tight">
+                                        {selected?.name ?? "—"}
+                                    </h2>
+                                    <span className="text-sm text-colorTextSecondary">
+                                        {selected?.description ?? "Pick a task on the left"}
+                                    </span>
+                                </span>
                             </div>
-                            <p className="mt-3 text-colorTextSecondary">
-                                {selected?.description ??
-                                    "Select a task to preview the agent and an example run."}
-                            </p>
+                            {!selected && !custom && (
+                                <div className="mt-6 flex flex-col items-center gap-2 rounded-xl border border-solid border-colorBorderSecondary px-6 py-10 text-center text-sm text-colorTextSecondary">
+                                    <Sparkle size={18} />
+                                    Select a task to preview the agent and an example run.
+                                </div>
+                            )}
                             {selected?.example && (
                                 <div className="mt-6 rounded-xl border border-solid border-colorBorderSecondary p-4">
                                     <h3 className="text-sm font-semibold">Example run</h3>
@@ -368,11 +399,13 @@ export default function OnboardingFlowView({
                                     <p className="text-sm">{selected.example.reply}</p>
                                 </div>
                             )}
-                            <div className="mt-6">{createButton}</div>
+                            <div className="mt-6 flex justify-end">{createButton}</div>
                         </aside>
                     </div>
                 )}
-                <footer className="mt-10 flex items-center justify-between gap-4 border-0">
+                <footer
+                    className={`mt-10 flex items-center gap-4 border-0 ${step === 5 ? "justify-center" : "justify-between"}`}
+                >
                     <Button
                         type="text"
                         icon={<ArrowLeft />}

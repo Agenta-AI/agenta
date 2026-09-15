@@ -19,6 +19,19 @@ afterEach(() => {
     analytics.client = null
 })
 describe("onboarding experiment", () => {
+    it("previews a forced variant without enrolling", () => {
+        window.history.replaceState(null, "", "?onboarding-variant=task-first")
+        analytics.client = {
+            getFeatureFlag: vi.fn(() => "control"),
+            capture: vi.fn(),
+            onFeatureFlags: vi.fn(),
+        }
+        const {result} = renderHook(() => useOnboardingExperiment())
+        expect(result.current.variant).toBe("task-first")
+        expect(result.current.enrolled).toBe(false)
+        expect(analytics.client.capture).not.toHaveBeenCalled()
+        window.history.replaceState(null, "", "/")
+    })
     it.each(["control", "task-first"])("uses the PostHog %s assignment", (variant) => {
         analytics.client = {
             getFeatureFlag: vi.fn(() => variant),

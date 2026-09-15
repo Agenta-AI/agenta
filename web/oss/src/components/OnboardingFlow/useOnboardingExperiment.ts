@@ -11,6 +11,14 @@ export function useOnboardingExperiment() {
     const [enrolled, setEnrolled] = useState(false)
     useEffect(() => {
         if (assigned.current) return
+        // A `?onboarding-variant=` preview shows either track without enrolling
+        // the visitor — for design review, QA, and demos.
+        const forced = new URLSearchParams(window.location.search).get("onboarding-variant")
+        if (forced === "control" || forced === "task-first") {
+            assigned.current = true
+            setVariant(forced)
+            return
+        }
         const assign = () => {
             if (assigned.current) return true
             const value = posthog?.getFeatureFlag(ONBOARDING_EXPERIMENT)
