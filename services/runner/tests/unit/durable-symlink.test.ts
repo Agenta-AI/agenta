@@ -160,7 +160,10 @@ describe("ensureDurableSymlink (injected failures)", () => {
       "/tmp/tgt",
       "thing",
       {
-        lstat: (async () => ({ isSymbolicLink: () => false })) as never,
+        lstat: (async () => ({
+          isSymbolicLink: () => false,
+          isDirectory: () => false,
+        })) as never,
         unlink: (async (path: string) => {
           calls.push(["unlink", path]);
           throw Object.assign(new Error("busy"), { code: "EBUSY" });
@@ -191,7 +194,10 @@ describe("ensureDurableSymlink (injected failures)", () => {
       "/tmp/tgt",
       "thing",
       {
-        lstat: (async () => ({ isSymbolicLink: () => false })) as never,
+        lstat: (async () => ({
+          isSymbolicLink: () => false,
+          isDirectory: () => false,
+        })) as never,
         unlink: (async () => {
           throw Object.assign(new Error("busy"), { code: "EBUSY" });
         }) as never,
@@ -216,7 +222,10 @@ describe("ensureDurableSymlink (injected failures)", () => {
       "/tmp/tgt",
       "thing",
       {
-        lstat: (async () => ({ isSymbolicLink: () => false })) as never,
+        lstat: (async () => ({
+          isSymbolicLink: () => false,
+          isDirectory: () => false,
+        })) as never,
         unlink: (async () => {}) as never,
         symlink: (async () => {
           throw Object.assign(new Error("exists"), { code: "EEXIST" });
