@@ -9,7 +9,13 @@ import {
 } from "@agenta/entity-ui/drive"
 import {code} from "@streamdown/code"
 import {math} from "@streamdown/math"
-import {defaultRehypePlugins, Streamdown, type Components, type ThemeInput} from "streamdown"
+import {
+    defaultRehypePlugins,
+    Streamdown,
+    type Components,
+    type IconMap,
+    type ThemeInput,
+} from "streamdown"
 
 /** Host-supplied renderer for a code span / relative href that may name an agent file. */
 export interface ChatMarkdownLinkResolver {
@@ -154,6 +160,12 @@ export interface ChatMarkdownProps {
     streaming?: boolean
     /** Without it, code spans and relative links render plain. */
     useLinkResolver?: UseChatMarkdownLinkResolver
+    /**
+     * Streamdown's control glyphs (the fence's copy / copied pair, chiefly). Module-scope on the
+     * host, so the identity is stable across streamed tokens; a host may render a label beside
+     * the glyph here, since the copy button itself never does.
+     */
+    icons?: Partial<IconMap>
 }
 
 /**
@@ -172,6 +184,7 @@ const ChatMarkdown = ({
     className,
     streaming = false,
     useLinkResolver,
+    icons,
 }: ChatMarkdownProps) => (
     <LinkResolverContext.Provider value={useLinkResolver ?? null}>
         <Streamdown
@@ -182,6 +195,7 @@ const ChatMarkdown = ({
             rehypePlugins={MD_REHYPE_PLUGINS}
             plugins={MD_PLUGINS}
             controls={MD_CONTROLS}
+            icons={icons}
             shikiTheme={SHIKI_THEMES}
             lineNumbers={false}
             mode={streaming ? "streaming" : "static"}

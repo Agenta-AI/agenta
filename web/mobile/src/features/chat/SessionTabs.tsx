@@ -166,7 +166,11 @@ export const SessionTabs = ({
                                 onClick={toggleFiles}
                                 className={`h-7 w-7 shrink-0 p-0 ${filesOpen ? "text-foreground" : "text-muted-foreground"}`}
                             >
-                                {filesOpen ? <PanelRightClose size={14} /> : <PanelRight size={14} />}
+                                {filesOpen ? (
+                                    <PanelRightClose size={14} />
+                                ) : (
+                                    <PanelRight size={14} />
+                                )}
                             </Button>
                         </SimpleTooltip>
                     </>
