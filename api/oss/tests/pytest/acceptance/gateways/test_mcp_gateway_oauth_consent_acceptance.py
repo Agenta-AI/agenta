@@ -76,6 +76,47 @@ def _on_host(url: str) -> str:
     return _PUBLISHED_MOCK_URL + url[len(_MCP_MOCK_URL) :]
 
 
+_CALLBACK_PATH = "/gateways/mcps/connect/callback"
+
+
+def _on_api_host(browser: "_Browser", url: str) -> str:
+    """Check the callback the gateway minted, then dial it where this process can.
+
+    The gateway builds its `redirect_uri` from `AGENTA_API_URL`, the address it is reached
+    at publicly, which is not necessarily the address this process drives: a stack behind a
+    tunnel answers on both. Asserting the route rather than the host keeps the check honest
+    without pinning the suite to one of the two, the same bargain `_on_host` strikes for the
+    mock.
+    """
+    parsed = urlparse(url)
+    assert parsed.path.endswith(_CALLBACK_PATH), url
+    return f"{browser.api_url}{_CALLBACK_PATH}?{parsed.query}"
+
+
+def _is_loopback(url: str) -> bool:
+    return (urlparse(url).hostname or "").lower() in ("127.0.0.1", "localhost", "::1")
+
+
+def _trust_session_cookies_over_loopback(session: requests.Session) -> None:
+    """Let a `Secure` session cookie travel to a loopback address, as a browser does.
+
+    SuperTokens marks its session cookie `Secure` whenever `AGENTA_API_URL` is https —
+    `core/auth/supertokens/config.py` derives `api_domain` from it — which is the case on
+    any stack fronted by a tunnel. `http.cookiejar` then refuses to send that cookie over
+    plain http, so this suite could not hold a session against the stack's own direct
+    address even though it is the same stack: the API key request answered `401` and every
+    test here errored in the fixture before reaching the mock.
+
+    Browsers treat `127.0.0.1` and `localhost` as secure contexts and do send the cookie
+    there, so clearing the flag for loopback restores the behaviour the suite models rather
+    than weakening it. Setting the jar's policy would not work: `requests` rebuilds the jar
+    for each request and the replacement carries the default policy, so the flag has to come
+    off the stored cookie itself.
+    """
+    for cookie in session.cookies:
+        cookie.secure = False
+
+
 class _Browser:
     """One signed-in browser: a SuperTokens session, plus that user's own API key.
 
@@ -83,6 +124,13 @@ class _Browser:
     OAuth callback want the session — the callback refuses a browser with no Agenta
     session, which is the whole point of `resolve_session_user_id`. The data plane reads
     `X-AG-Credentials` and nothing else (D31), so the relay call carries the API key.
+
+    The account is created through `/auth/signup` rather than through the admin fixtures in
+    `utils/accounts.py`, and that is deliberate. Those fixtures mint an account with an API
+    key and no password, and an API key cannot stand in here: the callback names its caller
+    through `resolve_session_user_id`, which reads the session cookie alone, and
+    `MCPOAuthConnectService.claim` refuses a caller of `None`. A session is the one
+    credential this flow cannot do without.
     """
 
     def __init__(self, *, api_url: str) -> None:
@@ -108,6 +156,8 @@ class _Browser:
             f"callback: {signup.status_code} {signup.text}"
         )
         assert "sAccessToken" in self.session.cookies, signup.headers
+        if _is_loopback(self.api_url):
+            _trust_session_cookies_over_loopback(self.session)
 
         key = self.session.post(f"{self.api_url}/keys/", timeout=BASE_TIMEOUT)
         assert key.status_code == 200, key.text
@@ -241,11 +291,12 @@ def test_the_consent_flow_issues_a_grant_the_relay_presents_to_the_mock_server(
     )
     assert authorized.status_code == 302, authorized.text
     callback_url = authorized.headers["location"]
-    assert callback_url.startswith(f"{browser.api_url}/gateways/mcps/connect/callback")
     assert parse_qs(urlparse(callback_url).query)["state"] == query["state"]
 
     # The callback: claim the attempt, exchange the code, write the grant.
-    callback = browser.session.get(callback_url, timeout=BASE_TIMEOUT)
+    callback = browser.session.get(
+        _on_api_host(browser, callback_url), timeout=BASE_TIMEOUT
+    )
     assert callback.status_code == 200, callback.text
     assert '"success": true' in callback.text
 
