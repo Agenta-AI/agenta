@@ -34,7 +34,9 @@ const modes = pricing.hostingToggle.options
   .map((option) =>
     mode(
       `${option.label} ${option.sublabel}`,
-      pricing.plansByMode[option.mode as keyof typeof pricing.plansByMode] as Plan[],
+      pricing.plansByMode[
+        option.mode as keyof typeof pricing.plansByMode
+      ] as Plan[],
     ),
   )
   .join("\n\n");

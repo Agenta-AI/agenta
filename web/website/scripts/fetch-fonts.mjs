@@ -50,7 +50,9 @@ function missingFonts() {
 
 // ── 1. already present ─────────────────────────────────────────────────────────
 if (missingFonts().length === 0) {
-  console.log("[fetch-fonts] all licensed fonts already present, nothing to do.");
+  console.log(
+    "[fetch-fonts] all licensed fonts already present, nothing to do.",
+  );
   process.exit(0);
 }
 
@@ -119,7 +121,9 @@ function sigv4Headers(url, accessKeyId, secretAccessKey) {
   const kRegion = hmac(kDate, region);
   const kService = hmac(kRegion, service);
   const kSigning = hmac(kService, "aws4_request");
-  const signature = createHmac("sha256", kSigning).update(stringToSign).digest("hex");
+  const signature = createHmac("sha256", kSigning)
+    .update(stringToSign)
+    .digest("hex");
 
   const authorization =
     `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${scope}, ` +
@@ -142,18 +146,24 @@ if (endpoint && accessKeyId && secretAccessKey) {
         headers: sigv4Headers(url, accessKeyId, secretAccessKey),
       });
       if (!res.ok) {
-        console.warn(`[fetch-fonts] R2 GET ${f} → HTTP ${res.status}; skipping.`);
+        console.warn(
+          `[fetch-fonts] R2 GET ${f} → HTTP ${res.status}; skipping.`,
+        );
         continue;
       }
       const buf = Buffer.from(await res.arrayBuffer());
       writeFileSync(join(fontsDir, f), buf);
       downloaded += 1;
     } catch (err) {
-      console.warn(`[fetch-fonts] R2 GET ${f} failed: ${err.message}; skipping.`);
+      console.warn(
+        `[fetch-fonts] R2 GET ${f} failed: ${err.message}; skipping.`,
+      );
     }
   }
   if (downloaded > 0) {
-    console.log(`[fetch-fonts] downloaded ${downloaded} font(s) from R2 bucket ${bucket}.`);
+    console.log(
+      `[fetch-fonts] downloaded ${downloaded} font(s) from R2 bucket ${bucket}.`,
+    );
   }
 }
 
@@ -163,7 +173,7 @@ if (stillMissing.length > 0) {
   console.warn(
     `[fetch-fonts] ${stillMissing.length}/${FONTS.length} licensed font(s) unavailable ` +
       "(no local dir, no R2 creds, or fetch failed) — the site will render with system " +
-      "serif/mono fallbacks. This is expected for forks/CI without the R2 secret."
+      "serif/mono fallbacks. This is expected for forks/CI without the R2 secret.",
   );
 }
 

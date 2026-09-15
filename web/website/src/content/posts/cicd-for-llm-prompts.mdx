@@ -39,7 +39,64 @@ A prompt CI/CD pipeline solves both problems. It gives you deployment safety (ve
 
 The stages of a CI/CD pipeline are the same whether you’re shipping code or prompts. The difference is in what happens at each stage.
 
-<table><tbody><tr><th>Stage</th><th>Code CI/CD</th><th>Prompt CI/CD</th></tr><tr><td><strong>Author</strong></td><td>Write code in an IDE</td><td>Write prompts in a playground or management UI</td></tr><tr><td><strong>Version</strong></td><td>Git commits and branches</td><td>Prompt versions and variants</td></tr><tr><td><strong>Test</strong></td><td>Unit tests, integration tests</td><td>Evaluation against test sets (automated scoring)</td></tr><tr><td><strong>Review</strong></td><td>Pull request, code review</td><td>Side-by-side comparison of prompt versions, human review</td></tr><tr><td><strong>Stage</strong></td><td>Deploy to staging environment</td><td>Deploy prompt to staging environment</td></tr><tr><td><strong>Release</strong></td><td>Deploy to production</td><td>Deploy prompt to production environment</td></tr><tr><td><strong>Monitor</strong></td><td>APM, error tracking</td><td>LLM observability (cost, latency, output quality per version)</td></tr></tbody></table>
+<table>
+  <tbody>
+    <tr>
+      <th>Stage</th>
+      <th>Code CI/CD</th>
+      <th>Prompt CI/CD</th>
+    </tr>
+    <tr>
+      <td>
+        <strong>Author</strong>
+      </td>
+      <td>Write code in an IDE</td>
+      <td>Write prompts in a playground or management UI</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Version</strong>
+      </td>
+      <td>Git commits and branches</td>
+      <td>Prompt versions and variants</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Test</strong>
+      </td>
+      <td>Unit tests, integration tests</td>
+      <td>Evaluation against test sets (automated scoring)</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Review</strong>
+      </td>
+      <td>Pull request, code review</td>
+      <td>Side-by-side comparison of prompt versions, human review</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Stage</strong>
+      </td>
+      <td>Deploy to staging environment</td>
+      <td>Deploy prompt to staging environment</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Release</strong>
+      </td>
+      <td>Deploy to production</td>
+      <td>Deploy prompt to production environment</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Monitor</strong>
+      </td>
+      <td>APM, error tracking</td>
+      <td>LLM observability (cost, latency, output quality per version)</td>
+    </tr>
+  </tbody>
+</table>
 
 The biggest difference is in the authoring and testing stages. Code is written in an IDE and tested with deterministic assertions. Prompts are written in a playground where you can test variations interactively, and they’re evaluated with scoring functions that account for non-deterministic outputs.
 
@@ -97,7 +154,64 @@ When a prompt is deployed in the management system, a webhook triggers a CI job 
 
 Here is a comparison:
 
-<table><tbody><tr><th></th><th>Live Fetching</th><th>Proxy/Gateway</th><th>CI/CD Webhooks</th></tr><tr><td><strong>Source of truth</strong></td><td>Prompt management system</td><td>Prompt management system</td><td>Git repository</td></tr><tr><td><strong>Deploy speed</strong></td><td>Instant (on next fetch)</td><td>Instant</td><td>Minutes (PR + merge + deploy)</td></tr><tr><td><strong>Code change required</strong></td><td>No</td><td>No</td><td>Yes (automated PR)</td></tr><tr><td><strong>Observability</strong></td><td>Manual setup needed</td><td>Automatic</td><td>Manual setup needed</td></tr><tr><td><strong>Added latency</strong></td><td>None (with caching)</td><td>~300ms per call</td><td>None</td></tr><tr><td><strong>Best for</strong></td><td>Fast iteration teams</td><td>Simple integration</td><td>Regulated / Git-first teams</td></tr></tbody></table>
+<table>
+  <tbody>
+    <tr>
+      <th></th>
+      <th>Live Fetching</th>
+      <th>Proxy/Gateway</th>
+      <th>CI/CD Webhooks</th>
+    </tr>
+    <tr>
+      <td>
+        <strong>Source of truth</strong>
+      </td>
+      <td>Prompt management system</td>
+      <td>Prompt management system</td>
+      <td>Git repository</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Deploy speed</strong>
+      </td>
+      <td>Instant (on next fetch)</td>
+      <td>Instant</td>
+      <td>Minutes (PR + merge + deploy)</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Code change required</strong>
+      </td>
+      <td>No</td>
+      <td>No</td>
+      <td>Yes (automated PR)</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Observability</strong>
+      </td>
+      <td>Manual setup needed</td>
+      <td>Automatic</td>
+      <td>Manual setup needed</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Added latency</strong>
+      </td>
+      <td>None (with caching)</td>
+      <td>~300ms per call</td>
+      <td>None</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Best for</strong>
+      </td>
+      <td>Fast iteration teams</td>
+      <td>Simple integration</td>
+      <td>Regulated / Git-first teams</td>
+    </tr>
+  </tbody>
+</table>
 
 ## Building a CI/CD pipeline for prompts: step by step
 

@@ -39,7 +39,7 @@ const rules = [
     allow: ["styles/global.css"],
   },
   {
-    name: "old blog chrome override (removed; use <Section tone=\"flat\">)",
+    name: 'old blog chrome override (removed; use <Section tone="flat">)',
     re: /th-page-white|whiteChrome/,
     allow: [],
   },
@@ -96,9 +96,13 @@ for (const file of walk(root)) {
 }
 
 if (failures.length) {
-  console.error("check-ui-primitives: the following lines re-draw a shared primitive:\n");
+  console.error(
+    "check-ui-primitives: the following lines re-draw a shared primitive:\n",
+  );
   for (const f of failures) console.error("  " + f);
-  console.error("\nUse the component instead (Section, Badge, Button) or add the file to the allow list with a reason.");
+  console.error(
+    "\nUse the component instead (Section, Badge, Button) or add the file to the allow list with a reason.",
+  );
   process.exit(1);
 }
 console.log(`check-ui-primitives: ok (${rules.length} rules)`);

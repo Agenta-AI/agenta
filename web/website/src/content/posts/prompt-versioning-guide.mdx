@@ -111,7 +111,65 @@ Both approaches (Git and custom databases) solve part of the problem. Neither so
 
 ### Git vs. Dedicated Prompt Versioning System
 
-<table><tbody><tr><th>Capability</th><th>Git</th><th>Dedicated system</th></tr><tr><td>Version history</td><td>Yes (diffs, commits)</td><td>Yes (diffs, commits, messages)</td></tr><tr><td>Non-engineer access</td><td>No (requires Git knowledge)</td><td>Yes (UI-based, no code needed)</td></tr><tr><td>Prompt experimentation</td><td>No (must use external tools)</td><td>Yes (built-in playground)</td></tr><tr><td>Side-by-side comparison</td><td>Limited (text diff only)</td><td>Yes (live output comparison across test sets)</td></tr><tr><td>Environments (dev/staging/prod)</td><td>Manual (branch conventions)</td><td>Native (one-click deploy per environment)</td></tr><tr><td>Deployment speed</td><td>Slow (PR + deploy cycle)</td><td>Instant (deploy from UI or API)</td></tr><tr><td>Observability</td><td>None</td><td>Traces linked to prompt versions</td></tr><tr><td>Access control</td><td>Repository-level</td><td>Role-based (edit, deploy, view)</td></tr><tr><td>Audit trail</td><td>Commit log</td><td>Full action history with user attribution</td></tr><tr><td>Best for</td><td>Solo developers, &lt;5 prompts</td><td>Teams, &gt;5 prompts, mixed technical/non-technical</td></tr></tbody></table>
+<table>
+  <tbody>
+    <tr>
+      <th>Capability</th>
+      <th>Git</th>
+      <th>Dedicated system</th>
+    </tr>
+    <tr>
+      <td>Version history</td>
+      <td>Yes (diffs, commits)</td>
+      <td>Yes (diffs, commits, messages)</td>
+    </tr>
+    <tr>
+      <td>Non-engineer access</td>
+      <td>No (requires Git knowledge)</td>
+      <td>Yes (UI-based, no code needed)</td>
+    </tr>
+    <tr>
+      <td>Prompt experimentation</td>
+      <td>No (must use external tools)</td>
+      <td>Yes (built-in playground)</td>
+    </tr>
+    <tr>
+      <td>Side-by-side comparison</td>
+      <td>Limited (text diff only)</td>
+      <td>Yes (live output comparison across test sets)</td>
+    </tr>
+    <tr>
+      <td>Environments (dev/staging/prod)</td>
+      <td>Manual (branch conventions)</td>
+      <td>Native (one-click deploy per environment)</td>
+    </tr>
+    <tr>
+      <td>Deployment speed</td>
+      <td>Slow (PR + deploy cycle)</td>
+      <td>Instant (deploy from UI or API)</td>
+    </tr>
+    <tr>
+      <td>Observability</td>
+      <td>None</td>
+      <td>Traces linked to prompt versions</td>
+    </tr>
+    <tr>
+      <td>Access control</td>
+      <td>Repository-level</td>
+      <td>Role-based (edit, deploy, view)</td>
+    </tr>
+    <tr>
+      <td>Audit trail</td>
+      <td>Commit log</td>
+      <td>Full action history with user attribution</td>
+    </tr>
+    <tr>
+      <td>Best for</td>
+      <td>Solo developers, &lt;5 prompts</td>
+      <td>Teams, &gt;5 prompts, mixed technical/non-technical</td>
+    </tr>
+  </tbody>
+</table>
 
 Once you pick a versioning system, the next question is how to connect it to your application. There are three common patterns, and the right one depends on how your team ships software.
 
@@ -131,7 +189,58 @@ This path keeps your existing deployment workflow intact. Engineers review promp
 
 ### Prompt Versioning Integration Paths Compared
 
-<table><tbody><tr><th></th><th>Live fetching</th><th>Proxy / gateway</th><th>CI/CD webhooks</th></tr><tr><td>How it works</td><td>App fetches prompt at runtime</td><td>App calls versioning system; it calls the LLM</td><td>Webhook creates PR in your repo on deploy</td></tr><tr><td>Deployment speed</td><td>Instant</td><td>Instant</td><td>Follows your release cycle</td></tr><tr><td>Engineering effort</td><td>Low (add SDK, cache logic)</td><td>Low (replace LLM call)</td><td>Medium (webhook + CI config)</td></tr><tr><td>Source of truth</td><td>Versioning system</td><td>Versioning system</td><td>Git</td></tr><tr><td>Observability</td><td>Requires separate setup</td><td>Built-in (cost, latency, tokens)</td><td>Requires separate setup</td></tr><tr><td>Vendor in critical path</td><td>No (fetch is async)</td><td>Yes</td><td>No</td></tr><tr><td>Best for</td><td>Teams wanting fast iteration</td><td>Teams wanting fewer moving parts + observability</td><td>Teams with strict release processes</td></tr></tbody></table>
+<table>
+  <tbody>
+    <tr>
+      <th></th>
+      <th>Live fetching</th>
+      <th>Proxy / gateway</th>
+      <th>CI/CD webhooks</th>
+    </tr>
+    <tr>
+      <td>How it works</td>
+      <td>App fetches prompt at runtime</td>
+      <td>App calls versioning system; it calls the LLM</td>
+      <td>Webhook creates PR in your repo on deploy</td>
+    </tr>
+    <tr>
+      <td>Deployment speed</td>
+      <td>Instant</td>
+      <td>Instant</td>
+      <td>Follows your release cycle</td>
+    </tr>
+    <tr>
+      <td>Engineering effort</td>
+      <td>Low (add SDK, cache logic)</td>
+      <td>Low (replace LLM call)</td>
+      <td>Medium (webhook + CI config)</td>
+    </tr>
+    <tr>
+      <td>Source of truth</td>
+      <td>Versioning system</td>
+      <td>Versioning system</td>
+      <td>Git</td>
+    </tr>
+    <tr>
+      <td>Observability</td>
+      <td>Requires separate setup</td>
+      <td>Built-in (cost, latency, tokens)</td>
+      <td>Requires separate setup</td>
+    </tr>
+    <tr>
+      <td>Vendor in critical path</td>
+      <td>No (fetch is async)</td>
+      <td>Yes</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>Best for</td>
+      <td>Teams wanting fast iteration</td>
+      <td>Teams wanting fewer moving parts + observability</td>
+      <td>Teams with strict release processes</td>
+    </tr>
+  </tbody>
+</table>
 
 Some teams combine paths (for example, live fetching for development and CI/CD for production). Pick what matches your release process; you can always add a second path later.
 

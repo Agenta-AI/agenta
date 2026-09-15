@@ -5,7 +5,11 @@ import { defineConfig } from "vitest/config";
 // by the post-build assertions in scripts/verify-build.mjs.
 export default defineConfig({
   test: {
-    include: ["worker/**/*.test.ts", "src/lib/**/*.test.ts", "scripts/**/*.test.mjs"],
+    include: [
+      "worker/**/*.test.ts",
+      "src/lib/**/*.test.ts",
+      "scripts/**/*.test.mjs",
+    ],
     exclude: ["node_modules/**", "dist/**", ".astro/**"],
   },
 });

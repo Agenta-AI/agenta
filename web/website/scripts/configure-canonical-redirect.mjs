@@ -31,7 +31,9 @@ async function api(fetchImpl, token, path, init = {}) {
   const payload = await response.json();
   if (!response.ok || !payload.success) {
     const detail = payload.errors?.map((error) => error.message).join("; ");
-    throw new Error(`Cloudflare API ${response.status}: ${detail || "request failed"}`);
+    throw new Error(
+      `Cloudflare API ${response.status}: ${detail || "request failed"}`,
+    );
   }
   return payload.result;
 }
@@ -49,7 +51,9 @@ export async function configureCanonicalRedirect({
     `/zones?name=${encodeURIComponent(zoneName)}`,
   );
   if (zones.length !== 1) {
-    throw new Error(`Expected one Cloudflare zone named ${zoneName}, found ${zones.length}`);
+    throw new Error(
+      `Expected one Cloudflare zone named ${zoneName}, found ${zones.length}`,
+    );
   }
   const zoneId = zones[0].id;
 

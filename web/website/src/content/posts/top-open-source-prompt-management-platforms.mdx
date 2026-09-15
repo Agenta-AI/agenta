@@ -166,16 +166,16 @@ Latitude is an open-source platform for both AI agents and prompt engineering. I
 Latitude provides a TypeScript SDK for running prompts.
 
 ```typescript
-import { Latitude } from '@latitude-data/sdk'
+import { Latitude } from "@latitude-data/sdk";
 
 const sdk = new Latitude(process.env.LATITUDE_API_KEY, {
   projectId: Number(process.env.PROJECT_ID),
-  versionUuid: 'live',
-})
+  versionUuid: "live",
+});
 
-const result = await sdk.prompts.run('my-prompt', {
-  parameters: { product_name: 'Laptop' },
-})
+const result = await sdk.prompts.run("my-prompt", {
+  parameters: { product_name: "Laptop" },
+});
 ```
 
 **Important Note on Licensing**: Latitude is licensed under the LGPL-3.0. This is a copyleft license, which means that if you modify the source code, you must make your changes available under the same license. This can be a problem for commercial projects.
@@ -213,7 +213,76 @@ const response = await openai.chat.completions.create(prompt, {
 
 ## Comparison
 
-<table><tbody><tr><th>Feature</th><th>Agenta</th><th>Langfuse</th><th>Arize Phoenix</th><th>Latitude</th><th>Pezzo</th></tr><tr><td><strong>Primary Focus</strong></td><td>Collaboration &amp; Full Lifecycle</td><td>Observability &amp; DevEx</td><td>AI Observability &amp; Evaluation</td><td>AI Agents &amp; Prompt Engineering</td><td>Cloud-Native Delivery &amp; Cost</td></tr><tr><td><strong>Versioning</strong></td><td>Git-like (Variants &amp; Commits)</td><td>Linear (Versions &amp; Labels)</td><td>Linear (Tags)</td><td>Version Control</td><td>Commit &amp; Publish</td></tr><tr><td><strong>Collaboration</strong></td><td><strong>Excellent</strong> (UI for non-devs)</td><td>Good (UI for editing)</td><td>Fair (Developer-focused)</td><td>Good (Team workflows)</td><td>Fair (Developer-first)</td></tr><tr><td><strong>Evaluation</strong></td><td>Integrated (Auto, Human, Online)</td><td>Integrated (LLM-as-judge)</td><td><strong>Excellent</strong> (Prompt Learning)</td><td>Integrated (Built-in, HITL)</td><td>Limited</td></tr><tr><td><strong>License</strong></td><td><strong>MIT</strong></td><td><strong>MIT</strong></td><td>Elastic License 2.0 (Non-OSI)</td><td>LGPL-3.0 (Copyleft)</td><td>Apache 2.0</td></tr></tbody></table>
+<table>
+  <tbody>
+    <tr>
+      <th>Feature</th>
+      <th>Agenta</th>
+      <th>Langfuse</th>
+      <th>Arize Phoenix</th>
+      <th>Latitude</th>
+      <th>Pezzo</th>
+    </tr>
+    <tr>
+      <td>
+        <strong>Primary Focus</strong>
+      </td>
+      <td>Collaboration &amp; Full Lifecycle</td>
+      <td>Observability &amp; DevEx</td>
+      <td>AI Observability &amp; Evaluation</td>
+      <td>AI Agents &amp; Prompt Engineering</td>
+      <td>Cloud-Native Delivery &amp; Cost</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Versioning</strong>
+      </td>
+      <td>Git-like (Variants &amp; Commits)</td>
+      <td>Linear (Versions &amp; Labels)</td>
+      <td>Linear (Tags)</td>
+      <td>Version Control</td>
+      <td>Commit &amp; Publish</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Collaboration</strong>
+      </td>
+      <td>
+        <strong>Excellent</strong> (UI for non-devs)
+      </td>
+      <td>Good (UI for editing)</td>
+      <td>Fair (Developer-focused)</td>
+      <td>Good (Team workflows)</td>
+      <td>Fair (Developer-first)</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Evaluation</strong>
+      </td>
+      <td>Integrated (Auto, Human, Online)</td>
+      <td>Integrated (LLM-as-judge)</td>
+      <td>
+        <strong>Excellent</strong> (Prompt Learning)
+      </td>
+      <td>Integrated (Built-in, HITL)</td>
+      <td>Limited</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>License</strong>
+      </td>
+      <td>
+        <strong>MIT</strong>
+      </td>
+      <td>
+        <strong>MIT</strong>
+      </td>
+      <td>Elastic License 2.0 (Non-OSI)</td>
+      <td>LGPL-3.0 (Copyleft)</td>
+      <td>Apache 2.0</td>
+    </tr>
+  </tbody>
+</table>
 
 ## Why Agenta is the Best Choice
 

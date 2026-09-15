@@ -53,7 +53,7 @@ Track token usage, latency, and API costs across requests.
 
 - Understand why you application fails.
 - Determine which step fails and needs improvement
-- Find spans that take too long ****
+- Find spans that take too long \*\*\*\*
 
 **4. Improve Your LLM Application**
 
@@ -239,7 +239,103 @@ Lunary is a strong choice if your team is focused on **chatbots** and you value 
 
 ## Comparison table LLM Observability platforms
 
-<table><tbody><tr><th><strong>Platform</strong></th><th><strong>Open Source</strong></th><th><strong>OTel Support</strong></th><th><strong>Evaluation Features</strong></th><th><strong>Collaboration (Non-Tech Users)</strong></th><th><strong>Self-Hosting</strong></th><th><strong>Pricing (Entry Tier)</strong></th><th><strong>Best For</strong></th></tr><tr><td><strong>Agenta</strong></td><td>✅ MIT license</td><td>✅ Native OTel</td><td>✅ Online &amp; offline eval, LLM-as-a-judge</td><td>✅ Cross-functional UI, annotations</td><td>✅</td><td>Free: 10k traces/month. Pro: $50/month (10k traces + $5 per 10k extra)</td><td>Teams needing an end-to-end LLMOps workflow with observability + evaluation</td></tr><tr><td><strong>Langsmith</strong></td><td>❌ SaaS only</td><td>❌ (proprietary SDK)</td><td>✅ Built-in evaluation</td><td>⚠️ Primarily for developers</td><td>❌ Enterprise only</td><td>Free: 1 seat, 5k traces. Plus: $39/seat/month (10k traces + extras)</td><td>Teams deeply invested in LangChain ecosystem</td></tr><tr><td><strong>Langfuse</strong></td><td>✅ MIT license</td><td>✅ OTel-compliant</td><td>⚠️ Limited evaluation (developer focus)</td><td>❌ Developer-oriented</td><td>✅</td><td>Free/self-hosted open source</td><td>Technical teams preferring open-source &amp; self-hosting</td></tr><tr><td><strong>Braintrust</strong></td><td>❌ SaaS only</td><td>❌ (proprietary SDK)</td><td>✅ Evaluation-first platform</td><td>❌ Developer-focused</td><td>❌ Enterprise only</td><td>Pricing not public (managed SaaS)</td><td>Teams with large datasets needing fast full-text trace search</td></tr><tr><td><strong>Lunary</strong></td><td>✅ Apache License 2.0</td><td>❌ (proprietary SDK)</td><td>⚠️ Focused on chatbot eval (topic classification)</td><td>❌ Primarily developer UI</td><td>✅</td><td>Free: 10k events/month. Team: $20/user/month (50k events)</td><td>Teams building chatbots, needing replay + topic classification</td></tr></tbody></table>
+<table>
+  <tbody>
+    <tr>
+      <th>
+        <strong>Platform</strong>
+      </th>
+      <th>
+        <strong>Open Source</strong>
+      </th>
+      <th>
+        <strong>OTel Support</strong>
+      </th>
+      <th>
+        <strong>Evaluation Features</strong>
+      </th>
+      <th>
+        <strong>Collaboration (Non-Tech Users)</strong>
+      </th>
+      <th>
+        <strong>Self-Hosting</strong>
+      </th>
+      <th>
+        <strong>Pricing (Entry Tier)</strong>
+      </th>
+      <th>
+        <strong>Best For</strong>
+      </th>
+    </tr>
+    <tr>
+      <td>
+        <strong>Agenta</strong>
+      </td>
+      <td>✅ MIT license</td>
+      <td>✅ Native OTel</td>
+      <td>✅ Online &amp; offline eval, LLM-as-a-judge</td>
+      <td>✅ Cross-functional UI, annotations</td>
+      <td>✅</td>
+      <td>
+        Free: 10k traces/month. Pro: $50/month (10k traces + $5 per 10k extra)
+      </td>
+      <td>
+        Teams needing an end-to-end LLMOps workflow with observability +
+        evaluation
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Langsmith</strong>
+      </td>
+      <td>❌ SaaS only</td>
+      <td>❌ (proprietary SDK)</td>
+      <td>✅ Built-in evaluation</td>
+      <td>⚠️ Primarily for developers</td>
+      <td>❌ Enterprise only</td>
+      <td>
+        Free: 1 seat, 5k traces. Plus: $39/seat/month (10k traces + extras)
+      </td>
+      <td>Teams deeply invested in LangChain ecosystem</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Langfuse</strong>
+      </td>
+      <td>✅ MIT license</td>
+      <td>✅ OTel-compliant</td>
+      <td>⚠️ Limited evaluation (developer focus)</td>
+      <td>❌ Developer-oriented</td>
+      <td>✅</td>
+      <td>Free/self-hosted open source</td>
+      <td>Technical teams preferring open-source &amp; self-hosting</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Braintrust</strong>
+      </td>
+      <td>❌ SaaS only</td>
+      <td>❌ (proprietary SDK)</td>
+      <td>✅ Evaluation-first platform</td>
+      <td>❌ Developer-focused</td>
+      <td>❌ Enterprise only</td>
+      <td>Pricing not public (managed SaaS)</td>
+      <td>Teams with large datasets needing fast full-text trace search</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Lunary</strong>
+      </td>
+      <td>✅ Apache License 2.0</td>
+      <td>❌ (proprietary SDK)</td>
+      <td>⚠️ Focused on chatbot eval (topic classification)</td>
+      <td>❌ Primarily developer UI</td>
+      <td>✅</td>
+      <td>Free: 10k events/month. Team: $20/user/month (50k events)</td>
+      <td>Teams building chatbots, needing replay + topic classification</td>
+    </tr>
+  </tbody>
+</table>
 
 ## Best By use case
 

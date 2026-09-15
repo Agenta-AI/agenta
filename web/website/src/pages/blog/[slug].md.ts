@@ -13,7 +13,9 @@ export const getStaticPaths = (async () => {
 }) satisfies GetStaticPaths;
 
 export const GET: APIRoute = async ({ props }) => {
-  const { post } = props as { post: Awaited<ReturnType<typeof getCollection<"posts">>>[number] };
+  const { post } = props as {
+    post: Awaited<ReturnType<typeof getCollection<"posts">>>[number];
+  };
 
   const authors = (
     await Promise.all(authorRefs(post).map((ref) => getEntry(ref)))

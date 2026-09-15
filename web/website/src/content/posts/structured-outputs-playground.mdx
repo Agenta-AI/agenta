@@ -31,7 +31,32 @@ Many developers attempt to work around this by explicitly instructing the model 
 
 ### LLMs provide two approaches to structured output
 
-<table><tbody><tr><th>Mode</th><th>What it guarantees</th><th>Best for</th></tr><tr><td><strong>JSON mode</strong></td><td>Output parses as valid JSON</td><td>Quick implementations when you only need well-formed JSON</td></tr><tr><td><strong>Schema mode</strong></td><td>Output exactly matches the JSON Schema you provide—types, required fields, nested objects</td><td>Mission-critical chains and typed back-ends</td></tr></tbody></table>
+<table>
+  <tbody>
+    <tr>
+      <th>Mode</th>
+      <th>What it guarantees</th>
+      <th>Best for</th>
+    </tr>
+    <tr>
+      <td>
+        <strong>JSON mode</strong>
+      </td>
+      <td>Output parses as valid JSON</td>
+      <td>Quick implementations when you only need well-formed JSON</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Schema mode</strong>
+      </td>
+      <td>
+        Output exactly matches the JSON Schema you provide—types, required
+        fields, nested objects
+      </td>
+      <td>Mission-critical chains and typed back-ends</td>
+    </tr>
+  </tbody>
+</table>
 
 Note that not all models support these modes. For instance, in OpenAI, Structured Outputs is only supported with the `gpt-4o-mini`, `gpt-4o-mini-2024-07-18`, and `gpt-4o-2024-08-06` model snapshots and later.
 
@@ -39,7 +64,13 @@ Both modes are now available with a single click in the Agenta playground.
 
 ### Using structured output in the playground
 
-<iframe title="Structured output in the playground demo" src="https://www.youtube.com/embed/08r4g5mO9lw?iv_load_policy=3&rel=0&modestbranding=1&playsinline=1&autoplay=0&mute=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe
+  title="Structured output in the playground demo"
+  src="https://www.youtube.com/embed/08r4g5mO9lw?iv_load_policy=3&rel=0&modestbranding=1&playsinline=1&autoplay=0&mute=1"
+  frameborder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowfullscreen
+></iframe>
 
 With Agenta's playground, implementing structured outputs is straightforward:
 

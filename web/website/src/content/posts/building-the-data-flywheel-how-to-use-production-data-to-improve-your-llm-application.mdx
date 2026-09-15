@@ -48,7 +48,7 @@ The process, often called “open coding,” is straightforward. In [Agenta](htt
 1. Gather a Diverse Dataset: Collect a representative sample of 50-100 recent production traces. This should not be a purely random sample. Actively look for diversity. Include long conversations, interactions with negative user feedback, and queries that seem to push the boundaries of your application’s capabilities.
 2. Appoint a “Benevolent Dictator”: Assign a single domain expert who deeply understands your users and your product to be the ultimate arbiter of quality. This avoids endless debates about what constitutes a “good” response.
 3. Annotate Failures: For each trace, the expert should provide two simple annotations: a binary Pass/Fail score and a free-text comment describing the first point of failure. Focusing on the first failure is a powerful heuristic; upstream errors like faulty retrieval often cause a cascade of downstream problems.
-4. 
+4.
 
 This initial step is about building intuition. You are not just logging bugs; you are developing a deep understanding of how users interact with your system and where it falls short.
 
@@ -58,7 +58,40 @@ Once you have a collection of raw, descriptive failure comments, the next step i
 
 While you can do this manually, an LLM can be a powerful assistant here. Export your free-text comments and use a prompt to ask an LLM to cluster them into a small set of themes. For example, you might discover that your failures fall into categories like these:
 
-<table><tbody><tr><td>Failure Mode</td><td>Definition</td></tr><tr><td>Hallucination / Incorrect Information</td><td>The model provides factually incorrect answers.</td></tr><tr><td>Context Retrieval / RAG Issues</td><td>The system fails to retrieve the correct documents.</td></tr><tr><td>Irrelevant or Off-Topic Responses</td><td>The answer is unrelated to the user’s question.</td></tr><tr><td>Generic or Unhelpful Responses</td><td>The answer is too broad or does not directly address the user’s need.</td></tr><tr><td>Formatting / Presentation Issues</td><td>The response is poorly formatted (e.g., missing code blocks).</td></tr><tr><td>Interaction Style / Tone</td><td>The model’s tone is inappropriate for the context.</td></tr></tbody></table>
+<table>
+  <tbody>
+    <tr>
+      <td>Failure Mode</td>
+      <td>Definition</td>
+    </tr>
+    <tr>
+      <td>Hallucination / Incorrect Information</td>
+      <td>The model provides factually incorrect answers.</td>
+    </tr>
+    <tr>
+      <td>Context Retrieval / RAG Issues</td>
+      <td>The system fails to retrieve the correct documents.</td>
+    </tr>
+    <tr>
+      <td>Irrelevant or Off-Topic Responses</td>
+      <td>The answer is unrelated to the user’s question.</td>
+    </tr>
+    <tr>
+      <td>Generic or Unhelpful Responses</td>
+      <td>
+        The answer is too broad or does not directly address the user’s need.
+      </td>
+    </tr>
+    <tr>
+      <td>Formatting / Presentation Issues</td>
+      <td>The response is poorly formatted (e.g., missing code blocks).</td>
+    </tr>
+    <tr>
+      <td>Interaction Style / Tone</td>
+      <td>The model’s tone is inappropriate for the context.</td>
+    </tr>
+  </tbody>
+</table>
 
 This taxonomy is your roadmap. It turns a long list of individual problems into a prioritized list of problem areas, showing you exactly where to focus your efforts.
 

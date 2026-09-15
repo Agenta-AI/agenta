@@ -108,6 +108,9 @@ export function mdxToMarkdown(body: string): string {
     .replace(/\n{3,}/g, "\n\n");
 
   return rewritten
-    .replace(/\u0000(\d+)\u0000/g, (_match, index: string) => code[Number(index)])
+    .replace(
+      /\u0000(\d+)\u0000/g,
+      (_match, index: string) => code[Number(index)],
+    )
     .trim();
 }

@@ -70,12 +70,12 @@ The simplest approach: prompts are just strings in your Python, TypeScript, or J
 
 ```jsx
 response = openai.chat.completions.create(
-    model="gpt-4o",
-    messages=[
-        {"role": "system", "content": "You are a helpful coding assistant."},
-        {"role": "user", "content": user_input},
-    ],
-)
+  (model = "gpt-4o"),
+  (messages = [
+    { role: "system", content: "You are a helpful coding assistant." },
+    { role: "user", content: user_input },
+  ]),
+);
 ```
 
 This works fine for prototypes. It stops working when you have more than a handful of prompts, or when someone besides the original developer needs to modify them.
@@ -156,7 +156,76 @@ Here is what these tools bring to the table.
 
 ### Git vs. dedicated prompt management: the comparison
 
-<table><tbody><tr><th>Capability</th><th>Git</th><th>Dedicated tool</th></tr><tr><td>Version history</td><td>Yes (commits)</td><td>Yes (built-in, prompt-aware)</td></tr><tr><td>Non-engineer access</td><td>No</td><td>Yes (UI-based editing)</td></tr><tr><td>Prompt experimentation</td><td>No</td><td>Yes (built-in playground)</td></tr><tr><td>Side-by-side comparison</td><td>Limited (text diff)</td><td>Yes (live output comparison)</td></tr><tr><td>Environment management</td><td>Manual (branch conventions)</td><td>Native (one-click deploy)</td></tr><tr><td>Deployment speed</td><td>Slow (PR + review + deploy)</td><td>Fast (click to deploy)</td></tr><tr><td>Observability</td><td>None</td><td>Traces linked to prompt versions</td></tr><tr><td>Evaluation</td><td>None (without custom tooling)</td><td>Built-in (automated + human)</td></tr><tr><td>Access control</td><td>Repository-level</td><td>Role-based per prompt</td></tr><tr><td>Cost</td><td>Free</td><td>Free (open-source) to paid</td></tr><tr><td><strong>Best for</strong></td><td><strong>Solo devs, &lt;5 prompts</strong></td><td><strong>Teams, &gt;5 prompts, mixed roles</strong></td></tr></tbody></table>
+<table>
+  <tbody>
+    <tr>
+      <th>Capability</th>
+      <th>Git</th>
+      <th>Dedicated tool</th>
+    </tr>
+    <tr>
+      <td>Version history</td>
+      <td>Yes (commits)</td>
+      <td>Yes (built-in, prompt-aware)</td>
+    </tr>
+    <tr>
+      <td>Non-engineer access</td>
+      <td>No</td>
+      <td>Yes (UI-based editing)</td>
+    </tr>
+    <tr>
+      <td>Prompt experimentation</td>
+      <td>No</td>
+      <td>Yes (built-in playground)</td>
+    </tr>
+    <tr>
+      <td>Side-by-side comparison</td>
+      <td>Limited (text diff)</td>
+      <td>Yes (live output comparison)</td>
+    </tr>
+    <tr>
+      <td>Environment management</td>
+      <td>Manual (branch conventions)</td>
+      <td>Native (one-click deploy)</td>
+    </tr>
+    <tr>
+      <td>Deployment speed</td>
+      <td>Slow (PR + review + deploy)</td>
+      <td>Fast (click to deploy)</td>
+    </tr>
+    <tr>
+      <td>Observability</td>
+      <td>None</td>
+      <td>Traces linked to prompt versions</td>
+    </tr>
+    <tr>
+      <td>Evaluation</td>
+      <td>None (without custom tooling)</td>
+      <td>Built-in (automated + human)</td>
+    </tr>
+    <tr>
+      <td>Access control</td>
+      <td>Repository-level</td>
+      <td>Role-based per prompt</td>
+    </tr>
+    <tr>
+      <td>Cost</td>
+      <td>Free</td>
+      <td>Free (open-source) to paid</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Best for</strong>
+      </td>
+      <td>
+        <strong>Solo devs, &lt;5 prompts</strong>
+      </td>
+      <td>
+        <strong>Teams, &gt;5 prompts, mixed roles</strong>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 ## The Hybrid Approach: Git + a Prompt Management Tool
 

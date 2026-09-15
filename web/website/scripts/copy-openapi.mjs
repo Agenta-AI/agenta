@@ -88,6 +88,9 @@ function main() {
 }
 
 // Only run when executed directly, so the test can import `normalize`.
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+if (
+  process.argv[1] &&
+  resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))
+) {
   main();
 }

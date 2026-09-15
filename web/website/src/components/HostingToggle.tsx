@@ -27,7 +27,8 @@ interface Props {
 }
 
 // #pricing-root reads the lowercased mode; keep this the single source of that mapping.
-const attrValue = (mode: Mode) => (mode === "selfHosted" ? "selfhosted" : "cloud");
+const attrValue = (mode: Mode) =>
+  mode === "selfHosted" ? "selfhosted" : "cloud";
 
 export default function HostingToggle({
   targetId = "pricing-root",
@@ -39,7 +40,9 @@ export default function HostingToggle({
 
   // Reflect the selected mode onto the page root so the CSS shows/hides plan sets.
   useEffect(() => {
-    document.getElementById(targetId)?.setAttribute("data-hosting", attrValue(mode));
+    document
+      .getElementById(targetId)
+      ?.setAttribute("data-hosting", attrValue(mode));
   }, [mode, targetId]);
 
   const selectIndex = (index: number) => {

@@ -115,7 +115,7 @@ const userSchema = z.object({
   name: z.string(),
   age: z.number().min(0).max(150),
   email: z.string().email(),
-  skills: z.array(z.string()).default([])
+  skills: z.array(z.string()).default([]),
 });
 
 type User = z.infer<typeof userSchema>;

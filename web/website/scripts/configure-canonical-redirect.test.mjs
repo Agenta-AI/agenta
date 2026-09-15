@@ -13,7 +13,9 @@ const ok = (result) =>
 
 describe("canonical redirect configuration", () => {
   it("uses one permanent redirect that preserves path and query", () => {
-    expect(canonicalRedirectRule.expression).toContain('http.host eq "www.agenta.ai"');
+    expect(canonicalRedirectRule.expression).toContain(
+      'http.host eq "www.agenta.ai"',
+    );
     expect(canonicalRedirectRule.expression).toContain("not ssl");
     expect(canonicalRedirectRule.action_parameters.from_value).toEqual({
       target_url: {
@@ -43,7 +45,9 @@ describe("canonical redirect configuration", () => {
     await configureCanonicalRedirect({ token: "test", fetchImpl });
 
     const [url, request] = fetchImpl.mock.calls[3];
-    expect(url.endsWith("/zones/zone-id/rulesets/ruleset-id/rules/canonical-id")).toBe(true);
+    expect(
+      url.endsWith("/zones/zone-id/rulesets/ruleset-id/rules/canonical-id"),
+    ).toBe(true);
     expect(request.method).toBe("PATCH");
     expect(JSON.parse(request.body)).toEqual({
       ...canonicalRedirectRule,

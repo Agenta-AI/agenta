@@ -31,7 +31,34 @@ Critically, these values are interdependent:
 
 **Below are context window lengths of some widely known LLMs**
 
-<table><tbody><tr><th><strong>LLM</strong></th><th><strong>Context Window (Tokens)</strong></th></tr><tr><td>Gemini 2.5 Pro</td><td>2M</td></tr><tr><td>o3</td><td>200k</td></tr><tr><td>Claude 4</td><td>200k</td></tr><tr><td>Grok 4</td><td>256k</td></tr></tbody></table>
+<table>
+  <tbody>
+    <tr>
+      <th>
+        <strong>LLM</strong>
+      </th>
+      <th>
+        <strong>Context Window (Tokens)</strong>
+      </th>
+    </tr>
+    <tr>
+      <td>Gemini 2.5 Pro</td>
+      <td>2M</td>
+    </tr>
+    <tr>
+      <td>o3</td>
+      <td>200k</td>
+    </tr>
+    <tr>
+      <td>Claude 4</td>
+      <td>200k</td>
+    </tr>
+    <tr>
+      <td>Grok 4</td>
+      <td>256k</td>
+    </tr>
+  </tbody>
+</table>
 
 ## But what exactly is a "token"?
 
@@ -192,7 +219,7 @@ def hierarchical_summarize(text, levels=3, max_length=150):
 		text = summarizer(text, max_length=max_length)[0]['summary_text']
 	return text
 Usage:
-long_document = "..."  # Your input text/ retrieve conversation history 
+long_document = "..."  # Your input text/ retrieve conversation history
 final_summary = hierarchical_summarize(long_document, levels=3)
 ```
 
@@ -282,7 +309,7 @@ print(result)
 - Pros: Retrieves only the most relevant context, dynamic and up-to-date, scales well to large data sources.
 - Cons: Retrieval dependency (Garbage in → garbage out), setup complexity, latency introduced by the retrieval step.
 
-> ***For more information about RAG, check out our guides about how to***[***improve RAG applications***](/blog/top-10-techniques-to-improve-rag-applications)***and***[***how to evaluate them***](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices)
+> **_For more information about RAG, check out our guides about how to_**[**_improve RAG applications_**](/blog/top-10-techniques-to-improve-rag-applications)**_and_**[**_how to evaluate them_**](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices)
 
 ## How to Select the Right Context Management Strategy?
 
@@ -299,37 +326,37 @@ Below are some recommendations/ guidelines to help you decide:
 
 → **USE Retrieval-Augmented Generation (RAG)**
 
-- *Best when*: You have reference documents and want to avoid hallucinations.
+- _Best when_: You have reference documents and want to avoid hallucinations.
 
 **2. IF users have long, multi-session conversations (e.g., coaching bots, assistants):**
 
 → **USE Memory Buffering**
 
-- *Best when*: Conversations span days/weeks and require recalling past details.
+- _Best when_: Conversations span days/weeks and require recalling past details.
 
 **3. IF processing very long texts (e.g., books, legal contracts):**
 
 → **USE Hierarchical Summarization**
 
-- *Best when*: Documents are structured (chapters/sections) and need progressive condensation.
+- _Best when_: Documents are structured (chapters/sections) and need progressive condensation.
 
 **4. IF token costs are too high (e.g., using o3 ):**
 
 → **USE Context Compression**
 
-- *Best when*: Inputs contain fluff (logs, transcripts) that can be trimmed.
+- _Best when_: Inputs contain fluff (logs, transcripts) that can be trimmed.
 
 **5. IF speed is critical (e.g., real-time customer support):**
 
 → **COMBINE RAG + Compression**
 
-- *Best when*: You need fast, sourced answers without excessive tokens.
+- _Best when_: You need fast, sourced answers without excessive tokens.
 
 **6. IF working with sensitive/regulated content (e.g., legal, medical):**
 
 → **USE RAG with Exact Retrieval (no summarization)**
 
-*Best when*: Every word matters—avoid compression/summarization risks.
+_Best when_: Every word matters—avoid compression/summarization risks.
 
 **Final Advice: Test Rigorously:**
 
@@ -346,7 +373,7 @@ For this you need an LLM evaluation platform.
 Agenta is an [open-source LLMOps platform](https://github.com/agenta-ai/agenta) that provides you with all the tools to manage this. With Agenta, you can:
 
 1. **Rapidly prototype and test** different prompt designs, memory configurations, and strategies all in one place.
-2. **Build Real-World Test Cases** [Create evaluation scenarios](https://docs.agenta.ai/evaluation/create-test-sets) using *your own data*
+2. **Build Real-World Test Cases** [Create evaluation scenarios](https://docs.agenta.ai/evaluation/create-test-sets) using _your own data_
 3. [Test across different LLMs](https://docs.agenta.ai/prompt-engineering/playground/adding-custom-providers) (GPT-4, Claude, Llama, etc.)
 4. Simulate edge cases that challenge context limits
 5. [**Evaluate rigorously**](https://docs.agenta.ai/evaluation/overview) using built-in and custom metrics to make sure what you are putting into production works

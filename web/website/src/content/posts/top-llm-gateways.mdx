@@ -28,7 +28,7 @@ Consider the following examples :
 
 ### OpenAI Example
 
-Even when working with a single provider like [OpenAI](https://platform.openai.com/), developers quickly discover that **different generation tasks require different API calls or parameters**. While the basic interaction pattern is always *“prompt in → text out”*, the surrounding API surface varies depending on the task.
+Even when working with a single provider like [OpenAI](https://platform.openai.com/), developers quickly discover that **different generation tasks require different API calls or parameters**. While the basic interaction pattern is always _“prompt in → text out”_, the surrounding API surface varies depending on the task.
 
 #### 1. Basic Freeform Text
 
@@ -71,7 +71,7 @@ Extract structured data instead of prose:
 
 ### Anthropic Example
 
-Anthropic’s [**Claude models**](https://docs.claude.com/en/home) use the [**Messages API**](https://docs.claude.com/en/api/messages), following a *prompt-in → text-out* pattern with some differences.
+Anthropic’s [**Claude models**](https://docs.claude.com/en/home) use the [**Messages API**](https://docs.claude.com/en/api/messages), following a _prompt-in → text-out_ pattern with some differences.
 
 #### 1. Access & Authentication
 
@@ -161,7 +161,58 @@ print(completion.choices[0].message)
 
 ### Comparison Between APIs
 
-<table><tbody><tr><th>Feature / Provider</th><th>OpenAI</th><th>Anthropic</th><th>Groq (via HF or Direct)</th></tr><tr><td>Primary Access</td><td>Responses API</td><td>Messages API</td><td>Direct API / HF InferenceClient</td></tr><tr><td>Prompt Pattern</td><td>Freeform / JSON / Tool / Roles</td><td>Messages (role-based)</td><td>Chat completion</td></tr><tr><td>Structured Output</td><td>JSON Schema / Tool Calls</td><td>Text only (list of messages)</td><td>Text only</td></tr><tr><td>Tool / Function Calling</td><td>Supported</td><td>Not native</td><td>Not native</td></tr><tr><td>Auth Method</td><td>API key</td><td>x-api-key</td><td>API key (direct) / HF token</td></tr><tr><td>Max Request Size</td><td>Varies (MB)</td><td>Standard 32 MB, Batch 256 MB</td><td>Varies (HF or direct)</td></tr><tr><td>Special Notes</td><td>Reusable prompts, roles</td><td>Rich metadata in headers</td><td>Ultra-fast inference, deterministic latency</td></tr></tbody></table>
+<table>
+  <tbody>
+    <tr>
+      <th>Feature / Provider</th>
+      <th>OpenAI</th>
+      <th>Anthropic</th>
+      <th>Groq (via HF or Direct)</th>
+    </tr>
+    <tr>
+      <td>Primary Access</td>
+      <td>Responses API</td>
+      <td>Messages API</td>
+      <td>Direct API / HF InferenceClient</td>
+    </tr>
+    <tr>
+      <td>Prompt Pattern</td>
+      <td>Freeform / JSON / Tool / Roles</td>
+      <td>Messages (role-based)</td>
+      <td>Chat completion</td>
+    </tr>
+    <tr>
+      <td>Structured Output</td>
+      <td>JSON Schema / Tool Calls</td>
+      <td>Text only (list of messages)</td>
+      <td>Text only</td>
+    </tr>
+    <tr>
+      <td>Tool / Function Calling</td>
+      <td>Supported</td>
+      <td>Not native</td>
+      <td>Not native</td>
+    </tr>
+    <tr>
+      <td>Auth Method</td>
+      <td>API key</td>
+      <td>x-api-key</td>
+      <td>API key (direct) / HF token</td>
+    </tr>
+    <tr>
+      <td>Max Request Size</td>
+      <td>Varies (MB)</td>
+      <td>Standard 32 MB, Batch 256 MB</td>
+      <td>Varies (HF or direct)</td>
+    </tr>
+    <tr>
+      <td>Special Notes</td>
+      <td>Reusable prompts, roles</td>
+      <td>Rich metadata in headers</td>
+      <td>Ultra-fast inference, deterministic latency</td>
+    </tr>
+  </tbody>
+</table>
 
 We've seen that each provider (OpenAI, Anthropic, Groq, and others) has a different API. Each uses a different authentication method, request format, role definition, and response structure.
 
@@ -416,11 +467,11 @@ curl -X POST <http://localhost:8002/api/providers/openai/v1/chat/completions> \\
 Or point your SDK to BricksLLM:
 
 ```javascript
-import OpenAI from 'openai';
+import OpenAI from "openai";
 
 const openai = new OpenAI({
   apiKey: "<your-gateway-key>",
-  baseURL: "<http://localhost:8002/api/providers/openai/v1>"
+  baseURL: "<http://localhost:8002/api/providers/openai/v1>",
 });
 ```
 
@@ -663,7 +714,160 @@ curl -X POST "$KONNECT_PROXY_URL/chat" \\
 
 ## Comparison :
 
-<table><tbody><tr><th>Feature / Gateway</th><th>LiteLLM</th><th>Helicone</th><th>BricksLLM</th><th>TensorZero</th><th>Bifrost</th><th>Kong</th></tr><tr><td><strong>Primary Focus</strong></td><td>Multi-provider LLM access with Python SDK &amp; Proxy</td><td>Unified OpenAI-compatible API for 100+ LLMs</td><td>Enterprise-grade production LLM gateway</td><td>Industrial-grade Rust-based gateway for low-latency, structured workflows</td><td>Zero-config OpenAI-compatible gateway</td><td>AI Gateway for routing &amp; governance with plugins</td></tr><tr><td><strong>Supported Providers</strong></td><td>OpenAI, Anthropic, xAI, VertexAI, NVIDIA, HuggingFace, Azure, Ollama, Novita AI, Vercel AI Gateway, others</td><td>GPT, Claude, Gemini, Vertex, Groq, others</td><td>OpenAI, Anthropic, Azure OpenAI, vLLM, Deepinfra, custom deployments</td><td>Anthropic, AWS Bedrock &amp; SageMaker, Azure OpenAI, Fireworks, Vertex AI, Groq, Mistral, OpenAI, OpenRouter, Together, xAI</td><td>OpenAI, Anthropic, Mistral, Azure OpenAI, AWS Bedrock, Google Vertex, others</td><td>OpenAI, Anthropic, Mistral, Azure OpenAI, AWS Bedrock, Google Vertex, others</td></tr><tr><td><strong>Deployment</strong></td><td>Proxy server / Python SDK</td><td>Cloud / API</td><td>Docker / Local / Managed</td><td>Rust-based Gateway / Python SDK</td><td>Local / Docker</td><td>Kong Gateway (Docker / Konnect)</td></tr><tr><td><strong>Latency / Performance</strong></td><td>Standard cloud latency</td><td>Standard cloud latency</td><td>Production-grade, caching &amp; failover</td><td>&lt;1ms P99 latency overhead, high throughput</td><td>Very fast, zero-config</td><td>Standard HTTP gateway, plugin-based routing</td></tr><tr><td><strong>Observability &amp; Logging</strong></td><td>Integrates with Lunary, MLflow, Langfuse, Helicone, Promptlayer, Traceloop, Slack</td><td>Unified dashboard for usage, cost, and performance</td><td>Datadog integration, analytics, request logging</td><td>ClickHouse traces, metrics, structured logging</td><td>Web UI: live metrics, request logs</td><td>decK CLI, Kong dashboard, plugin metrics</td></tr><tr><td><strong>Error / Exception Handling</strong></td><td>Unified OpenAI-style errors across providers</td><td>Automatic fallbacks, unified logging</td><td>Rate-limited, retries, PII masking, access control</td><td>Automatic fallbacks, multi-step workflow safety</td><td>Automatic retries, network &amp; API key handling</td><td>Configurable retries, network, and header settings</td></tr><tr><td><strong>Structured / Multi-step Support</strong></td><td>JSON outputs, function calls</td><td>Basic text responses</td><td>Supports structured inputs via API</td><td>Schemas, multi-step workflows, episodes</td><td>Supports multiple providers but mostly freeform text</td><td>Supports routing to structured endpoints via plugin</td></tr><tr><td><strong>Access Control &amp; Security</strong></td><td>API key management, cost tracking</td><td>BYOK support, passthrough routing</td><td>User/org-level quotas, PII masking, access control</td><td>GitOps orchestration, model &amp; endpoint control</td><td>Virtual keys, usage budgets</td><td>API key in Authorization header, optional embedded keys</td></tr><tr><td><strong>Programming Interfaces</strong></td><td>Python SDK, REST API</td><td>REST API (OpenAI-compatible)</td><td>REST API, cURL, SDKs</td><td>Python SDK / Rust gateway</td><td>REST API / UI</td><td>REST API, decK YAML, plugin config</td></tr><tr><td><strong>Ease of Use / Setup</strong></td><td>Easy Python SDK integration, Proxy server</td><td>Single API for all models, minimal code changes</td><td>Requires Docker / managed deployment, enterprise setup</td><td>Requires Rust gateway and Python SDK</td><td>Zero-config, local Docker, web UI</td><td>Requires Kong setup, decK configuration, plugin management</td></tr><tr><td><strong>Use Case Focus</strong></td><td>Developers / ML teams</td><td>Developers who want single API interface</td><td>Enterprises needing governance &amp; analytics</td><td>Production-grade AI pipelines / structured workflows</td><td>Fast prototyping, lightweight dev integration</td><td>Enterprise AI deployment with governance &amp; routing</td></tr></tbody></table>
+<table>
+  <tbody>
+    <tr>
+      <th>Feature / Gateway</th>
+      <th>LiteLLM</th>
+      <th>Helicone</th>
+      <th>BricksLLM</th>
+      <th>TensorZero</th>
+      <th>Bifrost</th>
+      <th>Kong</th>
+    </tr>
+    <tr>
+      <td>
+        <strong>Primary Focus</strong>
+      </td>
+      <td>Multi-provider LLM access with Python SDK &amp; Proxy</td>
+      <td>Unified OpenAI-compatible API for 100+ LLMs</td>
+      <td>Enterprise-grade production LLM gateway</td>
+      <td>
+        Industrial-grade Rust-based gateway for low-latency, structured
+        workflows
+      </td>
+      <td>Zero-config OpenAI-compatible gateway</td>
+      <td>AI Gateway for routing &amp; governance with plugins</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Supported Providers</strong>
+      </td>
+      <td>
+        OpenAI, Anthropic, xAI, VertexAI, NVIDIA, HuggingFace, Azure, Ollama,
+        Novita AI, Vercel AI Gateway, others
+      </td>
+      <td>GPT, Claude, Gemini, Vertex, Groq, others</td>
+      <td>
+        OpenAI, Anthropic, Azure OpenAI, vLLM, Deepinfra, custom deployments
+      </td>
+      <td>
+        Anthropic, AWS Bedrock &amp; SageMaker, Azure OpenAI, Fireworks, Vertex
+        AI, Groq, Mistral, OpenAI, OpenRouter, Together, xAI
+      </td>
+      <td>
+        OpenAI, Anthropic, Mistral, Azure OpenAI, AWS Bedrock, Google Vertex,
+        others
+      </td>
+      <td>
+        OpenAI, Anthropic, Mistral, Azure OpenAI, AWS Bedrock, Google Vertex,
+        others
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Deployment</strong>
+      </td>
+      <td>Proxy server / Python SDK</td>
+      <td>Cloud / API</td>
+      <td>Docker / Local / Managed</td>
+      <td>Rust-based Gateway / Python SDK</td>
+      <td>Local / Docker</td>
+      <td>Kong Gateway (Docker / Konnect)</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Latency / Performance</strong>
+      </td>
+      <td>Standard cloud latency</td>
+      <td>Standard cloud latency</td>
+      <td>Production-grade, caching &amp; failover</td>
+      <td>&lt;1ms P99 latency overhead, high throughput</td>
+      <td>Very fast, zero-config</td>
+      <td>Standard HTTP gateway, plugin-based routing</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Observability &amp; Logging</strong>
+      </td>
+      <td>
+        Integrates with Lunary, MLflow, Langfuse, Helicone, Promptlayer,
+        Traceloop, Slack
+      </td>
+      <td>Unified dashboard for usage, cost, and performance</td>
+      <td>Datadog integration, analytics, request logging</td>
+      <td>ClickHouse traces, metrics, structured logging</td>
+      <td>Web UI: live metrics, request logs</td>
+      <td>decK CLI, Kong dashboard, plugin metrics</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Error / Exception Handling</strong>
+      </td>
+      <td>Unified OpenAI-style errors across providers</td>
+      <td>Automatic fallbacks, unified logging</td>
+      <td>Rate-limited, retries, PII masking, access control</td>
+      <td>Automatic fallbacks, multi-step workflow safety</td>
+      <td>Automatic retries, network &amp; API key handling</td>
+      <td>Configurable retries, network, and header settings</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Structured / Multi-step Support</strong>
+      </td>
+      <td>JSON outputs, function calls</td>
+      <td>Basic text responses</td>
+      <td>Supports structured inputs via API</td>
+      <td>Schemas, multi-step workflows, episodes</td>
+      <td>Supports multiple providers but mostly freeform text</td>
+      <td>Supports routing to structured endpoints via plugin</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Access Control &amp; Security</strong>
+      </td>
+      <td>API key management, cost tracking</td>
+      <td>BYOK support, passthrough routing</td>
+      <td>User/org-level quotas, PII masking, access control</td>
+      <td>GitOps orchestration, model &amp; endpoint control</td>
+      <td>Virtual keys, usage budgets</td>
+      <td>API key in Authorization header, optional embedded keys</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Programming Interfaces</strong>
+      </td>
+      <td>Python SDK, REST API</td>
+      <td>REST API (OpenAI-compatible)</td>
+      <td>REST API, cURL, SDKs</td>
+      <td>Python SDK / Rust gateway</td>
+      <td>REST API / UI</td>
+      <td>REST API, decK YAML, plugin config</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Ease of Use / Setup</strong>
+      </td>
+      <td>Easy Python SDK integration, Proxy server</td>
+      <td>Single API for all models, minimal code changes</td>
+      <td>Requires Docker / managed deployment, enterprise setup</td>
+      <td>Requires Rust gateway and Python SDK</td>
+      <td>Zero-config, local Docker, web UI</td>
+      <td>Requires Kong setup, decK configuration, plugin management</td>
+    </tr>
+    <tr>
+      <td>
+        <strong>Use Case Focus</strong>
+      </td>
+      <td>Developers / ML teams</td>
+      <td>Developers who want single API interface</td>
+      <td>Enterprises needing governance &amp; analytics</td>
+      <td>Production-grade AI pipelines / structured workflows</td>
+      <td>Fast prototyping, lightweight dev integration</td>
+      <td>Enterprise AI deployment with governance &amp; routing</td>
+    </tr>
+  </tbody>
+</table>
 
 ## Conclusion:
 

@@ -57,9 +57,9 @@ Here is the best process to define evaluation objectives is [error analysis](htt
 
 Once your objectives are clear, the next step is deciding **how the evaluation will be conducted**. In practice, there are three main approaches:
 
-- **Pointwise** Each output is judged on its own, usually against a reference or set of criteria. *Example: In summarization, an LLM might rate each summary separately for informativeness, coherence, and conciseness.* *Strengths*: Simple, straightforward, and easy to scale. *Limitations*: It doesn’t capture relative quality between candidates and may introduce bias when items are evaluated in isolation.
-- **Pairwise** Two outputs are compared directly, and the evaluator decides which one is better. *Example: Given two summaries of the same article, the LLM is asked which is more accurate or coherent.* *Strengths*: Mirrors human preference judgments and works well when differences are subtle. *Limitations*: Can become inefficient if there are many candidates to compare.
-- **Listwise** Multiple outputs are ranked together as a set. *Example: In a search or retrieval task, an LLM ranks all candidate documents by relevance to a query.* *Strengths*: Captures interactions between candidates and provides a holistic view. *Limitations*: More complex to design, and consistency can be a challenge.
+- **Pointwise** Each output is judged on its own, usually against a reference or set of criteria. _Example: In summarization, an LLM might rate each summary separately for informativeness, coherence, and conciseness._ _Strengths_: Simple, straightforward, and easy to scale. _Limitations_: It doesn’t capture relative quality between candidates and may introduce bias when items are evaluated in isolation.
+- **Pairwise** Two outputs are compared directly, and the evaluator decides which one is better. _Example: Given two summaries of the same article, the LLM is asked which is more accurate or coherent._ _Strengths_: Mirrors human preference judgments and works well when differences are subtle. _Limitations_: Can become inefficient if there are many candidates to compare.
+- **Listwise** Multiple outputs are ranked together as a set. _Example: In a search or retrieval task, an LLM ranks all candidate documents by relevance to a query._ _Strengths_: Captures interactions between candidates and provides a holistic view. _Limitations_: More complex to design, and consistency can be a challenge.
 
 These three modes can also be connected. for instance, pointwise scores can be aggregated into pairwise comparisons or even full rankings. But in practice, LLMs don’t always behave consistently across modes (e.g., preferring A over B in one comparison but failing transitivity when adding C into the mix). These reliability issues are an important consideration, which we’ll revisit later when discussing **trustworthiness** in the LLM-as-a-Judge framework.
 
@@ -67,8 +67,8 @@ These three modes can also be connected. for instance, pointwise scores can be a
 
 Another important design choice is whether your evaluation should be **reference-based** or **reference-free**.
 
-- Reference-Based Evaluation In this setup, model outputs are compared against high-quality “gold standard” references. *Example: In machine translation or summarization, an LLM can compare generated text with human-written references.* *Strengths*: Provides a clear, objective benchmark and is widely used in tasks where good references exist. *Limitations*: The evaluation is only as good as the reference data. If references are limited or biased, the assessment may not reflect real-world quality.
-- Reference-Free Evaluation Here, outputs are judged without relying on predefined references. Instead, evaluation focuses on intrinsic qualities such as fluency, coherence, or alignment with the source context. *Example*: In dialogue generation, an LLM might assess whether a response is natural, relevant, and contextually appropriate without needing a gold-standard reply. *Strengths*: Offers flexibility, especially for open-ended or creative tasks where references are hard to define. *Limitations*: More subjective, and accuracy can suffer in domains where the LLM lacks deep knowledge or grounding.
+- Reference-Based Evaluation In this setup, model outputs are compared against high-quality “gold standard” references. _Example: In machine translation or summarization, an LLM can compare generated text with human-written references._ _Strengths_: Provides a clear, objective benchmark and is widely used in tasks where good references exist. _Limitations_: The evaluation is only as good as the reference data. If references are limited or biased, the assessment may not reflect real-world quality.
+- Reference-Free Evaluation Here, outputs are judged without relying on predefined references. Instead, evaluation focuses on intrinsic qualities such as fluency, coherence, or alignment with the source context. _Example_: In dialogue generation, an LLM might assess whether a response is natural, relevant, and contextually appropriate without needing a gold-standard reply. _Strengths_: Offers flexibility, especially for open-ended or creative tasks where references are hard to define. _Limitations_: More subjective, and accuracy can suffer in domains where the LLM lacks deep knowledge or grounding.
 
 In practice, many evaluation pipelines mix both approaches using references when they exist, while relying on reference-free methods for broader, more open-ended tasks.
 
@@ -78,9 +78,9 @@ When building an LLM-as-a-Judge, the quality of your evaluation depends heavily 
 
 Here are some tips:
 
-- **Provide clear context** Frame the task explicitly so the model knows *what* it is evaluating. *Example*: “You are evaluating summaries of news articles. Judge them for informativeness, conciseness, and coherence.”
-- **Define scoring criteria explicitly** Ambiguity in scoring leads to noisy results. Spell out the dimensions and scales. *Example*: “Rate coherence on a scale of 1–5, where 1 = incoherent and 5 = logically consistent and easy to follow.”
-- **Include examples when possible** Few-shot prompting helps the model align with your expectations. *Example*: Show a good vs. bad summary with the corresponding scores before asking it to evaluate new ones.
+- **Provide clear context** Frame the task explicitly so the model knows _what_ it is evaluating. _Example_: “You are evaluating summaries of news articles. Judge them for informativeness, conciseness, and coherence.”
+- **Define scoring criteria explicitly** Ambiguity in scoring leads to noisy results. Spell out the dimensions and scales. _Example_: “Rate coherence on a scale of 1–5, where 1 = incoherent and 5 = logically consistent and easy to follow.”
+- **Include examples when possible** Few-shot prompting helps the model align with your expectations. _Example_: Show a good vs. bad summary with the corresponding scores before asking it to evaluate new ones.
 - **Avoid overloaded instructions** Keep prompts focused. If multiple dimensions matter, evaluate them separately instead of lumping them together.
 - **Test and iterate** Treat prompts as part of your system design, refine them based on pilot runs and consistency checks.
 - **Use structured outputs** One major difficulty when designing and LLM as a judge is output consistency. Some times the judge will return the score, while other times it would return ‘The results is \{the score\}`. Parsing this is challenging in an evaluation pipeline. Using structured outputs (either native structure outputs from providers or through libraries) solves this problem. You can read our post about structured outputs to learn more about all these solutions.
@@ -94,13 +94,13 @@ In the LLM-as-a-Judge paradigm, the model’s output can go beyond a simple scor
 **a. Evaluation Result (Y)**
 
 - The primary output: a numeric score, ranking, categorical label, or qualitative assessment.
-- *Example*: In machine translation, Y could be a score for translation quality; in dialogue generation, it might be a 1–5 coherence rating.
+- _Example_: In machine translation, Y could be a score for translation quality; in dialogue generation, it might be a 1–5 coherence rating.
 - Purpose: Provides a clear measure of performance to compare models or outputs.
 
 **b. Explanation (E)**
 
 - Optional textual reasoning behind the evaluation.
-- *Example*: For a summary, the LLM might explain that the score was lowered due to missing key points or redundant content.
+- _Example_: For a summary, the LLM might explain that the score was lowered due to missing key points or redundant content.
 - Purpose: **Increases transparency** Helps users understand why a particular output received a given score.
 - **Improves evaluation reliability** LLMs are probabilistic: their outputs can vary slightly even on the same input.
 - Asking the model to explain its reasoning **forces it to “commit” to a chain of logic**, which often reduces random or inconsistent scoring.
@@ -115,7 +115,7 @@ In the LLM-as-a-Judge paradigm, the model’s output can go beyond a simple scor
 **c. Feedback (F)**
 
 - Actionable recommendations aimed at improving the evaluated output.
-- *Example*: In creative writing, the LLM could suggest ways to improve narrative flow or clarity.
+- _Example_: In creative writing, the LLM could suggest ways to improve narrative flow or clarity.
 - Purpose: Enables iterative refinement, guiding both model developers and content creators toward better outputs.
 
 **Why this matters**: Combining Y, E, and F makes evaluation not just informative, but actionable. Users can trust the scores (thanks to explanations) and improve outputs (thanks to feedback), reducing the need for extensive human post-analysis.
@@ -134,7 +134,7 @@ The architecture of an LLM-as-a-Judge system defines **how the evaluation is per
 - **Step 3: Evaluation Output** – The LLM produces one or more outputs: numeric scores, labels, explanations, or feedback.
 - **Pros**: Simple, fast to deploy, and easy to scale.
 - **Cons**: Limited flexibility; may inherit biases from the chosen LLM and struggle with complex or specialized tasks.
-- ***Best for***: Standard evaluations where speed and simplicity are more important than nuanced reasoning.
+- **_Best for_**: Standard evaluations where speed and simplicity are more important than nuanced reasoning.
 
 ### b. Multi-LLM System
 
@@ -148,7 +148,7 @@ The architecture of an LLM-as-a-Judge system defines **how the evaluation is per
 - **Step 4: Final Evaluation Output** – Produces a single, more robust evaluation that benefits from multiple perspectives.
 - **Pros**: Higher reliability and broader coverage of evaluation criteria.
 - **Cons**: More computationally expensive, harder to deploy, and requires mechanisms to reconcile differences between models.
-- ***Best for***: Complex tasks that benefit from diverse perspectives and where reliability is critical.
+- **_Best for_**: Complex tasks that benefit from diverse perspectives and where reliability is critical.
 
 ### c. Human-in-the-Loop System
 
@@ -162,7 +162,7 @@ The architecture of an LLM-as-a-Judge system defines **how the evaluation is per
 - **Step 3: Final Evaluation Output** – Combines automated and human insights into a trustworthy, high-quality evaluation.
 - **Pros**: Mitigates model biases, adds nuanced judgment, and improves trustworthiness.
 - **Cons**: Increases cost, time, and coordination complexity; less scalable than fully automated systems.
-- ***Best for***: High-stakes evaluations or cases requiring subjective, context-sensitive judgments.
+- **_Best for_**: High-stakes evaluations or cases requiring subjective, context-sensitive judgments.
 
 ## Scenarios Where LLM-as-a-Judge Can Assist
 
@@ -170,31 +170,31 @@ LLM-as-a-Judge is not only about automation it’s about **augmenting human role
 
 ### a. Research & Benchmarking
 
-- **Role assisted**: *AI Researchers, Data Scientists*
+- **Role assisted**: _AI Researchers, Data Scientists_
 - **Scenario**: Comparing multiple LLMs on summarization or reasoning tasks.
 - **How it helps**: Provides scalable, consistent scoring, reducing reliance on costly expert annotation.
 
 ### b. Model Deployment & Monitoring
 
-- **Role assisted**: *MLOps Engineers, QA Specialists*
+- **Role assisted**: _MLOps Engineers, QA Specialists_
 - **Scenario**: Integrating evaluation into CI/CD to catch regressions during deployment.
 - **How it helps**: Automates quality checks, monitors performance drift, and flags issues early.
 
 ### c. Product Development
 
-- **Role assisted**: *Product Managers, UX Designers*
+- **Role assisted**: _Product Managers, UX Designers_
 - **Scenario**: Testing chatbot responses or content-generation features.
 - **How it helps**: Highlights user-facing issues (e.g., coherence, tone, safety) without requiring large-scale user studies upfront.
 
 ### d. Human Review & Moderation
 
-- **Role assisted**: *Content Moderators, Reviewers, Editors*
+- **Role assisted**: _Content Moderators, Reviewers, Editors_
 - **Scenario**: Reviewing large volumes of generated text (e.g., translations, creative content, or policy compliance).
 - **How it helps**: Surfaces strengths/weaknesses, reducing human workload and focusing attention on edge cases.
 
 ### e. Training & Iterative Improvement
 
-- **Role assisted**: *ML Engineers, RLHF Practitioners*
+- **Role assisted**: _ML Engineers, RLHF Practitioners_
 - **Scenario**: Using evaluation outputs as feedback signals in reinforcement learning or fine-tuning.
 - **How it helps**: Provides structured signals (scores, reasoning, feedback) that improve models without full manual labeling.
 

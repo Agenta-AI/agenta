@@ -20,7 +20,7 @@ As Retrieval-Augmented Generation (RAG) systems continue to shape the future of 
 
 The process of breaking down unstructured text into digestible, retrievable pieces. The way you chunk your documents directly impacts the quality of retrieval and, consequently, the relevance of your LLM’s responses.
 
-Despite its importance, many teams settle for a single chunking strategy without exploring the nuances and trade-offs of alternative methods. But what if the performance of your entire RAG pipeline hinges on choosing the *right* one?
+Despite its importance, many teams settle for a single chunking strategy without exploring the nuances and trade-offs of alternative methods. But what if the performance of your entire RAG pipeline hinges on choosing the _right_ one?
 
 We’ll unpack four core approaches : syntactic, recursive, semantic, and cluster‑based, and show you how to put each one into practice. Let’s dive in.
 
@@ -69,20 +69,20 @@ and the next chunk starts with:
 To implement this chunking strategy Let us define a text to test on:
 
 ```python
-doc="""Agenta is an innovative open-source platform crafted to simplify and accelerate 
-the entire lifecycle of large language model (LLM) applications. It offers comprehensive 
+doc="""Agenta is an innovative open-source platform crafted to simplify and accelerate
+the entire lifecycle of large language model (LLM) applications. It offers comprehensive
 tools that cover every critical phase—from prompt engineering and fine-tuning to rigorous
-evaluation and seamless deployment. At its core, Agenta supports version control for 
-prompts, allowing developers to experiment with and compare multiple prompt variants 
+evaluation and seamless deployment. At its core, Agenta supports version control for
+prompts, allowing developers to experiment with and compare multiple prompt variants
 side-by-side, thereby identifying the most effective approaches efficiently. Moreover,
-it integrates built-in workflows for human feedback and annotation, empowering teams to 
-iteratively refine prompts and models based on real-world interactions and user input. 
-Agenta’s deployment features ensure smooth and scalable integration of LLM applications 
+it integrates built-in workflows for human feedback and annotation, empowering teams to
+iteratively refine prompts and models based on real-world interactions and user input.
+Agenta’s deployment features ensure smooth and scalable integration of LLM applications
 into production environments, enabling businesses to deliver AI-driven solutions reliably
-. To complement this, the platform includes robust observability and monitoring tools 
-that provide detailed insights into model performance metrics, user behavior, and error 
-cases—all consolidated into a single, intuitive dashboard. This end-to-end capability 
-makes Agenta a powerful ally for AI teams looking to build, optimize, and maintain 
+. To complement this, the platform includes robust observability and monitoring tools
+that provide detailed insights into model performance metrics, user behavior, and error
+cases—all consolidated into a single, intuitive dashboard. This end-to-end capability
+makes Agenta a powerful ally for AI teams looking to build, optimize, and maintain
 high-quality language model services with greater agility and transparency."""
 ```
 
@@ -91,7 +91,7 @@ To better understand how chunking affects our data, we define an `analyze_chunks
 ```python
 def analyze_chunks(chunks, use_tokens=False):
     print("\\nNumber of Chunks:", len(chunks))
-    
+
     if len(chunks) < 2:
         print("Not enough chunks to analyze overlaps.")
         return
@@ -131,7 +131,7 @@ def chunk_text(document, chunk_size, overlap):
     chunks = []
     stride = chunk_size - overlap
     current_idx = 0
-    
+
     while current_idx < len(document):
         # Take chunk_size characters starting from current_idx
         chunk = document[current_idx:current_idx + chunk_size]
@@ -139,9 +139,9 @@ def chunk_text(document, chunk_size, overlap):
             break
         chunks.append(chunk)
         current_idx += stride  # Move forward by stride
-   
+
     return chunks
- 
+
 character_chunks = chunk_text(doc, chunk_size=100, overlap=0)
 analyze_chunks(character_chunks)
 ```
@@ -150,7 +150,7 @@ analyze_chunks(character_chunks)
 
 In this example, the document was split into 13 chunks of 100 characters each without any overlap. As a result, consecutive chunks such as Chunk 5 and Chunk 6 share no text, causing sentences and ideas to be split abruptly across chunk boundaries. This lack of overlap can lead to loss of important context, which may reduce the effectiveness of retrieval systems relying on these chunks since relevant information might be divided between separate pieces.
 
-Such artificial breaks disrupt the semantic flow and make it harder for retrieval systems to return accurate and contextually complete answers, especially in use cases like Retrieval-Augmented Generation (RAG), where users might ask, *“What services does*[*Agenta*](/)*offer for model evaluation and deployment?”*
+Such artificial breaks disrupt the semantic flow and make it harder for retrieval systems to return accurate and contextually complete answers, especially in use cases like Retrieval-Augmented Generation (RAG), where users might ask, _“What services does_[_Agenta_](/)_offer for model evaluation and deployment?”_
 
 To mitigate this issue, overlapping chunks such as using 200-character chunks with 100-character overlap are often employed to maintain continuity between chunks. While overlap helps reduce fragmentation, it also introduces redundancy and increases the total number of chunks stored in your vector database.
 
@@ -184,15 +184,15 @@ One way to implement token-based chunking is through the use of the`tiktoken`Lib
 ```python
 import tiktoken
 
-# Loading cl100k_base tokenizer 
+# Loading cl100k_base tokenizer
 encoder = tiktoken.get_encoding("cl100k_base")
 def count_tokens(text, model="cl100k_base"):
     """Count tokens in a text string using tiktoken"""
     encoder = tiktoken.get_encoding(model)
     return print(f"Number of tokens: {len(encoder.encode(text))}")
-    
+
 fixed_token_chunker = FixedTokenChunker(
-    chunk_size=100, 
+    chunk_size=100,
     chunk_overlap=0,
     encoding_name="cl100k_base"
 )
@@ -208,7 +208,7 @@ To activate overlapping, all you have to do is to specify the `chunk_overlap` pa
 
 ```python
 fixed_token_chunker = FixedTokenChunker(
-    chunk_size=100, 
+    chunk_size=100,
     chunk_overlap=20,
     encoding_name="cl100k_base"
 )
@@ -240,7 +240,7 @@ recursive_character_chunker = RecursiveTokenChunker(
     chunk_size=100,  # Character Length
     chunk_overlap=0,  # Overlap
     length_function=len,  # Character length with len()
-    separators=["\\n\\n", "\\n", ".", "?", "!", " ", ""] 
+    separators=["\\n\\n", "\\n", ".", "?", "!", " ", ""]
 )
 recursive_character_chunks = recursive_character_chunker.split_text(doc)
 analyze_chunks(recursive_character_chunks, use_tokens=False)
@@ -254,8 +254,8 @@ Now we set `chunk_overlap=20` , which means that each chunk will share 20 charac
 recursive_character_chunker = RecursiveTokenChunker(
     chunk_size=100,  # Character Length
     chunk_overlap=20,  # Overlap
-    length_function=len, 
-    separators=["\\n\\n", "\\n", ".", "?", "!", " ", ""] 
+    length_function=len,
+    separators=["\\n\\n", "\\n", ".", "?", "!", " ", ""]
 )
 
 recursive_character_overlap_chunks = recursive_character_chunker.split_text(doc)
@@ -266,16 +266,16 @@ analyze_chunks(recursive_character_overlap_chunks, use_tokens=False)
 
 ## Semantic chunking
 
-Traditional text chunking methods like fixed character windows, sentence-level, or paragraph-based splitting suffer from a simple yet significant limitation: they break text without understanding its meaning. This can result in unnatural fragmentations where ideas are split mid-thought or chunks vary wildly in informativeness. This is where semantic chunking ****comes in.
+Traditional text chunking methods like fixed character windows, sentence-level, or paragraph-based splitting suffer from a simple yet significant limitation: they break text without understanding its meaning. This can result in unnatural fragmentations where ideas are split mid-thought or chunks vary wildly in informativeness. This is where semantic chunking \*\*\*\*comes in.
 
-Semantic Chunking is an advanced technique that uses text embeddings to split documents based on their semantic content instead of arbitrary positions or formatting cues. Rather than slicing at fixed intervals, the algorithm looks for *meaningful transitions in content* and tries to preserve cohesive ideas within each chunk. The goal is to produce chunks that make more sense for downstream tasks like retrieval, summarization, or question answering.
+Semantic Chunking is an advanced technique that uses text embeddings to split documents based on their semantic content instead of arbitrary positions or formatting cues. Rather than slicing at fixed intervals, the algorithm looks for _meaningful transitions in content_ and tries to preserve cohesive ideas within each chunk. The goal is to produce chunks that make more sense for downstream tasks like retrieval, summarization, or question answering.
 
 Imagine reading a novel and trying to summarize it paragraph by paragraph. Some paragraphs may have deep, context-rich content while others serve as transitions or contain only one short sentence. Semantic chunking takes this imbalance into account and restructures text into more meaningful blocks.
 
 One popular implementation comes from [Greg Kamradt's "5 Levels of Text Splitting"](https://www.youtube.com/watch?v=8OJC21T2SL4), later improved by the team at [**Chroma**](https://research.trychroma.com/evaluating-chunking) and adopted into tools like [**LangChain**](https://python.langchain.com/docs/how_to/semantic-chunker/). Here's the process at a high level:
 
 - **Embedding the Text:** This is the first and foundational step in semantic chunking. The goal here is to transform the raw text into numerical representations that capture meaning and context. We begin by splitting the text into small candidate windows typically individual sentences or pairs of sentences. These are not yet final chunks, but small enough units that still carry meaningful context. Each of these windows is then passed through a text embedding model (e.g., OpenAI's `text-embedding-3-large`), which converts them into dense vectors in a high-dimensional space. These vectors represent the semantic meaning of the text, not just the words themselves.
-- **Measuring Semantic Distances:** Once each sentence or segment is transformed into an embedding vector, the algorithm measures the **semantic similarity between adjacent vectors** using **cosine similarity**. An example is shown here : Let’s say we used an embedding model (like OpenAI’s `text-embedding-3-large`) to convert two sentences into the following vectors: **A** = `[0.1, -0.4, 0.3]` → *(e.g., “The dog barked.”)* **B** = `[0.09, -0.41, 0.29]` → *(e.g., “It was late at night.”)* To check how similar these two sentences are in meaning, we use cosine similarity:
+- **Measuring Semantic Distances:** Once each sentence or segment is transformed into an embedding vector, the algorithm measures the **semantic similarity between adjacent vectors** using **cosine similarity**. An example is shown here : Let’s say we used an embedding model (like OpenAI’s `text-embedding-3-large`) to convert two sentences into the following vectors: **A** = `[0.1, -0.4, 0.3]` → _(e.g., “The dog barked.”)_ **B** = `[0.09, -0.41, 0.29]` → _(e.g., “It was late at night.”)_ To check how similar these two sentences are in meaning, we use cosine similarity:
 
 ![Semantic chunking](/blog/the-ultimate-guide-for-chunking-strategies/img-10.webp)
 
@@ -399,7 +399,7 @@ For each window, a system prompt like the following is used:
 The model sees tagged chunks and is asked to suggest where **semantic breaks** should occur. For instance:
 
 ```jsx
-split_after: 2, 4
+split_after: (2, 4);
 ```
 
 This means: “Group chunks 1–2 together, then 3–4, then continue from chunk 5.”
@@ -412,8 +412,8 @@ One way to implement this LLM-assisted chunker is shown here :
 
 ```python
 llm_chunker = LLMSemanticChunker(
-    organisation="openai", 
-    model_name="gpt-4o", 
+    organisation="openai",
+    model_name="gpt-4o",
     api_key=os.environ["OPENAI_API_KEY"])
 
 llm_chunker_chunks = llm_chunker.split_text(doc)
@@ -444,8 +444,8 @@ One way to implement it is using the : `ClusterSemanticChunker`
 
 ```python
 cluster_chunker = ClusterSemanticChunker(
-    embedding_function=embedding_function, 
-    max_chunk_size=400, 
+    embedding_function=embedding_function,
+    max_chunk_size=400,
     length_function=openai_token_count
 )
 
@@ -458,7 +458,7 @@ analyze_chunks(cluster_chunker_chunks, use_tokens=True)
 
 ## Evaluation
 
-The *Chroma Technical Report* (July 3, 2024), titled ["Evaluating Chunking Strategies for Retrieval"](https://research.trychroma.com/evaluating-chunking), assess the effectiveness of these different text chunking methods used in Retrieval-Augmented Generation (RAG) systems using metrics such as Recall, Precision, Precision Ω (maximum achievable precision under perfect recall), and IoU (Intersection over Union) which captures both completeness and efficiency by penalizing irrelevant token inclusion and missed relevant tokens.
+The _Chroma Technical Report_ (July 3, 2024), titled ["Evaluating Chunking Strategies for Retrieval"](https://research.trychroma.com/evaluating-chunking), assess the effectiveness of these different text chunking methods used in Retrieval-Augmented Generation (RAG) systems using metrics such as Recall, Precision, Precision Ω (maximum achievable precision under perfect recall), and IoU (Intersection over Union) which captures both completeness and efficiency by penalizing irrelevant token inclusion and missed relevant tokens.
 
 The study found that `ClusterSemanticChunker` with 400 tokens achieved the second-highest recall (91.3%) and solid efficiency, while the same chunker at 200 tokens achieved the highest precision (8.0%), Precision Ω (34.0%), and IoU (8.0%). In contrast, `LLMSemanticChunker` had the highest recall (91.9%) but lower efficiency. Simpler methods like `RecursiveCharacterTextSplitter` (200 tokens, no overlap) performed consistently well across all metrics and even outperformed complex strategies like OpenAI’s default chunker (800 tokens, 400 overlap), which showed below-average results. Notably, reducing chunk overlap improved efficiency (IoU) by minimizing redundancy. Based on these findings, the report recommends either using `RecursiveCharacterTextSplitter` with 200–400 token chunks and no overlap for simplicity and good performance, or `ClusterSemanticChunker` for maximum efficiency if complexity is acceptable. The results are summarized in this table :
 

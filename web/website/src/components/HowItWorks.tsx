@@ -193,9 +193,11 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
             }}
           >
             Onboarding completion is{" "}
-            <span style={{ color: "var(--hiw-body-hi)", fontWeight: 500 }}>64%</span>, down
-            4% week over week. Biggest drop-off is step 3, connect data source.
-            I updated{" "}
+            <span style={{ color: "var(--hiw-body-hi)", fontWeight: 500 }}>
+              64%
+            </span>
+            , down 4% week over week. Biggest drop-off is step 3, connect data
+            source. I updated{" "}
             <span
               style={{
                 font: "var(--app-text-mono)",
@@ -514,7 +516,9 @@ function FilesDrawer({ stage }: { stage: number }) {
                 height="12"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke={f.hot ? "var(--hiw-file-ico-hot)" : "var(--hiw-file-ico)"}
+                stroke={
+                  f.hot ? "var(--hiw-file-ico-hot)" : "var(--hiw-file-ico)"
+                }
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"

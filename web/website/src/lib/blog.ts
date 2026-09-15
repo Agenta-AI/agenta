@@ -17,8 +17,18 @@ export function categoryGradient(category: string): string {
 
 // Display format `MMM D, YYYY` (e.g. "Feb 11, 2026"). Store ISO, format in view.
 const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ];
 
 export function formatDate(date: Date): string {

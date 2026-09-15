@@ -137,14 +137,16 @@ export function acceptedRepresentations(
   // No header at all (or nothing parseable): the client takes anything.
   if (entries.length === 0) return ALL;
 
-  return ALL.map((representation) => ({
-    representation,
-    ...qualityFor(entries, representation),
-  }))
-    .filter((candidate) => candidate.q > 0)
-    // Highest quality first; between equals, whichever the client named first.
-    .sort((a, b) => b.q - a.q || a.position - b.position)
-    .map((candidate) => candidate.representation);
+  return (
+    ALL.map((representation) => ({
+      representation,
+      ...qualityFor(entries, representation),
+    }))
+      .filter((candidate) => candidate.q > 0)
+      // Highest quality first; between equals, whichever the client named first.
+      .sort((a, b) => b.q - a.q || a.position - b.position)
+      .map((candidate) => candidate.representation)
+  );
 }
 
 /**

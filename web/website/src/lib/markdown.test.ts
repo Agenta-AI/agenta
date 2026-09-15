@@ -18,9 +18,9 @@ describe("page", () => {
   });
 
   it("keeps the root canonical as a single slash", () => {
-    expect(page({ title: "A", description: "b", path: "/", body: "c" })).toContain(
-      "<https://agenta.ai/>",
-    );
+    expect(
+      page({ title: "A", description: "b", path: "/", body: "c" }),
+    ).toContain("<https://agenta.ai/>");
   });
 });
 
