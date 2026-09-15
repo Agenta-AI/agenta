@@ -154,11 +154,12 @@ export function DriveToolbar(props: DriveToolbarProps) {
             <Row>
                 <Tabs value={view} onValueChange={(v) => setView(v as DriveViewMode)}>
                     <TabsList variant="pill" aria-label="View">
+                        {/* `size-3.5`: the trigger sizes an unclassed svg to 16px; these are 14. */}
                         <TabsTrigger value="grid" aria-label="Grid" title="Grid">
-                            <SquaresFour size={14} />
+                            <SquaresFour className="size-3.5" />
                         </TabsTrigger>
                         <TabsTrigger value="list" aria-label="List" title="List">
-                            <ListBullets size={14} />
+                            <ListBullets className="size-3.5" />
                         </TabsTrigger>
                     </TabsList>
                 </Tabs>
