@@ -733,7 +733,12 @@ export const useAgentConversation = ({
         messages,
         locallyBusy: busy,
         isSharedReaderReady: () => sharedSenderReadyRef.current,
+        // A send admitted here streams through the shared reader, not `useChat`, so its startup
+        // narration reaches the fold from the admission read rather than `onData`.
+        onStartupPhase: (label) => setTurnStartupLabel(sessionId, label),
         onExecuted: () => {
+            // The run is over: its startup label must not narrate the next turn's warm-up.
+            clearTurnClock(sessionId)
             // The run stream that calls this outlives its mount, and both continuations below run
             // past an await, so both carry the generation of the mount that started the read.
             const generation = mount.capture()
