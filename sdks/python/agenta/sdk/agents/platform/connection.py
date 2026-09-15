@@ -38,7 +38,23 @@ class GatewayCredentialsError(RuntimeError):
     Raised rather than degraded to ``None``: falling back to the caller's own credential is
     exactly the defect the exchange exists to remove, and a run with no credential at all
     fails later with a message that names the wrong cause.
+
+    ``failure_code`` carries the gateway's own code when the refusal named one. One value has
+    a caller that acts on it: ``mcp_gateway_disabled`` means the deployment does not serve the
+    MCP gateway, which is a reason to dial the declared servers directly rather than to fail
+    the run. Everything else stays a failure.
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        failure_code: Optional[str] = None,
+        status_code: Optional[int] = None,
+    ) -> None:
+        super().__init__(message)
+        self.failure_code = failure_code
+        self.status_code = status_code
 
 
 # Budget for one backend round-trip (the tool catalog/connection check, the vault fetch).
@@ -56,6 +72,23 @@ def default_timeout() -> float:
         except ValueError:
             pass
     return DEFAULT_TOOLS_TIMEOUT
+
+
+def _refusal_code(response: httpx.Response) -> Optional[str]:
+    """The gateway's own ``code`` out of a refusal, when the body carries the shared envelope.
+
+    Tolerant on purpose: this runs on an error path, and a body that is not JSON, not a dict,
+    or not enveloped simply yields ``None``, leaving the caller with the status it already
+    had. The envelope arrives under ``detail`` because FastAPI wraps an ``HTTPException``.
+    """
+    try:
+        body = response.json()
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+    detail = body.get("detail") if isinstance(body, dict) else None
+    code = detail.get("code") if isinstance(detail, dict) else None
+    return code if isinstance(code, str) and code else None
 
 
 def _derive_base_url() -> Optional[str]:
@@ -152,7 +185,9 @@ class PlatformConnection:
         """The caller's Authorization: explicit, else the per-request context, else env key."""
         return self._authorization or _derive_authorization()
 
-    async def gateway_authorization(self) -> Optional[str]:
+    async def gateway_authorization(
+        self, *, plane: Optional[str] = None
+    ) -> Optional[str]:
         """The credential the SANDBOX may hold, exchanged for the one this process holds.
 
         `authorization()` is the runtime's general-purpose credential: it reads the vault,
@@ -160,6 +195,11 @@ class PlatformConnection:
         with that reach travels into a sandbox. This asks the backend for a second value
         with the same tenant scope and the same run, no grants, and an audience the API
         accepts only on the gateway data plane.
+
+        ``plane`` names which gateway the credential is for, ``"llm"`` or ``"mcp"``. The
+        credential itself is the same either way; naming the plane is what lets the API say
+        that plane is switched off now, while the caller still has a pre-gateway path, rather
+        than at the first tool call, when it does not.
 
         ``None`` when no backend or no caller credential is configured — the offline and
         standalone cases, where there is no gateway to be confined to either.
@@ -174,7 +214,7 @@ class PlatformConnection:
                 response = await client.post(
                     f"{api_base}/gateways/credentials",
                     headers=self.headers(authorization=authorization),
-                    json={},
+                    json={"plane": plane} if plane else {},
                 )
         except Exception as exc:  # pylint: disable=broad-except
             log.warning("agent: gateway credential exchange failed", exc_info=True)
@@ -187,7 +227,9 @@ class PlatformConnection:
                 "agent: gateway credential exchange HTTP %s", response.status_code
             )
             raise GatewayCredentialsError(
-                f"gateway credential exchange refused with HTTP {response.status_code}"
+                f"gateway credential exchange refused with HTTP {response.status_code}",
+                failure_code=_refusal_code(response),
+                status_code=response.status_code,
             )
 
         try:
