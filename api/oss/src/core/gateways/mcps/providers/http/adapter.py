@@ -13,6 +13,7 @@ from oss.src.core.gateways.mcps.dtos import (
 )
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
+    classify_transport_error,
     egress_client,
     open_egress,
 )
@@ -145,7 +146,10 @@ class HttpMCPAdapter(MCPUpstreamInterface):
                     extensions=target.extensions,
                 )
         except httpx.RequestError as e:
-            raise MCPUpstreamError(target=route.url, detail=str(e)) from e
+            # Never `str(e)`: the connection's own grant is in the headers this request
+            # carries, and a refusal raised while building it quotes them (OR86).
+            failure = classify_transport_error(e)
+            raise MCPUpstreamError(target=route.url, detail=failure.detail) from e
 
         # OR75: an upstream that returns the grant it was sent would hand a vault
         # credential to the sandbox. The whole response is in hand, so it is checked

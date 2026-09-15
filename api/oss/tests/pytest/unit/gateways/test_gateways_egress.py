@@ -24,7 +24,13 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from oss.src.core.gateways.egress import EgressRefusedError, open_egress
+from types import SimpleNamespace
+
+from oss.src.core.gateways.egress import (
+    EgressRefusedError,
+    classify_transport_error,
+    open_egress,
+)
 from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
     LLMDeploymentKind,
@@ -688,3 +694,89 @@ async def test_pooled_clients_keep_the_pin_and_refuse_redirects():
     assert client.follow_redirects is False
     assert list(client.cookies.jar) == []
     assert str(seen[0].url.host) == PUBLIC_ADDRESS
+
+
+# ---------------------------------------------------------------------------
+# OR86: classifying a transport failure instead of quoting it
+# ---------------------------------------------------------------------------
+
+
+class TestClassifyTransportError:
+    """`str(httpx.RequestError)` can quote the request the gateway built, credential
+    included. Every call site now asks this instead."""
+
+    def test_a_local_protocol_refusal_never_carries_the_bytes_it_refused(self):
+        secret = "ag-secret-value-DO-NOT-LEAK"
+        exc = httpx.LocalProtocolError(f"Illegal header value b'Bearer {secret}\n'")
+
+        failure = classify_transport_error(exc)
+
+        assert secret not in failure.detail
+        assert failure.cause == "request_rejected"
+
+    def test_the_bytes_it_refused_are_not_logged_either(self, monkeypatch):
+        """An application log is not a caller, but it is not a vault either, and this is
+        the one class whose text is the credential."""
+        recorded = []
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress.log",
+            SimpleNamespace(warning=lambda *a, **kw: recorded.append(kw)),
+        )
+        secret = "ag-secret-value-DO-NOT-LEAK"
+
+        classify_transport_error(
+            httpx.LocalProtocolError(f"Illegal header value b'Bearer {secret}\n'")
+        )
+
+        assert recorded
+        assert all(secret not in str(entry) for entry in recorded)
+        assert recorded[-1]["error_class"] == "LocalProtocolError"
+
+    def test_a_reachability_failure_is_logged_with_its_text(self, monkeypatch):
+        """The classes whose text is about the network, not about the request, stay
+        diagnosable server-side."""
+        recorded = []
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress.log",
+            SimpleNamespace(warning=lambda *a, **kw: recorded.append(kw)),
+        )
+
+        classify_transport_error(httpx.ConnectError("Name or service not known"))
+
+        assert recorded[-1]["error"] == "Name or service not known"
+
+    @pytest.mark.parametrize(
+        "exc, cause",
+        [
+            (httpx.ConnectTimeout("x"), "timeout"),
+            (httpx.ReadTimeout("x"), "timeout"),
+            (httpx.PoolTimeout("x"), "timeout"),
+            (httpx.LocalProtocolError("x"), "request_rejected"),
+            (httpx.RemoteProtocolError("x"), "protocol_error"),
+            (httpx.ProxyError("x"), "proxy_error"),
+            (httpx.UnsupportedProtocol("x"), "unsupported_protocol"),
+            (httpx.ConnectError("x"), "connect_error"),
+            (httpx.TooManyRedirects("x"), "too_many_redirects"),
+            (httpx.ReadError("x"), "transport_error"),
+            (httpx.WriteError("x"), "transport_error"),
+        ],
+    )
+    def test_every_transport_error_lands_in_the_closed_vocabulary(self, exc, cause):
+        """The table ends at `RequestError`, so nothing an httpx release adds can fall
+        through to an unclassified quote."""
+        assert classify_transport_error(exc).cause == cause
+
+    def test_no_classified_detail_interpolates_the_exception(self):
+        secret = "another-secret-DO-NOT-LEAK"
+        for kind in (
+            httpx.ConnectTimeout,
+            httpx.LocalProtocolError,
+            httpx.RemoteProtocolError,
+            httpx.ProxyError,
+            httpx.UnsupportedProtocol,
+            httpx.ConnectError,
+            httpx.TooManyRedirects,
+            httpx.ReadError,
+        ):
+            failure = classify_transport_error(kind(secret))
+            assert secret not in failure.detail

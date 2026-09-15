@@ -24,6 +24,7 @@ from pydantic import ValidationError
 
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
+    classify_transport_error,
     egress_client,
     exempt_hosts,
     open_egress,
@@ -419,8 +420,9 @@ class MCPOAuthClient:
                     extensions=target.extensions,
                 )
             except httpx.RequestError as e:
+                failure = classify_transport_error(e)
                 raise MCPOAuthRegistrationError(
-                    authorization_server=authorization_server, detail=str(e)
+                    authorization_server=authorization_server, detail=failure.detail
                 ) from e
 
         # Status and origin, never the body. The body is written by the upstream this
@@ -543,8 +545,11 @@ class MCPOAuthClient:
                     extensions=target.extensions,
                 )
             except httpx.RequestError as e:
+                # This request carries the client secret and the authorization code
+                # (OR86).
+                failure = classify_transport_error(e)
                 raise MCPOAuthTokenExchangeError(
-                    token_endpoint=token_endpoint, detail=str(e)
+                    token_endpoint=token_endpoint, detail=failure.detail
                 ) from e
 
         # Status and origin only; see `register` above for why the body stays here.

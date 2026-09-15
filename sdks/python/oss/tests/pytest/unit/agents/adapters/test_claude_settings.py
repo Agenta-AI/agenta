@@ -125,6 +125,56 @@ def test_mcp_permissions_route_to_their_lists_and_skip_unset():
     assert perms["deny"] == ["mcp__shell"]
 
 
+def test_per_tool_mcp_permissions_render_per_tool_rules():
+    """D2: a denied tool Claude still advertises is a tool the model will try.
+
+    A deny rule is what removes it from this harness's catalog, so the per-tool table has to reach
+    the settings file and not only the runner's gate.
+    """
+    server = ResolvedMCPServer(
+        name="acme",
+        url="https://x",
+        policy=MCPPolicy(
+            permission="allow",
+            tool_permissions={"purge": "deny", "search": "ask", "read": "allow"},
+        ),
+    )
+
+    perms = _settings(build_claude_settings_files(None, None, [server]))["permissions"]
+
+    # The whole-server rule stays; Claude applies the more specific pattern over it.
+    assert perms["allow"] == ["mcp__acme", "mcp__acme__read"]
+    assert perms["ask"] == ["mcp__acme__search"]
+    assert perms["deny"] == ["mcp__acme__purge"]
+
+
+def test_per_tool_rules_render_without_a_whole_server_permission():
+    """The per-tool table is an opt-in of its own; it must not need a server permission beside it."""
+    server = ResolvedMCPServer(
+        name="acme",
+        url="https://x",
+        policy=MCPPolicy(tool_permissions={"purge": "deny"}),
+    )
+
+    perms = _settings(build_claude_settings_files(None, None, [server]))["permissions"]
+
+    assert perms["deny"] == ["mcp__acme__purge"]
+    assert "allow" not in perms
+
+
+def test_an_unset_per_tool_permission_contributes_no_rule():
+    server = ResolvedMCPServer(
+        name="acme",
+        url="https://x",
+        policy=MCPPolicy(permission="ask"),
+    )
+
+    perms = _settings(build_claude_settings_files(None, None, [server]))["permissions"]
+
+    assert perms["ask"] == ["mcp__acme"]
+    assert "deny" not in perms
+
+
 def test_reserved_internal_mcp_server_name_does_not_render_whole_server_rule():
     server = _mcp(INTERNAL_TOOL_MCP_SERVER, "deny")
     tool = CallbackToolSpec(

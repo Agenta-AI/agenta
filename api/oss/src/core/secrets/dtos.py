@@ -2,7 +2,7 @@ from re import sub
 from typing import Optional, Union, List, Dict, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from oss.src.core.secrets.managed import (
     PublicSecretManagementDTO,
@@ -51,8 +51,43 @@ class SecretValueRequiredError(Exception):
 # to mean "keep stored", and responses may be redacted.
 
 
+def _single_line_credential(value: Optional[str]) -> Optional[str]:
+    """Normalize a credential that has to survive being put in an HTTP header.
+
+    Surrounding whitespace is stripped, because a key pasted from a terminal or a
+    provider's console routinely arrives with a trailing newline and the person who
+    pasted it cannot see it. An interior control character is refused: the value is not
+    recoverable by guessing, and storing one produces a connection that fails on every
+    call with an error nobody can act on.
+
+    Refusing here is also what keeps the failure out of the caller's hands. h11 validates
+    the header while the request is being built and its refusal quotes the bytes it
+    rejected, so a credential with a stray newline used to come back to the caller inside
+    a transport-error message (OR86). The relay no longer copies that text, and this stops
+    the value being storable in the first place.
+
+    The error names the field and never the value.
+    """
+    if value is None:
+        return None
+    stripped = value.strip()
+    if any(ord(character) < 0x20 or ord(character) == 0x7F for character in stripped):
+        raise ValueError(
+            "credential contains a control character and cannot be sent in a request "
+            "header; check for a stray newline or tab"
+        )
+    return stripped
+
+
 class StandardProviderSettingsDTO(BaseModel):
+    # A validation error on a credential field renders the rejected input by default, so
+    # the value would travel on to whatever logs or reports the error. The rejection has
+    # to name the field and nothing else (OR86).
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     key: Optional[str] = None
+
+    _normalize_key = field_validator("key")(_single_line_credential)
 
 
 class CustomModelSettingsDTO(BaseModel):
@@ -175,6 +210,11 @@ class WebhookProviderDTO(BaseModel):
 
 
 class CustomSecretSettingsDTO(BaseModel):
+    # A validation error on a credential field renders the rejected input by default, so
+    # the value would travel on to whatever logs or reports the error. The rejection has
+    # to name the field and nothing else (OR86).
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     format: CustomSecretFormat
     default_env_var: Optional[str] = None
     content: Optional[Union[str, Dict[str, Union[str, int, float, bool, None]]]] = None
@@ -186,8 +226,15 @@ class CustomSecretDTO(BaseModel):
 
 
 class OAuthProviderSettingsDTO(BaseModel):
+    # A validation error on a credential field renders the rejected input by default, so
+    # the value would travel on to whatever logs or reports the error. The rejection has
+    # to name the field and nothing else (OR86).
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     client_id: str
     client_secret: Optional[str] = None
+
+    _normalize_client_secret = field_validator("client_secret")(_single_line_credential)
     issuer_url: str
     scopes: List[str]
     extra: Dict[str, Any] = Field(default_factory=dict)
@@ -198,9 +245,18 @@ class OAuthProviderDTO(BaseModel):
 
 
 class OAuthGrantSettingsDTO(BaseModel):
+    # A validation error on a credential field renders the rejected input by default, so
+    # the value would travel on to whatever logs or reports the error. The rejection has
+    # to name the field and nothing else (OR86).
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     server: str
     access_token: Optional[str] = None
     refresh_token: Optional[str] = None
+
+    _normalize_tokens = field_validator("access_token", "refresh_token")(
+        _single_line_credential
+    )
     expires_at: Optional[int] = None
     scopes: List[str]
     # The authorization server that issued these tokens, recorded when the grant is

@@ -1168,7 +1168,7 @@ describe("attachPermissionResponder", () => {
     assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
   });
 
-  it("picks the longest configured server name when two could match", async () => {
+  it("denies rather than choosing when two configured servers could match (D2)", async () => {
     const { session, emit } = makeSession();
     const seen: { permission?: any[] } = {};
 
@@ -1188,6 +1188,84 @@ describe("attachPermissionResponder", () => {
     await flushPromises();
 
     assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
+
+  it("denies when the ambiguity would otherwise resolve to the permissive side (D2)", async () => {
+    // The bypass, stated as the reviewer constructed it: the DENYING server is the short one, so
+    // preferring the longest match answers `allow` for a call the operator denied. The two names
+    // both register — `tool_prefix` maps each to itself — so this is a reachable configuration.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([
+        [
+          "acme",
+          { tools: new Map([["prod__delete", "deny" as const]]), newTool: "deny" as const },
+        ],
+        [
+          "acme__prod",
+          { tools: new Map([["delete", "allow" as const]]), newTool: "ask" as const },
+        ],
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp__acme__prod__delete" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
+
+  it("denies an ambiguous Codex dot-form name too (D2)", async () => {
+    // The dotted spelling has the same structural ambiguity; a fix on one separator only would
+    // leave the other reachable.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([
+        ["acme", { tools: new Map([["prod.delete", "deny" as const]]), newTool: "deny" as const }],
+        ["acme.prod", { tools: new Map([["delete", "allow" as const]]), newTool: "ask" as const }],
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp.acme.prod.delete" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
+
+  it("still resolves when exactly one configured server claims the name", async () => {
+    // Fail-closed must not swallow the ordinary case: one candidate resolves as before, including
+    // a server whose own name contains the separator.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([
+        ["acme__prod", { tools: new Map([["delete", "allow" as const]]), newTool: "ask" as const }],
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp__acme__prod__delete" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, "allow");
   });
 
   it("leaves an unconfigured MCP server to the existing ladder", async () => {

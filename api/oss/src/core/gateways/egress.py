@@ -46,6 +46,9 @@ from oss.src.core.gateways.dtos import (
 )
 from oss.src.core.webhooks.utils import resolve_validated_ip
 from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 class EgressRefusedError(ValueError):
@@ -227,3 +230,117 @@ def harden_pooled_client(client: httpx.AsyncClient) -> httpx.AsyncClient:
     client.cookies = no_cookie_jar()
     client.follow_redirects = False
     return client
+
+
+# --- how an outbound call failed, without quoting the failure ------------------ #
+
+# `str(httpx.RequestError)` is not safe to show a caller. h11 validates the request we
+# built, and its refusal quotes the offending bytes: a stored credential whose value
+# carries a byte h11 rejects — a trailing newline on a pasted key is the ordinary way to
+# get one — comes back as `Illegal header value b'Bearer <the key>'`. Nine call sites
+# across both planes copied that text onto a caller-visible `detail`, so the relay handed
+# the sandbox the credential it was refusing to send (OR86).
+#
+# The exception is therefore never quoted. It is classified into this closed vocabulary,
+# and the caller gets the sentence beside it. Each entry also says whether the exception's
+# own text may be logged: an application log is not a caller, but it is not a vault either,
+# and two of these classes quote bytes we built or bytes an upstream returned.
+_TRANSPORT_FAILURES: tuple = (
+    # (exception class, cause, caller-visible sentence, text safe to log)
+    (
+        httpx.TimeoutException,
+        "timeout",
+        "The upstream did not answer in time.",
+        True,
+    ),
+    (
+        httpx.LocalProtocolError,
+        "request_rejected",
+        "The request could not be sent to the upstream. Check the connection's stored "
+        "credential and headers for stray characters.",
+        # h11's message quotes the header or body bytes it refused, which is exactly the
+        # credential. Never logged, not even server-side.
+        False,
+    ),
+    (
+        httpx.RemoteProtocolError,
+        "protocol_error",
+        "The upstream did not speak HTTP correctly.",
+        # Quotes bytes the upstream sent, which may echo what it was sent.
+        False,
+    ),
+    (
+        httpx.ProxyError,
+        "proxy_error",
+        "The proxy refused the connection to the upstream.",
+        True,
+    ),
+    (
+        httpx.UnsupportedProtocol,
+        "unsupported_protocol",
+        "The upstream address does not name a protocol the gateway can speak.",
+        True,
+    ),
+    (
+        httpx.ConnectError,
+        "connect_error",
+        "The upstream could not be reached.",
+        True,
+    ),
+    (
+        httpx.TooManyRedirects,
+        "too_many_redirects",
+        "The upstream redirected too many times.",
+        True,
+    ),
+    # The remaining `TransportError` leaves: ReadError, WriteError, CloseError. Their text
+    # is an OS-level socket message, but they are the catch-all rather than a named case,
+    # so they are not logged verbatim either.
+    (
+        httpx.RequestError,
+        "transport_error",
+        "The gateway could not complete the request to the upstream.",
+        False,
+    ),
+)
+
+
+@dataclass(frozen=True)
+class UpstreamTransportFailure:
+    """A transport failure, described without quoting the exception.
+
+    `detail` is caller-visible and is one of a closed set of sentences; it never contains
+    the exception's text, the request's headers or the request's body.
+    """
+
+    cause: str
+    detail: str
+
+
+def classify_transport_error(exc: httpx.RequestError) -> UpstreamTransportFailure:
+    """Describe an `httpx.RequestError` for a caller, and log what is safe to log.
+
+    Call this instead of `str(exc)` at every site that turns a transport failure into an
+    error a caller reads. The exception itself stays available through `raise ... from exc`
+    for anything that inspects the chain in-process.
+    """
+    for kind, cause, detail, loggable in _TRANSPORT_FAILURES:
+        if isinstance(exc, kind):
+            if loggable:
+                log.warning(
+                    "[gateways] upstream transport failure",
+                    cause=cause,
+                    error_class=type(exc).__name__,
+                    error=str(exc),
+                )
+            else:
+                # The class and the cause only. The text may quote the credential.
+                log.warning(
+                    "[gateways] upstream transport failure",
+                    cause=cause,
+                    error_class=type(exc).__name__,
+                )
+            return UpstreamTransportFailure(cause=cause, detail=detail)
+    raise AssertionError(  # pragma: no cover - the table ends at `RequestError`
+        f"unclassified transport error: {type(exc).__name__}"
+    )

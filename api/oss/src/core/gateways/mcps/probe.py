@@ -29,6 +29,7 @@ from pydantic import BaseModel
 
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
+    classify_transport_error,
     egress_client,
     open_egress,
 )
@@ -171,10 +172,13 @@ class MCPServerProbe:
                     extensions=target.extensions,
                 )
         except httpx.RequestError as e:
+            # The probe's message is shown in the connect dialog, so it carries the
+            # classified sentence rather than the exception's text (OR86).
+            failure = classify_transport_error(e)
             return MCPServerProbeResult(
                 problem=MCPProbeProblem(
                     cause="unreachable",
-                    message=f"The server did not answer: {e}",
+                    message=f"The server did not answer. {failure.detail}",
                 )
             )
 

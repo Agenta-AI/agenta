@@ -7,13 +7,18 @@ from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     CustomProviderDTO,
     CustomSecretDTO,
+    CustomSecretSettingsDTO,
     OAuthGrantDTO,
+    OAuthGrantSettingsDTO,
     OAuthProviderDTO,
+    OAuthProviderSettingsDTO,
     SecretResponseDTO,
     StandardProviderDTO,
+    StandardProviderSettingsDTO,
     UpdateSecretDTO,
 )
 from oss.src.core.secrets.enums import (
+    CustomSecretFormat,
     LLMProviderKind,
     LLMStandardProviderKind,
     MCPProviderKind,
@@ -612,3 +617,65 @@ def test_secret_kind_enum_keeps_existing_members_appended_only():
     assert actual_prefix == expected_prefix
     assert "oauth_provider" in [member.value for member in SecretKind]
     assert "oauth_grant" in [member.value for member in SecretKind]
+
+
+# ---------------------------------------------------------------------------
+# OR86: a credential that cannot travel in a header is not storable
+# ---------------------------------------------------------------------------
+
+
+class TestCredentialNormalization:
+    """A key pasted from a console routinely arrives with a trailing newline that the
+    person pasting it cannot see. Stored as-is it produced a connection that failed every
+    call, and the failure quoted the key back to the caller."""
+
+    def test_a_pasted_provider_key_loses_its_trailing_newline(self):
+        settings = StandardProviderSettingsDTO(key="sk-live-abc123\n")
+
+        assert settings.key == "sk-live-abc123"
+
+    def test_surrounding_whitespace_goes_on_an_oauth_token(self):
+        grant = OAuthGrantSettingsDTO(
+            server="https://mcp.example.com/",
+            access_token="  at-abc123\r\n",
+            refresh_token="rt-abc123\n",
+            scopes=[],
+        )
+
+        assert grant.access_token == "at-abc123"
+        assert grant.refresh_token == "rt-abc123"
+
+    def test_an_interior_control_character_is_refused(self):
+        with pytest.raises(ValidationError):
+            StandardProviderSettingsDTO(key="sk-live\nabc123")
+
+    def test_the_refusal_does_not_repeat_the_credential(self):
+        """The whole point of the finding: the value must not travel on an error anyone
+        sees, and a validation error is shown to the person saving the connection."""
+        with pytest.raises(ValidationError) as excinfo:
+            StandardProviderSettingsDTO(key="sk-live\nDO-NOT-LEAK")
+
+        assert "DO-NOT-LEAK" not in str(excinfo.value)
+
+    def test_a_client_secret_is_normalized_the_same_way(self):
+        provider = OAuthProviderSettingsDTO(
+            client_id="client-1",
+            client_secret="cs-abc123\n",
+            issuer_url="https://auth.example.com/",
+            scopes=[],
+        )
+
+        assert provider.client_secret == "cs-abc123"
+
+    def test_an_absent_credential_stays_absent(self):
+        assert StandardProviderSettingsDTO(key=None).key is None
+
+    def test_a_free_form_custom_secret_may_still_span_lines(self):
+        """A stored file is not a header value. A PEM key legitimately contains newlines
+        and this validator must not reach it."""
+        settings = CustomSecretSettingsDTO(
+            format=CustomSecretFormat.TEXT,
+            content="-----BEGIN KEY-----\nabc\n-----END KEY-----\n",
+        )
+
+        assert "\n" in settings.content

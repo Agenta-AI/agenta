@@ -2,7 +2,7 @@
 
 ## Active review findings
 
-The record runs OR36 to OR85, fifty findings: forty-three closed, six open and one withdrawn.
+The record runs OR36 to OR86, fifty-one findings: forty-four closed, six open and one withdrawn.
 Every number in that range is present. Entries numbered below OR36 predate the record and are
 all closed. Recounted from the headings on 2026-09-15, after several findings closed the same
 day.
@@ -336,6 +336,73 @@ The relay stays out of it. Nothing in `providers/passthrough/adapter.py` should 
 a future reader who reaches for that shortcut should read the OR49 record first.
 
 ## Closed review record
+
+### OR86. A stored credential reaches the caller inside a transport-error message — CLOSED, by classifying a transport failure instead of quoting it
+
+Found by the Codex reviewer in review round 1 (its finding #3) and reproduced against a real
+socket before being fixed. Severity P0, the only one in that round.
+
+Nine call sites across both planes turned an `httpx.RequestError` into a caller-visible error by
+copying `str(exc)` onto a `detail` field, which
+`api/oss/src/apis/fastapi/gateways/mcps/proxy.py` renders as the JSON-RPC error message and the
+LLM proxy renders as the OpenAI-shaped one.
+
+The exception text is not safe to show. h11 validates the request while it is being built, and
+its refusal quotes the bytes it rejected. When the rejected bytes are a header, they are the
+credential the gateway just injected. The reproduction, `reviews/repro_header_leak2.py`, run
+against a socket that accepts so the request is genuinely constructed:
+
+```
+class           : LocalProtocolError
+is RequestError : True
+detail          : "Illegal header value b'Bearer ag-secret-value-DO-NOT-LEAK\n'"
+LEAKS SECRET    : True
+```
+
+`httpx.LocalProtocolError` is an `httpx.RequestError`, so every one of those handlers caught it.
+The trigger is a stored credential containing a byte h11 rejects, and the ordinary way to get one
+is a trailing newline on a pasted key, which the person pasting it cannot see. Nothing stripped
+or validated a credential on write.
+
+Two of the nine sites carry more than the MCP relay does: the OAuth token exchange
+(`mcps/oauth/client.py`) sends the client secret and the authorization code, and the probe
+(`mcps/probe.py`) interpolated the exception into a message the connect dialog shows.
+
+OR75 does not cover this. That scanner reads a relayed *response* for an echoed credential; this
+value never reaches a response, it reaches an error the gateway authors itself.
+
+**Closed 2026-09-16.** Three changes, at three different distances from the defect.
+
+`classify_transport_error` in `api/oss/src/core/gateways/egress.py` maps an `httpx.RequestError`
+to a closed vocabulary — `timeout`, `request_rejected`, `protocol_error`, `proxy_error`,
+`unsupported_protocol`, `connect_error`, `too_many_redirects`, `transport_error` — and returns a
+fixed sentence per cause. The table ends at `httpx.RequestError` itself, so a class a future httpx
+release adds is classified rather than falling through to a quote. All nine call sites ask it
+instead of `str(exc)`; the exception stays on the `raise ... from` chain for anything in-process.
+
+The same table decides what may be logged. An application log is not a caller, but it is not a
+vault either, and two classes quote material the gateway must not record: `LocalProtocolError`
+quotes the request bytes, and `RemoteProtocolError` quotes the upstream's. Those two log their
+class and cause only; the reachability classes log their text, so an operator can still tell a
+DNS failure from a refused connection.
+
+A credential is also no longer storable in the state that triggers it. `_single_line_credential`
+in `api/oss/src/core/secrets/dtos.py` strips surrounding whitespace from a provider key, an OAuth
+access or refresh token and a client secret, and refuses an interior control character. The free-
+form `custom_secret` content is deliberately not reached: a stored PEM legitimately spans lines.
+The four credential-bearing models also set `hide_input_in_errors`, because a Pydantic validation
+error renders the rejected input by default and would have carried the credential onward to
+whatever logs it.
+
+Proven by three cases in `api/oss/tests/pytest/unit/gateways/test_gateways_http_mcp_adapter.py`
+driving the real adapter with a newline-bearing grant and the real h11 refusal — the error, the
+proxy-rendered body, and that distinct failures still read distinctly — by six cases in
+`test_gateways_egress.py` covering the vocabulary, the two logging rules and that no detail
+interpolates its exception, and by seven in `api/oss/tests/pytest/unit/secrets/test_dtos.py`
+covering stripping, refusal, a refusal that does not repeat the value, and the multi-line secret
+that must keep working.
+
+---
 
 ### OR85. An MCP refusal's connect action never reaches the runner, so a harness is told authorization is needed and not where to get it — CLOSED, and the body was dropped in two places rather than one
 
