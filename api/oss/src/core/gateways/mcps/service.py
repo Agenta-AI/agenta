@@ -285,6 +285,13 @@ class MCPGatewayService:
         prefix = tool_prefix(name)
         if not prefix:
             return
+        # A project-wide read, and the only way to ask this question today: the compared
+        # value is the rendered prefix, which is derived rather than stored, so no filter
+        # can be pushed into the query. It is also a check-then-act with no constraint
+        # behind it, so two concurrent creates with one name both succeed. Both close
+        # together by storing the prefix as a column with a partial unique index on
+        # `(project_id, tool_prefix)`, which is a migration rather than a change here
+        # (D12). Until then the scan is skipped wherever the answer cannot have changed.
         existing = await self.mcp_endpoints_dao.query_endpoints(project_id=project_id)
         for other in existing:
             if excluding is not None and other.id == excluding:
@@ -333,11 +340,18 @@ class MCPGatewayService:
         #
         endpoint: MCPEndpointEdit,
     ) -> Optional[MCPEndpoint]:
-        # Excluding itself, so re-saving a connection without touching its name is not a
-        # collision with the name it already has.
-        await self._check_name_is_free(
-            project_id=project_id, name=endpoint.name, excluding=endpoint.id
+        # Only when the rendered prefix actually moves, and excluding itself, so
+        # re-saving a connection is never a collision with the name it already has. An edit that changes a URL, a
+        # tool filter or a description asked this question on every save and read every
+        # connection in the project to answer it, and the answer could not have changed
+        # (D12). One indexed read replaces that scan.
+        current = await self.mcp_endpoints_dao.fetch_endpoint(
+            project_id=project_id, endpoint_id=endpoint.id
         )
+        if current is None or tool_prefix(current.name) != tool_prefix(endpoint.name):
+            await self._check_name_is_free(
+                project_id=project_id, name=endpoint.name, excluding=endpoint.id
+            )
         return await self.mcp_endpoints_dao.edit_endpoint(
             project_id=project_id,
             user_id=user_id,
