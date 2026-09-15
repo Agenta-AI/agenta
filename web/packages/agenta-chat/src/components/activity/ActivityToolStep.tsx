@@ -201,7 +201,7 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
                 yourTurn={display.icon === "ask" || display.icon === "connect"}
             />
             <span
-                className={`min-w-0 truncate text-sm text-colorText transition-colors group-hover:text-colorTextSecondary ${
+                className={`min-w-0 truncate text-sm text-colorText transition-colors group-hover/row:text-colorTextSecondary ${
                     live || state === "running" || state === "queued" || state === "awaiting"
                         ? LIVE_TEXT_CLASS
                         : ""
@@ -225,7 +225,7 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
     )
 
     const rowClass =
-        "relative -ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer items-center gap-3.5 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left group after:absolute after:-inset-y-2 after:inset-x-0 after:content-['']"
+        "relative -ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer items-center gap-3.5 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left group/row after:absolute after:-inset-y-2 after:inset-x-0 after:content-['']"
 
     return (
         <div className="flex min-w-0 flex-col gap-2">

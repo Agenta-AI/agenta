@@ -96,7 +96,7 @@ export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
         <>
             <ActivityNode icon="ask" state={state} yourTurn={settled === "pending"} />
             <span
-                className={`min-w-0 truncate text-sm text-colorText transition-colors group-hover:text-colorTextSecondary ${
+                className={`min-w-0 truncate text-sm text-colorText transition-colors group-hover/row:text-colorTextSecondary ${
                     settled === "pending" ? LIVE_TEXT_CLASS : ""
                 }`}
             >
@@ -121,7 +121,7 @@ export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
                     type="button"
                     onClick={() => setOpen((v) => !v)}
                     aria-expanded={open}
-                    className="relative -ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer items-center gap-3.5 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left group after:absolute after:-inset-y-2 after:inset-x-0 after:content-['']"
+                    className="relative -ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer items-center gap-3.5 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left group/row after:absolute after:-inset-y-2 after:inset-x-0 after:content-['']"
                 >
                     {header}
                 </button>
