@@ -35,7 +35,7 @@ def gateway_api(cls_account):
     return _request
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def llm_gateway_plane(cls_account) -> bool:
     """Whether the DEPLOYMENT under test serves the LLM gateway plane.
 
@@ -43,6 +43,11 @@ def llm_gateway_plane(cls_account) -> bool:
     against a stack it did not configure, and `AGENTA_LLM_GATEWAY_ENABLED` defaults off, so
     the only trustworthy answer is the one the API gives. Any management route refuses the
     same way; listing endpoints is the cheapest and changes nothing.
+
+    Class-scoped, matching `cls_account`, which is both the widest scope available to it and
+    the scope it has to reach: a suite's class-scoped setup fixture provisions endpoints
+    through the very routes this answers about, and a function-scoped skip runs too late to
+    save it. One probe per class.
     """
     response = requests.get(
         f"{cls_account['api_url']}/gateways/llms/endpoints/",

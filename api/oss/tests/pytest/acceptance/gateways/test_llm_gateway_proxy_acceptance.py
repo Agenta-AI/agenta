@@ -79,9 +79,19 @@ def _create_custom_endpoint(authed_api, *, models, timeout_seconds=None):
 
 
 @pytest.fixture(scope="class")
-def mock_llm_endpoint(authed_api):
+def mock_llm_endpoint(authed_api, llm_gateway_plane):
     """A custom endpoint pointed at WP5's mock upstream, allowlisting exactly the
-    model slugs this suite exercises against it (`mock/echo`)."""
+    model slugs this suite exercises against it (`mock/echo`).
+
+    The plane check belongs here as well as on the module, because this fixture registers the
+    endpoint through the LLM management route: with the plane off it is refused, and a
+    function-scoped skip runs after this has already failed.
+    """
+    if not llm_gateway_plane:
+        pytest.skip(
+            "the LLM gateway plane is disabled on this deployment "
+            "(set AGENTA_LLM_GATEWAY_ENABLED=true to run it)"
+        )
     return _create_custom_endpoint(authed_api, models=["mock/echo"])
 
 
