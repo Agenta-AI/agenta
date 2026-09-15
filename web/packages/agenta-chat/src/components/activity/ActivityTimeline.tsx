@@ -23,7 +23,7 @@ import {ActivityToolStep} from "./ActivityToolStep"
 
 const ROW_PX = 22
 const ROLL_MS = 340
-const STEP_ENTER_MS = 320
+const STEP_ENTER_MS = 360
 
 /** The live verb: a change rolls the old one up and out and the new one in from below. */
 const RollingLabel = ({text, shimmer}: {text: string; shimmer: boolean}) => {
@@ -110,8 +110,8 @@ const StepReveal = ({
     return (
         <HeightCollapse open={shown} animate={animate} durationMs={STEP_ENTER_MS} slideY={6}>
             <div
-                className={`transition-opacity duration-300 ${first ? "" : "pt-4.5"} ${
-                    shown ? "opacity-100" : "opacity-25"
+                className={`transition-opacity duration-[360ms] ease-out ${first ? "" : "pt-4.5"} ${
+                    shown ? "opacity-100" : "opacity-0"
                 }`}
             >
                 {children}
