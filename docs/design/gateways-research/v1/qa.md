@@ -309,7 +309,7 @@ Keep markers to 16 characters, per the precondition in the dashboard procedure a
 | Claude ask, approved | `permission: ask` | approval resumes and returns the result | PASS |
 | Claude deny | `permission: deny` | tool absent from the catalog | PASS |
 | Claude allow | `permission: allow` | runs unattended | PASS |
-| Codex ask | `permission: ask` | gate raised | BLOCKED — see below |
+| Codex ask | `permission: ask` | gate raised | FAIL — the tool name is still wrong; see below |
 
 ### Pi: the OR79 re-proof
 
@@ -450,36 +450,48 @@ Note the two spellings in the logs above: Claude's `mcp__mock-mcp__echo` keeps t
 `mcp__mock_mcp__echo` does not. That divergence is why the permission table is keyed on the name
 the server advertises rather than on any rendered name.
 
-### Codex: BLOCKED, and not by the product
+### Codex: FAIL, and the tool name is still not the one Codex uses
 
-The Codex row could not be run. The harness exits before it starts a turn:
-
-```
-ERROR {"type":"error","errorText":"Agent run failed: Codex process has exited with code 1:"}
-[sandbox-agent] geesefs stderr: Failed to flush small file .../.codex/config.toml:
-  InternalError: We encountered an internal error, please try again.
-```
-
-The cause is the dev box, not the gateway chain. Its object store has no writable volumes because
-the host filesystem is full:
+Re-run on 2026-09-15 at 21:18 UTC, after the box was given space and the object store recovered
+(`agenta-store` back to seven writable volumes, no assign failures). The harness now starts and
+completes a turn, so the storage blocker recorded in the first pass is gone. The cell still does
+not pass.
 
 ```
-$ df -h /
-/dev/md2  436G  411G  2.7G  100% /
+frames=['start','start-step','message-metadata','data-agent-status'x4,
+        'text-start','text-delta','text-delta','text-end','finish-step','finish']
+text='Warning: Model metadata for `mock/echo` not found. ...
 
-$ docker logs agenta-ee-dev-gateways-seaweedfs-1
-failed to find writable volumes for collection:agenta-store ...
-No writable volumes and no free volumes left
-volume_growth.go:142 create 7 volume, created 0: Not enough data nodes found!
+mock MCP tool call failed'
 ```
 
-Codex writes `.codex/config.toml` into its mounted working directory at startup, so it is the first
-harness to die when the mount cannot accept writes; Pi and Claude had already completed. Three
-attempts, all identical. This must be re-run once the box has space.
+```
+21:18:16.614Z  mcps/builtin/mock/mock -> 200                  tools/list
+21:18:16.802Z  llms/custom/.../v1/responses -> 200            the mock emits the tool call
+21:18:16.843Z  llms/custom/.../v1/responses -> 200            41 ms later, already answering
+                                                              <- no MCP POST after either call
+```
 
-What the Codex row would have proved is narrower than it looks. The mock adapter now emits the
-Codex spelling `mcp.mock-mcp.echo` on the Responses protocol instead of Claude's
-`mcp__mock-mcp__echo`, and that mapping is read from the runner's own gate-lookup convention rather
-than measured against a live Codex. Until this cell runs, treat Codex MCP gating as unverified and
-the mapping as unconfirmed. It can no longer report a false pass: a tool result that is not the
-echo's own no longer satisfies the round-trip check.
+No tool-call frame reached the stream, no `[HITL]` gate was raised, and the session's persisted
+records hold only `message`, `usage` and `done` — no `tool_call`, no `tool_result`. Codex received
+a call for a tool it does not have, failed it inside the harness, and answered from the failure. The
+41 ms between the two model calls is the whole round trip, which is far too fast to have left the
+sandbox.
+
+So `mcp.mock-mcp.echo` is not Codex's model-facing name either. That spelling was read from the
+runner's gate-lookup convention in `engines/sandbox_agent/acp-interactions.ts`, but that code
+describes the name on an ACP **permission frame**, which is a different surface from the tool
+catalog Codex exposes to the model. The catalog name cannot be recovered from the request, because
+Codex configures remote MCP servers at session start rather than serialising its tools into each
+call — which is why the mock has to know the name in the first place. Do not guess a third
+spelling: read it off a live Codex session's own tool list and pin it with a case in
+`test_mock_llm_adapter.py`, the way the Messages spelling is pinned.
+
+Codex MCP gating therefore remains **unverified**. Nothing here says the gate is broken on Codex —
+the ACP gate never got the chance to fire — only that this fixture cannot yet drive it.
+
+The run is still worth recording, because it is the live proof of the round-trip fix. This is the
+exact situation that used to produce a green row: before 2026-09-15 the mock accepted any tool
+result in the body as the echo, so a call that never left the sandbox answered
+`mock MCP echo: <marker>` and the Codex row read as a pass. It now answers `mock MCP tool call
+failed`, on the real path, for a call that really did fail.
