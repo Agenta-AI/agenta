@@ -4,7 +4,7 @@
  * Purely presentational; every value it renders is owned by DriveExplorer's hooks (rows, virtualizer,
  * group scroll, uploads).
  */
-import {type Dispatch, type SetStateAction} from "react"
+import {type Dispatch, type ReactNode, type SetStateAction} from "react"
 
 import {revealFade} from "@agenta/entities/drive"
 import {parentOf, type FlatTreeRow} from "@agenta/entities/drive"
@@ -51,6 +51,8 @@ export function DriveTreeList({
     copyPath,
     download,
     writes,
+    rootRow,
+    depthOffset = 0,
 }: {
     flatRows: FlatTreeRow[]
     /** The on-demand full-tree fetch (search) is in flight — the empty line says so. */
@@ -79,14 +81,23 @@ export function DriveTreeList({
     download: (path: string, isFolder: boolean) => void
     /** Rename / duplicate / move / delete for the row menus — omit on a read-only mount. */
     writes?: DriveItemWriteActions
+    /** The static "All files" root row above the virtualised rows (absent while searching). */
+    rootRow?: ReactNode
+    /** Extra indent for every row — 1 when the root row is shown, so children sit under it. */
+    depthOffset?: number
 }) {
     return flatRows.length === 0 ? (
-        <Text type="secondary" className="px-2 !text-xs">
-            {searchLoading ? "Searching…" : "No matches"}
-        </Text>
+        <>
+            {rootRow}
+            <Text type="secondary" className="px-2 !text-xs">
+                {searchLoading ? "Searching…" : "No matches"}
+            </Text>
+        </>
     ) : (
-        // Only the visible rows mount. Full pane width; each row handles its
-        // own horizontal overflow, so there's no tree-wide horizontal axis.
+        <>
+        {rootRow}
+        {/* Only the visible rows mount. Full pane width; each row handles its
+            own horizontal overflow, so there's no tree-wide horizontal axis. */}
         <div
             style={{
                 height: treeVirtualizer.getTotalSize(),
@@ -96,7 +107,8 @@ export function DriveTreeList({
         >
             {treeVirtualizer.getVirtualItems().map((vRow) => {
                 const row = flatRows[vRow.index]
-                const {node, depth} = row
+                const {node} = row
+                const depth = row.depth + depthOffset
                 const parent = parentOf(node.path)
                 // One-shot entrance: only the rows of a level that resolved
                 // THIS render animate in (staggered by sibling order), so the
@@ -175,5 +187,6 @@ export function DriveTreeList({
                 )
             })}
         </div>
+        </>
     )
 }
