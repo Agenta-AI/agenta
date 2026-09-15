@@ -114,6 +114,18 @@ Two consequences worth stating plainly:
 - Use `deny` to keep an agent away from a tool it should not be using. Do not use it to protect data the agent must not reach. For that, do not connect the credential, or narrow what the connection can see on the server's side.
 - A connection's reach is the right place to set a hard limit. Connect an account whose own permissions match what the agent is allowed to do.
 
+### Where the decision is enforced
+
+Agenta's own gate is the authority. It sees every MCP tool call, on every harness, and applies the resolution described above.
+
+Some harnesses can also be told the same rules in their own configuration, which is what keeps a denied tool out of the list the model is shown rather than letting it be offered and then refused. That translation is a convenience, and it is not always complete:
+
+- **Claude Code** is given native rules. It resolves all matching rules together and takes the most restrictive, rather than preferring the most specific, so a tool set looser than the server's own default — say `permission: "deny"` with `tool_permissions: {"echo": "allow"}` — cannot be written as a server rule plus an exception. In that case Agenta writes the per-tool rules alone and leaves the tools you did not name to the gate. They are still governed; they are simply offered to the model first and refused on use.
+- **Codex** is given none. Its configuration cannot carry a tool table without a transport entry it will not accept, so every tool is offered and the gate decides.
+- **Pi** never registers a denied tool in the first place.
+
+A tool you denied may therefore still appear in a model's tool list on some harnesses. It will not run.
+
 ## Troubleshooting
 
 - A connection failure usually means DNS, TLS, network policy, or server availability.
