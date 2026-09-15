@@ -1,7 +1,7 @@
 import ChatMarkdown from "@agenta/chat/markdown"
 import type {DriveMarkdownProps} from "@agenta/entity-ui/drive"
 
-import {proseClassName, useDriveLinkResolver} from "./AssistantMarkdown"
+import {markdownIcons, proseClassName, useDriveLinkResolver} from "./AssistantMarkdown"
 
 /**
  * The Files pane's markdown renderer on `/m` — the chat's own `ChatMarkdown` with the same prose
@@ -14,5 +14,6 @@ export const DriveMarkdownRenderer = ({content, className}: DriveMarkdownProps) 
         baseClassName={proseClassName}
         className={className}
         useLinkResolver={useDriveLinkResolver}
+        icons={markdownIcons}
     />
 )

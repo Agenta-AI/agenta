@@ -31,6 +31,9 @@ import {
     PencilSimple,
     Trash,
 } from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
+
+import {useDriveFileDownload} from "./useDriveFileDownload"
 
 /** The write verbs an item offers. Rename / duplicate are file-only (no backend move
  * endpoint), so for a folder only `onDelete` is honoured. Absent = read-only mount. */
@@ -39,9 +42,6 @@ export interface DriveItemWriteActions {
     onDuplicate: (path: string) => void
     onDelete: (path: string, isFolder: boolean) => void
 }
-import {useAtomValue} from "jotai"
-
-import {useDriveFileDownload} from "./useDriveFileDownload"
 
 /** A `copy(text, successMessage?)` bound to the themed message toast (the kit service so it renders
  * correctly in dark mode). The generic primitive behind {@link useCopyDrivePath}; the drawer header
@@ -157,10 +157,7 @@ export const DriveItemContextMenu = ({
                         <ContextMenuSeparator />
                         {/* Folder rename needs a backend move endpoint — shown, disabled, so the
                             verb is discoverable and its absence explained. */}
-                        <ContextMenuItem
-                            disabled={isFolder}
-                            onSelect={() => writes.onRename(path)}
-                        >
+                        <ContextMenuItem disabled={isFolder} onSelect={() => writes.onRename(path)}>
                             <PencilSimple size={14} />
                             Rename
                             {isFolder ? (

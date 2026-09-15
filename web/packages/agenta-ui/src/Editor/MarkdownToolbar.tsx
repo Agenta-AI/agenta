@@ -340,39 +340,40 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                     {headingButton("h3")}
                 </>
             ) : (
-            /* Block type — paragraph / headings / quote / code block. */
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild disabled={disabled}>
-                    <button
-                        type="button"
-                        title="Text style"
-                        aria-label="Text style"
-                        disabled={disabled}
-                        onMouseDown={(e) => e.preventDefault()}
-                        className={`${btnClass(disabled, false)} !w-auto min-w-[88px] justify-between gap-1 px-2 text-xs`}
-                    >
-                        <span className="truncate">{blockLabel}</span>
-                        <ChevronDown size={13} className="shrink-0" />
-                    </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                    {BLOCK_TYPES.map((b) => (
-                        <DropdownMenuItem
-                            key={b.key}
-                            // text-xs matches the trigger; the item default (14px) overshoots it.
-                            // antd `selectable` + `selectedKeys`: the active block is highlighted.
-                            className={cn(
-                                "text-xs",
-                                b.key === blockType && "bg-controlItemBgActive text-colorPrimary",
-                            )}
-                            onMouseDown={keepEditorSelection}
-                            onSelect={() => formatBlock(b.key)}
+                /* Block type — paragraph / headings / quote / code block. */
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild disabled={disabled}>
+                        <button
+                            type="button"
+                            title="Text style"
+                            aria-label="Text style"
+                            disabled={disabled}
+                            onMouseDown={(e) => e.preventDefault()}
+                            className={`${btnClass(disabled, false)} !w-auto min-w-[88px] justify-between gap-1 px-2 text-xs`}
                         >
-                            {b.label}
-                        </DropdownMenuItem>
-                    ))}
-                </DropdownMenuContent>
-            </DropdownMenu>
+                            <span className="truncate">{blockLabel}</span>
+                            <ChevronDown size={13} className="shrink-0" />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        {BLOCK_TYPES.map((b) => (
+                            <DropdownMenuItem
+                                key={b.key}
+                                // text-xs matches the trigger; the item default (14px) overshoots it.
+                                // antd `selectable` + `selectedKeys`: the active block is highlighted.
+                                className={cn(
+                                    "text-xs",
+                                    b.key === blockType &&
+                                        "bg-controlItemBgActive text-colorPrimary",
+                                )}
+                                onMouseDown={keepEditorSelection}
+                                onSelect={() => formatBlock(b.key)}
+                            >
+                                {b.label}
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             )}
 
             {divider}
@@ -388,7 +389,13 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                   )
                 : null}
             {layout === "inline"
-                ? button("code", "Inline code", <Code size={15} />, () => formatText("code"), active.code)
+                ? button(
+                      "code",
+                      "Inline code",
+                      <Code size={15} />,
+                      () => formatText("code"),
+                      active.code,
+                  )
                 : null}
             {divider}
             {button(

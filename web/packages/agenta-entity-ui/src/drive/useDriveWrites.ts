@@ -21,6 +21,7 @@ import {message, modal} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
+const nameOf = (path: string) => path.split("/").pop() ?? path
 const joinPath = (folder: string, name: string) => (folder ? `${folder}/${name}` : name)
 
 export function useDriveWrites(drive: SessionDriveData) {
@@ -32,7 +33,10 @@ export function useDriveWrites(drive: SessionDriveData) {
     const run = useCallback(
         async (
             presentedPath: string,
-            fn: (target: {mount: NonNullable<SessionDriveData["mount"]>; path: string}) => Promise<void>,
+            fn: (target: {
+                mount: NonNullable<SessionDriveData["mount"]>
+                path: string
+            }) => Promise<void>,
             success: string,
         ): Promise<boolean> => {
             const resolved = drive.resolveMount(presentedPath)

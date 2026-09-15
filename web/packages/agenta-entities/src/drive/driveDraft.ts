@@ -18,7 +18,11 @@ export interface DriveDraft {
     value: string
 }
 
-export const seedDriveDraft = (text: string): DriveDraft => ({seed: text, baseline: null, value: text})
+export const seedDriveDraft = (text: string): DriveDraft => ({
+    seed: text,
+    baseline: null,
+    value: text,
+})
 
 const stripTrailingNewlines = (text: string) => text.replace(/\n+$/, "")
 
@@ -51,6 +55,7 @@ export const driveDraftTextToSave = (draft: DriveDraft): string =>
 export const commitDriveDraft = (draft: DriveDraft, saved: string): DriveDraft => ({
     seed: saved,
     // The editor's normalised form of what was saved, so the value it holds compares clean.
-    baseline: stripTrailingNewlines(draft.value) === stripTrailingNewlines(saved) ? draft.value : saved,
+    baseline:
+        stripTrailingNewlines(draft.value) === stripTrailingNewlines(saved) ? draft.value : saved,
     value: draft.value,
 })
