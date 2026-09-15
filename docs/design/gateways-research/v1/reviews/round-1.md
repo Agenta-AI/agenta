@@ -50,11 +50,16 @@ on two findings.
 | Codex, as filed | 2 | 5 | 2 | 1 | 10 |
 | Second reviewer, as filed | 0 | 1 | 6 | 5 | 12 |
 | **After verification and merge** | **1** | **3** | **8** | **5** | **17** |
+| After the first round of fixes | 0 | 1 | 6 | 6 | 13 open, 4 closed, 1 withdrawn |
 
 Five findings overlapped and are merged below. Four Codex severities were lowered on reachability
 grounds and one second-reviewer severity was raised; each change is argued in the finding's own
 section. The two reviewers disagreed about severity far more than about facts: every mechanism
 Codex described was confirmed.
+
+One second-reviewer finding, D8, did not survive verification and is withdrawn. It is kept in
+place with its correction rather than deleted, because the probe that produced it is the one an
+operator would reach for and the next person deserves to know why it misleads.
 
 ## Disposition table
 
@@ -63,15 +68,15 @@ against the code and its test.
 
 | ID | Source | Sev | Evidence | Disposition | Fix rev | Verified |
 | --- | --- | --- | --- | --- | --- | --- |
-| D1 | Codex 3 | P0 | `api/oss/src/core/gateways/mcps/providers/http/adapter.py:147`, `api/oss/src/apis/fastapi/gateways/mcps/proxy.py:215` | Fix, blocking | pending | pending |
-| D2 | Codex 1 | P1 | `services/runner/src/engines/sandbox_agent/acp-interactions.ts:946`, `:966` | Fix, blocking | pending | pending |
+| D1 | Codex 3 | P0 | `api/oss/src/core/gateways/mcps/providers/http/adapter.py:147`, `api/oss/src/apis/fastapi/gateways/mcps/proxy.py:215` | Fix, blocking | `8a2a59f76a` | **yes**, code, tests, suite run |
+| D2 | Codex 1 | P1 | `services/runner/src/engines/sandbox_agent/acp-interactions.ts:946`, `:966` | Fix, blocking | `8a2a59f76a` | **yes**, code, tests, suite run |
 | D3 | both | P1 | `api/oss/src/apis/fastapi/gateways/mcps/router.py:71`, `api/oss/src/core/gateways/mcps/service.py:1013` | Fix, blocking | pending | pending |
 | D4 | both | P2 | `api/oss/databases/postgres/migrations/core_oss/versions/oss000000032_rekey_mcp_oauth_grants_by_connection.py:81` | Fix | pending | pending |
 | D5 | Codex 5 | P2 | `api/oss/src/core/gateways/mcps/oauth/service.py:302` | Fix | pending | pending |
 | D6 | Codex 6 | P2 | `api/oss/src/core/gateways/mcps/oauth/storage.py:257`, `oauth/service.py:83` | Fix | pending | pending |
-| D7 | both | P2 | `services/runner/src/mcp-permission.ts:114`, `acp-interactions.ts:966` | Fix the ACP half | pending | pending |
-| D8 | reviewer 2 | P2 | `services/runner/package.json:10`, `services/runner/docker/Dockerfile.dev` | Re-run the gate row | pending | pending |
-| D9 | reviewer 2 | P2 | `services/runner/src/mcp-permission.ts:82` | Fix | pending | pending |
+| D7 | both | P2 | `services/runner/src/mcp-permission.ts:114`, `acp-interactions.ts:966` | Fix the ACP half | `e57627d8e5` | **yes**, code, tests, suite run |
+| D8 | reviewer 2 | — | `services/runner/package.json:10` | **Withdrawn**, the finding was wrong | `fe58e68162` | **yes**, dispute confirmed |
+| D9 | reviewer 2 | P2 | `services/runner/src/mcp-permission.ts:82` | Fix | `21d5591326` | **yes**, code, tests, suite run |
 | D10 | reviewer 2 | P2 | `api/oss/src/core/gateways/mcps/service.py:264`, `services/runner/src/engines/sandbox_agent/runtime-policy.ts:145` | Fix | pending | pending |
 | D11 | Codex 8 | P2 | `api/oss/src/core/gateways/mcps/service.py:569` | Defer into OR66 | n/a | n/a |
 | D12 | both | P3 | `api/oss/src/core/gateways/mcps/service.py:289`, `api/oss/src/dbs/postgres/gateways/mcps/dao.py:215` | Defer | pending | pending |
@@ -79,9 +84,26 @@ against the code and its test.
 | D14 | both | P3 | `api/oss/src/core/gateways/mcps/oauth/storage.py:229` | Defer | pending | pending |
 | D15 | reviewer 2 | P3 | `api/oss/src/core/gateways/mcps/oauth/service.py:70`, `:353` | Defer | pending | pending |
 | D16 | reviewer 2 | P3 | `services/runner/src/engines/sandbox_agent/runtime-policy.ts:137`, `api/oss/src/apis/fastapi/gateways/flags.py:10` | Fix | pending | pending |
-| D17 | reviewer 2 | P3 | `api/oss/src/core/gateways/mcps/service.py:823` | Document | pending | pending |
+| D17 | reviewer 2 | P3 | `api/oss/src/core/gateways/mcps/service.py:823` | Document | `0940769da2` | **yes**, docs read |
+| D18 | D2 residual | P3 | `sdks/python/agenta/sdk/agents/adapters/codex_settings.py` | Defer | n/a | n/a |
 
-**Four findings block the release: D1, D2, D3 and D8.** D8 is a re-run rather than a code change.
+**One finding still blocks the release: D3.** D1 and D2 are fixed and verified. D8 is withdrawn:
+the finding was wrong, and the section below says why. D18 is a residual that D2's fix left
+behind, opened here rather than folded silently into a closed finding.
+
+## Verifying the fixes
+
+A fix is marked verified only when its code was read against the finding, its test was read to
+confirm it would fail without the fix, and the suite was actually run. For the runner fixes that
+was `vitest run --project unit` over
+`tests/unit/mcp-permission-intake.test.ts`, `tests/unit/sandbox-agent-acp-interactions.test.ts`,
+`tests/unit/pi-gateway-mcp.test.ts` and `tests/unit/pi-gate-envelope.test.ts`: **113 passed**. For
+D1 it was pytest over `oss/tests/pytest/unit/gateways/test_gateways_egress.py`,
+`test_gateways_http_mcp_adapter.py` and `oss/tests/pytest/unit/secrets/test_dtos.py`:
+**134 passed**.
+
+`8a2a59f76a` carries both the D2 runner change and the D1 API change under a single D2-titled
+message, so the D1 fix is easy to miss when reading the log. Both were verified.
 
 ## The findings
 
@@ -118,6 +140,18 @@ supplies a synthetic connection-refused exception and never builds a credential-
 refuse a credential value containing a control character at the vault write. Add a regression test
 that drives the public error mapper with such a credential and asserts it is absent from the body.
 
+**Fixed in `8a2a59f76a`, verified.** Both layers were built. `classify_transport_error` in
+`api/oss/src/core/gateways/egress.py` maps an `httpx.RequestError` to a closed set of causes and a
+fixed detail string, and it withholds the exception text even from the log for the classes that may
+quote a credential. `_single_line_credential` in `api/oss/src/core/secrets/dtos.py` strips
+surrounding whitespace and refuses an interior control character, naming the field and never the
+value.
+
+Every site was converted, not only the five this review named: ten `httpx.RequestError` handlers
+across the HTTP, Composio, passthrough, OAuth-client and probe paths now call the classifier, and
+no `str(exc)` remains on any of them. The regression tests assert the credential is absent from the
+error's detail, its message and its rendered proxy response. Tracked as OR86 in the findings log.
+
 ### D2. Ambiguous harness tool names resolve to another connection's `allow` — P1
 
 `acp-interactions.ts:946` reconstructs a call's identity by taking the longest configured server
@@ -146,6 +180,18 @@ assignment is untested.
 gate envelope already does (`services/runner/src/engines/sandbox_agent/pi-gate-envelope.ts:44`),
 rather than reconstructing it from a rendered string. Short of that, treat more than one matching
 server as unresolved and fail closed instead of preferring the longest.
+
+**Fixed in `8a2a59f76a`, verified.** The second route was taken. `splitMcpToolName` became
+`mcpToolNameCandidates`, which returns every match instead of the longest, and `resolveMcpToolName`
+reports one of four outcomes; an `ambiguous` outcome resolves to `deny`. The commit also renders
+per-tool `deny` rules for Claude so a denied tool is no longer offered there at all.
+
+The tests are the right ones. The reviewer's exact construction is pinned — the denying server is
+the short name, so the old longest-match behaviour would answer `allow` — alongside the dotted
+Codex spelling and a non-regression case where a single server whose own name contains the
+separator still resolves. All would fail without the fix.
+
+The fix leaves a remainder on one harness, carried as **D18**.
 
 ### D3. Connect, disconnect and invalidate write a stale full snapshot — P1
 
@@ -273,26 +319,52 @@ configured server matches, fail closed, because that is a tool the runner itself
 could not identify. Separately, constrain the display name character set at the API and add a gate
 cell for a name containing a space.
 
-### D8. The harness permission evidence was measured on a binary production does not ship — P2
+**Fixed in `e57627d8e5`, verified.** The `unconfigured` outcome now resolves to `deny` alongside
+`ambiguous`, and `undefined` keeps exactly one meaning. Both deliberate cases are pinned by new
+tests: a tool that is not MCP-shaped still defers to the existing ladder, and a configured server
+that set no permission still defers, so configurations predating per-tool policy are unchanged.
 
-[qa.md](../qa.md) records the Codex MCP permission cells as passing and reasons from Codex source
-at `rust-v0.154.0`, "the version the runner image installs". The repository pins a different one:
-`services/runner/package.json:10` records `@openai/codex 0.145.0`, and both runner Dockerfiles
-install that pin.
+The display-name character constraint was not part of this fix and is not needed now that an
+unrecognised name denies rather than defers.
 
-The running development container was checked directly and reports `codex-cli 0.154.0`, running as
-root with `HOME=/root`. The cause is a home-directory mismatch, and only on the development image:
-`services/runner/docker/Dockerfile.gh:118` sets `USER node`, so there the pin and the daemon agree,
-while `services/runner/docker/Dockerfile.dev` sets no `USER`, so the daemon runs as root, the
-pinned install sits unused in the `node` user's home, and the daemon fetched a floating range at
-first use.
+### D8. Withdrawn — the permission cells did run against the shipped Codex
 
-Production is pinned and the QA stack is not, which is the wrong way round for a release gate. The
-mock change on this branch that made the cell pass was written to satisfy the newer parser, and
-nothing shows the pinned version parses the same shape.
+**As filed:** the QA record reasoned from Codex source at `rust-v0.154.0` while
+`services/runner/package.json:10` pins `@openai/codex 0.145.0`, and probing the container returned
+`codex-cli 0.154.0`, so the evidence appeared to describe a binary production does not ship.
 
-**Suggested fix.** Re-run the affected permission cells against the pinned version, or move the pin
-and re-run them there. Give the development Dockerfile the same `USER node` as the gh image.
+**The finding was wrong, and the dispute is accepted.** The probe reached an artifact that exists
+in the container but is never launched. Checked independently rather than taken on assertion:
+
+- The bundled harness reports the pinned version. Running
+  `bin/agent_processes/codex/node_modules/@openai/codex/bin/codex.js --version` in the container
+  returns `codex-cli 0.145.0`, and that package's own `package.json` records `0.145.0`.
+- The launcher `bin/agent_processes/codex-acp` is a two-line shell script that `exec`s
+  `bin/agent_processes/codex/node_modules/.bin/codex-acp`, inside the pinned install.
+- `startAcpServer()` in the adapter bundle reads `CODEX_PATH` and passes it to
+  `startCodexConnection()`, which, when that value is absent, spawns
+  `createRequire(import.meta.url).resolve("@openai/codex/bin/codex.js")` — the bundled copy.
+- `CODEX_PATH` is unset in the container and appears nowhere under `services/runner/src` or
+  `services/runner/scripts`.
+
+There is a `CODEX_PATH ?? "codex"` fallback in the same bundle that would resolve from `PATH`, but
+it sits inside the `login` subcommand, which a run never takes. The standalone `0.154.0` binary is
+therefore not what the cells exercised.
+
+The cells were re-run against `0.145.0` on 2026-09-15. The accompanying change to the mock adapter
+is comment-only: no assertion or payload moved, which is itself evidence that the wire shape did
+not need adjusting between the two versions.
+
+**One claim remains unverified and is not load-bearing.** The corrected note states the
+`ResponseItem::FunctionCall` shape is identical at `rust-v0.145.0` and `rust-v0.154.0`. That is a
+claim about upstream source that cannot be checked from this repository. It does not matter for the
+disposition: the cells now run on the version that ships, so the evidence describes the shipped
+binary whatever the other version does.
+
+**What the finding got right, and it is small.** The development image still has no `USER`
+directive while `services/runner/docker/Dockerfile.gh:118` sets `USER node`, which is why a
+differently-versioned standalone binary sits in root's home on a dev stack at all. It misleads
+anyone who probes the obvious path, as it misled this review. Worth tidying; not a release concern.
 
 ### D9. A corrupt `toolPermissions` container silently disables per-tool policy — P2
 
@@ -308,6 +380,12 @@ is a well-formed object; none is a non-record.
 
 **Suggested fix.** Treat a declared-but-unreadable container the same as a declared-but-corrupt
 fallback, so it resolves to `deny`.
+
+**Fixed in `21d5591326`, verified.** `optedIn` now reads what the sender *declared* rather than what
+parsed, so a corrupt container can no longer take the whole table down with it, and a declared but
+unreadable `toolPermissions` resolves to `deny`. The test parameterises over corrupt shapes and
+pins the two cases that must not change: a readable table with no floor still asks, and a server
+declaring neither field still reaches the run's own ladder.
 
 ### D10. A renamed connection frees a name still frozen into committed agent revisions — P2
 
@@ -390,6 +468,36 @@ environment. The attribute read is per call, but the value is captured at import
 (`api/oss/src/utils/env.py:968`). A test has to patch the settings attribute directly, and the
 sentence invites the wrong test.
 
+### D18. Codex is still offered tools the run denies — P3, deferred
+
+Opened by D2's fix rather than found in review, and recorded here so a closed finding does not
+carry an unstated remainder.
+
+D2's fix stops a denied tool from *executing* on every harness. It does not stop one being
+*offered*. The three harnesses now differ:
+
+| Harness | A denied tool is | Where it is stopped |
+| --- | --- | --- |
+| Pi | not registered | `services/runner/src/extensions/pi-mcp.ts` drops it at registration |
+| Claude | not offered | a per-tool `deny` rule from `claude_settings.py`, added by D2's fix |
+| Codex | **still advertised** | the runner gate refuses it at call time |
+
+Codex is the exception for a structural reason, not an oversight. Per-tool approval would need a
+`[mcp_servers.<name>.tools.<tool>]` table, and Codex rejects a server entry with no transport at
+`session/new`; the runner delivers these servers over ACP instead, so it has no table to write
+them into. The module docstring in `sdks/python/agenta/sdk/agents/adapters/codex_settings.py`
+records this as decision D-008.
+
+The consequence is a worse experience, not a weaker boundary: the model sees a tool, tries it, and
+gets a refusal instead of never being offered it. The gate holds.
+
+**The proper closure is not in the runner.** Have the gateway filter `tools/list` by the run's deny
+set, the way it already filters by the endpoint's allowlist
+(`api/oss/src/core/gateways/mcps/service.py:823`). That removes a denied tool from the catalogue
+for every harness at once, needs no per-harness settings file, and does not depend on what any
+harness can be told. It also closes the gap D17 describes from the other side. Deferred: it is a
+gateway change, not a release fix, and the gate already prevents execution.
+
 ### D17. `deny` is an experience control, not a security boundary — P3, document only
 
 The API enforces the endpoint's tool allowlist at relay (`core/gateways/mcps/service.py:823`) and
@@ -401,6 +509,11 @@ gate.
 This matches the decisions document, which frames permissions as the runner approval experience, so
 it is not a defect. It needs saying in the product copy and the documentation, because anyone
 reading a permission editor will assume `deny` makes a tool unreachable.
+
+**Documented in `0940769da2`, verified.** Both the guide and the reference now say that `deny`
+governs the agent's behaviour rather than the tool's reach, and both point the reader at the
+control that is a boundary: the credential the connection was made with. The reference adds the
+consequence explicitly, that `deny` should not be used to protect data the agent must not reach.
 
 ## The eight open findings
 
@@ -458,5 +571,12 @@ Recorded so round 2 does not spend time here again.
 
 ## Recommendation
 
-Do not ship yet, for four reasons and no more: **D1**, **D2**, **D3** and **D8**. Everything else is
-a fix-soon or a defer with a reason, and none of it needs to hold the release.
+**As reviewed:** do not ship, for four reasons and no more — D1, D2, D3 and D8.
+
+**After the first round of fixes:** one reason remains, **D3**. The connect, disconnect and
+invalidate paths still write a stale full snapshot, losing `tags` and `meta` and reverting a
+concurrent administrator edit.
+
+D1 and D2 are fixed and verified, D7, D9 and D17 with them. D8 was withdrawn on the evidence.
+Everything still open is a fix-soon or a defer with a reason, and none of it needs to hold the
+release once D3 lands.
