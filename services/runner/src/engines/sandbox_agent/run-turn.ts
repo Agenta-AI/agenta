@@ -66,6 +66,7 @@ import {
   type AcpPromptBlock,
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
+import { linkAgentFiles } from "./agent-mount.ts";
 import {
   recoverSubscriptionAuthFailure,
 } from "./subscription-recovery.ts";
@@ -1092,6 +1093,23 @@ export async function runTurn(
           }
         : undefined,
     });
+
+    // Repair `<cwd>/agent-files` if this session lost it. Once per turn, on EVERY turn: a warm
+    // reuse never re-acquires, so `mountLocalAgentCwd` — the only other place that links it — does
+    // not run, and a session that lost the link stayed broken for the life of its environment.
+    //
+    // Here rather than at the top of the function because of the INVARIANT above: no unconditional
+    // I/O may delay `attachPermissionResponder`. This is the first point past it.
+    //
+    // Per turn rather than per tool call, and that loses nothing. Writes made after a mid-turn
+    // deletion land on the session drive, which is durable, and the repair moves them onto the
+    // agent mount. They arrive one turn late instead of never, for one `lstat` per turn rather
+    // than one per tool call on a FUSE mount.
+    if (env.agentMountedPath && !plan.isDaytona) {
+      await linkAgentFiles(plan.workspace.cwd, env.agentMountedPath, {
+        log: logger,
+      });
+    }
 
     // Non-Pi loopback tools use the correlation index; Pi's relay toolCallId is already exact.
     env.clientToolRelayRef.current = buildClientToolRelay({
