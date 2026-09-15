@@ -6,6 +6,7 @@ on:
     paths:
       - 'web/website/**'
       - 'web/packages/**'
+      - 'web/mobile/src/styles/theme.generated.css'
       - 'web/pnpm-lock.yaml'
       - 'web/pnpm-workspace.yaml'
       # The site publishes /openapi.json from this spec (web/website/scripts/copy-openapi.mjs),

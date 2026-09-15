@@ -20,6 +20,7 @@ import sitemap from "@astrojs/sitemap";
 //                      already points crawlers at /sitemap-index.xml. The 404 and
 //                      any noindex page are excluded via `filter` below.
 export default defineConfig({
+  devToolbar: { enabled: false },
   output: "static",
   site: "https://agenta.ai",
   integrations: [

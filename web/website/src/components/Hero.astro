@@ -3,7 +3,9 @@ import {GitHubMark} from "@agenta/ui/github-mark";
 import Badge from "./Badge.astro";
 import Section from "./Section.astro";
 // Homepage hero copy from the coworkers landing design.
-import HeroVideo from "./HeroVideo.astro";
+import WorkspaceDemo from "./WorkspaceDemo.jsx";
+import {demoTheme} from "./workspace-demo/theme.js";
+import "../styles/workspace-demo.css";
 
 const GET_STARTED = "https://cloud.agenta.ai/";
 const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
@@ -16,8 +18,6 @@ const heroPost = " that learn how you work.";
 const heroSub =
   "Get more work done with AI coworkers for every team. Work alongside them in Slack or Telegram to run and automate tasks.";
 
-// No hero video asset yet — the placeholder card stays gated off until one lands.
-const SHOW_HERO_VIDEO = false;
 ---
 
 <Section
@@ -32,7 +32,7 @@ const SHOW_HERO_VIDEO = false;
       </Badge>
       <h1
         class="ag-h1"
-        style="margin:0;font:var(--text-display-xl);color:var(--th-text-hi);max-width:920px;text-wrap:pretty;"
+        style="margin:0;font:var(--text-display-xl);color:var(--th-text-hi);max-width:900px;text-wrap:pretty;"
       >
         {heroPre}<span
           class="ag-hero-chip"
@@ -41,7 +41,7 @@ const SHOW_HERO_VIDEO = false;
         ><span>{heroPost}</span>
       </h1>
       <p
-        style="margin:0;font:var(--text-body-md);color:var(--th-text-body);max-width:600px;text-wrap:pretty;"
+        style="margin:0;font:var(--text-body-md);color:var(--th-text-body);max-width:620px;text-wrap:pretty;"
       >
         {heroSub}
       </p>
@@ -64,9 +64,10 @@ const SHOW_HERO_VIDEO = false;
       >
     </div>
 
-    {SHOW_HERO_VIDEO && <HeroVideo />}
+    <WorkspaceDemo client:visible />
   </div>
 </Section>
+<style is:global set:html={demoTheme} />
 
 <style is:global>
   /* Highlighted-word chip: light = grey keycap chip with ink text (mockup);
