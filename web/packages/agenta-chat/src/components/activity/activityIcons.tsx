@@ -106,9 +106,11 @@ const NODE_TONE: Partial<Record<ActivityState, string>> = {
 }
 
 /** Live text — the collapsed line's verb, the step in flight — with a light sweeping through the
- * words, the startup label's shimmer. `motion-safe`: reduced motion reads it as plain text. */
+ * words. The gradient is periodic (quaternary at both ends, the light in the middle) and one
+ * cycle of `text-shimmer` moves it exactly one tile, so the loop never blinks. `motion-safe`:
+ * reduced motion reads it as plain text. */
 export const LIVE_TEXT_CLASS =
-    "bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_45%,var(--ag-colorTextQuaternary)_90%)] bg-clip-text motion-safe:animate-text-shimmer motion-safe:bg-[length:240%_100%] motion-safe:text-transparent"
+    "bg-[linear-gradient(90deg,var(--ag-colorTextQuaternary)_0%,var(--ag-colorText)_50%,var(--ag-colorTextQuaternary)_100%)] bg-clip-text motion-safe:animate-text-shimmer motion-safe:bg-[length:200%_100%] motion-safe:text-transparent"
 
 export interface ActivityNodeProps {
     icon: ActivityIcon
