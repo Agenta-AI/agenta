@@ -272,7 +272,7 @@ describe("useSessionLivePreview", () => {
             }),
         )
         expect(result.current.messages[0].parts).toEqual([
-            {type: "text", text: "New answer stays visible"},
+            {type: "text", state: "streaming", text: "New answer stays visible"},
         ])
     })
 
@@ -690,22 +690,23 @@ describe("useSessionLivePreview", () => {
         })
         expect(result.current.messages[0].parts).toContainEqual({
             type: "text",
+            state: "streaming",
             text: "Still writing",
         })
         await waitFor(() => expect(onDisconnect).toHaveBeenCalledTimes(2))
         act(() => emit(3, "text-delta", {delta: " more"}))
         await act(async () => adopted.resolve(true))
         expect(result.current.messages[0].parts).toEqual([
-            {type: "text", text: "Still writing more"},
+            {type: "text", state: "streaming", text: "Still writing more"},
         ])
         act(() => emit(4, "text-delta", {delta: " text"}))
         expect(result.current.messages[0].parts).toEqual([
-            {type: "text", text: "Still writing more text"},
+            {type: "text", state: "streaming", text: "Still writing more text"},
         ])
         expect(mocks.connectSessionLiveEvents).toHaveBeenCalledOnce()
         act(() => connection.onDisconnect({reason: "connection_lost", reconnect: true}))
         expect(result.current.messages[0].parts).toEqual([
-            {type: "text", text: "Still writing more text"},
+            {type: "text", state: "streaming", text: "Still writing more text"},
         ])
     })
 
@@ -784,12 +785,12 @@ describe("useSessionLivePreview", () => {
             document.dispatchEvent(new Event("visibilitychange"))
         })
         await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(2))
-        expect(result.current.messages[0].parts).toEqual([{type: "text", text: "Live prefix"}])
+        expect(result.current.messages[0].parts).toEqual([{type: "text", state: "streaming", text: "Live prefix"}])
         const second = mocks.connectSessionLiveEvents.mock.calls[1][0]
         expect(second.after).toBe(1)
         act(() => emit(second, 5, "text-delta", {delta: " continues"}, "text-2"))
         expect(result.current.messages[0].parts).toEqual([
-            {type: "text", text: "Live prefix continues"},
+            {type: "text", state: "streaming", text: "Live prefix continues"},
         ])
         expect(onDisconnect.mock.calls.at(-1)?.[0].messages[0].parts).toContainEqual({
             type: "text",
@@ -798,7 +799,7 @@ describe("useSessionLivePreview", () => {
         act(() => emit(second, 7, "text-delta", {delta: " missing middle"}, "text-2"))
         expect(onDisconnect).toHaveBeenCalledTimes(2)
         expect(result.current.messages[0].parts).toEqual([
-            {type: "text", text: "Live prefix continues"},
+            {type: "text", state: "streaming", text: "Live prefix continues"},
         ])
     })
 
