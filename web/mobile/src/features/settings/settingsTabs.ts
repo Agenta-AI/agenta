@@ -11,6 +11,7 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "secrets",
     "webhooks",
     "tools",
+    "mcpEndpoints",
     "organizationGeneral",
     "workspace",
     "organization",
@@ -22,8 +23,10 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
 ]
 
 /**
- * Read-only host: it renders lists but brings none of the create/edit dialogs, so every write
- * affordance stays off. View flags are optimistic — the API authorizes regardless, and each page
+ * Read-only host for most tabs: it renders lists but brings none of the create/edit dialogs,
+ * so those write affordances stay off. Tools and MCP servers are the exceptions — their
+ * sections moved to `@agenta/settings-ui` and carry their own dialogs, so this app renders
+ * the same surface the desktop does. View flags are optimistic — the API authorizes regardless, and each page
  * has an empty state — while edition comes from the same env the desktop reads.
  */
 export const useMobileSettingsAccess = (): SettingsAccess => {
