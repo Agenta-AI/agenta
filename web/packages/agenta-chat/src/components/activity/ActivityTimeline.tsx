@@ -217,8 +217,10 @@ export const ActivityTimeline = ({
     // more steps behind it, so the line keeps narrating ("Answering") until the stream ends.
     const running = streaming || hasLiveStep(steps)
     const live = running
-    // The clock counts the agent's work, not the reader's: it pauses while parked on them.
-    const counted = useTurnClock(clockId, live && !awaiting)
+    // The clock counts the agent's work, not the reader's and not the runner's: it starts with
+    // the first step, not the send (the warm-up is not the agent's time), and pauses while
+    // parked on the reader.
+    const counted = useTurnClock(clockId, live && !awaiting && steps.length > 0)
     // Settled: the trace's duration, or the local count when it is longer — a run resumed after
     // a gate traces only its last leg, while the count saw the whole of the work.
     const trace = useAtomValue(traceDataSummaryAtomFamily(!live && traceId ? traceId : ""))
