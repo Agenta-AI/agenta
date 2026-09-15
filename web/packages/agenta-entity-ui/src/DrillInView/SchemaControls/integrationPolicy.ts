@@ -11,10 +11,10 @@
  * happens to equal the current default. Counting only entries that differ from the preset would
  * disagree with the Custom label itself, and could show "Custom" with a count of zero.
  *
- * Pure translation only — no React, and nothing here resolves `inherit`. The runner is the only
- * place that computes an effective permission; a second copy of the compiler in TypeScript would
- * read an agent-wide mode this module does not own and the two would drift.
+ * Pure translation only — no React. Effective `inherit` values are resolved here for display only;
+ * the runner remains the source of truth for execution.
  */
+import {DEFAULT_PERMISSION_POLICY, type PermissionPolicy} from "./permissionPolicy"
 import type {GatewayConnectionPermissions, GatewayPermission} from "./toolUtils"
 
 export type IntegrationPreset = "always_ask" | "ask_writes" | "allow_all" | "deny_all" | "custom"
@@ -250,6 +250,38 @@ export function rollupGroupPermission(
         else if (shared !== value) return {kind: "mixed"}
     }
     return {kind: "shared", permission: shared as GatewayPermission}
+}
+
+/** Resolve a saved permission for display, using the same fail-safe defaults as the runner. */
+export function resolveEffectivePermission(
+    permission: GatewayPermission,
+    agentPolicy: PermissionPolicy | null | undefined,
+    readOnly: boolean | undefined,
+): Exclude<GatewayPermission, "inherit"> {
+    if (permission !== "inherit") return permission
+    const policy = agentPolicy ?? DEFAULT_PERMISSION_POLICY
+    if (policy === "allow_reads") return readOnly === true ? "allow" : "ask"
+    return policy
+}
+
+/** Roll up a group using effective display values, including the agent policy for `inherit`. */
+export function rollupEffectiveGroupPermission(
+    tools: Pick<CatalogToolInfo, "key" | "readOnly">[],
+    permissions: GatewayConnectionPermissions,
+    agentPolicy: PermissionPolicy | null | undefined,
+): GroupRollup {
+    if (tools.length === 0) return {kind: "empty"}
+    const values = tools.map((tool) =>
+        resolveEffectivePermission(
+            savedToolPermission(permissions, tool.key),
+            agentPolicy,
+            tool.readOnly,
+        ),
+    )
+    const first = values[0]
+    return values.every((value) => value === first)
+        ? {kind: "shared", permission: first}
+        : {kind: "mixed"}
 }
 
 const ROLLUP_LABELS: Record<GatewayPermission, string> = {
