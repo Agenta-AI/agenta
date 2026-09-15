@@ -26,3 +26,4 @@ export type {
     MCPOAuthData,
     MCPToolFilter,
 } from "./types"
+export {gatewayRefusalMessage} from "./refusal"

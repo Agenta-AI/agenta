@@ -13,6 +13,7 @@ import {
     beginMcpConnect,
     buildTrustedOrigins,
     discoverMcpConnect,
+    gatewayRefusalMessage,
     isTrustedOauthConnectedMessage,
     type MCPEndpoint,
     type McpOauthCompletionMessage,
@@ -50,8 +51,10 @@ export default function McpConnectDialog({endpoint, onClose, onSuccess}: McpConn
                 setSelectedScopes(new Set(scopes)) // all pre-checked (D17)
             })
             .catch((error) => {
+                // The server's own sentence when it wrote one. Axios's `message` is the
+                // status line, so a refusal that explains itself was arriving as a number.
                 setDiscoverError(
-                    (error as Error)?.message ||
+                    gatewayRefusalMessage(error) ||
                         "Could not discover this server's OAuth configuration.",
                 )
             })
@@ -147,7 +150,7 @@ export default function McpConnectDialog({endpoint, onClose, onSuccess}: McpConn
             }, 1000)
         } catch (error) {
             setLoading(false)
-            message.error((error as Error)?.message || "Failed to start the connection.")
+            message.error(gatewayRefusalMessage(error) || "Failed to start the connection.")
         }
     }, [endpoint, selectedScopes, projectId, handleClose, onSuccess])
 
