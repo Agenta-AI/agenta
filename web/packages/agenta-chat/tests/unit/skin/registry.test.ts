@@ -230,6 +230,8 @@ describe("toolDisplay registry — activity icons", () => {
         expect(resolveToolDisplay("Read", {file_path: "a.ts"}).icon).toBe("file-read")
         expect(resolveToolDisplay("grep", {pattern: "x"}).icon).toBe("file-search")
         expect(resolveToolDisplay("bash", {command: "ls"}).icon).toBe("terminal")
+        expect(resolveToolDisplay("Terminal", {command: "ls"}).icon).toBe("terminal")
+        expect(resolveToolDisplay("Terminal", {command: "ls"}).activity.done).toBe("Ran a command")
         expect(resolveToolDisplay("__ag__pause_schedule").icon).toBe("schedule")
         expect(resolveToolDisplay("__ag__create_subscription").icon).toBe("trigger")
         expect(resolveToolDisplay("__ag__query_spans").icon).toBe("runs")

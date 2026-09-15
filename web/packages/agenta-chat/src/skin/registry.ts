@@ -224,6 +224,14 @@ const PLATFORM_OPS = new Set([
  * a workspace cycle). See `canonicalClientToolName` for the full contract. */
 export const canonicalToolName = canonicalClientToolName
 
+/** One shell entry for every harness's name for it. */
+const SHELL: ToolDisplayEntry = {
+    kind: "shell",
+    icon: "terminal",
+    activity: {running: "Running a command", done: "Ran a command"},
+    verb: {running: "Running", done: "Ran"},
+}
+
 /** Special cases, keyed by lowercased canonical wire name. Platform ops are `verb_noun`, so the
  * verb table and glossary derive them — only the few whose derived text would be wrong are here. */
 const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
@@ -279,12 +287,10 @@ const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
     },
 
     // Harness builtins. Claude title-cases them, Pi lowercases them; the key is lowercased.
-    bash: {
-        kind: "shell",
-        icon: "terminal",
-        activity: {running: "Running a command", done: "Ran a command"},
-        verb: {running: "Running", done: "Ran"},
-    },
+    bash: SHELL,
+    // The sandbox agent's shell goes by "Terminal".
+    terminal: SHELL,
+    shell: SHELL,
     edit: {
         kind: "file",
         icon: "file-write",
