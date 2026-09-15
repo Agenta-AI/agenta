@@ -28,14 +28,13 @@ import {
     turnToolbarRevealClass,
     userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
-import {Button} from "@agenta/ui/ui"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
-import {XCircle} from "lucide-react"
 
 import {AssistantMarkdown} from "./AssistantMarkdown"
 import {continuationRetryAction} from "./continuationRetry"
 import {isLiveTextItem} from "./markdownStream"
+import {RunErrorCallout} from "./RunErrorCallout"
 
 /** The answer fades in as the fold settles, so the reply arrives instead of popping. */
 const AnswerReveal = ({animate, children}: {animate: boolean; children: ReactNode}) => {
@@ -48,49 +47,6 @@ const AnswerReveal = ({animate, children}: {animate: boolean; children: ReactNod
     return (
         <div className={`transition-opacity duration-300 ${shown ? "opacity-100" : "opacity-0"}`}>
             {children}
-        </div>
-    )
-}
-
-/**
- * Desktop RunErrorBody's callout: the red card with a title and the reason inline.
- *
- * The retry is here rather than in the turn's hover toolbar because the toolbar hides rewind on
- * the LAST turn (rewinding it just re-runs what is already current) — and a failed run is always
- * the last turn, so the one turn that most needs re-running was the one turn with no way to do it.
- */
-const RunErrorCallout = ({text, onRetry}: {text: string; onRetry?: () => void}) => {
-    const [expanded, setExpanded] = useState(false)
-    const big = text.length > 240 || text.split("\n").length > 4
-    return (
-        <div className="bg-destructive/10 flex items-start gap-2 rounded-xl px-4 py-3">
-            <XCircle className="text-colorError mt-px size-4 shrink-0" />
-            <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <span className="text-colorError text-xs font-medium">The agent run failed</span>
-                <span
-                    className={`text-colorError whitespace-pre-wrap break-words text-xs ${
-                        big && !expanded ? "line-clamp-3" : ""
-                    }`}
-                >
-                    {text}
-                </span>
-                {big ? (
-                    <Button
-                        type="button"
-                        variant="link"
-                        size="xs"
-                        onClick={() => setExpanded((v) => !v)}
-                        className="text-colorError -ml-1 px-1 font-medium"
-                    >
-                        {expanded ? "Show less" : "Show more"}
-                    </Button>
-                ) : null}
-                {onRetry ? (
-                    <Button size="sm" variant="outline" className="mt-1" onClick={onRetry}>
-                        Retry
-                    </Button>
-                ) : null}
-            </div>
         </div>
     )
 }
