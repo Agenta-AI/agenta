@@ -23,7 +23,6 @@ import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
     ChatBubble,
-    turnRowClass,
     turnToolbarClass,
     turnToolbarRevealClass,
     userBubbleContentClass,
@@ -39,6 +38,7 @@ import {AssistantMarkdown} from "./AssistantMarkdown"
 import {continuationRetryAction} from "./continuationRetry"
 import {isLiveTextItem} from "./markdownStream"
 import {RunErrorCallout} from "./RunErrorCallout"
+import {mobileTurnRowClass} from "./turnRowClass"
 
 /** The answer fades in as the fold settles, so the reply arrives instead of popping. */
 const AnswerReveal = ({animate, children}: {animate: boolean; children: ReactNode}) => {
@@ -290,7 +290,7 @@ const TurnRowInner = ({
     )
 
     return (
-        <div className={`${turnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
+        <div className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
