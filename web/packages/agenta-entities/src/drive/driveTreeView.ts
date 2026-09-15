@@ -29,7 +29,8 @@ export const TREE_WIDTH = 260
 /** Narrower rest width for the docked (mirrored) Files pane, which has less room than the drawer. */
 export const TREE_WIDTH_COMPACT = 200
 export const TREE_MIN = 180
-export const TREE_MAX = 480
+// A file tree past this reads as a second content column; deep paths scroll sideways instead.
+export const TREE_MAX = 320
 export const TREE_TRANSITION = {
     duration: 0.24,
     ease: [0.4, 0, 0.2, 1] as [number, number, number, number],
