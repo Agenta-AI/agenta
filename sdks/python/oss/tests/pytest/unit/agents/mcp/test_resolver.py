@@ -507,3 +507,76 @@ async def test_omit_missing_secret_keeps_public_headers_only():
     )
     assert resolved[0].to_wire()["connection"]["headers"] == {"X-Workspace": "demo"}
     assert "credentials" not in resolved[0].to_wire()["connection"]
+
+
+async def test_a_connection_slug_routes_independently_of_the_display_name():
+    """The shape agent configuration writes now: the label and the identity are two
+    fields, and only the identity picks the route.
+
+    Under the previous shape the label WAS the route, so two accounts at one server
+    could not both be named from an agent, and renaming a server moved it to a different
+    connection or to none.
+    """
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve(
+        [
+            server(
+                name="Acme_work",
+                connection=MCPGatewayConnection(
+                    namespace="custom", slug="acme-work-9f2c1a0b7e44"
+                ),
+            )
+        ]
+    )
+
+    wire = resolved[0].to_wire()
+    assert wire["connection"]["url"] == _gateway_route("acme-work-9f2c1a0b7e44")
+    # The label still rides the wire, because it is what a harness renders in front of
+    # this server's tools.
+    assert wire["name"] == "Acme_work"
+
+
+async def test_two_connections_at_one_server_are_separately_addressable():
+    """Two accounts, one upstream, one agent. Distinguishable only because each names
+    its own connection."""
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve(
+        [
+            server(
+                name="Acme_work",
+                connection=MCPGatewayConnection(namespace="custom", slug="acme-work-1"),
+            ),
+            server(
+                name="Acme_personal",
+                connection=MCPGatewayConnection(
+                    namespace="custom", slug="acme-personal-2"
+                ),
+            ),
+        ]
+    )
+
+    routes = [entry.to_wire()["connection"]["url"] for entry in resolved]
+    assert routes == [
+        _gateway_route("acme-work-1"),
+        _gateway_route("acme-personal-2"),
+    ]
+
+
+async def test_a_configuration_with_no_connection_reference_still_resolves():
+    """Deprecated, and kept because committed agent revisions are immutable. Removing it
+    would strand every server declared before the connection reference existed."""
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve([server(name="legacy-by-name")])
+
+    assert resolved[0].to_wire()["connection"]["url"] == _gateway_route(
+        "legacy-by-name"
+    )

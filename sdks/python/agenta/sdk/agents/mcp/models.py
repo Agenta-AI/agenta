@@ -179,7 +179,21 @@ class MCPPolicy(BaseModel):
 
 
 class MCPServerConfig(BaseModel):
-    """Saved author intent. This model never contains resolved secret values."""
+    """Saved author intent. This model never contains resolved secret values.
+
+    ``name`` is a LABEL, not an identity. A harness renders this server's tools as
+    ``mcp__<name>__<tool>`` and the model chooses a tool by that string, so the name has
+    to be stable for the life of the configuration and distinct from every other server
+    on the same agent. It is frozen at save: renaming the connection in settings changes
+    the settings row and the picker, and deliberately does not reach a saved agent, since
+    it would otherwise rename every tool mid-flight and invalidate the permission rules
+    rendered against the old names.
+
+    Which connection this server IS lives in ``connection``: a gateway connection carries
+    the slug the platform derived once and never changes. A configuration that carries no
+    connection reference falls back to matching an endpoint by this name, which is
+    deprecated and kept only for revisions already committed; see ``mcp/resolver.py``.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
