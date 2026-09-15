@@ -202,7 +202,11 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
                 state={state}
                 logo={logo}
                 appLabel={appLabel}
-                yourTurn={display.icon === "ask" || display.icon === "connect"}
+                yourTurn={
+                    display.icon === "ask" ||
+                    display.icon === "connect" ||
+                    display.icon === "secret"
+                }
             />
             <span
                 className={`min-w-0 truncate text-sm text-colorText transition-colors group-hover/row:text-colorTextSecondary ${

@@ -28,6 +28,7 @@ import {
     PlayCircle,
     Plug,
     Plugs,
+    Key,
     PlugsConnected,
     Prohibit,
     Question,
@@ -72,6 +73,7 @@ const KIND_GLYPHS: Record<ActivityIcon, Icon> = {
     platform: Cube,
     ask: Question,
     connect: PlugsConnected,
+    secret: Key,
 }
 
 /** The step's own state; it replaces the kind glyph until the step settles. */

@@ -129,7 +129,7 @@ const waitingKind = (steps: ActivityStep[]): WaitingKind => {
         if (state.startsWith("output-")) continue
         if (step.kind === "client") {
             const {icon} = resolveToolDisplay(partToolName(step.part))
-            return icon === "ask" || icon === "connect" ? icon : "approval"
+            return icon === "ask" || icon === "connect" || icon === "secret" ? icon : "approval"
         }
         if (state === "approval-requested") return "approval"
     }

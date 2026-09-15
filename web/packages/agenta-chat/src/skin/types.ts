@@ -100,6 +100,7 @@ export type ActivityIcon =
     | "platform"
     | "ask"
     | "connect"
+    | "secret"
 
 /**
  * One toolDisplay registry entry — mirrors the *registration-time* shape OSS actually stores in its
