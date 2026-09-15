@@ -53,6 +53,13 @@ describe("readRunAdmission", () => {
         expect(w.onFailed).not.toHaveBeenCalled()
     })
 
+    it("reads a status frame that shares the acceptance's chunk", async () => {
+        const w = {...watcher(), onStartupPhase: vi.fn()}
+        await readRunAdmission(streamOf([accepted("turn-0") + status("environment_ready")]), w)
+        expect(w.onStartupPhase).toHaveBeenCalledWith("Ready")
+        expect(w.onAccepted).toHaveBeenCalledTimes(1)
+    })
+
     it("reports the accepted turn id", async () => {
         const w = watcher()
         await readRunAdmission(streamOf([accepted("turn-1"), "data: {}\n"]), w)
