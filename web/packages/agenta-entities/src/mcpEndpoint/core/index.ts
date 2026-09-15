@@ -43,6 +43,17 @@ export type {
 } from "./types"
 export {gatewayRefusalMessage, isNameTakenRefusal, MCP_NAME_TAKEN_CODE} from "./refusal"
 export {
+    jsonRpcErrorMessage,
+    jsonRpcResult,
+    MCP_ACCEPT,
+    MCP_PROTOCOL_VERSION,
+    MCP_PROTOCOL_VERSION_HEADER,
+    McpProtocolError,
+    readJsonRpcPayload,
+    readToolPage,
+} from "./mcpRpc"
+export type {McpToolPage} from "./mcpRpc"
+export {
     cancelDeletesEndpoint,
     isBusy,
     isConnected,

@@ -153,69 +153,198 @@ describe("queryMcpEndpoints", () => {
     })
 })
 
+/**
+ * The browser's MCP client, checked against the handshake the specification describes and
+ * the two in-repo clients that already speak it (`services/runner/src/extensions/pi-mcp.ts`
+ * and the backend probe). The cases that matter are the ones where a conversation that did
+ * not work would otherwise be presented as a server with nothing to offer.
+ */
 describe("listMcpTools", () => {
     beforeEach(() => {
         vi.clearAllMocks()
     })
 
-    const mintAndHandshake = (sessionId?: string) => {
-        vi.mocked(axios.post).mockImplementation((async (url: string) => {
+    type Answer = {data: unknown; headers?: Record<string, string>}
+
+    /** A server that answers each method from `answers`, after the credential mint. */
+    const server = (answers: Record<string, Answer | Answer[] | Error>) => {
+        const pages: Record<string, number> = {}
+        vi.mocked(axios.post).mockImplementation((async (url: string, body: unknown) => {
             if (url.endsWith("/gateways/credentials")) {
                 return {data: {credentials: "Secret token"}}
             }
-            const call = vi.mocked(axios.post).mock.calls.length
-            if (call === 2) {
-                return {
-                    data: {jsonrpc: "2.0", id: 1, result: {}},
-                    headers: sessionId ? {"mcp-session-id": sessionId} : {},
-                }
+            const method = (body as {method: string}).method
+            const answer = answers[method]
+            if (answer === undefined) return {data: "", headers: {}}
+            if (answer instanceof Error) throw answer
+            if (Array.isArray(answer)) {
+                const index = pages[method] ?? 0
+                pages[method] = index + 1
+                return {headers: {}, ...answer[Math.min(index, answer.length - 1)]}
             }
-            return {
-                data: {
-                    jsonrpc: "2.0",
-                    id: 2,
-                    result: {tools: [{name: "search", description: "Find things"}, {}]},
-                },
-                headers: {},
-            }
+            return {headers: {}, ...answer}
         }) as never)
     }
 
-    it("mints a gateway credential, handshakes, then lists", async () => {
-        mintAndHandshake()
+    const handshake = (headers?: Record<string, string>): Answer => ({
+        data: {jsonrpc: "2.0", id: 1, result: {protocolVersion: "2025-03-26", capabilities: {}}},
+        headers: headers ?? {},
+    })
+
+    const sent = () =>
+        vi
+            .mocked(axios.post)
+            .mock.calls.filter(([url]) => !String(url).endsWith("/gateways/credentials"))
+
+    it("completes the handshake before it lists: initialize, initialized, tools/list", async () => {
+        server({
+            initialize: handshake(),
+            "notifications/initialized": {data: ""},
+            "tools/list": {
+                data: {jsonrpc: "2.0", id: 3, result: {tools: [{name: "search"}, {}]}},
+            },
+        })
 
         const tools = await listMcpTools("acme", "project-1")
 
-        const calls = vi.mocked(axios.post).mock.calls
-        expect(calls[0][0]).toContain("/gateways/credentials")
-        expect((calls[1][1] as {method: string}).method).toBe("initialize")
-        expect((calls[2][1] as {method: string}).method).toBe("tools/list")
-        // The data plane reads X-AG-Credentials and ignores Authorization.
-        expect((calls[1][2] as {headers: Record<string, string>}).headers["X-AG-Credentials"]).toBe(
-            "Secret token",
-        )
+        expect(sent().map(([, body]) => (body as {method: string}).method)).toEqual([
+            "initialize",
+            "notifications/initialized",
+            "tools/list",
+        ])
+        // A notification carries no id; a request does.
+        expect(sent()[1][1]).not.toHaveProperty("id")
         // A tool with no name is not a tool.
-        expect(tools).toEqual([{name: "search", description: "Find things"}])
+        expect(tools).toEqual([{name: "search"}])
     })
 
-    it("carries the session id a stateful server hands back", async () => {
-        mintAndHandshake("session-9")
+    it("declares both answer shapes it can read, and carries the negotiated version onward", async () => {
+        server({
+            initialize: handshake(),
+            "notifications/initialized": {data: ""},
+            "tools/list": {data: {jsonrpc: "2.0", id: 3, result: {tools: []}}},
+        })
 
         await listMcpTools("acme", "project-1")
 
-        const listCall = vi.mocked(axios.post).mock.calls[2]
-        expect((listCall[2] as {headers: Record<string, string>}).headers["mcp-session-id"]).toBe(
+        const headersOf = (index: number) =>
+            (sent()[index][2] as {headers: Record<string, string>}).headers
+        expect(headersOf(0).Accept).toBe("application/json, text/event-stream")
+        // The data plane reads X-AG-Credentials and ignores Authorization.
+        expect(headersOf(0)["X-AG-Credentials"]).toBe("Secret token")
+        // The server answered 2025-03-26, so that is the version the rest of the session uses.
+        expect(headersOf(2)["MCP-Protocol-Version"]).toBe("2025-03-26")
+    })
+
+    it("carries the session id a stateful server hands back", async () => {
+        server({
+            initialize: handshake({"mcp-session-id": "session-9"}),
+            "notifications/initialized": {data: ""},
+            "tools/list": {data: {jsonrpc: "2.0", id: 3, result: {tools: []}}},
+        })
+
+        await listMcpTools("acme", "project-1")
+
+        expect((sent()[2][2] as {headers: Record<string, string>}).headers["mcp-session-id"]).toBe(
             "session-9",
         )
     })
 
-    it("reports an empty tool list rather than inventing one", async () => {
-        vi.mocked(axios.post).mockImplementation((async (url: string) => {
-            if (url.endsWith("/gateways/credentials")) {
-                return {data: {credentials: "Secret token"}}
-            }
-            return {data: {jsonrpc: "2.0", result: {}}, headers: {}}
-        }) as never)
+    it("reads an event-stream answer, which the transport allows in place of a JSON body", async () => {
+        server({
+            initialize: {
+                data: 'event: message\ndata: {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-06-18"}}\n\n',
+            },
+            "notifications/initialized": {data: ""},
+            "tools/list": {
+                data: 'event: message\ndata: {"jsonrpc":"2.0","id":3,"result":{"tools":[{"name":"echo","description":"Echo it back"}]}}\n\n',
+            },
+        })
+
+        expect(await listMcpTools("acme", "project-1")).toEqual([
+            {name: "echo", description: "Echo it back"},
+        ])
+    })
+
+    it("follows the pages a cursor announces", async () => {
+        server({
+            initialize: handshake(),
+            "notifications/initialized": {data: ""},
+            "tools/list": [
+                {data: {jsonrpc: "2.0", id: 3, result: {tools: [{name: "one"}], nextCursor: "p2"}}},
+                {data: {jsonrpc: "2.0", id: 4, result: {tools: [{name: "two"}]}}},
+            ],
+        })
+
+        expect(await listMcpTools("acme", "project-1")).toEqual([{name: "one"}, {name: "two"}])
+        expect(sent()[3][1]).toMatchObject({method: "tools/list", params: {cursor: "p2"}})
+    })
+
+    it("still lists when a server ignores the initialized notification", async () => {
+        server({
+            initialize: handshake(),
+            "notifications/initialized": new Error("Request failed with status code 405"),
+            "tools/list": {data: {jsonrpc: "2.0", id: 3, result: {tools: [{name: "echo"}]}}},
+        })
+
+        expect(await listMcpTools("acme", "project-1")).toEqual([{name: "echo"}])
+    })
+
+    it("reports a server's refusal as a failure, in the server's own words", async () => {
+        server({
+            initialize: handshake(),
+            "notifications/initialized": {data: ""},
+            "tools/list": {
+                data: {
+                    jsonrpc: "2.0",
+                    id: 3,
+                    error: {code: -32000, message: "This connection needs authorization."},
+                },
+            },
+        })
+
+        await expect(listMcpTools("acme", "project-1")).rejects.toThrow(
+            "This connection needs authorization.",
+        )
+    })
+
+    it("reports the gateway's refusal rather than the transport's status line", async () => {
+        const refused = Object.assign(new Error("Request failed with status code 403"), {
+            response: {
+                data: {
+                    jsonrpc: "2.0",
+                    id: null,
+                    error: {
+                        code: -32000,
+                        message: "The MCP gateway is disabled on this deployment.",
+                        data: {cause: "mcp_gateway_disabled"},
+                    },
+                },
+            },
+        })
+        server({initialize: refused})
+
+        await expect(listMcpTools("acme", "project-1")).rejects.toThrow(
+            "The MCP gateway is disabled on this deployment.",
+        )
+    })
+
+    it("refuses to read an unanswerable conversation as a server with no tools", async () => {
+        server({
+            initialize: handshake(),
+            "notifications/initialized": {data: ""},
+            "tools/list": {data: {jsonrpc: "2.0", id: 3, result: {}}},
+        })
+
+        await expect(listMcpTools("acme", "project-1")).rejects.toThrow(/tool list was missing/)
+    })
+
+    it("reports a server that exposes nothing as exactly that", async () => {
+        server({
+            initialize: handshake(),
+            "notifications/initialized": {data: ""},
+            "tools/list": {data: {jsonrpc: "2.0", id: 3, result: {tools: []}}},
+        })
 
         expect(await listMcpTools("acme", "project-1")).toEqual([])
     })

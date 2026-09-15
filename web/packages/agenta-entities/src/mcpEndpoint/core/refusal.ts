@@ -11,6 +11,8 @@
  * Nothing here invents copy. It returns what the server wrote, or `null` so the caller
  * keeps whatever wording it already had.
  */
+import {McpProtocolError} from "./mcpRpc"
+
 interface Envelope {
     message?: unknown
     next_step?: unknown
@@ -20,7 +22,9 @@ const asText = (value: unknown): string | null =>
     typeof value === "string" && value.trim() ? value.trim() : null
 
 export const gatewayRefusalMessage = (error: unknown): string | null => {
-    const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data?.detail
+    const data = (error as {response?: {data?: {detail?: unknown; error?: unknown}}})?.response
+        ?.data
+    const detail = data?.detail
 
     const plain = asText(detail)
     if (plain) return plain
@@ -35,6 +39,19 @@ export const gatewayRefusalMessage = (error: unknown): string | null => {
             return nextStep ? `${message} ${nextStep}` : message
         }
     }
+
+    // The data plane refuses in JSON-RPC rather than in `detail`: the relay answers a refused
+    // call with `{error: {code, message, data: {cause}}}` (`apis/fastapi/gateways/mcps/
+    // proxy.py`). Same refusal, different envelope, and a caller asking why should not have to
+    // know which plane it reached.
+    const rpcError = data?.error
+    if (rpcError && typeof rpcError === "object") {
+        const message = asText((rpcError as Envelope).message)
+        if (message) return message
+    }
+
+    // A failure raised by this package's own MCP client already carries the server's wording.
+    if (error instanceof McpProtocolError) return asText(error.message)
 
     return null
 }
