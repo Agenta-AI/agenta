@@ -73,6 +73,50 @@ const SORT_ICONS: Record<DriveSortKey, ReactNode> = {
     size: <HardDrive />,
 }
 
+export interface ToolbarModeOption {
+    value: string
+    label: string
+    /** Muted word on the right ("rendered", "source"). */
+    hint?: string
+    icon: ReactNode
+}
+export interface ToolbarMode {
+    value: string
+    options: ToolbarModeOption[]
+    onChange: (value: string) => void
+}
+
+/** The mode dropdown: the current option as a text button, the options with the check on the right. */
+const ModeMenu = ({value, options, onChange}: ToolbarMode) => {
+    const current = options.find((o) => o.value === value) ?? options[0]
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" aria-label="View mode" className={ROW_TEXT_BTN}>
+                    {current.icon}
+                    {current.label}
+                    <CaretDown weight="bold" className="size-3 opacity-70" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[200px]">
+                {options.map((o) => (
+                    <DropdownMenuItem key={o.value} onSelect={() => onChange(o.value)}>
+                        {o.icon}
+                        {o.label}
+                        {o.hint ? (
+                            <span className="ml-auto text-xs text-colorTextTertiary">{o.hint}</span>
+                        ) : null}
+                        <SelectedMark
+                            on={o.value === value}
+                            className={o.hint ? "ml-2" : "ml-auto"}
+                        />
+                    </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
+}
+
 /** The actions a FILE offers (rename / duplicate / delete) — absent = read-only mount. */
 export interface DriveFileActions {
     onRename: () => void
@@ -126,6 +170,8 @@ export type DriveToolbarProps =
           draft?: {status: DriveSaveStatus; onRetry: () => void}
           /** A muted line after the name — why the file isn't editable, say. */
           note?: string
+          /** A view switch (HTML: Source / Preview) — an icon-only pill beside the ⋯. */
+          mode?: ToolbarMode
           onCopyPath?: () => void
           onDownload?: () => void
       }
@@ -221,7 +267,11 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 <Tabs value={view} onValueChange={(v) => setView(v as DriveViewMode)}>
                     {/* The kit pill at the row's own 26px control height (the design's 2px-padded
                         segmented). `size-3.5`: the trigger sizes an unclassed svg to 16px. */}
-                    <TabsList variant="pill" aria-label="View" className="h-[26px] rounded-md p-0.5">
+                    <TabsList
+                        variant="pill"
+                        aria-label="View"
+                        className="h-[26px] rounded-md p-0.5"
+                    >
                         <TabsTrigger
                             value="grid"
                             aria-label="Grid"
@@ -328,40 +378,24 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 )}
                 <span className="flex-1" />
                 <DraftStatus status={status} onRetry={onRetry} />
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            aria-label="Editor mode"
-                            className={ROW_TEXT_BTN}
-                        >
-                            {rendered ? <TextAa /> : <TextT />}
-                            {rendered ? "Markdown" : "Plain text"}
-                            <CaretDown weight="bold" className="size-3 opacity-70" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-[200px]">
-                        <DropdownMenuItem onSelect={() => setMode("rendered")}>
-                            <TextAa />
-                            Markdown
-                            <span className="ml-auto text-xs text-colorTextTertiary">rendered</span>
-                            <SelectedMark on={rendered} className="ml-2" />
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => setMode("source")}>
-                            <TextT />
-                            Plain text
-                            <span className="ml-auto text-xs text-colorTextTertiary">source</span>
-                            <SelectedMark on={!rendered} className="ml-2" />
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-                <FileActionsMenu actions={actions} onCopyPath={onCopyPath} onDownload={onDownload} />
+                <ModeMenu
+                    value={mode}
+                    onChange={(v) => setMode(v as DriveEditorMode)}
+                    options={[
+                        {value: "rendered", label: "Markdown", hint: "rendered", icon: <TextAa />},
+                        {value: "source", label: "Plain text", hint: "source", icon: <TextT />},
+                    ]}
+                />
+                <FileActionsMenu
+                    actions={actions}
+                    onCopyPath={onCopyPath}
+                    onDownload={onDownload}
+                />
             </Row>
         )
     }
 
-    const {path, actions, draft, note, onCopyPath, onDownload} = props
+    const {path, actions, draft, note, mode, onCopyPath, onDownload} = props
     return (
         <Row>
             <DriveInlineName
@@ -369,9 +403,32 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 validate={actions?.validateName}
                 onRename={actions?.renameTo}
             />
-            {note ? <span className="truncate pl-1 text-xs text-colorTextTertiary">{note}</span> : null}
+            {note ? (
+                <span className="truncate pl-1 text-xs text-colorTextTertiary">{note}</span>
+            ) : null}
             <span className="flex-1" />
             {draft ? <DraftStatus {...draft} /> : null}
+            {mode ? (
+                <Tabs value={mode.value} onValueChange={mode.onChange}>
+                    <TabsList
+                        variant="pill"
+                        aria-label="View"
+                        className="h-[26px] rounded-md p-0.5"
+                    >
+                        {mode.options.map((o) => (
+                            <TabsTrigger
+                                key={o.value}
+                                value={o.value}
+                                aria-label={o.label}
+                                title={o.label}
+                                className={SEG_TRIGGER}
+                            >
+                                {o.icon}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </Tabs>
+            ) : null}
             <FileActionsMenu actions={actions} onCopyPath={onCopyPath} onDownload={onDownload} />
         </Row>
     )

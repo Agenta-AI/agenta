@@ -403,6 +403,7 @@ const HtmlBody = ({
     path,
     displayPath,
     onNavigate,
+    previewOnly = false,
 }: {
     mount: Mount | null
     path: string
@@ -411,6 +412,8 @@ const HtmlBody = ({
     displayPath?: string
     /** Open another drive file (an internal link click resolves to its path). */
     onNavigate?: (path: string) => void
+    /** Just the rendered document, no Preview / Source switch — the host offers the source itself. */
+    previewOnly?: boolean
 }) => {
     const projectId = useAtomValue(projectIdAtom)
     const contentQuery = useDriveFileText(mount, path)
@@ -467,18 +470,20 @@ const HtmlBody = ({
 
     return (
         <Inset flush>
-            <div className="flex shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary p-1.5">
-                <Segmented
-                    size="sm"
-                    value={view}
-                    onChange={(next) => setView(next as "preview" | "source")}
-                    options={[
-                        {value: "preview", label: "Preview"},
-                        {value: "source", label: "Source"},
-                    ]}
-                />
-            </div>
-            {view === "preview" ? (
+            {previewOnly ? null : (
+                <div className="flex shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary p-1.5">
+                    <Segmented
+                        size="sm"
+                        value={view}
+                        onChange={(next) => setView(next as "preview" | "source")}
+                        options={[
+                            {value: "preview", label: "Preview"},
+                            {value: "source", label: "Source"},
+                        ]}
+                    />
+                </div>
+            )}
+            {previewOnly || view === "preview" ? (
                 assembled == null ? (
                     <div className="min-h-0 flex-1 p-3">
                         <div className="flex flex-col gap-2">
@@ -507,6 +512,14 @@ const HtmlBody = ({
         </Inset>
     )
 }
+
+/** The rendered HTML document on its own — the Files pane's "Preview" mode for an editable file. */
+export const DriveHtmlPreview = (props: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+    onNavigate?: (path: string) => void
+}) => <HtmlBody {...props} previewOnly />
 
 // ---- Media bodies (bytes endpoint → cached blob → object URL) --------------------------------
 
