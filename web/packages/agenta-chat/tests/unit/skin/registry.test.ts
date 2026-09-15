@@ -234,6 +234,8 @@ describe("toolDisplay registry — activity icons", () => {
         expect(resolveToolDisplay("__ag__create_subscription").icon).toBe("trigger")
         expect(resolveToolDisplay("__ag__query_spans").icon).toBe("runs")
         expect(resolveToolDisplay("__ag__request_input").icon).toBe("ask")
+        expect(resolveToolDisplay("__ag__request_secret").icon).toBe("secret")
+        expect(resolveToolDisplay("request_secret").activity.done).toBe("Asked you for a secret")
     })
 
     it("falls back to the kind's glyph for anything unlisted", () => {

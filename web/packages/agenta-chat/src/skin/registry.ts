@@ -212,6 +212,7 @@ const PLATFORM_OPS = new Set([
     "rename_session",
     "request_connection",
     "request_input",
+    "request_secret",
     "resume_schedule",
     "resume_subscription",
     "test_run",
@@ -271,6 +272,10 @@ const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
     request_input: {
         activity: {running: "Waiting for your answers", done: "Asked you some questions"},
         icon: "ask",
+    },
+    request_secret: {
+        activity: {running: "Waiting for you to add a secret", done: "Asked you for a secret"},
+        icon: "secret",
     },
 
     // Harness builtins. Claude title-cases them, Pi lowercases them; the key is lowercased.
