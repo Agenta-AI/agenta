@@ -533,3 +533,79 @@ One precondition the other cells did not need: the MCP permission cells drive th
 custom LLM gateway endpoint, so they require `AGENTA_LLM_GATEWAY_ENABLED=true`. That flag now
 defaults to OFF for this release, and a cell run without it fails at endpoint creation with
 `llm_gateway_disabled` rather than anything to do with MCP.
+
+### A disconnected MCP connection offers the way back (OR85)
+
+The permission cells above all run against a connected server. This one runs against a connection
+that was connected and then disconnected, because that is the journey where a refusal has to carry
+more than a cause: the agent cannot proceed, and the only useful thing to say is where to reconnect.
+
+Setup, all API, no browser. Mint a grant, register an OAuth endpoint against the mock MCP server,
+and prove it works before breaking it — a refusal from a connection that never worked proves less:
+
+```
+POST /api/secrets/                       kind=oauth_grant, access_token=<mock upstream token>
+POST /api/gateways/mcps/endpoints/       auth_mode=oauth, secret_id=<id>, base_url=mock MCP
+
+--- CONNECTED: tools/call
+HTTP 200: {"jsonrpc":"2.0","id":1,"result":{"resultType":"complete",
+           "content":[{"type":"text","text":"{\"text\": \"or85\"}"}],"isError":false, ...}}
+
+--- DELETE /api/gateways/mcps/endpoints/{id}/connect      (disconnect)
+HTTP 200
+
+--- DISCONNECTED: tools/call
+HTTP 409: {"jsonrpc":"2.0","id":null,"error":{"code":-32000,
+  "message":"Authorization required for custom/or85-oauth-8c3491eb ⟦agenta_code:auth_required⟧",
+  "data":{"cause":"auth_required","requirement":{"target":"custom/or85-oauth-8c3491eb",
+    "state":"needs_auth","connect":{"endpoint":"/gateways/mcps/endpoints/<id>/connect","body":{}}}}}}
+```
+
+Then one agent turn on Pi with that connection as its only MCP server
+(`{"type": "gateway", "namespace": "custom", "slug": "or85-oauth-8c3491eb"}`). The turn succeeds —
+a server that will not connect is a notice, not a failure — and the notice now carries the remedy:
+
+```json
+{
+  "type": "data-mcp-server-failed",
+  "data": {
+    "serverName": "mock-mcp",
+    "reasonCode": "handshake_http_error",
+    "status": 409,
+    "message": "MCP server mock-mcp failed to connect: 409",
+    "detail": {
+      "code": "auth_required",
+      "message": "Authorization required for custom/or85-oauth-8c3491eb ⟦agenta_code:auth_required⟧",
+      "retryable": false,
+      "details": {
+        "cause": "auth_required",
+        "requirement": {
+          "target": "custom/or85-oauth-8c3491eb",
+          "state": "needs_auth",
+          "connect": { "endpoint": "/gateways/mcps/endpoints/<id>/connect", "body": {} }
+        }
+      }
+    }
+  }
+}
+```
+
+Everything above `detail` is what the run produced before the fix, and it is worth looking at on its
+own: `failed to connect: 409` is true, unactionable, and indistinguishable from a server that is
+simply down.
+
+**Where to look when this regresses.** The refusal crosses three layers and was dropped at each of
+them in turn, which is the useful part of this cell:
+
+1. `parseGatewayErrorDetail` (`services/runner/src/gateway-error.ts`) declined the JSON-RPC shape,
+   because its body path required `error.code` to be our string rather than the protocol's `-32000`.
+2. `probeMcpServerHandshake` (`services/runner/src/engines/sandbox_agent/mcp-handshake.ts`)
+   discarded the response body before any parser saw it. This is the layer a live run finds and a
+   unit test of the parser does not: a disconnected connection fails the HANDSHAKE, so no
+   `tools/call` ever happens and the `tools/call` path is never the one under test.
+3. `_mcp_server_failed_part` (`sdks/python/agenta/sdk/agents/adapters/vercel/stream.py`) projects
+   the notice through a field allowlist, so `detail` reached the browser only once it was named
+   there.
+
+A cell that shows `detail` absent should check all three before assuming the gateway stopped sending
+the requirement; the API half is easy to confirm on its own with the `tools/call` above.
