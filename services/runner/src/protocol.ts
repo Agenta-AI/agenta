@@ -322,7 +322,20 @@ export interface McpServerConfig {
   };
   policy: {
     tools: McpToolPolicy;
+    /** The whole-server decision. The fallback once `toolPermissions` has no entry of its own. */
     permission?: ToolPermission;
+    /**
+     * Per-tool decisions, keyed by the name the SERVER advertises (`echo`) — never a
+     * harness-rendered name (`mcp__acme__echo`), which differs per harness and, on Pi, is lossy.
+     * Present only when the author opted into per-tool policy.
+     */
+    toolPermissions?: Record<string, ToolPermission>;
+    /**
+     * What an advertised tool with no entry in `toolPermissions` gets. Present exactly when
+     * `toolPermissions` is, and authoritative for this server when present: the run's own default
+     * permission is not consulted for a server whose author wrote a per-tool table.
+     */
+    newToolPermission?: ToolPermission;
   };
 }
 

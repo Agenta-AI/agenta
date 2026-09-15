@@ -111,7 +111,7 @@ import {
 import {
   resolveRunOtlpTarget,
   runCredential,
-  serverPermissionsFromRequest,
+  mcpPermissionsFromRequest,
   shouldSuppressPausedToolCallUpdate,
 } from "./runtime-policy.ts";
 import { appendSessionTurn } from "./session-continuity-durable.ts";
@@ -989,7 +989,7 @@ export async function runTurn(
       }
       await Promise.all(settling);
     };
-    const serverPermissions = serverPermissionsFromRequest(request);
+    const mcpPermissions = mcpPermissionsFromRequest(request);
     // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
     // the approval card and the guard cannot disagree about a tool's permission/readOnly.
     const specsByName = toolSpecsByName(plan.tools.toolSpecs);
@@ -1025,7 +1025,7 @@ export async function runTurn(
             input: frame.input,
           },
           run,
-          serverPermissions,
+          mcpPermissions,
           specsByName,
           plan.acpAgent === "codex",
         );
@@ -1088,7 +1088,7 @@ export async function runTurn(
       run,
       responder,
       acpAgent: plan.acpAgent,
-      serverPermissions,
+      mcpPermissions,
       log: logger,
       onPause: () => pause.pause(),
       onPausedToolCall: (id) => pause.markPausedToolCall(id),

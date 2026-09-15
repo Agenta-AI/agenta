@@ -1,4 +1,5 @@
 import { type AgentRunRequest, type ToolPermission } from "../../protocol.ts";
+import { isToolPermission } from "../../permission-plan.ts";
 import { claimSessionOwnership, REPLICA_ID } from "../../sessions/alive.ts";
 import { materializeGatewayHeaders } from "./run-plan.ts";
 import {
@@ -118,16 +119,119 @@ export function resolveRunOtlpTarget(
   };
 }
 
-export function serverPermissionsFromRequest(
+/**
+ * One MCP server's resolved permission table, after intake.
+ *
+ * `tools` is keyed by the name the SERVER advertises. That is the only spelling every harness
+ * agrees on: Claude renders `mcp__<server>__<tool>`, Codex renders `mcp.<server>.<tool>`, and Pi
+ * rewrites both halves through a lossy character filter (OR80). A table keyed on any rendered
+ * name is a table that misses on at least one harness.
+ */
+export interface McpServerPermissions {
+  /** The whole-server decision, when the author set a readable one. */
+  server?: ToolPermission;
+  /** Per-tool decisions by upstream tool name. Empty unless the author opted in. */
+  tools: ReadonlyMap<string, ToolPermission>;
+  /**
+   * The decision an advertised tool gets when `tools` has no entry for it. Present exactly when
+   * the author opted into per-tool policy, and authoritative when present — see
+   * `mcpToolPermission`.
+   */
+  newTool?: ToolPermission;
+}
+
+export type McpPermissionTable = ReadonlyMap<string, McpServerPermissions>;
+
+/**
+ * Validate the whole MCP permission wire once, at intake.
+ *
+ * Modelled on `tools/gateway-policy.ts`'s `normalizeGatewayPolicy`, and for the same reason: every
+ * consumer downstream reads the result of this function and nothing else, so an entry that does
+ * not survive here cannot be reached by any of them. The alternative — each call site checking the
+ * fields it happens to use — is how a `permission` of `"Deny"` or `null` quietly passes a filter
+ * written as "anything but deny".
+ *
+ * Three rules, and the third is the one that matters:
+ *
+ *  - A `permission` that is not exactly `allow`/`ask`/`deny` is not a decision, so it is dropped
+ *    and the server falls to the run's own permission ladder. That is what an ABSENT permission
+ *    already does, so a malformed one is never more permissive than saying nothing.
+ *  - A malformed `toolPermissions` entry is dropped and falls to `newTool`, which is itself a real
+ *    decision whenever the author opted in.
+ *  - An author who opted in but whose `newToolPermission` is PRESENT AND CORRUPT gets `deny`. The
+ *    wire is misdescribing its own shape at that point, and the runner must not guess a floor on
+ *    behalf of someone who asked for a restriction. An OMITTED `newToolPermission` beside a
+ *    readable table is a different thing — an older or hand-written sender, not a corrupt one — and
+ *    gets `ask`, so a human decides rather than a parser.
+ */
+export function mcpPermissionsFromRequest(
   request: AgentRunRequest,
-): ReadonlyMap<string, ToolPermission> {
-  const permissions = new Map<string, ToolPermission>();
+): McpPermissionTable {
+  const table = new Map<string, McpServerPermissions>();
   for (const server of request.mcpServers ?? []) {
-    if (server.policy?.permission !== undefined) {
-      permissions.set(server.name, server.policy.permission);
+    const name = typeof server?.name === "string" ? server.name : "";
+    if (!name) continue;
+    const policy = (server.policy ?? {}) as Record<string, unknown>;
+
+    const tools = new Map<string, ToolPermission>();
+    const rawTools = policy.toolPermissions;
+    if (isRecord(rawTools)) {
+      // Own enumerable keys only, so a key the sender inherited never enters the table.
+      for (const [tool, permission] of Object.entries(rawTools)) {
+        if (!tool.trim() || !isToolPermission(permission)) continue;
+        tools.set(tool, permission);
+      }
     }
+
+    const declaredNewTool = "newToolPermission" in policy;
+    const optedIn = declaredNewTool || isRecord(rawTools);
+    let newTool: ToolPermission | undefined;
+    if (optedIn) {
+      if (isToolPermission(policy.newToolPermission)) {
+        newTool = policy.newToolPermission;
+      } else {
+        newTool = declaredNewTool ? "deny" : "ask";
+      }
+    }
+
+    table.set(name, {
+      ...(isToolPermission(policy.permission)
+        ? { server: policy.permission }
+        : {}),
+      tools,
+      ...(newTool !== undefined ? { newTool } : {}),
+    });
   }
-  return permissions;
+  return table;
+}
+
+/**
+ * The decision for one call, given its server's table and the UPSTREAM tool name.
+ *
+ * A per-tool table is authoritative for its server: once the author wrote one, an unlisted tool
+ * gets `newTool` and the lookup stops. It deliberately does NOT fall through to the whole-server
+ * permission or to the run default, because a per-tool policy a run default can widen is not a
+ * policy — an agent configured `default: "allow"` would otherwise run every tool the author had
+ * not got around to listing.
+ *
+ * With no table, this returns the whole-server permission, or `undefined` so the caller's existing
+ * ladder (rules, then the run default) decides exactly as it did before per-tool policy existed.
+ */
+export function mcpToolPermission(
+  entry: McpServerPermissions | undefined,
+  tool: string | undefined,
+): ToolPermission | undefined {
+  if (!entry) return undefined;
+  if (entry.newTool === undefined) return entry.server;
+  if (tool) {
+    const named = entry.tools.get(tool);
+    if (named !== undefined) return named;
+  }
+  return entry.newTool;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function shouldSuppressPausedToolCallUpdate(
@@ -174,7 +278,10 @@ export function applyCodexGatewayConnectionEnv(
   request: AgentRunRequest,
   acpAgent: string,
 ): void {
-  if (acpAgent !== "codex" || !request.modelConnection?.gatewayCredentials?.value)
+  if (
+    acpAgent !== "codex" ||
+    !request.modelConnection?.gatewayCredentials?.value
+  )
     return;
   env.OPENAI_API_KEY = GATEWAY_PLACEHOLDER_API_KEY;
 }
