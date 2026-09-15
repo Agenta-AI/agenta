@@ -713,10 +713,12 @@ watch attaches exactly one listener, one poll and one timeout, releases all thre
 the popup still open, is idempotent, delivers no outcome once stopped, and refuses both an untrusted
 origin and a completion naming a different endpoint. It also pins the behaviour the dialog already
 had right: a closed popup is a failure, never a success.
-`web/packages/agenta-entity-ui/tests/unit/mcpConnectDialog.unmount.test.tsx` covers the wiring the
-pure test cannot: it mounts the dialog, starts a connect, unmounts with the popup still open, and
-asserts the listener count balances and the interval was cleared, over three open/connect/close
-cycles. Removing the `useEffect` teardown fails two of those four cases.
+A render case covered the wiring the pure test cannot — mounting the dialog, starting a connect,
+unmounting with the popup still open, and asserting the listener count balanced over three
+open/connect/close cycles; removing the `useEffect` teardown failed two of its four assertions. That
+dialog was replaced later in the same series by `McpConnectJourney`, which owns the same teardown
+through the same `stopWatch` effect, so the render case went with it and the watch's own suite is
+the standing guard.
 
 Tracked as CU18 in `cleanups.md`, now closed there too.
 

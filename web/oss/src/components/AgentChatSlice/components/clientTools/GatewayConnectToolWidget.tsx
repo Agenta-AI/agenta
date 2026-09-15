@@ -1,6 +1,6 @@
 /** Render the gateway-target connection widget. */
 import {providerConnectionsAtom} from "@agenta/entities/secret"
-import {McpConnectDialog} from "@agenta/entity-ui/mcpEndpoint"
+import {McpConnectJourney} from "@agenta/entity-ui/mcpEndpoint"
 import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
 import {
     isInteractionEndedOutput,
@@ -60,11 +60,23 @@ const GatewayConnectToolWidget = ({
                         onSaved={onProviderSaved}
                     />
                 ) : (
-                    // Only custom endpoints use a per-instance connection dialog.
-                    <McpConnectDialog
-                        endpoint={connectingEndpoint}
+                    // Only custom endpoints use a per-instance connection dialog. The
+                    // agent named a server that is already registered, so this is the
+                    // reconnect entry into the same journey settings uses.
+                    <McpConnectJourney
+                        open={!!connectingEndpoint?.id}
                         onClose={onMcpDialogClosed}
-                        onSuccess={onMcpConnectSuccess}
+                        reconnect={
+                            connectingEndpoint?.id && connectingEndpoint.slug
+                                ? {
+                                      id: connectingEndpoint.id,
+                                      slug: connectingEndpoint.slug,
+                                      name: connectingEndpoint.name || connectingEndpoint.slug,
+                                      url: connectingEndpoint.data.route.base_url || "",
+                                  }
+                                : null
+                        }
+                        onConnected={onMcpConnectSuccess}
                     />
                 )}
             </>

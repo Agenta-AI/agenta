@@ -59,7 +59,7 @@ import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ChangedPathsProvider} from "../../drawers/shared"
-import {McpConnectDialog, McpServerConnectAction} from "../../mcpEndpoint"
+import {McpConnectJourney, McpServerConnectAction} from "../../mcpEndpoint"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
@@ -1559,11 +1559,17 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             {/* One dialog for the whole section, outside the rows, so no click inside it reaches
                 a row's onClick. Rendered only while an endpoint is selected, so a list of servers
                 still carries no modal and no scope discovery request per row. */}
-            {connectingMcpEndpoint && (
-                <McpConnectDialog
-                    endpoint={connectingMcpEndpoint}
+            {connectingMcpEndpoint?.id && connectingMcpEndpoint.slug && (
+                <McpConnectJourney
+                    open
                     onClose={() => setConnectingMcpEndpoint(null)}
-                    onSuccess={() => void refreshMcpEndpoints()}
+                    reconnect={{
+                        id: connectingMcpEndpoint.id,
+                        slug: connectingMcpEndpoint.slug,
+                        name: connectingMcpEndpoint.name || connectingMcpEndpoint.slug,
+                        url: connectingMcpEndpoint.data.route.base_url || "",
+                    }}
+                    onConnected={() => void refreshMcpEndpoints()}
                 />
             )}
         </div>

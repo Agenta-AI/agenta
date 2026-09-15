@@ -33,6 +33,27 @@ export type {
     MCPEndpointSettings,
     MCPEndpointsResponse,
     MCPOAuthData,
+    MCPEndpointProbeResponse,
+    MCPProbeAuth,
+    MCPProbeAuthMode,
+    MCPProbeProblem,
+    MCPProbeRegistration,
+    MCPServerProbe,
     MCPToolFilter,
 } from "./types"
 export {gatewayRefusalMessage} from "./refusal"
+export {
+    cancelDeletesEndpoint,
+    isBusy,
+    isConnected,
+    journeyReducer,
+    startJourney,
+    startReconnect,
+} from "./connectJourney"
+export type {
+    McpJourneyEvent,
+    McpJourneyState,
+    McpJourneyStatus,
+    McpToolSummary,
+} from "./connectJourney"
+export {connectionNameProblem, hostnameLabel, suggestConnectionName} from "./connectionName"

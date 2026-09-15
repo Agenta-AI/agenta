@@ -4,6 +4,7 @@ import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import type {
     MCPConnectResponse,
     MCPEndpointCreate,
+    MCPEndpointProbeResponse,
     MCPEndpointEdit,
     MCPEndpointResponse,
     MCPEndpointsResponse,
@@ -46,6 +47,24 @@ export const deleteMcpEndpoint = async (endpointId: string, projectId?: string):
     await axios.delete(`${getAgentaApiUrl()}${BASE}/${endpointId}`, {
         params: projectId ? {project_id: projectId} : undefined,
     })
+}
+
+/**
+ * Ask what a URL is, before any endpoint exists.
+ *
+ * Read-only: it creates nothing, and it takes no credential, because there is no endpoint
+ * to carry one and a credential must never be sent to an origin nobody has chosen yet.
+ */
+export const probeMcpUrl = async (
+    url: string,
+    projectId?: string,
+): Promise<MCPEndpointProbeResponse> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}${BASE}/probe`,
+        {url},
+        {params: projectId ? {project_id: projectId} : undefined},
+    )
+    return response.data
 }
 
 /**

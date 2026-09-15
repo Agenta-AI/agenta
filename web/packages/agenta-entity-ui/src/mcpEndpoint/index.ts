@@ -1,5 +1,5 @@
-export {default as McpConnectDialog} from "./McpConnectDialog"
-export type {McpConnectDialogProps} from "./McpConnectDialog"
+export {default as McpConnectJourney} from "./McpConnectJourney"
+export type {McpConnectJourneyProps} from "./McpConnectJourney"
 export {McpEndpointConnectStatus, McpServerConnectAction} from "./McpServerConnectAction"
 export type {
     McpEndpointConnectStatusProps,

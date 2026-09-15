@@ -10,7 +10,7 @@ import {
     type McpConnectionState,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
-import {McpConnectDialog} from "@agenta/entity-ui/mcpEndpoint"
+import {McpConnectJourney} from "@agenta/entity-ui/mcpEndpoint"
 import {useStaticTable} from "@agenta/settings"
 import {message} from "@agenta/ui"
 import {
@@ -40,11 +40,18 @@ const MCPEndpoints: React.FC = () => {
 
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
     const [editingEndpoint, setEditingEndpoint] = useState<MCPEndpoint | null>(null)
-    const [connectingEndpoint, setConnectingEndpoint] = useState<MCPEndpoint | null>(null)
+    const [isConnecting, setIsConnecting] = useState(false)
+    const [reconnecting, setReconnecting] = useState<MCPEndpoint | null>(null)
+
+    // Display names are unique per project, so the journey needs the ones already taken.
+    const existingNames = useMemo(
+        () => (endpoints ?? []).map((endpoint) => endpoint.name),
+        [endpoints],
+    )
 
     const handleCreate = useCallback(() => {
-        setEditingEndpoint(null)
-        setIsDrawerOpen(true)
+        setReconnecting(null)
+        setIsConnecting(true)
     }, [])
 
     const handleEdit = useCallback((endpoint: MCPEndpoint) => {
@@ -94,7 +101,13 @@ const MCPEndpoints: React.FC = () => {
     }, [])
 
     const handleConnect = useCallback((endpoint: MCPEndpoint) => {
-        setConnectingEndpoint(endpoint)
+        setReconnecting(endpoint)
+        setIsConnecting(true)
+    }, [])
+
+    const handleConnectClose = useCallback(() => {
+        setIsConnecting(false)
+        setReconnecting(null)
     }, [])
 
     const rows = useMemo<MCPEndpointRow[]>(
@@ -229,7 +242,7 @@ const MCPEndpoints: React.FC = () => {
                 pagination={pagination}
                 primaryActions={
                     <Button type="primary" icon={<Plus size={14} />} onClick={handleCreate}>
-                        Register server
+                        Connect MCP
                     </Button>
                 }
                 tableProps={{
@@ -246,13 +259,13 @@ const MCPEndpoints: React.FC = () => {
                                             No MCP servers yet
                                         </span>
                                         <span>
-                                            Register a server by URL to give your agents new tools.
+                                            Connect a server by URL to give your agents new tools.
                                         </span>
                                     </div>
                                 }
                             >
                                 <Button icon={<Plus size={14} />} onClick={handleCreate}>
-                                    Register server
+                                    Connect MCP
                                 </Button>
                             </EmptyState>
                         ),
@@ -272,10 +285,21 @@ const MCPEndpoints: React.FC = () => {
                 endpoint={editingEndpoint}
                 onClose={handleDrawerClose}
             />
-            <McpConnectDialog
-                endpoint={connectingEndpoint}
-                onClose={() => setConnectingEndpoint(null)}
-                onSuccess={() => refreshEndpoints()}
+            <McpConnectJourney
+                open={isConnecting}
+                onClose={handleConnectClose}
+                existingNames={existingNames}
+                reconnect={
+                    reconnecting?.id && reconnecting.slug
+                        ? {
+                              id: reconnecting.id,
+                              slug: reconnecting.slug,
+                              name: reconnecting.name || reconnecting.slug,
+                              url: reconnecting.data.route.base_url || "",
+                          }
+                        : null
+                }
+                onConnected={() => refreshEndpoints()}
             />
         </div>
     )
