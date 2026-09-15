@@ -267,6 +267,7 @@ export const FolderView = ({
                                 // stays smooth.
                                 minColumnWidth={132}
                                 estimateRowHeight={124}
+                                thumbAspect={0}
                                 gap={4}
                                 className="px-5 pb-6 pt-4"
                                 // Arrow keys rove the tiles (handled in VirtualTileGrid); Cmd/Ctrl+↓
