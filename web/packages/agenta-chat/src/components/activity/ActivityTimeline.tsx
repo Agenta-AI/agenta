@@ -94,7 +94,7 @@ const LiveDots = () => (
         {[0, 1, 2].map((i) => (
             <span
                 key={i}
-                className="size-1 rounded-full bg-colorPrimary motion-safe:animate-bounce"
+                className="size-1 rounded-full bg-colorTextTertiary motion-safe:animate-bounce"
                 style={{animationDuration: "1.25s", animationDelay: `${i * 0.14}s`}}
             />
         ))}
