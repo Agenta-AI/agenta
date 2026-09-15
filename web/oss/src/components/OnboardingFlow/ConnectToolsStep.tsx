@@ -105,8 +105,9 @@ export default function ConnectToolsStep({
                                     <button
                                         type="button"
                                         key={integration.key}
-                                        disabled={connected || connecting}
+                                        aria-disabled={connected || connecting}
                                         onClick={() => {
+                                            if (connected || connecting) return
                                             void connect({
                                                 integrationKey: integration.key,
                                                 integrationName: integration.name,
@@ -117,7 +118,7 @@ export default function ConnectToolsStep({
                                                 ).length,
                                             })
                                         }}
-                                        className={`flex items-center justify-between gap-3 rounded-xl border border-solid p-4 text-left ${connected ? "border-colorSuccessBorder bg-colorBgContainer" : "border-colorBorderSecondary bg-colorBgContainer hover:bg-colorFillQuaternary"}`}
+                                        className={`flex items-center justify-between gap-3 rounded-xl border border-solid p-4 text-left ${connected ? "cursor-default border-colorSuccessBorder bg-colorBgContainer" : "border-colorBorderSecondary bg-colorBgContainer hover:bg-colorFillQuaternary"}`}
                                     >
                                         <span className="flex items-center gap-2 font-medium">
                                             {integration.logo && (

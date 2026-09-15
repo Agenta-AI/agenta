@@ -65,7 +65,7 @@ describe("onboarding app pagination", () => {
         expect(onChange).toHaveBeenLastCalledWith(["saved"])
         const card = screen.getByRole("button", {name: /App 2/})
         expect(card.textContent).toContain("Connected")
-        expect(card.hasAttribute("disabled")).toBe(true)
+        expect(card.getAttribute("aria-disabled")).toBe("true")
     })
     it("starts the auth flow directly from the card", () => {
         render(<ConnectToolsStep selectedIds={[]} onChange={vi.fn()} />)
