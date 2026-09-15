@@ -1,0 +1,129 @@
+/**
+ * MCP permission intake and resolution: the one place the wire's permission fields become
+ * decisions.
+ *
+ * This module is imported by BOTH sides — the runner (`engines/sandbox_agent/runtime-policy.ts`,
+ * which resolves gates for the ACP harnesses) and the in-sandbox Pi extension (`extensions/pi-mcp.ts`,
+ * bundled by esbuild) — so the rule cannot drift between the harness families the way it did before
+ * OR79. Keep it dependency-free (no node built-ins, no imports beyond types) so it bundles cleanly
+ * into the extension.
+ *
+ * Keys are the names the SERVER advertises. Every harness renders its own tool name from them
+ * (`mcp__<server>__<tool>`, `mcp.<server>.<tool>`, and Pi's own lossy rewrite), so a table keyed on
+ * any rendered spelling misses on at least one harness. See OR80.
+ */
+
+/** The three verdicts. Duplicated from `protocol.ts` as a value rather than imported as a type,
+ *  so this module stays importable by the extension bundle. */
+const VERDICTS = ["allow", "ask", "deny"] as const;
+
+export type McpPermission = (typeof VERDICTS)[number];
+
+export function isMcpPermission(value: unknown): value is McpPermission {
+  return (VERDICTS as readonly unknown[]).includes(value);
+}
+
+/** One MCP server's resolved permission table, after intake. */
+export interface McpServerPermissions {
+  /** The whole-server decision, when the author set a readable one. */
+  server?: McpPermission;
+  /** Per-tool decisions by upstream tool name. Empty unless the author opted in. */
+  tools: ReadonlyMap<string, McpPermission>;
+  /**
+   * The decision an advertised tool gets when `tools` has no entry for it. Present exactly when
+   * the author opted into per-tool policy, and authoritative when present — see
+   * `mcpToolPermission`.
+   */
+  newTool?: McpPermission;
+}
+
+export type McpPermissionTable = ReadonlyMap<string, McpServerPermissions>;
+
+/**
+ * Validate one server's raw `policy` object into a table.
+ *
+ * Modelled on `tools/gateway-policy.ts`'s `normalizeGatewayPolicy`, and for the same reason: every
+ * consumer downstream reads the result of this function and nothing else, so an entry that does
+ * not survive here cannot be reached by any of them. The alternative — each call site checking the
+ * fields it happens to use — is how a `permission` of `"Deny"` or `null` quietly passes a filter
+ * written as "anything but deny".
+ *
+ * Three rules, and the third is the one that matters:
+ *
+ *  - A `permission` that is not exactly `allow`/`ask`/`deny` is not a decision, so it is dropped
+ *    and the server falls to the run's own permission ladder. That is what an ABSENT permission
+ *    already does, so a malformed one is never more permissive than saying nothing.
+ *  - A malformed `toolPermissions` entry is dropped and falls to `newTool`, which is itself a real
+ *    decision whenever the author opted in.
+ *  - An author who opted in but whose `newToolPermission` is PRESENT AND CORRUPT gets `deny`. The
+ *    wire is misdescribing its own shape at that point, and the runner must not guess a floor on
+ *    behalf of someone who asked for a restriction. An OMITTED `newToolPermission` beside a
+ *    readable table is a different thing — an older or hand-written sender, not a corrupt one — and
+ *    gets `ask`, so a human decides rather than a parser.
+ */
+export function normalizeMcpServerPermissions(
+  rawPolicy: unknown,
+): McpServerPermissions {
+  const policy = isRecord(rawPolicy) ? rawPolicy : {};
+
+  // A Map, not an object literal: `{}["toString"]` answers with an inherited function, and a
+  // truthy answer is all a lookup needs to conclude "configured". That exact shape was a live
+  // defect on the Composio side (`tools/gateway-policy.ts`, `ownEntry`).
+  const tools = new Map<string, McpPermission>();
+  const rawTools = policy.toolPermissions;
+  if (isRecord(rawTools)) {
+    // `Object.entries` walks own enumerable keys only, so a key the sender inherited never enters.
+    for (const [tool, permission] of Object.entries(rawTools)) {
+      if (!tool.trim() || !isMcpPermission(permission)) continue;
+      tools.set(tool, permission);
+    }
+  }
+
+  const declaredNewTool = "newToolPermission" in policy;
+  const optedIn = declaredNewTool || isRecord(rawTools);
+  let newTool: McpPermission | undefined;
+  if (optedIn) {
+    if (isMcpPermission(policy.newToolPermission)) {
+      newTool = policy.newToolPermission;
+    } else {
+      newTool = declaredNewTool ? "deny" : "ask";
+    }
+  }
+
+  return {
+    ...(isMcpPermission(policy.permission)
+      ? { server: policy.permission }
+      : {}),
+    tools,
+    ...(newTool !== undefined ? { newTool } : {}),
+  };
+}
+
+/**
+ * The decision for one call, given its server's table and the UPSTREAM tool name.
+ *
+ * A per-tool table is authoritative for its server: once the author wrote one, an unlisted tool
+ * gets `newTool` and the lookup stops. It deliberately does NOT fall through to the whole-server
+ * permission or to the run default, because a per-tool policy a run default can widen is not a
+ * policy — an agent configured `default: "allow"` would otherwise run every tool the author had
+ * not got around to listing.
+ *
+ * With no table, this returns the whole-server permission, or `undefined` so the caller's existing
+ * ladder (rules, then the run default) decides exactly as it did before per-tool policy existed.
+ */
+export function mcpToolPermission(
+  entry: McpServerPermissions | undefined,
+  tool: string | undefined,
+): McpPermission | undefined {
+  if (!entry) return undefined;
+  if (entry.newTool === undefined) return entry.server;
+  if (tool) {
+    const named = entry.tools.get(tool);
+    if (named !== undefined) return named;
+  }
+  return entry.newTool;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

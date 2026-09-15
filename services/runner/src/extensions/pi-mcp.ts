@@ -5,7 +5,33 @@
  * Agenta credential; upstream URLs and credentials never enter this configuration.
  */
 
+import { mcpToolPermission, normalizeMcpServerPermissions } from "../mcp-permission.ts";
+
 export const PI_GATEWAY_MCP_SERVERS_ENV = "AGENTA_AGENT_GATEWAY_MCP_SERVERS";
+
+/** What the gate is told about one call. Identity only; the runner reads the policy itself. */
+export interface PiMcpGateRequest {
+  /** Pi's extension context, which owns the confirm dialog. Opaque here. */
+  ctx: unknown;
+  /** The Pi-rendered tool name, which is what the approval card and decision key use. */
+  toolName: string;
+  toolCallId: string;
+  input: unknown;
+  /** The configured server name, verbatim from the wire. */
+  mcpServer: string;
+  /** The tool name the SERVER advertises, verbatim. */
+  mcpTool: string;
+}
+
+/**
+ * The approval seam for an MCP tool call, supplied by the extension that owns the dialog.
+ *
+ * It lives here as a parameter rather than an import so this module keeps no dependency on Pi's
+ * extension API and stays unit-testable without one.
+ */
+export type PiMcpToolGate = (
+  request: PiMcpGateRequest,
+) => Promise<{ allowed: boolean; reason: string }>;
 
 export const MCP_PROTOCOL_VERSION = "2026-07-28";
 
@@ -30,7 +56,18 @@ export interface PiGatewayMcpServer {
   name: string;
   url: string;
   headers: Record<string, string>;
-  policy: { tools?: { mode?: "all" | "include"; names?: string[] } };
+  /**
+   * The server's policy, verbatim from the wire. `tools` is the advertise filter; the permission
+   * fields are read through `normalizeMcpServerPermissions` rather than off this object, so a
+   * malformed verdict cannot reach a decision. Before OR79 this type declared only `tools`, which
+   * is how `permission` came to be delivered to the sandbox and read by nobody.
+   */
+  policy: {
+    tools?: { mode?: "all" | "include"; names?: string[] };
+    permission?: string;
+    toolPermissions?: Record<string, string>;
+    newToolPermission?: string;
+  };
 }
 
 interface PiGatewayMcpConfig {
@@ -275,11 +312,20 @@ interface PiToolRegistry {
  */
 const registeredNamesByPi = new WeakMap<PiToolRegistry, Set<string>>();
 
-/** Register external MCP tools through Pi's supported native extension API. */
+/**
+ * Register external MCP tools through Pi's supported native extension API.
+ *
+ * `gate` is the approval seam. It is REQUIRED rather than optional on purpose: before OR79 this
+ * function registered every tool with an `execute` that called the upstream directly, so an agent
+ * whose server was configured `deny` ran the tool anyway. An optional gate is the same defect with
+ * a longer fuse — one caller that forgets to pass it restores the hole — so the signature makes a
+ * gateless registration impossible to write.
+ */
 export async function registerPiGatewayMcpTools(
   pi: PiToolRegistry,
   raw: string | undefined,
   log: (message: string) => void,
+  gate: PiMcpToolGate,
 ): Promise<void> {
   const servers = parsePiGatewayMcpConfig(raw);
   let ours = registeredNamesByPi.get(pi);
@@ -289,8 +335,13 @@ export async function registerPiGatewayMcpTools(
   }
   const registered = new Set((pi.getAllTools?.() ?? []).map((tool) => tool.name));
   const collisions: string[] = [];
+  // Which server each Pi tool name in THIS pass came from. `registered` cannot answer that: it
+  // holds names Pi already has, so two servers in one pass that rewrite to the same name both
+  // looked new and the second silently shadowed the first (OR80).
+  const claimedBy = new Map<string, string>();
   let connected = 0;
   for (const server of servers) {
+    const permissions = normalizeMcpServerPermissions(server.policy);
     const client = new PiHttpMcpClient(server);
     let tools: PiMcpTool[];
     try {
@@ -310,10 +361,33 @@ export async function registerPiGatewayMcpTools(
     connected += 1;
     for (const tool of tools) {
       if (!allowsTool(server, tool.name)) continue;
+      // A tool the policy denies is not offered at all. A denied tool the model can see is a tool
+      // it will try, and the refusal it gets back is a worse experience than never offering it —
+      // the same rule the Composio search filter already applies (`tools/gateway-policy.ts`).
+      if (mcpToolPermission(permissions, tool.name) === "deny") continue;
       const name = piMcpToolName(server.name, tool.name);
-      // Already live on this session from an earlier turn: re-registering it is the no-op that
-      // keeps a warm turn's tools, not a collision.
-      if (ours.has(name)) continue;
+      // The cross-server check runs BEFORE the warm-turn no-op, and that order is the fix rather
+      // than an optimisation: `ours` says "this module registered this name", which is true for a
+      // name the OTHER server registered a moment ago, so the no-op below swallowed exactly the
+      // collision this is looking for (OR80).
+      const claimant = claimedBy.get(name);
+      if (claimant !== undefined && claimant !== server.name) {
+        // Two DIFFERENT configured servers rewrote to one Pi tool name. Whichever registered first
+        // would answer for both, so the model would reach one account's tool believing it had
+        // reached the other's. Refuse both rather than pick (OR80).
+        log(
+          `[mcp] error: servers '${claimant}' and '${server.name}' both render tool ` +
+            `'${tool.name}' as '${name}'; neither was registered`,
+        );
+        collisions.push(name);
+        continue;
+      }
+      // Already live on this session from an earlier turn, and from THIS server: re-registering it
+      // is the no-op that keeps a warm turn's tools, not a collision.
+      if (ours.has(name)) {
+        claimedBy.set(name, server.name);
+        continue;
+      }
       if (registered.has(name)) {
         // A genuine collision: some tool Pi already holds that this module did not put there.
         // Report it per tool and keep going, so one shadowed name does not cost every other
@@ -327,16 +401,45 @@ export async function registerPiGatewayMcpTools(
       }
       registered.add(name);
       ours.add(name);
+      claimedBy.set(name, server.name);
+      // Captured per tool, so the closure cannot read a later loop iteration's server.
+      const serverName = server.name;
+      const upstreamTool = tool.name;
       pi.registerTool({
         name,
         label: name,
         description: tool.description ?? `${server.name}: ${tool.name}`,
         parameters: tool.inputSchema ?? { type: "object", properties: {} },
-        async execute(_toolCallId: string, params: unknown) {
-          const result = await client.call(tool.name, params);
+        // Positional shape (ctx 5th) is pi-coding-agent's `registerTool` execute contract, and it
+        // matches the custom-tool registration in `agenta.ts`. If upstream changes the arity the
+        // gate fails closed (no ui -> block); it never fails open.
+        async execute(
+          toolCallId: string,
+          params: unknown,
+          _signal?: unknown,
+          _onUpdate?: unknown,
+          ctx?: unknown,
+        ) {
+          // Gate BEFORE the upstream call: only an allow reaches the server. A deny surfaces as
+          // the tool's own result text, so the model loop continues rather than dying.
+          const { allowed, reason } = await gate({
+            ctx,
+            toolName: name,
+            toolCallId,
+            input: params,
+            mcpServer: serverName,
+            mcpTool: upstreamTool,
+          });
+          if (!allowed) {
+            return {
+              content: [{ type: "text", text: reason }],
+              details: { server: serverName, tool: upstreamTool },
+            };
+          }
+          const result = await client.call(upstreamTool, params);
           return {
             content: [{ type: "text", text: JSON.stringify(result) }],
-            details: { server: server.name, tool: tool.name },
+            details: { server: serverName, tool: upstreamTool },
           };
         },
       });
