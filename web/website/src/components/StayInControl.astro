@@ -1,0 +1,343 @@
+---
+import Section from "./Section.astro";
+// Ported 1:1 from the design source: "Agenta Landing v3 Coworkers Rail.dc.html"
+// (Stay in control section, lines 626-687). Static section — no island needed.
+// The .ag-bento column collapse lives in global.css; do not re-declare it here.
+
+// White logo masks, as the design's mask() helper renders them in this section.
+const mask = (file: string) =>
+  `flex:0 0 auto;width:14px;height:14px;background-color:rgba(255,255,255,0.85);-webkit-mask-image:url('/logos/tools/${file}.svg');mask-image:url('/logos/tools/${file}.svg');-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain;`;
+const mcps = [
+  ["Notion", "notion"],
+  ["GitHub", "github"],
+  ["HubSpot", "hubspot"],
+  ["Slack", "slack"],
+  ["Linear", "linear"],
+  ["Drive", "googledrive"],
+].map(([name, file]) => ({ name, logoStyle: mask(file) }));
+const skills = [
+  "Research brief",
+  "Draft article",
+  "Classify ticket",
+  "Score fit",
+  "Review diff",
+  "Publish digest",
+];
+
+// Shared panel chrome from the design's bento cells.
+const panel =
+  "display:flex;flex-direction:column;gap:40px;padding:48px 40px 56px;min-width:0;background:var(--th-darksec-reliability);";
+const head = "display:flex;flex-direction:column;gap:10px;";
+const h3 = "margin:0;font:400 24px/1.25 var(--font-display);color:#F7F6F4;";
+const sub =
+  "margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.55);text-wrap:pretty;max-width:46ch;";
+const stage = "display:flex;justify-content:center;padding:8px 0 0;";
+const card =
+  "border-radius:10px;background:#1B1A1E;box-shadow:0 0 0 1px rgba(255,255,255,0.09);";
+const vaultRow =
+  "display:flex;align-items:center;justify-content:space-between;padding:9px 12px;font:400 13px/1 var(--font-ui);color:rgba(255,255,255,0.85);";
+const secretRow = vaultRow + "font-family:var(--font-mono);font-size:12px;";
+const runRow =
+  "display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font:400 12.5px/1 var(--font-ui);color:rgba(255,255,255,0.8);";
+const runMeta =
+  "font-family:var(--font-mono);font-size:11.5px;color:rgba(255,255,255,0.45);";
+const listLabel =
+  "padding:8px 10px 6px;font:500 11px/1 var(--font-ui);letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,0.4);";
+const mcpRow =
+  "display:flex;align-items:center;gap:9px;height:30px;padding:0 10px;font:500 12.5px/1 var(--font-ui);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+---
+
+<Section
+  tone="dark"
+  data-screen-label="Stay in control"
+  style="background:var(--th-darksec-reliability);padding:var(--section-pad-y) 24px 0;"
+>
+  <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+    <header
+      style="display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center;max-width:677px;padding:0 24px 96px;"
+    >
+      <span class="ag-badge ag-badge--dark">Stay in control</span>
+      <h2
+        class="ag-sectitle"
+        style="margin:0;font:var(--text-display-lg);color:var(--text-on-dark);text-wrap:pretty;"
+      >
+        Give it responsibility.<br />Keep the controls.
+      </h2>
+    </header>
+    <div
+      class="ag-bento"
+      style="position:relative;z-index:6;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;width:min(1072px,100%);background:var(--th-darksec-border);box-shadow:0 0 0 1px var(--th-darksec-border);"
+    >
+      {/* 1 — Approvals: an outbound email waiting for review */}
+      <div style={panel}>
+        <div style={head}>
+          <h3 style={h3}>Approvals</h3>
+          <p style={sub}>
+            Consequential actions wait for you. Approve, edit, or reject before
+            anything goes out.
+          </p>
+        </div>
+        <div style={stage}>
+          <div
+            style={card +
+              "width:min(420px,100%);display:flex;flex-direction:column;overflow:hidden;"}
+          >
+            <div
+              style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.08);"
+            >
+              <img
+                src="/logos/Agenta-symbol-dark-accent.svg"
+                alt=""
+                style="width:14px;"
+              />
+              <span
+                style="font:500 12.5px/1 var(--font-ui);color:rgba(255,255,255,0.85);"
+                >Outreach coworker</span
+              >
+              <span
+                style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;font:400 11.5px/1 var(--font-ui);color:rgba(255,255,255,0.5);"
+              >
+                <span
+                  style="width:6px;height:6px;border-radius:50%;background:#EBC96A;"
+                ></span>Waiting for approval</span
+              >
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;padding:14px 16px;">
+              <span style="font:400 12px/1 var(--font-ui);color:rgba(255,255,255,0.45);"
+                >hubspot.SEND_EMAIL → dana@northwind.io</span
+              >
+              <div
+                style="padding:11px 13px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);font:400 13px/1.55 var(--font-ui);color:rgba(255,255,255,0.8);"
+              >
+                Hi Dana — saw your team just launched the new billing flow. We
+                help teams like yours…
+              </div>
+              <div style="display:flex;gap:8px;">
+                <span
+                  style="display:inline-flex;align-items:center;height:30px;padding:0 13px;border-radius:7px;background:linear-gradient(#F2F25C,#E7E712);box-shadow:inset 0 2px 6.4px rgba(255,255,255,0.8);font:600 12px/1 var(--font-sans);color:#242424;"
+                  >Approve &amp; send</span
+                >
+                <span
+                  style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:7px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);font:500 12px/1 var(--font-sans);color:rgba(255,255,255,0.75);"
+                  >Edit</span
+                >
+                <span
+                  style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:7px;font:500 12px/1 var(--font-sans);color:rgba(255,255,255,0.5);"
+                  >Reject</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* 2 — Secret vault: masked credentials, never readable back */}
+      <div style={panel}>
+        <div style={head}>
+          <h3 style={h3}>Secret vault</h3>
+          <p style={sub}>
+            Credentials live in a vault the coworker can use but never read back
+            or paste into chat.
+          </p>
+        </div>
+        <div style={stage}>
+          <div class="ag-vault" style="display:flex;gap:2px;width:min(440px,100%);">
+            <div
+              style={card +
+                "flex:0 0 150px;min-width:0;overflow:hidden;padding:6px;display:flex;flex-direction:column;border-radius:10px 4px 4px 10px;"}
+            >
+              <span
+                style={vaultRow +
+                  "background:rgba(255,255,255,0.08);border-radius:6px;"}
+                >All secrets <span style="opacity:.5;">›</span></span
+              >
+              <span style={vaultRow + "color:rgba(255,255,255,0.55);"}>HubSpot</span>
+              <span style={vaultRow + "color:rgba(255,255,255,0.45);"}>GitHub</span>
+              <span style={vaultRow + "color:rgba(255,255,255,0.35);"}>Notion</span>
+              <span style={vaultRow + "color:rgba(255,255,255,0.25);"}>Zendesk</span>
+            </div>
+            <div
+              style={card +
+                "flex:1;min-width:0;overflow:hidden;padding:6px;display:flex;flex-direction:column;border-radius:4px 10px 10px 4px;"}
+            >
+              <span
+                style={vaultRow +
+                  "color:rgba(255,255,255,0.4);border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:4px;"}
+                >Search…</span
+              >
+              <span style={secretRow}
+                >HUBSPOT_API_KEY <span style="color:rgba(255,255,255,0.35);">••••</span></span
+              >
+              <span
+                style={secretRow + "background:rgba(255,255,255,0.08);border-radius:6px;"}
+                >GITHUB_TOKEN <span style="color:#F2F25C;">✓</span></span
+              >
+              <span style={secretRow}
+                >NOTION_SECRET <span style="color:rgba(255,255,255,0.35);">••••</span></span
+              >
+              <span style={secretRow}
+                >ZENDESK_TOKEN <span style="color:rgba(255,255,255,0.35);">••••</span></span
+              >
+              <span style={secretRow}
+                >SLACK_BOT_TOKEN <span style="color:rgba(255,255,255,0.35);">••••</span></span
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* 3 — MCP servers and skills wired into one agent */}
+      <div style={panel}>
+        <div style={head}>
+          <h3 style={h3}>Connect agents to the MCPs and skills you use</h3>
+          <p style={sub}>
+            Tools connect over MCP. Know-how ships as skills. Swap either
+            without rewriting the agent.
+          </p>
+        </div>
+        <div style={stage}>
+          <div
+            style="position:relative;display:grid;grid-template-columns:minmax(0,1fr) 140px minmax(0,1fr);align-items:center;width:min(440px,100%);"
+          >
+            <div
+              style={card +
+                "position:relative;z-index:1;min-width:0;overflow:hidden;padding:6px;display:flex;flex-direction:column;"}
+            >
+              <span style={listLabel}>MCP servers</span>
+              {mcps.map((m) => (
+                <span style={mcpRow}>
+                  <span style={m.logoStyle}></span>
+                  {m.name}
+                </span>
+              ))}
+            </div>
+            <div style="position:relative;height:217px;">
+              <svg
+                width="140"
+                height="217"
+                viewBox="0 0 140 217"
+                style="position:absolute;inset:0;"
+                fill="none"
+                stroke="rgba(255,255,255,0.28)"
+                stroke-width="1"
+                stroke-linecap="round"
+              >
+                <path d="M0 46 H16 Q24 46 24 54 V100.5 Q24 108.5 32 108.5 H48"></path>
+                <path d="M0 76 H16 Q24 76 24 84 V100.5"></path>
+                <path d="M0 106 H22"></path>
+                <path d="M0 136 H16 Q24 136 24 128 V116.5"></path>
+                <path d="M0 166 H16 Q24 166 24 158 V116.5"></path>
+                <path d="M0 196 H16 Q24 196 24 188 V116.5 Q24 108.5 32 108.5"></path>
+                <path d="M140 46 H124 Q116 46 116 54 V100.5 Q116 108.5 108 108.5 H92"></path>
+                <path d="M140 76 H124 Q116 76 116 84 V100.5"></path>
+                <path d="M140 106 H118"></path>
+                <path d="M140 136 H124 Q116 136 116 128 V116.5"></path>
+                <path d="M140 166 H124 Q116 166 116 158 V116.5"></path>
+                <path d="M140 196 H124 Q116 196 116 188 V116.5 Q116 108.5 108 108.5"></path>
+                <circle cx="48" cy="108.5" r="2.5" fill="#F2F25C" stroke="none"></circle>
+                <circle cx="92" cy="108.5" r="2.5" fill="#F2F25C" stroke="none"></circle>
+              </svg>
+              <div
+                style="position:absolute;left:48px;top:86px;display:flex;flex-direction:column;align-items:center;gap:8px;"
+              >
+                <span
+                  style="display:inline-flex;width:44px;height:44px;align-items:center;justify-content:center;border-radius:12px;background:#242424;box-shadow:0 0 0 1px rgba(255,255,255,0.18);"
+                >
+                  <img
+                    src="/logos/Agenta-symbol-dark-accent.svg"
+                    alt=""
+                    style="width:22px;"
+                  />
+                </span>
+                <span
+                  style="font:500 12px/1 var(--font-ui);color:rgba(255,255,255,0.7);white-space:nowrap;"
+                  >SEO agent</span
+                >
+              </div>
+            </div>
+            <div
+              style={card +
+                "position:relative;z-index:1;min-width:0;overflow:hidden;padding:6px;display:flex;flex-direction:column;"}
+            >
+              <span style={listLabel}>Skills</span>
+              {skills.map((name) => (
+                <span style={mcpRow}>
+                  <span
+                    style="display:inline-flex;width:14px;height:14px;align-items:center;justify-content:center;border-radius:3px;background:rgba(255,255,255,0.1);font:600 8px/1 var(--font-ui);color:rgba(255,255,255,0.7);"
+                    >md</span
+                  >
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* 4 — Automations and triggers: run history with cost per run */}
+      <div style={panel}>
+        <div style={head}>
+          <h3 style={h3}>Automations and triggers</h3>
+          <p style={sub}>
+            Run on a schedule or when something happens in a connected tool.
+            Every run is logged.
+          </p>
+        </div>
+        <div style={stage}>
+          <div
+            style={card + "width:min(420px,100%);display:flex;flex-direction:column;"}
+          >
+            <div
+              style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.08);"
+            >
+              <span
+                style="display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:6px;background:rgba(140,207,255,0.14);color:#8CCFFF;"
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="12" cy="12" r="9"></circle>
+                  <path d="M12 7v5l3 2"></path>
+                </svg>
+              </span>
+              <span style="font:500 13px/1 var(--font-ui);color:#fff;">Weekly SEO article</span>
+              <span
+                style="margin-left:auto;display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:999px;background:linear-gradient(#F2F25C,#E7E712);box-shadow:inset 0 2px 6.4px rgba(255,255,255,0.8);font:600 11px/1 var(--font-ui);color:#242424;"
+                >On</span
+              >
+            </div>
+            <div style={runRow + "border-bottom:1px solid rgba(255,255,255,0.06);"}>
+              <span>Mon 09:04</span>
+              <span style={runMeta}>3m 08s · $0.031</span>
+              <span
+                style="display:inline-flex;align-items:center;gap:6px;color:rgba(255,255,255,0.6);"
+              >
+                <span style="width:6px;height:6px;border-radius:50%;background:#8FBF7A;"></span>ok</span
+              >
+            </div>
+            <div style={runRow + "border-bottom:1px solid rgba(255,255,255,0.06);"}>
+              <span>Mon 09:02 <span style="color:rgba(255,255,255,0.4);">· last week</span></span>
+              <span style={runMeta}>2m 51s · $0.028</span>
+              <span
+                style="display:inline-flex;align-items:center;gap:6px;color:rgba(255,255,255,0.6);"
+              >
+                <span style="width:6px;height:6px;border-radius:50%;background:#8FBF7A;"></span>ok</span
+              >
+            </div>
+            <div style={runRow}>
+              <span>Mon 09:03 <span style="color:rgba(255,255,255,0.4);">· 2 weeks ago</span></span>
+              <span style={runMeta}>4m 12s · $0.040</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;color:#EBC96A;">
+                <span style="width:6px;height:6px;border-radius:50%;background:#EBC96A;"></span>flagged</span
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Section>
