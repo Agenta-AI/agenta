@@ -7,6 +7,7 @@ export {
     isBillingEnabled,
     isEE,
     isEmailInvitationsEnabled,
+    isMcpGatewayEnabled,
     isToolsEnabled,
     getAgentaApiUrl,
     getAgentaWebUrl,

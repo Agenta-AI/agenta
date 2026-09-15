@@ -20,6 +20,8 @@ export type SettingsScopeKey = "project" | "organization" | "personal"
 
 export interface SettingsAccess {
     billingEnabled: boolean
+    /** Whether this deployment serves the MCP gateway the endpoints tab manages. */
+    canShowMcpEndpoints: boolean
     canShowTools: boolean
     canViewApiKeys: boolean
     canViewEvents: boolean
@@ -197,6 +199,8 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.canViewApiKeys
         case "tools":
             return access.canShowTools
+        case "mcpEndpoints":
+            return access.canShowMcpEndpoints
         case "organization":
             return access.isEE && access.isOwner
         case "auditLog":
