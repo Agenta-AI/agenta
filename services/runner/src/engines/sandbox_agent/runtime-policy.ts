@@ -135,10 +135,15 @@ export function resolveRunOtlpTarget(
  * Build the run's MCP permission table: one entry per configured server, keyed on the server name
  * as it arrives on the wire.
  *
- * That name IS the connection's stable key today — the gateway route for an author-supplied server
- * is `custom/{name}` — so it is what both the ACP gate lookup and the Pi gate agree on. When the
- * independent-connection work lands a first-class connection slug, this is the one call site that
- * changes: the table gains a second key and nothing downstream moves.
+ * The name is a label, not identity. It was both once — the gateway route for an author-supplied
+ * server was `custom/{name}` — and the independent-connection work separated them: the SDK builds
+ * the route from `connection.slug` whenever a connection reference is present
+ * (`sdks/python/agenta/sdk/agents/mcp/resolver.py`), and falls back to the name only for agent
+ * revisions committed before that reference existed, which are immutable and still arrive here.
+ *
+ * The table is still keyed on the wire name, because that is what a harness renders into a tool
+ * name and therefore what the gate has to look up. Two connections may carry one display name, so
+ * that key is not unique; D10 tracks what this call site does about it (D16).
  *
  * The per-server rules live in `src/mcp-permission.ts`, which the in-sandbox Pi extension imports
  * too, so the two harness families cannot disagree about what a policy means.

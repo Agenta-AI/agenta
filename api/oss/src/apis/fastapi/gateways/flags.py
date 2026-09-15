@@ -7,8 +7,16 @@ vault the way you used to" and `mcp_gateway_disabled` as "dial this MCP server d
 and it can only do that if the refusal names itself. An unmounted route would look to the
 SDK exactly like a typo in a URL.
 
-`env` is read per call, never captured at import, so an operator flipping the variable and
-restarting the process is all it takes, and a test can set it without rebuilding the app.
+The attribute is read per call, never captured at import, so both switches are checked
+against the process's current configuration on every request and neither router has to be
+rebuilt for one to take effect.
+
+The value behind it is another matter, and the comment here used to say otherwise. Each
+plane's `enabled` is a Pydantic field default, evaluated by `_parse_bool_env` when the
+class is defined, so the environment variable is read once at import. Setting it later
+changes nothing. A test that needs a plane off patches `env.llm_gateway.enabled` or
+`env.mcp_gateway.enabled` directly, which is what every case in
+`test_gateways_plane_flags.py` does; an operator restarts the process (D16).
 """
 
 from fastapi import Depends, HTTPException, status
