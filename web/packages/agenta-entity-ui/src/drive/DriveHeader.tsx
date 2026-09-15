@@ -266,8 +266,7 @@ export const DriveHeader = ({
                             }}
                         >
                             Show temporary files
-                            <DropdownMenuShortcut className="ml-auto">session</DropdownMenuShortcut>
-                            <SelectedMark on={showTemporary} className="ml-2" />
+                            <SelectedMark on={showTemporary} />
                         </DropdownMenuItem>
                     ) : null}
                     <DropdownMenuItem
