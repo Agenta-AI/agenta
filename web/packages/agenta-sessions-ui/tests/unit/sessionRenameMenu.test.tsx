@@ -21,6 +21,7 @@ vi.mock("@agenta/sessions/link", () => ({shareUrl: (path: string) => path}))
 vi.mock("@agenta/sessions/state", () => ({
     pinnedSessionIdsAtom: atom<string[]>([]),
     toggleSessionPinAtom: atom(null, () => undefined),
+    unpinSessionAtom: atom(null, () => undefined),
 }))
 vi.mock("@agenta/shared/state", () => ({projectIdAtom: atom("project-1")}))
 vi.mock("@agenta/ui/app-message", () => ({
