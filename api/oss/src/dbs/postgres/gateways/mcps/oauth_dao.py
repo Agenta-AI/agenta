@@ -10,7 +10,7 @@ which nothing in Redis would do for us.
 
 from datetime import datetime, timezone
 from typing import Optional
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import delete, select
 
@@ -145,6 +145,23 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             await session.commit()
 
             return _to_dto(row) if row is not None else None
+
+    async def drop_attempts_for_endpoint(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+    ) -> int:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                delete(self.MCPOAuthAttemptDBE)
+                .where(self.MCPOAuthAttemptDBE.project_id == project_id)
+                .where(self.MCPOAuthAttemptDBE.endpoint_id == endpoint_id)
+                .execution_options(synchronize_session=False)
+            )
+            await session.commit()
+
+            return int(result.rowcount or 0)
 
     async def sweep_expired_attempts(
         self,

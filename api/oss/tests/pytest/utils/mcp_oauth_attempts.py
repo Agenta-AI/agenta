@@ -36,6 +36,22 @@ class InMemoryMCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
     async def consume_attempt(self, *, state: str) -> Optional[MCPOAuthAttempt]:
         return self.attempts.pop(state, None)
 
+    async def drop_attempts_for_endpoint(
+        self,
+        *,
+        project_id,
+        endpoint_id,
+    ) -> int:
+        outstanding = [
+            state
+            for state, record in self.attempts.items()
+            if record.project_id == project_id and record.endpoint_id == endpoint_id
+        ]
+        for state in outstanding:
+            del self.attempts[state]
+
+        return len(outstanding)
+
     async def sweep_expired_attempts(
         self,
         *,

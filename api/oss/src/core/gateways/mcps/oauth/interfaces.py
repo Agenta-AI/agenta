@@ -74,6 +74,22 @@ class MCPOAuthAttemptsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def drop_attempts_for_endpoint(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+    ) -> int:
+        """Delete every outstanding attempt for one connection and return how many went.
+
+        Disconnecting has to reach these. A consent already in flight completes against
+        the record it was issued, so without this a browser tab opened before the
+        disconnect reconnects the account afterwards, and the person who revoked it is
+        never told (D5).
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     async def sweep_expired_attempts(
         self,
         *,

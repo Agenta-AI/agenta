@@ -312,6 +312,16 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         still using it; re-registering on every disconnect would also mint a fresh
         client each time anyone reconnects.
         """
+        # The outstanding consents go first. A consent already in flight completes
+        # against the record it was issued, so a browser tab opened before this call
+        # would otherwise finish afterwards and reconnect the account, leaving the
+        # person who pressed Disconnect believing they had revoked it (D5). Dropped
+        # before the grant, so there is no window in which the grant is gone and a
+        # callback can still write a new one.
+        await self.attempts_dao.drop_attempts_for_endpoint(
+            project_id=project_id, endpoint_id=endpoint_id
+        )
+
         storage = SecretsTokenStorage(
             vault_service=self.vault_service,
             project_id=project_id,

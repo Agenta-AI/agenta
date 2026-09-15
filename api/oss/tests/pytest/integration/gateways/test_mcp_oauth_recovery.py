@@ -53,6 +53,7 @@ from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage, grant_
 from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.service import MCPGatewayService
+from oss.src.core.gateways.mcps.oauth.types import MCPOAuthStateInvalidError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
     MCPUpstreamError,
@@ -853,4 +854,96 @@ async def test_a_timeout_during_a_renewal_leaves_the_grant_renewable(
     assert (await _call(relay_service, project, connection)).status_code == 200
     # No second exchange: the retry found a live grant.
     assert local_mcp_oauth_provider.token_requests == 1
+    assert len(await _grants(project=project)) == 1
+
+
+# --- a consent that was already in flight when the account was revoked -------- #
+
+
+async def test_disconnecting_stops_a_consent_that_was_already_in_flight(
+    project, relay_service, connect_service, local_mcp_oauth_provider
+):
+    """D5. The browser tab was opened before the person pressed Disconnect. Its callback
+    used to complete against the record it was issued and reconnect the account, and
+    nothing told the person who thought they had revoked it."""
+    connection = await _connected(
+        project=project,
+        connect_service=connect_service,
+        provider=local_mcp_oauth_provider,
+        slug="in-flight-consent",
+        name="Acme",
+    )
+
+    # A second consent is begun and left mid-flight: the browser has the handle, and
+    # the callback has not come back yet.
+    start = await connect_service.begin(
+        project_id=project["project_id"],
+        user_id=project["user_id"],
+        endpoint_id=connection.id,
+        server_url=local_mcp_oauth_provider.server_url,
+        scopes=["tools:call"],
+    )
+
+    await _disconnect(
+        project=project, connect_service=connect_service, connection=connection
+    )
+
+    # Now the tab comes back. The handle it holds names a record that is gone.
+    with pytest.raises(MCPOAuthStateInvalidError):
+        await connect_service.claim(
+            state=start.state, caller_user_id=project["user_id"]
+        )
+
+    assert await _grants(project=project) == []
+    assert (await _reload(project, connection)).secret_id is None
+    with pytest.raises(MCPAuthRequiredError):
+        await _call(relay_service, project, await _reload(project, connection))
+
+
+async def test_disconnecting_one_connection_leaves_anothers_consent_in_flight(
+    project, connect_service, local_mcp_oauth_provider
+):
+    """Only this connection's consents go. A person disconnecting one account must not
+    cancel the consent they are part-way through for another."""
+    dropped = await _create_connection(
+        project=project,
+        slug="drop-me",
+        name="Acme, work",
+        base_url=local_mcp_oauth_provider.server_url,
+    )
+    other = await _create_connection(
+        project=project,
+        slug="keep-me",
+        name="Acme, personal",
+        base_url=local_mcp_oauth_provider.server_url,
+    )
+    for endpoint in (dropped, other):
+        await connect_service.begin(
+            project_id=project["project_id"],
+            user_id=project["user_id"],
+            endpoint_id=endpoint.id,
+            server_url=local_mcp_oauth_provider.server_url,
+            scopes=["tools:call"],
+        )
+    other_start = await connect_service.begin(
+        project_id=project["project_id"],
+        user_id=project["user_id"],
+        endpoint_id=other.id,
+        server_url=local_mcp_oauth_provider.server_url,
+        scopes=["tools:call"],
+    )
+
+    await _disconnect(
+        project=project, connect_service=connect_service, connection=dropped
+    )
+
+    # The other connection's consent still completes.
+    attempt = await connect_service.claim(
+        state=other_start.state, caller_user_id=project["user_id"]
+    )
+    completion = await connect_service.complete(
+        attempt=attempt,
+        code=local_mcp_oauth_provider.callback_params(state=other_start.state)["code"],
+    )
+    assert completion.endpoint_id == other.id
     assert len(await _grants(project=project)) == 1
