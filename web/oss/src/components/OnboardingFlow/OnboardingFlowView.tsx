@@ -15,6 +15,11 @@ import {
     Briefcase,
     DotsThree,
     GithubLogo,
+    GitPullRequest,
+    Bug,
+    Lightning,
+    ChatCircleDots,
+    Notebook,
     MagnifyingGlass,
     Sparkle,
     XLogo,
@@ -33,6 +38,8 @@ import {
     type OnboardingVariant,
 } from "./choices"
 import {readOnboardingDraft, saveOnboardingDraft} from "./draft"
+
+const templateIcons = [GitPullRequest, Bug, Lightning, ChatCircleDots, Notebook]
 
 const Radio = ({active}: {active: boolean}) => (
     <span
@@ -235,45 +242,48 @@ export default function OnboardingFlowView({
                             Suggestions for {role}
                         </p>
                         <div className="flex gap-3 overflow-x-auto pb-2">
-                            {templates.map((template) => (
-                                <button
-                                    key={template.key}
-                                    type="button"
-                                    aria-pressed={templateKey === template.key}
-                                    className={`${choiceClass(templateKey === template.key)} flex w-[300px] shrink-0 items-start gap-3`}
-                                    onClick={() => {
-                                        setTemplateKey(template.key)
-                                        setName(template.name)
-                                        setTask("")
-                                    }}
-                                >
-                                    <Robot
-                                        size={36}
-                                        weight="fill"
-                                        className="shrink-0 text-colorPrimary"
-                                    />
-                                    <span>
-                                        <strong className="block text-[15px]">
-                                            {template.name}
-                                        </strong>
-                                        <span className="mt-1 block text-xs text-colorTextSecondary">
-                                            {template.description}
+                            {templates.map((template, index) => {
+                                const TemplateIcon = templateIcons[index % templateIcons.length]
+                                return (
+                                    <button
+                                        key={template.key}
+                                        type="button"
+                                        aria-pressed={templateKey === template.key}
+                                        className={`${choiceClass(templateKey === template.key)} flex w-[300px] shrink-0 items-start gap-3`}
+                                        onClick={() => {
+                                            setTemplateKey(template.key)
+                                            setName(template.name)
+                                            setTask("")
+                                        }}
+                                    >
+                                        <span
+                                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] ${tones[index % tones.length]}`}
+                                        >
+                                            <TemplateIcon size={20} weight="fill" />
                                         </span>
-                                        <span className="mt-2 flex gap-1">
-                                            {template.logoSlugs?.map((slug) => (
-                                                <Image
-                                                    key={slug}
-                                                    src={`https://logos.composio.dev/api/${slug}`}
-                                                    alt={slug}
-                                                    width={16}
-                                                    height={16}
-                                                    unoptimized
-                                                />
-                                            ))}
+                                        <span>
+                                            <strong className="block text-[15px]">
+                                                {template.name}
+                                            </strong>
+                                            <span className="mt-1 block text-xs text-colorTextSecondary">
+                                                {template.description}
+                                            </span>
+                                            <span className="mt-2 flex gap-1">
+                                                {template.logoSlugs?.map((slug) => (
+                                                    <Image
+                                                        key={slug}
+                                                        src={`https://logos.composio.dev/api/${slug}`}
+                                                        alt={slug}
+                                                        width={16}
+                                                        height={16}
+                                                        unoptimized
+                                                    />
+                                                ))}
+                                            </span>
                                         </span>
-                                    </span>
-                                </button>
-                            ))}
+                                    </button>
+                                )
+                            })}
                         </div>
                     </>
                 )}

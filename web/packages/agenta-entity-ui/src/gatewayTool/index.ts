@@ -25,3 +25,4 @@ export {
     MultiSelect,
     SelectControl,
 } from "./components/schemaFormControls"
+export {useDirectToolConnect, type DirectConnectInput} from "./hooks/useDirectToolConnect"

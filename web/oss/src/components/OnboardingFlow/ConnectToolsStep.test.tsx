@@ -25,7 +25,10 @@ vi.mock("@agenta/entities/gatewayTool", () => ({
         requestMore: state.requestMore,
     }),
 }))
-vi.mock("@agenta/entity-ui/gatewayTool", () => ({ConnectDrawer: () => null}))
+const direct = vi.hoisted(() => ({connect: vi.fn(), connectingKey: null as string | null}))
+vi.mock("@agenta/entity-ui/gatewayTool", () => ({
+    useDirectToolConnect: () => direct,
+}))
 vi.stubGlobal(
     "IntersectionObserver",
     class {
@@ -52,18 +55,24 @@ describe("onboarding app pagination", () => {
         view.rerender(<ConnectToolsStep selectedIds={[]} onChange={vi.fn()} />)
         expect(screen.getByRole("button", {name: /App 9/})).toBeTruthy()
     })
-    it("selects connected apps on their cards without a separate checklist", () => {
+    it("adds every connected app to the agent with no separate selection", () => {
         state.connections = [
             {id: "saved", slug: "saved", integration_key: "app-2", name: "Account"},
         ]
         const onChange = vi.fn()
-        const view = render(<ConnectToolsStep selectedIds={[]} onChange={onChange} />)
+        render(<ConnectToolsStep selectedIds={[]} onChange={onChange} />)
         expect(screen.queryByRole("checkbox")).toBeNull()
-        fireEvent.click(screen.getByRole("button", {name: "App 2 Connected"}))
         expect(onChange).toHaveBeenLastCalledWith(["saved"])
-        view.rerender(<ConnectToolsStep selectedIds={["saved"]} onChange={onChange} />)
-        fireEvent.click(screen.getByRole("button", {name: "App 2 Selected"}))
-        expect(onChange).toHaveBeenLastCalledWith([])
+        const card = screen.getByRole("button", {name: /App 2/})
+        expect(card.textContent).toContain("Connected")
+        expect(card.hasAttribute("disabled")).toBe(true)
+    })
+    it("starts the auth flow directly from the card", () => {
+        render(<ConnectToolsStep selectedIds={[]} onChange={vi.fn()} />)
+        fireEvent.click(screen.getByRole("button", {name: /App 3/}))
+        expect(direct.connect).toHaveBeenCalledWith(
+            expect.objectContaining({integrationKey: "app-3"}),
+        )
     })
     it("shows feedback while fetching another page", () => {
         state.loading = true

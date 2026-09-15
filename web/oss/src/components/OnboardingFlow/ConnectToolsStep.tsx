@@ -1,16 +1,15 @@
-import {Fragment, useEffect, useState, useRef} from "react"
+import {Fragment, useEffect, useState} from "react"
 
 import {
-    invalidateToolConnections,
     isConnectionActive,
     isConnectionValid,
     useToolCatalogIntegrations,
     useToolConnectionsQuery,
-    type ToolCatalogIntegration,
 } from "@agenta/entities/gatewayTool"
-import {ConnectDrawer} from "@agenta/entity-ui/gatewayTool"
+import {useDirectToolConnect} from "@agenta/entity-ui/gatewayTool"
 import {ScrollSentinel} from "@agenta/ui"
 import {Spinner} from "@agenta/ui/ui"
+import {Check} from "@phosphor-icons/react"
 import {Button, Input} from "antd"
 import Image from "next/image"
 
@@ -23,30 +22,26 @@ export default function ConnectToolsStep({
 }) {
     const catalog = useToolCatalogIntegrations()
     const {connections} = useToolConnectionsQuery()
-    const [selected, setSelected] = useState<ToolCatalogIntegration | null>(null)
-    const [pendingIntegration, setPendingIntegration] = useState<string | null>(null)
-    const previousIds = useRef<string[]>([])
+    const {connect, connectingKey} = useDirectToolConnect()
     const [search, setSearch] = useState("")
     const {setSearch: searchCatalog, setCategory} = catalog
     useEffect(() => {
         setCategory(null)
         return () => searchCatalog("")
     }, [searchCatalog, setCategory])
+
+    // Connected means in the agent: every active connection joins the first agent's
+    // config, so there is no separate selection step to explain.
+    const activeIds = connections
+        .filter((item) => item.id && isConnectionActive(item) && isConnectionValid(item))
+        .map((item) => item.id!)
+        .sort()
+    const activeKey = activeIds.join(",")
     useEffect(() => {
-        if (!pendingIntegration) return
-        const matches = connections.filter(
-            (item) =>
-                item.integration_key === pendingIntegration &&
-                item.id &&
-                !previousIds.current.includes(item.id) &&
-                isConnectionActive(item) &&
-                isConnectionValid(item),
-        )
-        if (matches.length !== 1) return
-        const id = matches[0].id!
-        if (!selectedIds.includes(id)) onChange([...selectedIds, id])
-        setPendingIntegration(null)
-    }, [pendingIntegration, connections, selectedIds, onChange])
+        if (activeKey !== [...selectedIds].sort().join(",")) onChange(activeIds)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeKey])
+
     const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null)
     const {hasNextPage, isFetchingNextPage, requestMore, prefetchThreshold} = catalog
     const activeKeys = new Set(
@@ -89,16 +84,8 @@ export default function ConnectToolsStep({
                 <div ref={setScrollRoot} className="max-h-[360px] overflow-auto pb-8 pr-1">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
                         {visible.map((integration, index) => {
-                            const connection = connections.find(
-                                (connection) =>
-                                    connection.integration_key === integration.key &&
-                                    isConnectionActive(connection) &&
-                                    isConnectionValid(connection),
-                            )
-                            const connected = Boolean(connection)
-                            const picked = Boolean(
-                                connection?.id && selectedIds.includes(connection.id),
-                            )
+                            const connected = activeKeys.has(integration.key)
+                            const connecting = connectingKey === integration.key
                             return (
                                 <Fragment key={integration.key}>
                                     {index ===
@@ -119,24 +106,19 @@ export default function ConnectToolsStep({
                                     <button
                                         type="button"
                                         key={integration.key}
-                                        aria-pressed={picked}
+                                        disabled={connected || connecting}
                                         onClick={() => {
-                                            if (connection?.id) {
-                                                onChange(
-                                                    picked
-                                                        ? selectedIds.filter(
-                                                              (id) => id !== connection.id,
-                                                          )
-                                                        : [...selectedIds, connection.id],
-                                                )
-                                                return
-                                            }
-                                            previousIds.current = connections.flatMap((item) =>
-                                                item.id ? [item.id] : [],
-                                            )
-                                            setSelected(integration)
+                                            void connect({
+                                                integrationKey: integration.key,
+                                                integrationName: integration.name,
+                                                authSchemes: integration.auth_schemes ?? [],
+                                                existingCount: connections.filter(
+                                                    (item) =>
+                                                        item.integration_key === integration.key,
+                                                ).length,
+                                            })
                                         }}
-                                        className="flex items-center justify-between gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer p-4 text-left hover:bg-colorFillQuaternary aria-pressed:border-colorPrimary aria-pressed:bg-colorFillQuaternary"
+                                        className={`flex items-center justify-between gap-3 rounded-xl border border-solid p-4 text-left ${connected ? "border-colorSuccessBorder bg-colorSuccessBg" : "border-colorBorderSecondary bg-colorBgContainer hover:bg-colorFillQuaternary"}`}
                                     >
                                         <span className="flex items-center gap-2 font-medium">
                                             {integration.logo && (
@@ -150,15 +132,19 @@ export default function ConnectToolsStep({
                                             )}
                                             {integration.name}
                                         </span>
-                                        <span
-                                            className={`text-xs ${connected ? "text-colorSuccess" : "text-colorTextSecondary"}`}
-                                        >
-                                            {picked
-                                                ? "Selected"
-                                                : connected
-                                                  ? "Connected"
-                                                  : "Connect"}
-                                        </span>
+                                        {connected ? (
+                                            <span className="flex items-center gap-1 text-xs text-colorSuccess">
+                                                <Check size={12} /> Connected
+                                            </span>
+                                        ) : connecting ? (
+                                            <span className="flex items-center gap-1.5 text-xs text-colorTextSecondary">
+                                                <Spinner size="small" /> Connecting…
+                                            </span>
+                                        ) : (
+                                            <span className="text-xs text-colorTextSecondary">
+                                                Connect
+                                            </span>
+                                        )}
                                     </button>
                                 </Fragment>
                             )
@@ -183,22 +169,6 @@ export default function ConnectToolsStep({
                     />
                 )}
             </div>
-            {selected && (
-                <ConnectDrawer
-                    open
-                    useDefaultName
-                    integrationKey={selected.key}
-                    integrationName={selected.name}
-                    integrationLogo={selected.logo ?? undefined}
-                    authSchemes={selected.auth_schemes ?? []}
-                    onClose={() => setSelected(null)}
-                    onSuccess={() => {
-                        void invalidateToolConnections()
-                        setPendingIntegration(selected.key)
-                        setSelected(null)
-                    }}
-                />
-            )}
         </div>
     )
 }
