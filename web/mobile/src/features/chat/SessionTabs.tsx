@@ -137,7 +137,6 @@ export const SessionTabs = ({
                                     <ShortcutKeys id="panel.files" tone="inverse" />
                                 </span>
                             }
-                            side="left"
                         >
                             <Button
                                 variant="ghost"
