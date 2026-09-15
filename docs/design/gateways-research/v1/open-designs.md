@@ -1,5 +1,7 @@
 # Design findings
 
+> **MCP release scope update (2026-09-15):** Read [confirmed decisions](release-decisions-2026-09-15.md) and the [release-ready handoff](MCP-RELEASE-HANDOFF.md) first. They govern current scope and the target connection UX where this baseline differs. Existing code-review findings remain independent and must be resolved or explicitly dispositioned; no implementation or QA is implied by a product decision.
+
 The **Open design decisions** section below is the exception to everything that follows it. Four
 decisions were raised by the 2026-09-13 security review, and all four are now decided. OD27's repair
 has landed. The other three are decided but not yet built, and each still blocks its finding.

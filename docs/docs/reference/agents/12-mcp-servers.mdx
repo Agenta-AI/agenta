@@ -5,6 +5,10 @@ description: "Connect an agent to an HTTP MCP server with tool filters and secre
 sidebar_position: 13
 ---
 
+:::info MCP release work
+PR #6049 is preparing project connections with independent accounts at the same server and per-tool permission controls. These are target behaviors pending implementation and release verification. Existing configuration fields below remain baseline documentation; the release must update them to match tested behavior.
+:::
+
 Add MCP servers to `parameters.agent.mcps`. Each entry has a unique name, an HTTP connection, and an optional tool policy.
 
 ```json

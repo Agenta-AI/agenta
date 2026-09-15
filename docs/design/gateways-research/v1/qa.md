@@ -1,5 +1,7 @@
 # Gateway live-web QA
 
+> **MCP release scope update (2026-09-15):** Read [confirmed decisions](release-decisions-2026-09-15.md) and the [release-ready handoff](MCP-RELEASE-HANDOFF.md) first. They govern current scope and the target connection UX where this baseline differs. Existing code-review findings remain independent and must be resolved or explicitly dispositioned; no implementation or QA is implied by a product decision.
+
 This is the manual complement to the mock acceptance matrix. It proves that a real managed-agent
 run launched through the dashboard reaches the gateway and that each installed harness exposes a
 typed gateway failure to the user. Do not replace this check with direct `curl`, a fixture, or an
