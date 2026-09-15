@@ -1268,7 +1268,7 @@ describe("attachPermissionResponder", () => {
     assert.equal(seen.permission?.[0].gate.serverPermission, "allow");
   });
 
-  it("leaves an unconfigured MCP server to the existing ladder", async () => {
+  it("denies an MCP-shaped name no configured server claims (D7)", async () => {
     const { session, emit } = makeSession();
     const seen: { permission?: any[] } = {};
 
@@ -1283,6 +1283,52 @@ describe("attachPermissionResponder", () => {
     emit({
       id: "perm-1",
       toolCall: { toolCallId: "tool-1", name: "mcp__other__search" },
+    });
+    await flushPromises();
+
+    // The runner is the only thing that puts `mcp__` names in front of a model, so this is a
+    // tool it advertised and could not identify — most often a display name the harness
+    // rewrote. Deferring would make it indistinguishable from a server with no policy, and
+    // inherit `allow_reads`.
+    assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
+
+  it("still defers for a tool that is not MCP-shaped at all", async () => {
+    // The deliberate half of D7, pinned: `undefined` keeps exactly one meaning, so a harness
+    // builtin reaches the spec/rules/run-default ladder exactly as it always did.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([["github", { server: "deny", tools: new Map() }]]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "Bash", rawInput: { command: "ls" } },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, undefined);
+  });
+
+  it("still defers for a configured server that set no permission at all", async () => {
+    // The other deliberate half: per-tool policy is an opt-in, so a configuration written before
+    // it existed keeps reaching the run's own ladder rather than gaining a verdict here.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([["github", { tools: new Map() }]]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp__github__search" },
     });
     await flushPromises();
 
