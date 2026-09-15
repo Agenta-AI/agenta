@@ -71,6 +71,20 @@ const openSettings = async (page: Page, basePath: string) => {
 const connectionRow = (page: Page, name: string) =>
     page.locator("tr").filter({hasText: name}).first()
 
+/**
+ * Close a journey that reached its connected state.
+ *
+ * It stays open on purpose, reporting what was connected; the next thing a test does is
+ * behind it, so every case that connects has to finish the journey first.
+ */
+const finishJourney = async (page: Page) => {
+    const dialog = page.getByRole("dialog").last()
+    // `.first()` rather than an exact match: the footer's cancel and confirm both read
+    // "Done" on a deployment that predates the single-action footer, and either closes.
+    await dialog.getByRole("button", {name: "Done"}).first().click()
+    await expect(dialog).toBeHidden({timeout: 15000})
+}
+
 /** Drive the journey as far as the name step, which every path shares. */
 const startJourney = async (page: Page, url: string, name: string) => {
     await page.getByRole("button", {name: "Connect MCP"}).first().click()
@@ -110,6 +124,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 // so before asking for anything else.
                 await expect(dialog.getByText("needs no authentication")).toBeVisible()
                 await dialog.getByRole("button", {name: "Continue"}).click()
+                await finishJourney(page)
             })
 
             await scenarios.then("the connection is listed as ready", async () => {
@@ -156,6 +171,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 await openSettings(page, basePath)
                 const dialog = await startJourney(page, `${mockBaseUrl}/`, name)
                 await dialog.getByRole("button", {name: "Continue"}).click()
+                await finishJourney(page)
                 await expect(connectionRow(page, name)).toBeVisible({timeout: 30000})
             })
 
@@ -189,6 +205,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             for (const name of [first, second]) {
                 const dialog = await startJourney(page, `${mockBaseUrl}/`, name)
                 await dialog.getByRole("button", {name: "Continue"}).click()
+                await finishJourney(page)
                 await expect(connectionRow(page, name)).toBeVisible({timeout: 30000})
             }
         })
@@ -209,6 +226,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             await openSettings(page, basePath)
             const dialog = await startJourney(page, `${mockBaseUrl}/`, name)
             await dialog.getByRole("button", {name: "Continue"}).click()
+            await finishJourney(page)
             await expect(connectionRow(page, name).getByText("Ready", {exact: true})).toBeVisible({
                 timeout: 30000,
             })
@@ -235,6 +253,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             const other = uniqueName("No auth MCP")
             const dialog = await startJourney(page, `${mockBaseUrl}/`, other)
             await dialog.getByRole("button", {name: "Continue"}).click()
+            await finishJourney(page)
             const row = connectionRow(page, other)
             await expect(row.getByText("Ready", {exact: true})).toBeVisible({timeout: 30000})
             await row.getByRole("button").last().click()
@@ -251,6 +270,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             await openSettings(page, basePath)
             const dialog = await startJourney(page, `${mockBaseUrl}/`, name)
             await dialog.getByRole("button", {name: "Continue"}).click()
+            await finishJourney(page)
             await expect(connectionRow(page, name).getByText("Ready", {exact: true})).toBeVisible({
                 timeout: 30000,
             })
