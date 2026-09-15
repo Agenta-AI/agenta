@@ -32,7 +32,7 @@ import {useDriveTreePane} from "@agenta/entities/drive"
 import {useDriveTreeReveal} from "@agenta/entities/drive"
 import {useDriveTreeViewport} from "@agenta/entities/drive"
 import {useDriveUploads} from "@agenta/entities/drive"
-import {driveHasMixedOrigins, type SessionDriveData} from "@agenta/entities/drive"
+import {type SessionDriveData} from "@agenta/entities/drive"
 import {useTreeGroupScroll} from "@agenta/entities/drive"
 import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
@@ -129,13 +129,11 @@ export function DriveExplorer({
 }) {
     const chrome = chromeProp ?? onClose != null
     const rootLabel = driveRootLabel(drive.mount)
-    const showOrigin = driveHasMixedOrigins(drive.recents)
     const {
         search,
         setSearch,
         deferredSearch,
         searchActive,
-        originFilter,
         showTemporary,
         setShowTemporary,
         showHidden,
@@ -150,7 +148,7 @@ export function DriveExplorer({
         setSort,
         editorMode,
         setEditorMode,
-    } = useDriveFilters({showOrigin})
+    } = useDriveFilters()
     const {
         persistedSelection,
         selectedPath,
@@ -201,6 +199,7 @@ export function DriveExplorer({
 
     const {
         lazyTree,
+        showOrigin,
         inGitScope,
         tree,
         shownTree,
@@ -219,7 +218,7 @@ export function DriveExplorer({
         selectedPath,
         searchActive,
         deferredSearch,
-        originFilter,
+        showTemporary,
         showHidden,
         showGitignored,
     })
