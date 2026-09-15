@@ -282,6 +282,8 @@ lands AFTER the model call; a rejected approval must show none.
   the Pi rows do. That is sufficient here because the mock emits a deterministic tool call when the
   prompt carries an acceptance marker, and what is under test is the gate, not the model.
 - Account: a disposable one minted through `POST /admin/simple/accounts/`.
+- Flag: `AGENTA_LLM_GATEWAY_ENABLED=true`, because the cells route their model through a custom
+  gateway endpoint. It defaults to off for this release.
 - Turns are posted to `POST {BASE}/services/agent/v0/invoke`, the URL the playground posts.
 
 Driver: `mcp_permission_proof.py`, with `cell.sh` capturing the API access log for the same window.
@@ -309,7 +311,8 @@ Keep markers to 16 characters, per the precondition in the dashboard procedure a
 | Claude ask, approved | `permission: ask` | approval resumes and returns the result | PASS |
 | Claude deny | `permission: deny` | tool absent from the catalog | PASS |
 | Claude allow | `permission: allow` | runs unattended | PASS |
-| Codex ask | `permission: ask` | gate raised | FAIL — the harness refuses the call; see below |
+| Codex ask, rejected | `permission: ask` | gate raised, rejection performs no `tools/call` | PASS |
+| Codex ask, approved | `permission: ask` | approval resumes and returns the result | PASS |
 
 ### Pi: the OR79 re-proof
 
@@ -450,82 +453,83 @@ Note the two spellings in the logs above: Claude's `mcp__mock-mcp__echo` keeps t
 `mcp__mock_mcp__echo` does not. That divergence is why the permission table is keyed on the name
 the server advertises rather than on any rendered name.
 
-### Codex: FAIL, and the remaining unknown is the call convention, not the name
+### Codex: PASS, once the call is shaped the way the harness parses it
 
-Re-run on 2026-09-15 after the box was given space and the object store recovered (`agenta-store`
-back to seven writable volumes, no assign failures). The harness starts and completes a turn, so
-the storage blocker recorded in the first pass is gone. The cell still does not pass, and chasing
-it produced the facts below, all measured rather than assumed.
+Codex took four attempts to drive, and the fixture was wrong in a different way each time. The
+sequence is recorded because the wrong turns are the instructive part: three of them were guesses,
+and the one that worked came from reading the harness's source.
 
-**Codex does send its tool catalog.** The first guess — that the ACP harnesses configure remote MCP
-at session start and therefore serialise nothing — is true of Claude on Messages and false of Codex
-on Responses. Codex sent 19 to 21 tools, so the mock no longer has to know the name: it reads it.
+**It does send its tool catalog.** The first assumption — that the ACP harnesses configure remote
+MCP at session start and serialise nothing — is true of Claude on Messages and false of Codex on
+Responses. Codex sends 19 to 21 tools, so the mock does not have to know the name: it reads it.
 
-**MCP tools arrive namespaced.** The mock server appears as a `type: "namespace"` entry whose
-members are the tools, and Codex groups its own multi-agent tools the same way:
+**MCP tools arrive namespaced.** The server appears as a `type: "namespace"` entry whose members
+are the tools, and Codex groups its own multi-agent tools the same way:
 
 ```json
 { "type": "namespace",
   "name": "mcp__mock_mcp",
   "description": "Tools in the mcp__mock_mcp namespace.",
-  "tools": [ { "type": "function", "name": "echo",  ... },
-             { "type": "function", "name": "fail",  ... },
-             { "type": "function", "name": "slow",  ... } ] }
+  "tools": [ { "type": "function", "name": "echo", ... },
+             { "type": "function", "name": "fail", ... },
+             { "type": "function", "name": "slow", ... } ] }
 ```
 
 Note `mock_mcp`, underscored: Codex rewrites the server name the way Pi does, not the way Claude
-does. The adapter now resolves the catalog to qualified names and logs what it saw:
+does.
 
-```
-mock LLM: tool catalog carried 19 tool(s); echo tool resolved to 'mcp__mock_mcp.echo'.
-Names: exec_command, write_stdin, list_mcp_resources, list_mcp_resource_templates,
-read_mcp_resource, update_plan, request_user_input, view_image, multi_agent_v1.close_agent,
-multi_agent_v1.resume_agent, multi_agent_v1.send_input, multi_agent_v1.spawn_agent,
-multi_agent_v1.wait_agent, mcp__mock_mcp.echo, mcp__mock_mcp.fail, mcp__mock_mcp.slow,
-get_goal, create_goal, update_goal
-```
+**And the two halves must stay apart on the wire.** Joining them is what kept failing. Every joined
+spelling — Claude's `mcp__mock-mcp__echo`, the dotted `mcp.mock-mcp.echo`, the catalog-derived
+`mcp__mock_mcp.echo`, and the bare `echo` — came back as `unsupported call: <name>`. The reason is
+in the harness, not in the catalog. Codex's `ResponseItem::FunctionCall` carries `name` and an
+optional `namespace` as SEPARATE wire fields
+(`codex-rs/protocol/src/models.rs`), and `ToolRouter::build_tool_call` rebuilds the identity itself:
 
-**And Codex still refuses the call.** Emitted as a `function_call` named `mcp__mock_mcp.echo`, the
-harness answers:
-
-```
-unsupported call: mcp__mock_mcp.echo
+```rust
+ResponseItem::FunctionCall { name, namespace, arguments, call_id, .. } => {
+    let tool_name = ToolName::new(namespace, name).with_default_namespace();
 ```
 
-Three spellings have now been tried against a live Codex and all three are refused: Claude's
-`mcp__mock-mcp__echo`, the dotted `mcp.mock-mcp.echo` taken from the runner's gate-lookup
-convention, and the catalog-derived `mcp__mock_mcp.echo`. The bare nested `echo` fails too. So the
-open question is no longer what the tool is CALLED — the catalog answers that — but how a
-namespaced tool must be INVOKED on the Responses protocol. That is a different axis: the shape of
-the emitted call rather than its name, and `_responses_tool_call_payload` emits
-`{"type": "function_call", "name": ...}`. Establish the right shape from a real Codex session
-before changing it; do not iterate by guessing, which is what produced the false pass and then two
-false failures.
+`codex-rs/core/src/tools/router.rs`, at tag `rust-v0.154.0` — the version the runner image
+installs (`codex-cli 0.154.0` from `/root/.local/share/sandbox-agent/bin/codex --version`; note
+`services/runner/package.json` records the pin as `0.145.0`, so the two have drifted and the
+binary is what counts). A name with no `namespace` field is placed in the default namespace, where
+no MCP tool is registered, and `unsupported_tool_call_message` (`registry.rs`) renders the refusal.
 
-The run is recorded against these timings, which are themselves evidence that nothing left the
-sandbox:
+So the mock now emits the namespace as its own field:
 
-```
-21:29:19.755Z  mcps/builtin/mock/mock -> 200            tools/list
-21:29:19.957Z  llms/custom/.../v1/responses -> 200      the mock emits the tool call
-21:29:19.995Z  llms/custom/.../v1/responses -> 200      38 ms later, already answering
-                                                        <- no MCP POST after either call
+```json
+{ "type": "function_call", "call_id": "...", "name": "echo", "namespace": "mcp__mock_mcp",
+  "arguments": "{\"marker\": \"MCP-ACCEPTANCE-C\"}" }
 ```
 
-No tool-call frame reached the stream, no `[HITL]` gate was raised, and the session's persisted
-records hold only `message`, `usage` and `done`. **Codex MCP gating therefore remains unverified.**
-Nothing here says the gate is broken on Codex — the ACP gate never got the chance to fire — only
-that this fixture cannot yet drive it.
+and the cell passes. `ask` raises the gate and parks:
 
-What did improve, and is worth keeping regardless: the mock reads the harness's own spelling out of
-the request instead of holding a table of guesses, it qualifies namespaced entries (proven against
-Codex's own `multi_agent_v1` group), it logs the names it was offered so the next failure says why,
-and the fallback table now carries only the Claude spelling, which is the one a live run has
-actually exercised. A wrong entry in that table is worse than no entry: it sends a call for a tool
-the harness does not have and the cell then fails for a reason that looks like the product.
+```
+[HITL] ACP gate id=be1f4d34-... {"toolCallId":"call_mock_mcp_echo","anchor":"mcp.mock-mcp.echo",
+       "kind":"execute","executor":"harness","argKeys":["marker"]}
+[HITL] gate toolName="mcp.mock-mcp.echo" permission=ask outcome=pendingApproval
+```
 
-Finally, this run is the live proof of the round-trip fix. It is the exact situation that used to
-produce a green row: before 2026-09-15 the mock accepted any tool result in the body as the echo,
-so a call that never left the sandbox answered `mock MCP echo: <marker>` and the Codex row read as
-a pass. It now answers `mock MCP tool call failed`, on the real path, for a call that really did
-fail.
+```
+21:40:48.591Z  mcps/builtin/mock/mock -> 200            tools/list
+21:40:48.728Z  llms/custom/.../v1/responses -> 200
+                                                        <- no MCP POST after the model call
+```
+
+Rejecting yields `tool-output-denied` with no `tools/call` in either turn; approving resolves
+`outcome=allow`, the `tools/call` lands at `21:41:15.006` after the model call, and the turn ends
+`mock MCP echo: MCP-ACCEPTANCE-A`.
+
+**Codex uses a third spelling again at the gate, and the lookup handles it.** The name on the ACP
+permission frame is `mcp.mock-mcp.echo` — dotted, with the server name HYPHENATED — while the
+model-facing catalog said `mcp__mock_mcp` plus `echo`. Three surfaces, three spellings, one
+configured server. The runner resolves the gate by letting the configured server names arbitrate
+rather than the punctuation (OR80), so `mcp.mock-mcp.echo` still finds `mock-mcp` and its policy.
+This is the clearest argument for keeping the permission table keyed on the name the SERVER
+advertises: every other name in this section is a harness's private rendering of it.
+
+One precondition the other cells did not need: the MCP permission cells drive their model through a
+custom LLM gateway endpoint, so they require `AGENTA_LLM_GATEWAY_ENABLED=true`. That flag now
+defaults to OFF for this release, and a cell run without it fails at endpoint creation with
+`llm_gateway_disabled` rather than anything to do with MCP.
