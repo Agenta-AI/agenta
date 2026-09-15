@@ -1,7 +1,7 @@
 import json
 import uuid
 from dataclasses import dataclass, field
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlparse
 from uuid import UUID
 
 import httpx
@@ -51,12 +51,30 @@ class LocalMCPOAuthProvider:
     It intentionally exposes endpoints and callback parameters, never token values.
     Consumers inject ``transport`` into ``MCPOAuthClient``; this keeps the integration
     deterministic and avoids binding a TCP listener during parallel pytest runs.
+
+    It is also the MCP server the authorization protects: a ``POST`` at the server URL is
+    answered only for a bearer this provider issued and has not retired. One object serves
+    both because the recovery cases are about the seam between them — a credential this
+    provider stops honouring is a credential the gateway has to notice at relay time — and
+    two fixtures could disagree about which tokens are live.
+
+    The switches a recovery case needs, each standing in for something a real provider
+    does and this deployment cannot see coming: :meth:`revoke` retires every credential
+    already issued, and ``times_out`` makes the server stop answering.
     """
 
     server_url: str = "https://mcp.oauth.local/"
     authorization_server: str = "https://auth.oauth.local/"
+    # The server stops answering rather than refusing: what a caller sees is silence
+    # until the timeout, which is a different ending from any status code.
+    times_out: bool = False
+    # What actually reached the provider, for cases whose claim is about the number of
+    # upstream calls rather than their result.
+    token_requests: int = 0
+    relay_requests: int = 0
     _codes: set[str] = field(default_factory=set)
     _refresh_tokens: set[str] = field(default_factory=set)
+    _access_tokens: set[str] = field(default_factory=set)
 
     @property
     def authorize_url(self) -> str:
@@ -74,8 +92,69 @@ class LocalMCPOAuthProvider:
     def callback_params(self, *, state: str, code: str | None = None) -> dict[str, str]:
         return {"code": code or self.issue_code(), "state": state}
 
+    def revoke(self) -> None:
+        """Retire every credential issued so far, as removing an application does.
+
+        Both halves, because that is what revocation means at a provider: the access
+        tokens stop being honoured at the MCP surface, and the renewal handles stop being
+        honoured at the token endpoint, so there is no way back except consenting again.
+        Nothing tells the deployment; a stored grant's recorded expiry is untouched and
+        still lies in the future, which is the whole difficulty this stands in for.
+        """
+        self._access_tokens.clear()
+        self._refresh_tokens.clear()
+
+    def revoke_renewal_handles(self) -> None:
+        """Retire the renewal handles only, leaving issued access tokens honoured.
+
+        The narrower revocation a provider performs when a refresh token is withdrawn on
+        its own, and the case a renewal has to fail cleanly on.
+        """
+        self._refresh_tokens.clear()
+
+    def revoke_access_token(self, access_token: str) -> None:
+        """Retire one issued access token, leaving every other credential alone.
+
+        Revocation at a provider is per account, so a case about one connection failing
+        while its sibling keeps working has to be able to retire exactly one token.
+        """
+        self._access_tokens.discard(access_token)
+
+    def honours(self, access_token: str) -> bool:
+        return access_token in self._access_tokens
+
+    def _bearer(self, request: httpx.Request) -> str:
+        scheme, _, value = (request.headers.get("Authorization") or "").partition(" ")
+        return value.strip() if scheme.lower() == "bearer" else ""
+
+    def _serve_mcp(self, request: httpx.Request) -> httpx.Response:
+        """The protected MCP surface: one JSON-RPC answer, bearer required."""
+        self.relay_requests += 1
+        if self.times_out:
+            raise httpx.ReadTimeout("upstream did not answer", request=request)
+        if not self.honours(self._bearer(request)):
+            return httpx.Response(
+                401,
+                headers={
+                    "WWW-Authenticate": 'Bearer realm="local", error="invalid_token"'
+                },
+                json={"error": "invalid_token"},
+            )
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {"content": [{"type": "text", "text": "ok"}]},
+            },
+        )
+
     def _handle(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
+        # The MCP server lives at the server URL's own path. Discovery only ever GETs the
+        # well-known documents, so the method alone separates the two surfaces.
+        if request.method == "POST" and path == urlparse(self.server_url).path:
+            return self._serve_mcp(request)
         if path == "/.well-known/oauth-protected-resource":
             return httpx.Response(
                 200,
@@ -106,6 +185,7 @@ class LocalMCPOAuthProvider:
                 },
             )
         if path == "/token":
+            self.token_requests += 1
             form = parse_qs(request.content.decode())
             if form.get("grant_type", [None])[0] == "refresh_token":
                 presented = form.get("refresh_token", [None])[0]
@@ -127,10 +207,12 @@ class LocalMCPOAuthProvider:
     def _issue(self) -> httpx.Response:
         refresh_token = f"local-refresh-{uuid.uuid4().hex}"
         self._refresh_tokens.add(refresh_token)
+        access_token = f"local-access-{uuid.uuid4().hex}"
+        self._access_tokens.add(access_token)
         return httpx.Response(
             200,
             json={
-                "access_token": f"local-access-{uuid.uuid4().hex}",
+                "access_token": access_token,
                 "refresh_token": refresh_token,
                 "token_type": "Bearer",
                 "expires_in": 3600,
@@ -411,6 +493,8 @@ async def seeded_project():
         await session.commit()
 
     yield {
+        "organization_id": organization_id,
+        "workspace_id": workspace_id,
         "project_id": project_id,
         "user_id": user_id,
         "secret_id": secret_id,
