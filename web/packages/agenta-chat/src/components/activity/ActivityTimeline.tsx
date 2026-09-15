@@ -323,7 +323,7 @@ export const ActivityTimeline = ({
                     <CaretRight
                         size={10}
                         weight="bold"
-                        className={`shrink-0 text-colorTextDisabled transition-transform ${
+                        className={`shrink-0 text-colorTextDisabled opacity-50 transition-transform ${
                             open ? "rotate-90" : ""
                         }`}
                     />
