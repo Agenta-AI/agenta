@@ -54,7 +54,11 @@ def map_secrets_dto_to_dbe(
         organization_id=organization_id,
         kind=secret_dto.secret.kind.value,
         data=_data_payload(
-            secret_dto.secret.data.model_dump(exclude_none=True),
+            # `mode="json"` because the payload is JSON: a field typed as anything but
+            # a JSON primitive (a `UUID`, a `datetime`) reaches `json.dumps` as the
+            # object itself otherwise and raises. Every field that predates this was
+            # already JSON-native, so nothing else renders differently.
+            secret_dto.secret.data.model_dump(mode="json", exclude_none=True),
             write_only=bool(secret_dto.write_only),
             management=management,
         ),
@@ -93,7 +97,7 @@ def map_secrets_dto_to_dbe_update(
         ).items():
             if key == "data" and hasattr(secrets_dbe, key):
                 secrets_dbe.data = _data_payload(
-                    update_secret_dto.secret.data.model_dump(),
+                    update_secret_dto.secret.data.model_dump(mode="json"),
                     write_only=write_only,
                     management=management,
                 )

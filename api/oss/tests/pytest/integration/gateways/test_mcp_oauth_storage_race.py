@@ -1,7 +1,8 @@
 """OR61: two OAuth callbacks completing at once must not hit a unique violation.
 
-The grant and the client registration are stored under a slug derived from the server
-URL (`uuid5`), so concurrent writers compute the same slug, both read nothing, and both
+A grant is stored under a slug derived from the connection it belongs to, and a client
+registration under one derived from the authorization server. Both are deterministic, so
+two writers racing on the same record compute the same slug, both read nothing, and both
 create. Postgres arbitrates with `uq_secrets_project_id_slug`; the loser converts its
 refusal into the update it would have made. These cases run that against a real database,
 because an in-memory DAO has no unique index and so cannot fail the way production does.
@@ -10,6 +11,7 @@ because an in-memory DAO has no unique index and so cannot fail the way producti
 from __future__ import annotations
 
 import asyncio
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
@@ -25,6 +27,9 @@ from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 pytestmark = [pytest.mark.integration]
 
 _SERVER_URL = "https://mcp.race.local/"
+# One connection. The race these cases reproduce is two callbacks for the same
+# connection, which is what a person double-clicking Connect produces.
+_ENDPOINT_ID = uuid4()
 _ISSUER = "https://auth.race.local/"
 _REDIRECT_URI = "https://api.race.local/gateways/mcps/connect/callback"
 
@@ -44,11 +49,12 @@ async def project_with_readable_secrets(seeded_project):
     return seeded_project["project_id"]
 
 
-def _storage(*, project_id) -> SecretsTokenStorage:
+def _storage(*, project_id, endpoint_id=None) -> SecretsTokenStorage:
     return SecretsTokenStorage(
         vault_service=VaultService(secrets_dao=SecretsDAO()),
         project_id=project_id,
         server_url=_SERVER_URL,
+        endpoint_id=endpoint_id or _ENDPOINT_ID,
         authorization_server=_ISSUER,
     )
 
@@ -93,7 +99,7 @@ async def test_two_concurrent_registration_writes_for_one_slug_both_resolve(
 
 
 @pytest.mark.asyncio
-async def test_two_concurrent_grant_writes_for_one_server_both_resolve(
+async def test_two_concurrent_grant_writes_for_one_connection_both_resolve(
     project_with_readable_secrets,
 ):
     project_id = project_with_readable_secrets

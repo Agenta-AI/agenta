@@ -56,6 +56,7 @@ class LocalMCPOAuthProvider:
     server_url: str = "https://mcp.oauth.local/"
     authorization_server: str = "https://auth.oauth.local/"
     _codes: set[str] = field(default_factory=set)
+    _refresh_tokens: set[str] = field(default_factory=set)
 
     @property
     def authorize_url(self) -> str:
@@ -105,21 +106,37 @@ class LocalMCPOAuthProvider:
                 },
             )
         if path == "/token":
-            code = parse_qs(request.content.decode()).get("code", [None])[0]
+            form = parse_qs(request.content.decode())
+            if form.get("grant_type", [None])[0] == "refresh_token":
+                presented = form.get("refresh_token", [None])[0]
+                # Rotating, like the servers this stands in for: a handle dies the
+                # moment it is spent. That is what makes renewing the wrong
+                # connection's grant destructive rather than merely untidy, so the
+                # fixture has to behave that way for a test to be able to prove it.
+                if presented not in self._refresh_tokens:
+                    return httpx.Response(400, json={"error": "invalid_grant"})
+                self._refresh_tokens.remove(presented)
+                return self._issue()
+            code = form.get("code", [None])[0]
             if code not in self._codes:
                 return httpx.Response(400, json={"error": "invalid_grant"})
             self._codes.remove(code)
-            return httpx.Response(
-                200,
-                json={
-                    "access_token": f"local-access-{uuid.uuid4().hex}",
-                    "refresh_token": f"local-refresh-{uuid.uuid4().hex}",
-                    "token_type": "Bearer",
-                    "expires_in": 3600,
-                    "scope": "tools:call",
-                },
-            )
+            return self._issue()
         return httpx.Response(404)
+
+    def _issue(self) -> httpx.Response:
+        refresh_token = f"local-refresh-{uuid.uuid4().hex}"
+        self._refresh_tokens.add(refresh_token)
+        return httpx.Response(
+            200,
+            json={
+                "access_token": f"local-access-{uuid.uuid4().hex}",
+                "refresh_token": refresh_token,
+                "token_type": "Bearer",
+                "expires_in": 3600,
+                "scope": "tools:call",
+            },
+        )
 
 
 @pytest.fixture
