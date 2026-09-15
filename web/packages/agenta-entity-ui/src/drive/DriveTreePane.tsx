@@ -106,7 +106,10 @@ export function DriveTreePane({
                     />
                 </div>
             ) : null}
-            <div className="flex min-w-0 flex-1 flex-col">
+            {/* The content column is the pane's reading surface (the design's white board; the rail
+                sits on the layout tone beside it) — also what the list view's sticky header,
+                which is `bg-background`, has to sit on so it doesn't read as a lighter strip. */}
+            <div className="flex min-w-0 flex-1 flex-col bg-background">
                 {contentHeader}
                 {children}
             </div>

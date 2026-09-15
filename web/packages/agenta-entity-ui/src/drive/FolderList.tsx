@@ -16,8 +16,7 @@ import {DriveItemContextMenu, type DriveItemWriteActions} from "./DriveItemConte
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 
 const COLUMNS: ListTableColumn[] = [
-    {key: "mark", label: "Type mark", srOnly: true, width: "20px"},
-    {key: "name", label: "Name", width: "minmax(160px,2fr)"},
+    {key: "name", label: "Name", width: "minmax(180px,2fr)"},
     {key: "type", label: "Type", width: "92px"},
     {key: "size", label: "Size", width: "84px"},
     {key: "modified", label: "Modified", width: "92px"},
@@ -46,18 +45,20 @@ export const FolderList = ({
             const count = n.itemCount ?? n.children.length
             return (
                 <>
-                    <span className="flex items-center justify-center">
-                        {n.isFolder ? (
-                            <DriveFolderGlyph size={16} />
-                        ) : (
-                            <DriveTypeMark path={n.path} size="mini" />
-                        )}
-                    </span>
-                    <span
-                        className={`truncate text-[13px] ${n.path === selectedPath ? "font-medium" : ""} ${hidden ? "opacity-60" : ""}`}
-                        title={n.path}
-                    >
-                        {n.name}
+                    <span className="flex min-w-0 items-center gap-2">
+                        <span className="flex w-5 shrink-0 items-center justify-center">
+                            {n.isFolder ? (
+                                <DriveFolderGlyph size={16} />
+                            ) : (
+                                <DriveTypeMark path={n.path} size="mini" />
+                            )}
+                        </span>
+                        <span
+                            className={`truncate text-[13px] ${n.path === selectedPath ? "font-medium" : ""} ${hidden ? "opacity-60" : ""}`}
+                            title={n.path}
+                        >
+                            {n.name}
+                        </span>
                     </span>
                     <span className="truncate text-xs text-colorTextSecondary">
                         {n.isFolder ? "Folder" : fileTypeLabel(n.path)}
