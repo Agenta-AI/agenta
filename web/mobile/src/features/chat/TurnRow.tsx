@@ -149,6 +149,7 @@ const downloadAttachment = (url: string, name: string) => {
  */
 /** How long a closed trailing text waits for a following call before it reads as the answer. */
 const ANSWER_HOLD_MS = 400
+const ASSISTANT_META: ("tokens" | "cost")[] = ["tokens", "cost"]
 
 const TurnRowInner = ({
     turn,
@@ -290,6 +291,8 @@ const TurnRowInner = ({
                         // so the desktop hides it there and so do we.
                         onRewind={onRewind && !turn.isLast ? () => onRewind(turn) : undefined}
                         onViewTrace={(id) => openTraceDrawer({traceId: id})}
+                        // The time is the fold's line ("Worked for 11s"); the meta keeps the rest.
+                        metrics={ASSISTANT_META}
                     />
                 </div>
             ) : null}
@@ -409,6 +412,8 @@ const TurnRowInner = ({
                         copyText={copyText}
                         onRewind={onRewind && !turn.isLast ? () => onRewind(turn) : undefined}
                         onViewTrace={(id) => openTraceDrawer({traceId: id})}
+                        // The time is the fold's line ("Worked for 11s"); the meta keeps the rest.
+                        metrics={ASSISTANT_META}
                     />
                 </div>
             ) : null}

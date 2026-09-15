@@ -34,6 +34,7 @@ export const TurnFooter = ({
     copyText,
     onRewind,
     onViewTrace,
+    metrics,
 }: {
     messageId: string
     /** The turn's own trace. Assistant turns have one; user turns do not. */
@@ -50,6 +51,8 @@ export const TurnFooter = ({
     onRewind?: () => void
     /** Open the trace drawer. Omitted hides the button, as does the inspector preference being off. */
     onViewTrace?: (traceId: string) => void
+    /** Which figures the meta line draws; all by default. See `TurnMetrics`. */
+    metrics?: ("latency" | "tokens" | "cost")[]
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const [copied, setCopied] = useState(false)
@@ -82,7 +85,9 @@ export const TurnFooter = ({
     return (
         <>
             <TurnTimestamp messageId={messageId} traceId={traceId} turnTraceId={turnTraceId} />
-            {isUser ? null : <TurnMetrics traceId={traceId} usage={usage} separator />}
+            {isUser ? null : (
+                <TurnMetrics traceId={traceId} usage={usage} separator show={metrics} />
+            )}
             {hasActions ? <MetaSeparator className="first:hidden" /> : null}
             {showCopy ? (
                 <ChatActionIconButton
