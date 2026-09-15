@@ -97,13 +97,26 @@ class _FakeSecretsDAO:
         ]
 
 
-def _mock_as_handler(*, register_called: list):
+def _mock_as_handler(*, register_called: list, advertise_registration: bool = True):
+    """A mock authorization server, optionally one that accepts no registrations.
+
+    `advertise_registration=False` drops `registration_endpoint` from the metadata,
+    which is the only condition under which naming ourselves with a client-id metadata
+    document is correct. `/register` stays wired up either way so that a test can prove
+    nothing reached it.
+    """
+    metadata = (
+        _AS_METADATA
+        if advertise_registration
+        else {k: v for k, v in _AS_METADATA.items() if k != "registration_endpoint"}
+    )
+
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
         if path == "/.well-known/oauth-protected-resource":
             return httpx.Response(200, json=_PRM)
         if path == "/.well-known/oauth-authorization-server":
-            return httpx.Response(200, json=_AS_METADATA)
+            return httpx.Response(200, json=metadata)
         if path == "/register":
             register_called.append(True)
             import json as _json
@@ -132,14 +145,19 @@ def _mock_as_handler(*, register_called: list):
 
 
 def _service(
-    *, resolve, register_called=None
+    *, resolve, register_called=None, advertise_registration: bool = True
 ) -> Tuple[MCPOAuthConnectService, _FakeSecretsDAO, InMemoryMCPOAuthAttemptsDAO]:
     register_called = register_called if register_called is not None else []
     dao = _FakeSecretsDAO()
     attempts = InMemoryMCPOAuthAttemptsDAO()
     vault = VaultService(secrets_dao=dao)
     client = MCPOAuthClient(
-        transport=httpx.MockTransport(_mock_as_handler(register_called=register_called))
+        transport=httpx.MockTransport(
+            _mock_as_handler(
+                register_called=register_called,
+                advertise_registration=advertise_registration,
+            )
+        )
     )
     service = MCPOAuthConnectService(
         vault_service=vault,
@@ -152,10 +170,19 @@ def _service(
 
 
 @pytest.mark.asyncio
-async def test_begin_prefers_the_identity_document_when_publicly_resolvable():
+async def test_begin_uses_the_identity_document_when_no_registration_is_advertised():
+    """Being publicly resolvable is what makes the document *possible*; an authorization
+    server that advertises no registration endpoint is what makes it *necessary*.
+
+    Both conditions have to hold. Where registration is advertised the standard path
+    wins, because a client-id metadata document is a draft almost nothing implements and
+    a real server refuses a client id it never issued.
+    """
     register_called: list = []
     service, dao, attempts = _service(
-        resolve=lambda _h: ["1.1.1.1"], register_called=register_called
+        resolve=lambda _h: ["1.1.1.1"],
+        register_called=register_called,
+        advertise_registration=False,
     )
     project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
@@ -176,7 +203,7 @@ async def test_begin_prefers_the_identity_document_when_publicly_resolvable():
 
 
 @pytest.mark.asyncio
-async def test_begin_falls_back_to_outbound_registration_when_not_publicly_resolvable():
+async def test_begin_registers_outbound_when_the_server_advertises_a_registration_endpoint():
     register_called: list = []
     service, dao, attempts = _service(
         resolve=lambda _h: ["10.0.0.5"], register_called=register_called
@@ -200,8 +227,13 @@ async def test_begin_falls_back_to_outbound_registration_when_not_publicly_resol
 
 
 @pytest.mark.asyncio
-async def test_complete_via_the_identity_document_needs_no_stored_client_info():
-    service, dao, _attempts = _service(resolve=lambda _h: ["1.1.1.1"])
+async def test_complete_needs_no_stored_client_info_when_no_registration_is_advertised():
+    """The document path stores no client registration at all, so the callback has to
+    rebuild the client information deterministically rather than read it back. The whole
+    flow therefore completes with an `oauth_grant` row and no `oauth_provider` row."""
+    service, dao, _attempts = _service(
+        resolve=lambda _h: ["1.1.1.1"], advertise_registration=False
+    )
     project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     start = await service.begin(
@@ -221,8 +253,17 @@ async def test_complete_via_the_identity_document_needs_no_stored_client_info():
 
 
 @pytest.mark.asyncio
-async def test_a_second_connect_reprobes_and_keeps_using_the_document_when_still_resolvable():
-    service, dao, _attempts = _service(resolve=lambda _h: ["1.1.1.1"])
+async def test_a_second_connect_keeps_the_document_while_no_registration_is_advertised():
+    """Nothing about the document path is cached, so every connect re-decides from
+    scratch: it re-reads the server's metadata and re-probes this deployment's address.
+    With registration still unadvertised and the address still public, the second
+    connect reaches the same answer and still writes no `oauth_provider` row."""
+    register_called: list = []
+    service, dao, _attempts = _service(
+        resolve=lambda _h: ["1.1.1.1"],
+        register_called=register_called,
+        advertise_registration=False,
+    )
     project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
 
     await service.begin(
@@ -242,6 +283,7 @@ async def test_a_second_connect_reprobes_and_keeps_using_the_document_when_still
 
     params = parse_qs(urlparse(start2.authorization_url).query)
     assert params["client_id"][0] == client_metadata_url(api_url=_API_URL)
+    assert register_called == []
     assert not [r for _, r in dao.records if r.kind.value == "oauth_provider"]
 
 

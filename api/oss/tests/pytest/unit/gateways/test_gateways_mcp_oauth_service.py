@@ -24,6 +24,7 @@ from oss.src.core.gateways.mcps.oauth.service import (
 )
 from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
 from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthRegistrationUnavailableError,
     MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
     MCPOAuthIssuerChangedError,
@@ -927,3 +928,85 @@ async def test_refresh_succeeds_and_keeps_the_pin_when_the_issuer_is_unchanged()
     assert stored is not None
     assert stored.access_token == "renewed-1"
     assert stored.issuer == f"{_AS_BASE}/"
+
+
+def _public_resolve(_hostname: str) -> List[str]:
+    """A publicly reachable deployment, which is what makes the identity document an
+    option at all. The tests below are about which option wins when both are open."""
+    return ["93.184.216.34"]
+
+
+def _handler_without_registration():
+    """An authorization server that advertises no registration endpoint."""
+    metadata = {k: v for k, v in _AS_METADATA.items() if k != "registration_endpoint"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(200, json=_PRM)
+        if path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(200, json=metadata)
+        if path == "/register":
+            raise AssertionError("must not register where none is advertised")
+        return httpx.Response(404)
+
+    return handler
+
+
+@pytest.mark.asyncio
+async def test_a_server_that_advertises_registration_gets_a_registered_client():
+    """The regression: a real authorization server refuses a client id it never issued.
+
+    Linear advertises a registration endpoint and answers "the clientId provided does
+    not match to this client" when handed a client-id metadata document instead. The
+    document used to win whenever this deployment was publicly reachable, which is every
+    deployment that can complete a consent flow at all, so the draft strategy was chosen
+    precisely where the standard one was available and wanted.
+    """
+    service, _dao, _attempts = _service(resolve=_public_resolve)
+
+    start = await service.begin(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint_id=uuid4(),
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+
+    assert "client_id=client-abc" in start.authorization_url
+    assert "client-metadata.json" not in start.authorization_url
+
+
+@pytest.mark.asyncio
+async def test_the_identity_document_is_kept_for_a_server_that_offers_no_registration():
+    service, _dao, _attempts = _service(
+        handler=_handler_without_registration(), resolve=_public_resolve
+    )
+
+    start = await service.begin(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint_id=uuid4(),
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+
+    assert "client-metadata.json" in start.authorization_url
+
+
+@pytest.mark.asyncio
+async def test_no_registration_and_no_public_address_is_refused_with_a_reason():
+    service, _dao, _attempts = _service(
+        handler=_handler_without_registration(), resolve=_private_resolve
+    )
+
+    with pytest.raises(MCPOAuthRegistrationUnavailableError) as refusal:
+        await service.begin(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            endpoint_id=uuid4(),
+            server_url=_SERVER_URL,
+            scopes=["read"],
+        )
+
+    assert "no registration endpoint" in str(refusal.value)

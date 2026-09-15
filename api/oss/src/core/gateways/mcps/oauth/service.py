@@ -37,6 +37,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
     MCPOAuthTokenExchangeError,
+    MCPOAuthRegistrationUnavailableError,
 )
 from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO
 from oss.src.core.secrets.services import VaultService
@@ -84,12 +85,30 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         if stored is not None:
             return stored, "outbound"
 
-        if is_publicly_resolvable(self.api_url, **self._resolve_kwargs):
-            return (
-                identity_document_client_info(
-                    api_url=self.api_url, redirect_uri=redirect_uri
-                ),
-                "document",
+        # Register when the authorization server says it accepts registrations, and fall
+        # back to the identity document only when it does not.
+        #
+        # The order used to be the other way round, and it made every real server fail.
+        # A client-id metadata document is a draft that almost nothing implements, so an
+        # authorization server handed one sees a client id it has never issued and refuses
+        # the authorization outright. Linear answers "the clientId provided does not match
+        # to this client", and it advertises a registration endpoint, which is what it
+        # actually wanted us to use. Dynamic client registration is RFC 7591 and is what
+        # servers in this ecosystem support today.
+        #
+        # The document still has a job: an authorization server that advertises no
+        # registration endpoint cannot be registered with, and then a public identity
+        # document is the only way to name ourselves.
+        if not discovery.registration_endpoint:
+            if is_publicly_resolvable(self.api_url, **self._resolve_kwargs):
+                return (
+                    identity_document_client_info(
+                        api_url=self.api_url, redirect_uri=redirect_uri
+                    ),
+                    "document",
+                )
+            raise MCPOAuthRegistrationUnavailableError(
+                authorization_server=discovery.authorization_server
             )
 
         registered = await self.client.register(

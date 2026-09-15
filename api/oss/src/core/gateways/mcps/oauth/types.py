@@ -25,6 +25,25 @@ class MCPOAuthRegistrationError(GatewaysError):
         )
 
 
+class MCPOAuthRegistrationUnavailableError(MCPOAuthRegistrationError):
+    """The authorization server offers no way for this deployment to name itself.
+
+    It advertises no registration endpoint, and this deployment is not publicly
+    resolvable, so it cannot serve a client-id metadata document either. Nothing is
+    wrong with the request; there is simply no path, and the operator has to make the
+    deployment reachable or register a client by hand.
+    """
+
+    def __init__(self, *, authorization_server: str):
+        super().__init__(
+            authorization_server=authorization_server,
+            detail=(
+                "it advertises no registration endpoint and this deployment is not "
+                "publicly reachable, so no client identity can be established"
+            ),
+        )
+
+
 class MCPOAuthTokenExchangeError(GatewaysError):
     """The token endpoint refused the authorization-code exchange."""
 
