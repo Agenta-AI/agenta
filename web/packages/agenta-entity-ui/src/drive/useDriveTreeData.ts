@@ -195,6 +195,8 @@ export function useDriveTreeData({
         lazyTree,
         inGitScope,
         tree,
+        /** The tree narrowed to the search — what the rail AND the content pane show while searching. */
+        shownTree,
         shownExpanded,
         isDirLoading,
         flatRows,
