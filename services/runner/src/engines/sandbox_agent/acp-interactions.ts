@@ -23,6 +23,7 @@ import { bareToolName } from "./client-tools.ts";
 import {
   mcpToolPermission,
   type McpPermissionTable,
+  type McpServerPermissions,
 } from "./runtime-policy.ts";
 
 /** The parkable ACP gate types a paused turn can record. */
@@ -936,6 +937,14 @@ function piGateSubject(gate: PiGateEnvelope["gate"]): string {
   return "custom tool";
 }
 
+/** One configured server that could own a rendered tool name, with the table entry that
+ *  decides for it — carried here because the scan already held it. */
+interface McpToolNameCandidate {
+  server: string;
+  entry: McpServerPermissions;
+  tool: string;
+}
+
 /**
  * Every configured server whose name could be the prefix of this rendered tool name.
  *
@@ -955,12 +964,12 @@ function mcpToolNameCandidates(
   toolName: string,
   separator: string,
   mcpPermissions: McpPermissionTable,
-): { server: string; tool: string }[] {
-  const candidates: { server: string; tool: string }[] = [];
-  for (const server of mcpPermissions.keys()) {
+): McpToolNameCandidate[] {
+  const candidates: McpToolNameCandidate[] = [];
+  for (const [server, entry] of mcpPermissions) {
     const prefix = `${server}${separator}`;
     if (!toolName.startsWith(prefix)) continue;
-    candidates.push({ server, tool: toolName.slice(prefix.length) });
+    candidates.push({ server, entry, tool: toolName.slice(prefix.length) });
   }
   return candidates;
 }
@@ -1005,7 +1014,7 @@ export function resolveMcpToolName(
     kind: "resolved",
     server: only.server,
     tool: only.tool,
-    permission: mcpToolPermission(mcpPermissions.get(only.server), only.tool),
+    permission: mcpToolPermission(only.entry, only.tool),
   };
 }
 
