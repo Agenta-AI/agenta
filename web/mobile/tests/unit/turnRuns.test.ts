@@ -92,6 +92,40 @@ describe("mergeAssistantRuns", () => {
         )
     })
 
+    it("numbers a later message's items after the previous message's parts, so a fold keeps the key", () => {
+        const thought = {type: "reasoning", text: "next"}
+        const split = mergeAssistantRuns([
+            turn("u1", true),
+            turn("a1", false, {
+                message: {
+                    id: "a1",
+                    role: "assistant",
+                    parts: [{type: "text", text: "a"}, {type: "step-start"}],
+                },
+                items: [{kind: "part", index: 0, part: {type: "text", text: "a"}}],
+            } as Partial<TurnViewModel>),
+            turn("a2", false, {
+                message: {id: "a2", role: "assistant", parts: [thought]},
+                items: [{kind: "part", index: 0, part: thought}],
+            } as Partial<TurnViewModel>),
+        ])
+        const folded = mergeAssistantRuns([
+            turn("u1", true),
+            turn("a1", false, {
+                message: {
+                    id: "a1",
+                    role: "assistant",
+                    parts: [{type: "text", text: "a"}, {type: "step-start"}, thought],
+                },
+                items: [
+                    {kind: "part", index: 0, part: {type: "text", text: "a"}},
+                    {kind: "part", index: 2, part: thought},
+                ],
+            } as Partial<TurnViewModel>),
+        ])
+        expect(split[1].items.map((i) => i.index)).toEqual(folded[1].items.map((i) => i.index))
+    })
+
     it("keeps a thought the model genuinely repeats later in the run", () => {
         const say = (text: string) =>
             ({
