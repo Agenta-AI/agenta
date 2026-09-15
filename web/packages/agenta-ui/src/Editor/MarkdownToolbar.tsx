@@ -45,11 +45,14 @@ import {
 import {
     Bold,
     ChevronDown,
+    Code,
     Italic,
     Link as LinkIcon,
     List,
     ListOrdered,
+    Strikethrough,
     Table as TableIcon,
+    TextQuote,
     Unlink,
 } from "lucide-react"
 
@@ -77,6 +80,9 @@ const BLOCK_TYPES = [
 export interface MarkdownToolbarProps {
     /** Disable the buttons (e.g. while the editor shows raw Markdown source or is read-only). */
     disabled?: boolean
+    /** `inline` trades the block-type dropdown for H1 / H2 / H3 buttons and adds strikethrough,
+     * inline code and quote buttons — the compact bar a 36px chrome row can hold. */
+    layout?: "default" | "inline"
 }
 
 const BTN_BASE =
@@ -133,11 +139,13 @@ function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void
     )
 }
 
-export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
+export function MarkdownToolbar({disabled = false, layout = "default"}: MarkdownToolbarProps) {
     const [editor] = useLexicalComposerContext()
     const [active, setActive] = useState({
         bold: false,
         italic: false,
+        strikethrough: false,
+        code: false,
         bullet: false,
         ordered: false,
         link: false,
@@ -179,6 +187,8 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                 setActive({
                     bold: selection.hasFormat("bold"),
                     italic: selection.hasFormat("italic"),
+                    strikethrough: selection.hasFormat("strikethrough"),
+                    code: selection.hasFormat("code"),
                     bullet: listType === "bullet",
                     ordered: listType === "number",
                     link: Boolean(linkNode),
@@ -302,11 +312,28 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
 
     const blockLabel = BLOCK_TYPES.find((b) => b.key === blockType)?.label ?? "Normal text"
 
+    // A heading button toggles: pressing the active level returns the block to a paragraph.
+    const headingButton = (level: "h1" | "h2" | "h3") =>
+        button(
+            level,
+            `Heading ${level.slice(1)}`,
+            <span className="text-[11px] font-semibold tracking-wide">{level.toUpperCase()}</span>,
+            () => formatBlock(blockType === level ? "paragraph" : level),
+            blockType === level,
+        )
+
     return (
         // Below sm the row scrolls sideways instead of wrapping: a second row of buttons ate
         // vertical space the editor needs in a phone drawer.
         <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden">
-            {/* Block type — paragraph / headings / quote / code block. */}
+            {layout === "inline" ? (
+                <>
+                    {headingButton("h1")}
+                    {headingButton("h2")}
+                    {headingButton("h3")}
+                </>
+            ) : (
+            /* Block type — paragraph / headings / quote / code block. */
             <DropdownMenu>
                 <DropdownMenuTrigger asChild disabled={disabled}>
                     <button
@@ -339,10 +366,23 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                     ))}
                 </DropdownMenuContent>
             </DropdownMenu>
+            )}
 
             {divider}
             {button("b", "Bold", <Bold size={15} />, () => formatText("bold"), active.bold)}
             {button("i", "Italic", <Italic size={15} />, () => formatText("italic"), active.italic)}
+            {layout === "inline"
+                ? button(
+                      "s",
+                      "Strikethrough",
+                      <Strikethrough size={15} />,
+                      () => formatText("strikethrough"),
+                      active.strikethrough,
+                  )
+                : null}
+            {layout === "inline"
+                ? button("code", "Inline code", <Code size={15} />, () => formatText("code"), active.code)
+                : null}
             {divider}
             {button(
                 "ul",
@@ -358,6 +398,15 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                 () => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
                 active.ordered,
             )}
+            {layout === "inline"
+                ? button(
+                      "quote",
+                      "Quote",
+                      <TextQuote size={15} />,
+                      () => formatBlock(blockType === "quote" ? "paragraph" : "quote"),
+                      blockType === "quote",
+                  )
+                : null}
             {divider}
 
             {/* Link — popover asks for the URL (and removes an existing link). */}

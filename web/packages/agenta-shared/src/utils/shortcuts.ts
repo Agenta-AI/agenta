@@ -135,6 +135,14 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         modifiers: ["alt"],
         key: "O",
     },
+    {
+        id: "drive.save",
+        group: "panels",
+        label: "Save the open file",
+        modifiers: ["mod"],
+        key: "S",
+        when: "while editing a file in the files pane",
+    },
 
     // The running turn — AgentConversation.tsx
     {
