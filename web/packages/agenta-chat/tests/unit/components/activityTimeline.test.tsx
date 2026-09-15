@@ -136,13 +136,28 @@ describe("ActivityTimeline", () => {
         expect(line).not.toContain("Waiting")
     })
 
-    it("shows no clock and no caret before the first step", () => {
-        mount({streaming: true})
+    it("shows no clock and no caret before the first step, and starts counting at the first", () => {
+        const view = mount({streaming: true})
         const button = screen.getByRole("button")
         const line = button.textContent ?? ""
         expect(line).toContain("Warming up")
         expect(line).not.toMatch(/\d:\d\d/)
         expect(button.querySelector("svg")).toBeNull()
+        // Ten seconds of warm-up add nothing: the count begins with the first step.
+        act(() => {
+            vi.advanceTimersByTime(10_000)
+        })
+        view.rerender(
+            <Provider>
+                <ActivityTimeline
+                    messageId="m1"
+                    steps={[toolStep("input-available")]}
+                    streaming
+                    answerStarted={false}
+                />
+            </Provider>,
+        )
+        expect(screen.getAllByRole("button")[0].textContent).toMatch(/0:00/)
     })
 
     it("renders nothing for a settled turn with no steps", () => {
