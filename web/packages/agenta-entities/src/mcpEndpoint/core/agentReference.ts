@@ -16,13 +16,15 @@
  * The older shape was `{type: "http", url}` with `name` doubling as the slug. It is still
  * read, because configurations saved under it are still out there, and no longer written.
  */
+import {normalizeConnectionName} from "./connectionName"
 
-/** Tool names allow these; everything else becomes a hyphen. */
-const UNSAFE = /[^A-Za-z0-9._-]+/g
-const LEADING = /^[-._]+/
-
-/** Reserved for the platform's own tools, so a connection may not claim it. */
+/**
+ * Reserved for the runner's own tools, which a harness renders as
+ * `mcp__agenta-tools__<tool>`. Both spellings are refused: the normalization below can only
+ * produce the underscored one, but a name written straight into a config could be either.
+ */
 export const RESERVED_TOOL_PREFIX = "agenta-tools"
+const RESERVED_TOOL_PREFIXES = new Set([RESERVED_TOOL_PREFIX, "agenta_tools"])
 
 export const MAX_TOOL_PREFIX_LENGTH = 128
 
@@ -39,14 +41,13 @@ export interface McpGatewayConnectionRef {
  * form, and inventing one would hand the agent a tool namespace nobody chose.
  */
 export function toolPrefixFromName(displayName: string): string | null {
-    const prefix = displayName
-        .trim()
-        .replace(UNSAFE, "-")
-        .replace(LEADING, "")
-        .slice(0, MAX_TOOL_PREFIX_LENGTH)
+    // The same rendering the platform performs, so the prefix a config stores is the one a
+    // harness shows and the one the project deduplicated names on. A second spelling here
+    // would put the agent's tools under a name nothing else agrees with.
+    const prefix = normalizeConnectionName(displayName).slice(0, MAX_TOOL_PREFIX_LENGTH)
 
     if (!prefix) return null
-    if (prefix === RESERVED_TOOL_PREFIX) return null
+    if (RESERVED_TOOL_PREFIXES.has(prefix)) return null
     return prefix
 }
 

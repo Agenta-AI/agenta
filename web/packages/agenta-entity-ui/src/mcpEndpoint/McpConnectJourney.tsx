@@ -28,10 +28,14 @@ import {
     Select,
     SelectContent,
     SelectItem,
+    SelectSeparator,
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
+import {Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
+
+import {CreateSecretDrawer} from "../secret"
 
 export interface McpConnectJourneyProps {
     open: boolean
@@ -83,6 +87,9 @@ export default function McpConnectJourney({
 
     const [headerName, setHeaderName] = useState("")
     const [secretSlug, setSecretSlug] = useState("")
+    const [creatingSecret, setCreatingSecret] = useState(false)
+    // Latches on first open so the create drawer's hooks stay unmounted until needed.
+    const [secretDrawerMounted, setSecretDrawerMounted] = useState(false)
 
     // The consent popup reports back through the journey's watch, which outlives this
     // component's render; unmounting with the popup still open has to release it.
@@ -233,6 +240,10 @@ export default function McpConnectJourney({
                             secretSlug={secretSlug}
                             onSecretSlug={setSecretSlug}
                             secrets={namedSecrets}
+                            onCreateSecret={() => {
+                                setSecretDrawerMounted(true)
+                                setCreatingSecret(true)
+                            }}
                             onSkip={journey.skipAuthentication}
                             onSubmit={() => {
                                 const secret = namedSecrets.find((row) => row.slug === secretSlug)
@@ -278,6 +289,16 @@ export default function McpConnectJourney({
                                 Retry tools
                             </Button>
                         </Connected>
+                    ) : null}
+
+                    {secretDrawerMounted ? (
+                        <CreateSecretDrawer
+                            open={creatingSecret}
+                            onClose={() => setCreatingSecret(false)}
+                            headerName={headerName}
+                            serverName={state.name}
+                            onCreated={(row) => setSecretSlug(row.slug)}
+                        />
                     ) : null}
 
                     {state.error && !isConnectedStatus(state.status) ? (
@@ -349,6 +370,7 @@ interface ManualAuthProps {
     secretSlug: string
     onSecretSlug: (value: string) => void
     secrets: {id?: string | null; slug?: string | null; name?: string | null}[]
+    onCreateSecret: () => void
     onSkip: () => void
     onSubmit: () => void
 }
@@ -366,9 +388,11 @@ const ManualAuth = ({
     secretSlug,
     onSecretSlug,
     secrets,
+    onCreateSecret,
     onSkip,
     onSubmit,
 }: ManualAuthProps) => {
+    const [selectOpen, setSelectOpen] = useState(false)
     const options = secrets.filter((secret) => !!secret.slug)
 
     return (
@@ -385,7 +409,12 @@ const ManualAuth = ({
                 />
             </Field>
             <Field label="Project secret" tooltip="Resolved securely when the agent runs">
-                <Select value={secretSlug || undefined} onValueChange={onSecretSlug}>
+                <Select
+                    value={secretSlug || undefined}
+                    onValueChange={onSecretSlug}
+                    open={selectOpen}
+                    onOpenChange={setSelectOpen}
+                >
                     <SelectTrigger className="w-full" aria-label="Project secret">
                         <SelectValue placeholder="Select a project secret" />
                     </SelectTrigger>
@@ -401,6 +430,21 @@ const ManualAuth = ({
                                 </SelectItem>
                             ))
                         )}
+                        <SelectSeparator />
+                        {/* Not a SelectItem: it is an action, not a value. Without this a
+                            project with no secret yet is a dead end here. */}
+                        <Button
+                            variant="ghost"
+                            disabled={!headerName}
+                            onClick={() => {
+                                setSelectOpen(false)
+                                onCreateSecret()
+                            }}
+                            className="min-h-control w-full justify-start gap-2 rounded-control-sm px-3 py-1 text-field-md font-normal"
+                        >
+                            <Plus size={13} className="shrink-0" />
+                            Create secret
+                        </Button>
                     </SelectContent>
                 </Select>
             </Field>

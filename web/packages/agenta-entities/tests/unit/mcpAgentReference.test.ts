@@ -15,15 +15,20 @@ import {
 
 describe("toolPrefixFromName", () => {
     it("keeps a name that is already usable", () => {
-        expect(toolPrefixFromName("acme-tools")).toBe("acme-tools")
+        expect(toolPrefixFromName("acme_tools")).toBe("acme_tools")
     })
 
-    it("replaces what a tool name cannot carry", () => {
-        expect(toolPrefixFromName("Acme Tools (main)")).toBe("Acme-Tools-main-")
+    it("renders the prefix the way the platform does", () => {
+        // Matches `tool_prefix` in api/oss/src/core/gateways/mcps/service.py: strip, then
+        // every character outside [A-Za-z0-9_] becomes an underscore, case preserved. A
+        // second spelling here would put the agent's tools under a name nothing else agrees
+        // with, and would disagree with the form the project deduplicates names on.
+        expect(toolPrefixFromName("Acme Tools (main)")).toBe("Acme_Tools__main_")
+        expect(toolPrefixFromName("acme-tools")).toBe("acme_tools")
     })
 
-    it("does not start with punctuation", () => {
-        expect(toolPrefixFromName("  ...acme")).toBe("acme")
+    it("strips before it renders, so padding is not underscores", () => {
+        expect(toolPrefixFromName("  Acme  ")).toBe("Acme")
     })
 
     it("caps the length", () => {
@@ -32,11 +37,12 @@ describe("toolPrefixFromName", () => {
 
     it("refuses a name with nothing usable in it rather than inventing one", () => {
         expect(toolPrefixFromName("   ")).toBeNull()
-        expect(toolPrefixFromName("!!!")).toBeNull()
     })
 
-    it("refuses the prefix the platform reserves for itself", () => {
+    it("refuses the prefix the runner reserves for its own tools, either spelling", () => {
         expect(toolPrefixFromName(RESERVED_TOOL_PREFIX)).toBeNull()
+        expect(toolPrefixFromName("agenta tools")).toBeNull()
+        expect(toolPrefixFromName("agenta_tools")).toBeNull()
     })
 })
 
