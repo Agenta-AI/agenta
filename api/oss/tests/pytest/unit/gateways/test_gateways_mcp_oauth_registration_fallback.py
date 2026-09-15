@@ -73,6 +73,7 @@ class _FakeSecretsDAO:
         project_id=None,
         organization_id=None,
         user_id=None,
+        resolve_update=None,
     ):
         scoped = self._scoped(project_id)
         stored = next((r for r in scoped if r.id == secret_id), None)
@@ -145,10 +146,15 @@ def _mock_as_handler(*, register_called: list, advertise_registration: bool = Tr
 
 
 def _service(
-    *, resolve, register_called=None, advertise_registration: bool = True
+    *,
+    resolve,
+    register_called=None,
+    advertise_registration: bool = True,
+    api_url: str = _API_URL,
+    dao=None,
 ) -> Tuple[MCPOAuthConnectService, _FakeSecretsDAO, InMemoryMCPOAuthAttemptsDAO]:
     register_called = register_called if register_called is not None else []
-    dao = _FakeSecretsDAO()
+    dao = dao if dao is not None else _FakeSecretsDAO()
     attempts = InMemoryMCPOAuthAttemptsDAO()
     vault = VaultService(secrets_dao=dao)
     client = MCPOAuthClient(
@@ -162,7 +168,7 @@ def _service(
     service = MCPOAuthConnectService(
         vault_service=vault,
         client=client,
-        api_url=_API_URL,
+        api_url=api_url,
         attempts_dao=attempts,
         resolve=resolve,
     )
@@ -313,3 +319,130 @@ async def test_wrong_direction_2_split_horizon_still_completes_a_full_authorizat
     assert completion.secret_id is not None
     grant_rows = [r for _, r in dao.records if r.kind.value == "oauth_grant"]
     assert grant_rows[0].data.grant.access_token == "tok-xyz"
+
+
+# --- OR78: a registration is only reusable while it names our callback ------------ #
+
+
+_MOVED_API_URL = "https://agenta.example-tunnel.app"
+
+
+def _stored_registration(dao: _FakeSecretsDAO):
+    return next(r for _, r in dao.records if r.kind.value == "oauth_provider")
+
+
+@pytest.mark.asyncio
+async def test_a_changed_public_address_registers_again_instead_of_reusing_a_stale_client():
+    """A deployment's public address changes whenever a tunnel is added, rotated or
+    dropped, and a registration under RFC 7591 is bound to the redirect URIs it was
+    created with.
+
+    Before this, the stored registration was found by issuer alone, its `client_id` was
+    sent, and the authorization server refused it: the client it knows is registered
+    against an address the request no longer uses. Nothing re-registered, so the
+    connection stayed unconnectable until someone deleted the record by hand, and the
+    error the person saw was the authorization server's, which says nothing about
+    redirect URIs.
+    """
+    register_called: list = []
+    dao = _FakeSecretsDAO()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+
+    before, _dao, _attempts = _service(
+        resolve=lambda _h: ["10.0.0.5"], register_called=register_called, dao=dao
+    )
+    await before.begin(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+    assert register_called == [True]
+    assert _API_URL in str(_stored_registration(dao).data.provider.extra["client_info"])
+
+    # The same vault, the same authorization server, a new public address.
+    after, _dao, _attempts = _service(
+        resolve=lambda _h: ["10.0.0.5"],
+        register_called=register_called,
+        dao=dao,
+        api_url=_MOVED_API_URL,
+    )
+    start = await after.begin(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+
+    assert register_called == [True, True]
+    params = parse_qs(urlparse(start.authorization_url).query)
+    assert params["redirect_uri"][0].startswith(_MOVED_API_URL)
+    # The fresh registration replaced the stale one rather than accumulating beside it.
+    providers = [r for _, r in dao.records if r.kind.value == "oauth_provider"]
+    assert len(providers) == 1
+    assert _MOVED_API_URL in str(providers[0].data.provider.extra["client_info"])
+
+
+@pytest.mark.asyncio
+async def test_an_unchanged_public_address_reuses_the_registration_it_has():
+    """The other half: re-registering on every connect would mint a fresh client each
+    time, which authorization servers rate limit."""
+    register_called: list = []
+    dao = _FakeSecretsDAO()
+    project_id, user_id = uuid4(), uuid4()
+
+    service, _dao, _attempts = _service(
+        resolve=lambda _h: ["10.0.0.5"], register_called=register_called, dao=dao
+    )
+    for _ in range(2):
+        await service.begin(
+            project_id=project_id,
+            user_id=user_id,
+            endpoint_id=uuid4(),
+            server_url=_SERVER_URL,
+            scopes=["read"],
+        )
+
+    assert register_called == [True]
+    assert len([r for _, r in dao.records if r.kind.value == "oauth_provider"]) == 1
+
+
+def test_registration_covers_matches_the_callback_the_deployment_would_send():
+    from mcp.shared.auth import OAuthClientInformationFull
+
+    from oss.src.core.gateways.mcps.oauth.registration import registration_covers
+
+    callback = "https://api.agenta.ai/gateways/mcps/connect/callback"
+    registered = OAuthClientInformationFull(
+        redirect_uris=[callback], client_id="client-abc"
+    )
+
+    assert registration_covers(registered, redirect_uri=callback)
+    # A trailing slash is the one difference a client library can introduce without
+    # changing where the browser lands.
+    assert registration_covers(registered, redirect_uri=f"{callback}/")
+    # Everything else is a different address, and the authorization server says so.
+    assert not registration_covers(
+        registered,
+        redirect_uri="https://agenta.example-tunnel.app/gateways/mcps/connect/callback",
+    )
+    assert not registration_covers(
+        registered, redirect_uri="http://api.agenta.ai/gateways/mcps/connect/callback"
+    )
+
+
+def test_registration_covers_accepts_any_of_several_registered_callbacks():
+    from mcp.shared.auth import OAuthClientInformationFull
+
+    from oss.src.core.gateways.mcps.oauth.registration import registration_covers
+
+    first = "https://api.agenta.ai/gateways/mcps/connect/callback"
+    second = "https://agenta.example-tunnel.app/gateways/mcps/connect/callback"
+    registered = OAuthClientInformationFull(
+        redirect_uris=[first, second], client_id="client-abc"
+    )
+
+    assert registration_covers(registered, redirect_uri=first)
+    assert registration_covers(registered, redirect_uri=second)

@@ -23,6 +23,7 @@ from oss.src.core.gateways.mcps.oauth.registration import (
     Resolver,
     identity_document_client_info,
     is_publicly_resolvable,
+    registration_covers,
 )
 from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS, new_state
 from oss.src.core.gateways.mcps.oauth.storage import (
@@ -82,8 +83,25 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
     ) -> Tuple[OAuthClientInformationFull, str]:
         """Reuse registration, use an identity document, or register a client."""
         stored = await storage.get_client_info()
-        if stored is not None:
+        if stored is not None and registration_covers(
+            stored, redirect_uri=redirect_uri
+        ):
             return stored, "outbound"
+
+        # A stored registration that does not cover the callback this deployment would
+        # send is not reusable, and falls through to a fresh registration below (OR78).
+        #
+        # A registration under RFC 7591 is bound to the redirect URIs it was created
+        # with. A deployment's public address changes whenever a tunnel is added,
+        # rotated or dropped, and the stored registration was then found, its
+        # `client_id` sent, and the authorization server refused it: the client it knows
+        # is registered against an address the request no longer uses. Nothing
+        # re-registered, so the connection stayed unconnectable until someone deleted
+        # the record by hand, and the error the person saw was the authorization
+        # server's, which says nothing about redirect URIs.
+        #
+        # `set_client_info` writes under the same issuer-derived slug, so the fresh
+        # registration replaces the stale one rather than accumulating beside it.
 
         # Register when the authorization server says it accepts registrations, and fall
         # back to the identity document only when it does not.

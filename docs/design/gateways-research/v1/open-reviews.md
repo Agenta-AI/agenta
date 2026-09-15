@@ -2,51 +2,19 @@
 
 ## Active review findings
 
-The record runs OR36 to OR81, forty-six findings: thirty-seven closed, eight open and one
+The record runs OR36 to OR81, forty-six findings: thirty-eight closed, seven open and one
 withdrawn.
 Entries numbered below OR36 predate that record and are all closed.
 
-Eight findings are open. OR69 heads this section but counts as neither open nor closed: it was
+Seven findings are open. OR69 heads this section but counts as neither open nor closed: it was
 withdrawn on 2026-09-13, and its entry stays in place so the reading is not repeated. No P0 and no
 P1 remain: OR79, opened and closed on 2026-09-15, was the last P0 and OR80 the last P1, and both
 are closed. The highest severity open is P2, carried by OR76 alone; the other six entries are
 debt and carry no severity. The open set is OR63, OR65 to OR68, OR76 and OR81. The six debt entries
 are also tracked as CU15 to CU20 in `cleanups.md`, which records why each is still open. None of
-the seven waits on a design decision. OD24 to OD27 in `open-designs.md` are all decided. Every open
+the six waits on a design decision. OD24 to OD27 in `open-designs.md` are all decided. Every open
 entry states the closure that would settle it and the test that would prove it. A finding that
 closes moves to the closed record below.
-
----
-
-### OR78. A client registration is keyed on the issuer alone, so a changed public URL silently reuses one the server will refuse
-
-`api/oss/src/core/gateways/mcps/oauth/storage.py` addresses a stored client registration by
-`_issuer_slug(issuer)`, a `uuid5` of the issuer URL, and `_find_provider` matches on
-`issuer_url` alone. The redirect URI is not part of the key, and nothing compares the stored
-registration's redirect URI against the current one. Present in the branch as of 2026-09-15.
-Severity P2.
-
-A registration is bound to the redirect URI it was created with. So when a deployment's
-public address changes, which happens whenever a tunnel is added, rotated or dropped, the
-next connect finds the old registration, sends its `client_id`, and the authorization server
-refuses it: the client it knows is registered against an address the request no longer uses.
-Nothing re-registers, so the endpoint stays unconnectable until someone deletes the record by
-hand, and the error the user sees is the authorization server's, which says nothing about
-redirect URIs.
-
-This has not bitten yet, and that is worth recording precisely so the next reader does not
-over- or under-rate it. The vault currently holds no `oauth_provider` record at all. The
-Linear failure investigated on 2026-09-15 looked like this and was not: it was the client
-identity strategy, closed separately, and the absence of any stored registration is what
-proved it. So this is a latent defect found while refuting a hypothesis, not an observed one.
-
-Closure: a registration is reused only when it still matches the callback URL the deployment
-would send, and a changed callback URL produces a fresh registration rather than a refusal.
-Either the key includes the redirect URI, or the lookup compares the stored registration's
-redirect URI against the current one and re-registers on a difference. Proven by a case
-beside `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_oauth_registration_fallback.py`
-that stores a registration, changes the deployment's public URL, and asserts the next begin
-registers again rather than sending the stale `client_id`.
 
 ---
 
@@ -376,6 +344,51 @@ resolves, and the longest match wins).
 
 The stable connection slug the connection work introduces drops into one call site,
 `mcpPermissionsFromRequest`: the table gains a second key and nothing downstream moves.
+
+---
+
+### OR78. A client registration is keyed on the issuer alone, so a changed public URL silently reuses one the server will refuse — CLOSED, by comparing the stored redirect URI rather than adding it to the key
+
+**What the defect was.** `api/oss/src/core/gateways/mcps/oauth/storage.py` addressed a stored client
+registration by `_issuer_slug(issuer)` and matched `_find_provider` on `issuer_url` alone. The
+redirect URI was not part of the key, and nothing compared the stored registration's redirect URI
+against the current one.
+
+A registration under RFC 7591 is bound to the redirect URIs it was created with. So when a
+deployment's public address changed — which happens whenever a tunnel is added, rotated or dropped —
+the next connect found the old registration, sent its `client_id`, and the authorization server
+refused it: the client it knows is registered against an address the request no longer uses. Nothing
+re-registered, so the endpoint stayed unconnectable until someone deleted the record by hand, and the
+error the user saw was the authorization server's, which says nothing about redirect URIs.
+
+Latent rather than observed. The vault held no `oauth_provider` record when the finding was written,
+and the Linear failure investigated on 2026-09-15 looked like this and was not: it was the client
+identity strategy, closed separately.
+
+**How it was closed.** The lookup compares rather than the key widening.
+`registration_covers(client_info, redirect_uri=...)` in
+`api/oss/src/core/gateways/mcps/oauth/registration.py` answers whether a stored registration still
+names the callback this deployment would send, and `_resolve_client_info` in `oauth/service.py`
+reuses a stored registration only when it does. Otherwise it falls through to a fresh registration,
+which `set_client_info` writes under the same issuer-derived slug, so the new one replaces the stale
+one rather than accumulating beside it.
+
+The key was left alone deliberately. Adding the redirect URI to it would strand the stale row under a
+slug nothing reads instead of replacing it, and the redirect URI is not an identity — the issuer is
+what a registration is *for*, which is also why two connections at one authorization server share
+one.
+
+The comparison is exact after dropping a trailing slash, which is the one difference an OAuth client
+library can introduce without changing where the browser lands. Nothing else is normalized: the
+authorization server matches the redirect URI exactly, and a comparison looser than the server's
+would reuse a registration the server will refuse, which is the defect itself.
+
+**Proven by** three cases in
+`api/oss/tests/pytest/unit/gateways/test_gateways_mcp_oauth_registration_fallback.py`: a registration
+stored under one public address followed by a connect from another registers again and the stored row
+carries the new address; an unchanged address reuses the registration it has, so a connect does not
+mint a client each time; and `registration_covers` itself accepts a trailing-slash difference while
+refusing a different host, a different scheme and a different path.
 
 ---
 
