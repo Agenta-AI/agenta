@@ -11,12 +11,16 @@
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom, useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-import {type Mount, mountFileContentQueryFamily} from "@agenta/entities/session"
-import {projectIdAtom} from "@agenta/shared/state"
+import {
+    type Mount,
+    mountFileContentQueryFamily,
+    mountFileContentQueryKey,
+} from "@agenta/entities/session"
 
 import {
     applyDriveDraftChange,
@@ -94,9 +98,7 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
     const dirty = useAtomValue(driveDraftDirtyAtomFamily(key))
     const setKeys = useSetAtom(draftKeysAtom)
     const [saving, setSaving] = useState(false)
-    const [outcome, setOutcome] = useState<{ok: boolean; error?: string; at: number} | null>(
-        null,
-    )
+    const [outcome, setOutcome] = useState<{ok: boolean; error?: string; at: number} | null>(null)
 
     const fileText = typeof query.data === "string" ? query.data : null
     // Seed once the text lands; re-seed when a clean draft's file changed underneath it.
@@ -122,6 +124,9 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
         try {
             await saveMountText({mount, path, projectId, text})
             setDraft((d) => (d ? commitDriveDraft(d, text) : d))
+            // The content query is what previews read (the HTML Preview mode): hand it the saved
+            // text rather than refetching what was just written.
+            queryClient.setQueryData(mountFileContentQueryKey(projectId, mount.id, path), text)
             refreshMountListing(queryClient, projectId)
             setOutcome({ok: true, at: Date.now()})
             return {ok: true}

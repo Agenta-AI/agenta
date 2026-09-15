@@ -47,7 +47,7 @@ import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
 import {InputAffix as Input} from "@agenta/ui/ui"
-import {MagnifyingGlass} from "@phosphor-icons/react"
+import {Code, Eye, MagnifyingGlass} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -62,16 +62,13 @@ import {
     useCopyText,
     useDriveItemDownload,
 } from "./DriveItemContextMenu"
-import {
-    DriveNameDialog,
-    type DriveNameDialogRequest,
-    validateDriveName,
-} from "./DriveNameDialog"
+import {DriveNameDialog, type DriveNameDialogRequest, validateDriveName} from "./DriveNameDialog"
 import {type DriveFileActions, DriveToolbar} from "./DriveToolbar"
 import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
 import {TreeRow} from "./DriveTreeRow"
 import {FolderView} from "./FolderView"
+import {DriveHtmlPreview} from "./renderers"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
 import {useDriveTreeData} from "./useDriveTreeData"
 import {useDriveWrites} from "./useDriveWrites"
@@ -84,13 +81,12 @@ const DriveMarkdownEditor = dynamic(
     () => import("./DriveMarkdownEditor").then((m) => m.DriveMarkdownEditor),
     {ssr: false},
 )
-const DriveCodeEditor = dynamic(
-    () => import("./DriveCodeEditor").then((m) => m.DriveCodeEditor),
-    {ssr: false},
-)
-/** The kinds the code editor takes: source, JSON / YAML, plain text. Markdown has its own editor;
- * HTML keeps its rendered preview. */
-const CODE_EDIT_KINDS = new Set<DriveFileKind>(["code", "json", "text"])
+const DriveCodeEditor = dynamic(() => import("./DriveCodeEditor").then((m) => m.DriveCodeEditor), {
+    ssr: false,
+})
+/** The kinds the code editor takes: source, JSON / YAML, plain text, HTML (with a Preview mode in
+ * row 2). Markdown has its own editor. */
+const CODE_EDIT_KINDS = new Set<DriveFileKind>(["code", "json", "text", "html"])
 
 const parentPath = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")))
 const noop = () => undefined
@@ -320,8 +316,7 @@ export function DriveExplorer({
             setNameRequest(null)
             if (landed == null) return
             // A rename keeps its place in history; a new item is a real step.
-            if (req.kind === "rename" && req.path === selectedPath)
-                replaceSelection(landed)
+            if (req.kind === "rename" && req.path === selectedPath) replaceSelection(landed)
             else select(landed)
         },
         [writes, selectedPath, replaceSelection, select],
@@ -333,7 +328,10 @@ export function DriveExplorer({
             const ok = await writes.remove(path, isFolder, node?.itemCount ?? node?.children.length)
             if (!ok) return
             // The selection (or something above it) is gone — land on the parent folder.
-            if (selectedPath != null && (selectedPath === path || selectedPath.startsWith(`${path}/`)))
+            if (
+                selectedPath != null &&
+                (selectedPath === path || selectedPath.startsWith(`${path}/`))
+            )
                 select(parentPath(path))
         },
         [writes, nodeByPath, selectedPath, select],
@@ -391,6 +389,10 @@ export function DriveExplorer({
     const editableMarkdown = markdownKind && (selectedFileSize ?? 0) <= DRIVE_MARKDOWN_EDIT_CAP
     const editableCode = codeKind && (selectedFileSize ?? 0) <= DRIVE_CODE_EDIT_CAP
     const tooLargeToEdit = (markdownKind || codeKind) && !editableMarkdown && !editableCode
+    // An editable HTML file: its source in the code editor, or the rendered document (row 2 switches).
+    const htmlKind = editableCode && resolveDriveFileKind(selectedPath) === "html"
+    const [htmlView, setHtmlView] = useState<"source" | "preview">("source")
+    const htmlPreview = htmlKind && htmlView === "preview"
     const editing = editableMarkdown || editableCode
     const editor = useDriveFileEditor(
         editing ? selectedMount : null,
@@ -424,9 +426,7 @@ export function DriveExplorer({
 
     // Row 2's read-side actions on the selection: copy its path (none at the root), download the
     // file's bytes, a folder as a scoped zip, or the whole drive at the root.
-    const onCopyCurrentPath = selectedPath
-        ? () => copyText(selectedPath, "Path copied")
-        : undefined
+    const onCopyCurrentPath = selectedPath ? () => copyText(selectedPath, "Path copied") : undefined
     const onDownloadCurrent =
         selectedPath === "" || selectedPath == null
             ? archiveMounts.length
@@ -497,6 +497,26 @@ export function DriveExplorer({
                 actions={fileActions}
                 draft={editableCode ? {status: editor.status, onRetry: onSave} : undefined}
                 note={tooLargeToEdit ? "Read-only · too large to edit here" : undefined}
+                mode={
+                    htmlKind
+                        ? {
+                              value: htmlView,
+                              onChange: (v) => setHtmlView(v as "source" | "preview"),
+                              options: [
+                                  {
+                                      value: "source",
+                                      label: "Source",
+                                      icon: <Code className="size-3.5" />,
+                                  },
+                                  {
+                                      value: "preview",
+                                      label: "Preview",
+                                      icon: <Eye className="size-3.5" />,
+                                  },
+                              ],
+                          }
+                        : undefined
+                }
                 onCopyPath={onCopyCurrentPath}
                 onDownload={onDownloadCurrent}
             />
@@ -559,6 +579,13 @@ export function DriveExplorer({
                     loading={editor.loading}
                     failed={editor.failed}
                     onSave={onSave}
+                />
+            ) : htmlPreview ? (
+                <DriveHtmlPreview
+                    mount={selectedMount}
+                    path={selectedMountPath}
+                    displayPath={selectedPath}
+                    onNavigate={select}
                 />
             ) : editableCode ? (
                 <DriveCodeEditor
