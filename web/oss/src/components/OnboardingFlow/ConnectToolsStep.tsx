@@ -1,4 +1,4 @@
-import {useEffect, useState, useRef} from "react"
+import {Fragment, useEffect, useState, useRef} from "react"
 
 import {
     invalidateToolConnections,
@@ -9,7 +9,9 @@ import {
     type ToolCatalogIntegration,
 } from "@agenta/entities/gatewayTool"
 import {ConnectDrawer} from "@agenta/entity-ui/gatewayTool"
-import {Button, Checkbox, Input, Spin} from "antd"
+import {ScrollSentinel} from "@agenta/ui"
+import {Spinner} from "@agenta/ui/ui"
+import {Button, Input} from "antd"
 import Image from "next/image"
 
 export default function ConnectToolsStep({
@@ -46,24 +48,7 @@ export default function ConnectToolsStep({
         setPendingIntegration(null)
     }, [pendingIntegration, connections, selectedIds, onChange])
     const scrollRef = useRef<HTMLDivElement>(null)
-    const sentinelRef = useRef<HTMLDivElement>(null)
-    const {hasNextPage, isFetchingNextPage, requestMore} = catalog
-    useEffect(() => {
-        if (!hasNextPage || isFetchingNextPage || catalog.error) return
-        const sentinel = sentinelRef.current
-        if (!sentinel) return
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries[0]?.isIntersecting) {
-                    requestMore()
-                    observer.disconnect()
-                }
-            },
-            {root: scrollRef.current, rootMargin: "120px"},
-        )
-        observer.observe(sentinel)
-        return () => observer.disconnect()
-    }, [hasNextPage, isFetchingNextPage, requestMore, catalog.integrations.length, catalog.error])
+    const {hasNextPage, isFetchingNextPage, requestMore, prefetchThreshold} = catalog
     const activeKeys = new Set(
         connections
             .filter((item) => isConnectionActive(item) && isConnectionValid(item))
@@ -76,53 +61,6 @@ export default function ConnectToolsStep({
         hasNextPage && !catalog.error ? sorted.slice(0, Math.floor(sorted.length / 3) * 3) : sorted
     return (
         <div>
-            <p className="text-colorTextSecondary">
-                Select the connected apps this agent can use. Selected apps allow all actions; you
-                can edit permissions after creation.
-            </p>
-            <div className="mb-5 flex flex-col gap-3">
-                {connections
-                    .filter(
-                        (item) =>
-                            item.id &&
-                            item.slug &&
-                            ((isConnectionActive(item) && isConnectionValid(item)) ||
-                                selectedIds.includes(item.id)),
-                    )
-                    .map((connection) => (
-                        <Checkbox
-                            key={connection.id}
-                            checked={selectedIds.includes(connection.id!)}
-                            onChange={(event) =>
-                                onChange(
-                                    event.target.checked
-                                        ? [
-                                              ...selectedIds.filter((id) => {
-                                                  const other = connections.find(
-                                                      (item) => item.id === id,
-                                                  )
-                                                  return (
-                                                      other?.provider_key !==
-                                                          connection.provider_key ||
-                                                      other?.integration_key !==
-                                                          connection.integration_key
-                                                  )
-                                              }),
-                                              connection.id!,
-                                          ]
-                                        : selectedIds.filter((id) => id !== connection.id),
-                                )
-                            }
-                        >
-                            {connection.name || connection.integration_key || "Connected app"}
-                        </Checkbox>
-                    ))}
-            </div>
-            {selectedIds.length > 0 && (
-                <Button className="mb-4" onClick={() => onChange([])}>
-                    Clear selected apps
-                </Button>
-            )}
             <Input.Search
                 aria-label="Search tools"
                 placeholder="Search apps (at least 3 characters)"
@@ -133,7 +71,11 @@ export default function ConnectToolsStep({
                 }}
                 className="mb-5"
             />
-            {catalog.isLoading && <Spin aria-label="Loading tools" />}
+            {catalog.isLoading && (
+                <div role="status" className="flex items-center justify-center gap-2 py-8">
+                    <Spinner /> Loading apps…
+                </div>
+            )}
             {catalog.error && (
                 <div role="alert" className="mb-4">
                     Tools couldn't load. You can continue and connect them later.{" "}
@@ -146,55 +88,95 @@ export default function ConnectToolsStep({
             <div className="relative">
                 <div ref={scrollRef} className="max-h-[360px] overflow-auto pb-8 pr-1">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
-                        {visible.map((integration) => {
-                            const connected = connections.some(
+                        {visible.map((integration, index) => {
+                            const connection = connections.find(
                                 (connection) =>
                                     connection.integration_key === integration.key &&
                                     isConnectionActive(connection) &&
                                     isConnectionValid(connection),
                             )
+                            const connected = Boolean(connection)
+                            const picked = Boolean(
+                                connection?.id && selectedIds.includes(connection.id),
+                            )
                             return (
-                                <button
-                                    type="button"
-                                    key={integration.key}
-                                    disabled={connected}
-                                    onClick={() => {
-                                        previousIds.current = connections.flatMap((item) =>
-                                            item.id ? [item.id] : [],
-                                        )
-                                        setSelected(integration)
-                                    }}
-                                    className="flex items-center justify-between gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer p-4 text-left hover:bg-colorFillQuaternary disabled:cursor-default"
-                                >
-                                    <span className="flex items-center gap-2 font-medium">
-                                        {integration.logo && (
-                                            <Image
-                                                src={integration.logo}
-                                                alt=""
-                                                width={24}
-                                                height={24}
-                                                unoptimized
+                                <Fragment key={integration.key}>
+                                    {index ===
+                                        Math.max(
+                                            0,
+                                            Math.floor((visible.length - prefetchThreshold) / 3) *
+                                                3,
+                                        ) && (
+                                        <div className="col-span-full h-0">
+                                            <ScrollSentinel
+                                                onVisible={requestMore}
+                                                hasMore={hasNextPage && !catalog.error}
+                                                isFetching={isFetchingNextPage}
+                                                root={scrollRef.current}
                                             />
-                                        )}
-                                        {integration.name}
-                                    </span>
-                                    <span
-                                        className={`text-xs ${connected ? "text-colorSuccess" : "text-colorTextSecondary"}`}
+                                        </div>
+                                    )}
+                                    <button
+                                        type="button"
+                                        key={integration.key}
+                                        aria-pressed={picked}
+                                        onClick={() => {
+                                            if (connection?.id) {
+                                                onChange(
+                                                    picked
+                                                        ? selectedIds.filter(
+                                                              (id) => id !== connection.id,
+                                                          )
+                                                        : [...selectedIds, connection.id],
+                                                )
+                                                return
+                                            }
+                                            previousIds.current = connections.flatMap((item) =>
+                                                item.id ? [item.id] : [],
+                                            )
+                                            setSelected(integration)
+                                        }}
+                                        className="flex items-center justify-between gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer p-4 text-left hover:bg-colorFillQuaternary aria-pressed:border-colorPrimary aria-pressed:bg-colorFillQuaternary"
                                     >
-                                        {connected ? "Connected" : "Connect"}
-                                    </span>
-                                </button>
+                                        <span className="flex items-center gap-2 font-medium">
+                                            {integration.logo && (
+                                                <Image
+                                                    src={integration.logo}
+                                                    alt=""
+                                                    width={24}
+                                                    height={24}
+                                                    unoptimized
+                                                />
+                                            )}
+                                            {integration.name}
+                                        </span>
+                                        <span
+                                            className={`text-xs ${connected ? "text-colorSuccess" : "text-colorTextSecondary"}`}
+                                        >
+                                            {picked
+                                                ? "Selected"
+                                                : connected
+                                                  ? "Connected"
+                                                  : "Connect"}
+                                        </span>
+                                    </button>
+                                </Fragment>
                             )
                         })}
                     </div>
-                    <div ref={sentinelRef} className="h-2" aria-hidden="true" />
+                    <ScrollSentinel
+                        onVisible={requestMore}
+                        hasMore={hasNextPage && !catalog.error}
+                        isFetching={isFetchingNextPage}
+                        root={scrollRef.current}
+                    />
                     {catalog.isFetchingNextPage && (
-                        <div role="status" className="py-3 text-center">
-                            <Spin size="small" /> Loading more apps…
+                        <div role="status" className="flex items-center justify-center gap-2 py-3">
+                            <Spinner size="small" /> Loading more apps…
                         </div>
                     )}
                 </div>
-                {hasNextPage && (
+                {hasNextPage && !isFetchingNextPage && (
                     <div
                         aria-hidden="true"
                         className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-colorBgContainer to-transparent"
