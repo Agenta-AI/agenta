@@ -542,6 +542,104 @@ describe("useServerSessionInputs", () => {
         await waitFor(() => expect(onExecuted).toHaveBeenCalledOnce())
     })
 
+    const acceptedRunSnapshot = {
+        session: {
+            id: "11111111-1111-4111-8111-111111111111",
+            project_id: "22222222-2222-4222-8222-222222222222",
+            session_id: "session-1",
+        },
+        execution: null,
+        execution_state: {id: "turn-1", state: "running"},
+        read: {latest_sequence: 0, history_complete: true},
+        pending: {inputs: [], interactions: []},
+        capabilities: {durable_approvals: true, queue: true, steer: true},
+    }
+    const acceptedFrame = `data: ${JSON.stringify({
+        type: "data-session-accepted",
+        data: {executionId: "turn-9"},
+    })}\n`
+
+    /** A 200 run whose stream names its turn, then stays open until the test ends it. */
+    const acceptedRun = () => {
+        let end!: (how: "close" | "drop") => void
+        const body = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(new TextEncoder().encode(acceptedFrame))
+                end = (how) =>
+                    how === "close" ? controller.close() : controller.error(new Error("dropped"))
+            },
+        })
+        fetchMock.mockResolvedValue(new Response(body, {status: 200}))
+        return {end: (how: "close" | "drop") => end(how)}
+    }
+
+    const submitAccepted = async (onExecuted: () => void | boolean | Promise<void | boolean>) => {
+        fetchSnapshot.mockResolvedValue(acceptedRunSnapshot)
+        buildAgentRequest.mockResolvedValue({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {Accept: "text/event-stream"},
+            requestBody: {session_id: "session-1", data: {inputs: {messages: []}}},
+        })
+        const run = acceptedRun()
+        const watcher = {onAccepted: vi.fn(), onSettled: vi.fn(), onFailed: vi.fn()}
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: false,
+                onExecuted,
+            }),
+        )
+        await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
+        await act(async () => {
+            await result.current.submit({id: "input-1", text: "start"}, "queue", watcher)
+        })
+        await waitFor(() => expect(watcher.onAccepted).toHaveBeenCalledWith("turn-9"))
+        return {run, watcher}
+    }
+
+    it("settles only after the records re-read it started has landed", async () => {
+        // The saved row that retires the echo arrives in that read. Reporting settlement
+        // before it landed flagged a delivered message as not sent whenever the read outlived
+        // the turn (#6698).
+        let finishRead!: (reconciled: boolean) => void
+        const onExecuted = vi.fn(
+            () =>
+                new Promise<boolean>((resolve) => {
+                    finishRead = resolve
+                }),
+        )
+        const {run, watcher} = await submitAccepted(onExecuted)
+
+        run.end("close")
+        await waitFor(() => expect(onExecuted).toHaveBeenCalledOnce())
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        expect(watcher.onSettled).not.toHaveBeenCalled()
+
+        await act(async () => finishRead(true))
+        await waitFor(() => expect(watcher.onSettled).toHaveBeenCalledOnce())
+    })
+
+    it("does not settle on a re-read that could not reach the records", async () => {
+        const {run, watcher} = await submitAccepted(() => Promise.resolve(false))
+        run.end("close")
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        expect(watcher.onSettled).not.toHaveBeenCalled()
+        expect(watcher.onFailed).not.toHaveBeenCalled()
+    })
+
+    it("does not settle when the connection drops after acceptance", async () => {
+        // The turn may still be running on the server; a drop is neither a failure nor an end.
+        const onExecuted = vi.fn(() => Promise.resolve(true))
+        const {run, watcher} = await submitAccepted(onExecuted)
+        run.end("drop")
+        await waitFor(() => expect(onExecuted).toHaveBeenCalledOnce())
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        expect(watcher.onSettled).not.toHaveBeenCalled()
+        expect(watcher.onFailed).not.toHaveBeenCalled()
+    })
+
     it("rejects a refused Steer admission", async () => {
         fetchSnapshot.mockResolvedValue({
             session: {

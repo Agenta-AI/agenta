@@ -30,8 +30,10 @@ export interface ServerInputWatcher {
     /** No turn will ever carry it: refused, errored, or accepted by nothing. */
     onFailed?: () => void
     /**
-     * The accepted turn finished and its records have been re-read. If the saved row still has
-     * not arrived by now it never will, so the echo stops waiting silently.
+     * The accepted turn's stream ended on its own and its records have been re-read. If the
+     * saved row still has not arrived by now it never will, so the echo stops waiting silently.
+     * Not reported for a connection that dropped after acceptance: the turn may still be running,
+     * and the liveness poll re-reads the records when it ends.
      */
     onSettled?: () => void
 }
@@ -58,6 +60,16 @@ const emptyView = reduceSessionPendingInputs(null)
 const RUN_ERROR_FRAME_TYPES = new Set(["error", "data-agent-error"])
 
 type RunFrame = {kind: "accepted"; executionId: string} | {kind: "error"} | {kind: "started"} | null
+
+/**
+ * What one run stream said about the send that opened it. `accepted` is whether a frame named the
+ * turn; `ended` is whether the stream closed on its own rather than the connection dropping.
+ * Only the two together mean "this turn is over", which is what settlement needs.
+ */
+export interface RunAdmission {
+    accepted: boolean
+    ended: boolean
+}
 
 const runFrameFromLine = (line: string): RunFrame => {
     const payload = line.startsWith("data:") ? line.slice(5).trim() : line.trim()
@@ -108,11 +120,11 @@ const runFrameFromLine = (line: string): RunFrame => {
 export const readRunAdmission = async (
     response: Response,
     watcher?: ServerInputWatcher,
-): Promise<boolean> => {
+): Promise<RunAdmission> => {
     const reader = response.body?.getReader()
     if (!reader) {
         watcher?.onFailed?.()
-        return false
+        return {accepted: false, ended: true}
     }
     const decoder = new TextDecoder()
     let buffer = ""
@@ -150,18 +162,21 @@ export const readRunAdmission = async (
             if (scan(decoder.decode(value, {stream: true})) === "error") {
                 watcher?.onFailed?.()
                 await reader.cancel().catch(() => undefined)
-                return false
+                return {accepted: false, ended: true}
             }
         }
         // A last frame with no trailing newline is still a frame, and it can be the refusal.
         if (!accepted && buffer.trim() && scan("\n") === "error") {
             watcher?.onFailed?.()
-            return false
+            return {accepted: false, ended: true}
         }
     } catch {
-        // A dropped connection says nothing about the turn either way, so it reports nothing.
+        // A dropped connection says nothing about the turn either way: not a failure, and not an
+        // ending. A turn that keeps running on the server after the browser's connection fell
+        // over still saves its row, and reading the drop as "finished" put "wasn't sent" under it.
+        return {accepted, ended: false}
     }
-    return accepted
+    return {accepted, ended: true}
 }
 
 export const parkedInputIdFromBody = (body: unknown): string | null => {
@@ -186,7 +201,12 @@ export const useServerSessionInputs = ({
     locallyBusy: boolean
     /** Read current transport readiness when admitting input, including after reconnect. */
     isSharedReaderReady?: () => boolean
-    onExecuted?: () => void
+    /**
+     * A durable send's run stream ended, so the records may hold rows this browser has not
+     * adopted. A host that re-reads them returns the read, resolving `false` when it could not
+     * reach the log; settlement waits on it and draws no conclusion from a failed read.
+     */
+    onExecuted?: () => void | boolean | Promise<void | boolean>
 }): ServerSessionInputs => {
     const projectId = useAtomValue(projectIdAtom)
     const scope = JSON.stringify([projectId, sessionId])
@@ -334,15 +354,25 @@ export const useServerSessionInputs = ({
             // A 200 only proves the request was taken: the turn is accepted when the stream's
             // first frame names it, and a stream that ends without one never started a turn.
             void readRunAdmission(response, watcher)
-                .then(async (accepted) => {
+                .then(async ({accepted, ended}) => {
                     if (!mount.isCurrent(generation)) return
                     await refresh()
                     if (!mount.isCurrent(generation)) return
-                    onExecutedRef.current?.()
-                    // ONLY for a turn this stream actually named. Silence means the runner never
-                    // emits acceptance on this path, not that nothing was sent, and settling on
-                    // it would put "wasn't sent" under a message that was.
-                    if (accepted) watcher?.onSettled?.()
+                    // Settlement WAITS for the re-read it starts. The saved row that retires this
+                    // send's echo arrives in that read; reporting before it landed flagged a
+                    // delivered, answered message as not sent whenever the read took longer
+                    // than the turn (held back 45 s in the browser: the note went up at 6.6 s,
+                    // under the reply).
+                    const reconciled = await Promise.resolve()
+                        .then(() => onExecutedRef.current?.())
+                        .catch(() => false)
+                    if (!mount.isCurrent(generation)) return
+                    // ONLY for a turn this stream actually named, whose stream ended on its own,
+                    // once the records were actually read. Silence means the runner never emits
+                    // acceptance on this path, not that nothing was sent; a dropped connection
+                    // means the turn may still be running; a failed read means nothing is known.
+                    // Settling on any of them would put "wasn't sent" under a message that was.
+                    if (accepted && ended && reconciled !== false) watcher?.onSettled?.()
                 })
                 .catch(() => undefined)
             return "running"
