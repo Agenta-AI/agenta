@@ -36,7 +36,7 @@ import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
-import {ChatBubble, ChatJumpToLatest, turnRowClass} from "@agenta/ui/components/presentational"
+import {ChatBubble, ChatJumpToLatest} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
@@ -59,6 +59,7 @@ import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {cancelledStopAction} from "./stopHereState"
 import {TranscriptTurns} from "./TranscriptTurns"
+import {mobileTurnRowClass} from "./turnRowClass"
 import {mergeAssistantRuns} from "./turnRuns"
 import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
@@ -604,7 +605,7 @@ export const LiveConversation = ({
             <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 {/* A held or failed Home task stays visible until accepted. */}
                 {heldTaskText ? (
-                    <div className={`${turnRowClass} justify-end`}>
+                    <div className={`${mobileTurnRowClass} justify-end`}>
                         <ChatBubble
                             placement="end"
                             variant="filled"

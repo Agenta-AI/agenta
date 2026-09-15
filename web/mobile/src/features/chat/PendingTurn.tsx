@@ -1,5 +1,7 @@
 import {ActivityTimeline} from "@agenta/chat/components"
-import {ChatBubble, turnRowClass} from "@agenta/ui/components/presentational"
+import {ChatBubble} from "@agenta/ui/components/presentational"
+
+import {mobileTurnRowClass} from "./turnRowClass"
 
 /** The assistant turn that does not exist yet: the request is in and no part has arrived. */
 export const PendingTurn = ({
@@ -14,7 +16,7 @@ export const PendingTurn = ({
     firstTurn?: boolean
 }) => {
     return (
-        <div className={`${turnRowClass} justify-start`}>
+        <div className={`${mobileTurnRowClass} justify-start`}>
             <ChatBubble
                 placement="start"
                 variant="borderless"
