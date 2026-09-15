@@ -309,7 +309,7 @@ Keep markers to 16 characters, per the precondition in the dashboard procedure a
 | Claude ask, approved | `permission: ask` | approval resumes and returns the result | PASS |
 | Claude deny | `permission: deny` | tool absent from the catalog | PASS |
 | Claude allow | `permission: allow` | runs unattended | PASS |
-| Codex ask | `permission: ask` | gate raised | FAIL — the tool name is still wrong; see below |
+| Codex ask | `permission: ask` | gate raised | FAIL — the harness refuses the call; see below |
 
 ### Pi: the OR79 re-proof
 
@@ -450,48 +450,82 @@ Note the two spellings in the logs above: Claude's `mcp__mock-mcp__echo` keeps t
 `mcp__mock_mcp__echo` does not. That divergence is why the permission table is keyed on the name
 the server advertises rather than on any rendered name.
 
-### Codex: FAIL, and the tool name is still not the one Codex uses
+### Codex: FAIL, and the remaining unknown is the call convention, not the name
 
-Re-run on 2026-09-15 at 21:18 UTC, after the box was given space and the object store recovered
-(`agenta-store` back to seven writable volumes, no assign failures). The harness now starts and
-completes a turn, so the storage blocker recorded in the first pass is gone. The cell still does
-not pass.
+Re-run on 2026-09-15 after the box was given space and the object store recovered (`agenta-store`
+back to seven writable volumes, no assign failures). The harness starts and completes a turn, so
+the storage blocker recorded in the first pass is gone. The cell still does not pass, and chasing
+it produced the facts below, all measured rather than assumed.
+
+**Codex does send its tool catalog.** The first guess — that the ACP harnesses configure remote MCP
+at session start and therefore serialise nothing — is true of Claude on Messages and false of Codex
+on Responses. Codex sent 19 to 21 tools, so the mock no longer has to know the name: it reads it.
+
+**MCP tools arrive namespaced.** The mock server appears as a `type: "namespace"` entry whose
+members are the tools, and Codex groups its own multi-agent tools the same way:
+
+```json
+{ "type": "namespace",
+  "name": "mcp__mock_mcp",
+  "description": "Tools in the mcp__mock_mcp namespace.",
+  "tools": [ { "type": "function", "name": "echo",  ... },
+             { "type": "function", "name": "fail",  ... },
+             { "type": "function", "name": "slow",  ... } ] }
+```
+
+Note `mock_mcp`, underscored: Codex rewrites the server name the way Pi does, not the way Claude
+does. The adapter now resolves the catalog to qualified names and logs what it saw:
 
 ```
-frames=['start','start-step','message-metadata','data-agent-status'x4,
-        'text-start','text-delta','text-delta','text-end','finish-step','finish']
-text='Warning: Model metadata for `mock/echo` not found. ...
-
-mock MCP tool call failed'
+mock LLM: tool catalog carried 19 tool(s); echo tool resolved to 'mcp__mock_mcp.echo'.
+Names: exec_command, write_stdin, list_mcp_resources, list_mcp_resource_templates,
+read_mcp_resource, update_plan, request_user_input, view_image, multi_agent_v1.close_agent,
+multi_agent_v1.resume_agent, multi_agent_v1.send_input, multi_agent_v1.spawn_agent,
+multi_agent_v1.wait_agent, mcp__mock_mcp.echo, mcp__mock_mcp.fail, mcp__mock_mcp.slow,
+get_goal, create_goal, update_goal
 ```
 
+**And Codex still refuses the call.** Emitted as a `function_call` named `mcp__mock_mcp.echo`, the
+harness answers:
+
 ```
-21:18:16.614Z  mcps/builtin/mock/mock -> 200                  tools/list
-21:18:16.802Z  llms/custom/.../v1/responses -> 200            the mock emits the tool call
-21:18:16.843Z  llms/custom/.../v1/responses -> 200            41 ms later, already answering
-                                                              <- no MCP POST after either call
+unsupported call: mcp__mock_mcp.echo
+```
+
+Three spellings have now been tried against a live Codex and all three are refused: Claude's
+`mcp__mock-mcp__echo`, the dotted `mcp.mock-mcp.echo` taken from the runner's gate-lookup
+convention, and the catalog-derived `mcp__mock_mcp.echo`. The bare nested `echo` fails too. So the
+open question is no longer what the tool is CALLED — the catalog answers that — but how a
+namespaced tool must be INVOKED on the Responses protocol. That is a different axis: the shape of
+the emitted call rather than its name, and `_responses_tool_call_payload` emits
+`{"type": "function_call", "name": ...}`. Establish the right shape from a real Codex session
+before changing it; do not iterate by guessing, which is what produced the false pass and then two
+false failures.
+
+The run is recorded against these timings, which are themselves evidence that nothing left the
+sandbox:
+
+```
+21:29:19.755Z  mcps/builtin/mock/mock -> 200            tools/list
+21:29:19.957Z  llms/custom/.../v1/responses -> 200      the mock emits the tool call
+21:29:19.995Z  llms/custom/.../v1/responses -> 200      38 ms later, already answering
+                                                        <- no MCP POST after either call
 ```
 
 No tool-call frame reached the stream, no `[HITL]` gate was raised, and the session's persisted
-records hold only `message`, `usage` and `done` — no `tool_call`, no `tool_result`. Codex received
-a call for a tool it does not have, failed it inside the harness, and answered from the failure. The
-41 ms between the two model calls is the whole round trip, which is far too fast to have left the
-sandbox.
+records hold only `message`, `usage` and `done`. **Codex MCP gating therefore remains unverified.**
+Nothing here says the gate is broken on Codex — the ACP gate never got the chance to fire — only
+that this fixture cannot yet drive it.
 
-So `mcp.mock-mcp.echo` is not Codex's model-facing name either. That spelling was read from the
-runner's gate-lookup convention in `engines/sandbox_agent/acp-interactions.ts`, but that code
-describes the name on an ACP **permission frame**, which is a different surface from the tool
-catalog Codex exposes to the model. The catalog name cannot be recovered from the request, because
-Codex configures remote MCP servers at session start rather than serialising its tools into each
-call — which is why the mock has to know the name in the first place. Do not guess a third
-spelling: read it off a live Codex session's own tool list and pin it with a case in
-`test_mock_llm_adapter.py`, the way the Messages spelling is pinned.
+What did improve, and is worth keeping regardless: the mock reads the harness's own spelling out of
+the request instead of holding a table of guesses, it qualifies namespaced entries (proven against
+Codex's own `multi_agent_v1` group), it logs the names it was offered so the next failure says why,
+and the fallback table now carries only the Claude spelling, which is the one a live run has
+actually exercised. A wrong entry in that table is worse than no entry: it sends a call for a tool
+the harness does not have and the cell then fails for a reason that looks like the product.
 
-Codex MCP gating therefore remains **unverified**. Nothing here says the gate is broken on Codex —
-the ACP gate never got the chance to fire — only that this fixture cannot yet drive it.
-
-The run is still worth recording, because it is the live proof of the round-trip fix. This is the
-exact situation that used to produce a green row: before 2026-09-15 the mock accepted any tool
-result in the body as the echo, so a call that never left the sandbox answered
-`mock MCP echo: <marker>` and the Codex row read as a pass. It now answers `mock MCP tool call
-failed`, on the real path, for a call that really did fail.
+Finally, this run is the live proof of the round-trip fix. It is the exact situation that used to
+produce a green row: before 2026-09-15 the mock accepted any tool result in the body as the echo,
+so a call that never left the sandbox answered `mock MCP echo: <marker>` and the Codex row read as
+a pass. It now answers `mock MCP tool call failed`, on the real path, for a call that really did
+fail.
