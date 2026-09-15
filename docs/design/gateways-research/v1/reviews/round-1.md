@@ -50,7 +50,7 @@ on two findings.
 | Codex, as filed | 2 | 5 | 2 | 1 | 10 |
 | Second reviewer, as filed | 0 | 1 | 6 | 5 | 12 |
 | **After verification and merge** | **1** | **3** | **8** | **5** | **17** |
-| After the first round of fixes | 0 | 1 | 6 | 6 | 13 open, 4 closed, 1 withdrawn |
+| After the fixes landed so far | 0 | 1 | 4 | 5 | 10 open, 7 closed, 1 withdrawn |
 
 Five findings overlapped and are merged below. Four Codex severities were lowered on reachability
 grounds and one second-reviewer severity was raised; each change is argued in the finding's own
@@ -71,16 +71,16 @@ against the code and its test.
 | D1 | Codex 3 | P0 | `api/oss/src/core/gateways/mcps/providers/http/adapter.py:147`, `api/oss/src/apis/fastapi/gateways/mcps/proxy.py:215` | Fix, blocking | `8a2a59f76a` | **yes**, code, tests, suite run |
 | D2 | Codex 1 | P1 | `services/runner/src/engines/sandbox_agent/acp-interactions.ts:946`, `:966` | Fix, blocking | `8a2a59f76a` | **yes**, code, tests, suite run |
 | D3 | both | P1 | `api/oss/src/apis/fastapi/gateways/mcps/router.py:71`, `api/oss/src/core/gateways/mcps/service.py:1013` | Fix, blocking | pending | pending |
-| D4 | both | P2 | `api/oss/databases/postgres/migrations/core_oss/versions/oss000000032_rekey_mcp_oauth_grants_by_connection.py:81` | Fix | pending | pending |
+| D4 | both | P2 | `api/oss/databases/postgres/migrations/core_oss/versions/oss000000032_rekey_mcp_oauth_grants_by_connection.py:81` | Fix | `6972c570b3` | **yes**, incl. pre-fix run |
 | D5 | Codex 5 | P2 | `api/oss/src/core/gateways/mcps/oauth/service.py:302` | Fix | pending | pending |
-| D6 | Codex 6 | P2 | `api/oss/src/core/gateways/mcps/oauth/storage.py:257`, `oauth/service.py:83` | Fix | pending | pending |
+| D6 | Codex 6 | P2 | `api/oss/src/core/gateways/mcps/oauth/storage.py:257`, `oauth/service.py:83` | Fix | on a branch, not landed | pending |
 | D7 | both | P2 | `services/runner/src/mcp-permission.ts:114`, `acp-interactions.ts:966` | Fix the ACP half | `e57627d8e5` | **yes**, code, tests, suite run |
 | D8 | reviewer 2 | — | `services/runner/package.json:10` | **Withdrawn**, the finding was wrong | `fe58e68162` | **yes**, dispute confirmed |
 | D9 | reviewer 2 | P2 | `services/runner/src/mcp-permission.ts:82` | Fix | `21d5591326` | **yes**, code, tests, suite run |
-| D10 | reviewer 2 | P2 | `api/oss/src/core/gateways/mcps/service.py:264`, `services/runner/src/engines/sandbox_agent/runtime-policy.ts:145` | Fix | pending | pending |
+| D10 | reviewer 2 | P2 | `api/oss/src/core/gateways/mcps/service.py:264`, `services/runner/src/engines/sandbox_agent/runtime-policy.ts:145` | Fix, reconciling with D2 | pending | pending |
 | D11 | Codex 8 | P2 | `api/oss/src/core/gateways/mcps/service.py:569` | Defer into OR66 | n/a | n/a |
 | D12 | both | P3 | `api/oss/src/core/gateways/mcps/service.py:289`, `api/oss/src/dbs/postgres/gateways/mcps/dao.py:215` | Defer | pending | pending |
-| D13 | reviewer 2 | P3 | `.../oss000000032_rekey_mcp_oauth_grants_by_connection.py:86` | Fix the reporting | pending | pending |
+| D13 | reviewer 2 | P3 | `.../oss000000032_rekey_mcp_oauth_grants_by_connection.py:86` | Fix the reporting | `f133fe435f` | **yes**, incl. pre-fix run |
 | D14 | both | P3 | `api/oss/src/core/gateways/mcps/oauth/storage.py:229` | Defer | pending | pending |
 | D15 | reviewer 2 | P3 | `api/oss/src/core/gateways/mcps/oauth/service.py:70`, `:353` | Defer | pending | pending |
 | D16 | reviewer 2 | P3 | `services/runner/src/engines/sandbox_agent/runtime-policy.ts:137`, `api/oss/src/apis/fastapi/gateways/flags.py:10` | Fix | pending | pending |
@@ -101,6 +101,13 @@ was `vitest run --project unit` over
 D1 it was pytest over `oss/tests/pytest/unit/gateways/test_gateways_egress.py`,
 `test_gateways_http_mcp_adapter.py` and `oss/tests/pytest/unit/secrets/test_dtos.py`:
 **134 passed**.
+
+For the migration fixes it was pytest over
+`oss/tests/pytest/integration/gateways/test_mcp_oauth_grant_rekey_migration.py` against a real
+scratch database: **15 passed**. Those were additionally re-run with the suite pinned to the
+revision as it stood before each fix, to prove the new cases fail without it rather than passing
+either way; **6 of the 7 failed**, the seventh being a deliberate non-regression case that must
+pass both ways.
 
 `8a2a59f76a` carries both the D2 runner change and the D1 API change under a single D2-titled
 message, so the D1 fix is easy to miss when reading the log. Both were verified.
@@ -246,6 +253,34 @@ rerun case at line 387 — and none seeds a row at the destination slug or inter
 **Suggested fix.** Make the rename skip or resolve an occupied destination rather than fail, set
 `lock_timeout` and `statement_timeout` at the top of `upgrade()`, and add the seeded-collision and
 interrupted-completion cases to that suite.
+
+**Fixed in `6972c570b3`, verified.** All three parts were built, and the resolution is better than
+the one suggested. Rather than skipping an occupied destination, the revision *adopts* it: the
+occupant can only be that connection's own grant, because nothing else computes that slug, so the
+endpoint is repointed at it — finishing what the interrupted completion was about to do — and the
+legacy row is left as an orphan like every other orphan here. The connection ends up on the newer
+credential and needs no reconnect, where skipping would have left it needing one.
+
+The adoption also turns the later rename into a self-assignment rather than a conflict. A
+`NOT EXISTS` guard covers what adoption cannot reach, since the unique index does not look at
+`kind` and a row of another kind on that slug would break the rename just as surely. `SET LOCAL
+lock_timeout = '5s'` and `statement_timeout = '5min'` bound the waits; alembic's env configures
+`transaction_per_migration=True` and wraps each revision in `context.begin_transaction()`, so
+`SET LOCAL` does take effect here.
+
+One ordering property matters and holds: adoption is restricted to the `sole` set, so it cannot
+move an endpoint off a shared grant and change the ambiguity count the next statement computes.
+
+**The tests were checked against the pre-fix revision, not just run.** Pinning the suite to the
+revision as it stood before this commit, all four new cases fail, and the occupied-destination case
+fails with exactly the predicted error:
+
+```
+asyncpg.exceptions.UniqueViolationError: duplicate key value violates unique
+constraint "uq_secrets_project_id_slug"
+```
+
+With the fix, the whole suite is 15 passed.
 
 ### D5. Disconnect does not invalidate an outstanding consent — P2
 
@@ -440,6 +475,20 @@ needing authorisation, is acceptable; the silence is not.
 
 **Suggested fix.** Count the referenced rows the update did not touch and print them.
 
+**Fixed in `f133fe435f`, verified.** The implementation is better than the suggestion. Rather than
+counting what the update skipped, it measures the state actually left behind once every other
+statement has run — connections still naming a grant whose slug is not their key — and splits it
+into the cross-project case this finding names and the residual an occupied destination leaves.
+Measuring the outcome rather than inferring it from a rowcount means a future statement cannot
+silently fall outside the count.
+
+Both lines are conditional, so an ordinary run's summary is unchanged. Reporting only; no row is
+treated differently.
+
+Against the pre-fix revision, both behaviour cases fail. The third new case, which asserts an
+ordinary run reports no leftovers, passes either way by design: it exists to pin that the summary
+did not change for the common path.
+
 ### D14. The client-registration lookup scans every secret in the project — P3
 
 `core/gateways/mcps/oauth/storage.py:229` lists the project's secrets and matches in Python, while
@@ -573,10 +622,10 @@ Recorded so round 2 does not spend time here again.
 
 **As reviewed:** do not ship, for four reasons and no more — D1, D2, D3 and D8.
 
-**After the first round of fixes:** one reason remains, **D3**. The connect, disconnect and
+**After the fixes landed so far:** one reason remains, **D3**. The connect, disconnect and
 invalidate paths still write a stale full snapshot, losing `tags` and `meta` and reverting a
 concurrent administrator edit.
 
-D1 and D2 are fixed and verified, D7, D9 and D17 with them. D8 was withdrawn on the evidence.
-Everything still open is a fix-soon or a defer with a reason, and none of it needs to hold the
-release once D3 lands.
+Fixed and verified: D1, D2, D4, D7, D9, D13 and D17. D8 was withdrawn on the evidence. Still open:
+D3, then D5, D6 and D10, and the defers D11, D12, D14, D15, D16 and D18. Nothing but D3 needs to
+hold the release.
