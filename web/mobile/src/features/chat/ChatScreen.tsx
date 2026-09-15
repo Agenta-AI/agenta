@@ -221,6 +221,8 @@ const ReplayScreen = ({
         <ScreenScaffold
             scrollRef={autoScroll.ref}
             onScroll={autoScroll.onScroll}
+            // Same edge fades the live conversation wears.
+            scrollStyle={{maskImage: autoScroll.edgeMask, WebkitMaskImage: autoScroll.edgeMask}}
             embedded={embedded}
             header={
                 <>

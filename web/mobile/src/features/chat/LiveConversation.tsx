@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    EDGE_FADE_MASK,
     latestTurnId,
     resolveStopExecution,
     shouldShowStopControl,
@@ -647,9 +646,12 @@ export const LiveConversation = ({
                 scrollRef={autoScroll.ref}
                 onScroll={autoScroll.onScroll}
                 embedded={embedded}
-                // The top edge fades as a MASK, exactly as the desktop transcript does — content
-                // dissolves under the tab bar instead of being cut by a hard line.
-                scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
+                // Edge fades as a MASK, only where content is clipped — the Home list's rule, so
+                // the first message reads crisp at the top and the bottom says there is more.
+                scrollStyle={{
+                    maskImage: autoScroll.edgeMask,
+                    WebkitMaskImage: autoScroll.edgeMask,
+                }}
                 footer={
                     <div className="relative">
                         {/* What you have lined up stays visible while a gate is open: the queued
