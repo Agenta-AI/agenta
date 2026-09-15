@@ -171,10 +171,17 @@ def gateway_mock_case(request) -> GatewayMockCase:
 
 @pytest.fixture
 def provisioned_gateway_mock_case(
-    authed_api, gateway_mock_case: GatewayMockCase
+    authed_api, gateway_mock_case: GatewayMockCase, llm_gateway_plane: bool
 ) -> Iterator[tuple[GatewayMockCase, str]]:
     """Provision only normal project-owned resources needed by a matrix row."""
     case = gateway_mock_case
+    # Per row, not per module: the MCP half of the matrix ships on and must keep running on a
+    # deployment that has the LLM plane switched off, which is the shape of this release.
+    if case.plane is GatewayPlane.LLM and not llm_gateway_plane:
+        pytest.skip(
+            "the LLM gateway plane is disabled on this deployment "
+            "(set AGENTA_LLM_GATEWAY_ENABLED=true to run it)"
+        )
     cleanup: list[tuple[str, str]] = []
     name: str | None = None
     try:
