@@ -363,3 +363,35 @@ async def test_a_create_the_database_refuses_reaches_the_caller(seeded_project):
             #
             endpoint=_create_dto(slug=None),
         )
+
+
+@pytest.mark.asyncio
+async def test_bind_refuses_a_credential_from_another_project_out_loud(
+    seeded_project, other_project
+):
+    """D20. The credential write carried a bare exception suppressor, so the tenant
+    refusal was swallowed and the method answered `None`. Tenant isolation held either
+    way — the exception aborts the transaction before the commit — but the connect route
+    turned that `None` into a reported success that had bound nothing."""
+    dao = MCPEndpointsDAO(engine=get_transactions_engine())
+    project_id = seeded_project["project_id"]
+    user_id = seeded_project["user_id"]
+
+    created = await dao.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint=_create_dto(slug="acme-foreign-bind"),
+    )
+
+    with pytest.raises(SecretInvalidError):
+        await dao.bind_endpoint_secret(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            endpoint_id=created.id,
+            secret_id=other_project["secret_id"],
+        )
+
+    refetched = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
+    assert refetched.secret_id is None
