@@ -1,12 +1,10 @@
 /**
  * Shared state for the config panel's "Files" region, split across two DOM locations: the header
- * bar (rendered by the entity-ui `AgentOperationsSections`) shows the count and opens the drawer;
- * the body (`StorageSection`) lists recents and opens the same drawer preselected on a row. Both
- * resolve the same session/artifact drive via {@link useConfigDrive} and share one drawer request
- * via {@link configFilesDrawerOpenAtomFamily}, keyed by the edited revision.
+ * bar (rendered by the entity-ui `AgentOperationsSections`) shows the count and opens the docked
+ * Files pane; the body (`StorageSection`) lists recents and opens the same pane on a row. Both
+ * resolve the same session/artifact drive via {@link useConfigDrive}.
  */
-import {atom, useAtomValue} from "jotai"
-import {atomFamily} from "jotai-family"
+import {useAtomValue} from "jotai"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 
@@ -20,12 +18,6 @@ export interface ConfigFilesDrawerRequest {
     /** Files dropped on the Files peek, staged (unwritten) until a destination is chosen in the drawer. */
     staged: DroppedFile[]
 }
-
-/** One drawer-open request per config revision, shared by the Files header and body. */
-/** The Files header's browse-all drawer, one open flag per config revision. The initial path and
- * staged drops moved to the per-SESSION atoms the docked pane reads (#5946) — keeping them here
- * meant two surfaces writing one bucket. */
-export const configFilesDrawerOpenAtomFamily = atomFamily((_revisionId: string) => atom(false))
 
 /**
  * The drive backing the config panel's Files region: the conversation's cwd mount plus the

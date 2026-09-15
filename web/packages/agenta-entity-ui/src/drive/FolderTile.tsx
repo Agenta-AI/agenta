@@ -1,29 +1,78 @@
-import {isHiddenPath, type DriveTreeNode} from "@agenta/entities/drive"
-import {FolderSimple} from "@phosphor-icons/react"
+/**
+ * The Files grid's two tiles, Finder-style: no card chrome — a 56px type-marked glyph, the name
+ * (two lines, centred) and a muted size / item-count line; hover and selection are one soft fill.
+ * Folders and files share the geometry so the grid stays uniform.
+ */
+import {humanSize, isHiddenPath, type DriveTreeNode} from "@agenta/entities/drive"
+import {Button} from "@agenta/ui/ui"
 
-import {FOCUS_RING} from "./DriveFileRow"
+import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 
-/** A subfolder tile — same shape as the file tile (4:3 icon "thumbnail" + name + meta) so folders
- * and files form ONE uniform grid instead of short folder cards stretching to the file-tile height. */
-export const FolderTile = ({node, onOpen}: {node: DriveTreeNode; onOpen: () => void}) => {
+// A tile is the kit's ghost button laid out as a column; `h-auto` frees it from the control height.
+const TILE =
+    "flex h-auto w-full min-w-0 flex-col items-center gap-1 whitespace-normal rounded-lg px-1.5 pb-2 pt-1.5 text-center font-normal"
+
+const TileName = ({name, path}: {name: string; path: string}) => (
+    <span
+        className="line-clamp-2 w-full break-words text-xs leading-[1.35] text-colorText"
+        title={path}
+    >
+        {name}
+    </span>
+)
+
+export const FolderTile = ({
+    node,
+    selected = false,
+    onOpen,
+}: {
+    node: DriveTreeNode
+    selected?: boolean
+    onOpen: () => void
+}) => {
     const hidden = isHiddenPath(node.path)
     // Backend count when the folder's own level hasn't loaded yet (lazy); else the loaded children.
     const count = node.itemCount ?? node.children.length
     return (
-        <button
-            type="button"
+        <Button
+            variant="ghost"
             onClick={onOpen}
-            className={`flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${FOCUS_RING} ${hidden ? "opacity-60" : ""}`}
+            aria-current={selected || undefined}
+            className={`${TILE} ${selected ? "bg-accent" : ""} ${hidden ? "opacity-60" : ""}`}
         >
-            <div className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
-                <FolderSimple size={40} weight="fill" className="text-colorWarning" />
-            </div>
-            <span className="w-full truncate text-center font-mono text-xs" title={node.path}>
-                {node.name}
+            <span className="flex h-14 w-14 items-center justify-center">
+                <DriveFolderGlyph size={52} className="!size-[52px]" />
             </span>
-            <span className="w-full truncate text-center text-xs text-colorTextTertiary">
+            <TileName name={node.name} path={node.path} />
+            <span className="text-[11px] leading-[1.3] text-colorTextTertiary">
                 {count} item{count === 1 ? "" : "s"}
             </span>
-        </button>
+        </Button>
+    )
+}
+
+export const FileTile = ({
+    node,
+    selected = false,
+    onOpen,
+}: {
+    node: DriveTreeNode
+    selected?: boolean
+    onOpen: () => void
+}) => {
+    const hidden = isHiddenPath(node.path)
+    return (
+        <Button
+            variant="ghost"
+            onClick={onOpen}
+            aria-current={selected || undefined}
+            className={`${TILE} ${selected ? "bg-accent" : ""} ${hidden ? "opacity-60" : ""}`}
+        >
+            <DriveTypeMark path={node.path} size="tile" />
+            <TileName name={node.name} path={node.path} />
+            <span className="text-[11px] leading-[1.3] text-colorTextTertiary">
+                {node.size != null ? humanSize(node.size) : "—"}
+            </span>
+        </Button>
     )
 }

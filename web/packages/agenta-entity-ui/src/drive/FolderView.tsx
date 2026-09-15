@@ -2,39 +2,53 @@ import {useEffect, useMemo, useRef, useState} from "react"
 
 import {META_REVEAL, PANE_FADE, revealFade} from "@agenta/entities/drive"
 import {useRepoInfo} from "@agenta/entities/drive"
-import {humanSize, type DriveTreeNode} from "@agenta/entities/drive"
-import {parentOf} from "@agenta/entities/drive"
-import {isRecentlyChanged, useRecentChangeClock} from "@agenta/entities/drive"
+import {type DriveSortKey, type DriveTreeNode, type DriveViewMode} from "@agenta/entities/drive"
+import {parentOf, sortDriveEntries} from "@agenta/entities/drive"
 import {useDelayedTrue} from "@agenta/entities/drive"
 import {type DriveDrop} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
-import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
-import {FolderSimple, GitBranch, Tray} from "@phosphor-icons/react"
+import {
+    Empty,
+    EmptyDescription,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+    SimpleTooltip as Tooltip,
+} from "@agenta/ui/ui"
+import {Folder, FolderSimple, GitBranch} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
 import {TileGridSkeleton} from "./DriveExplorerSkeleton"
-import {DriveFileRow} from "./DriveFileRow"
-import {DriveItemContextMenu, useCopyDrivePath, useDriveItemDownload} from "./DriveItemContextMenu"
+import {
+    DriveItemContextMenu,
+    type DriveItemWriteActions,
+    useCopyDrivePath,
+    useDriveItemDownload,
+} from "./DriveItemContextMenu"
 import {StagedTile, UploadTile, type StagedTileItem} from "./DrivePendingTiles"
-import {FolderTile} from "./FolderTile"
+import {FolderList} from "./FolderList"
+import {FileTile, FolderTile} from "./FolderTile"
 import {DriveRepoMetaList} from "./repoMeta"
 import {VirtualTileGrid} from "./VirtualTileGrid"
 
 /** Right pane when a FOLDER is selected: fixed header (clickable breadcrumb + folder name) over a
  * grid of the folder's immediate children — subfolders drill in, files open the preview. Reuses the
- * chat grid's file tile (DriveFileRow). */
+ * Finder-style tiles (FolderTile / FileTile) or the shared list table. */
 export const FolderView = ({
     folderPath,
     nodes,
     rootLabel,
     drive,
-    showOrigin,
     loading,
     hideHeader,
+    view = "grid",
+    sort = "name",
+    selectedPath = null,
+    writes,
     detailsOpen,
     autoFocus,
     anticipateShift,
@@ -50,7 +64,13 @@ export const FolderView = ({
     nodes: DriveTreeNode[]
     rootLabel: string
     drive: SessionDriveData
-    showOrigin: boolean
+    /** Grid (tiles) or list (the shared table). */
+    view?: DriveViewMode
+    sort?: DriveSortKey
+    /** The explorer's selection — a tile / row that is the current path draws selected. */
+    selectedPath?: string | null
+    /** Rename / duplicate / move / delete for the item context menus — omit on a read-only mount. */
+    writes?: DriveItemWriteActions
     /** Drag-and-drop upload behaviour (folder highlight, spring-load, drop) — absent = disabled. */
     drop?: DriveDrop
     /** In-flight uploads keyed by their real tree path — the matching node (injected into the tree) is
@@ -75,13 +95,8 @@ export const FolderView = ({
     anticipateShift?: {delta: number; seq: number} | null
     onSelect: (path: string) => void
 }) => {
-    const now = useRecentChangeClock(drive.lastTouchedAt)
     const copyPath = useCopyDrivePath()
     const download = useDriveItemDownload(drive)
-    const recentsByPath = useMemo(
-        () => new Map(drive.recents.map((f) => [f.path, f])),
-        [drive.recents],
-    )
     const folderName = folderPath === "" ? rootLabel : (folderPath.split("/").pop() ?? folderPath)
     // Which mount + mount-relative path backs this folder, so the repo probe reads its `.git`.
     const resolvedFolder = drive.resolveMount(folderPath)
@@ -108,10 +123,8 @@ export const FolderView = ({
             isFolder: false,
             children: [],
         }))
-        return [...synthetic, ...nodes].sort((a, b) =>
-            a.isFolder === b.isFolder ? 0 : a.isFolder ? -1 : 1,
-        )
-    }, [stagedItems, nodes])
+        return [...synthetic, ...sortDriveEntries(nodes, sort)]
+    }, [stagedItems, nodes, sort])
     // Only surface the skeleton if the level is genuinely slow to load (>140ms); a quick load skips
     // straight to the grid so the user never sees a one-frame skeleton flash.
     const showSkeleton = useDelayedTrue(Boolean(loading) && nodes.length === 0, 140)
@@ -124,7 +137,7 @@ export const FolderView = ({
     // first appears (folder nav or skeleton→grid), so the tiles cascade in; empty on every render after,
     // so the virtualizer's scroll remounts never replay it (mirrors the tree's reveal). StrictMode-safe:
     // the ref advances in an effect, not during render, so the diff doesn't cancel itself out.
-    const gridRevealKey = entries.length > 0 ? `${folderPath}:grid` : null
+    const gridRevealKey = entries.length > 0 ? `${folderPath}:${view}` : null
     const prevGridRevealRef = useRef<string | null>(null)
     const gridRevealNow = gridRevealKey !== null && gridRevealKey !== prevGridRevealRef.current
     useEffect(() => {
@@ -235,136 +248,131 @@ export const FolderView = ({
                             exit={{opacity: 0}}
                             transition={PANE_FADE.transition}
                         >
-                            <VirtualTileGrid
-                                items={entries}
-                                autoFocus={autoFocus}
-                                autoFocusKey={folderPath}
-                                anticipateShift={anticipateShift}
-                                // Responsive tiles, windowed so a folder with thousands of children
-                                // stays smooth.
-                                minColumnWidth={200}
-                                estimateRowHeight={180}
-                                gap={8}
-                                className="p-4"
-                                // Arrow keys rove the tiles (handled in VirtualTileGrid); Cmd/Ctrl+↓
-                                // opens the focused item (folder → drill in, file → preview), Cmd/Ctrl+↑
-                                // steps OUT to the current folder's parent (Finder-style).
-                                onMetaActivate={(n) => onSelect(n.path)}
-                                onMetaBack={() => onSelect(parentOf(folderPath))}
-                                getKey={(n) => n.path}
-                                renderTile={(n) => {
-                                    // Staged ghost tile (synthetic node) — awaiting a destination, no
-                                    // progress yet. Fades itself in like the upload tile.
-                                    const stagedItem = stagedByPath.get(n.path)
-                                    if (stagedItem) {
-                                        return (
-                                            <motion.div
-                                                className="min-w-0"
-                                                initial={{opacity: 0, scale: 0.96}}
-                                                animate={{opacity: 1, scale: 1}}
-                                                transition={{
-                                                    duration: 0.18,
-                                                    ease: [0.4, 0, 0.2, 1],
-                                                }}
-                                            >
-                                                <StagedTile
-                                                    item={stagedItem}
-                                                    onRemove={onRemoveStaged}
-                                                />
-                                            </motion.div>
-                                        )
-                                    }
-                                    // In-flight upload: this is a REAL node (injected into the tree),
-                                    // drawn as a progress/error tile instead of a plain file.
-                                    const uploadItem = pendingUploadByPath?.get(n.path)
-                                    if (uploadItem) {
-                                        return (
-                                            <motion.div
-                                                className="min-w-0"
-                                                // A new upload appears mid-listing, so it always fades
-                                                // itself in (the grid glides the others aside) — not
-                                                // gated on the folder's one-shot reveal.
-                                                initial={{opacity: 0, scale: 0.96}}
-                                                animate={{opacity: 1, scale: 1}}
-                                                transition={{
-                                                    duration: 0.18,
-                                                    ease: [0.4, 0, 0.2, 1],
-                                                }}
-                                            >
-                                                <UploadTile
-                                                    item={uploadItem}
-                                                    onRetry={onRetryUpload}
-                                                    onDismiss={onDismissUpload}
-                                                />
-                                            </motion.div>
-                                        )
-                                    }
-                                    const open = () => onSelect(n.path)
-                                    const file = recentsByPath.get(n.path)
-                                    const resolved = drive.resolveMount(n.path)
-                                    const content = n.isFolder ? (
-                                        <DriveItemContextMenu
-                                            path={n.path}
-                                            isFolder
-                                            onOpen={open}
-                                            onCopyPath={copyPath}
-                                            onDownload={download}
-                                        >
-                                            <FolderTile node={n} onOpen={open} />
-                                        </DriveItemContextMenu>
-                                    ) : (
-                                        <DriveItemContextMenu
-                                            path={n.path}
-                                            isFolder={false}
-                                            onOpen={open}
-                                            onCopyPath={copyPath}
-                                            onDownload={download}
-                                        >
-                                            <DriveFileRow
-                                                variant="tile"
+                            {view === "list" ? (
+                                <FolderList
+                                    nodes={entries}
+                                    selectedPath={selectedPath}
+                                    onOpen={onSelect}
+                                    onCopyPath={copyPath}
+                                    onDownload={download}
+                                    writes={writes}
+                                />
+                            ) : (
+                                <VirtualTileGrid
+                                    items={entries}
+                                    autoFocus={autoFocus}
+                                    autoFocusKey={folderPath}
+                                    anticipateShift={anticipateShift}
+                                    // Responsive tiles, windowed so a folder with thousands of children
+                                    // stays smooth.
+                                    minColumnWidth={132}
+                                    estimateRowHeight={124}
+                                    thumbAspect={0}
+                                    gap={4}
+                                    className="px-5 pb-6 pt-4"
+                                    // Arrow keys rove the tiles (handled in VirtualTileGrid); Cmd/Ctrl+↓
+                                    // opens the focused item (folder → drill in, file → preview), Cmd/Ctrl+↑
+                                    // steps OUT to the current folder's parent (Finder-style).
+                                    onMetaActivate={(n) => onSelect(n.path)}
+                                    onMetaBack={() => onSelect(parentOf(folderPath))}
+                                    getKey={(n) => n.path}
+                                    renderTile={(n) => {
+                                        // Staged ghost tile (synthetic node) — awaiting a destination, no
+                                        // progress yet. Fades itself in like the upload tile.
+                                        const stagedItem = stagedByPath.get(n.path)
+                                        if (stagedItem) {
+                                            return (
+                                                <motion.div
+                                                    className="min-w-0"
+                                                    initial={{opacity: 0, scale: 0.96}}
+                                                    animate={{opacity: 1, scale: 1}}
+                                                    transition={{
+                                                        duration: 0.18,
+                                                        ease: [0.4, 0, 0.2, 1],
+                                                    }}
+                                                >
+                                                    <StagedTile
+                                                        item={stagedItem}
+                                                        onRemove={onRemoveStaged}
+                                                    />
+                                                </motion.div>
+                                            )
+                                        }
+                                        // In-flight upload: this is a REAL node (injected into the tree),
+                                        // drawn as a progress/error tile instead of a plain file.
+                                        const uploadItem = pendingUploadByPath?.get(n.path)
+                                        if (uploadItem) {
+                                            return (
+                                                <motion.div
+                                                    className="min-w-0"
+                                                    // A new upload appears mid-listing, so it always fades
+                                                    // itself in (the grid glides the others aside) — not
+                                                    // gated on the folder's one-shot reveal.
+                                                    initial={{opacity: 0, scale: 0.96}}
+                                                    animate={{opacity: 1, scale: 1}}
+                                                    transition={{
+                                                        duration: 0.18,
+                                                        ease: [0.4, 0, 0.2, 1],
+                                                    }}
+                                                >
+                                                    <UploadTile
+                                                        item={uploadItem}
+                                                        onRetry={onRetryUpload}
+                                                        onDismiss={onDismissUpload}
+                                                    />
+                                                </motion.div>
+                                            )
+                                        }
+                                        const open = () => onSelect(n.path)
+                                        const content = (
+                                            <DriveItemContextMenu
                                                 path={n.path}
-                                                file={
-                                                    resolved && file
-                                                        ? {...file, path: resolved.path}
-                                                        : file
-                                                }
-                                                mount={resolved?.mount ?? drive.mount}
-                                                showOrigin={showOrigin}
-                                                hideFolder
-                                                trailing={humanSize(n.size)}
-                                                recent={
-                                                    file
-                                                        ? isRecentlyChanged(file.touchedAt, now)
-                                                        : false
-                                                }
+                                                isFolder={n.isFolder}
                                                 onOpen={open}
-                                            />
-                                        </DriveItemContextMenu>
-                                    )
-                                    // One-shot staggered entrance (see gridRevealNow) — cascades the
-                                    // tiles in by index when the level first reveals; `min-w-0` keeps
-                                    // the wrapper a shrinkable grid cell so tiles don't overflow.
-                                    // Folder tiles are drop targets: spring-load + upload, with a
-                                    // ring while hovered.
-                                    const folderDrop =
-                                        n.isFolder && drop
-                                            ? drop.folderDropProps(n.path)
-                                            : undefined
-                                    return (
-                                        <motion.div
-                                            className={`min-w-0 rounded-lg ${
-                                                drop?.hoverPath === n.path
-                                                    ? "ring-2 ring-colorPrimary"
-                                                    : ""
-                                            }`}
-                                            {...folderDrop}
-                                            {...revealFade(gridRevealNow)}
-                                        >
-                                            {content}
-                                        </motion.div>
-                                    )
-                                }}
-                            />
+                                                onCopyPath={copyPath}
+                                                onDownload={download}
+                                                writes={writes}
+                                            >
+                                                {n.isFolder ? (
+                                                    <FolderTile
+                                                        node={n}
+                                                        selected={n.path === selectedPath}
+                                                        onOpen={open}
+                                                    />
+                                                ) : (
+                                                    <FileTile
+                                                        node={n}
+                                                        selected={n.path === selectedPath}
+                                                        onOpen={open}
+                                                    />
+                                                )}
+                                            </DriveItemContextMenu>
+                                        )
+                                        // One-shot staggered entrance (see gridRevealNow) — cascades the
+                                        // tiles in by index when the level first reveals; `min-w-0` keeps
+                                        // the wrapper a shrinkable grid cell so tiles don't overflow.
+                                        // Folder tiles are drop targets: spring-load + upload, with a
+                                        // ring while hovered.
+                                        const folderDrop =
+                                            n.isFolder && drop
+                                                ? drop.folderDropProps(n.path)
+                                                : undefined
+                                        return (
+                                            <motion.div
+                                                className={`min-w-0 rounded-lg ${
+                                                    drop?.hoverPath === n.path
+                                                        ? "ring-2 ring-colorPrimary"
+                                                        : ""
+                                                }`}
+                                                {...folderDrop}
+                                                {...revealFade(gridRevealNow)}
+                                            >
+                                                {content}
+                                            </motion.div>
+                                        )
+                                    }}
+                                />
+                            )}
                         </motion.div>
                     ) : showSkeleton ? (
                         <motion.div
@@ -377,11 +385,20 @@ export const FolderView = ({
                     ) : loading ? null : (
                         <motion.div
                             key="empty"
-                            className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-8 text-center"
+                            className="absolute inset-0 flex flex-col items-center justify-center"
                             {...PANE_FADE}
                         >
-                            <Tray size={26} className="text-colorTextQuaternary" />
-                            <div className="text-xs font-medium">Empty folder</div>
+                            <Empty className="gap-1.5 p-8">
+                                <EmptyHeader className="gap-1">
+                                    <EmptyMedia variant="icon">
+                                        <Folder size={28} />
+                                    </EmptyMedia>
+                                    <EmptyTitle className="text-[13px]">Nothing here</EmptyTitle>
+                                    <EmptyDescription className="text-xs">
+                                        Drop files to upload, or use Upload.
+                                    </EmptyDescription>
+                                </EmptyHeader>
+                            </Empty>
                         </motion.div>
                     )}
                 </AnimatePresence>

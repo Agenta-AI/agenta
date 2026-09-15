@@ -1,19 +1,116 @@
+import {Fragment} from "react"
+
 import {driveRootLabel} from "@agenta/entities/drive"
+import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+    Button,
+} from "@agenta/ui/ui"
 import {House} from "@phosphor-icons/react"
+
+import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 
 /** Clickable path breadcrumb: each folder segment (and the home root) navigates via `onNavigate`
  * (a folder path, "" = root). The last segment is the current file/folder (plain). Scrolls
- * horizontally rather than truncating, so every part stays reachable. */
+ * horizontally rather than truncating, so every part stays reachable.
+ *
+ * `variant="icons"` is the Files pane's row-1 crumb: a house root labelled "All files" when it
+ * stands alone, an open-folder glyph per folder, the typed mark for a file leaf, the leaf at
+ * weight 500. The default variant is unchanged — the chat file palette renders it too. */
 export const DriveBreadcrumb = ({
     shown,
     rootLabel,
     onNavigate,
+    variant = "default",
+    isFile = false,
 }: {
     shown: string
     rootLabel: string
     onNavigate: (folderPath: string) => void
+    variant?: "default" | "icons"
+    /** The leaf is a file (icons variant draws its type mark instead of a folder). */
+    isFile?: boolean
 }) => {
     const segs = shown.split("/").filter(Boolean)
+    if (variant === "icons") {
+        // A crumb link is the kit's ghost button at the row's own type size. `inline-flex` restated:
+        // BreadcrumbLink's own `inline-block` would otherwise stack the glyph over the label.
+        const crumbLink =
+            "inline-flex h-auto items-center gap-1.5 px-1.5 py-[3px] text-[13px] font-normal text-colorTextSecondary"
+        return (
+            <Breadcrumb
+                className="min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                title={shown}
+            >
+                <BreadcrumbList className="flex-nowrap gap-0.5 whitespace-nowrap text-[13px] sm:gap-0.5">
+                    <BreadcrumbItem>
+                        {segs.length === 0 ? (
+                            <BreadcrumbPage className="flex h-auto items-center gap-1.5 px-1.5 py-[3px] font-medium">
+                                <House size={15} />
+                                All files
+                            </BreadcrumbPage>
+                        ) : (
+                            <BreadcrumbLink asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => onNavigate("")}
+                                    aria-label="All files"
+                                    title={rootLabel}
+                                    className={crumbLink}
+                                >
+                                    <House size={15} />
+                                </Button>
+                            </BreadcrumbLink>
+                        )}
+                    </BreadcrumbItem>
+                    {segs.map((seg, i) => {
+                        const path = segs.slice(0, i + 1).join("/")
+                        const isLast = i === segs.length - 1
+                        return (
+                            <Fragment key={path}>
+                                <BreadcrumbSeparator className="mx-0.5 h-auto text-colorTextQuaternary" />
+                                <BreadcrumbItem>
+                                    {isLast ? (
+                                        <BreadcrumbPage
+                                            className={`flex h-auto items-center gap-1.5 px-1.5 py-[3px] ${isFile ? "" : "font-medium"}`}
+                                        >
+                                            {isFile ? (
+                                                <DriveTypeMark path={path} size="mini" />
+                                            ) : (
+                                                <DriveFolderGlyph open size={15} />
+                                            )}
+                                            {seg}
+                                        </BreadcrumbPage>
+                                    ) : (
+                                        <BreadcrumbLink asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => onNavigate(path)}
+                                                className={crumbLink}
+                                            >
+                                                <DriveFolderGlyph
+                                                    open
+                                                    size={15}
+                                                    className="!text-current"
+                                                />
+                                                {seg}
+                                            </Button>
+                                        </BreadcrumbLink>
+                                    )}
+                                </BreadcrumbItem>
+                            </Fragment>
+                        )
+                    })}
+                </BreadcrumbList>
+            </Breadcrumb>
+        )
+    }
     return (
         <div
             className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-xs text-colorTextTertiary"

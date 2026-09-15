@@ -1,3 +1,5 @@
+import {Fragment} from "react"
+
 import {ChevronDown} from "lucide-react"
 
 import {SkeletonBlock} from "../components/ui/skeleton"
@@ -54,6 +56,7 @@ export const ListTable = <Row,>({
     rowKey,
     renderRow,
     onOpenRow,
+    wrapRow,
     minWidth = 572,
     loading = false,
     skeletonRows = 5,
@@ -109,12 +112,19 @@ export const ListTable = <Row,>({
                     style={{gridTemplateColumns: grid}}
                 >
                     {columns.map((column) => (
+                        // The cell stays in the grid flow even when its label is for screen
+                        // readers only: `sr-only` is `position: absolute`, and an absent cell
+                        // would shift every header after it one track to the left.
                         <span
                             key={column.key}
                             role="columnheader"
-                            className={cn(column.srOnly && "sr-only", column.headerClassName)}
+                            className={column.headerClassName}
                         >
-                            {column.label}
+                            {column.srOnly ? (
+                                <span className="sr-only">{column.label}</span>
+                            ) : (
+                                column.label
+                            )}
                         </span>
                     ))}
                 </div>
@@ -211,49 +221,58 @@ export const ListTable = <Row,>({
                                     </p>
                                 )}
 
-                                {(collapsed ? [] : group.rows).map((row) => (
+                                {(collapsed ? [] : group.rows).map((row) => {
                                     // Not a <button>: a row often carries a control of its own,
                                     // and a button inside a button is invalid HTML that browsers
                                     // repair by dropping one of them.
-                                    <div
-                                        key={rowKey(row)}
-                                        role={onOpenRow ? "button" : undefined}
-                                        tabIndex={onOpenRow ? 0 : undefined}
-                                        onClick={onOpenRow ? () => onOpenRow(row) : undefined}
-                                        onKeyDown={
-                                            onOpenRow
-                                                ? (event) => {
-                                                      if (
-                                                          event.key !== "Enter" &&
-                                                          event.key !== " "
-                                                      )
-                                                          return
-                                                      event.preventDefault()
-                                                      onOpenRow(row)
-                                                  }
-                                                : undefined
-                                        }
-                                        className={cn(
-                                            // `group`, so a cell can reveal a control on the
-                                            // ROW's hover rather than on its own — a pin that
-                                            // appears only while the pointer is inside its own
-                                            // cell is one you have to find before you can see it.
-                                            // The fill reaches 12px past the text on each side
-                                            // while the text itself stays on the table's edge:
-                                            // the row's BOX grows by the same 12px its padding
-                                            // gives back, so its content box — and so its grid
-                                            // tracks — stay identical to the header's.
-                                            "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
-                                            rowPad,
-                                            "-mx-3 w-[calc(100%+1.5rem)] px-3",
-                                            onOpenRow && "cursor-pointer hover:bg-accent/60",
-                                            onOpenRow && FOCUS_RING,
-                                        )}
-                                        style={{gridTemplateColumns: grid}}
-                                    >
-                                        {renderRow(row)}
-                                    </div>
-                                ))}
+                                    const rowNode = (
+                                        <div
+                                            key={rowKey(row)}
+                                            role={onOpenRow ? "button" : undefined}
+                                            tabIndex={onOpenRow ? 0 : undefined}
+                                            onClick={onOpenRow ? () => onOpenRow(row) : undefined}
+                                            onKeyDown={
+                                                onOpenRow
+                                                    ? (event) => {
+                                                          if (
+                                                              event.key !== "Enter" &&
+                                                              event.key !== " "
+                                                          )
+                                                              return
+                                                          event.preventDefault()
+                                                          onOpenRow(row)
+                                                      }
+                                                    : undefined
+                                            }
+                                            className={cn(
+                                                // `group`, so a cell can reveal a control on the
+                                                // ROW's hover rather than on its own — a pin that
+                                                // appears only while the pointer is inside its own
+                                                // cell is one you have to find before you can see it.
+                                                // The fill reaches 12px past the text on each side
+                                                // while the text itself stays on the table's edge:
+                                                // the row's BOX grows by the same 12px its padding
+                                                // gives back, so its content box — and so its grid
+                                                // tracks — stay identical to the header's.
+                                                "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
+                                                rowPad,
+                                                "-mx-3 w-[calc(100%+1.5rem)] px-3",
+                                                onOpenRow && "cursor-pointer hover:bg-accent/60",
+                                                onOpenRow && FOCUS_RING,
+                                            )}
+                                            style={{gridTemplateColumns: grid}}
+                                        >
+                                            {renderRow(row)}
+                                        </div>
+                                    )
+                                    return wrapRow ? (
+                                        <Fragment key={rowKey(row)}>
+                                            {wrapRow(row, rowNode)}
+                                        </Fragment>
+                                    ) : (
+                                        rowNode
+                                    )
+                                })}
                             </div>
                         )
                     })

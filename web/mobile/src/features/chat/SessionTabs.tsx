@@ -7,7 +7,7 @@ import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
-import {ChevronsLeft, ChevronsRight} from "lucide-react"
+import {ChevronsRight, PanelRight, PanelRightClose} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -55,7 +55,10 @@ export const SessionTabs = ({
     const startBlank = useStartBlankSession(base)
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
     const [configCollapsed, setConfigCollapsed] = useAtom(configPanelCollapsedAtom)
-    const {open: filesOpen, openPane} = useSessionFilesPane(agentId ?? sessionId, sessionId)
+    const {open: filesOpen, toggle: toggleFiles} = useSessionFilesPane(
+        agentId ?? sessionId,
+        sessionId,
+    )
     // Key leads with `session-stream`: a rename patches by key PREFIX, so a nested key never
     // matches and the title lags. The singular GET redirects onto the web app, so POST it.
     const query = useQuery({
@@ -131,40 +134,46 @@ export const SessionTabs = ({
                     ) : undefined
                 }
                 extra={
-                    chatMaximized ? undefined : (
-                        <>
-                            <InspectSessionButton sessionId={sessionId} />
-                            {/* Same slot and order as the desktop bar: inspector, history, then
-                                the files opener at the right edge the pane expands from. */}
-                            <SessionHistoryMenu
-                                agentId={agentId}
-                                base={base}
-                                activeSessionId={sessionId}
-                            />
-                            {filesOpen ? null : (
-                                <SimpleTooltip
-                                    title={
-                                        <span className="flex items-center gap-1.5">
-                                            Show files{" "}
-                                            <ShortcutKeys id="panel.files" tone="inverse" />
-                                        </span>
-                                    }
-                                    side="left"
-                                >
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label="Show files pane"
-                                        aria-keyshortcuts={shortcutAria("panel.files")}
-                                        onClick={openPane}
-                                        className="h-7 w-7 shrink-0 p-0"
-                                    >
-                                        <ChevronsLeft size={14} />
-                                    </Button>
-                                </SimpleTooltip>
-                            )}
-                        </>
-                    )
+                    <>
+                        {chatMaximized ? null : (
+                            <>
+                                <InspectSessionButton sessionId={sessionId} />
+                                {/* Same slot and order as the desktop bar: inspector, history,
+                                    then the files toggle at the right edge the pane expands from. */}
+                                <SessionHistoryMenu
+                                    agentId={agentId}
+                                    base={base}
+                                    activeSessionId={sessionId}
+                                />
+                            </>
+                        )}
+                        {/* One fixed icon that shows the state and flips it — it stays put in
+                            both modes, since the pane can be open in either. */}
+                        <SimpleTooltip
+                            title={
+                                <span className="flex items-center gap-1.5">
+                                    {filesOpen ? "Hide files" : "Show files"}{" "}
+                                    <ShortcutKeys id="panel.files" tone="inverse" />
+                                </span>
+                            }
+                        >
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={filesOpen ? "Hide files pane" : "Show files pane"}
+                                aria-pressed={filesOpen}
+                                aria-keyshortcuts={shortcutAria("panel.files")}
+                                onClick={toggleFiles}
+                                className={`h-7 w-7 shrink-0 p-0 ${filesOpen ? "text-foreground" : "text-muted-foreground"}`}
+                            >
+                                {filesOpen ? (
+                                    <PanelRightClose size={14} />
+                                ) : (
+                                    <PanelRight size={14} />
+                                )}
+                            </Button>
+                        </SimpleTooltip>
+                    </>
                 }
             />
         </>

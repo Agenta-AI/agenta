@@ -34,6 +34,14 @@ export interface SplitPaneProps {
     resizable?: boolean
     /** Transition the driven pane's flex-basis (240ms, the playground curve). */
     animate?: boolean
+    /**
+     * Fade the pane's content out with a close (opacity only; a blur over a pane this size costs
+     * a GPU pass per frame for little). The content still translates out under the closing edge
+     * — this softens the clip rather than replacing the motion. An open shows the content at
+     * once: fading it in lagged the slide by the mount's own render and read as a load, not a
+     * reveal.
+     */
+    revealContent?: boolean
     /** Collapse the divider to zero width (collapsed rail). It stays MOUNTED and, while
      * `animate`, closes on the same curve as the driven pane — unmounting it moved the fill 9px in
      * the first frame of a collapse, which read as a snap before the slide. */
@@ -147,6 +155,7 @@ export function SplitPane({
     fillMin = 0,
     resizable = true,
     animate = false,
+    revealContent = false,
     barHidden = false,
     paneGrow = false,
     barLabel = "Resize panes",
@@ -205,6 +214,7 @@ export function SplitPane({
         // Seed the total up front: a press-and-release with no movement never reaches
         // `handlePointerMove`, and a `total` of 0 breaks any ratio the caller derives from it.
         lastRef.current = {size: paneSize, total: readTotal()}
+        draggingRef.current = true
         setDragging(true)
         onResizeStart?.()
     }
@@ -219,16 +229,38 @@ export function SplitPane({
                 : rect.right - e.clientX - barWidth / 2
         commit(clamp(Math.round(raw), total), total)
     }
-    /** `pointerup` and `pointercancel` (scroll takeover, browser gesture) share one exit — without
-     * it a cancelled pointer leaves `dragging` stuck true and `onResizeEnd` never fires. */
+    /** One idempotent exit for every way a drag can end: the divider's own `pointerup` /
+     * `pointercancel`, or — when the divider is gone before the pointer lifts (the pane toggled
+     * shut by a shortcut mid-drag, the window losing focus) — the window-level listeners below.
+     * A stuck `dragging` is not cosmetic: it disables the pane's open/close slide for good. */
+    const draggingRef = React.useRef(false)
+    const finishDrag = React.useCallback(() => {
+        if (!draggingRef.current) return
+        draggingRef.current = false
+        setDragging(false)
+        onResizeEnd?.(lastRef.current.size, lastRef.current.total)
+    }, [onResizeEnd])
     const handlePointerFinish = (e: React.PointerEvent<HTMLDivElement>) => {
-        if (!dragging) return
         if (e.currentTarget.hasPointerCapture(e.pointerId)) {
             e.currentTarget.releasePointerCapture(e.pointerId)
         }
-        setDragging(false)
-        onResizeEnd?.(lastRef.current.size, lastRef.current.total)
+        finishDrag()
     }
+    React.useEffect(() => {
+        if (!dragging) return
+        window.addEventListener("pointerup", finishDrag)
+        window.addEventListener("pointercancel", finishDrag)
+        window.addEventListener("blur", finishDrag)
+        return () => {
+            window.removeEventListener("pointerup", finishDrag)
+            window.removeEventListener("pointercancel", finishDrag)
+            window.removeEventListener("blur", finishDrag)
+        }
+    }, [dragging, finishDrag])
+    // A pane that stops being resizable (closed under the pointer) ends any drag with it.
+    React.useEffect(() => {
+        if (!resizable) finishDrag()
+    }, [resizable, finishDrag])
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
         if (!resizable) return
@@ -267,6 +299,12 @@ export function SplitPane({
     if (paneSize > 0) lastOpenSizeRef.current = paneSize
     const sliding = animate && !dragging
     const slideMs = paneSlideMs()
+    const revealStyle: React.CSSProperties | undefined = revealContent
+        ? {
+              opacity: paneSize > 0 ? 1 : 0,
+              transition: sliding ? `opacity ${slideMs}ms ${PANE_SLIDE_CURVE}` : undefined,
+          }
+        : undefined
 
     const paneNode = (
         <div
@@ -297,14 +335,15 @@ export function SplitPane({
             <div
                 data-slot="split-pane-pane-content"
                 className={cn("h-full min-h-0", sliding && "absolute inset-y-0")}
-                style={
-                    sliding
+                style={{
+                    ...(sliding
                         ? {
                               width: lastOpenSizeRef.current,
                               ...(paneSide === "start" ? {right: 0} : {left: 0}),
                           }
-                        : {width: "100%"}
-                }
+                        : {width: "100%"}),
+                    ...revealStyle,
+                }}
             >
                 {pane}
             </div>

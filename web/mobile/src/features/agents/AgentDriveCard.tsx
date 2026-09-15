@@ -1,23 +1,22 @@
-import {useMemo, useState} from "react"
+import {useMemo} from "react"
 
-import {AGENT_FILES_DIR, agentMountQueryFamily, useSessionDrive} from "@agenta/entities/drive"
+import {AGENT_FILES_DIR, agentMountQueryFamily} from "@agenta/entities/drive"
 import {latestMountFilesQueryFamily, type MountFile} from "@agenta/entities/session"
-import {File, Folder} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
-import dynamic from "next/dynamic"
+import {
+    DriveFolderGlyph,
+    DriveTypeMark,
+    driveQuickLookAtomFamily,
+    sessionFilesPaneOpenAtomFamily,
+} from "@agenta/entity-ui/drive"
+import {useAtomValue, useStore} from "jotai"
+
+import {useStartBlankSession} from "../chat/useStartBlankSession"
 
 import {AgentOverviewCard} from "./AgentOverviewCard"
 import {AgentOverviewCardRow} from "./AgentOverviewCardRow"
 import {AgentOverviewCardSkeleton} from "./states/AgentOverviewCardSkeleton"
 
-// The whole drive explorer, pulled in only once the drawer is actually opened.
-const FilesDrawer = dynamic(
-    () => import("@agenta/entity-ui/drive").then((mod) => mod.FilesDrawer),
-    {ssr: false},
-)
-
-const ICON = 14
-/** The card shows this many, newest first, and never more: the drawer is where the whole drive lives. */
+/** The card shows this many, newest first, and never more: the Files pane is where the whole drive lives. */
 const LIMIT = 5
 
 const formatSize = (bytes: number | null | undefined): string | null => {
@@ -36,11 +35,13 @@ const fileDetail = (file: MountFile): string | null =>
 
 /**
  * The agent's OWN drive — the files it carries between runs, not a session's scratch mount. The
- * same mount and file queries the shared card reads, so this and the drawer share one cache.
+ * same mount and file queries the shared card reads, so this and the Files pane share one cache.
+ * Opening a file (or "Open files") starts a session for the agent with the docked pane already
+ * on it — the overview has no pane of its own.
  */
-export const AgentDriveCard = ({agentId}: {agentId: string}) => {
-    const [openPath, setOpenPath] = useState<string | null>(null)
-    const [open, setOpen] = useState(false)
+export const AgentDriveCard = ({agentId, base}: {agentId: string; base: string}) => {
+    const store = useStore()
+    const startBlank = useStartBlankSession(base)
 
     const mountsAtom = useMemo(() => agentMountQueryFamily(agentId), [agentId])
     const mounts = useAtomValue(mountsAtom)
@@ -51,15 +52,16 @@ export const AgentDriveCard = ({agentId}: {agentId: string}) => {
         [mountId],
     )
     const files = useAtomValue(filesAtom)
-    // No session id: only the agent mount loads, and only once the drawer is open.
-    const drive = useSessionDrive("", open ? agentId : undefined)
 
     const rows: MountFile[] = files.data?.files ?? []
     const isPending = mounts.isPending || (Boolean(mountId) && files.isPending)
 
+    // Seed the pane's state BEFORE the route changes: the pane's open flag is keyed by the agent
+    // (the workspace's scope) and a quick look by the new session, both read on mount.
     const openDrive = (path: string | null) => {
-        setOpenPath(path)
-        setOpen(true)
+        const sessionId = startBlank(agentId)
+        store.set(sessionFilesPaneOpenAtomFamily(agentId), true)
+        if (path) store.set(driveQuickLookAtomFamily(sessionId), {path})
     }
 
     return (
@@ -80,7 +82,14 @@ export const AgentDriveCard = ({agentId}: {agentId: string}) => {
                 rows.map((file) => (
                     <AgentOverviewCardRow
                         key={file.path}
-                        icon={file.is_folder ? <Folder size={ICON} /> : <File size={ICON} />}
+                        // The Files pane's own marks, so the card and the pane read as one drive.
+                        icon={
+                            file.is_folder ? (
+                                <DriveFolderGlyph size={16} />
+                            ) : (
+                                <DriveTypeMark path={file.path} size="mini" />
+                            )
+                        }
                         label={file.path.split("/").filter(Boolean).pop() || file.path}
                         detail={fileDetail(file)}
                         title={file.path}
@@ -90,22 +99,6 @@ export const AgentDriveCard = ({agentId}: {agentId: string}) => {
                     />
                 ))
             )}
-
-            {open ? (
-                <FilesDrawer
-                    open={open}
-                    onClose={() => {
-                        setOpen(false)
-                        setOpenPath(null)
-                    }}
-                    drive={drive}
-                    scope="app"
-                    initialPath={openPath}
-                    driveIds={
-                        mountId ? [{key: "mount", label: "Drive ID", value: mountId}] : undefined
-                    }
-                />
-            ) : null}
         </AgentOverviewCard>
     )
 }

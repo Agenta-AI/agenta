@@ -68,7 +68,7 @@ export function PalettePanel({
                 </div>
             ) : null}
             {/* ~8 rows: enough to browse a level, short enough to leave the transcript readable. */}
-            <div className="max-h-[220px] overflow-y-auto pb-1">
+            <div className="max-h-[220px] overflow-y-auto py-1.5">
                 {isEmpty && loading ? (
                     <ShimmerRows />
                 ) : isEmpty ? (
@@ -79,9 +79,10 @@ export function PalettePanel({
                     </div>
                 ) : (
                     sections.map((section) => (
-                        <div key={section.key}>
+                        <div key={section.key} className="group">
+                            {/* The list's own inset already spaces the first heading off the header. */}
                             {section.title ? (
-                                <div className="px-[15px] pb-[5px] pt-[10px] text-[9.5px] font-medium uppercase leading-none tracking-[.1em] text-[var(--ag-colorTextTertiary)]">
+                                <div className="px-[15px] pb-[5px] pt-[10px] text-[9.5px] font-medium uppercase leading-none tracking-[.1em] text-[var(--ag-colorTextTertiary)] group-first:pt-1">
                                     {section.title}
                                 </div>
                             ) : null}

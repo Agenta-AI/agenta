@@ -7,6 +7,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {type Mount} from "@agenta/entities/session"
 
 import {uploadMountFile} from "./driveMedia"
+import {refreshMountListing} from "./driveWrites"
 import {type DroppedFile} from "./dropEntries"
 import {useImagePreviews} from "./useImagePreviews"
 
@@ -90,12 +91,10 @@ export function useMountUpload(onUploaded?: (path: string) => void): MountUpload
         setItems((prev) => prev.map((it) => (it.id === id ? {...it, ...next} : it)))
     }, [])
 
-    const refreshListing = useCallback(() => {
-        // Prefix-match every mount file-query root for the project (dir listing, root, latest, summary).
-        for (const root of ["files", "files-latest", "files-root", "files-dir"]) {
-            void queryClient.invalidateQueries({queryKey: ["mounts", root, projectId]})
-        }
-    }, [queryClient, projectId])
+    const refreshListing = useCallback(
+        () => refreshMountListing(queryClient, projectId ?? ""),
+        [queryClient, projectId],
+    )
 
     const run = useCallback(
         (id: string) => {
