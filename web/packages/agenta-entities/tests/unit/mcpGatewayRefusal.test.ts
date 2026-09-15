@@ -1,5 +1,6 @@
 import {describe, expect, it} from "vitest"
 
+import {McpProtocolError} from "../../src/mcpEndpoint/core/mcpRpc"
 import {gatewayRefusalMessage, isNameTakenRefusal} from "../../src/mcpEndpoint/core/refusal"
 
 describe("gatewayRefusalMessage", () => {
@@ -39,6 +40,30 @@ describe("gatewayRefusalMessage", () => {
         const error = {response: {data: {detail: {message: "Endpoint is inactive."}}}}
 
         expect(gatewayRefusalMessage(error)).toBe("Endpoint is inactive.")
+    })
+
+    it("reads the data plane's JSON-RPC refusal, which carries no `detail`", () => {
+        const error = Object.assign(new Error("Request failed with status code 403"), {
+            response: {
+                data: {
+                    jsonrpc: "2.0",
+                    id: null,
+                    error: {
+                        code: -32000,
+                        message: "The MCP gateway is disabled on this deployment.",
+                        data: {cause: "mcp_gateway_disabled"},
+                    },
+                },
+            },
+        })
+
+        expect(gatewayRefusalMessage(error)).toBe("The MCP gateway is disabled on this deployment.")
+    })
+
+    it("keeps the wording of a failure this package's own MCP client already read", () => {
+        expect(
+            gatewayRefusalMessage(new McpProtocolError("This connection needs authorization.")),
+        ).toBe("This connection needs authorization.")
     })
 
     it("returns null when the server wrote nothing, so the caller keeps its own wording", () => {

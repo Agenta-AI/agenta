@@ -2,6 +2,16 @@
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 
 import type {McpToolSummary} from "../core/connectJourney"
+import {
+    jsonRpcErrorMessage,
+    jsonRpcResult,
+    MCP_ACCEPT,
+    MCP_PROTOCOL_VERSION,
+    MCP_PROTOCOL_VERSION_HEADER,
+    McpProtocolError,
+    readToolPage,
+} from "../core/mcpRpc"
+import {gatewayRefusalMessage} from "../core/refusal"
 import type {
     MCPConnectResponse,
     MCPEndpointCreate,
@@ -131,51 +141,101 @@ export const queryMcpEndpoints = async (projectId?: string): Promise<MCPEndpoint
 }
 
 /**
+ * A page cap on `tools/list`, so a server that keeps handing back a cursor cannot hold the
+ * dialog open forever. Well past any real catalogue; it is a stop, not a budget.
+ */
+const MAX_TOOL_PAGES = 20
+
+/** The reason a data-plane call failed, in the words of whoever refused it. */
+const relayFailure = (error: unknown, method: string): McpProtocolError => {
+    if (error instanceof McpProtocolError) return error
+    const body = (error as {response?: {data?: unknown}} | null | undefined)?.response?.data
+    const stated = gatewayRefusalMessage(error) ?? jsonRpcErrorMessage(body)
+    return new McpProtocolError(stated ?? `The server did not answer ${method}.`)
+}
+
+/**
  * The tools one connected server exposes.
  *
  * There is no control-plane route for this, so it goes through the JSON-RPC data plane the
  * agents use. That plane reads `X-AG-Credentials` and ignores `Authorization`, so a
- * gateway-audience credential is minted first. Two calls, because `tools/list` is only
- * meaningful after the handshake, and a stateful server answers the first with a session id
- * the second has to carry.
+ * gateway-audience credential is minted first.
+ *
+ * The handshake is the full one the specification requires, and the same one
+ * `services/runner/src/extensions/pi-mcp.ts` speaks: `initialize`, then the
+ * `notifications/initialized` that completes it, and only then `tools/list`. A server that
+ * enforces the notification answers a client that skips it with a protocol error rather
+ * than a catalogue. The negotiated version rides on every later call, a stateful server's
+ * session id is carried back, and the pages a cursor announces are followed.
+ *
+ * Nothing here converts a failure into an empty list: a server with no tools and a
+ * conversation that broke are different answers, and only the first is safe to show as a
+ * connected server with nothing to restrict.
  */
 export const listMcpTools = async (slug: string, projectId?: string): Promise<McpToolSummary[]> => {
     const params = projectId ? {project_id: projectId} : undefined
     const minted = await axios.post(`${getAgentaApiUrl()}/gateways/credentials`, {}, {params})
     const credentials = minted.data?.credentials
-    if (!credentials) throw new Error("Could not authorize the tool list request.")
+    if (!credentials) throw new McpProtocolError("Could not authorize the tool list request.")
 
     const url = `${getAgentaApiUrl()}${BASE.replace("/endpoints", "")}/custom/${slug}`
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
+        Accept: MCP_ACCEPT,
         "X-AG-Credentials": credentials,
     }
 
-    const handshake = await axios.post(
-        url,
-        {
-            jsonrpc: "2.0",
-            id: 1,
-            method: "initialize",
-            params: {
-                protocolVersion: "2025-06-18",
-                capabilities: {},
-                clientInfo: {name: "agenta-web", version: "1"},
-            },
+    let nextId = 1
+    const call = async (method: string, body: Record<string, unknown>) => {
+        try {
+            return await axios.post(url, body, {headers, params})
+        } catch (error) {
+            throw relayFailure(error, method)
+        }
+    }
+
+    const handshake = await call("initialize", {
+        jsonrpc: "2.0",
+        id: nextId++,
+        method: "initialize",
+        params: {
+            protocolVersion: MCP_PROTOCOL_VERSION,
+            capabilities: {},
+            clientInfo: {name: "agenta-web", version: "1"},
         },
-        {headers, params},
-    )
+    })
+    const negotiated = jsonRpcResult(handshake.data, "initialize").protocolVersion
     const sessionId = handshake.headers?.["mcp-session-id"]
     if (sessionId) headers["mcp-session-id"] = String(sessionId)
+    headers[MCP_PROTOCOL_VERSION_HEADER] =
+        typeof negotiated === "string" && negotiated ? negotiated : MCP_PROTOCOL_VERSION
 
-    const listed = await axios.post(
-        url,
-        {jsonrpc: "2.0", id: 2, method: "tools/list", params: {}},
-        {headers, params},
-    )
-    const tools = listed.data?.result?.tools
-    if (!Array.isArray(tools)) return []
+    // Best effort, as in the runner's client: a notification carries no id and a server that
+    // ignores it is conforming, so only a server that needed it can be worse off for a failure
+    // here — and that server is about to say so on `tools/list`.
+    try {
+        await axios.post(
+            url,
+            {jsonrpc: "2.0", method: "notifications/initialized", params: {}},
+            {headers, params},
+        )
+    } catch {
+        // Deliberately ignored: `initialize` already proved the connection.
+    }
+
+    const tools: McpToolSummary[] = []
+    let cursor: string | null = null
+    for (let page = 0; page < MAX_TOOL_PAGES; page += 1) {
+        const listed = await call("tools/list", {
+            jsonrpc: "2.0",
+            id: nextId++,
+            method: "tools/list",
+            params: cursor ? {cursor} : {},
+        })
+        const read = readToolPage(jsonRpcResult(listed.data, "tools/list"))
+        tools.push(...read.tools)
+        if (!read.nextCursor || read.nextCursor === cursor) break
+        cursor = read.nextCursor
+    }
     return tools
-        .filter((tool): tool is {name: string; description?: string} => !!tool?.name)
-        .map((tool) => ({name: tool.name, description: tool.description}))
 }
