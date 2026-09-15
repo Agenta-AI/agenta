@@ -229,6 +229,8 @@ const TurnRowInner = ({
             {turn.status.showError ? (
                 <RunErrorCallout
                     text={turn.status.errorText ?? "Something went wrong."}
+                    // Failed before any step: nothing to hang a node on, so it is its own card.
+                    variant={activity.steps.length ? "step" : "card"}
                     onRetry={continuationRetryAction(
                         turn,
                         onRewind ? () => onRewind(turn) : undefined,

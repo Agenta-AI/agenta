@@ -1,17 +1,80 @@
 import {useState} from "react"
 
+import {Button} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 
 import {describeRunError} from "./runError"
 
-/**
- * A run that stopped: one sentence on the timeline's own terms — a node, a headline, the plain
- * reason — with the provider's full text behind "Details" and the retry beside it. Not a red
- * box: the failure is a step of the turn, and it reads like one.
- */
-export const RunErrorCallout = ({text, onRetry}: {text: string; onRetry?: () => void}) => {
+const Details = ({raw}: {raw: string | null}) => {
     const [open, setOpen] = useState(false)
+    if (!raw) return null
+    return (
+        <>
+            <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                aria-expanded={open}
+                className="cursor-pointer border-0 bg-transparent p-0 text-xs text-colorTextTertiary underline-offset-4 hover:underline"
+            >
+                {open ? "Hide details" : "Details"}
+            </button>
+            {open ? (
+                <pre className="ag-surface-inset m-0 mt-1 max-h-48 w-full overflow-auto whitespace-pre-wrap break-words rounded px-3 py-2 font-mono text-[12px] leading-relaxed text-colorTextSecondary">
+                    {raw}
+                </pre>
+            ) : null}
+        </>
+    )
+}
+
+/**
+ * A run that stopped. Two shapes, by where it stopped:
+ *
+ *  - `step` — it was working and failed partway: one more node on the timeline's wire, a
+ *    headline, the reason, the raw text behind Details. The failure reads like a step because
+ *    it was one.
+ *  - `card` — it never started (the provider refused the request before any step): there is no
+ *    wire for a node to sit on, so the failure is its own small card under the message, with
+ *    what to do about it and the retry as its one button.
+ */
+export const RunErrorCallout = ({
+    text,
+    onRetry,
+    variant = "step",
+}: {
+    text: string
+    onRetry?: () => void
+    variant?: "step" | "card"
+}) => {
     const error = describeRunError(text)
+
+    if (variant === "card") {
+        return (
+            <div className="inline-flex max-w-[520px] flex-col gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer px-3.5 py-3">
+                <div className="flex items-start gap-2.5">
+                    <WarningCircle size={18} className="mt-px shrink-0 text-colorError" />
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-sm font-medium text-colorText">
+                            Couldn&apos;t start the run
+                        </span>
+                        <p className="m-0 text-[13px] leading-relaxed text-colorTextSecondary">
+                            {error.headline}
+                            {error.remedy ? ` ${error.remedy}` : null}
+                        </p>
+                    </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 pl-7">
+                    {onRetry ? (
+                        <Button size="sm" variant="outline" onClick={onRetry}>
+                            Try again
+                        </Button>
+                    ) : null}
+                    <Details raw={error.raw} />
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="flex min-w-0 items-start gap-3.5">
             <span
@@ -31,33 +94,20 @@ export const RunErrorCallout = ({text, onRetry}: {text: string; onRetry?: () => 
                 </div>
                 <p className="m-0 max-w-[64ch] text-sm leading-relaxed text-colorTextSecondary">
                     {error.headline}
+                    {error.remedy ? ` ${error.remedy}` : null}
                 </p>
-                <div className="flex items-center gap-3 text-xs">
+                <div className="flex flex-wrap items-center gap-3">
                     {onRetry ? (
                         <button
                             type="button"
                             onClick={onRetry}
-                            className="cursor-pointer border-0 bg-transparent p-0 font-medium text-colorText underline-offset-4 hover:underline"
+                            className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-colorText underline-offset-4 hover:underline"
                         >
                             Try again
                         </button>
                     ) : null}
-                    {error.raw ? (
-                        <button
-                            type="button"
-                            onClick={() => setOpen((v) => !v)}
-                            aria-expanded={open}
-                            className="cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary underline-offset-4 hover:underline"
-                        >
-                            {open ? "Hide details" : "Details"}
-                        </button>
-                    ) : null}
+                    <Details raw={error.raw} />
                 </div>
-                {open && error.raw ? (
-                    <pre className="ag-surface-inset m-0 mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded px-3 py-2 font-mono text-[12px] leading-relaxed text-colorTextSecondary">
-                        {error.raw}
-                    </pre>
-                ) : null}
             </div>
         </div>
     )
