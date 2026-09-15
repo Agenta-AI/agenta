@@ -33,6 +33,32 @@ describe("getMcpConnectionState", () => {
     it("shows ready only for a valid configured credential", () => {
         expect(getMcpConnectionState(endpoint({secret_id: "grant-1"}))).toBe("ready")
     })
+
+    // The settings table used to answer these two from the presence of a COMPOSIO_API_KEY
+    // provider-key secret instead, which reported a dead grant as ready and a working row as
+    // needing input. Every row now reports its own state, so the cases belong here.
+    it("reads a provider-managed row from its own credential, not from a project key", () => {
+        const composio = {namespace: "standard" as const, provider_key: "composio"}
+
+        expect(getMcpConnectionState(endpoint({...composio, secret_id: "grant-1"}))).toBe("ready")
+        expect(
+            getMcpConnectionState(
+                endpoint({...composio, secret_id: "grant-1", flags: {is_valid: false}}),
+            ),
+        ).toBe("needs_auth")
+    })
+
+    it("does not call a provider-managed row ready just because it is provider-managed", () => {
+        expect(
+            getMcpConnectionState(
+                endpoint({
+                    namespace: "standard",
+                    provider_key: "composio",
+                    auth_mode: "api_key",
+                }),
+            ),
+        ).toBe("needs_input")
+    })
 })
 
 describe("getMcpConnectionStateLabel", () => {

@@ -9,7 +9,6 @@ import {
     type McpConnectionState,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
-import {SecretKind, vaultSecretsQueryAtom} from "@agenta/entities/secret"
 import {McpConnectDialog} from "@agenta/entity-ui/mcpEndpoint"
 import {useStaticTable} from "@agenta/settings"
 import {message} from "@agenta/ui"
@@ -23,7 +22,6 @@ import {PencilSimpleLine, Plug, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import ComposioProjectKey from "./ComposioProjectKey"
 import MCPEndpointDrawer from "./MCPEndpointDrawer"
 
 interface MCPEndpointRow extends MCPEndpoint {
@@ -33,22 +31,12 @@ interface MCPEndpointRow extends MCPEndpoint {
 
 const MCPEndpoints: React.FC = () => {
     const {data: endpoints, isPending: isLoading} = useAtomValue(mcpEndpointsQueryAtom)
-    const vaultSecrets = useAtomValue(vaultSecretsQueryAtom)
     const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
     const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
 
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
     const [editingEndpoint, setEditingEndpoint] = useState<MCPEndpoint | null>(null)
     const [connectingEndpoint, setConnectingEndpoint] = useState<MCPEndpoint | null>(null)
-
-    const hasComposioProjectKey = useMemo(
-        () =>
-            vaultSecrets.data?.some(
-                (secret) =>
-                    secret.type === SecretKind.ProviderKey && secret.name === "COMPOSIO_API_KEY",
-            ) ?? false,
-        [vaultSecrets.data],
-    )
 
     const handleCreate = useCallback(() => {
         setEditingEndpoint(null)
@@ -138,12 +126,7 @@ const MCPEndpoints: React.FC = () => {
                     title: "Status",
                     width: 140,
                     render: (_value, record) => {
-                        const connectionState: McpConnectionState =
-                            record.namespace === "standard" && record.provider_key === "composio"
-                                ? hasComposioProjectKey
-                                    ? "ready"
-                                    : "needs_input"
-                                : getMcpConnectionState(record)
+                        const connectionState: McpConnectionState = getMcpConnectionState(record)
                         const color =
                             connectionState === "ready"
                                 ? "success"
@@ -186,7 +169,7 @@ const MCPEndpoints: React.FC = () => {
                     ],
                 } satisfies StandardColumnDef<MCPEndpointRow>,
             ]),
-        [handleConnect, handleDelete, handleEdit, hasComposioProjectKey],
+        [handleConnect, handleDelete, handleEdit],
     )
 
     const {tableScope, pagination} = useStaticTable<MCPEndpointRow>(
@@ -199,7 +182,6 @@ const MCPEndpoints: React.FC = () => {
 
     return (
         <div className="flex flex-col gap-2">
-            <ComposioProjectKey />
             <InfiniteVirtualTableFeatureShell<MCPEndpointRow>
                 tableScope={tableScope}
                 autoHeight={false}
