@@ -24,6 +24,7 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
+import {refreshMcpEndpointsAtom, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
@@ -55,10 +56,10 @@ import {
     UploadSimple,
 } from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
-import {useAtom, useAtomValue, useStore} from "jotai"
+import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ChangedPathsProvider} from "../../drawers/shared"
-import {McpServerConnectAction} from "../../mcpEndpoint"
+import {McpConnectDialog, McpServerConnectAction} from "../../mcpEndpoint"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
@@ -203,6 +204,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const openIntegration = useCallback(() => setIntegrationDrawerOpen(true), [])
     // The integration whose permission drawer is open, addressed by provider and integration.
     const [permissionTarget, setPermissionTarget] = useState<GatewayConnectionTarget | null>(null)
+    // The MCP endpoint being authorized. Held here, not on the row: `extra` renders inside the
+    // row's own click target, and React events propagate through the React tree, so a dialog
+    // mounted there reopens the edit drawer on every click inside it — including the one that
+    // opens the consent popup, which then surfaces behind it.
+    const [connectingMcpEndpoint, setConnectingMcpEndpoint] = useState<MCPEndpoint | null>(null)
+    const refreshMcpEndpoints = useSetAtom(refreshMcpEndpointsAtom)
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
     const projectId = useAtomValue(projectIdAtom)
     // The drawer binds a project secret by slug; the endpoint row binds one by id, so the
@@ -887,7 +894,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             const server = (item ?? {}) as Record<string, unknown>
             const slug = deriveMcpEndpointSlug(String(server.name ?? ""))
             if (!slug) return undefined
-            return <McpServerConnectAction slug={slug} disabled={disabled} />
+            return (
+                <McpServerConnectAction
+                    slug={slug}
+                    disabled={disabled}
+                    onConnect={setConnectingMcpEndpoint}
+                />
+            )
         },
         [disabled],
     )
@@ -1540,6 +1553,17 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     }
                     agentPolicy={agentPermissionPolicy}
                     disabled={disabled}
+                />
+            )}
+
+            {/* One dialog for the whole section, outside the rows, so no click inside it reaches
+                a row's onClick. Rendered only while an endpoint is selected, so a list of servers
+                still carries no modal and no scope discovery request per row. */}
+            {connectingMcpEndpoint && (
+                <McpConnectDialog
+                    endpoint={connectingMcpEndpoint}
+                    onClose={() => setConnectingMcpEndpoint(null)}
+                    onSuccess={() => void refreshMcpEndpoints()}
                 />
             )}
         </div>
