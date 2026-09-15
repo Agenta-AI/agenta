@@ -13,9 +13,19 @@ from uuid import UUID, uuid4
 import pytest
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
-from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage, grant_slug
-from oss.src.core.secrets.dtos import SecretResponseDTO
+from oss.src.core.gateways.mcps.oauth.storage import (
+    SecretsTokenStorage,
+    _issuer_slug as issuer_slug_for_test,
+    grant_slug,
+)
+from oss.src.core.secrets.dtos import (
+    OAuthProviderDTO,
+    OAuthProviderSettingsDTO,
+    SecretResponseDTO,
+)
+from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.shared.dtos import Header
 
 
 class _FakeSecretsDAO:
@@ -372,3 +382,101 @@ async def test_two_connections_at_one_authorization_server_share_one_registratio
     fetched = await storage_b.get_client_info()
     assert fetched is not None and fetched.client_id == "client-shared"
     assert dao.create_calls == 1
+
+
+# ---------------------------------------------------------------------------
+# D14: the registration is addressed, not searched for
+# ---------------------------------------------------------------------------
+
+
+class _CountingVault:
+    """Counts what the storage asked the vault for. A project listing decrypts every
+    secret the project holds, so whether one happens is the claim."""
+
+    def __init__(self, *, by_slug=None, listed=None) -> None:
+        self._by_slug = by_slug or {}
+        self._listed = listed or []
+        self.slug_reads: list = []
+        self.listings = 0
+
+    async def get_secret_by_slug(self, *, secret_slug, project_id):
+        self.slug_reads.append(secret_slug)
+        return self._by_slug.get(secret_slug)
+
+    async def list_secrets(self, *, project_id):
+        self.listings += 1
+        return list(self._listed)
+
+
+def _provider_secret(*, issuer: str, slug: str) -> SecretResponseDTO:
+    return SecretResponseDTO(
+        id=uuid4(),
+        slug=slug,
+        kind=SecretKind.OAUTH_PROVIDER,
+        header=Header(name="OAuth client"),
+        data=OAuthProviderDTO(
+            provider=OAuthProviderSettingsDTO(
+                client_id="client-1",
+                client_secret="placeholder-client-secret",
+                issuer_url=issuer,
+                scopes=["tools:call"],
+                extra={
+                    "client_info": {
+                        "client_id": "client-1",
+                        "redirect_uris": ["https://api.example.com/cb"],
+                    }
+                },
+            )
+        ),
+    )
+
+
+_ISSUER = "https://auth.example.com/"
+
+
+def _storage_over(vault) -> SecretsTokenStorage:
+    return SecretsTokenStorage(
+        vault_service=vault,
+        project_id=uuid4(),
+        server_url="https://mcp.example.com/",
+        authorization_server=_ISSUER,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_registration_is_read_by_slug_without_listing_the_project():
+    slug = issuer_slug_for_test(_ISSUER)
+    vault = _CountingVault(by_slug={slug: _provider_secret(issuer=_ISSUER, slug=slug)})
+
+    client_info = await _storage_over(vault).get_client_info()
+
+    assert client_info is not None and client_info.client_id == "client-1"
+    assert vault.slug_reads == [slug]
+    assert vault.listings == 0
+
+
+@pytest.mark.asyncio
+async def test_a_registration_stored_under_another_slug_is_still_found():
+    """The fallback is not dead code: losing track of a registration means registering a
+    fresh client at a server that may rate limit it."""
+    vault = _CountingVault(
+        listed=[_provider_secret(issuer=_ISSUER, slug="legacy-oauth-provider")]
+    )
+
+    client_info = await _storage_over(vault).get_client_info()
+
+    assert client_info is not None and client_info.client_id == "client-1"
+    assert vault.listings == 1
+
+
+@pytest.mark.asyncio
+async def test_a_row_at_the_slug_for_another_issuer_is_not_accepted():
+    """The slug is derived from the issuer, so this should not happen — but a row that
+    does not name this issuer is not this issuer's client whatever it is called."""
+    slug = issuer_slug_for_test(_ISSUER)
+    vault = _CountingVault(
+        by_slug={slug: _provider_secret(issuer="https://elsewhere/", slug=slug)}
+    )
+
+    assert await _storage_over(vault).get_client_info() is None
+    assert vault.listings == 1

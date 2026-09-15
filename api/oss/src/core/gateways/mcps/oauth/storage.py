@@ -227,7 +227,30 @@ class SecretsTokenStorage:
     # Client registration
 
     async def _find_provider(self) -> Optional[SecretResponseDTO]:
+        """The client registration for this authorization server.
+
+        A lookup first, for the same reason the grant half is one: the slug is a pure
+        function of the issuer, so the row can be addressed instead of found, and a
+        project listing decrypts every secret the project holds (D14).
+
+        The scan stays as a fallback, and is not dead code. The registration slug has
+        always been issuer-derived, but a row written under an older naming, or one whose
+        slug is absent, is still reachable by its `issuer_url`, and losing track of a
+        registration means re-registering a client at a server that may rate limit it.
+        """
         target = self.authorization_server or self.server_url
+
+        secret = await self.vault_service.get_secret_by_slug(
+            secret_slug=_issuer_slug(target),
+            project_id=self.project_id,
+        )
+        if (
+            secret is not None
+            and secret.kind == SecretKind.OAUTH_PROVIDER
+            and secret.data.provider.issuer_url == target
+        ):
+            return secret
+
         secrets = await self.vault_service.list_secrets(project_id=self.project_id)
         return next(
             (
