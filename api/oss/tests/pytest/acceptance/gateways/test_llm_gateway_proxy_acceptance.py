@@ -36,6 +36,9 @@ pytestmark = [
             "(set AGENTA_GATEWAYS_MOCKS_ENABLED=true in an OSS/EE dev compose stack)"
         ),
     ),
+    # The LLM plane ships off by default, and every route in this suite is refused while it
+    # is. `requires_llm_gateway` reads the deployment rather than this process's environment.
+    pytest.mark.usefixtures("requires_llm_gateway"),
 ]
 
 # Mock LLM upstream base URL; provider routes append their protocol path.

@@ -785,7 +785,32 @@ deprecated aliases and still work, but new configuration should use the canonica
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
+| `AGENTA_LLM_GATEWAY_ENABLED` | `llm_gateway.enabled` | `llmGateway.enabled` |
+| `AGENTA_MCP_GATEWAY_ENABLED` | `mcp_gateway.enabled` | `mcpGateway.enabled` |
+| `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` | `mcp_gateway.host_allowlist` | `mcpGateway.hostAllowlist` |
+| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `gateway_egress.insecure_allowed` | `gatewayEgress.insecureAllowed` |
 | `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | n/a (read directly by the SDK and the runner) | n/a |
+
+:::note Which gateways your deployment serves
+Agenta has two gateways, and each has its own switch.
+
+The **MCP gateway** lets an agent reach an MCP server through Agenta, so the server's
+credential stays on your deployment instead of travelling into the sandbox. It is on by
+default. `AGENTA_MCP_GATEWAY_ENABLED=false` turns it off: the API refuses every MCP gateway
+route, the MCP settings tab disappears, and an agent dials its declared MCP servers directly,
+the way it did before the gateway existed.
+
+The **LLM gateway** does the same for model calls, keeping your provider key out of the
+sandbox. It is **off** by default, because turning it on changes how every model call in the
+project is routed, and that is not a change an upgrade should make for you. While it is off,
+a model call resolves the project's stored provider key and injects it into the run, exactly
+as before. Set `AGENTA_LLM_GATEWAY_ENABLED=true` to route model calls through the gateway.
+
+Both are read by the API, which is the authority. The agent SDK carries no switch of its own:
+it asks the API and takes the older path when the API says that gateway is not serving. The
+web container reads `AGENTA_MCP_GATEWAY_ENABLED` from the same env file to decide whether to
+show the MCP settings tab, so set these in the file every container loads and recreate them.
+:::
 
 :::note Serving the gateway over plain HTTP
 An agent that reaches a model or an MCP server through an Agenta gateway authenticates to

@@ -17,6 +17,7 @@ pytestmark = [
         not _MOCKS_ENABLED,
         reason="WP32 local-cloud acceptance requires AGENTA_GATEWAYS_MOCKS_ENABLED=true",
     ),
+    pytest.mark.usefixtures("requires_llm_gateway"),
 ]
 
 
