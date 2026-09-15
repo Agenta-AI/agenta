@@ -24,8 +24,11 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
-import {refreshMcpEndpointsAtom, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
-import {customNamedSecretsAtom} from "@agenta/entities/secret"
+import {
+    readMcpConnectionSlug,
+    refreshMcpEndpointsAtom,
+    type MCPEndpoint,
+} from "@agenta/entities/mcpEndpoint"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     agentCreationPrefsAtom,
@@ -34,11 +37,7 @@ import {
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
-import {
-    draftConfigChangeSignalAtom,
-    openAgentConfigSectionAtom,
-    projectIdAtom,
-} from "@agenta/shared/state"
+import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -82,10 +81,6 @@ import {
 } from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
-import {
-    deriveMcpEndpointSlug,
-    registerMcpServerDraft,
-} from "./agentTemplate/mcpEndpointRegistration"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
@@ -211,16 +206,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const [connectingMcpEndpoint, setConnectingMcpEndpoint] = useState<MCPEndpoint | null>(null)
     const refreshMcpEndpoints = useSetAtom(refreshMcpEndpointsAtom)
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
-    const projectId = useAtomValue(projectIdAtom)
-    // The drawer binds a project secret by slug; the endpoint row binds one by id, so the
-    // registration needs the project's named secrets to translate between the two.
-    const namedSecrets = useAtomValue(customNamedSecretsAtom)
-    // An MCP server is routed by the gateway under its own name, so saving one must first register
-    // the endpoint row that knows its URL (D35). A failure aborts the save.
+    // Nothing is registered at save any more. An MCP item names a connection that already
+    // exists, created by the connect journey, so committing one writes the reference and
+    // nothing else.
     const prepareItemCommit = useCallback(
-        async (kind: ItemKind, item: Record<string, unknown>) =>
-            kind === "mcp" ? registerMcpServerDraft(item, projectId, namedSecrets) : item,
-        [projectId, namedSecrets],
+        async (_kind: ItemKind, item: Record<string, unknown>) => item,
+        [],
     )
     const {
         editing,
@@ -891,8 +882,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // row carries that state and runs the flow here rather than sending the author to Settings.
     const mcpExtraFor = useCallback(
         (item: unknown) => {
-            const server = (item ?? {}) as Record<string, unknown>
-            const slug = deriveMcpEndpointSlug(String(server.name ?? ""))
+            // The slug the item points at, never one re-derived from its name: deriving
+            // one is how a renamed item silently repointed at a different connection.
+            const slug = readMcpConnectionSlug((item ?? {}) as Record<string, unknown>)
             if (!slug) return undefined
             return (
                 <McpServerConnectAction
