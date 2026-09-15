@@ -126,7 +126,8 @@ export const AgentOverviewBody = ({
             rail={
                 // Only as a side rail. Below `lg` the layout would stack the cards under the
                 // list, where three of them read as a second page; the agent's own state is a
-                // tap away in the session workspace.
+                // tap away in the session workspace, through the header kebab's Open
+                // configuration (see [[AgentOverviewTitle]]).
                 <div className="hidden w-full flex-col gap-3.5 lg:flex">
                     <AgentConfigCard agentId={agentId} onEdit={onEditConfig} />
                     <AgentDriveCard agentId={agentId} />
