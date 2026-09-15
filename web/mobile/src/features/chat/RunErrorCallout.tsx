@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {Button} from "@agenta/ui/ui"
+import {Alert, Button} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 
 import {describeRunError} from "./runError"
@@ -50,28 +50,29 @@ export const RunErrorCallout = ({
 
     if (variant === "card") {
         return (
-            <div className="inline-flex max-w-[520px] flex-col gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer px-3.5 py-3">
-                <div className="flex items-start gap-2.5">
-                    <WarningCircle size={18} className="mt-px shrink-0 text-colorError" />
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="text-sm font-medium text-colorText">
-                            Couldn&apos;t start the run
-                        </span>
-                        <p className="m-0 text-[13px] leading-relaxed text-colorTextSecondary">
+            <Alert
+                type="info"
+                showIcon
+                icon={<WarningCircle className="text-colorError" />}
+                className="max-w-[520px] px-3.5 py-3"
+                message="Couldn't start the run"
+                description={
+                    <div className="flex flex-col gap-2.5">
+                        <p className="m-0 text-[13px] leading-relaxed">
                             {error.headline}
                             {error.remedy ? ` ${error.remedy}` : null}
                         </p>
+                        <div className="flex flex-wrap items-center gap-3">
+                            {onRetry ? (
+                                <Button size="sm" variant="outline" onClick={onRetry}>
+                                    Try again
+                                </Button>
+                            ) : null}
+                            <Details raw={error.raw} />
+                        </div>
                     </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 pl-7">
-                    {onRetry ? (
-                        <Button size="sm" variant="outline" onClick={onRetry}>
-                            Try again
-                        </Button>
-                    ) : null}
-                    <Details raw={error.raw} />
-                </div>
-            </div>
+                }
+            />
         )
     }
 
