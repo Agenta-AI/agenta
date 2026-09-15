@@ -18,6 +18,8 @@ from uuid import uuid4
 
 import pytest
 
+from utils.gateways import skip_unless_llm_gateway
+
 pytestmark = [pytest.mark.acceptance]
 
 _MOCK_BASE_URL = "http://mock-llm-gateway:9091/v1"
@@ -40,10 +42,11 @@ def harness(request):
 
 
 @pytest.fixture
-def refusing_endpoint(harness, mod_api):
+def refusing_endpoint(harness, mod_api, llm_gateway_plane):
     """A registered custom endpoint whose allow-list excludes the model the agent will ask for."""
     if not _MOCKS_ENABLED:
         pytest.skip("gateway mock services are disabled")
+    skip_unless_llm_gateway(llm_gateway_plane)
 
     provider, model = _HARNESS_CONNECTIONS[harness]
     slug = f"or28-{harness}-{uuid4().hex[:8]}"
@@ -135,9 +138,17 @@ def test_a_data_plane_refusal_reaches_the_caller_with_its_code(
 @pytest.mark.slow
 @pytest.mark.xdist_group(name="agent-gateway-mock-matrix")
 def test_a_control_plane_refusal_reaches_the_caller_with_its_code(
-    harness, mod_services_api
+    harness, mod_services_api, llm_gateway_plane
 ):
-    """An endpoint slug that was never registered: refused before any harness starts."""
+    """An endpoint slug that was never registered: refused before any harness starts.
+
+    Unlike the data-plane case above this provisions nothing, so it is the one test here that
+    runs on a deployment with the gateway mocks switched off — and therefore the one that has
+    to ask about the plane itself. With the plane off the resolver never reaches a gateway to
+    be refused by: it falls back to the vault, finds no connection under this slug, and raises
+    `ConnectionNotFoundError`, which carries the same 422 and no failure code at all.
+    """
+    skip_unless_llm_gateway(llm_gateway_plane)
     model = _HARNESS_CONNECTIONS[harness][1]
     resp = _invoke(
         mod_services_api, harness, f"never-registered-{uuid4().hex[:8]}", model
