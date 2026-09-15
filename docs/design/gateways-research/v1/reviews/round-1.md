@@ -50,7 +50,7 @@ on two findings.
 | Codex, as filed | 2 | 5 | 2 | 1 | 10 |
 | Second reviewer, as filed | 0 | 1 | 6 | 5 | 12 |
 | **After verification and merge** | **1** | **3** | **8** | **5** | **17** |
-| After the fixes landed so far | 0 | 1 | 4 | 5 | 10 open, 7 closed, 1 withdrawn |
+| After the fixes landed so far | 0 | 1 | 2 | 1 | 4 open, 12 closed, 1 withdrawn, 1 new |
 
 Five findings overlapped and are merged below. Four Codex severities were lowered on reachability
 grounds and one second-reviewer severity was raised; each change is argued in the finding's own
@@ -72,20 +72,21 @@ against the code and its test.
 | D2 | Codex 1 | P1 | `services/runner/src/engines/sandbox_agent/acp-interactions.ts:946`, `:966` | Fix, blocking | `8a2a59f76a` | **yes**, code, tests, suite run |
 | D3 | both | P1 | `api/oss/src/apis/fastapi/gateways/mcps/router.py:71`, `api/oss/src/core/gateways/mcps/service.py:1013` | Fix, blocking | pending | pending |
 | D4 | both | P2 | `api/oss/databases/postgres/migrations/core_oss/versions/oss000000032_rekey_mcp_oauth_grants_by_connection.py:81` | Fix | `6972c570b3` | **yes**, incl. pre-fix run |
-| D5 | Codex 5 | P2 | `api/oss/src/core/gateways/mcps/oauth/service.py:302` | Fix | pending | pending |
+| D5 | Codex 5 | P2 | `api/oss/src/core/gateways/mcps/oauth/service.py:302` | Fix, the cheaper half | `53da962b6b` | **yes**, code, tests, suite run |
 | D6 | Codex 6 | P2 | `api/oss/src/core/gateways/mcps/oauth/storage.py:257`, `oauth/service.py:83` | Fix | on a branch, not landed | pending |
 | D7 | both | P2 | `services/runner/src/mcp-permission.ts:114`, `acp-interactions.ts:966` | Fix the ACP half | `e57627d8e5` | **yes**, code, tests, suite run |
 | D8 | reviewer 2 | — | `services/runner/package.json:10` | **Withdrawn**, the finding was wrong | `fe58e68162` | **yes**, dispute confirmed |
 | D9 | reviewer 2 | P2 | `services/runner/src/mcp-permission.ts:82` | Fix | `21d5591326` | **yes**, code, tests, suite run |
 | D10 | reviewer 2 | P2 | `api/oss/src/core/gateways/mcps/service.py:264`, `services/runner/src/engines/sandbox_agent/runtime-policy.ts:145` | Fix, reconciling with D2 | pending | pending |
-| D11 | Codex 8 | P2 | `api/oss/src/core/gateways/mcps/service.py:569` | Defer into OR66 | n/a | n/a |
-| D12 | both | P3 | `api/oss/src/core/gateways/mcps/service.py:289`, `api/oss/src/dbs/postgres/gateways/mcps/dao.py:215` | Defer | pending | pending |
+| D11 | Codex 8 | P2 | `api/oss/src/core/gateways/mcps/service.py:569` | Defer into OR66 | `dd40682836` | **yes**, defer recorded, not a fix claim |
+| D12 | both | P3 | `api/oss/src/core/gateways/mcps/service.py:289`, `api/oss/src/dbs/postgres/gateways/mcps/dao.py:215` | **Part fixed**, rest deferred | `7c17078254` | **yes**, code, tests, suite run |
 | D13 | reviewer 2 | P3 | `.../oss000000032_rekey_mcp_oauth_grants_by_connection.py:86` | Fix the reporting | `f133fe435f` | **yes**, incl. pre-fix run |
-| D14 | both | P3 | `api/oss/src/core/gateways/mcps/oauth/storage.py:229` | Defer | pending | pending |
-| D15 | reviewer 2 | P3 | `api/oss/src/core/gateways/mcps/oauth/service.py:70`, `:353` | Defer | pending | pending |
-| D16 | reviewer 2 | P3 | `services/runner/src/engines/sandbox_agent/runtime-policy.ts:137`, `api/oss/src/apis/fastapi/gateways/flags.py:10` | Fix | pending | pending |
+| D14 | both | P3 | `api/oss/src/core/gateways/mcps/oauth/storage.py:229` | Fix | `b005b4fd6a` | **yes**, code, tests, suite run |
+| D15 | reviewer 2 | P3 | `api/oss/src/core/gateways/mcps/oauth/service.py:70`, `:353` | Fix | `4f597a805d` | **yes**, code, tests, suite run |
+| D16 | reviewer 2 | P3 | `services/runner/src/engines/sandbox_agent/runtime-policy.ts:137`, `api/oss/src/apis/fastapi/gateways/flags.py:10` | Fix | `f6b4bc839a` | **yes**, both comments read |
 | D17 | reviewer 2 | P3 | `api/oss/src/core/gateways/mcps/service.py:823` | Document | `0940769da2` | **yes**, docs read |
 | D18 | D2 residual | P3 | `sdks/python/agenta/sdk/agents/adapters/codex_settings.py` | Defer | n/a | n/a |
+| D19 | verification | P3 | `hosting/docker-compose/test.sh`, the gateways stack's unpublished Redis | Defer, testing infrastructure | n/a | n/a |
 
 **One finding still blocks the release: D3.** D1 and D2 are fixed and verified. D8 is withdrawn:
 the finding was wrong, and the section below says why. D18 is a residual that D2's fix left
@@ -304,6 +305,21 @@ consents, neither an outstanding one.
 attempt, bump it on disconnect, and refuse a callback or refresh whose generation is stale. A
 cheaper interim step is to delete the connection's pending attempt rows on disconnect.
 
+**Fixed in `53da962b6b`, verified.** The cheaper interim was taken, and the commit says so rather
+than claiming the whole finding. `disconnect` now calls `drop_attempts_for_endpoint` before deleting
+the grant, so there is no window in which the grant is gone and a late callback can still write a
+new one. A handle presented afterwards names no record and is refused on the path a timed-out
+consent already takes.
+
+Two properties worth confirming, and both hold. The drop is scoped to one project and one endpoint,
+so disconnecting one account does not cancel a consent in progress for another account at the same
+server. And because `_drop_grant` is shared, deleting a connection cancels its outstanding consents
+too, which is right.
+
+What it does not cover is an in-flight *refresh*, which still writes unconditionally. The commit is
+explicit about that and files it against **OR81**, which already tracks disconnect being local and
+best-effort. That is the correct home for it.
+
 ### D6. Re-registration replaces the client identity existing grants depend on — P2
 
 This one is introduced by the branch. The OR78 closure added `registration_covers`
@@ -455,6 +471,16 @@ was built. **Folded into the open OR66** rather than tracked separately.
 attribute conversion from a constructed decision and would pass if the service never emitted one.
 The suite is otherwise solid on what it covers.
 
+**Recorded in `dd40682836`, verified as a defer and not a fix.** The finding is folded into OR66
+rather than given a number of its own, which is right, and OR66 was narrowed while being touched:
+two of its three parts are now closed and the remaining one is stated as reach rather than content.
+All three unrecorded refusals are named in place.
+
+The reason for deferring is sound and is the one this review reached independently: the two early
+checks sit before the authorization decision on purpose, so a refused tool costs no vault read, and
+recording them means either authorizing first or inventing a decision to record against. OR66's
+existing closure line is untouched, so what "done" looks like is still on the record.
+
 ### D12. The name check scans every connection in the project on every create and edit — P3
 
 `core/gateways/mcps/service.py:289` calls `query_endpoints`, which applies no limit when no
@@ -464,6 +490,16 @@ both succeed, and it runs on every edit rather than only on a name change.
 
 **Suggested fix.** Store the normalised prefix as a column with a partial unique index on
 `(project_id, prefix)`, which closes the race and removes the scan together.
+
+**Part fixed in `7c17078254`, verified; the rest deferred with its closure stated in the code.** An
+edit now reads the row once and runs the scan only when the rendered prefix actually moves, so
+changing a URL, a tool filter or a description no longer reads every connection in the project to
+answer a question whose answer could not have changed.
+
+The scan and the check-then-act race both remain, and the code now says why in place: the compared
+value is the rendered prefix, which is derived rather than stored, so no filter can be pushed into
+the query. Both close together with the column and partial unique index above, which is a migration
+rather than a change at this seam.
 
 ### D13. The migration silently declines to rekey a cross-project grant — P3
 
@@ -498,11 +534,29 @@ reason stated there. Both reviewers named the same fix independently.
 **Suggested fix.** Read by the issuer-derived slug, keeping the scan only as a fallback for rows
 written before the slug was deterministic.
 
+**Fixed in `b005b4fd6a`, verified.** Exactly that shape: the lookup goes by the issuer-derived slug
+first and the scan stays as a fallback, which is not dead code, since a row written under an older
+naming is still reachable by its issuer and losing a registration means minting a fresh client at a
+server that may rate limit it.
+
+One detail the suggestion did not include and the fix has: a row found at the slug is accepted only
+if it also names this issuer, so a slug collision cannot hand one authorization server another's
+client.
+
 ### D15. The refresh-lock dictionary is never evicted — P3
 
 `core/gateways/mcps/oauth/service.py:70` and `:353` use `setdefault` with no removal, one lock per
 connection for the life of the worker. The key moved from server URL to connection on this branch,
 which is correct for the semantics and strictly raises the cardinality. Not a regression in kind.
+
+**Fixed in `4f597a805d`, verified.** Each entry now carries a holder count and is evicted in a
+`finally` once the count reaches zero, so a failed renewal releases its lock too.
+
+The subtle part is right: holders are counted rather than read off `lock.locked()`, because a
+coroutine *waiting* to acquire is a holder too, and evicting while it waits would hand the next
+arrival a different lock object and defeat the serialisation the lock exists for. The window between
+the lookup and the increment contains no `await`, so nothing can interleave, and the eviction
+re-checks the entry is still the same object before deleting it.
 
 ### D16. Two comments describe behaviour the code no longer has — P3
 
@@ -516,6 +570,13 @@ environment. The attribute read is per call, but the value is captured at import
 `enabled` fields are model defaults evaluated at class-definition time
 (`api/oss/src/utils/env.py:968`). A test has to patch the settings attribute directly, and the
 sentence invites the wrong test.
+
+**Fixed in `f6b4bc839a`, verified.** Both comments now describe the code. The flags module separates
+the two claims it had run together, saying the attribute is read per call while the value behind it
+is parsed once at import, and points a test at patching the settings attribute. The runner's comment
+says the name is a label rather than identity, explains that the SDK builds the route from the
+connection slug and keeps the name-derived route only for already-committed agent revisions, and
+adds the point this review made separately: the key is not unique, with a pointer to D10.
 
 ### D18. Codex is still offered tools the run denies — P3, deferred
 
@@ -546,6 +607,28 @@ set, the way it already filters by the endpoint's allowlist
 for every harness at once, needs no per-harness settings file, and does not depend on what any
 harness can be told. It also closes the gap D17 describes from the other side. Deferred: it is a
 gateway change, not a release fix, and the gate already prevents execution.
+
+### D19. The gateway integration suites cannot be run correctly from the host — P3, deferred
+
+Found while verifying the round-1 fixes, and recorded because it affects how much any future
+"the suite is green" claim is worth.
+
+The gateway integration suites reach Postgres on a published port but reach Redis by the
+container-internal hostname `redis-volatile`, which the stack does not publish. Run from the host,
+every cache operation fails with a name-resolution error, and the caching layer sits in front of the
+endpoint lookup. The result is a non-deterministic failure: in a multi-file run one connection or
+another is reported missing, a different one each time.
+
+It is environmental and pre-existing, not a defect in any fix. The tests that fail this way
+(`test_concurrent_calls_on_one_expired_connection_renew_it_once` and
+`test_a_renewal_on_one_connection_does_not_serialize_another`) both existed at the reviewed revision
+`528204c3d9`, before any round-1 fix, and each file passes on its own. `hosting/docker-compose/test.sh`
+does not avoid it either, because it also runs host-side.
+
+The consequence for the release gate: a green run of one file proves what it says, and a green run
+of the whole gateway integration directory is not currently obtainable outside the stack network.
+Closing it means running these suites inside the compose network, or publishing Redis for the dev
+stack the way Postgres already is.
 
 ### D17. `deny` is an experience control, not a security boundary — P3, document only
 
@@ -626,6 +709,7 @@ Recorded so round 2 does not spend time here again.
 invalidate paths still write a stale full snapshot, losing `tags` and `meta` and reverting a
 concurrent administrator edit.
 
-Fixed and verified: D1, D2, D4, D7, D9, D13 and D17. D8 was withdrawn on the evidence. Still open:
-D3, then D5, D6 and D10, and the defers D11, D12, D14, D15, D16 and D18. Nothing but D3 needs to
+Fixed and verified: D1, D2, D4, D5, D7, D9, D12 in part, D13, D14, D15, D16 and D17. D8 was
+withdrawn on the evidence, and D11 was deferred into OR66 with its closure stated. Still open: D3,
+then D6 and D10, and the standing defers D11, D18, D19 and D12's remainder. Nothing but D3 needs to
 hold the release.
