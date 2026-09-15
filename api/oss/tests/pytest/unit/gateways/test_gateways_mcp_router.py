@@ -29,6 +29,11 @@ from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthDiscovery,
 )
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthDiscoveryError
+from oss.src.core.gateways.mcps.probe import (
+    MCPProbeAuth,
+    MCPProbeAuthMode,
+    MCPServerProbeResult,
+)
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthCallerMismatchError,
     MCPOAuthStateInvalidError,
@@ -48,6 +53,7 @@ EXPECTED_ROUTES = {
     ("/endpoints/", "POST"): "create_mcp_endpoint",
     ("/endpoints/", "GET"): "list_mcp_endpoints",
     ("/endpoints/query", "POST"): "query_mcp_endpoints",
+    ("/endpoints/probe", "POST"): "probe_mcp_endpoint",
     ("/endpoints/{endpoint_id}", "GET"): "fetch_mcp_endpoint",
     ("/endpoints/{endpoint_id}", "PUT"): "edit_mcp_endpoint",
     ("/endpoints/{endpoint_id}", "DELETE"): "delete_mcp_endpoint",
@@ -193,7 +199,9 @@ def oauth_service():
 @pytest.fixture
 def router(service, oauth_service):
     return MCPGatewayRouter(
-        mcp_gateway_service=service, oauth_connect_service=oauth_service
+        mcp_gateway_service=service,
+        oauth_connect_service=oauth_service,
+        server_probe=None,
     )
 
 
@@ -1105,7 +1113,9 @@ def test_a_duplicate_display_name_is_refused_as_a_conflict(client, service, allo
 
     refusing = _Refusing()
     router = MCPGatewayRouter(
-        mcp_gateway_service=refusing, oauth_connect_service=MockMCPOAuthConnectService()
+        mcp_gateway_service=refusing,
+        oauth_connect_service=MockMCPOAuthConnectService(),
+        server_probe=None,
     )
     app = FastAPI()
     app.include_router(router.router)
@@ -1126,3 +1136,97 @@ def test_a_duplicate_display_name_is_refused_as_a_conflict(client, service, allo
     detail = response.json()["detail"]
     assert detail["code"] == "mcp_connection_name_taken"
     assert "already uses this name" in detail["message"]
+
+
+# URL inspection, before any row exists
+# ---------------------------------------------------------------------------
+
+
+class _RecordingProbe:
+    def __init__(self, result: MCPServerProbeResult) -> None:
+        self.result = result
+        self.probed: list[str] = []
+
+    async def probe(self, *, server_url: str) -> MCPServerProbeResult:
+        self.probed.append(server_url)
+        return self.result
+
+
+@pytest.fixture(autouse=True)
+def _secure_egress(monkeypatch):
+    """The insecure-egress flag defaults ON, so the guard is pinned off explicitly —
+    otherwise the http and localhost cases below would assert nothing."""
+    monkeypatch.setattr("oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", False)
+
+
+@pytest.fixture
+def probe():
+    return _RecordingProbe(
+        MCPServerProbeResult(
+            reachable=True,
+            server_name="Acme Tools",
+            auth=MCPProbeAuth(mode=MCPProbeAuthMode.OAUTH),
+        )
+    )
+
+
+@pytest.fixture
+def probe_client(service, oauth_service, probe):
+    router = MCPGatewayRouter(
+        mcp_gateway_service=service,
+        oauth_connect_service=oauth_service,
+        server_probe=probe,
+    )
+    app = FastAPI()
+    app.include_router(router.router)
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_probe_reports_what_the_url_is(probe_client, probe, allow):
+    response = probe_client.post("/endpoints/probe", json={"url": _SERVER_URL})
+
+    assert response.status_code == 200, response.text
+    assert probe.probed == [_SERVER_URL]
+    body = response.json()
+    assert body["count"] == 1
+    assert body["probe"]["server_name"] == "Acme Tools"
+    assert body["probe"]["auth"]["mode"] == "oauth"
+
+
+def test_probe_is_not_read_as_an_endpoint_id(probe_client, probe, allow):
+    """`/endpoints/probe` must beat `/endpoints/{endpoint_id}`, which wants a UUID."""
+    response = probe_client.post("/endpoints/probe", json={"url": _SERVER_URL})
+
+    assert response.status_code == 200, response.text
+
+
+def test_probe_needs_permission_to_add_a_server(probe_client, probe, deny):
+    response = probe_client.post("/endpoints/probe", json={"url": _SERVER_URL})
+
+    assert response.status_code == 403
+    assert probe.probed == []
+
+
+def test_probe_creates_no_endpoint(probe_client, service, allow):
+    probe_client.post("/endpoints/probe", json={"url": _SERVER_URL})
+
+    assert service.calls == []
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "",
+        "not-a-url",
+        "ftp://mcp.acme.example/notion",
+        "https://user:password@mcp.acme.example/notion",
+        "http://localhost/mcp",
+    ],
+)
+def test_probe_refuses_a_url_a_create_would_refuse(probe_client, probe, allow, url):
+    """A URL the probe accepts must be one that can be saved, so the person is
+    refused at the first step rather than the last."""
+    response = probe_client.post("/endpoints/probe", json={"url": url})
+
+    assert response.status_code == 400, response.text
+    assert probe.probed == []

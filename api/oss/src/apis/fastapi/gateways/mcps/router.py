@@ -18,6 +18,8 @@ from oss.src.apis.fastapi.gateways.mcps.models import (
     MCPConnectResponse,
     MCPEndpointCreateRequest,
     MCPEndpointEditRequest,
+    MCPEndpointProbeRequest,
+    MCPEndpointProbeResponse,
     MCPEndpointQueryRequest,
     MCPEndpointResponse,
     MCPEndpointsResponse,
@@ -50,6 +52,7 @@ from oss.src.utils.exceptions import intercept_exceptions
 if TYPE_CHECKING:
     from oss.src.core.gateways.mcps.service import MCPGatewayService
     from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
+    from oss.src.core.gateways.mcps.probe import MCPServerProbe
 
 
 def _guard_custom_endpoint_url(*, url: Optional[str]) -> None:
@@ -111,13 +114,17 @@ class MCPGatewayRouter:
         *,
         mcp_gateway_service: "MCPGatewayService",
         oauth_connect_service: "MCPOAuthConnectService",
+        server_probe: "MCPServerProbe",
     ):
         self.service = mcp_gateway_service
         self.oauth_connect_service = oauth_connect_service
+        self.server_probe = server_probe
         # The kill switch covers the connect flow as well as endpoint management: a browser
         # returning to `/connect/callback` after an operator turned the plane off is holding
         # an authorization code for a gateway that no longer serves, and storing the grant it
-        # buys would leave a connection nobody can use.
+        # buys would leave a connection nobody can use. The probe is on the same router and
+        # so behind the same switch, which is right: checking a URL is the first step of that
+        # same flow.
         self.router = APIRouter(dependencies=[MCP_GATEWAY_ENABLED])
 
         self.router.add_api_route(
@@ -149,6 +156,16 @@ class MCPGatewayRouter:
             methods=["POST"],
             operation_id="query_mcp_endpoints",
             response_model=MCPEndpointsResponse,
+            response_model_exclude_none=True,
+        )
+        # Before `/endpoints/{endpoint_id}`: `probe` would otherwise be read as a UUID
+        # path parameter and answer 422.
+        self.router.add_api_route(
+            "/endpoints/probe",
+            self.probe_endpoint,
+            methods=["POST"],
+            operation_id="probe_mcp_endpoint",
+            response_model=MCPEndpointProbeResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
@@ -446,6 +463,32 @@ class MCPGatewayRouter:
             endpoint_id=endpoint.id,
             server_url=server_url,
         )
+
+    # URL inspection, before any row exists
+
+    @intercept_exceptions()
+    @handle_gateway_exceptions()
+    async def probe_endpoint(
+        self,
+        *,
+        body: MCPEndpointProbeRequest,
+    ) -> MCPEndpointProbeResponse:
+        """Report what a URL is, so the connect journey can ask for a URL first.
+
+        Gated on EDIT_MCP_ENDPOINTS rather than VIEW: this makes the deployment fetch an
+        address of the caller's choosing, so it is the permission to add a server, not the
+        permission to look at one.
+        """
+        scope = get_auth_scope()
+        await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
+
+        # The same check a create runs, so a URL the probe accepts is one that can be
+        # saved and a person is refused at the first step rather than the last.
+        _guard_custom_endpoint_url(url=body.url)
+
+        result = await self.server_probe.probe(server_url=body.url)
+
+        return MCPEndpointProbeResponse(count=1, probe=result)
 
     # OAuth consent
 
