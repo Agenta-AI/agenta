@@ -154,9 +154,12 @@ class SecretsTokenStorage:
         """The grant row for this connection, addressed by slug.
 
         A lookup, not a scan. The previous implementation listed every secret in the
-        project and matched on the grant's `server` field, which both fetched one
-        connection's row for another connection and put a full project secret listing on
-        the path of every relayed call.
+        project and matched on the grant's `server` field, so it fetched one connection's
+        row for another connection whenever two accounts shared a server — which is the
+        defect this addresses.
+
+        Reached on refresh, write and delete, not on the relay path: a relayed call reads
+        its credential through the endpoint's own `secret_id`, never through here.
         """
         secret = await self.vault_service.get_secret_by_slug(
             secret_slug=grant_slug(self._require_endpoint_id()),

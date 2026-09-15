@@ -38,6 +38,7 @@ from oss.src.core.gateways.mcps.providers.agenta.entitlement import (
     entitled_agenta_tools,
 )
 from oss.src.core.gateways.mcps.types import MCPEndpointNotFoundError
+from oss.src.core.gateways.run_claims import gateway_run_id, gateway_tools
 from oss.src.core.gateways.types import GatewaysError
 from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 from oss.src.utils.context import AuthScope, get_auth_scope
@@ -88,15 +89,15 @@ def _as_edit(
     alone", which is what every caller that is not writing a grant wants. Disconnecting
     needs the other thing, and the two cannot share one argument.
     """
-    if clear_secret_id:
-        # Valid, not invalid: nothing is wrong with the endpoint, it simply has no
-        # authorization now, and `_connection_state` reads a missing handle as
-        # "connect" on its own. Marking it invalid would say the credential died.
-        flags = MCPEndpointFlags(is_active=endpoint.flags.is_active, is_valid=True)
-    elif secret_id is not None:
-        flags = MCPEndpointFlags(is_active=endpoint.flags.is_active, is_valid=True)
-    else:
-        flags = endpoint.flags
+    # Both handle writes revalidate. Clearing one is valid rather than invalid: nothing is
+    # wrong with the endpoint, it simply has no authorization now, and `_connection_state`
+    # reads a missing handle as "connect" on its own. Marking it invalid would say the
+    # credential died.
+    flags = (
+        MCPEndpointFlags(is_active=endpoint.flags.is_active, is_valid=True)
+        if clear_secret_id or secret_id is not None
+        else endpoint.flags
+    )
     return MCPEndpointEdit(
         id=endpoint.id,
         name=endpoint.name,
@@ -274,8 +275,8 @@ class MCPGatewayRouter:
         this route (it is not a data-plane path), so the narrowed credential can
         never buy a wider one.
         """
-        run_id = getattr(request.state, "gateway_run_id", None)
-        if not isinstance(run_id, str) or not run_id:
+        run_id = gateway_run_id(request)
+        if run_id is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Agenta MCP credentials require an invocation credential",
@@ -286,7 +287,7 @@ class MCPGatewayRouter:
 
         tools = entitled_agenta_tools(
             requested=[tool.model_dump(mode="json") for tool in body.tools],
-            carried=getattr(request.state, "gateway_tools", None),
+            carried=gateway_tools(request),
         )
         token = await sign_secret_token(
             user_id=str(scope.user_id),

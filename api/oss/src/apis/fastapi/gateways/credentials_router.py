@@ -21,6 +21,7 @@ from oss.src.apis.fastapi.gateways.flags import (
     require_mcp_gateway_enabled,
 )
 from oss.src.core.gateways.policy.dtos import GatewayPlane
+from oss.src.core.gateways.run_claims import gateway_run_id, gateway_tools
 from oss.src.middlewares.auth import GATEWAY_TOKEN_AUDIENCE, sign_secret_token
 from oss.src.utils.context import get_auth_scope
 from oss.src.utils.exceptions import intercept_exceptions
@@ -88,16 +89,13 @@ class GatewayCredentialsRouter:
         # Carried over rather than re-derived, so the confined credential names the same
         # run as the caller's. The Agenta builtin MCP route reads this run id to decide
         # which callback tools exist, and refuses a credential that names no run at all.
-        run_id = getattr(request.state, "gateway_run_id", None)
-        tools = getattr(request.state, "gateway_tools", None)
-
         token = await sign_secret_token(
             user_id=str(scope.user_id),
             project_id=str(scope.project_id),
             workspace_id=str(scope.workspace_id),
             organization_id=str(scope.organization_id),
-            gateway_run_id=run_id if isinstance(run_id, str) and run_id else None,
-            gateway_tools=tools if isinstance(tools, list) else None,
+            gateway_run_id=gateway_run_id(request),
+            gateway_tools=gateway_tools(request),
             audience=GATEWAY_TOKEN_AUDIENCE,
         )
 

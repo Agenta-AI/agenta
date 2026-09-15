@@ -97,8 +97,9 @@ def _tool_result_texts(value: Any) -> Iterator[str]:
 
     Three shapes, one per protocol: a Chat Completions ``{"role": "tool"}`` message, an
     Anthropic ``{"type": "tool_result"}`` block, and a Responses
-    ``{"type": "function_call_output"}`` item. Each carries its payload under a different key,
-    so the key is chosen per shape rather than guessed.
+    ``{"type": "function_call_output"}`` item. The first two carry their payload under
+    ``content`` and the third under ``output``, so the key is read per shape rather than
+    guessed.
     """
     if isinstance(value, list):
         for item in value:
@@ -108,9 +109,7 @@ def _tool_result_texts(value: Any) -> Iterator[str]:
         return
 
     payload: Any = None
-    if value.get("role") == "tool":
-        payload = value.get("content")
-    elif value.get("type") == "tool_result":
+    if value.get("role") == "tool" or value.get("type") == "tool_result":
         payload = value.get("content")
     elif value.get("type") == "function_call_output":
         payload = value.get("output")
@@ -245,20 +244,17 @@ def _echo_tool_ref(body: bytes) -> EchoToolRef | None:
         (entry for entry in entries if _ECHO_TOOL_NAME_RE.search(entry[1])),
         None,
     )
-    if entries:
-        log.debug(
-            "mock LLM: tool catalog carried %d tool(s); echo tool resolved to %r. Names: %s",
-            len(entries),
-            matched,
-            ", ".join(
-                name if namespace is None else f"{namespace}/{name}"
-                for namespace, name in entries[:24]
-            ),
-        )
-    else:
-        log.debug(
-            "mock LLM: request carried no tool catalog; falling back to the per-protocol name"
-        )
+    # An empty count is the "no catalog, falling back to the per-protocol name" case; it
+    # needs no line of its own.
+    log.debug(
+        "mock LLM: tool catalog carried %d tool(s); echo tool resolved to %r. Names: %s",
+        len(entries),
+        matched,
+        ", ".join(
+            name if namespace is None else f"{namespace}/{name}"
+            for namespace, name in entries[:24]
+        ),
+    )
     return matched
 
 
@@ -467,13 +463,15 @@ class MockLLMAdapter(LLMUpstreamInterface):
 
         content = _last_message_content(body)
         marker = _mcp_marker(body)
-        tool_ref = _echo_tool_ref(body)
-        if tool_ref is None:
-            fallback = _default_mcp_echo_tool(context.protocol)
-            tool_ref = (None, fallback) if fallback else None
-        tool_namespace, tool_name = tool_ref if tool_ref else (None, None)
-        needs_tool_call = bool(marker and tool_name and not _contains_tool_result(body))
-        if marker and _contains_tool_result(body):
+        # `_default_mcp_echo_tool` answers None for a protocol with no measured spelling,
+        # which is the same "no tool to call" the catalog lookup reports.
+        tool_namespace, tool_name = _echo_tool_ref(body) or (
+            None,
+            _default_mcp_echo_tool(context.protocol),
+        )
+        has_tool_result = _contains_tool_result(body)
+        needs_tool_call = bool(marker and tool_name and not has_tool_result)
+        if marker and has_tool_result:
             content = (
                 f"mock MCP echo: {marker}"
                 if _contains_successful_mcp_echo_result(body, marker)
