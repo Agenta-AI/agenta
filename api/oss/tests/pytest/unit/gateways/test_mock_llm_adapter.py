@@ -326,3 +326,108 @@ async def test_failed_tool_result_cannot_prove_mock_mcp_delivery():
 
     payload = json.loads((await _drain(result.body))[0])
     assert payload["choices"][0]["message"]["content"] == "mock MCP tool call failed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "protocol,expected",
+    [
+        (LLMProtocol.MESSAGES, "mcp__mock-mcp__echo"),
+        (LLMProtocol.RESPONSES, "mcp.mock-mcp.echo"),
+    ],
+)
+async def test_each_acp_harness_gets_its_own_mcp_tool_spelling(protocol, expected):
+    """Claude renders `mcp__<server>__<tool>`; Codex renders `mcp.<server>.<tool>`.
+
+    Both configure remote MCP servers at session start, so their tool catalog is not in the
+    request and the name has to be known here. Emitting Claude's spelling to Codex names a tool
+    Codex does not have, which is how the Codex row passed on 2026-09-15 for a call that never
+    left the sandbox.
+    """
+    marker = "MCP-ACCEPTANCE-acp"
+    body = json.dumps(
+        {
+            "model": "mock/echo",
+            "messages": [{"role": "user", "content": f"Use echo {marker}"}],
+        }
+    ).encode()
+    result = await MockLLMAdapter().relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo", protocol=protocol),
+        body=body,
+        headers={},
+    )
+
+    payload = json.loads((await _drain(result.body))[0])
+    name = (
+        payload["output"][0]["name"]
+        if protocol == LLMProtocol.RESPONSES
+        else payload["content"][0]["name"]
+    )
+    assert name == expected
+
+
+@pytest.mark.asyncio
+async def test_an_unrelated_tool_result_cannot_prove_mock_mcp_delivery():
+    """The false green this fixture used to report, pinned so it cannot come back.
+
+    The marker is in the user prompt and a `function_call_output` exists — but it belongs to a
+    different tool, and no echo ever ran. Before 2026-09-15 that was enough to answer
+    `mock MCP echo: <marker>`, so a Codex cell went green on a call that never left the sandbox.
+    """
+    marker = "MCP-ACCEPTANCE-ghost"
+    body = json.dumps(
+        {
+            "model": "mock/echo",
+            "input": [
+                {"role": "user", "content": f"Use echo {marker}"},
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_shell",
+                    "output": "total 0\ndrwxr-xr-x 2 root root 40 Sep 15 17:00 .",
+                },
+            ],
+        }
+    ).encode()
+    result = await MockLLMAdapter().relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo", protocol=LLMProtocol.RESPONSES),
+        body=body,
+        headers={},
+    )
+
+    payload = json.loads((await _drain(result.body))[0])
+    # An honest red, which is the point: the fixture now says the call failed instead of
+    # confirming a round trip that did not happen.
+    assert payload["output"][0]["content"][0]["text"] == "mock MCP tool call failed"
+
+
+@pytest.mark.asyncio
+async def test_the_marker_must_be_inside_the_tool_result_not_merely_in_the_body():
+    """A tool result carrying the marker IS the proof; the same marker in the prompt is not."""
+    marker = "MCP-ACCEPTANCE-inside"
+    body = json.dumps(
+        {
+            "model": "mock/echo",
+            "input": [
+                {"role": "user", "content": f"Use echo {marker}"},
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_echo",
+                    "output": json.dumps({"marker": marker}),
+                },
+            ],
+        }
+    ).encode()
+    result = await MockLLMAdapter().relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo", protocol=LLMProtocol.RESPONSES),
+        body=body,
+        headers={},
+    )
+
+    payload = json.loads((await _drain(result.body))[0])
+    assert payload["output"][0]["content"][0]["text"] == f"mock MCP echo: {marker}"
