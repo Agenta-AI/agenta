@@ -39,6 +39,8 @@ describe("describeRunError", () => {
         const other = describeRunError('400: {"message":"Unsupported parameter: tools."}')
         expect(other.headline).toBe("Unsupported parameter: tools.")
         expect(other.remedy).toBeUndefined()
+        // The word alone is not the failure.
+        expect(describeRunError('400: {"message":"Unknown field credits."}').remedy).toBeUndefined()
     })
 
     it("never shows an empty headline", () => {
