@@ -50,7 +50,12 @@ const copyName = (name: string) => {
     return dot > 0 ? `${name.slice(0, dot)} copy${name.slice(dot)}` : `${name} copy`
 }
 
-const validate = (kind: DriveNameDialogKind, value: string, req: DriveNameDialogRequest) => {
+/** Why `value` can't be the name for this request — or null when it can. */
+export const validateDriveName = (
+    kind: DriveNameDialogKind,
+    value: string,
+    req: DriveNameDialogRequest,
+) => {
     const v = value.trim()
     if (!v) return "Enter a name"
     if (v.includes("/")) return "A name can't contain “/”"
@@ -88,7 +93,7 @@ export const DriveNameDialog = ({
         )
     }, [request])
     const error = useMemo(
-        () => (request ? validate(request.kind, value, request) : null),
+        () => (request ? validateDriveName(request.kind, value, request) : null),
         [request, value],
     )
     const copy = request ? COPY[request.kind] : null
