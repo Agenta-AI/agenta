@@ -275,6 +275,7 @@ def mcp_router_client(monkeypatch):
     router = MCPGatewayRouter(
         mcp_gateway_service=_UnreachableService(),
         oauth_connect_service=_UnreachableService(),
+        server_probe=_UnreachableService(),
     )
     app = FastAPI()
     app.include_router(router.router)
@@ -288,6 +289,7 @@ def mcp_router_client(monkeypatch):
         ("POST", "/endpoints/"),
         ("GET", "/endpoints/"),
         ("POST", "/endpoints/query"),
+        ("POST", "/endpoints/probe"),
         ("GET", "/endpoints/00000000-0000-0000-0000-000000000000"),
         ("PUT", "/endpoints/00000000-0000-0000-0000-000000000000"),
         ("DELETE", "/endpoints/00000000-0000-0000-0000-000000000000"),

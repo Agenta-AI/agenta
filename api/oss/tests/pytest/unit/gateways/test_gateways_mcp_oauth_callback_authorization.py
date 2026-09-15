@@ -76,7 +76,9 @@ def callback(monkeypatch):
             data=MCPEndpointData(route=MCPEndpointRoute(base_url=_SERVER_URL)),
         )
     )
-    router = MCPGatewayRouter(mcp_gateway_service=store, oauth_connect_service=service)
+    router = MCPGatewayRouter(
+        mcp_gateway_service=store, oauth_connect_service=service, server_probe=None
+    )
     app = FastAPI()
     app.include_router(router.router)
 

@@ -14,6 +14,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointEdit,
     MCPEndpointQuery,
 )
+from oss.src.core.gateways.mcps.probe import MCPServerProbeResult
 from oss.src.core.shared.dtos import Windowing
 
 
@@ -66,6 +67,23 @@ class MCPConnectResponse(BaseModel):
     count: int = 0
     redirect_url: Optional[str] = None
     scopes_offered: List[str] = Field(default_factory=list)
+
+
+class MCPEndpointProbeRequest(BaseModel):
+    """Inspect a server URL before an endpoint exists.
+
+    `url` is the only field, and deliberately: the probe routes a request and reports what
+    came back. It takes no name (nothing is being labelled), no slug or id (nothing is
+    being identified), and no credential — there is no endpoint to carry one, and a
+    credential must never be sent to an origin nobody has chosen yet.
+    """
+
+    url: str
+
+
+class MCPEndpointProbeResponse(BaseModel):
+    count: int = 0
+    probe: Optional[MCPServerProbeResult] = None
 
 
 class MCPAgentaToolDescriptor(BaseModel):

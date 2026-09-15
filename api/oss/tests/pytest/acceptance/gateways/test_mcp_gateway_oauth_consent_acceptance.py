@@ -411,3 +411,62 @@ def test_a_code_bound_to_another_pkce_challenge_is_refused(
         browser.api("GET", f"/gateways/mcps/endpoints/{oauth_endpoint['id']}")
     )["endpoint"]
     assert not still_unconnected.get("secret_id"), still_unconnected
+
+
+@pytest.mark.acceptance
+def test_the_probe_reads_a_url_before_any_endpoint_exists(browser: _Browser):
+    """The connect journey asks for a URL first, so the probe has to answer without a row.
+
+    Both mock surfaces are used, because the two answers are what the journey branches on:
+    `/` takes anyone and names itself in the handshake, while `/oauth/mcp` refuses the
+    anonymous handshake and publishes where to authorize. Neither call may create an
+    endpoint, and the count afterwards proves it.
+    """
+    before = _assert_ok(browser.api("GET", "/gateways/mcps/endpoints/"))["count"]
+
+    open_server = _assert_ok(
+        browser.api(
+            "POST",
+            "/gateways/mcps/endpoints/probe",
+            json={"url": f"{_MCP_MOCK_URL}/"},
+        )
+    )["probe"]
+    assert open_server["reachable"] is True
+    assert open_server["auth"]["mode"] == "none"
+    # The name the journey offers before anyone types one.
+    assert open_server["server_name"] == "agenta-mock-mcp"
+    assert open_server["protocol_version"]
+
+    protected = _assert_ok(
+        browser.api(
+            "POST",
+            "/gateways/mcps/endpoints/probe",
+            json={"url": _OAUTH_MCP_URL},
+        )
+    )["probe"]
+    assert protected["reachable"] is True
+    assert protected["auth"]["mode"] == "oauth"
+    assert protected["auth"]["authorization_server"] == _MCP_MOCK_URL
+    assert protected["auth"]["scopes_offered"] == ["tools:list", "tools:call"]
+    # A protected server tells the probe nothing about itself until consent, and the
+    # journey falls back to the hostname rather than inventing a name.
+    assert protected.get("server_name") is None
+
+    after = _assert_ok(browser.api("GET", "/gateways/mcps/endpoints/"))["count"]
+    assert after == before
+
+
+@pytest.mark.acceptance
+def test_the_probe_refuses_a_url_the_gateway_would_refuse(browser: _Browser):
+    """The address checks a create runs are the ones the first step runs.
+
+    Only the checks that hold on every deployment are asserted here. Whether `http` and
+    `localhost` are refused depends on `AGENTA_INSECURE_EGRESS_ALLOWED`, which a
+    development stack leaves on; those cases are pinned in the unit suite with the flag
+    explicitly off.
+    """
+    for url in ("https://user:pw@mcp.example.com/", "ftp://mcp.example.com/", ""):
+        response = browser.api(
+            "POST", "/gateways/mcps/endpoints/probe", json={"url": url}
+        )
+        assert response.status_code == 400, f"{url!r}: {response.text}"

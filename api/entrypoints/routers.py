@@ -200,6 +200,7 @@ from oss.src.core.gateways.mcps.providers.composio.standard import (
 )
 from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
+from oss.src.core.gateways.mcps.probe import MCPServerProbe
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
 from oss.src.apis.fastapi.gateways.credentials_router import GatewayCredentialsRouter
 from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
@@ -1243,9 +1244,14 @@ mcp_gateway_service = MCPGatewayService(
 gateway_credentials_router = GatewayCredentialsRouter()
 llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)
 llm_gateway_proxy = LLMGatewayProxy(llm_gateway_service=llm_gateway_service)
+mcp_server_probe = MCPServerProbe(
+    oauth_client=MCPOAuthClient(),
+    api_url=env.agenta.api_url,
+)
 mcp_gateway_router = MCPGatewayRouter(
     mcp_gateway_service=mcp_gateway_service,
     oauth_connect_service=mcp_oauth_connect_service,
+    server_probe=mcp_server_probe,
 )
 mcp_gateway_proxy = MCPGatewayProxy(mcp_gateway_service=mcp_gateway_service)
 mcp_oauth_client_metadata_router = MCPOAuthClientMetadataRouter()

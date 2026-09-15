@@ -76,7 +76,9 @@ def test_dashboard_connect_callback_and_scope_step_up_share_one_grant_handle(
     )
     store = _EndpointStore(endpoint)
     router = MCPGatewayRouter(
-        mcp_gateway_service=store, oauth_connect_service=oauth_service
+        mcp_gateway_service=store,
+        oauth_connect_service=oauth_service,
+        server_probe=None,
     )
     app = FastAPI()
     app.include_router(router.router)
