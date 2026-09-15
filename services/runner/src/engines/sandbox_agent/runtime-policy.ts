@@ -143,19 +143,45 @@ export function resolveRunOtlpTarget(
  *
  * The table is still keyed on the wire name, because that is what a harness renders into a tool
  * name and therefore what the gate has to look up. Two connections may carry one display name, so
- * that key is not unique; D10 tracks what this call site does about it (D16).
+ * that key is not unique: such a name is marked ambiguous here and every call under it is refused
+ * (D10). When the connection slug reaches this call site the table gains a second key and nothing
+ * downstream moves.
  *
  * The per-server rules live in `src/mcp-permission.ts`, which the in-sandbox Pi extension imports
  * too, so the two harness families cannot disagree about what a policy means.
  */
 export function mcpPermissionsFromRequest(
   request: AgentRunRequest,
+  log?: Log,
 ): McpPermissionTable {
   const table = new Map<string, McpServerPermissions>();
+  const colliding = new Set<string>();
   for (const server of request.mcpServers ?? []) {
     const name = typeof server?.name === "string" ? server.name : "";
     if (!name) continue;
+    if (table.has(name)) {
+      // Two configured servers under one wire name. This used to overwrite, so the last one
+      // declared answered for both and every call under that name resolved to one
+      // connection's policy whichever connection the model meant (D10).
+      //
+      // The entry is marked ambiguous rather than merged, and `mcpToolPermission` refuses
+      // it — the same verdict the ACP gate gives a rendered name more than one server could
+      // claim (D2), because it is the same situation: a call that cannot be attributed to a
+      // connection. Marking rather than merging is what keeps it one rule; a merged verdict
+      // would be a second, quieter policy nobody configured.
+      colliding.add(name);
+      table.set(name, { tools: new Map(), ambiguous: true });
+      continue;
+    }
     table.set(name, normalizeMcpServerPermissions(server.policy));
+  }
+  for (const name of colliding) {
+    // Once per name, at intake. D2's refusal is per call and says nothing about why two
+    // servers share a name; this is the line that tells an operator which name to fix.
+    log?.(
+      `[mcp] error: more than one configured server is named '${name}', so no ` +
+        `'mcp__${name}__*' call can be attributed to one of them; every such call is refused`,
+    );
   }
   return table;
 }
