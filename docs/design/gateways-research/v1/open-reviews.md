@@ -275,6 +275,21 @@ and without any usage field, although `GatewayTarget.method` and `.tool` exist a
 `api/oss/src/core/gateways/policy/dtos.py:96-97` and `GatewayOutcome.usage` at `:122`, and
 `service.py:531` populates the latter.
 
+**Narrowed 2026-09-16 by review round 1 (D11).** Two of the three parts are now done and the
+remaining one is stated precisely. The record carries the MCP method, the tool, the call's duration
+and the run it belongs to (OR86's sibling change, `policy/audit.py`), and the usage fields are read
+(OR49). What is still missing is reach, not content: a refusal raised before the relay reaches its
+recorder leaves no event at all.
+
+Three refusals are in that position, all in `MCPGatewayService.relay`
+(`api/oss/src/core/gateways/mcps/service.py`): an inactive connection and a tool outside the
+connection's allowlist are both checked before the authorization decision exists, and a
+credential-resolution failure is raised outside the dispatch handler. Deliberately not moved as
+part of the audit-fields change: the two early checks sit before `authorize` on purpose — a refused
+tool must not cost a vault read — so recording them means either authorizing first or inventing a
+decision to record against, and the release's own decisions document asks for small useful audit
+fields rather than complete coverage.
+
 Closure: every refusal is recorded, a stream records its final status, and the record carries the MCP
 method, the tool and the usage fields. Proven by cases beside
 `api/oss/tests/pytest/unit/gateways/` asserting an audit record exists for a refused model, for a
