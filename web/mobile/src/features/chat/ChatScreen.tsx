@@ -79,7 +79,7 @@ export const ChatScreen = ({
     const lastAgentIdRef = useRef<string | null>(null)
     if (resolvedAgentId) lastAgentIdRef.current = resolvedAgentId
     const heldAgentId = resolvedAgentId ?? lastAgentIdRef.current
-    useReferenceToolDisplays(heldAgentId)
+    useReferenceToolDisplays(heldEntityId)
     // Only a FIRST load has nothing to hold — that is the one time a spinner is honest.
     const showLoading = resolving && !heldEntityId
     const liveness = useLivenessPoll(projectId)
