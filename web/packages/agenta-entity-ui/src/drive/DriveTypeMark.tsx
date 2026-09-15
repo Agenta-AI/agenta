@@ -11,6 +11,7 @@ import {
     fileTypeChip,
     resolveDriveFileKind,
 } from "@agenta/entities/drive"
+import {Badge} from "@agenta/ui/ui"
 import {Folder, FolderOpen} from "@phosphor-icons/react"
 
 /** Chip colours per tone — text on a soft fill, from the theme's semantic pairs. */
@@ -41,7 +42,8 @@ const Page = ({size}: {size: number}) => (
         viewBox="0 0 46 56"
         fill="none"
         aria-hidden
-        className="block"
+        // `size-auto`: inside a kit Button the svg would otherwise be sized as a button icon.
+        className="block size-auto"
     >
         <path
             d="M4 3h24l14 14v33a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z"
@@ -68,23 +70,20 @@ export const DriveTypeMark = ({
     const kind = resolveDriveFileKind(path)
     const tone = driveKindTone(kind, path)
     const chip = fileTypeChip(path)
-    if (size === "badge")
-        return (
-            <span
-                className={`inline-flex rounded-[3px] px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
-            >
-                {chip}
-            </span>
-        )
+    // The chip is the kit Badge at a tiny scale, tinted by tone.
+    const badge = (extra = "") => (
+        <Badge
+            className={`h-auto rounded-[3px] border-0 px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]} ${extra}`}
+        >
+            {chip}
+        </Badge>
+    )
+    if (size === "badge") return badge()
     if (size === "tile")
         return (
             <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center">
                 <Page size={56} />
-                <span
-                    className={`absolute bottom-[7px] left-1/2 -translate-x-1/2 rounded-[3px] px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
-                >
-                    {chip}
-                </span>
+                {badge("absolute bottom-[7px] left-1/2 -translate-x-1/2")}
             </span>
         )
     return (

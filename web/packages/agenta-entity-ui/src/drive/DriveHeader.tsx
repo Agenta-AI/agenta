@@ -8,9 +8,9 @@
 import {type DriveId} from "@agenta/entities/drive"
 import {humanSize} from "@agenta/entities/drive"
 import {shortcutAria} from "@agenta/shared/utils"
-import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
+    Button,
     DropdownMenu,
     DropdownMenuCheckboxItem,
     DropdownMenuContent,
@@ -37,10 +37,9 @@ import {
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
 import {DriveRetryButton} from "./DriveFileRow"
 
-/** The 24px ghost icon button every row-1 control uses. */
-export const ROW_ICON_BTN =
-    "!h-6 !w-6 !p-0 !text-colorTextTertiary hover:!bg-colorFillTertiary hover:!text-colorText disabled:!text-colorTextQuaternary"
-const ROW_ICON_BTN_ON = "!h-6 !w-6 !p-0 !bg-colorFillTertiary !text-colorText"
+/** The quiet icon button every chrome control is: the kit's ghost icon-sm, muted until hover. */
+export const ROW_ICON_BTN = "text-colorTextTertiary hover:text-colorText"
+const ROW_ICON_BTN_ON = "bg-accent text-colorText"
 
 export const DriveHeader = ({
     selectedPath,
@@ -126,44 +125,52 @@ export const DriveHeader = ({
             {onClose && closeVariant === "close" ? (
                 <Tooltip title="Close">
                     <Button
-                        type="text"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label="Close"
-                        icon={<X size={15} />}
                         onClick={onClose}
                         className={ROW_ICON_BTN}
-                    />
+                    >
+                        <X size={15} />
+                    </Button>
                 </Tooltip>
             ) : null}
             {onToggleExpand ? (
                 <Tooltip title={expanded ? "Collapse" : "Expand"}>
                     <Button
-                        type="text"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label={expanded ? "Collapse drawer" : "Expand drawer"}
                         aria-pressed={expanded}
-                        icon={expanded ? <ArrowsIn size={15} /> : <ArrowsOut size={15} />}
                         onClick={onToggleExpand}
                         className={ROW_ICON_BTN}
-                    />
+                    >
+                        expanded ? <ArrowsIn size={15} /> : <ArrowsOut size={15} />
+                    </Button>
                 </Tooltip>
             ) : null}
             <Button
-                type="text"
+                variant="ghost"
+                size="icon-sm"
                 aria-label="Back"
                 title="Back"
                 disabled={!canGoBack}
-                icon={<CaretLeft size={15} weight="bold" />}
                 onClick={onBack}
                 className={ROW_ICON_BTN}
-            />
+            >
+                <CaretLeft size={15} weight="bold" />
+            </Button>
             <Button
-                type="text"
+                variant="ghost"
+                size="icon-sm"
                 aria-label="Forward"
                 title="Forward"
                 disabled={!canGoForward}
-                icon={<CaretRight size={15} weight="bold" />}
                 onClick={onForward}
                 className={ROW_ICON_BTN}
-            />
+            >
+                <CaretRight size={15} weight="bold" />
+            </Button>
             {/* The crumb is capped so the path controls stay reachable; it scrolls past the cap. */}
             <div className="ml-1 flex min-w-0 max-w-[60%] shrink items-center">
                 <DriveBreadcrumb
@@ -177,12 +184,14 @@ export const DriveHeader = ({
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button
-                        type="text"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label="Path actions"
                         title="Path actions"
-                        icon={<DotsThree size={16} weight="bold" />}
                         className={ROW_ICON_BTN}
-                    />
+                    >
+                        <DotsThree size={16} weight="bold" />
+                    </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="min-w-[200px]">
                     <DropdownMenuItem
@@ -234,12 +243,14 @@ export const DriveHeader = ({
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button
-                        type="text"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label="View options"
                         title="View options"
-                        icon={<Sliders size={15} />}
                         className={ROW_ICON_BTN}
-                    />
+                    >
+                        <Sliders size={15} />
+                    </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[220px]">
                     {showOrigin ? (
@@ -280,20 +291,20 @@ export const DriveHeader = ({
                 }
             >
                 <Button
-                    type="text"
+                    variant="ghost"
+                    size="icon-sm"
                     aria-label="Show file tree"
                     aria-pressed={treeVisible}
                     disabled={searchActive}
-                    icon={
-                        treeVisible ? (
-                            <FolderOpen size={16} weight="fill" />
-                        ) : (
-                            <Folder size={16} weight="fill" />
-                        )
-                    }
                     onClick={onToggleTree}
                     className={treeVisible ? ROW_ICON_BTN_ON : ROW_ICON_BTN}
-                />
+                >
+                    {treeVisible ? (
+                        <FolderOpen size={16} weight="fill" />
+                    ) : (
+                        <Folder size={16} weight="fill" />
+                    )}
+                </Button>
             </Tooltip>
             {onClose && closeVariant === "collapse" ? (
                 <Tooltip
@@ -304,13 +315,15 @@ export const DriveHeader = ({
                     }
                 >
                     <Button
-                        type="text"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-keyshortcuts={shortcutAria("panel.files")}
                         aria-label="Collapse files pane"
-                        icon={<CaretDoubleRight size={15} />}
                         onClick={onClose}
                         className={ROW_ICON_BTN}
-                    />
+                    >
+                        <CaretDoubleRight size={15} />
+                    </Button>
                 </Tooltip>
             ) : null}
         </div>

@@ -8,8 +8,8 @@ import {useCallback, useMemo} from "react"
 
 import {type DriveTreeNode, fileTypeLabel, humanSize, relativeTime} from "@agenta/entities/drive"
 import {isHiddenPath} from "@agenta/entities/drive"
-import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
 
 import {DriveItemContextMenu, type DriveItemWriteActions} from "./DriveItemContextMenu"
@@ -69,15 +69,17 @@ export const FolderList = ({
                         {n.modifiedAt ? relativeTime(n.modifiedAt) : "—"}
                     </span>
                     <Button
-                        type="text"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label={n.isFolder ? "Download as zip" : "Download"}
-                        icon={<DownloadSimple size={14} />}
                         onClick={(e) => {
                             e.stopPropagation()
                             onDownload(n.path, n.isFolder)
                         }}
-                        className="!h-6 !w-6 !p-0 !text-colorTextQuaternary hover:!text-colorText"
-                    />
+                        className="text-colorTextQuaternary hover:text-colorText"
+                    >
+                        <DownloadSimple size={14} />
+                    </Button>
                 </>
             )
         },

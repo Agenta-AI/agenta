@@ -10,7 +10,14 @@ import {type MountUploadItem} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
-import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
+import {
+    Empty,
+    EmptyDescription,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+    SimpleTooltip as Tooltip,
+} from "@agenta/ui/ui"
 import {Folder, FolderSimple, GitBranch} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
@@ -377,16 +384,20 @@ export const FolderView = ({
                     ) : loading ? null : (
                         <motion.div
                             key="empty"
-                            className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-8 text-center"
+                            className="absolute inset-0 flex flex-col items-center justify-center"
                             {...PANE_FADE}
                         >
-                            <Folder size={28} className="text-colorTextTertiary" />
-                            <div className="mt-1 text-[13px] font-medium text-colorText">
-                                Nothing here
-                            </div>
-                            <div className="text-xs text-colorTextTertiary">
-                                Drop files to upload, or use Upload.
-                            </div>
+                            <Empty className="gap-1.5 p-8">
+                                <EmptyHeader className="gap-1">
+                                    <EmptyMedia variant="icon">
+                                        <Folder size={28} />
+                                    </EmptyMedia>
+                                    <EmptyTitle className="text-[13px]">Nothing here</EmptyTitle>
+                                    <EmptyDescription className="text-xs">
+                                        Drop files to upload, or use Upload.
+                                    </EmptyDescription>
+                                </EmptyHeader>
+                            </Empty>
                         </motion.div>
                     )}
                 </AnimatePresence>

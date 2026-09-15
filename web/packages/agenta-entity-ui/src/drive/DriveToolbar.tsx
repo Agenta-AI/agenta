@@ -14,9 +14,9 @@ import {type ReactNode} from "react"
 import {type DriveEditorMode, type DriveSortKey, type DriveViewMode} from "@agenta/entities/drive"
 import {fileTypeLabel} from "@agenta/entities/drive"
 import {shortcutAria} from "@agenta/shared/utils"
-import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
+    Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -25,6 +25,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuShortcut,
     DropdownMenuTrigger,
+    LoadingButton,
     Segmented,
     SimpleTooltip as Tooltip,
 } from "@agenta/ui/ui"
@@ -40,6 +41,9 @@ import {
 
 import {ROW_ICON_BTN} from "./DriveHeader"
 import {DriveTypeMark} from "./DriveTypeMark"
+
+/** Row 2's text buttons (Sort ▾, Revert, the mode dropdown): the kit's ghost sm, muted until hover. */
+const ROW_TEXT_BTN = "h-[26px] gap-1 px-2 text-xs text-colorTextSecondary hover:text-colorText"
 
 const SORT_LABELS: Record<DriveSortKey, string> = {
     name: "Name",
@@ -95,12 +99,14 @@ const FileActionsMenu = ({actions}: {actions?: DriveFileActions}) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
             <Button
-                type="text"
+                variant="ghost"
+                size="icon-sm"
                 aria-label="More actions"
                 title="More"
-                icon={<DotsThreeVertical size={16} weight="bold" />}
                 className={ROW_ICON_BTN}
-            />
+            >
+                <DotsThreeVertical size={16} weight="bold" />
+            </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-[180px]">
             <DropdownMenuItem disabled={!actions} onSelect={actions?.onRename}>
@@ -148,11 +154,12 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button
-                            type="text"
+                            variant="ghost"
+                            size="sm"
                             aria-label="Sort"
-                            icon={<SortAscending size={13} />}
-                            className="!h-[26px] !gap-1 !px-2 !text-xs !text-colorTextSecondary hover:!bg-colorFillTertiary hover:!text-colorText"
+                            className={ROW_TEXT_BTN}
                         >
+                            <SortAscending size={13} />
                             {SORT_LABELS[sort]}
                             <CaretDown size={10} weight="bold" />
                         </Button>
@@ -174,12 +181,14 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button
-                            type="text"
+                            variant="ghost"
+                            size="icon-sm"
                             aria-label="More actions"
                             title="More"
-                            icon={<DotsThreeVertical size={16} weight="bold" />}
                             className={ROW_ICON_BTN}
-                        />
+                        >
+                            <DotsThreeVertical size={16} weight="bold" />
+                        </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-[180px]">
                         <DropdownMenuItem disabled={!actions} onSelect={actions?.onNewFolder}>
@@ -225,11 +234,11 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 {dirty ? (
                     <>
                         <Button
-                            type="text"
-                            size="small"
+                            variant="ghost"
+                            size="sm"
                             onClick={onRevert}
                             disabled={saving}
-                            className="!h-[26px] !px-2 !text-xs !text-colorTextSecondary hover:!bg-colorFillTertiary hover:!text-colorText"
+                            className={ROW_TEXT_BTN}
                         >
                             Revert
                         </Button>
@@ -240,16 +249,15 @@ export function DriveToolbar(props: DriveToolbarProps) {
                                 </span>
                             }
                         >
-                            <Button
-                                type="primary"
-                                size="small"
+                            <LoadingButton
+                                size="sm"
                                 onClick={onSave}
                                 loading={saving}
                                 aria-keyshortcuts={shortcutAria("drive.save")}
-                                className="!h-[26px] !px-2.5 !text-xs"
+                                className="h-[26px] px-2.5 text-xs"
                             >
                                 Save
-                            </Button>
+                            </LoadingButton>
                         </Tooltip>
                         <span className="mx-1 h-4 w-px bg-colorBorderSecondary" aria-hidden />
                     </>
@@ -257,11 +265,12 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button
-                            type="text"
+                            variant="ghost"
+                            size="sm"
                             aria-label="Editor mode"
-                            icon={rendered ? <TextAa size={13} /> : <TextT size={13} />}
-                            className="!h-[26px] !gap-1 !px-2 !text-xs !text-colorTextSecondary hover:!bg-colorFillTertiary hover:!text-colorText"
+                            className={ROW_TEXT_BTN}
                         >
+                            {rendered ? <TextAa size={13} /> : <TextT size={13} />}
                             {rendered ? "Markdown" : "Plain text"}
                             <CaretDown size={10} weight="bold" />
                         </Button>

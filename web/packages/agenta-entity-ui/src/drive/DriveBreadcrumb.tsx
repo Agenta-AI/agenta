@@ -1,4 +1,15 @@
+import {Fragment} from "react"
+
 import {driveRootLabel} from "@agenta/entities/drive"
+import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+    Button,
+} from "@agenta/ui/ui"
 import {House} from "@phosphor-icons/react"
 
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
@@ -26,60 +37,76 @@ export const DriveBreadcrumb = ({
 }) => {
     const segs = shown.split("/").filter(Boolean)
     if (variant === "icons") {
-        const crumbBtn =
-            "flex shrink-0 cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1.5 py-[3px] text-[13px] text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+        // A crumb link is the kit's ghost button at the row's own type size.
+        const crumbLink = "h-auto gap-1.5 px-1.5 py-[3px] text-[13px] font-normal text-colorTextSecondary"
         return (
-            <div
-                className="flex min-w-0 items-center gap-0.5 overflow-x-auto whitespace-nowrap text-[13px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            <Breadcrumb
+                className="min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 title={shown}
             >
-                {segs.length === 0 ? (
-                    <span className="flex shrink-0 items-center gap-1.5 px-1.5 py-[3px] font-medium text-colorText">
-                        <House size={15} weight="fill" />
-                        All files
-                    </span>
-                ) : (
-                    <button
-                        type="button"
-                        onClick={() => onNavigate("")}
-                        aria-label="All files"
-                        title={rootLabel}
-                        className={crumbBtn}
-                    >
-                        <House size={15} weight="fill" />
-                    </button>
-                )}
-                {segs.map((seg, i) => {
-                    const path = segs.slice(0, i + 1).join("/")
-                    const isLast = i === segs.length - 1
-                    return (
-                        <span key={path} className="flex shrink-0 items-center gap-0.5">
-                            <span className="text-xs text-colorTextQuaternary">/</span>
-                            {isLast ? (
-                                <span
-                                    className={`flex items-center gap-1.5 px-1.5 py-[3px] text-colorText ${isFile ? "" : "font-medium"}`}
+                <BreadcrumbList className="flex-nowrap gap-0.5 whitespace-nowrap text-[13px] sm:gap-0.5">
+                    <BreadcrumbItem>
+                        {segs.length === 0 ? (
+                            <BreadcrumbPage className="flex h-auto items-center gap-1.5 px-1.5 py-[3px] font-medium">
+                                <House size={15} weight="fill" />
+                                All files
+                            </BreadcrumbPage>
+                        ) : (
+                            <BreadcrumbLink asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => onNavigate("")}
+                                    aria-label="All files"
+                                    title={rootLabel}
+                                    className={crumbLink}
                                 >
-                                    {isFile ? (
-                                        <DriveTypeMark path={path} size="mini" />
+                                    <House size={15} weight="fill" />
+                                </Button>
+                            </BreadcrumbLink>
+                        )}
+                    </BreadcrumbItem>
+                    {segs.map((seg, i) => {
+                        const path = segs.slice(0, i + 1).join("/")
+                        const isLast = i === segs.length - 1
+                        return (
+                            <Fragment key={path}>
+                                <BreadcrumbSeparator className="mx-0.5 h-auto text-colorTextQuaternary" />
+                                <BreadcrumbItem>
+                                    {isLast ? (
+                                        <BreadcrumbPage
+                                            className={`flex h-auto items-center gap-1.5 px-1.5 py-[3px] ${isFile ? "" : "font-medium"}`}
+                                        >
+                                            {isFile ? (
+                                                <DriveTypeMark path={path} size="mini" />
+                                            ) : (
+                                                <DriveFolderGlyph open size={15} />
+                                            )}
+                                            {seg}
+                                        </BreadcrumbPage>
                                     ) : (
-                                        <DriveFolderGlyph open size={15} />
+                                        <BreadcrumbLink asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => onNavigate(path)}
+                                                className={crumbLink}
+                                            >
+                                                <DriveFolderGlyph
+                                                    open
+                                                    size={15}
+                                                    className="!text-current"
+                                                />
+                                                {seg}
+                                            </Button>
+                                        </BreadcrumbLink>
                                     )}
-                                    {seg}
-                                </span>
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={() => onNavigate(path)}
-                                    className={crumbBtn}
-                                >
-                                    <DriveFolderGlyph open size={15} className="!text-current" />
-                                    {seg}
-                                </button>
-                            )}
-                        </span>
-                    )
-                })}
-            </div>
+                                </BreadcrumbItem>
+                            </Fragment>
+                        )
+                    })}
+                </BreadcrumbList>
+            </Breadcrumb>
         )
     }
     return (

@@ -14,6 +14,7 @@ import {
     DialogHeader,
     DialogTitle,
     Input,
+    Label,
 } from "@agenta/ui/ui"
 
 export type DriveNameDialogKind = "new-folder" | "new-file" | "rename" | "duplicate" | "move"
@@ -122,9 +123,12 @@ export const DriveNameDialog = ({
                             </DialogDescription>
                         ) : null}
                     </DialogHeader>
-                    <label className="flex flex-col gap-1.5 text-xs text-colorTextSecondary">
-                        {copy?.label}
+                    <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="drive-name-input" className="text-xs text-colorTextSecondary">
+                            {copy?.label}
+                        </Label>
                         <Input
+                            id="drive-name-input"
                             autoFocus
                             value={value}
                             placeholder={copy?.placeholder}
@@ -143,7 +147,7 @@ export const DriveNameDialog = ({
                         {touched && error ? (
                             <span className="text-xs text-colorError">{error}</span>
                         ) : null}
-                    </label>
+                    </div>
                     <DialogFooter>
                         <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
                             Cancel
