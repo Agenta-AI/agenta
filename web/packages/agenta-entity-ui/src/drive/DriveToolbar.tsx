@@ -106,9 +106,10 @@ export type DriveToolbarProps =
           note?: string
       }
 
-/** The draft's save state — autosave narrates itself; a failed write offers Retry. */
+/** The draft's save state — Saving… / Saved as it happens; a failed write offers Retry. */
 const DraftStatus = ({status, onRetry}: {status: DriveSaveStatus; onRetry: () => void}) => {
-    if (status === "clean") return null
+    // Pending edits say nothing — the write follows within a moment and narrates itself.
+    if (status === "clean" || status === "pending") return null
     if (status === "error")
         return (
             <>
@@ -122,7 +123,7 @@ const DraftStatus = ({status, onRetry}: {status: DriveSaveStatus; onRetry: () =>
     return (
         <span className="flex items-center gap-1.5 pr-1 text-xs text-colorTextTertiary">
             {status === "saving" ? <CircleNotch className="size-3 animate-spin" /> : null}
-            {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : "Unsaved"}
+            {status === "saving" ? "Saving…" : "Saved"}
         </span>
     )
 }
