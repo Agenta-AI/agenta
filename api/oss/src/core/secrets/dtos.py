@@ -1,5 +1,6 @@
 from re import sub
 from typing import Optional, Union, List, Dict, Any
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -207,6 +208,13 @@ class OAuthGrantSettingsDTO(BaseModel):
     # against, so that a resource which later names a different authorization server
     # cannot have the stored refresh token presented to it.
     issuer: Optional[str] = None
+    # The connection these tokens authorize. A server URL is an address, and several
+    # connections in one project can share one: two accounts at the same MCP server are
+    # two connections, so the endpoint is what a grant belongs to. The row is addressed
+    # by a slug derived from this id; the field records what the row is for, so a reader
+    # or a migration does not have to reverse the slug to find out. Optional because
+    # rows written before the key moved off the server URL do not carry it.
+    endpoint_id: Optional[UUID] = None
 
 
 class OAuthGrantDTO(BaseModel):

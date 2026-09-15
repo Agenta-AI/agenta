@@ -1206,10 +1206,14 @@ class _SequenceResolver(MockResolver):
 class _StubRefresher:
     def __init__(self, *, failure: Optional[Exception] = None) -> None:
         self.calls: List[str] = []
+        # Which connection each refresh was asked for. A relay must renew the grant of
+        # the endpoint it resolved, not of whatever else shares that server URL.
+        self.endpoint_ids: List[UUID] = []
         self._failure = failure
 
-    async def refresh_grant(self, *, project_id, server_url) -> None:
+    async def refresh_grant(self, *, project_id, endpoint_id, server_url) -> None:
         self.calls.append(server_url)
+        self.endpoint_ids.append(endpoint_id)
         if self._failure is not None:
             raise self._failure
 
@@ -1221,7 +1225,7 @@ async def test_relay_refreshes_an_expired_grant_and_the_call_succeeds():
     import time
 
     dao = MockMCPEndpointsDAO()
-    await _oauth_endpoint(dao)
+    endpoint = await _oauth_endpoint(dao)
     resolver = _SequenceResolver(
         secrets=[
             _grant_secret(access_token="stale", expires_at=int(time.time()) - 3600),
@@ -1248,6 +1252,9 @@ async def test_relay_refreshes_an_expired_grant_and_the_call_succeeds():
 
     assert result.status_code == 200
     assert refresher.calls == ["https://example.com/mcp"]
+    # Which grant to renew is the connection, not the URL: several endpoints in one
+    # project can name this server and each holds its own.
+    assert refresher.endpoint_ids == [endpoint.id]
     # The relay carried the renewed grant, not the one it first read.
     assert adapter.last_auth.secret.secret.data.grant.access_token == "renewed"
 

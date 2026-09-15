@@ -46,8 +46,20 @@ def grant_settings_expired(
     return grant.expires_at - skew <= time.time()
 
 
-def _server_slug(server_url: str) -> str:
-    return get_slug_from_name_and_id("oauth-grant", uuid5(NAMESPACE_URL, server_url))
+def grant_slug(endpoint_id: UUID) -> str:
+    """The vault slug holding one connection's grant.
+
+    Derived from the endpoint, never from the server URL. A URL is an address, and two
+    accounts at one MCP server are two connections in one project, so a URL-derived slug
+    made them collide: the second consent updated the first account's row in place, and
+    the first connection went on working as the second account with nothing reported.
+
+    Stable across reconnects of the same connection, and unique within the project
+    because the endpoint id is, so the existing partial unique index on
+    `(project_id, slug)` still arbitrates — now between two callbacks for the same
+    connection, which is what it was written for.
+    """
+    return get_slug_from_name_and_id("oauth-grant", endpoint_id)
 
 
 def _issuer_slug(issuer_url: str) -> str:
@@ -55,14 +67,23 @@ def _issuer_slug(issuer_url: str) -> str:
 
 
 class SecretsTokenStorage:
-    """Store OAuth grants by server and client registration by authorization server.
+    """Store one connection's OAuth grant, and a client registration per authorization
+    server.
 
-    Both records are addressed by a slug derived from a URL (`uuid5`), so two callbacks
-    completing at once compute the same slug and both find nothing to update. The write
-    is therefore create-first, and the loser of the unique index on `(project_id, slug)`
-    converts its refusal into the update it would have made had it read a moment later
-    (OR61). Postgres arbitrates; nothing serializes these writers in Python, which would
-    only work inside one worker anyway.
+    The two records are keyed on different things on purpose. A grant authorizes an
+    account, so it belongs to the connection that consented: `grant_slug(endpoint_id)`.
+    A client registration under RFC 7591 names this *deployment* to an authorization
+    server; it is not an account, two connections at one authorization server
+    legitimately share one, and registering per connection would mint a fresh client on
+    every connect, which authorization servers rate limit. So it stays keyed on the
+    issuer.
+
+    Both slugs are deterministic, so two callbacks completing at once compute the same
+    slug and both find nothing to update. The write is therefore create-first, and the
+    loser of the unique index on `(project_id, slug)` converts its refusal into the
+    update it would have made had it read a moment later (OR61). Postgres arbitrates;
+    nothing serializes these writers in Python, which would only work inside one worker
+    anyway.
     """
 
     def __init__(
@@ -71,26 +92,45 @@ class SecretsTokenStorage:
         vault_service: VaultService,
         project_id: UUID,
         server_url: str,
+        endpoint_id: Optional[UUID] = None,
         authorization_server: Optional[str] = None,
     ) -> None:
         self.vault_service = vault_service
         self.project_id = project_id
         self.server_url = server_url
+        self.endpoint_id = endpoint_id
         self.authorization_server = authorization_server
 
     # Tokens
 
+    def _require_endpoint_id(self) -> UUID:
+        """The connection this storage speaks for.
+
+        Every grant read and write needs it. Only the client-registration half of this
+        class is endpoint-independent, which is why the constructor accepts `None`
+        rather than making a registration-only caller invent an id.
+        """
+        if self.endpoint_id is None:
+            raise ValueError(
+                "an MCP OAuth grant belongs to one connection: endpoint_id is required"
+            )
+        return self.endpoint_id
+
     async def _find_grant(self) -> Optional[SecretResponseDTO]:
-        secrets = await self.vault_service.list_secrets(project_id=self.project_id)
-        return next(
-            (
-                s
-                for s in secrets
-                if s.kind == SecretKind.OAUTH_GRANT
-                and s.data.grant.server == self.server_url
-            ),
-            None,
+        """The grant row for this connection, addressed by slug.
+
+        A lookup, not a scan. The previous implementation listed every secret in the
+        project and matched on the grant's `server` field, which both fetched one
+        connection's row for another connection and put a full project secret listing on
+        the path of every relayed call.
+        """
+        secret = await self.vault_service.get_secret_by_slug(
+            secret_slug=grant_slug(self._require_endpoint_id()),
+            project_id=self.project_id,
         )
+        if secret is None or secret.kind != SecretKind.OAUTH_GRANT:
+            return None
+        return secret
 
     async def get_grant(self) -> Optional[OAuthGrantSettingsDTO]:
         """The stored grant as it is recorded, issuer included.
@@ -122,7 +162,8 @@ class SecretsTokenStorage:
         await self.write_tokens(tokens)
 
     async def write_tokens(self, tokens: OAuthToken) -> SecretResponseDTO:
-        """Write tokens and return the persisted secret."""
+        """Write this connection's tokens and return the persisted secret."""
+        endpoint_id = self._require_endpoint_id()
         expires_at = (
             int(time.time()) + tokens.expires_in
             if tokens.expires_in is not None
@@ -138,13 +179,14 @@ class SecretsTokenStorage:
             # tokens to any other authorization server, however the resource's own
             # metadata document may read by then.
             issuer=self.authorization_server,
+            endpoint_id=endpoint_id,
         )
         secret = SecretDTO(
             kind=SecretKind.OAUTH_GRANT,
             data=OAuthGrantDTO(grant=grant_settings),
         )
 
-        slug = _server_slug(self.server_url)
+        slug = grant_slug(endpoint_id)
         existing = await self._find_grant()
         if existing is not None:
             return await self._update(existing=existing, secret=secret)

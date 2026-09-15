@@ -66,8 +66,8 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         self.attempts_dao = attempts_dao
         # Tests may inject DNS resolution.
         self._resolve_kwargs = {"resolve": resolve} if resolve is not None else {}
-        # One lock per (project, server). See `refresh_grant`.
-        self._refresh_locks: Dict[Tuple[UUID, str], asyncio.Lock] = {}
+        # One lock per connection. See `refresh_grant`.
+        self._refresh_locks: Dict[Tuple[UUID, UUID], asyncio.Lock] = {}
 
     async def discover(self, *, server_url: str) -> MCPOAuthDiscovery:
         return await self.client.discover(server_url=server_url)
@@ -136,6 +136,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             vault_service=self.vault_service,
             project_id=project_id,
             server_url=server_url,
+            endpoint_id=endpoint_id,
             authorization_server=discovery.authorization_server,
         )
 
@@ -241,6 +242,11 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             vault_service=self.vault_service,
             project_id=attempt.project_id,
             server_url=attempt.server_url,
+            # The connection the person pressed connect on, carried through the browser
+            # leg on the attempt. The grant is written for that connection, so a second
+            # account at the same server gets its own row instead of overwriting the
+            # first one's.
+            endpoint_id=attempt.endpoint_id,
             authorization_server=attempt.issuer,
         )
 
@@ -277,20 +283,24 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
 
     # Refresh
 
-    def _refresh_lock(self, *, project_id: UUID, server_url: str) -> asyncio.Lock:
-        return self._refresh_locks.setdefault((project_id, server_url), asyncio.Lock())
+    def _refresh_lock(self, *, project_id: UUID, endpoint_id: UUID) -> asyncio.Lock:
+        return self._refresh_locks.setdefault((project_id, endpoint_id), asyncio.Lock())
 
-    async def refresh_grant(self, *, project_id: UUID, server_url: str) -> None:
-        """Renew the stored grant for one server, in place.
+    async def refresh_grant(
+        self, *, project_id: UUID, endpoint_id: UUID, server_url: str
+    ) -> None:
+        """Renew one connection's stored grant, in place.
 
         **Concurrency.** Several relays can find one grant expired at the same moment,
         and a rotating authorization server invalidates a refresh token the instant it
         is spent, so two exchanges would leave one caller holding a token the server has
         already retired. Two mechanisms, in order:
 
-        * Inside a worker, one `asyncio.Lock` per `(project_id, server_url)` serializes
-          the refresh, and the grant is re-read after the lock is taken. The second
-          caller therefore finds a fresh token and performs no exchange at all.
+        * Inside a worker, one `asyncio.Lock` per connection serializes the refresh, and
+          the grant is re-read after the lock is taken. The second caller therefore
+          finds a fresh token and performs no exchange at all. Per connection rather
+          than per server: two accounts at one server hold two grants, and one waiting
+          on the other's exchange would serialize calls that never touch the same row.
         * Across workers, nothing can serialize them without a distributed lock this
           module has no business introducing, so the losing exchange is expected to be
           refused. It is treated as a race, not a death: the grant is re-read, and if the
@@ -301,11 +311,12 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         `secret_id` names, so the caller re-reads its own reference rather than being
         handed one.
         """
-        async with self._refresh_lock(project_id=project_id, server_url=server_url):
+        async with self._refresh_lock(project_id=project_id, endpoint_id=endpoint_id):
             storage = SecretsTokenStorage(
                 vault_service=self.vault_service,
                 project_id=project_id,
                 server_url=server_url,
+                endpoint_id=endpoint_id,
             )
 
             stored = await storage.get_grant()

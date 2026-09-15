@@ -796,6 +796,7 @@ class MCPGatewayService:
         try:
             await self.oauth_refresher.refresh_grant(
                 project_id=scope.project_id,
+                endpoint_id=endpoint.id,
                 server_url=server_url,
             )
         except MCPOAuthRefreshFailedError as e:

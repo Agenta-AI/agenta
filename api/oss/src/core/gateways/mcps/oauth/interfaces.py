@@ -21,8 +21,14 @@ class MCPOAuthRefresherInterface(ABC):
     """
 
     @abstractmethod
-    async def refresh_grant(self, *, project_id: UUID, server_url: str) -> None:
-        """Refresh the stored grant for one server, in place.
+    async def refresh_grant(
+        self, *, project_id: UUID, endpoint_id: UUID, server_url: str
+    ) -> None:
+        """Refresh one connection's stored grant, in place.
+
+        `endpoint_id` is which grant, because several connections in one project can
+        name the same server and each holds its own. `server_url` is where to rediscover
+        the token endpoint, which is routing rather than identity.
 
         Returns nothing: the caller re-reads the secret it already holds a reference to,
         because the refreshed tokens are written back to that same row. Raises

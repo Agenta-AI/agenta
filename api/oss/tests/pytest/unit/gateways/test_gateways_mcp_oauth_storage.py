@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 import pytest
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
-from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
+from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage, grant_slug
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
 
@@ -88,6 +88,7 @@ def _storage(
     dao: Optional[_FakeSecretsDAO] = None,
     project_id=None,
     server_url="https://mcp.acme.io/",
+    endpoint_id=None,
     authorization_server=None,
 ):
     dao = dao or _FakeSecretsDAO()
@@ -96,6 +97,7 @@ def _storage(
         vault_service=vault,
         project_id=project_id or uuid4(),
         server_url=server_url,
+        endpoint_id=endpoint_id or uuid4(),
         authorization_server=authorization_server,
     )
     return storage, dao
@@ -258,3 +260,115 @@ async def test_client_info_falls_back_to_server_url_before_issuer_is_known():
     fetched = await storage.get_client_info()
 
     assert fetched is not None and fetched.client_id == "client-preregistration"
+
+
+# --- a grant belongs to one connection ------------------------------------------ #
+
+
+@pytest.mark.asyncio
+async def test_two_connections_at_one_url_hold_separate_grants():
+    """Two accounts at the same MCP server are two connections, and each keeps its own
+    tokens.
+
+    Under the previous key the grant's slug was a `uuid5` of the server URL, so the
+    second connection's consent found the first one's row and updated it. Both
+    connections then presented the second account's token, and the first account's
+    tokens were gone with nothing reported.
+    """
+    dao = _FakeSecretsDAO()
+    project_id = uuid4()
+    url = "https://mcp.acme.io/"
+    storage_a, _ = _storage(dao=dao, project_id=project_id, server_url=url)
+    storage_b, _ = _storage(dao=dao, project_id=project_id, server_url=url)
+
+    await storage_a.set_tokens(OAuthToken(access_token="tok-account-a"))
+    await storage_b.set_tokens(OAuthToken(access_token="tok-account-b"))
+
+    # Two rows, not one updated twice.
+    assert dao.create_calls == 2
+    assert dao.update_calls == 0
+
+    tokens_a = await storage_a.get_tokens()
+    tokens_b = await storage_b.get_tokens()
+    assert tokens_a is not None and tokens_a.access_token == "tok-account-a"
+    assert tokens_b is not None and tokens_b.access_token == "tok-account-b"
+
+
+@pytest.mark.asyncio
+async def test_the_grant_slug_is_the_connection_not_the_server_url():
+    endpoint_id = uuid4()
+    same_endpoint_other_url, dao = _storage(
+        server_url="https://moved.example/mcp", endpoint_id=endpoint_id
+    )
+
+    await same_endpoint_other_url.set_tokens(OAuthToken(access_token="tok"))
+
+    stored_slug = dao.records[0][1].slug
+    assert stored_slug == grant_slug(endpoint_id)
+    # The URL is routing; it appears in the payload, never in the key.
+    assert "moved" not in stored_slug
+
+
+@pytest.mark.asyncio
+async def test_a_written_grant_records_the_connection_it_belongs_to():
+    endpoint_id = uuid4()
+    storage, dao = _storage(endpoint_id=endpoint_id)
+
+    await storage.set_tokens(OAuthToken(access_token="tok"))
+
+    assert dao.records[0][1].data.grant.endpoint_id == endpoint_id
+
+
+@pytest.mark.asyncio
+async def test_a_grant_read_ignores_another_connections_row():
+    """The lookup addresses one slug, so a project full of other connections' grants is
+    not a place a reader can land by accident."""
+    dao = _FakeSecretsDAO()
+    project_id = uuid4()
+    url = "https://mcp.acme.io/"
+    other, _ = _storage(dao=dao, project_id=project_id, server_url=url)
+    await other.set_tokens(OAuthToken(access_token="tok-other"))
+
+    unconnected, _ = _storage(dao=dao, project_id=project_id, server_url=url)
+
+    assert await unconnected.get_tokens() is None
+    assert await unconnected.get_grant() is None
+
+
+@pytest.mark.asyncio
+async def test_a_grant_operation_without_a_connection_is_refused():
+    """Only the client-registration half of this class is connection-independent, so a
+    storage built for that half must not silently read or write somebody's grant."""
+    vault = VaultService(secrets_dao=_FakeSecretsDAO())
+    registration_only = SecretsTokenStorage(
+        vault_service=vault,
+        project_id=uuid4(),
+        server_url="https://mcp.acme.io/",
+        authorization_server="https://auth.acme.io/",
+    )
+
+    with pytest.raises(ValueError):
+        await registration_only.get_tokens()
+    with pytest.raises(ValueError):
+        await registration_only.set_tokens(OAuthToken(access_token="tok"))
+
+
+@pytest.mark.asyncio
+async def test_two_connections_at_one_authorization_server_share_one_registration():
+    """A client registration names this deployment to an authorization server. It is not
+    an account, so two connections there reuse it rather than minting a second client."""
+    dao = _FakeSecretsDAO()
+    project_id = uuid4()
+    issuer = "https://auth.acme.io/"
+    storage_a, _ = _storage(dao=dao, project_id=project_id, authorization_server=issuer)
+    storage_b, _ = _storage(dao=dao, project_id=project_id, authorization_server=issuer)
+
+    info = OAuthClientInformationFull(
+        redirect_uris=["https://api.agenta.ai/gateways/mcps/connect/callback"],
+        client_id="client-shared",
+    )
+    await storage_a.set_client_info(info)
+
+    fetched = await storage_b.get_client_info()
+    assert fetched is not None and fetched.client_id == "client-shared"
+    assert dao.create_calls == 1
