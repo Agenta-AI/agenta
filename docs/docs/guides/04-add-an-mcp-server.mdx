@@ -43,8 +43,25 @@ Start from `Settings` in the sidebar, then `MCPs`, and click `Connect MCP`. You 
 
 The prefix is frozen when you pick the connection. Renaming the connection later does not rename the tools in an agent that is already saved.
 
+## Choose what the agent may do with each tool
+
+Permissions belong to the agent, not to the connection. Two agents can share one server and be allowed different things, which is why the connection drawer in `Settings` lists the tools read-only and sends you here.
+
+In the agent's **MCPs** section, open the server and find `Permissions`.
+
+1. The field starts on "Every tool on this server follows the server's own permission." Click `Set permissions per tool` to decide tool by tool.
+2. Set `A tool with no rule of its own` to `Ask`, `Allow`, or `Deny`. This covers every tool you leave without a rule, including one the server starts advertising after you save.
+3. Give individual tools their own rule. `Allow` runs the tool without asking, `Ask` pauses the run for you, `Deny` never runs it, and `Inherit` hands the tool back to the default you set in step 2. A row with no rule of its own says what it inherits, such as `Inherits ask`.
+
+To hand the whole server back to one decision, click `Use the server permission instead`. That clears every per-tool rule you set.
+
+Two kinds of row behave differently:
+
+- A tool that the server's tool filter hides reads "Hidden by this server's tool filter" and its control is disabled. A hidden tool is never offered to the model, so it needs no permission. The filter itself is a configuration field, described in [MCP servers](/reference/agents/mcp-servers).
+- A rule for a tool the server has stopped advertising appears under "Rules for tools this server no longer advertises". Agenta keeps it, because a server can drop a tool and bring it back, and a dropped rule would let it return under the default from step 2. Click `Remove` to discard the rule on purpose.
+
 :::note
-The agent's permission policy decides when an MCP call waits for you. MCP tools are not covered by the `Always auto-approve` checkbox on an approval card, so under `ask` every call asks again unless the configuration sets a permission for the server or for the tool. See [MCP servers](/reference/agents/mcp-servers) for those fields and [Control what an agent can do](/guides/control-what-an-agent-can-do) for the policy.
+MCP tools are not covered by the `Always auto-approve` checkbox on an approval card. A tool on `Ask` asks every time it runs, so give a tool you run often its own `Allow` rule instead. See [Control what an agent can do](/guides/control-what-an-agent-can-do) for the agent-wide policy these rules sit inside.
 :::
 
 ## Connect a second account at the same server
