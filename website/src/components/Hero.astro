@@ -1,19 +1,19 @@
 ---
 import Badge from "./Badge.astro";
 import Section from "./Section.astro";
-// Hero — dark landing. Copy = the approved pivot rev-5 headline.
+// Homepage hero copy from the coworkers landing design.
 import HeroVideo from "./HeroVideo.astro";
 
 const GET_STARTED = "https://cloud.agenta.ai/";
-const READ_DOCS = "https://docs.agenta.ai/";
+const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
 
 // heroPre + [chip] + heroPost form the headline. The chip is the single
 // PP Mondwest highlighted word (yellow), per the type-role rules.
-const heroPre = "The open-source workspace for your ";
-const heroChip = "agents";
-const heroPost = ".";
+const heroPre = "AI ";
+const heroChip = "coworkers";
+const heroPost = " that learn how you work.";
 const heroSub =
-  "Build agents through chat. Improve them with feedback. Share them with your whole team.";
+  "Get more work done with AI coworkers for every team. Work alongside them in Slack or Telegram to run and automate tasks.";
 
 // No hero video asset yet — the placeholder card stays gated off until one lands.
 const SHOW_HERO_VIDEO = false;
@@ -26,7 +26,9 @@ const SHOW_HERO_VIDEO = false;
 >
   <div style="display:flex;flex-direction:column;align-items:center;gap:32px;">
     <div style="display:flex;flex-direction:column;align-items:center;gap:28px;">
-      <Badge href="/blog/introducing-agenta-2-0">Agenta 2.0 — read the announcement →</Badge>
+      <Badge href="https://github.com/Agenta-AI/agenta" target="_blank" rel="noopener">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.5c-5.8 0-10.5 4.7-10.5 10.5 0 4.64 3 8.58 7.18 9.97.53.1.72-.23.72-.5 0-.25-.01-1.08-.01-1.96-2.64.49-3.32-.64-3.53-1.23-.12-.3-.63-1.23-1.08-1.48-.37-.2-.89-.68-.01-.7.83-.01 1.42.76 1.61 1.08.94 1.59 2.45 1.14 3.06.87.09-.68.37-1.14.67-1.4-2.34-.26-4.78-1.17-4.78-5.19 0-1.14.41-2.08 1.08-2.82-.11-.26-.47-1.34.1-2.78 0 0 .88-.28 2.89 1.08a9.77 9.77 0 0 1 5.25 0c2.01-1.37 2.89-1.08 2.89-1.08.58 1.44.21 2.52.1 2.78.67.73 1.08 1.67 1.08 2.82 0 4.03-2.45 4.92-4.79 5.18.38.33.71.96.71 1.94 0 1.4-.01 2.54-.01 2.89 0 .28.19.61.72.5A10.52 10.52 0 0 0 22.5 12c0-5.8-4.7-10.5-10.5-10.5Z"></path></svg>Open-source
+      </Badge>
       <h1
         class="ag-h1"
         style="margin:0;font:var(--text-display-xl);color:var(--th-text-hi);max-width:920px;text-wrap:pretty;"
@@ -35,7 +37,7 @@ const SHOW_HERO_VIDEO = false;
           class="ag-hero-chip"
           style="display:inline-block;padding:0.02em 0.1em 0.08em;border-radius:10px;background:var(--hchip-bg);box-shadow:var(--hchip-shadow);font-family:var(--font-bitmap,'PP Mondwest',monospace);font-weight:400;line-height:1.06;color:var(--hchip-text);vertical-align:baseline;"
           >{heroChip}</span
-        ><span style="margin-left:-0.02em;">{heroPost}</span>
+        ><span>{heroPost}</span>
       </h1>
       <p
         style="margin:0;font:var(--text-body-md);color:var(--th-text-body);max-width:600px;text-wrap:pretty;"
@@ -50,14 +52,14 @@ const SHOW_HERO_VIDEO = false;
         href={GET_STARTED}
         target="_blank"
         rel="noopener"
-        >Start building</a
+        >Try for free</a
       >
       <a
         class="ag-btn ag-btn--outline"
-        href={READ_DOCS}
+        href={BOOK_DEMO}
         target="_blank"
         rel="noopener"
-        >Read the docs</a
+        >Book a demo</a
       >
     </div>
 
