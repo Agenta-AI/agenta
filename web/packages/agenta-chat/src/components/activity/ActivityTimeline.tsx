@@ -279,12 +279,10 @@ export const ActivityTimeline = ({
             </>
         )
     } else {
-        // A turn that only thought did not "work": it thought.
-        const did = steps.length === 1 && steps[0].kind === "thought" ? "Thought" : "Worked"
         title =
             elapsed === null
-                ? `${did}${stepsText}`
-                : `${did} for ${formatElapsed(elapsed, {live: false})}`
+                ? `Worked${stepsText}`
+                : `Worked for ${formatElapsed(elapsed, {live: false})}`
     }
 
     return (
