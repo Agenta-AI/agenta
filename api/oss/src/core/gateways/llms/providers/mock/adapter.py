@@ -227,9 +227,10 @@ def _echo_tool_ref(body: bytes) -> EchoToolRef | None:
     The namespace is returned beside the name rather than joined into it, because joining is what
     kept failing: Codex's `ResponseItem::FunctionCall` carries `name` and `namespace` as SEPARATE
     wire fields, and reassembles them itself
-    (``codex-rs/core/src/tools/router.rs``, ``build_tool_call``, at tag ``rust-v0.154.0`` — the
-    version the runner image installs). Any joined spelling arrives as a name in the default
-    namespace, matches no registered tool, and comes back as ``unsupported call: <name>``.
+    (``codex-rs/core/src/tools/router.rs``, ``build_tool_call``). Any joined spelling arrives as a
+    name in the default namespace, matches no registered tool, and comes back as
+    ``unsupported call: <name>``. Verified identical at ``rust-v0.145.0`` (the pinned
+    ``@openai/codex`` the runner drives) and ``rust-v0.154.0``, so this does not ride a version.
 
     The entries seen are logged, because when the cell fails for a harness whose catalog is absent
     or differently shaped, the list of what WAS offered is the one thing that says why.
@@ -342,9 +343,9 @@ def _responses_tool_call_payload(
 
     ``ResponseItem::FunctionCall`` has `name` and an optional `namespace`
     (``codex-rs/protocol/src/models.rs``), and ``build_tool_call`` rebuilds the identity with
-    ``ToolName::new(namespace, name)`` (``codex-rs/core/src/tools/router.rs``), both at tag
-    ``rust-v0.154.0``. Omitting the field for a namespaced tool puts the call in the default
-    namespace, where no MCP tool is registered.
+    ``ToolName::new(namespace, name)`` (``codex-rs/core/src/tools/router.rs``). Omitting the field
+    for a namespaced tool puts the call in the default namespace, where no MCP tool is registered.
+    The shape is the same at ``rust-v0.145.0`` and ``rust-v0.154.0``.
     """
     return {
         "id": response_id,

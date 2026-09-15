@@ -490,11 +490,35 @@ ResponseItem::FunctionCall { name, namespace, arguments, call_id, .. } => {
     let tool_name = ToolName::new(namespace, name).with_default_namespace();
 ```
 
-`codex-rs/core/src/tools/router.rs`, at tag `rust-v0.154.0` — the version the runner image
-installs (`codex-cli 0.154.0` from `/root/.local/share/sandbox-agent/bin/codex --version`; note
-`services/runner/package.json` records the pin as `0.145.0`, so the two have drifted and the
-binary is what counts). A name with no `namespace` field is placed in the default namespace, where
-no MCP tool is registered, and `unsupported_tool_call_message` (`registry.rs`) renders the refusal.
+`codex-rs/core/src/tools/router.rs`. A name with no `namespace` field is placed in the default
+namespace, where no MCP tool is registered, and `unsupported_tool_call_message` (`registry.rs`)
+renders the refusal.
+
+**Which Codex this was measured against, because the obvious probe lies.** The harness the runner
+drives is the pinned `@openai/codex 0.145.0` (`services/runner/package.json`), and these cells were
+re-run against it on 2026-09-15 after review finding D8 questioned the provenance. The trap is that
+the container also holds a standalone binary that reports a different version:
+
+```
+# The artifact an operator naturally probes -- and NOT what runs:
+$ docker exec <runner> /root/.local/share/sandbox-agent/bin/codex --version
+codex-cli 0.154.0
+
+# The one codex-acp actually spawns:
+$ docker exec <runner> node \
+    /root/.local/share/sandbox-agent/bin/agent_processes/codex/node_modules/@openai/codex/bin/codex.js --version
+codex-cli 0.145.0
+```
+
+`codex-acp`'s launcher (`bin/agent_processes/codex-acp`) execs the copy inside its own pinned
+install, and its `startAcpServer` spawns `createRequire(import.meta.url).resolve("@openai/codex/bin/codex.js")`
+unless `CODEX_PATH` overrides it. `CODEX_PATH` appears nowhere in `services/runner/src` and is
+unset in the container, so the bundled pin is what runs. An earlier revision of this section cited
+the standalone binary and concluded the pin had drifted; it had not.
+
+The wire shape is the same in both versions, so nothing here depends on which one is running:
+`ResponseItem::FunctionCall` carries the separate `namespace` field and `build_tool_call` rebuilds
+the identity with `ToolName::new(namespace, name)` at both `rust-v0.145.0` and `rust-v0.154.0`.
 
 So the mock now emits the namespace as its own field:
 
