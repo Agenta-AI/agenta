@@ -18,6 +18,7 @@ import {useOnboardingProviderSetup} from "@/oss/components/AgentChatSlice/hooks/
 import {useOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import {projectIdAtom} from "@/oss/state/project"
 
+import AgentIdentity from "./AgentIdentity"
 import ConnectToolsStep from "./ConnectToolsStep"
 import {onboardingDraftKey, saveOnboardingDraft} from "./draft"
 import OnboardingFlowView from "./OnboardingFlowView"
@@ -78,9 +79,17 @@ export default function OnboardingFlow() {
             <OnboardingFlowView
                 key={draftKey}
                 draftKey={draftKey}
+                identity={<AgentIdentity entityId={context.ephemeralId} />}
                 variant={variant}
                 committing={context.committing}
                 modelReady={modelReady}
+                modelNextLabel={
+                    selectedModel?.managed
+                        ? "Continue with credits"
+                        : selectedModel?.harness === "codex"
+                          ? "Continue with ChatGPT"
+                          : "Continue with your key"
+                }
                 onCreate={({name, seedMessage, connectionIds = []}) => {
                     try {
                         updateConfiguration(
@@ -111,8 +120,15 @@ export default function OnboardingFlow() {
                     <ConnectToolsStep selectedIds={selectedIds} onChange={onChange} />
                 )}
                 model={
-                    <div className="rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer p-6">
-                        <h2 className="text-xl font-semibold">Your model connection</h2>
+                    <div>
+                        <h1 className="mb-2 text-center text-[30px] font-semibold">
+                            {availableConnections.some((item) => item.managed)
+                                ? "You're set with Agenta credits"
+                                : "Choose how to run your agent"}
+                        </h1>
+                        <p className="mb-8 text-center text-[15px] text-colorTextSecondary">
+                            Use available credits, or bring your own subscription or model.
+                        </p>
                         {candidates.status === "loading" && (
                             <p role="status">Checking available models…</p>
                         )}
@@ -166,9 +182,44 @@ export default function OnboardingFlow() {
                         {!modelReady && candidates.status === "ready" && (
                             <p>Connect ChatGPT or add a provider key to run your first agent.</p>
                         )}
-                        <Button size="large" onClick={setup.openDrawer}>
-                            Connect a model
-                        </Button>
+                        <p className="mb-3 mt-7 text-sm text-colorTextSecondary">
+                            Have a subscription? Use it instead (optional)
+                        </p>
+                        <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between gap-4 rounded-xl border border-solid border-colorBorderSecondary p-4">
+                                <span>
+                                    <strong className="block">ChatGPT</strong>
+                                    <span className="text-xs text-colorTextSecondary">
+                                        Plus · Pro · Team
+                                    </span>
+                                </span>
+                                <Button onClick={setup.openDrawer}>Connect</Button>
+                            </div>
+                            <div className="flex items-center justify-between gap-4 rounded-xl border border-solid border-colorBorderSecondary p-4 text-colorTextSecondary">
+                                <span>
+                                    <strong className="block">Claude</strong>
+                                    <span className="text-xs">
+                                        Pro · Max · Team · Self-hosting only
+                                    </span>
+                                </span>
+                                <a
+                                    href="https://docs.agenta.ai/self-host/quick-start"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    Docs
+                                </a>
+                            </div>
+                            <div className="flex items-center justify-between gap-4 rounded-xl border border-solid border-colorBorderSecondary p-4">
+                                <span>
+                                    <strong className="block">Bring your own model</strong>
+                                    <span className="text-xs text-colorTextSecondary">
+                                        OpenAI, Anthropic, Gemini, Ollama, OpenRouter and more
+                                    </span>
+                                </span>
+                                <Button onClick={setup.openDrawer}>Add API key</Button>
+                            </div>
+                        </div>
                         <p className="mt-4 text-sm text-colorTextSecondary">
                             The connection panel shows the options available in this deployment.
                             Claude subscriptions require self-hosting.

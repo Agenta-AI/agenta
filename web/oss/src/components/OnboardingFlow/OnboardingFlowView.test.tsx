@@ -63,7 +63,7 @@ const setup = (variant: "control" | "task-first" = "control", modelReady = true)
     fireEvent.click(screen.getByRole("button", {name: "Next"}))
     fireEvent.click(screen.getByRole("button", {name: "GitHub"}))
     fireEvent.click(screen.getByRole("button", {name: "Next"}))
-    fireEvent.click(screen.getByRole("button", {name: "Continue"}))
+    fireEvent.click(screen.getByRole("button", {name: "Next"}))
     return onCreate
 }
 
@@ -91,24 +91,24 @@ describe("first agent onboarding", () => {
         first.unmount()
         const second = render(<OnboardingFlowView {...props} />)
         fireEvent.click(screen.getByRole("button", {name: "Select GitHub 0"}))
-        expect(screen.getByRole("heading", {name: "Connect your tools"})).toBeTruthy()
-        fireEvent.click(screen.getByRole("button", {name: "Continue"}))
+        expect(screen.getByRole("heading", {name: "What do you use every day?"})).toBeTruthy()
+        fireEvent.click(screen.getByRole("button", {name: "Next"}))
         fireEvent.click(screen.getByRole("button", {name: "Next"}))
         fireEvent.change(screen.getByLabelText("Agent name"), {target: {value: "My agent"}})
-        fireEvent.change(screen.getByLabelText("What would you like it to do?"), {
-            target: {value: "Help me plan"},
-        })
+
         second.unmount()
         const third = render(<OnboardingFlowView {...props} />)
-        fireEvent.click(screen.getByRole("button", {name: "Create agent"}))
+        fireEvent.click(screen.getByRole("button", {name: /Get started|Set up this agent/}))
         expect(props.onCreate).toHaveBeenCalledWith({
             name: "My agent",
-            seedMessage: "Help me plan",
+            seedMessage: "Set up My agent: help me define what this agent should do.",
             connectionIds: ["connection-1"],
         })
         third.unmount()
         render(<OnboardingFlowView {...props} draftKey="onboarding:project-b" />)
-        expect(screen.getByRole("heading", {name: "What kind of work do you do?"})).toBeTruthy()
+        expect(
+            screen.getByRole("heading", {name: "What will you be working on most?"}),
+        ).toBeTruthy()
     })
 
     it("requires a runnable model before proceeding", () => {
@@ -118,12 +118,14 @@ describe("first agent onboarding", () => {
     it("creates A with the edited name and the selected template's first message", () => {
         const onCreate = setup()
         fireEvent.click(screen.getByRole("button", {name: "Next"}))
-        expect(screen.getByRole("button", {name: "Create agent"}).hasAttribute("disabled")).toBe(
-            true,
-        )
+        expect(
+            screen
+                .getByRole("button", {name: /Get started|Set up this agent/})
+                .hasAttribute("disabled"),
+        ).toBe(true)
         fireEvent.click(screen.getByRole("button", {name: /PR reviewer/}))
         fireEvent.change(screen.getByLabelText("Agent name"), {target: {value: "My reviewer"}})
-        fireEvent.click(screen.getByRole("button", {name: "Create agent"}))
+        fireEvent.click(screen.getByRole("button", {name: /Get started|Set up this agent/}))
         expect(onCreate).toHaveBeenCalledWith({
             name: "My reviewer",
             seedMessage: "Set up a PR reviewer and review my open pull requests.",
@@ -132,9 +134,9 @@ describe("first agent onboarding", () => {
     it("labels B examples and creates with the task's builder message", () => {
         const onCreate = setup("task-first")
         fireEvent.click(screen.getByRole("button", {name: "Next"}))
-        fireEvent.click(screen.getByRole("button", {name: /Review my pull requests/}))
+        fireEvent.click(screen.getByRole("button", {name: /Review my open pull requests/}))
         expect(screen.getByText("Illustration only. Your agent hasn't run yet.")).toBeTruthy()
-        fireEvent.click(screen.getByRole("button", {name: "Create agent"}))
+        fireEvent.click(screen.getByRole("button", {name: /Get started|Set up this agent/}))
         expect(onCreate).toHaveBeenCalledWith({
             name: "PR reviewer",
             seedMessage: "Set up a PR reviewer and review my open pull requests.",
@@ -147,12 +149,14 @@ describe("first agent onboarding", () => {
         for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole("button", {name: "Back"}))
         fireEvent.click(screen.getByRole("button", {name: "Sales"}))
         for (let i = 0; i < 2; i++) fireEvent.click(screen.getByRole("button", {name: "Next"}))
-        fireEvent.click(screen.getByRole("button", {name: "Continue"}))
+        fireEvent.click(screen.getByRole("button", {name: "Next"}))
         fireEvent.click(screen.getByRole("button", {name: "Next"}))
         expect(screen.queryByRole("button", {name: /PR reviewer/})).toBeNull()
-        expect(screen.getByRole("button", {name: "Create agent"}).hasAttribute("disabled")).toBe(
-            true,
-        )
+        expect(
+            screen
+                .getByRole("button", {name: /Get started|Set up this agent/})
+                .hasAttribute("disabled"),
+        ).toBe(true)
     })
     it("does not record a completed step when going back", () => {
         const onStep = vi.fn()

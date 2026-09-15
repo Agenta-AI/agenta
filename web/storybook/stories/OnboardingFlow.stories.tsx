@@ -10,6 +10,7 @@ const meta = {
         tools: <p>Connect apps here, or continue without tools.</p>,
         model: <p>A model is ready.</p>,
         modelReady: true,
+        modelNextLabel: "Continue with credits",
         committing: false,
         onCreate: () => undefined,
         onStep: () => undefined,

@@ -32,6 +32,7 @@ interface Props {
     integrationLogo?: string
     integrationDescription?: string
     authSchemes: string[]
+    useDefaultName?: boolean
     onClose: () => void
     onSuccess?: () => void
 }
@@ -56,6 +57,7 @@ export default function ConnectDrawer({
     integrationLogo,
     integrationDescription,
     authSchemes,
+    useDefaultName = false,
     onClose,
     onSuccess,
 }: Props) {
@@ -227,23 +229,25 @@ export default function ConnectDrawer({
 
                 {/* Form (explicitly controlled — no antd Form) */}
                 <div className="flex flex-col gap-4">
-                    <Field
-                        label="Name"
-                        required
-                        tooltip="Display name for this connection"
-                        error={nameError}
-                    >
-                        <Input
-                            placeholder={`e.g. My ${integrationName} Account`}
-                            value={name}
-                            aria-invalid={nameError ? true : undefined}
-                            onChange={(e) => {
-                                nameTouchedRef.current = true
-                                setName(e.target.value)
-                                if (nameError && e.target.value.trim()) setNameError(null)
-                            }}
-                        />
-                    </Field>
+                    {!useDefaultName && (
+                        <Field
+                            label="Name"
+                            required
+                            tooltip="Display name for this connection"
+                            error={nameError}
+                        >
+                            <Input
+                                placeholder={`e.g. My ${integrationName} Account`}
+                                value={name}
+                                aria-invalid={nameError ? true : undefined}
+                                onChange={(e) => {
+                                    nameTouchedRef.current = true
+                                    setName(e.target.value)
+                                    if (nameError && e.target.value.trim()) setNameError(null)
+                                }}
+                            />
+                        </Field>
+                    )}
 
                     {availableModes.length > 1 && (
                         <Field label="Auth Method">

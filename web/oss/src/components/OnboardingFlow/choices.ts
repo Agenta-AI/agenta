@@ -43,7 +43,13 @@ export function firstAgentInput(
     templateKey: string | null,
 ) {
     const template = AGENT_TEMPLATES.find((item) => item.key === templateKey)
-    const seedMessage = task.trim() || (template ? templateBuilderMessage(template) : "")
+    const seedMessage =
+        task.trim() ||
+        (template
+            ? templateBuilderMessage(template)
+            : variant === "control" && name.trim()
+              ? `Set up ${name.trim()}: help me define what this agent should do.`
+              : "")
     const agentName = variant === "control" ? name.trim() : (template?.name ?? "My first agent")
     return agentName && seedMessage ? {name: agentName, seedMessage} : null
 }
