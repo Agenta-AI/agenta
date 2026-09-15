@@ -53,4 +53,8 @@ export * from "./useUploadReveal"
 export {default as StorageFilesHeader} from "./StorageFilesHeader"
 export {default as StorageSection} from "./StorageSection"
 
-export {SessionFilesPane, useSessionFilesPane} from "./SessionFilesPane"
+export {
+    SessionFilesPane,
+    sessionFilesPaneOpenAtomFamily,
+    useSessionFilesPane,
+} from "./SessionFilesPane"
