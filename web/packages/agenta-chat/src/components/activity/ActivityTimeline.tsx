@@ -304,13 +304,16 @@ export const ActivityTimeline = ({
                         {files.length} {files.length === 1 ? "file" : "files"}
                     </span>
                 ) : null}
-                <CaretRight
-                    size={10}
-                    weight="bold"
-                    className={`shrink-0 text-colorTextDisabled transition-transform ${
-                        open ? "rotate-90" : ""
-                    }`}
-                />
+                {/* Nothing to open before the first step: the warm-up line is not a fold yet. */}
+                {count ? (
+                    <CaretRight
+                        size={10}
+                        weight="bold"
+                        className={`shrink-0 text-colorTextDisabled transition-transform ${
+                            open ? "rotate-90" : ""
+                        }`}
+                    />
+                ) : null}
             </button>
             <RevealCollapse open={open}>
                 <div className="relative mt-3 mb-1.5 flex flex-col">
