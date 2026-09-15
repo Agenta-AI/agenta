@@ -17,6 +17,8 @@ export interface DriveTreeNode {
      * own level is fetched, so tiles/rows show "N items" without loading the children). Falls back to
      * `children.length` once loaded. */
     itemCount?: number
+    /** Object-store mtime (epoch ms) for a file; folders carry none. */
+    modifiedAt?: number
     children: DriveTreeNode[]
 }
 
@@ -131,6 +133,10 @@ export const relativeTime = (at?: number | null): string => {
 
 export const isMarkdownPath = (path: string): boolean => /\.(md|markdown|mdx)$/i.test(path)
 
+/** The tree's default order: folders first, then alpha by name. */
+export const compareFoldersFirstByName = (a: DriveTreeNode, b: DriveTreeNode): number =>
+    a.isFolder === b.isFolder ? a.name.localeCompare(b.name) : a.isFolder ? -1 : 1
+
 /**
  * Build the expandable tree from the flat listing: intermediate folders are materialized from
  * file paths (plus explicit `is_folder` rows), folders sort first, alpha within each level.
@@ -172,14 +178,13 @@ export function buildDriveTree(files: MountFile[] | null | undefined): DriveTree
             path,
             isFolder: false,
             size: file.size ?? 0,
+            modifiedAt: typeof file.mtime === "number" ? file.mtime : undefined,
             children: [],
         })
     }
 
     const sortLevel = (nodes: DriveTreeNode[]) => {
-        nodes.sort((a, b) =>
-            a.isFolder === b.isFolder ? a.name.localeCompare(b.name) : a.isFolder ? -1 : 1,
-        )
+        nodes.sort(compareFoldersFirstByName)
         for (const n of nodes) if (n.children.length) sortLevel(n.children)
     }
     sortLevel(root.children)
