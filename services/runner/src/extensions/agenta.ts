@@ -144,6 +144,7 @@ async function piDialogAllows(
   toolName: string,
   toolCallId: string,
   input: unknown,
+  mcpIdentity?: { mcpServer: string; mcpTool: string },
 ): Promise<{ allowed: boolean; reason?: string }> {
   const ui = ctx?.ui;
   const confirm = ui?.confirm;
@@ -156,7 +157,13 @@ async function piDialogAllows(
       ),
     };
   }
-  const message = buildPiGateEnvelope({ gate, toolName, toolCallId, input });
+  const message = buildPiGateEnvelope({
+    gate,
+    toolName,
+    toolCallId,
+    input,
+    ...(mcpIdentity ?? {}),
+  });
   try {
     const confirmed = await confirm.call(ui, PI_GATE_DIALOG_TITLE, message);
     // A confirm resolves to a BOOLEAN, so every refusal arrives here identical: a policy deny, a
@@ -470,7 +477,22 @@ const factory = (pi: ExtensionAPI): void => {
   if (gatewayMcpServers) {
     pi.on("before_agent_start", async () => {
       try {
-        await registerPiGatewayMcpTools(pi, gatewayMcpServers, log);
+        await registerPiGatewayMcpTools(
+          pi,
+          gatewayMcpServers,
+          log,
+          async ({ ctx, toolName, toolCallId, input, mcpServer, mcpTool }) => {
+            const { allowed, reason } = await piDialogAllows(
+              ctx as ExtensionContext | undefined,
+              "pi-mcp-tool",
+              toolName,
+              toolCallId,
+              input,
+              { mcpServer, mcpTool },
+            );
+            return { allowed, reason: reason ?? refusedAtGateText(toolName) };
+          },
+        );
       } catch (error) {
         // OR59. A registration failure used to leave `before_agent_start` as a bare rejection:
         // the turn either died with a generic error or ran on with no tools and no line saying

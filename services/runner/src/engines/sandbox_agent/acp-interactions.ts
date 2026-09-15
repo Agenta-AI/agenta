@@ -527,13 +527,17 @@ export function attachPermissionResponder({
     availableReplies: string[],
     envelope: PiGateEnvelope,
   ): Promise<void> => {
-    const gate = buildPiGateDescriptor(envelope, piToolSpecsByName);
+    const gate = buildPiGateDescriptor(
+      envelope,
+      piToolSpecsByName,
+      mcpPermissions,
+    );
     // An unrecognized tool name (builtin OR custom) fails closed. The envelope is
     // sandbox-origin and untrusted; letting the raw name through would resolve it against the
     // run's default permission and put a fabricated tool name on the human's approval card.
     if (!gate) {
       log?.(
-        `[HITL] pi-gate unknown ${envelope.gate === "pi-builtin" ? "builtin" : "custom tool"} ` +
+        `[HITL] pi-gate unknown ${piGateSubject(envelope.gate)} ` +
           `${JSON.stringify(envelope.toolName)} id=${id}; reject (fail closed)`,
       );
       await rejectRequest(id, availableReplies);
@@ -728,6 +732,7 @@ export function attachPermissionResponder({
 export function buildPiGateDescriptor(
   envelope: PiGateEnvelope,
   piToolSpecsByName: ReadonlyMap<string, PiToolSpecMeta> | undefined,
+  mcpPermissions: McpPermissionTable = new Map(),
 ): GateDescriptor | undefined {
   if (envelope.gate === "pi-builtin") {
     const identity = piBuiltinIdentity(envelope.toolName);
@@ -736,6 +741,23 @@ export function buildPiGateDescriptor(
       executor: "harness",
       toolName: identity.ruleName,
       readOnlyHint: identity.readOnly,
+      args: envelope.input,
+    };
+  }
+  if (envelope.gate === "pi-mcp-tool") {
+    // The envelope states IDENTITY; the policy is read here, from the run's own request. A server
+    // the run did not configure fails closed rather than falling to the default permission: the
+    // envelope is sandbox-origin, and a fabricated server name must not become an `allow_reads`
+    // decision on a tool nobody configured.
+    const entry = envelope.mcpServer
+      ? mcpPermissions.get(envelope.mcpServer)
+      : undefined;
+    if (!entry) return undefined;
+    return {
+      executor: "harness",
+      toolName: envelope.toolName,
+      // The MCP slot, same as the ACP harnesses use, so one ladder decides for every harness.
+      serverPermission: mcpToolPermission(entry, envelope.mcpTool),
       args: envelope.input,
     };
   }
@@ -905,6 +927,13 @@ export function buildGateDescriptor(
     args,
   };
   return { gate, spec };
+}
+
+/** What a failed Pi gate lookup calls the thing it could not resolve, for the operator log. */
+function piGateSubject(gate: PiGateEnvelope["gate"]): string {
+  if (gate === "pi-builtin") return "builtin";
+  if (gate === "pi-mcp-tool") return "MCP server";
+  return "custom tool";
 }
 
 /**
