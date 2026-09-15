@@ -689,16 +689,23 @@ than a second copy drifting from the first (the duplication CU12 spent this wave
 expensive). Same exclusion: `MCPUpstreamError`/`upstream_error` stays unmarked, D16 applying
 identically on this plane.
 
-**The MCP plane's wire shape makes the marker load-bearing for every harness, not only
-Codex's.** The JSON-RPC error result's stable identifier is `error.data.cause` (a string),
-under a numeric JSON-RPC `error.code` (e.g. `-32000`) — not the LLM plane's string `error.code`
-`gateway-error.ts`'s body scan looks for. That scan's `typeof body.code === "string"` check
-fails on an MCP body regardless of whether a harness preserves it whole, so **the marker is the
-only channel that ever recovers an MCP cause**, independent of OD18's per-harness LLM findings.
-Proven in `tests/unit/gateway-error-harness-formats.test.ts` with two MCP fixtures: the full
-JSON-RPC body embedded verbatim (still only the marker recovers `code`, because the body scan
-doesn't recognize the shape), and Codex's stripped-to-`message` shape (the marker survives for
-the same reason it does on the LLM plane).
+**The MCP plane's wire shape is now read by the body scan too; the marker remains the fallback.**
+The JSON-RPC error result's stable identifier is `error.data.cause` (a string), under a numeric
+JSON-RPC `error.code` (e.g. `-32000`) — not the LLM plane's string `error.code`. This paragraph
+used to record that `gateway-error.ts`'s `typeof body.code === "string"` check therefore declined
+every MCP body, making the marker the only channel that ever recovered an MCP cause. That was
+true, and it cost the plane more than a cause: a refusal whose whole point is to carry an action —
+`auth_required`, whose `error.data.requirement.connect` names the endpoint that would grant the
+authorization — reached the harness as the complaint with the remedy stripped (OR85). The body
+scan now recognizes both shapes: a string `error.code` still wins where it exists, and otherwise
+the cause is read from `error.data.cause` with `error.data` lifted whole as `details`. So the
+answer to this question is per-shape rather than per-plane, and the marker keeps exactly its
+original job — recovering `code` alone when a harness discarded the envelope, which is why a
+caller must still branch on `details` being present rather than assume it. Proven in
+`tests/unit/gateway-error-harness-formats.test.ts` with three MCP fixtures: the full JSON-RPC body
+embedded verbatim (now recovers the cause AND the connect action), Codex's stripped-to-`message`
+shape (the marker survives, `details` absent), and an LLM-plane body alongside them, so the shared
+parser cannot gain one plane at the other's expense.
 
 **The same audit run on the MCP plane, because the LLM plane's version of it found a real
 gap.** Every exception `core/gateways/mcps/service.py` and `core/gateways/mcps/registry.py`
