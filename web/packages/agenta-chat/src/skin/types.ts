@@ -72,11 +72,7 @@ export interface ToolActivity {
     done: string
 }
 
-/**
- * The closed set of activity-step glyphs. Chosen from the resolved `ToolKind` and the canonical
- * tool name, never per raw tool: a new tool inherits its kind's glyph, and a new glyph starts as a
- * new member here. Rendering maps each token to one icon.
- */
+/** The closed set of activity-step glyphs, chosen by kind and canonical name, never per raw tool. */
 export type ActivityIcon =
     | "brain"
     | "terminal"
@@ -120,16 +116,13 @@ export interface ToolDisplayEntry {
     /** Where the tool comes from ("Gmail", "Linear · MCP"); overrides the parsed default. */
     source?: string
     kind?: ToolKind
-    /** The row's sentence. A function when it names an app: it gets the real name, or undefined
-     * until the catalog answers; returning undefined lets the reported tool's own wording speak. */
+    /** The row's sentence; a function gets the app's name (undefined until known) and may decline. */
     activity?: ToolActivity | ((appName?: string) => ToolActivity | undefined)
-    /** The app this call is about, read from its own arguments or result. `action` is the gateway
-     * ACTION token of a tool this one reported — or, with `ran`, actually called. */
+    /** The app this call is about; `action` is a tool it reported, or with `ran`, called. */
     app?: (input: unknown, output: unknown) => {slug?: string; action?: string; ran?: boolean}
     /** Friendly one-liner for a settled row; null/absent falls back to the generic summary. */
     summary?: (input: unknown, output: unknown) => string | null
-    /** The verb forms a static `activity` opens with ("Reading" / "Read"), so a row can bold what
-     * follows. Conjugated sentences carry theirs automatically. */
+    /** The verb forms a static `activity` opens with, so a row can bold what follows. */
     verb?: ToolActivity
     /** The step glyph; overrides the kind's default. */
     icon?: ActivityIcon
@@ -151,8 +144,7 @@ export interface ResolvedToolDisplay {
     /** Short technical detail for the row's secondary slot (a command, a filename). */
     detail?: string
     summary?: (input: unknown, output: unknown) => string | null
-    /** The verb alone, in both tenses, when the sentence was built from one ("Read" of "Read a
-     * file"). A row bolds whatever follows it. */
+    /** The verb alone, in both tenses, when the sentence was built from one. */
     verb?: ToolActivity
     /** The step glyph, from the override or the kind's default. */
     icon: ActivityIcon
@@ -175,7 +167,6 @@ export interface ChatSkinRegistration {
     approvals?: Record<string, ApprovalDescriber>
     /** Raw tool name → display override (mirrors OSS `BY_TOOL_NAME`). */
     toolDisplay?: Record<string, ToolDisplayEntry>
-    /** Integration slugs the agent is connected to. A bare tool name that carries one of them as a
-     * word (`list-devto-articles`) is read as that app's tool, so it wears the app's logo. */
+    /** Connected integration slugs: a bare tool name carrying one (`list-devto-articles`) is that app's. */
     appHints?: string[]
 }

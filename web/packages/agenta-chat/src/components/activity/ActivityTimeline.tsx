@@ -24,17 +24,12 @@ const ROW_PX = 22
 const ROLL_MS = 340
 const STEP_ENTER_MS = 320
 
-/**
- * The collapsed line's verb while the run is live. A change rolls the old verb up and out and
- * the new one in from below — one row, one slide — rather than swapping in place.
- */
+/** The live verb: a change rolls the old one up and out and the new one in from below. */
 const RollingLabel = ({text, shimmer}: {text: string; shimmer: boolean}) => {
     const reduced = useReducedMotion()
     const [rows, setRows] = useState<string[]>([text])
     const [sliding, setSliding] = useState(false)
-    // What the slot currently shows, read by the effect without being one of its dependencies: a
-    // dependency on the rows re-ran the effect as soon as it set them, cancelling its own frame
-    // and leaving the old verb on screen.
+    // Read by the effect without being a dependency, or it cancels its own frame.
     const shownRef = useRef(text)
 
     useEffect(() => {
@@ -47,8 +42,7 @@ const RollingLabel = ({text, shimmer}: {text: string; shimmer: boolean}) => {
         }
         setRows([previous, text])
         setSliding(false)
-        // Two frames: paint the pair at rest, then transition to the slid position. The timer
-        // settles the pair if `transitionend` never fires (a re-render mid-slide swallows it).
+        // Paint the pair at rest, then slide; the timer settles it if transitionend is swallowed.
         const id = requestAnimationFrame(() => requestAnimationFrame(() => setSliding(true)))
         const settle = setTimeout(() => {
             setRows([text])
@@ -101,12 +95,7 @@ const LiveDots = () => (
     </span>
 )
 
-/**
- * A step arriving live unfolds into the column — height, a short rise and a fade from a quarter,
- * the way the design lights a pending step — instead of popping the rows below it down. A
- * replayed transcript mounts solid. The gap between steps is the entry's own top padding, so it
- * unfolds with the step.
- */
+/** A step arriving live unfolds in (height, rise, fade); the gap is its own padding so it unfolds too. */
 const StepReveal = ({
     animate,
     first,
@@ -151,28 +140,22 @@ const waitingKind = (steps: ActivityStep[]): WaitingKind => {
     return "approval"
 }
 
-/** The last step of the agent's own — a settled question or connect was the reader's move, and
- * its verb ("Waiting for your answers") must not hold the line once the run moves on. */
+/** The last step of the agent's own: a settled ask's verb must not hold the line. */
 const lastAgentStep = (steps: ActivityStep[]): ActivityStep | null => {
     for (let i = steps.length - 1; i >= 0; i--) if (steps[i].kind !== "client") return steps[i]
     return null
 }
 
-/** How long the last step's verb holds after it settles before the line admits it is only
- * "Working" — long enough to bridge the beat between one step and the next, short enough that a
- * model composing a whole file in silence does not read as a finished command still running. */
+/** How long a settled step's verb bridges the gap before the line reads "Working". */
 const VERB_HOLD_MS = 2500
 
-/** What the collapsed line narrates: the step in flight, or — for a beat after it settles, while
- * the model composes the next one — the last step, so the verb holds. Before any step there is
- * only the runner's startup narration, or the warm-up. */
+/** What the collapsed line narrates for a step, or before any step. */
 const liveVerb = (
     step: ActivityStep | null,
     startupLabel: string | null,
     firstTurn: boolean,
 ): string => {
-    // Only a session's first turn boots anything worth narrating; a later turn's few seconds
-    // before its first step are the model's, and one word covers them.
+    // Only the session's first turn boots anything worth narrating.
     if (!step) return firstTurn ? startupLabel || "Waking up the agent" : "Working"
     if (step.kind === "thought") return step.source === "text" ? "Writing" : "Thinking"
     const part = step.part
@@ -183,35 +166,26 @@ const liveVerb = (
 
 export interface ActivityTimelineProps {
     messageId: string
-    /** Keys the working clock and the fold's open state. Defaults to the message; a host keys
-     * them to the run (`runKey`) so a placeholder turn's count and toggle carry to the message. */
+    /** Keys the clock and the fold's open state; a host passes `runKey` so the placeholder's carry over. */
     clockId?: string
     steps: ActivityStep[]
     /** This turn is the one being generated. */
     streaming: boolean
     /** The answer has begun: the fold settles even though the turn is still streaming. */
     answerStarted: boolean
-    /** The session whose startup narration the line reads until the first step arrives. Only a
-     * streaming fold subscribes; settled ones read an empty key. */
+    /** The session whose startup narration the line reads until the first step. */
     sessionId?: string
-    /** This is the session's first turn — the one that boots the agent. Only it narrates the
-     * startup phases; a later turn reads "Working" until its first step. */
+    /** The session's first turn, the only one that narrates the startup phases. */
     firstTurn?: boolean
     /** The run is parked on the reader (a question, a connect). */
     waitingOnUser?: boolean
-    /** The turn's trace. Once settled, the line reads the trace's duration — the run's own
-     * time — over the local count, which only ever measured what this client watched. */
+    /** The turn's trace: once settled, its duration outranks the local count. */
     traceId?: string | null
-    /** Renders a browser-fulfilled tool's widget in its step. Absent on a read-only host, where
-     * the step shows only its node. */
+    /** Renders a client tool's widget in its step; absent on a read-only host. */
     renderClientTool?: (part: ToolUIPart) => ReactNode
 }
 
-/**
- * The turn's work, folded: one line while collapsed — the live verb as it happens, "Worked for
- * 11s" once done — over a timeline of thought and tool steps. Rests closed unless the run is
- * parked on the reader, and stays wherever the reader last put it.
- */
+/** The turn's work, folded: a live verb or "Worked for 11s" over a timeline of steps. */
 export const ActivityTimeline = ({
     messageId,
     clockId = messageId,
@@ -229,16 +203,10 @@ export const ActivityTimeline = ({
     const awaiting =
         waitingOnUser ||
         (current?.kind === "tool" && (current.part.state as string) === "approval-requested")
-    // Live for the whole run: a text that looks like the answer can turn out to be an aside with
-    // more steps behind it, so the line keeps narrating ("Answering") until the stream ends.
-    const running = streaming || hasLiveStep(steps)
-    const live = running
-    // The clock counts the agent's work, not the reader's and not the runner's: it starts with
-    // the first step, not the send (the warm-up is not the agent's time), and pauses while
-    // parked on the reader.
+    const live = streaming || hasLiveStep(steps)
+    // The clock counts the agent's work: from the first step, paused while parked on the reader.
     const counted = useTurnClock(clockId, live && !awaiting && steps.length > 0)
-    // Settled: the trace's duration, or the local count when it is longer — a run resumed after
-    // a gate traces only its last leg, while the count saw the whole of the work.
+    // A run resumed after a gate traces only its last leg; the longer of the two is the work.
     const trace = useAtomValue(traceDataSummaryAtomFamily(!live && traceId ? traceId : ""))
     const traced = trace.metrics.durationMs ?? null
     const elapsed = live
@@ -247,16 +215,11 @@ export const ActivityTimeline = ({
           ? null
           : Math.max(traced ?? 0, counted ?? 0)
     const files = useMemo(() => activityFiles(steps), [steps])
-    // Nothing in flight for a while: the model is composing something the stream does not show
-    // (the runner reports a call only once its input is complete — a long file write is silent
-    // until then), and the last step's verb would read as that step still running.
-    const idle = useHeldFor(running && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
-    // The latest step reads live for as long as the run does — most calls settle within the
-    // same batch they arrive in, and between steps the model composes in silence; the last row
-    // is where that work shows.
-    const liveTail = running && !awaiting
-    // Only a step that lands on an already-mounted fold unfolds; whatever the fold mounts with
-    // (a replay, or a remount mid-run when the message is re-keyed) sits solid.
+    // Nothing in flight for a while: the runner reports a call only once its input is complete.
+    const idle = useHeldFor(live && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
+    // The latest step reads live for as long as the run does.
+    const liveTail = live && !awaiting
+    // Only a step that lands on an already-mounted fold unfolds.
     const mountedRef = useRef(false)
     useEffect(() => {
         mountedRef.current = true
@@ -265,15 +228,14 @@ export const ActivityTimeline = ({
     const key = activityFoldKey(clockId)
     const stored = useAtomValue(expandedValueAtomFamily(key))
     const setExpanded = useSetAtom(setExpandedAtom)
-    // Closed by default, live or settled: the line narrates the run. Parked on the reader it
-    // opens itself so what it waits on is in reach; the reader's own toggle wins over that too.
+    // Closed by default; parked on the reader it opens itself, and the reader's toggle wins.
     const open = stored ?? awaiting
 
     if (!steps.length && !live) return null
 
     const count = steps.length
     const stepsText = count ? ` · ${count} ${count === 1 ? "step" : "steps"}` : ""
-    // No clock before the first step: the warm-up is the runner's time, not the agent's.
+    // No clock before the first step.
     const clock =
         elapsed === null || awaiting || !count ? "" : ` · ${formatElapsed(elapsed, {live: true})}`
 
@@ -282,7 +244,6 @@ export const ActivityTimeline = ({
         title = (
             <>
                 <RollingLabel
-                    // The sweep says "working"; a run parked on the reader is not.
                     shimmer={!awaiting}
                     text={
                         awaiting
@@ -294,8 +255,7 @@ export const ActivityTimeline = ({
                                 : liveVerb(current ?? lastAgentStep(steps), startupLabel, firstTurn)
                     }
                 />
-                {/* `pre`: the leading space before the dot would otherwise collapse at the
-                    start of the flex item, gluing the dot to the verb. */}
+                {/* `pre`: the leading space would otherwise collapse at the flex item's start. */}
                 <span className="min-w-0 overflow-hidden text-ellipsis whitespace-pre text-colorTextTertiary">
                     {clock}
                     {stepsText}
@@ -328,7 +288,7 @@ export const ActivityTimeline = ({
                         {files.length} {files.length === 1 ? "file" : "files"}
                     </span>
                 ) : null}
-                {/* Nothing to open before the first step: the warm-up line is not a fold yet. */}
+                {/* Nothing to open before the first step. */}
                 {count ? (
                     <CaretRight
                         size={10}
@@ -341,8 +301,7 @@ export const ActivityTimeline = ({
             </button>
             <RevealCollapse open={open}>
                 <div className="relative mt-3 mb-1.5 flex flex-col">
-                    {/* The wire, behind the nodes: from the first node's centre to the last's.
-                        One node has nothing to join. */}
+                    {/* The wire behind the nodes; one node has nothing to join. */}
                     {steps.length > 1 ? (
                         <div
                             aria-hidden

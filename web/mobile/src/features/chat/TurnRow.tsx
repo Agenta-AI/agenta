@@ -51,11 +51,7 @@ const AnswerReveal = ({animate, children}: {animate: boolean; children: ReactNod
     )
 }
 
-/**
- * The assistant turn that does not exist yet: the request is in and no part has arrived. It
- * wears the same live fold line every working turn does — the startup narration (#6047) as its
- * verb, the clock beside it — so the wait reads as the run starting, not the app stalling.
- */
+/** The assistant turn that does not exist yet: the request is in and no part has arrived. */
 export const PendingTurn = ({
     sessionId,
     runId,
@@ -100,13 +96,7 @@ const downloadAttachment = (url: string, name: string) => {
     link.remove()
 }
 
-/**
- * One transcript turn on the shared bubble chrome — the mobile face of the desktop
- * AgentMessage: user turns as filled bubbles hugging the right, assistant turns flush on the
- * canvas, no avatars. An assistant turn is its activity fold (thoughts and
- * tool steps under one collapsed line), then its answer, then its meta line; a failed run adds
- * the red callout.
- */
+/** One transcript turn: a user bubble, or an assistant fold, answer, meta line and any run error. */
 /** How long a closed trailing text waits for a following call before it reads as the answer. */
 const ANSWER_HOLD_MS = 400
 const ASSISTANT_META: ("tokens" | "cost")[] = ["tokens", "cost"]
@@ -134,8 +124,7 @@ const TurnRowInner = ({
     remoteRunning?: boolean
     /** The run is parked on the reader: the last turn's fold line says so. */
     waitingOnUser?: boolean
-    /** Keys the working clock to the run, not the message, so the clock the placeholder turn
-     * started keeps counting once the real turn replaces it. */
+    /** Keys the clock and fold to the run, so the placeholder turn's carry to the real one. */
     runId?: string
     /** The session's first response: the one that narrates the agent's startup. */
     firstTurn?: boolean
@@ -161,11 +150,9 @@ const TurnRowInner = ({
         .join("\n")
         .trim()
 
-    // The last assistant turn is live while this client streams it, or while a poll says the run
-    // is still going somewhere else.
+    // Live while this client streams it, or while a poll says the run goes on elsewhere.
     const live = !turn.isUser && (turn.isStreamingTurn || (turn.isLast && remoteRunning))
-    // A text the runner just closed becomes the answer only after a beat: the tool call that
-    // would make it an aside arrives a commit or two behind its `text-end`.
+    // A just-closed text becomes the answer after a beat: a following call lands a commit later.
     const trailingClosed = useMemo(() => endsOnClosedText(turn.items), [turn.items])
     const closedLongEnough = useHeldFor(trailingClosed && turn.isStreamingTurn, ANSWER_HOLD_MS)
     const activity = useMemo(
@@ -195,8 +182,7 @@ const TurnRowInner = ({
             {turn.items.map((item) => {
                 if (item.kind !== "part" || item.part.type !== "text") return null
                 if (!(item.part.text ?? "").trim()) return null
-                // What the user typed renders literally — markdown in your own words is
-                // surprising (desktop parity).
+                // What the user typed renders literally (desktop parity).
                 return (
                     <p key={item.index} className="m-0 whitespace-pre-wrap break-words text-xs">
                         {item.part.text}
@@ -254,8 +240,7 @@ const TurnRowInner = ({
                         isStreaming={turn.isStreamingTurn}
                         usage={usage}
                         copyText={copyText}
-                        // Rewinding the LAST turn just re-runs the turn that is already current,
-                        // so the desktop hides it there and so do we.
+                        // Rewinding the last turn re-runs the current one; hidden, as on desktop.
                         onRewind={onRewind && !turn.isLast ? () => onRewind(turn) : undefined}
                         onViewTrace={(id) => openTraceDrawer({traceId: id})}
                         // The time is the fold's line ("Worked for 11s"); the meta keeps the rest.
@@ -292,9 +277,7 @@ const TurnRowInner = ({
             ))}
         </div>
     ) : null
-    // Attachments with no words: there is no bubble to paint, only the cards. An empty text part
-    // counts as no words — a turn carrying only files still arrives with one. An assistant turn
-    // always paints: its fold line is the content while nothing else has arrived.
+    // Attachments with no words paint no bubble; an assistant turn always paints its fold line.
     const hasBubbleContent =
         !turn.isUser ||
         turn.items.some(
@@ -342,8 +325,7 @@ const TurnRowInner = ({
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
-                // No avatar column: turns sit flush with the composer's edge. The 85% inset is what
-                // reads as a user BUBBLE; a borderless agent turn only loses width to it.
+                // No avatar column; the 85% inset is what reads as a user bubble.
                 className={
                     turn.isUser ? "min-w-0 max-w-[85%]" : "min-w-0 max-w-full sm:max-w-[85%]"
                 }
@@ -388,9 +370,5 @@ const TurnRowInner = ({
     )
 }
 
-/**
- * Memoized: the conversation commits once per streamed chunk, and without this every turn in the
- * transcript re-rendered on every one of them. Holds because `buildTurnViewModels` now keeps
- * unchanged turns identity-stable and the host passes stable callbacks.
- */
+// Memoized: the conversation commits once per streamed chunk; unchanged turns stay identity-stable.
 export const TurnRow = memo(TurnRowInner)

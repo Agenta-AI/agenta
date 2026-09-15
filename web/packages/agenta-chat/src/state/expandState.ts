@@ -23,11 +23,9 @@ export const errorKey = (messageId: string) => `${messageId}::error`
 export const messageBodyKey = (messageId: string) => `${messageId}::body`
 export const toolRowKey = (toolCallId: string) => `tool::row::${toolCallId}`
 export const toolGroupKey = (toolCallId: string) => `tool::group::${toolCallId}`
-/** A run, named by the user message that started it: the placeholder turn and the assistant turn
- * that replaces it share it, so the fold and the clock carry across. */
+/** A run, named by the user message that started it; the placeholder and the reply share it. */
 export const runKey = (userMessageId: string) => `run:${userMessageId}`
-/** The turn's activity fold (thoughts and tool steps under one collapsed line). Keyed by the run
- * where the host knows it, else by the message. */
+/** The turn's activity fold, keyed by the run where the host knows it, else by the message. */
 export const activityFoldKey = (runOrMessageId: string) => `${runOrMessageId}::activity`
 
 /** The map IS the source of truth and the enumerable key set. `undefined` = follow the widget default. */

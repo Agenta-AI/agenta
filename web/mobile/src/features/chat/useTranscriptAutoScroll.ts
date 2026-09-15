@@ -52,9 +52,7 @@ export const useTranscriptAutoScroll = (content: unknown) => {
     // The pin above measures at layout time, but a transcript keeps growing after that — a fence
     // finishes highlighting, an image loads, a tool card lays itself out. Without this the opening
     // pin lands on a fraction of the final height and a long chat reads as starting at the top.
-    // Follow the growth while the reader is at the bottom. Parked mid-scroll, re-measure instead:
-    // content can also SHRINK (a fold collapsing) and clamp the scroll without firing a scroll
-    // event, which left the jump pill up with nothing left to jump to.
+    // Follow growth at the bottom; parked mid-scroll, re-measure (a shrink clamps without a scroll event).
     useEffect(() => {
         const el = ref.current
         if (!el) return

@@ -27,16 +27,7 @@ const Details = ({raw}: {raw: string | null}) => {
     )
 }
 
-/**
- * A run that stopped. Two shapes, by where it stopped:
- *
- *  - `step` — it was working and failed partway: one more node on the timeline's wire, a
- *    headline, the reason, the raw text behind Details. The failure reads like a step because
- *    it was one.
- *  - `card` — it never started (the provider refused the request before any step): there is no
- *    wire for a node to sit on, so the failure is its own small card under the message, with
- *    what to do about it and the retry as its one button.
- */
+/** A run that stopped: a `step` on the wire when it failed partway, a `card` when it never started. */
 export const RunErrorCallout = ({
     text,
     onRetry,
