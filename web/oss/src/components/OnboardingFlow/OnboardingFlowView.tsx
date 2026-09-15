@@ -334,7 +334,7 @@ export default function OnboardingFlowView({
                                 </label>
                             )}
                         </div>
-                        <aside className="md:border-l md:border-solid md:border-colorBorderSecondary md:pl-8">
+                        <aside className="border-0 md:border-l md:border-solid md:border-colorBorderSecondary md:pl-8">
                             <p className="mb-4 text-sm text-colorTextSecondary">
                                 Agent we'll create
                             </p>
