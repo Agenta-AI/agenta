@@ -142,8 +142,10 @@ def test_per_tool_mcp_permissions_render_per_tool_rules():
 
     perms = _settings(build_claude_settings_files(None, None, [server]))["permissions"]
 
-    # The whole-server rule stays; Claude applies the more specific pattern over it.
-    assert perms["allow"] == ["mcp__acme", "mcp__acme__read"]
+    # The server rule carries the resolved default for unnamed tools; a named tool gets its own
+    # rule only where it is STRICTER, because Claude takes the most restrictive matching rule
+    # rather than the most specific (D37). `read` matches the default, so it needs no rule.
+    assert perms["allow"] == ["mcp__acme"]
     assert perms["ask"] == ["mcp__acme__search"]
     assert perms["deny"] == ["mcp__acme__purge"]
 
@@ -441,3 +443,148 @@ def test_tool_rules_accept_plain_dicts():
         )
     )["permissions"]
     assert perms["allow"] == [_rule("get_user"), _rule("ui_pick")]
+
+
+# --- D37: the generated rules must resolve the way the runner's gate does -------------------
+
+_STRICTNESS = {"allow": 0, "ask": 1, "deny": 2}
+
+
+def _runner_decision(server, new_tool, tool):
+    """Mirror of `mcpToolPermission` in `services/runner/src/mcp-permission.ts`.
+
+    Written out rather than imported because it lives in the runner's TypeScript; keeping a copy
+    here is what lets this file assert the two agree. If the runner's ladder changes, this mirror
+    has to change with it and the matrix below will say so.
+    """
+    opted_in = tool is not None or new_tool is not None
+    if not opted_in:
+        return server  # None means "the run's own default ladder decides"
+    if tool is not None:
+        return tool
+    return new_tool or server or "ask"
+
+
+def _claude_decision(perms, server_name, tool_name):
+    """Resolve Claude's rules for one tool: every matching rule, most restrictive wins.
+
+    This is the precedence D37 turned on — Claude does not prefer the most specific pattern — so
+    the test has to model it rather than assume layering.
+    """
+    matching = [
+        permission
+        for permission, rules in perms.items()
+        for rule in rules
+        if rule in (f"mcp__{server_name}", f"mcp__{server_name}__{tool_name}")
+    ]
+    if not matching:
+        return None  # no rule: Claude's global policy decides
+    return max(matching, key=lambda value: _STRICTNESS[value])
+
+
+@pytest.mark.parametrize("server_permission", ["allow", "ask", "deny", None])
+@pytest.mark.parametrize("tool_permission", ["allow", "ask", "deny", None])
+def test_generated_rules_resolve_the_way_the_runner_gate_does(
+    server_permission, tool_permission
+):
+    """Every server decision crossed with every per-tool decision, for a NAMED tool.
+
+    D37: the adapter used to emit the server's `permission` beside the per-tool table, and Claude
+    resolves those together most-restrictively — so `deny` + `{echo: allow}` hid `echo` entirely.
+    """
+    policy_kwargs = {"permission": server_permission}
+    if tool_permission is not None:
+        policy_kwargs["tool_permissions"] = {"echo": tool_permission}
+    server = ResolvedMCPServer(
+        name="acme", url="https://x", policy=MCPPolicy(**policy_kwargs)
+    )
+
+    files = build_claude_settings_files(None, None, [server])
+    perms = _settings(files)["permissions"] if files else {}
+
+    expected = _runner_decision(server_permission, None, tool_permission)
+    assert _claude_decision(perms, "acme", "echo") == expected
+
+
+@pytest.mark.parametrize("server_permission", ["allow", "ask", "deny", None])
+@pytest.mark.parametrize("new_tool_permission", ["allow", "ask", "deny", None])
+@pytest.mark.parametrize("tool_permission", ["allow", "ask", "deny", None])
+def test_the_new_tool_default_is_translated_too(
+    server_permission, new_tool_permission, tool_permission
+):
+    """`new_tool_permission` reaches the rules, and a named tool still resolves exactly.
+
+    It used not to be translated at all, so a tool with no entry fell to Claude's global policy
+    instead of the resolved default.
+    """
+    policy_kwargs = {"permission": server_permission}
+    if new_tool_permission is not None:
+        policy_kwargs["new_tool_permission"] = new_tool_permission
+    if tool_permission is not None:
+        policy_kwargs["tool_permissions"] = {"echo": tool_permission}
+    server = ResolvedMCPServer(
+        name="acme", url="https://x", policy=MCPPolicy(**policy_kwargs)
+    )
+
+    files = build_claude_settings_files(None, None, [server])
+    perms = _settings(files)["permissions"] if files else {}
+
+    expected = _runner_decision(server_permission, new_tool_permission, tool_permission)
+    assert _claude_decision(perms, "acme", "echo") == expected
+
+
+@pytest.mark.parametrize(
+    "server_permission,new_tool_permission,tool_permission",
+    [
+        ("deny", None, "allow"),
+        ("deny", None, "ask"),
+        ("ask", None, "allow"),
+        (None, "deny", "allow"),
+        (None, "ask", "allow"),
+    ],
+)
+def test_a_tool_looser_than_the_default_keeps_its_rule_and_drops_the_server_rule(
+    server_permission, new_tool_permission, tool_permission
+):
+    """The one shape Claude's rule language cannot express, and what is done instead.
+
+    A server rule beside a looser named tool would win and take the tool with it — which for a
+    `deny` server rule means the allowed tool vanishes from the catalog. So the server rule is
+    dropped: the named tool resolves correctly, and the tools the table does not name become the
+    runner gate's responsibility.
+    """
+    policy_kwargs = {
+        "permission": server_permission,
+        "tool_permissions": {"echo": tool_permission},
+    }
+    if new_tool_permission is not None:
+        policy_kwargs["new_tool_permission"] = new_tool_permission
+    server = ResolvedMCPServer(
+        name="acme", url="https://x", policy=MCPPolicy(**policy_kwargs)
+    )
+
+    perms = _settings(build_claude_settings_files(None, None, [server]))["permissions"]
+
+    assert _claude_decision(perms, "acme", "echo") == tool_permission
+    # No whole-server rule, so an unnamed tool has no rule here at all.
+    assert not any(
+        "mcp__acme" in rules and "mcp__acme" == rule
+        for rules in perms.values()
+        for rule in rules
+    )
+    assert _claude_decision(perms, "acme", "unnamed") is None
+
+
+def test_a_server_rule_survives_when_every_named_tool_is_stricter():
+    """The expressible shape, which must keep its server rule: unnamed tools stay covered."""
+    server = ResolvedMCPServer(
+        name="acme",
+        url="https://x",
+        policy=MCPPolicy(permission="allow", tool_permissions={"purge": "deny"}),
+    )
+
+    perms = _settings(build_claude_settings_files(None, None, [server]))["permissions"]
+
+    assert perms["allow"] == ["mcp__acme"]
+    assert perms["deny"] == ["mcp__acme__purge"]
+    assert _claude_decision(perms, "acme", "unnamed") == "allow"
