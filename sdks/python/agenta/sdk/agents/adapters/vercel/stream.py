@@ -977,10 +977,16 @@ def _mcp_server_failed_part(data: Dict[str, Any]) -> Dict[str, Any]:
 
     A notice, not an error: the turn ran and succeeded, it just ran without that server's
     tools. Emitting it as an `error` part would end the message on the client.
+
+    ``detail`` carries the gateway's own refusal when the handshake body held one, which for a
+    disconnected connection is where ``requirement.connect`` lives — the endpoint that reconnects
+    it (OR85). It is listed here rather than passed through wholesale because the runner event may
+    grow fields that are not a client's business; the cost is that a new field must be added here
+    too, and forgetting is silent, which is how the connect action was lost the first time.
     """
     notice = {
         key: data[key]
-        for key in ("serverName", "reasonCode", "status", "message")
+        for key in ("serverName", "reasonCode", "status", "message", "detail")
         if data.get(key) is not None
     }
     return {"type": "data-mcp-server-failed", "data": notice}

@@ -24,6 +24,8 @@
 // probe handshook with `initialize` while the extension handshook with `server/discover`, so a
 // server could pass this probe and still refuse the client that follows it. `pi-mcp.ts` is a leaf
 // module with no imports of its own, so reading two constants from it pulls nothing else in.
+import type { AgentErrorDetail } from "../../protocol.ts";
+import { parseGatewayErrorDetail } from "../../gateway-error.ts";
 import {
   MCP_DISCOVERY_METHOD,
   MCP_PROTOCOL_VERSION,
@@ -49,6 +51,17 @@ export interface McpHandshakeFailure {
   status?: number;
   /** The user-facing sentence, built by `mcpHandshakeFailureMessage`. */
   message: string;
+  /**
+   * The gateway's own refusal, when the body carried one.
+   *
+   * A disconnected MCP connection refuses the HANDSHAKE, not a later `tools/call` — there is no
+   * authorization to make the first request with — so this probe is where that refusal arrives,
+   * and `reasonCode`/`status` alone reduce it to "failed to connect: 409". The refusal carries
+   * `requirement.connect`, the endpoint that would reconnect it, which is the one thing a caller
+   * can act on (OR85). Absent for every failure that is not one of ours, including a server that
+   * never answered.
+   */
+  detail?: AgentErrorDetail;
 }
 
 interface ProbeInput {
@@ -161,12 +174,17 @@ export async function probeMcpServerHandshake(
   const fail = (
     reasonCode: McpHandshakeReasonCode,
     status?: number,
-  ): McpHandshakeFailure => ({
-    serverName: server.name,
-    reasonCode,
-    ...(status !== undefined ? { status } : {}),
-    message: mcpHandshakeFailureMessage(server.name, reasonCode, status),
-  });
+    body?: string,
+  ): McpHandshakeFailure => {
+    const detail = body ? parseGatewayErrorDetail(body) : undefined;
+    return {
+      serverName: server.name,
+      reasonCode,
+      ...(status !== undefined ? { status } : {}),
+      message: mcpHandshakeFailureMessage(server.name, reasonCode, status),
+      ...(detail ? { detail } : {}),
+    };
+  };
 
   try {
     const response = await fetchImpl(server.connection.url, {
@@ -184,11 +202,20 @@ export async function probeMcpServerHandshake(
       }),
       signal: controller.signal,
     });
-    if (!response.ok) return fail("handshake_http_error", response.status);
-    const payload = readJsonRpc(await response.text());
+    if (!response.ok) {
+      // Read the body before deciding: a refusal we authored carries the remedy in it, and the
+      // status alone cannot. A body that is not ours parses to undefined and changes nothing.
+      return fail(
+        "handshake_http_error",
+        response.status,
+        await response.text().catch(() => ""),
+      );
+    }
+    const text = await response.text();
+    const payload = readJsonRpc(text);
     if (!payload) return fail("handshake_invalid_response", response.status);
     if (payload.error !== undefined) {
-      return fail("handshake_rejected", response.status);
+      return fail("handshake_rejected", response.status, text);
     }
     // Release the session the handshake opened, so a probe on every cold turn does not
     // accumulate sessions on a well-behaved server. Best effort: a server that does not

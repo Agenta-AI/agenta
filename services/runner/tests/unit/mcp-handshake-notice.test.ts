@@ -252,3 +252,67 @@ describe("a failed MCP server is reported on every harness", () => {
     );
   });
 });
+
+describe("a disconnected MCP connection's handshake refusal", () => {
+  it("carries the connect action, not just the status (OR85)", async () => {
+    // The refusal lands on the HANDSHAKE, not on a later `tools/call`: with no authorization
+    // there is nothing to make the first request with. So this probe is the only place the
+    // gateway's `requirement.connect` can reach a caller, and dropping the body reduced the
+    // whole journey to "failed to connect: 409".
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      id: null,
+      error: {
+        code: -32000,
+        message:
+          "Authorization required for custom/acme ⟦agenta_code:auth_required⟧",
+        data: {
+          cause: "auth_required",
+          requirement: {
+            target: "custom/acme",
+            state: "needs_auth",
+            connect: { endpoint: "/gateways/mcps/endpoints/acme-id/connect", body: {} },
+          },
+        },
+      },
+    });
+
+    const failure = await probeMcpServerHandshake(
+      {
+        name: "acme",
+        connection: { type: "http", url: "https://api.example.test/gateways/mcps/custom/acme" },
+      },
+      {
+        fetchImpl: (async () =>
+          new Response(body, {
+            status: 409,
+            headers: { "content-type": "application/json" },
+          })) as unknown as typeof fetch,
+      },
+    );
+
+    assert.equal(failure?.reasonCode, "handshake_http_error");
+    assert.equal(failure?.status, 409);
+    assert.equal(failure?.detail?.code, "auth_required");
+    assert.equal(
+      (failure?.detail?.details as any)?.requirement?.connect?.endpoint,
+      "/gateways/mcps/endpoints/acme-id/connect",
+    );
+  });
+
+  it("attaches nothing when the failing body is not one of ours", async () => {
+    const failure = await probeMcpServerHandshake(
+      {
+        name: "acme",
+        connection: { type: "http", url: "https://api.example.test/mcp" },
+      },
+      {
+        fetchImpl: (async () =>
+          new Response("<html>502 Bad Gateway</html>", { status: 502 })) as unknown as typeof fetch,
+      },
+    );
+
+    assert.equal(failure?.reasonCode, "handshake_http_error");
+    assert.equal(failure?.detail, undefined);
+  });
+});

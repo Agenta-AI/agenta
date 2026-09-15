@@ -237,17 +237,16 @@ describe("MCP plane, Codex-stripped shape (message only, marker still recovers c
   }
 });
 
-describe("MCP plane: a refusal's structured action does not reach the runner", () => {
-  it("recovers the auth_required cause but drops the connect action beside it", () => {
+describe("MCP plane: a refusal's structured action reaches the runner", () => {
+  it("recovers the auth_required cause AND the connect action beside it", () => {
     // The gateway answers an unauthorized MCP connection with a `requirement` carrying the
-    // connect action, precisely so a run can tell someone how to fix it. None of it
-    // survives: the JSON-RPC body's `error.code` is the numeric -32000 rather than our
-    // string cause, so the body path declines the whole envelope and the marker path
-    // recovers `code` alone. What a caller gets is the fact that authorization is needed,
-    // never the endpoint that would grant it.
+    // connect action, precisely so a run can tell someone how to fix it. The body path used to
+    // decline the whole envelope — the JSON-RPC `error.code` is the numeric -32000 rather than
+    // our string cause — so the marker path recovered `code` alone and the endpoint that would
+    // grant the authorization arrived as prose inside `message`. OR85.
     //
-    // Asserted as it is rather than as it should be, so that a change to the parsing has
-    // to come here and say so. Recorded as OR85.
+    // This case was written as the loss and is now written as the fix, which is what a
+    // characterization test is for: the change to the parsing had to come here and say so.
     const body = JSON.stringify({
       jsonrpc: "2.0",
       id: null,
@@ -273,7 +272,54 @@ describe("MCP plane: a refusal's structured action does not reach the runner", (
 
     assert.equal(detail?.code, "auth_required");
     assert.equal(detail?.retryable, false);
-    assert.equal(detail?.details, undefined);
+    // The whole of `error.data`, so a caller reads the remedy rather than the complaint.
+    assert.deepEqual(detail?.details, {
+      cause: "auth_required",
+      requirement: {
+        target: "custom/acme-notion",
+        state: "needs_auth",
+        connect: {
+          endpoint: "/gateways/mcps/endpoints/acme/connect",
+          body: {},
+        },
+      },
+    });
+    // `auth_required` has no NEXT_STEPS entry and deliberately gains none: the remedy is the
+    // endpoint in `details`, not a sentence. See OR85.
     assert.equal(detail?.next_step, undefined);
+  });
+
+  it("keeps the marker path for an MCP refusal whose body the harness stripped", () => {
+    // The body path is now the better path, not the only one. A harness that discarded the
+    // envelope still recovers the cause, and still recovers nothing beside it — which is why a
+    // caller must branch on `details` being present rather than assume it.
+    const detail = parseGatewayErrorDetail(
+      "MCP error: custom/acme-notion requires authorization ⟦agenta_code:auth_required⟧",
+    );
+
+    assert.equal(detail?.code, "auth_required");
+    assert.equal(detail?.details, undefined);
+  });
+
+  it("still reads an LLM-plane refusal, whose code is its own string", () => {
+    // The two shapes share one parser, so the MCP change has to leave this untouched: a string
+    // `error.code` wins, and `details` stays the remaining body fields rather than `error.data`.
+    const body = JSON.stringify({
+      error: {
+        message: "model not allowed ⟦agenta_code:model_not_allowed⟧",
+        type: "invalid_request_error",
+        code: "model_not_allowed",
+        allowed: ["gpt-5.5"],
+      },
+    });
+
+    const detail = parseGatewayErrorDetail(`LLM call failed: ${body}`);
+
+    assert.equal(detail?.code, "model_not_allowed");
+    assert.equal(detail?.next_step, "choose a model the connection allows");
+    assert.deepEqual(detail?.details, {
+      allowed: ["gpt-5.5"],
+      type: "invalid_request_error",
+    });
   });
 });

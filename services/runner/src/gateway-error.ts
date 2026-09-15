@@ -1,14 +1,17 @@
 /**
  * Recover the gateway's structured refusal from a harness-reported error string.
  *
- * The LLM gateway's data-plane refusals (`apis/fastapi/gateways/llms/proxy.py`
- * `_map_domain_exception`) are OpenAI-shaped: `{"error": {"message", "type", "code", ...}}`.
- * A harness's provider SDK is the thing that actually receives that HTTP body. Two recovery
- * paths, tried in order:
+ * Two planes, two wire shapes, and one parser. The LLM gateway's data-plane refusals
+ * (`apis/fastapi/gateways/llms/proxy.py` `_map_domain_exception`) are OpenAI-shaped:
+ * `{"error": {"message", "type", "code", ...}}`, where `code` is our own string. The MCP gateway's
+ * are JSON-RPC: `{"error": {"code": -32000, "message", "data": {"cause", ...}}}`, where `code`
+ * belongs to the protocol and our cause sits at `error.data.cause`. A harness's provider SDK is
+ * the thing that actually receives that HTTP body. Two recovery paths, tried in order:
  *
  * 1. The JSON body, verbatim, embedded in the harness's error text (most OpenAI/Anthropic-
  *    compatible SDKs fold it into their thrown error's message). Recovers everything:
- *    `code`, `message`, `next_step`, `details`.
+ *    `code`, `message`, `next_step`, `details`. On the MCP plane `details` is `error.data`,
+ *    which is where a refusal carries the action that would fix it — see `jsonRpcCause`.
  * 2. A single machine-readable marker (`⟦agenta_code:<code>⟧`) the gateway appends to every
  *    TYPED refusal's `message` field specifically so `code` survives even when a harness's
  *    SDK strips the JSON structure and keeps only that one field. Recovers
@@ -110,6 +113,30 @@ export function parseGatewayErrorDetail(
   return parseFromMarker(raw);
 }
 
+/**
+ * The MCP plane's cause and its structured data, from a JSON-RPC error object.
+ *
+ * The two planes identify a refusal differently. The LLM plane puts our own string in
+ * `error.code`; JSON-RPC reserves `error.code` for its numeric protocol codes (`-32000` and
+ * friends), so the MCP proxy carries the stable cause one level down at `error.data.cause` and
+ * puts everything a caller might act on beside it in `error.data`.
+ *
+ * `error.data` is lifted WHOLE rather than filtered, because its most valuable member is the one
+ * this parser should know least about: `requirement.connect`, the endpoint that grants the
+ * authorization the refusal is complaining about. A parser that allowlists fields would have to be
+ * edited every time the API learns to offer a new remedy, and the failure mode of forgetting is
+ * silent (OR85: the action was minted, travelled, and was then dropped one layer from its reader).
+ */
+function jsonRpcCause(
+  body: GatewayErrorBody,
+): { code: string; details: Record<string, unknown> } | undefined {
+  const data = body.data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return undefined;
+  const cause = (data as { cause?: unknown }).cause;
+  if (typeof cause !== "string" || !cause) return undefined;
+  return { code: cause, details: { ...(data as Record<string, unknown>) } };
+}
+
 /** Path 1: the JSON body survived. Recovers the full envelope. */
 function parseFromBody(raw: string): AgentErrorDetail | undefined {
   const parsed = firstJsonObject(raw);
@@ -121,21 +148,27 @@ function parseFromBody(raw: string): AgentErrorDetail | undefined {
   // still held (OR28). A bare object is only accepted when its `message` carries the gateway's
   // own marker, so an unrelated JSON blob with `code` and `message` keys is not mistaken for a
   // refusal we authored.
+  const bareCandidate = parsed as GatewayErrorBody;
   const bare =
     !wrapped &&
-    typeof (parsed as GatewayErrorBody).code === "string" &&
-    typeof (parsed as GatewayErrorBody).message === "string" &&
-    CODE_MARKER_RE.test(String((parsed as GatewayErrorBody).message))
-      ? (parsed as GatewayErrorBody)
+    (typeof bareCandidate.code === "string" || !!jsonRpcCause(bareCandidate)) &&
+    typeof bareCandidate.message === "string" &&
+    CODE_MARKER_RE.test(String(bareCandidate.message))
+      ? bareCandidate
       : undefined;
   const body = wrapped ?? bare;
   if (!body || typeof body !== "object") return undefined;
-  const code = typeof body.code === "string" ? body.code : undefined;
+  // The LLM plane's string `code` wins where it exists; otherwise this is the MCP plane's
+  // JSON-RPC shape and the cause comes from `error.data`. Checked in that order so a body
+  // carrying both keeps the behaviour it had before the MCP shape was understood here.
+  const rpc = typeof body.code === "string" ? undefined : jsonRpcCause(body);
+  const code = typeof body.code === "string" ? body.code : rpc?.code;
   const message = typeof body.message === "string" ? body.message : undefined;
   if (!code || !message) return undefined;
 
-  const { message: _m, type, code: _c, ...details } = body;
-  if (typeof type === "string") details.type = type;
+  const { message: _m, type, code: _c, data: _d, ...rest } = body;
+  const details: Record<string, unknown> = rpc ? rpc.details : rest;
+  if (!rpc && typeof type === "string") details.type = type;
 
   return {
     code,
