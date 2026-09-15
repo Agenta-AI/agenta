@@ -57,3 +57,12 @@ export type {
     McpToolSummary,
 } from "./connectJourney"
 export {connectionNameProblem, hostnameLabel, suggestConnectionName} from "./connectionName"
+export {
+    buildMcpConnectionRef,
+    isLegacyMcpItem,
+    MAX_TOOL_PREFIX_LENGTH,
+    readMcpConnectionSlug,
+    RESERVED_TOOL_PREFIX,
+    toolPrefixFromName,
+} from "./agentReference"
+export type {McpGatewayConnectionRef} from "./agentReference"

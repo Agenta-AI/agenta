@@ -5,6 +5,7 @@
  */
 import type {ComponentType, ReactNode} from "react"
 
+import {readMcpConnectionSlug} from "@agenta/entities/mcpEndpoint"
 import {GraduationCap, Plugs, Wrench} from "@phosphor-icons/react"
 
 import {McpServerFormView} from "../McpServerFormView"
@@ -115,38 +116,19 @@ export const ITEM_KINDS: Record<ItemKind, ItemKindDef> = {
         drawerTitle: (draft) => String(draft.name ?? "").trim() || "New MCP server",
         jsonOnly: () => false,
         isReadOnly: () => false,
+        // An empty reference, not an empty server: the form picks one, it does not author
+        // one. The old http/url seed is still read on saved items but never written.
         createSeed: () => ({
             name: "",
-            connection: {
-                type: "http",
-                url: "",
-                credentials: {type: "none"},
-            },
+            connection: {type: "gateway", namespace: "custom", slug: ""},
             policy: {tools: {mode: "all"}},
         }),
         draftInvalid: (draft) => {
+            // Valid means it points at a connection and carries a usable tool prefix. The
+            // URL and the credential are the connection's business now, not the item's.
             const name = String(draft.name ?? "").trim()
             const validName = /^[A-Za-z0-9._-]{1,128}$/.test(name)
-            const connection =
-                draft.connection && typeof draft.connection === "object"
-                    ? (draft.connection as Record<string, unknown>)
-                    : {}
-            const url = String(connection.url ?? "").trim()
-            const credentials =
-                connection.credentials && typeof connection.credentials === "object"
-                    ? (connection.credentials as Record<string, unknown>)
-                    : {}
-            const headers =
-                credentials.headers && typeof credentials.headers === "object"
-                    ? (credentials.headers as Record<string, unknown>)
-                    : {}
-            const missingSecretHeader =
-                credentials.type === "header_secret_refs" &&
-                !Object.entries(headers).some(
-                    ([headerName, secretSlug]) =>
-                        headerName.trim() && String(secretSlug ?? "").trim(),
-                )
-            return !validName || !url || missingSecretHeader
+            return !validName || !readMcpConnectionSlug(draft)
         },
     },
     skill: {
