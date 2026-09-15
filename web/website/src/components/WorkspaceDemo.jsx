@@ -8,12 +8,15 @@ import {
   CaretDoubleRight,
   CaretDown,
   CaretRight,
+  ChatCircle,
   ChatsCircle,
+  Clock,
   Check,
   ClockCounterClockwise,
   Copy,
   Cpu,
   DotsThree,
+  FadersHorizontal,
   FileText,
   Funnel,
   GearSix,
@@ -93,7 +96,7 @@ export default class WorkspaceDemo extends Component {
     session: null,
     automation: null,
     skill: null,
-    homeTab: "agents",
+    homePicker: false,
     homeAgent: 0,
     configOpen: true,
     stepsOpen: true,
@@ -109,11 +112,6 @@ export default class WorkspaceDemo extends Component {
       ss,
       homeAgent,
       homeRows,
-      homeShowTemplates,
-      homeTabAgents,
-      homeTabTemplates,
-      homeTabStyleAgents,
-      homeTabStyleTemplates,
       agentRows,
       automationRows,
       hasAutomation,
@@ -328,7 +326,11 @@ export default class WorkspaceDemo extends Component {
                     `display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;border-radius:6px;`,
                   )}
                 >
-                  <Funnel size={13} weight="regular" aria-hidden="true" />
+                  <FadersHorizontal
+                    size={13}
+                    weight="regular"
+                    aria-hidden="true"
+                  />
                 </span>
               </span>
             </div>
@@ -527,25 +529,123 @@ export default class WorkspaceDemo extends Component {
                       )}
                     >
                       <span
-                        style={css(
-                          `display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:6px;font:400 14px/1 var(--font-sans);color:var(--foreground);`,
-                        )}
+                        style={css(`position:relative;display:inline-flex;`)}
                       >
-                        <span style={css(homeAgent.chipStyle)}>
-                          {homeAgent.initials}
-                        </span>
-                        {homeAgent.title}
-                        <span
+                        <button
+                          type={`button`}
+                          aria-haspopup={`listbox`}
+                          aria-expanded={this.state.homePicker}
+                          onClick={() =>
+                            this.setState((s) => ({
+                              homePicker: !s.homePicker,
+                            }))
+                          }
                           style={css(
-                            `display:inline-flex;color:var(--muted-foreground);`,
+                            `display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;border-radius:6px;border:none;cursor:default;background:${this.state.homePicker ? "var(--accent)" : "transparent"};font:400 14px/1 var(--font-sans);color:var(--foreground);`,
                           )}
                         >
-                          <CaretDown
-                            size={10}
-                            weight="regular"
-                            aria-hidden="true"
-                          />
-                        </span>
+                          <span style={css(homeAgent.chipStyle)}>
+                            {homeAgent.initials}
+                          </span>
+                          {homeAgent.title}
+                          <span
+                            style={css(
+                              `display:inline-flex;color:var(--muted-foreground);`,
+                            )}
+                          >
+                            <CaretDown
+                              size={10}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
+                          </span>
+                        </button>
+                        {this.state.homePicker && (
+                          <div
+                            role={`listbox`}
+                            aria-label="Choose an agent"
+                            style={css(
+                              `position:absolute;left:0;top:calc(100% + 6px);z-index:6;display:flex;width:340px;max-height:300px;flex-direction:column;gap:2px;overflow-y:auto;border-radius:10px;border:1px solid var(--border);background:var(--background);box-shadow:var(--ag-boxShadowSecondary);padding:6px;`,
+                            )}
+                          >
+                            {homeRows.map((r, index7) => (
+                              <Fragment key={index7}>
+                                <button
+                                  type={`button`}
+                                  onClick={r.open}
+                                  style={css(r.rowStyle)}
+                                >
+                                  <span style={css(r.tileStyle)}>
+                                    {r.initials}
+                                  </span>
+                                  <span
+                                    style={css(
+                                      `display:flex;min-width:0;flex:1;flex-direction:column;gap:1px;`,
+                                    )}
+                                  >
+                                    <span
+                                      style={css(
+                                        `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 14px/1.45 var(--font-sans);color:var(--foreground);`,
+                                      )}
+                                    >
+                                      {r.title}
+                                    </span>
+                                    <span
+                                      style={css(
+                                        `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 13px/1.45 var(--font-sans);color:var(--muted-foreground);`,
+                                      )}
+                                    >
+                                      {r.desc}
+                                    </span>
+                                  </span>
+                                  {r.selected && (
+                                    <span
+                                      style={css(
+                                        `margin-left:8px;display:inline-flex;flex:0 0 auto;color:var(--foreground);`,
+                                      )}
+                                    >
+                                      <Check
+                                        size={14}
+                                        weight="regular"
+                                        aria-hidden="true"
+                                      />
+                                    </span>
+                                  )}
+                                </button>
+                              </Fragment>
+                            ))}
+                            <div
+                              style={css(
+                                `margin:4px 0;height:1px;flex:0 0 auto;background:var(--ag-colorSplit);`,
+                              )}
+                            ></div>
+                            <button
+                              type={`button`}
+                              onClick={() =>
+                                this.setState({
+                                  view: "agents",
+                                  homePicker: false,
+                                })
+                              }
+                              style={css(
+                                `box-sizing:border-box;display:flex;width:100%;flex:0 0 auto;cursor:default;align-items:center;gap:14px;border-radius:10px;border:none;background:transparent;padding:8px 14px;text-align:left;font:400 14px/1.45 var(--font-sans);color:var(--foreground);`,
+                              )}
+                            >
+                              <span
+                                style={css(
+                                  `display:flex;width:34px;height:34px;flex:0 0 auto;align-items:center;justify-content:center;border-radius:10px;border:1px dashed var(--border);color:var(--muted-foreground);`,
+                                )}
+                              >
+                                <Plus
+                                  size={15}
+                                  weight="regular"
+                                  aria-hidden="true"
+                                />
+                              </span>
+                              {`New agent`}
+                            </button>
+                          </div>
+                        )}
                       </span>
                       <span style={css(`flex:1;`)}></span>
                       <span
@@ -559,128 +659,6 @@ export default class WorkspaceDemo extends Component {
                           aria-hidden="true"
                         />
                       </span>
-                    </div>
-                  </div>
-                  <div
-                    style={css(
-                      `margin:-4px -8px 0;display:flex;flex-direction:column;gap:8px;`,
-                    )}
-                  >
-                    <div
-                      style={css(
-                        `margin:0 8px 4px;display:flex;align-items:center;gap:20px;border-bottom:1px solid var(--ag-colorSplit);padding:0 6px;`,
-                      )}
-                    >
-                      <button
-                        type={`button`}
-                        onClick={homeTabAgents}
-                        style={css(homeTabStyleAgents)}
-                      >{`Your agents`}</button>
-                      <button
-                        type={`button`}
-                        onClick={homeTabTemplates}
-                        style={css(homeTabStyleTemplates)}
-                      >{`Templates`}</button>
-                      <span style={css(`flex:1;`)}></span>
-                      <span style={css(`padding-bottom:7px;`)}>
-                        <span
-                          style={css(
-                            `display:flex;height:28px;align-items:center;gap:6px;border-radius:6px;border:1px solid var(--border);padding:0 10px;font:400 13px/1 var(--font-sans);color:var(--foreground);white-space:nowrap;`,
-                          )}
-                        >
-                          <Plus size={12} weight="regular" aria-hidden="true" />
-                          {`New agent`}
-                        </span>
-                      </span>
-                    </div>
-                    <div
-                      style={css(
-                        `display:flex;max-height:330px;flex-direction:column;gap:2px;overflow-y:auto;`,
-                      )}
-                    >
-                      {homeRows.map((r, index7) => (
-                        <Fragment key={index7}>
-                          <button
-                            type={`button`}
-                            onClick={r.open}
-                            style={css(r.rowStyle)}
-                          >
-                            <span style={css(r.tileStyle)}>{r.initials}</span>
-                            <span
-                              style={css(
-                                `display:flex;min-width:0;flex:1;flex-direction:column;gap:1px;`,
-                              )}
-                            >
-                              <span
-                                style={css(
-                                  `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 14px/1.45 var(--font-sans);color:var(--foreground);`,
-                                )}
-                              >
-                                {r.title}
-                              </span>
-                              <span
-                                style={css(
-                                  `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 13px/1.45 var(--font-sans);color:var(--muted-foreground);`,
-                                )}
-                              >
-                                {r.desc}
-                              </span>
-                            </span>
-                            {r.selected && (
-                              <>
-                                <span
-                                  style={css(
-                                    `margin-left:8px;display:inline-flex;flex:0 0 auto;color:var(--foreground);`,
-                                  )}
-                                >
-                                  <Check
-                                    size={14}
-                                    weight="regular"
-                                    aria-hidden="true"
-                                  />
-                                </span>
-                              </>
-                            )}
-                          </button>
-                        </Fragment>
-                      ))}
-                      {homeShowTemplates && (
-                        <>
-                          <div
-                            style={css(
-                              `box-sizing:border-box;display:flex;width:100%;align-items:center;gap:14px;border-radius:10px;padding:8px 14px;`,
-                            )}
-                          >
-                            <span
-                              style={css(
-                                `display:flex;width:34px;height:34px;flex:0 0 auto;align-items:center;justify-content:center;border-radius:10px;border:1px dashed var(--border);color:var(--muted-foreground);`,
-                              )}
-                            >
-                              <ListBullets
-                                size={17}
-                                weight="regular"
-                                aria-hidden="true"
-                              />
-                            </span>
-                            <span
-                              style={css(
-                                `flex:1;font:400 14px/1.45 var(--font-sans);color:var(--foreground);`,
-                              )}
-                            >{`Browse all 12 templates`}</span>
-                            <span
-                              style={css(
-                                `display:inline-flex;color:var(--muted-foreground);`,
-                              )}
-                            >
-                              <ArrowRight
-                                size={13}
-                                weight="regular"
-                                aria-hidden="true"
-                              />
-                            </span>
-                          </div>
-                        </>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -1559,7 +1537,7 @@ export default class WorkspaceDemo extends Component {
                                   </span>
                                   <span
                                     style={css(
-                                      `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 12px/16px var(--font-mono);color:var(--ag-colorText);`,
+                                      `min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 12px/16px var(--font-sans);color:var(--ag-colorText);`,
                                     )}
                                   >
                                     {k.slug}
@@ -1625,7 +1603,7 @@ export default class WorkspaceDemo extends Component {
                         >
                           <span
                             style={css(
-                              `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 14px/18px var(--font-mono);color:var(--foreground);`,
+                              `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:500 14px/18px var(--font-sans);color:var(--foreground);`,
                             )}
                           >
                             {sk.slug}
@@ -1876,27 +1854,27 @@ export default class WorkspaceDemo extends Component {
                         >
                           <span
                             style={css(
-                              `display:flex;width:12px;flex:0 0 auto;align-items:center;justify-content:center;color:${r.railDot};`,
+                              `position:relative;display:flex;flex:0 0 auto;align-items:center;color:var(--muted-foreground);`,
                             )}
                           >
-                            {r.auto && (
-                              <>
-                                <Lightning
-                                  size={12}
-                                  weight="regular"
-                                  aria-hidden="true"
-                                />
-                              </>
+                            {r.auto ? (
+                              <Clock
+                                size={18}
+                                weight="regular"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <ChatCircle
+                                size={18}
+                                weight="regular"
+                                aria-hidden="true"
+                              />
                             )}
-                            {r.chat && (
-                              <>
-                                <span
-                                  style={css(
-                                    `width:8px;height:8px;border-radius:50%;border:1.5px solid currentColor;background:${r.railFill};`,
-                                  )}
-                                ></span>
-                              </>
-                            )}
+                            <span
+                              style={css(
+                                `position:absolute;top:-1px;right:-2px;width:8px;height:8px;border-radius:50%;border:1px solid var(--background);background:${r.dot};`,
+                              )}
+                            ></span>
                           </span>
                           <span
                             style={css(
