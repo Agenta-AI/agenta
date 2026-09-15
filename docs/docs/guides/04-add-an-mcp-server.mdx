@@ -1,61 +1,76 @@
 ---
 title: "Add an MCP server"
 sidebar_label: "Add an MCP server"
-description: "Connect an agent to an HTTP MCP server and authenticate it with an Agenta project secret."
+description: "Connect a project to an HTTP MCP server and give your agents the tools it exposes."
 ---
 
-```mdx-code-block
-import { Stream } from "@cloudflare/stream-react";
-```
+An MCP server gives your agent tools it can call. You connect the server once to a project, and any agent in that project can use it. To learn how MCP compares with built-in integrations, see [Tools and integrations](/concepts/tools-and-integrations).
 
-An MCP server gives your agent tools it can call. Connect one over HTTP and keep its key in an Agenta project secret. To learn how MCP compares with built-in integrations, see [Tools and integrations](/concepts/tools-and-integrations).
-
-:::info Planned MCP connection flow
-The gateway work in PR #6049 targets a single Connect flow: enter the MCP URL, confirm an editable suggested name, complete OAuth when supported, then open the connection to inspect tools and change their permissions. This flow is not yet release-ready. The instructions below describe the earlier flow and will be updated with verified steps before the MCP release.
+:::info Pending release verification
+This page describes the MCP connection flow in PR #6049. The steps have not yet been verified against a released build.
 :::
 
 ## Before you start
 
 Have these ready:
 
-- **The server's HTTP URL**, such as `https://example.com/mcp`. Agenta supports HTTP connections, but not local processes over stdio.
-- **The authentication header and key**, if the server requires them. Check the server's documentation for the header name, such as `x-api-key`.
-- **An agent on the Claude Code or Codex harness.** MCP servers are available on both. If the agent runs on Pi, the **MCPs** section does not appear in its configuration, and a run that declares one is refused. See [Choose a harness and model](/guides/choose-a-harness-and-model).
+- **The server's HTTP URL**, such as `https://mcp.example.com`. Agenta connects over HTTP. It does not start local processes over stdio.
+- **A header name and key**, only if the server authenticates with a header rather than OAuth. You can save the key as a project secret without leaving the connect dialog.
 
-## Store the key as a project secret first
+## Connect the server
 
-Skip this if the server needs no authentication.
+Start from `Settings` in the sidebar, then `MCPs`, and click `Connect MCP`. You can also start from an agent: open the **MCPs** section of its **Configuration** column, click `Add MCP server`, then click `Connect MCP` in the `Connection` list. Both entry points run the same dialog.
 
-The MCP form does not store the key directly. It references a project secret that Agenta resolves when the agent runs.
+1. Enter the address under `MCP server URL` and click `Continue`. Agenta contacts the server to check that it is reachable and to see how it authenticates.
+2. Check the suggested `Name` and edit it if you want. The name labels this connection everywhere you pick it, and it must be unique in the project. Click `Continue`.
+3. What comes next depends on what the server reported.
 
-1. Go to `Settings` in the sidebar, then `Secrets`.
-2. Click `+ Create` and save the key.
+   **The server uses OAuth.** The dialog reads "This server uses OAuth. Continuing opens its authorization page." `Continue` lists the permissions the server offers, one checkbox each, under "Choose which permissions to grant". Clear any you do not want to grant, then click `Authorize`. The provider's consent page opens in a new window. Complete it there, and the dialog carries on by itself.
 
-## Add the server
+   **The server needs no authentication.** The dialog reads "This server needs no authentication." Click `Continue`.
 
-1. In the **Configuration** column, find **MCPs**, between **Tools** and **Skills**. Its summary reads `None` when the agent has no MCP servers yet.
-2. Click the `+` button on that row, labelled `Add MCP server`.
-3. Fill in the fields below, then click `Create`.
+   **Agenta could not tell.** The dialog repeats what the server said and offers a credential step. Enter the `Header name` the server expects, such as `x-api-key`, then pick the `Project secret` that holds the key. If the project has no secrets yet, click `Create secret` in that list to make one without leaving the dialog. Click `Save credential`. If the server in fact needs nothing, click `Connect without authentication` instead.
 
-<Stream controls autoplay muted loop src="17ccf3fe16305937aabc23ac8ffe00e9" height="400px" />
+4. The dialog reads `Connected` and reports how many tools it found. Click `Done`.
 
-| Field | What to enter |
-|---|---|
-| `Server name` | Letters, numbers, dots, hyphens, or underscores, up to 128 characters, such as `exa`. The server's tools are labelled with this name. |
-| `MCP URL` | The server's HTTP endpoint, such as `https://example.com/mcp`. |
-| `Authentication` | `None` when the server is open. `Secret header` when it needs a key in a request header. `OAuth` is listed but not available yet. |
-| `Header name` | Shown for `Secret header`. The header the server requires, such as `x-api-key`. |
-| `Project secret` | Shown for `Secret header`. Pick the secret you created. The list reads `No project secrets found` when the project has none, so go back and create one in `Settings > Secrets`. |
+{/* TODO(mcp-release): screenshot or short recording of the Connect MCP dialog, from the URL step through Connected. */}
 
-## The server's actions become tools
+## Give an agent the connection
 
-The server's actions appear as tools labelled with the server name. When the agent calls one, it appears in the conversation and on any approval card.
+1. Open the agent's **Configuration** column and find the **MCPs** section.
+2. Click `Add MCP server`, then pick the connection under `Connection`.
+3. `Status` shows `Ready` when the connection can be used, next to the server URL. `Tool prefix` shows the label the model sees on this server's tools, which the harness renders as `mcp__<prefix>__<tool>`.
+
+The prefix is frozen when you pick the connection. Renaming the connection later does not rename the tools in an agent that is already saved.
 
 :::note
-The agent's `Policy` in the **Advanced** dialog governs MCP tools. They have no per-tool `Permission`, and `Always allow` is not offered on their approval cards. A new agent starts on `Allow all`, where MCP tools run without approval, including on a schedule. Under `Allow reads`, every MCP call asks for approval instead. See [Control what an agent can do](/guides/control-what-an-agent-can-do).
+The agent's permission policy decides when an MCP call waits for you. MCP tools are not covered by the `Always auto-approve` checkbox on an approval card, so under `ask` every call asks again unless the configuration sets a permission for the server or for the tool. See [MCP servers](/reference/agents/mcp-servers) for those fields and [Control what an agent can do](/guides/control-what-an-agent-can-do) for the policy.
 :::
+
+## Connect a second account at the same server
+
+Run `Connect MCP` again with the same URL. Agenta suggests a name that does not collide, such as `Acme (secondary)`. The two connections are separate. Each holds its own authorization, and each agent picks one of them by name.
+
+## Rename, disconnect, or remove a connection
+
+Open `Settings > MCPs` and click the row.
+
+- **Rename.** Edit `Name` and click `Save name`. Agents keep using the connection under its existing reference, so a rename changes nothing about what they run.
+- **Tools.** The drawer lists the tools the server exposes. The list is read-only. What an agent may call is set in that agent's configuration.
+- **Disconnect.** Drops the stored authorization and keeps the connection, its name, and its URL. Agents using it stop working until it is connected again, and one `Connect` restores it.
+- **Remove.** Deletes the connection. Agents configured to use it stop working, and connecting the same server again later creates a new connection that those agents do not reference.
+
+## Troubleshooting
+
+**The status reads `Needs authorization`.** The consent flow was abandoned, or the grant was revoked or has expired. Open the row and click `Connect` to authorize it again. The connection keeps its name and every agent reference.
+
+**`Another connection in this project already uses this name.`** Names are compared after every character outside letters, digits, and underscores is replaced with an underscore, so `Acme Tools` and `Acme-Tools` count as the same name. Pick a name that differs by more than punctuation.
+
+**Connected, but the tool list failed.** The credentials were saved. Click `Retry tools`. There is no need to authorize again.
+
+**`This server exposes no tools yet.`** The server answered with an empty tool list. That is not a connection failure.
 
 ## Next
 
 - [Control what an agent can do](/guides/control-what-an-agent-can-do) covers the policy that decides when an MCP call waits for you.
-- [Choose a harness and model](/guides/choose-a-harness-and-model) covers switching an agent to Claude Code or Codex.
+- [MCP servers](/reference/agents/mcp-servers) lists the configuration fields behind this flow.
