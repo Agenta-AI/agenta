@@ -34,11 +34,13 @@ import {
 import {
     CaretDown,
     CircleNotch,
+    Clock,
     CopySimple,
     DotsThreeVertical,
     DownloadSimple,
     FilePlus,
     FolderPlus,
+    HardDrive,
     LinkSimple,
     ListBullets,
     PencilSimple,
@@ -64,6 +66,11 @@ const SORT_LABELS: Record<DriveSortKey, string> = {
     name: "Name",
     modified: "Modified",
     size: "Size",
+}
+const SORT_ICONS: Record<DriveSortKey, ReactNode> = {
+    name: <TextAa />,
+    modified: <Clock />,
+    size: <HardDrive />,
 }
 
 /** The actions a FILE offers (rename / duplicate / delete) — absent = read-only mount. */
@@ -249,6 +256,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                     <DropdownMenuContent align="start" className="min-w-[170px]">
                         {(Object.keys(SORT_LABELS) as DriveSortKey[]).map((key) => (
                             <DropdownMenuItem key={key} onSelect={() => setSort(key)}>
+                                {SORT_ICONS[key]}
                                 Sort by {SORT_LABELS[key].toLowerCase()}
                                 <SelectedMark on={sort === key} />
                             </DropdownMenuItem>
@@ -335,11 +343,13 @@ export function DriveToolbar(props: DriveToolbarProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="min-w-[200px]">
                         <DropdownMenuItem onSelect={() => setMode("rendered")}>
+                            <TextAa />
                             Markdown
                             <span className="ml-auto text-xs text-colorTextTertiary">rendered</span>
                             <SelectedMark on={rendered} className="ml-2" />
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => setMode("source")}>
+                            <TextT />
                             Plain text
                             <span className="ml-auto text-xs text-colorTextTertiary">source</span>
                             <SelectedMark on={!rendered} className="ml-2" />
