@@ -79,7 +79,8 @@ const Objct = ({text, onOpen}: {text: string; onOpen?: () => void}) =>
         <strong
             role="link"
             tabIndex={0}
-            className="cursor-pointer font-medium underline-offset-[3px] decoration-colorTextQuaternary hover:underline"
+            // Above the row's widened hit area, or the click lands on the row.
+            className="relative z-10 cursor-pointer font-medium underline-offset-[3px] decoration-colorTextQuaternary hover:underline"
             onClick={(event) => {
                 event.stopPropagation()
                 onOpen()
