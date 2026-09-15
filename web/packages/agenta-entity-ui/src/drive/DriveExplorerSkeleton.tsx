@@ -46,6 +46,7 @@ export const TileGridSkeleton = ({className = "px-5 pb-6 pt-4"}: {className?: st
         items={SKELETON_TILES}
         minColumnWidth={132}
         estimateRowHeight={124}
+        thumbAspect={0}
         gap={4}
         className={className}
         getKey={(i) => String(i)}
