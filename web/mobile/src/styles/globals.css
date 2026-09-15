@@ -421,12 +421,14 @@
         background-position: 0 50%;
     }
 }
+/* One full tile per cycle over a 200%-wide periodic gradient: the frame at the end of a loop
+   is the frame at its start, so the sweep never blinks back to the left. */
 @keyframes text-shimmer {
     from {
-        background-position: 120% 0;
+        background-position: 0% 0;
     }
     to {
-        background-position: -120% 0;
+        background-position: -200% 0;
     }
 }
 
