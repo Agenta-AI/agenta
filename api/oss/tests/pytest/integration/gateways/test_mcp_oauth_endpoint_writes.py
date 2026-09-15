@@ -62,6 +62,23 @@ async def _connection(project, *, slug: str, **create):
     )
 
 
+async def _second_secret(project):
+    """A second credential in the same project, as a reconnect's new grant would be."""
+    from uuid import uuid4
+
+    from sqlalchemy import text
+
+    secret_id = uuid4()
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        await session.execute(
+            text("INSERT INTO secrets (id, project_id) VALUES (:id, :project_id)"),
+            {"id": secret_id, "project_id": project["project_id"]},
+        )
+        await session.commit()
+    return secret_id
+
+
 async def _reload(project, connection):
     return await _dao().fetch_endpoint(
         project_id=project["project_id"], endpoint_id=connection.id
@@ -134,6 +151,7 @@ async def test_invalidating_keeps_them_as_well(project):
         project_id=project["project_id"],
         user_id=project["user_id"],
         endpoint_id=connection.id,
+        secret_id=project["secret_id"],
     )
 
     stored = await _reload(project, connection)
@@ -183,6 +201,7 @@ async def test_an_administrators_change_survives_a_relay_that_started_before_it(
         project_id=project["project_id"],
         user_id=project["user_id"],
         endpoint_id=snapshot.id,
+        secret_id=snapshot.secret_id,
     )
 
     stored = await _reload(project, connection)
@@ -212,6 +231,7 @@ async def test_a_reconnect_that_lands_first_is_not_undone_by_the_late_failure(pr
         project_id=project["project_id"],
         user_id=project["user_id"],
         endpoint_id=connection.id,
+        secret_id=project["secret_id"],
     )
 
     stored = await _reload(project, connection)
@@ -236,9 +256,71 @@ async def test_two_transitions_at_once_do_not_lose_one_anothers_column(project):
             project_id=project["project_id"],
             user_id=project["user_id"],
             endpoint_id=connection.id,
+            secret_id=project["secret_id"],
         ),
     )
 
     stored = await _reload(project, connection)
     assert stored.flags.is_active is True
     assert isinstance(stored.flags.is_valid, bool)
+
+
+async def test_a_reconnect_with_a_different_credential_survives_the_late_failure(
+    project, other_project
+):
+    """D21. The narrow remainder of the race D3 closed. The relay read grant A, dialled
+    out and got a 401; meanwhile the person reconnected and the connection now holds
+    grant B. Invalidating on the strength of a handle that is no longer there reports a
+    freshly repaired connection as needing another reconnect."""
+    connection = await _connection(project, slug="reconnect-different-grant")
+    first_grant = project["secret_id"]
+    await _dao().bind_endpoint_secret(
+        project_id=project["project_id"],
+        user_id=project["user_id"],
+        endpoint_id=connection.id,
+        secret_id=first_grant,
+    )
+
+    # A second credential in the same project stands in for the reconnect's new grant.
+    second_grant = await _second_secret(project)
+    await _dao().bind_endpoint_secret(
+        project_id=project["project_id"],
+        user_id=project["user_id"],
+        endpoint_id=connection.id,
+        secret_id=second_grant,
+    )
+
+    # The doomed call's 401 finally lands, naming the credential it was made with.
+    await _dao().invalidate_endpoint_secret(
+        project_id=project["project_id"],
+        user_id=project["user_id"],
+        endpoint_id=connection.id,
+        secret_id=first_grant,
+    )
+
+    stored = await _reload(project, connection)
+    assert stored.flags.is_valid is True
+    assert stored.secret_id == second_grant
+
+
+async def test_the_credential_that_actually_failed_is_still_invalidated(project):
+    """The condition must not swallow the case it exists inside: when the connection
+    still holds the handle the call used, the failure is recorded."""
+    connection = await _connection(project, slug="same-grant-invalidates")
+    await _dao().bind_endpoint_secret(
+        project_id=project["project_id"],
+        user_id=project["user_id"],
+        endpoint_id=connection.id,
+        secret_id=project["secret_id"],
+    )
+
+    await _dao().invalidate_endpoint_secret(
+        project_id=project["project_id"],
+        user_id=project["user_id"],
+        endpoint_id=connection.id,
+        secret_id=project["secret_id"],
+    )
+
+    stored = await _reload(project, connection)
+    assert stored.flags.is_valid is False
+    assert stored.secret_id == project["secret_id"]

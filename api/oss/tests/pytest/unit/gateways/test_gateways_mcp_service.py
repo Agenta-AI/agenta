@@ -141,13 +141,14 @@ class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
         return updated
 
     async def invalidate_endpoint_secret(
-        self, *, project_id, user_id, endpoint_id
+        self, *, project_id, user_id, endpoint_id, secret_id
     ) -> Optional[MCPEndpoint]:
         self.calls.append("invalidate_endpoint_secret")
         existing = self._by_id.get(endpoint_id)
         if existing is None:
             return None
-        if existing.secret_id is None:
+        # Conditional on the handle the caller was using, like the real DAO (D21).
+        if existing.secret_id is None or existing.secret_id != secret_id:
             return existing
         updated = existing.model_copy(
             update={
