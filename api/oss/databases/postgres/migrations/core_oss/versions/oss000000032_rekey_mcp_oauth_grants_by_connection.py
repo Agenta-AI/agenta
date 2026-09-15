@@ -60,6 +60,47 @@ _NEW_SLUG = "'oauth-grant-' || right(replace(sole.endpoint_id::text, '-', ''), 1
 def upgrade() -> None:
     connection = op.get_bind()
 
+    # Bounded waits. Every statement below touches `secrets` or `mcps_endpoints`, which a
+    # running deployment writes to, and an unbounded `lock_timeout` lets this revision
+    # queue behind a long transaction and hold the migration slot indefinitely. Failing
+    # and being re-run is the better outcome: this revision is idempotent.
+    connection.execute(sa.text("SET LOCAL lock_timeout = '5s'"))
+    connection.execute(sa.text("SET LOCAL statement_timeout = '5min'"))
+
+    # A destination slug the new writer already created, before this ran (D4).
+    #
+    # The connection consented under the new code, which stored its grant at
+    # `oauth-grant-<its own id>`, and then something failed before the endpoint was
+    # repointed at it — an interrupted callback is the way to get here. So the endpoint
+    # still names the legacy row while the row at its new key already exists, and
+    # renaming the legacy row onto that key would hit `uq_secrets_project_id_slug` and
+    # fail the whole migration.
+    #
+    # The occupant is this connection's own grant, by construction: nothing else computes
+    # that slug. So the endpoint is repointed at it, which is what the interrupted
+    # callback was about to do. The legacy row is left as an orphan rather than deleted,
+    # matching what this revision does with every other orphan, and the endpoint ends up
+    # naming the newer of the two credentials.
+    adopted = connection.execute(
+        sa.text(
+            f"""
+            WITH referencing AS ({_REFERENCING}),
+                 sole AS (SELECT * FROM referencing WHERE sharers = 1)
+            UPDATE mcps_endpoints AS endpoint
+               SET secret_id = occupant.id,
+                   updated_at = now()
+              FROM sole
+              JOIN secrets AS occupant
+                ON occupant.project_id = sole.project_id
+               AND occupant.kind = 'OAUTH_GRANT'
+               AND occupant.slug = {_NEW_SLUG}
+             WHERE endpoint.id = sole.endpoint_id
+               AND endpoint.project_id = sole.project_id
+               AND occupant.id <> sole.secret_id
+            """
+        )
+    ).rowcount
+
     # Read the ambiguous set first and delete by id later. The membership test is "more
     # than one live connection names this row", and clearing the handles is what stops
     # that being true, so a second query asking the same question would find nothing.
@@ -78,6 +119,12 @@ def upgrade() -> None:
         .all()
     )
 
+    # After the adoption above, an endpoint whose destination was occupied now names the
+    # occupant, whose slug already IS the destination, so the rename is a no-op for it
+    # rather than a conflict. The `NOT EXISTS` is the belt to that braces: any other row
+    # still holding the destination — a different kind, say, since the unique index does
+    # not look at kind — makes this revision skip that one rename instead of aborting.
+    # Skipped rows are reported below rather than passed over in silence.
     renamed = connection.execute(
         sa.text(
             f"""
@@ -89,6 +136,13 @@ def upgrade() -> None:
              WHERE secret.id = sole.secret_id
                AND secret.project_id = sole.project_id
                AND secret.kind = 'OAUTH_GRANT'
+               AND NOT EXISTS (
+                   SELECT 1
+                     FROM secrets AS occupant
+                    WHERE occupant.project_id = sole.project_id
+                      AND occupant.slug = {_NEW_SLUG}
+                      AND occupant.id <> sole.secret_id
+               )
             """
         )
     ).rowcount
@@ -124,11 +178,17 @@ def upgrade() -> None:
             {"shared_grant_ids": list(shared_grant_ids)},
         ).rowcount
 
-    print(
+    summary = (
         f"[oss000000032] rekeyed {renamed} MCP OAuth grant(s) onto their connection; "
         f"cleared {disconnected} handle(s) that shared {deleted} ambiguous grant(s), "
         f"which now need a reconnect."
     )
+    if adopted:
+        summary += (
+            f" {adopted} connection(s) already had a grant at their new key and were "
+            f"repointed at it; the row each previously named is left as an orphan."
+        )
+    print(summary)
 
 
 def downgrade() -> None:

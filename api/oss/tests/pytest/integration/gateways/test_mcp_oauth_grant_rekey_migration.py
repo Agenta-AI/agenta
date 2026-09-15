@@ -410,3 +410,132 @@ async def test_running_the_migration_twice_changes_nothing_the_second_time(
             == _expected_slug(endpoint_id)
         )
         assert await _handle_of(connection, endpoint_id) == secret_id
+
+
+# --- D4: a destination slug the new writer got to first --------------------------- #
+
+
+async def test_a_destination_slug_already_taken_does_not_abort_the_migration(
+    scratch_engine,
+):
+    """The interrupted-callback state, and the one that used to fail the whole run.
+
+    The connection consented under the new code, which stored its grant at
+    `oauth-grant-<its own id>`, and something failed before the endpoint was repointed at
+    it. So the endpoint still names the legacy row while the row at its new key already
+    exists, and renaming the legacy row onto that key hit the unique index.
+    """
+    project_id = uuid.uuid4()
+    async with scratch_engine.begin() as connection:
+        legacy = await _seed_grant(
+            connection, project_id=project_id, slug="oauth-grant-ff8ef6b614b8"
+        )
+        endpoint_id = await _seed_connection(
+            connection, project_id=project_id, slug="acme", secret_id=legacy
+        )
+        # The occupant, written by the new code at the key this endpoint now derives.
+        occupant = await _seed_grant(
+            connection, project_id=project_id, slug=_expected_slug(endpoint_id)
+        )
+
+    await _upgrade(scratch_engine)
+
+    async with scratch_engine.connect() as connection:
+        # The endpoint names the row at its own key, which is what the interrupted
+        # callback was about to do.
+        assert await _handle_of(connection, endpoint_id) == occupant
+        assert await _slug_of(connection, occupant) == _expected_slug(endpoint_id)
+        # The legacy row is left as an orphan, not deleted and not renamed, the same
+        # treatment every other orphan gets here.
+        assert await _slug_of(connection, legacy) == "oauth-grant-ff8ef6b614b8"
+
+
+async def test_an_occupied_destination_is_resolved_for_one_connection_and_not_others(
+    scratch_engine,
+):
+    """One project, one connection in the interrupted state and one in the ordinary one.
+    Neither outcome may cost the other."""
+    project_id = uuid.uuid4()
+    async with scratch_engine.begin() as connection:
+        ordinary_grant = await _seed_grant(
+            connection, project_id=project_id, slug="oauth-grant-legacy-one"
+        )
+        ordinary = await _seed_connection(
+            connection, project_id=project_id, slug="ordinary", secret_id=ordinary_grant
+        )
+        interrupted_legacy = await _seed_grant(
+            connection, project_id=project_id, slug="oauth-grant-legacy-two"
+        )
+        interrupted = await _seed_connection(
+            connection,
+            project_id=project_id,
+            slug="interrupted",
+            secret_id=interrupted_legacy,
+        )
+        occupant = await _seed_grant(
+            connection, project_id=project_id, slug=_expected_slug(interrupted)
+        )
+
+    await _upgrade(scratch_engine)
+
+    async with scratch_engine.connect() as connection:
+        assert await _slug_of(connection, ordinary_grant) == _expected_slug(ordinary)
+        assert await _handle_of(connection, ordinary) == ordinary_grant
+        assert await _handle_of(connection, interrupted) == occupant
+        assert (
+            await _slug_of(connection, interrupted_legacy) == "oauth-grant-legacy-two"
+        )
+
+
+async def test_a_destination_held_by_a_row_of_another_kind_is_skipped_not_fatal(
+    scratch_engine,
+):
+    """The unique index does not look at kind, so a non-grant row on that slug would
+    break the rename as surely as a grant would. Skipping one rename is recoverable;
+    aborting the migration is not."""
+    project_id = uuid.uuid4()
+    async with scratch_engine.begin() as connection:
+        legacy = await _seed_grant(
+            connection, project_id=project_id, slug="oauth-grant-ff8ef6b614b8"
+        )
+        endpoint_id = await _seed_connection(
+            connection, project_id=project_id, slug="acme", secret_id=legacy
+        )
+        await _seed_grant(
+            connection,
+            project_id=project_id,
+            slug=_expected_slug(endpoint_id),
+            kind="CUSTOM_SECRET",
+        )
+
+    await _upgrade(scratch_engine)
+
+    async with scratch_engine.connect() as connection:
+        # Nothing was renamed and nothing was adopted, but the run completed and every
+        # other row in the database is in the state the revision intends.
+        assert await _slug_of(connection, legacy) == "oauth-grant-ff8ef6b614b8"
+        assert await _handle_of(connection, endpoint_id) == legacy
+
+
+async def test_rerunning_after_an_adoption_changes_nothing_further(scratch_engine):
+    """The adoption path has to be as idempotent as the rename path, because a migration
+    that resolved a conflict once must not undo it on a re-run."""
+    project_id = uuid.uuid4()
+    async with scratch_engine.begin() as connection:
+        legacy = await _seed_grant(
+            connection, project_id=project_id, slug="oauth-grant-ff8ef6b614b8"
+        )
+        endpoint_id = await _seed_connection(
+            connection, project_id=project_id, slug="acme", secret_id=legacy
+        )
+        occupant = await _seed_grant(
+            connection, project_id=project_id, slug=_expected_slug(endpoint_id)
+        )
+
+    await _upgrade(scratch_engine)
+    await _upgrade(scratch_engine)
+
+    async with scratch_engine.connect() as connection:
+        assert await _handle_of(connection, endpoint_id) == occupant
+        assert await _slug_of(connection, occupant) == _expected_slug(endpoint_id)
+        assert await _slug_of(connection, legacy) == "oauth-grant-ff8ef6b614b8"
