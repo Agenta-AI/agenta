@@ -159,30 +159,53 @@ Agenta can inject platform operations such as `discover_tools` into a run. Do no
 
 ## mcps
 
-Each entry declares one MCP server. See [Tools and integrations](/concepts/tools-and-integrations).
+Each entry declares one MCP server. See [MCP servers](/reference/agents/mcp-servers) for these fields in context, and [Tools and integrations](/concepts/tools-and-integrations) for the concept.
 
-| Field        | Type   | Required | Default                                   | Description                                                                                         |
-| ------------ | ------ | -------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `name`       | string | Yes      |                                           | 1 to 128 characters matching `^[A-Za-z0-9._-]+$`. The name `agenta-tools` is reserved and rejected. |
-| `connection` | object | Yes      |                                           | How Agenta reaches the server.                                                                      |
-| `policy`     | object | No       | `{"tools": {"mode": "all", "names": []}}` | Which of the server's tools are exposed, and at what permission.                                    |
+| Field        | Type   | Required | Default                                   | Description                                                                                                                                                                  |
+| ------------ | ------ | -------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`       | string | Yes      |                                           | 1 to 128 characters matching `^[A-Za-z0-9._-]+$`. The name `agenta-tools` is reserved and rejected. The harness renders this server's tools as `mcp__<name>__<tool>`, so it is frozen when the connection is chosen and renaming that connection does not change it. |
+| `connection` | object | Yes      |                                           | Which connection reaches the server. One of the two shapes below, selected by `type`.                                                                                        |
+| `policy`     | object | No       | `{"tools": {"mode": "all", "names": []}}` | Which of the server's tools are exposed, and at what permission.                                                                                                             |
 
-### mcps[].connection
+### mcps[].connection, gateway
+
+The shape the platform writes. The upstream URL and the credentials belong to the connection, so neither appears in the agent template.
+
+| Field       | Type                                        | Required                      | Default | Description                                                                                            |
+| ----------- | ------------------------------------------- | ----------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| `type`      | `"gateway"`                                 | Yes                           |         |                                                                                                        |
+| `namespace` | `"custom"` \| `"standard"` \| `"builtin"`   | Yes                           |         | `custom` is a server connected in this project.                                                        |
+| `slug`      | string                                      | With `custom`                 |         | The connection's platform slug, derived once and never changed. Rejected with the other namespaces.    |
+| `provider`  | string                                      | With `standard` and `builtin` |         | The provider key. Rejected with `custom`.                                                              |
+
+An entry that carries no `connection` is matched to a connection by `name`. That fallback is deprecated and kept only for agent revisions committed before connections had an identity of their own.
+
+### mcps[].connection, direct HTTP
+
+Used where no gateway is configured, such as an SDK run outside the platform.
 
 | Field         | Type             | Required | Default            | Description                                                                                                                                                                           |
 | ------------- | ---------------- | -------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`        | `"http"`         | No       | `"http"`           | Transport. `http` is the only value.                                                                                                                                                  |
+| `type`        | `"http"`         | Yes      |                    | Transport.                                                                                                                                                                            |
 | `url`         | string           | Yes      |                    | The server URL.                                                                                                                                                                       |
-| `headers`     | object of string | No       | `{}`               | Static request headers.                                                                                                                                                               |
-| `credentials` | object           | No       | `{"type": "none"}` | Either `{"type": "none"}` or `{"type": "header_secret_refs", "headers": {"<header>": "<secret-name>"}}`. Secret values resolve at run time and are never stored in the configuration. |
+| `headers`     | object of string | No       | `{}`               | Public request headers.                                                                                                                                                               |
+| `credentials` | object           | No       | `{"type": "none"}` | Either `{"type": "none"}` or `{"type": "header_secret_refs", "headers": {"<header>": "<secret-slug>"}}`. Secret values resolve at run time and are never stored in the configuration. |
+
+A header name may not appear in both `headers` and `credentials.headers`. The comparison ignores case.
 
 ### mcps[].policy
 
-| Field         | Type                                       | Required | Default | Description                                                                                   |
-| ------------- | ------------------------------------------ | -------- | ------- | --------------------------------------------------------------------------------------------- |
-| `tools.mode`  | `"all"` \| `"include"`                     | No       | `"all"` | `all` exposes every tool the server advertises. `include` exposes only `tools.names`.         |
-| `tools.names` | array of string                            | No       | `[]`    | Tool names to expose. Required with `include`, rejected with `all`.                           |
-| `permission`  | `"allow"` \| `"ask"` \| `"deny"` \| `null` | No       | `null`  | Permission applied to this server's tools. Absent means inherit `runner.permissions.default`. |
+| Field                 | Type                                       | Required | Default | Description                                                                                                                       |
+| --------------------- | ------------------------------------------ | -------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `tools.mode`          | `"all"` \| `"include"`                     | No       | `"all"` | `all` exposes every tool the server advertises. `include` exposes only `tools.names`.                                             |
+| `tools.names`         | array of string                            | No       | `[]`    | Tool names as the server advertises them. Required with `include`, rejected with `all`.                                           |
+| `permission`          | `"allow"` \| `"ask"` \| `"deny"` \| `null` | No       | `null`  | Permission applied to this server's tools. Absent means inherit `runner.permissions.default`.                                     |
+| `tool_permissions`    | object                                     | No       | `{}`    | Per-tool permissions, keyed by the name the server advertises (`echo`), never the harness-rendered name (`mcp__acme__echo`).      |
+| `new_tool_permission` | `"allow"` \| `"ask"` \| `"deny"`           | No       | unset   | Permission for an advertised tool that `tool_permissions` does not name.                                                          |
+
+Setting either `tool_permissions` or `new_tool_permission` opts this server into per-tool policy. An advertised tool then resolves to its `tool_permissions` entry, and otherwise to `new_tool_permission`, which itself falls back to `permission` and then to `ask`. `runner.permissions.default` is not consulted for a server that opted in, so a run default cannot widen the table. With both fields absent, the entry carries no per-tool policy and `permission` governs the whole server.
+
+`tool_permissions` may not name a tool that `tools.mode: "include"` hides. That configuration is rejected rather than silently dropped.
 
 ## skills
 
