@@ -1,9 +1,10 @@
-import type {ComponentType} from "react"
+import type {ComponentType, ReactNode} from "react"
 
 import {IntegrationTile} from "@agenta/entity-ui/clientTools"
 import {
     Brain,
     Browser,
+    CaretDown,
     ChartLine,
     CheckCircle,
     CircleNotch,
@@ -35,6 +36,7 @@ import {
     SlidersHorizontal,
     TerminalWindow,
     TreeStructure,
+    WarningCircle,
     type IconProps,
 } from "@phosphor-icons/react"
 
@@ -83,6 +85,7 @@ export type ActivityState =
     | "responded"
     | "deferred"
     | "not-handled"
+    | "failed"
 
 const STATE_GLYPHS: Record<Exclude<ActivityState, "idle">, Icon> = {
     queued: DotsThree,
@@ -93,13 +96,15 @@ const STATE_GLYPHS: Record<Exclude<ActivityState, "idle">, Icon> = {
     responded: SealQuestion,
     deferred: ClockCountdown,
     "not-handled": Info,
+    failed: WarningCircle,
 }
 
-/** Colour carries two meanings only: warning = your turn, disabled = never ran. */
+/** Colour carries three meanings: warning = your turn, disabled = never ran, error = the run stopped. */
 const NODE_TONE: Partial<Record<ActivityState, string>> = {
     awaiting: "border-colorWarning/40 text-colorWarning",
     deferred: "text-colorTextDisabled",
     "not-handled": "text-colorTextDisabled",
+    failed: "border-colorError/40 text-colorError",
 }
 
 /** Live text: a periodic gradient one `text-shimmer` cycle moves exactly one tile, so the loop never blinks. */
@@ -145,6 +150,45 @@ export const ActivityNode = ({
         </span>
     )
 }
+
+/** One step's row: the node, the sentence, a caret; the `after` box is the ~44px touch target. */
+export const StepRow = ({
+    open,
+    onToggle,
+    controls,
+    children,
+}: {
+    /** Expanded state; undefined for a row with nothing to open. */
+    open?: boolean
+    onToggle?: () => void
+    /** The id of the panel `open` reveals. */
+    controls?: string
+    children: ReactNode
+}) =>
+    onToggle ? (
+        <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={open}
+            aria-controls={open === undefined ? undefined : controls}
+            className="relative -ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer items-center gap-3.5 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left group/row after:absolute after:-inset-y-2 after:inset-x-0 after:content-['']"
+        >
+            {children}
+        </button>
+    ) : (
+        <div className="flex min-w-0 items-center gap-3.5 py-0.5">{children}</div>
+    )
+
+/** The caret at the end of an expandable row. */
+export const StepCaret = ({open}: {open: boolean}) => (
+    <CaretDown
+        size={9}
+        weight="bold"
+        className={`shrink-0 text-colorTextDisabled opacity-50 transition-transform ${
+            open ? "rotate-180" : ""
+        }`}
+    />
+)
 
 /** What the run is parked on: an approval, or one of the asks a client tool makes. */
 export type WaitingKind = "approval" | ActivityIcon

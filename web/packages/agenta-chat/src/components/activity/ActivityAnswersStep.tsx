@@ -7,12 +7,17 @@ import {
     formatStepValue,
     parseElicitationPayload,
 } from "@agenta/shared/utils"
-import {CaretDown} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 
 import RevealCollapse from "../RevealCollapse"
 
-import {ActivityNode, LIVE_TEXT_CLASS, type ActivityState} from "./activityIcons"
+import {
+    ActivityNode,
+    LIVE_TEXT_CLASS,
+    StepCaret,
+    StepRow,
+    type ActivityState,
+} from "./activityIcons"
 
 /** A question on the timeline: what the dock below waits on, then what the reader said. */
 export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
@@ -88,42 +93,19 @@ export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
     }
 
     const expandable = count > 0
-    const header = (
-        <>
-            <ActivityNode icon="ask" state={state} yourTurn={settled === "pending"} />
-            <span
-                className={`min-w-0 truncate text-sm text-colorText transition-colors group-hover/row:text-colorTextSecondary ${
-                    settled === "pending" ? LIVE_TEXT_CLASS : ""
-                }`}
-            >
-                {sentence}
-            </span>
-            {expandable ? (
-                <CaretDown
-                    size={9}
-                    weight="bold"
-                    className={`shrink-0 text-colorTextDisabled opacity-50 transition-transform ${
-                        open ? "rotate-180" : ""
-                    }`}
-                />
-            ) : null}
-        </>
-    )
-
     return (
         <div className="flex min-w-0 flex-col gap-2">
-            {expandable ? (
-                <button
-                    type="button"
-                    onClick={() => setOpen((v) => !v)}
-                    aria-expanded={open}
-                    className="relative -ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer items-center gap-3.5 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left group/row after:absolute after:-inset-y-2 after:inset-x-0 after:content-['']"
+            <StepRow open={open} onToggle={expandable ? () => setOpen((v) => !v) : undefined}>
+                <ActivityNode icon="ask" state={state} yourTurn={settled === "pending"} />
+                <span
+                    className={`min-w-0 truncate text-sm text-colorText transition-colors group-hover/row:text-colorTextSecondary ${
+                        settled === "pending" ? LIVE_TEXT_CLASS : ""
+                    }`}
                 >
-                    {header}
-                </button>
-            ) : (
-                <div className="flex min-w-0 items-center gap-3.5 py-0.5">{header}</div>
-            )}
+                    {sentence}
+                </span>
+                {expandable ? <StepCaret open={open} /> : null}
+            </StepRow>
             <RevealCollapse open={open}>
                 <dl className="ag-surface-inset m-0 flex min-w-0 flex-col gap-2 rounded px-3 py-2 text-xs ml-[38px]">
                     {answers.map((answer) => (

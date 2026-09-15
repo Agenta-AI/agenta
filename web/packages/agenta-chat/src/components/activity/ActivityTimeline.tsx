@@ -8,6 +8,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {useReducedMotion} from "motion/react"
 
 import {useHeldFor} from "../../hooks/useHeldFor"
+import {useRevealed} from "../../hooks/useRevealed"
 import {formatElapsed, useTurnClock} from "../../hooks/useTurnClock"
 import {activityFiles, currentStep, hasLiveStep, partToolName, type ActivityStep} from "../../model"
 import {resolveToolDisplay} from "../../skin"
@@ -105,12 +106,7 @@ const StepReveal = ({
     first: boolean
     children: ReactNode
 }) => {
-    const [shown, setShown] = useState(!animate)
-    useEffect(() => {
-        if (shown) return
-        const id = requestAnimationFrame(() => setShown(true))
-        return () => cancelAnimationFrame(id)
-    }, [shown])
+    const shown = useRevealed(animate)
     return (
         <HeightCollapse open={shown} animate={animate} durationMs={STEP_ENTER_MS} slideY={6}>
             <div

@@ -56,14 +56,9 @@ import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {cancelledStopAction} from "./stopHereState"
-import {PendingTurn, TurnRow} from "./TurnRow"
+import {TranscriptTurns} from "./TranscriptTurns"
 import {mergeAssistantRuns} from "./turnRuns"
-import {
-    deriveMobileRemoteTurnPresentation,
-    isFirstResponse,
-    runIdFor,
-    showTrailingWorkingPulse,
-} from "./turnStatus"
+import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
@@ -618,28 +613,15 @@ export const LiveConversation = ({
                         ) : null}
                     </div>
                 ) : null}
-                {visibleTurns.map((turn, i) => (
-                    <TurnRow
-                        key={turn.message.id}
-                        turn={turn}
-                        onClientToolOutput={conversation.sendToolOutput}
-                        onRewind={handleRewind}
-                        sessionId={sessionId}
-                        remoteRunning={showingTurnActivity && !streamingHere}
-                        waitingOnUser={conversation.hitlPending}
-                        runId={runIdFor(visibleTurns, i)}
-                        firstTurn={isFirstResponse(visibleTurns, i)}
-                    />
-                ))}
-                {/* The run's state lives on the turn's own fold line. The one gap: the request is
-                    in and no assistant turn exists yet — a placeholder turn wears the line. */}
-                {showTrailingWorkingPulse(showingTurnActivity, visibleTurns) ? (
-                    <PendingTurn
-                        sessionId={sessionId}
-                        runId={runIdFor(visibleTurns, visibleTurns.length)}
-                        firstTurn={isFirstResponse(visibleTurns, visibleTurns.length)}
-                    />
-                ) : null}
+                <TranscriptTurns
+                    turns={visibleTurns}
+                    sessionId={sessionId}
+                    remoteRunning={showingTurnActivity && !streamingHere}
+                    waitingOnUser={conversation.hitlPending}
+                    pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
+                    onClientToolOutput={conversation.sendToolOutput}
+                    onRewind={handleRewind}
+                />
             </ContentRail>
         )
     }

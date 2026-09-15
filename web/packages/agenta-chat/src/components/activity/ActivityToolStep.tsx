@@ -11,7 +11,7 @@ import {
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import type {FileActivity} from "@agenta/entities/session"
 import {driveQuickLookAtomFamily, useDriveSessionId} from "@agenta/entity-ui/drive"
-import {ArrowSquareOut, CaretDown, FileText} from "@phosphor-icons/react"
+import {ArrowSquareOut, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -33,7 +33,13 @@ import {expandedValueAtomFamily, setExpandedAtom, toolRowKey} from "../../state"
 import RevealCollapse from "../RevealCollapse"
 import {ToolIOBlock} from "../ToolIOBlock"
 
-import {ActivityNode, LIVE_TEXT_CLASS, type ActivityState} from "./activityIcons"
+import {
+    ActivityNode,
+    LIVE_TEXT_CLASS,
+    StepCaret,
+    StepRow,
+    type ActivityState,
+} from "./activityIcons"
 
 // `_skinVersion` only makes the registry's state part of the call, so a memo can key on it.
 const displayFor = (
@@ -211,40 +217,26 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
             {opensFile ? (
                 <ArrowSquareOut size={11} className="shrink-0 text-colorTextDisabled" />
             ) : expandable ? (
-                <CaretDown
-                    size={9}
-                    weight="bold"
-                    className={`shrink-0 text-colorTextDisabled opacity-50 transition-transform ${
-                        open ? "rotate-180" : ""
-                    }`}
-                />
+                <StepCaret open={open} />
             ) : null}
         </>
     )
 
-    const rowClass =
-        "relative -ml-1.5 flex w-fit max-w-full min-w-0 cursor-pointer items-center gap-3.5 rounded-md border-0 bg-transparent px-1.5 py-0.5 text-left group/row after:absolute after:-inset-y-2 after:inset-x-0 after:content-['']"
-
     return (
         <div className="flex min-w-0 flex-col gap-2">
-            {opensFile ? (
-                <button type="button" onClick={() => openFile(files[0].path)} className={rowClass}>
-                    {header}
-                </button>
-            ) : expandable ? (
-                <button
-                    type="button"
-                    onClick={() => setExpanded({key: rowKey, value: !open})}
-                    aria-expanded={open}
-                    aria-controls={panelId}
-                    // The `after` box is the ~44px touch target; the row's own chrome never grows.
-                    className={rowClass}
-                >
-                    {header}
-                </button>
-            ) : (
-                <div className="flex min-w-0 items-center gap-3.5 py-0.5">{header}</div>
-            )}
+            <StepRow
+                open={expandable ? open : undefined}
+                controls={panelId}
+                onToggle={
+                    opensFile
+                        ? () => openFile(files[0].path)
+                        : expandable
+                          ? () => setExpanded({key: rowKey, value: !open})
+                          : undefined
+                }
+            >
+                {header}
+            </StepRow>
             {chips.length ? <FileChips files={chips} onOpen={openFile} /> : null}
             <RevealCollapse open={open}>
                 <div id={panelId} className="flex min-w-0 flex-col gap-2 pl-[38px]">

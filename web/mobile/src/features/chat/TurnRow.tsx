@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
+import {memo, useCallback, useMemo, type ReactNode} from "react"
 
 import {
     getMessageTraceId,
@@ -14,7 +14,7 @@ import {
     CollapsibleMessageBody,
     TurnFooter,
 } from "@agenta/chat/components"
-import {useHeldFor} from "@agenta/chat/hooks"
+import {useHeldFor, useRevealed} from "@agenta/chat/hooks"
 import {endsOnClosedText, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
 import {messageBodyKey} from "@agenta/chat/state"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
@@ -38,12 +38,7 @@ import {RunErrorCallout} from "./RunErrorCallout"
 
 /** The answer fades in as the fold settles, so the reply arrives instead of popping. */
 const AnswerReveal = ({animate, children}: {animate: boolean; children: ReactNode}) => {
-    const [shown, setShown] = useState(!animate)
-    useEffect(() => {
-        if (shown) return
-        const id = requestAnimationFrame(() => setShown(true))
-        return () => cancelAnimationFrame(id)
-    }, [shown])
+    const shown = useRevealed(animate)
     return (
         <div className={`transition-opacity duration-300 ${shown ? "opacity-100" : "opacity-0"}`}>
             {children}
@@ -150,6 +145,19 @@ const TurnRowInner = ({
         .join("\n")
         .trim()
 
+    const footer = {
+        messageId: turn.message.id,
+        traceId,
+        turnTraceId: turn.turnTraceId,
+        isStreaming: turn.isStreamingTurn,
+        usage,
+        copyText,
+        // Rewinding the last turn re-runs the current one; hidden, as on desktop.
+        onRewind: onRewind && !turn.isLast ? () => onRewind(turn) : undefined,
+        onViewTrace: (id: string) => openTraceDrawer({traceId: id}),
+        // The time is the fold's line ("Worked for 11s"); the meta keeps the rest.
+        metrics: ASSISTANT_META,
+    }
     // Live while this client streams it, or while a poll says the run goes on elsewhere.
     const live = !turn.isUser && (turn.isStreamingTurn || (turn.isLast && remoteRunning))
     // A just-closed text becomes the answer after a beat: a following call lands a commit later.
@@ -232,20 +240,7 @@ const TurnRowInner = ({
                         inspectorEnabled ? "" : turnToolbarRevealClass
                     }`}
                 >
-                    <TurnFooter
-                        messageId={turn.message.id}
-                        traceId={traceId}
-                        turnTraceId={turn.turnTraceId}
-                        isUser={false}
-                        isStreaming={turn.isStreamingTurn}
-                        usage={usage}
-                        copyText={copyText}
-                        // Rewinding the last turn re-runs the current one; hidden, as on desktop.
-                        onRewind={onRewind && !turn.isLast ? () => onRewind(turn) : undefined}
-                        onViewTrace={(id) => openTraceDrawer({traceId: id})}
-                        // The time is the fold's line ("Worked for 11s"); the meta keeps the rest.
-                        metrics={ASSISTANT_META}
-                    />
+                    <TurnFooter {...footer} isUser={false} />
                 </div>
             ) : null}
         </div>
@@ -351,19 +346,7 @@ const TurnRowInner = ({
                             : turnToolbarRevealClass
                     } right-0`}
                 >
-                    <TurnFooter
-                        messageId={turn.message.id}
-                        traceId={traceId}
-                        turnTraceId={turn.turnTraceId}
-                        isUser
-                        isStreaming={turn.isStreamingTurn}
-                        usage={usage}
-                        copyText={copyText}
-                        onRewind={onRewind && !turn.isLast ? () => onRewind(turn) : undefined}
-                        onViewTrace={(id) => openTraceDrawer({traceId: id})}
-                        // The time is the fold's line ("Worked for 11s"); the meta keeps the rest.
-                        metrics={ASSISTANT_META}
-                    />
+                    <TurnFooter {...footer} isUser />
                 </div>
             ) : null}
         </div>

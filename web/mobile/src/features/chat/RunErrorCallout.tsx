@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {ActivityNode} from "@agenta/chat/components"
 import {Alert, Button} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 
@@ -70,12 +71,7 @@ export const RunErrorCallout = ({
 
     return (
         <div className="flex min-w-0 items-start gap-3.5">
-            <span
-                aria-hidden
-                className="relative z-10 flex size-6 shrink-0 items-center justify-center rounded-full border border-colorError/40 bg-colorBgContainer text-colorError"
-            >
-                <WarningCircle size={14} />
-            </span>
+            <ActivityNode icon="platform" state="failed" />
             <div className="flex min-w-0 flex-1 flex-col gap-1 pt-0.5">
                 <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
                     <span className="text-sm font-medium text-colorText">The run stopped</span>
