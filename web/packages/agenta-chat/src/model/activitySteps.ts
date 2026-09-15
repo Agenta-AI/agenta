@@ -105,6 +105,8 @@ export const splitTurnActivity = (
 ): ActivitySplit => {
     const answerIndex = findAnswer(items, holdClosedText)
     const steps: ActivityStep[] = []
+    // Keyed by ordinal, not raw part position: the stream shuffles positions as it folds messages.
+    let thoughts = 0
     items.forEach((item, position) => {
         if (position === answerIndex || !isFoldable(item)) return
         if (item.kind === "part") {
@@ -113,7 +115,7 @@ export const splitTurnActivity = (
             if (!text.trim()) return
             steps.push({
                 kind: "thought",
-                key: `thought-${item.index}`,
+                key: `thought-${thoughts++}`,
                 text,
                 streaming: (part as {state?: string}).state === "streaming",
                 source: part.type === "reasoning" ? "reasoning" : "text",

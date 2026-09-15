@@ -2,9 +2,6 @@ import type {RenderItem, TurnViewModel} from "@agenta/chat/model"
 
 // One display turn per response: the stream opens a message per tool result; fold them as adoption will.
 
-/** Keeps every item's `index` unique across the merged parts, which the row keys depend on. */
-const INDEX_STRIDE = 100_000
-
 /** What a part is, for spotting the same one arriving twice across a run's messages. */
 const partIdentity = (part: {type: string; toolCallId?: string; text?: string}): string | null => {
     if (part.toolCallId) return `tool:${part.toolCallId}`
@@ -54,12 +51,15 @@ const mergeRun = (run: TurnViewModel[]): TurnViewModel => {
     if (run.length === 1) return run[0]
     const first = run[0]
     const last = run[run.length - 1]
+    // Each message's items continue the numbering where the previous message's parts end, so a
+    // step keeps its key when adoption folds the message into the one before it.
+    const bases: number[] = []
+    run.reduce((base, turn) => (bases.push(base), base + turn.message.parts.length), 0)
     const items: RenderItem[] = []
     dropEchoes(
         run.map((turn) => turn.items),
         itemIdentity,
-        (item, k, fresh) =>
-            items.push({...freshTools(item, fresh), index: item.index + k * INDEX_STRIDE}),
+        (item, k, fresh) => items.push({...freshTools(item, fresh), index: item.index + bases[k]}),
     )
     const parts: TurnViewModel["message"]["parts"] = []
     dropEchoes(
