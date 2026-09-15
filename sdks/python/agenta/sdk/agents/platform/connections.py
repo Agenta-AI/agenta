@@ -980,6 +980,38 @@ def _resolve_from_secrets(
     )
 
 
+LLM_GATEWAY_DISABLED_CODE = "llm_gateway_disabled"
+
+# Starlette answers a path it has no route for with exactly this body, and FastAPI keeps it.
+# It is therefore what an API built before the gateway existed sends for
+# `POST /gateways/llms/resolve`, and the only way to tell that case from the gateway itself
+# answering 404 about an endpoint that does not exist — which is a real failure, not a reason
+# to resolve some other way.
+_ROUTE_ABSENT_BODY = {"detail": "Not Found"}
+
+
+def _llm_gateway_is_unavailable(
+    *, status_code: int, body: Any, refusal: GatewayConnectionRefusedError
+) -> bool:
+    """Whether this refusal means "this deployment does not route models through a gateway".
+
+    Two shapes mean it, and they are the same situation seen from two API versions.
+
+    ``llm_gateway_disabled`` is the current one: the route is there and the operator has the
+    plane switched off. An unrouted 404 is the older one: an SDK newer than its backend is an
+    ordinary state during a rolling upgrade, and that backend has no gateway at all.
+
+    Nothing else qualifies. A 403 from the permission check, a 409 for a missing secret, a 422
+    for an unresolvable model and a 404 naming a missing endpoint are all refusals about THIS
+    request, and quietly reading the vault instead would paper over them with a run that may
+    not even be credentialed the way the person asked. When in doubt this returns False, so
+    the ambiguous case fails loudly rather than silently changing where a secret travels.
+    """
+    if refusal.failure_code == LLM_GATEWAY_DISABLED_CODE:
+        return True
+    return status_code == 404 and body == _ROUTE_ABSENT_BODY
+
+
 class VaultConnectionResolver:
     """Resolve a ``ModelRef`` from the existing ``GET /secrets/`` response.
 
@@ -1000,9 +1032,54 @@ class VaultConnectionResolver:
         operator from hunting a phantom "no backend configured" misconfiguration.
         """
         try:
-            return await self._connection.gateway_authorization()
+            return await self._connection.gateway_authorization(plane="llm")
         except GatewayCredentialsError as exc:
             raise ConnectionResolutionError(str(exc)) from exc
+
+    async def _resolve_from_vault(
+        self,
+        *,
+        api_base: str,
+        authorization: Optional[str],
+        model: ModelRef,
+        context: RuntimeAuthContext,
+    ) -> ResolvedConnection:
+        """Resolve the way the SDK did before the gateway existed: read the vault directly.
+
+        Reached only when the API says it does not serve the LLM gateway. The provider key
+        then travels into the sandbox as an environment variable, which is what the gateway
+        exists to stop — so this is the old contract, deliberately, and not a fallback the
+        SDK may take on its own initiative. Only the API decides.
+
+        No gateway credential is minted here. ``_resolve_from_secrets`` builds the catalog
+        from the vault records and, with no gateway base URL or credential to build a route
+        from, takes its ``credential_mode="env"`` branch.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
+                response = await client.get(
+                    f"{api_base}/secrets/",
+                    headers=self._connection.headers(authorization=authorization),
+                )
+        except Exception as exc:  # pylint: disable=broad-except
+            log.warning(
+                "agent: secrets fetch for connection resolution failed", exc_info=True
+            )
+            raise ConnectionResolutionError(
+                "connection resolution request failed"
+            ) from exc
+
+        if response.status_code >= 400:
+            log.warning("agent: vault secrets fetch HTTP %s", response.status_code)
+            raise ConnectionResolutionError(
+                f"connection resolution failed (HTTP {response.status_code})"
+            )
+
+        data = response.json() or []
+        if not isinstance(data, list):
+            raise ConnectionResolutionError("connection resolution returned a non-list")
+
+        return _resolve_from_secrets(secrets=data, model=model, harness=context.harness)
 
     async def resolve(
         self,
@@ -1061,10 +1138,20 @@ class VaultConnectionResolver:
                 body = response.json()
             except Exception:  # pylint: disable=broad-except
                 body = None
-            raise GatewayConnectionRefusedError.from_response(
+            refusal = GatewayConnectionRefusedError.from_response(
                 status_code=response.status_code,
                 body=body,
             )
+            if _llm_gateway_is_unavailable(
+                status_code=response.status_code, body=body, refusal=refusal
+            ):
+                return await self._resolve_from_vault(
+                    api_base=api_base,
+                    authorization=authorization,
+                    model=model,
+                    context=context,
+                )
+            raise refusal
 
         data = response.json()
         if data is None:
