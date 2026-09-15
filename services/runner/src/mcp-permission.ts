@@ -35,6 +35,12 @@ export interface McpServerPermissions {
    * `mcpToolPermission`.
    */
   newTool?: McpPermission;
+  /**
+   * More than one configured server answers to this name, so no call under it can be attributed
+   * to a connection. Set at intake, and the only field `mcpToolPermission` reads when it is set:
+   * see there for why this refuses rather than resolving.
+   */
+  ambiguous?: true;
 }
 
 export type McpPermissionTable = ReadonlyMap<string, McpServerPermissions>;
@@ -123,12 +129,23 @@ export function normalizeMcpServerPermissions(
  *
  * With no table, this returns the whole-server permission, or `undefined` so the caller's existing
  * ladder (rules, then the run default) decides exactly as it did before per-tool policy existed.
+ *
+ * An AMBIGUOUS entry refuses outright, which is the same answer the ACP gate gives a rendered
+ * tool name more than one configured server could claim (D2). Both are one situation — a call
+ * that cannot be attributed to a connection — so they get one verdict, and it lives here because
+ * this is the single place all three consumers read: the ACP gate, the Pi gate, and the Pi
+ * extension's registration filter, which then declines to advertise the tool at all.
+ *
+ * Deferring instead would hand the call to the run's default permission, which is `allow_reads`
+ * out of the box and may be an authored `allow`. The operator configured a policy for each
+ * candidate; running under neither is not a choice this code gets to make.
  */
 export function mcpToolPermission(
   entry: McpServerPermissions | undefined,
   tool: string | undefined,
 ): McpPermission | undefined {
   if (!entry) return undefined;
+  if (entry.ambiguous) return "deny";
   if (entry.newTool === undefined) return entry.server;
   if (tool) {
     const named = entry.tools.get(tool);

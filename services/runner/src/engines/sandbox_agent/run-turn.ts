@@ -989,7 +989,7 @@ export async function runTurn(
       }
       await Promise.all(settling);
     };
-    const mcpPermissions = mcpPermissionsFromRequest(request);
+    const mcpPermissions = mcpPermissionsFromRequest(request, logger);
     // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
     // the approval card and the guard cannot disagree about a tool's permission/readOnly.
     const specsByName = toolSpecsByName(plan.tools.toolSpecs);

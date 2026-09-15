@@ -11,6 +11,7 @@ import {
   mcpPermissionsFromRequest,
   mcpToolPermission,
 } from "../../src/engines/sandbox_agent/runtime-policy.ts";
+import { resolveMcpToolName } from "../../src/engines/sandbox_agent/acp-interactions.ts";
 
 function request(...servers: unknown[]): AgentRunRequest {
   return { mcpServers: servers as McpServerConfig[] } as AgentRunRequest;
@@ -195,5 +196,132 @@ describe("a declared but unreadable toolPermissions container (D9)", () => {
     );
     assert.equal(table.get("acme")?.newTool, undefined);
     assert.equal(mcpToolPermission(table.get("acme"), "anything"), "ask");
+  });
+});
+
+describe("two configured servers under one wire name (D10)", () => {
+  it("refuses every call under the name instead of letting the later one answer", () => {
+    const table = mcpPermissionsFromRequest(
+      request(
+        server({ tools: { mode: "all" }, permission: "deny" }, "Acme"),
+        server({ tools: { mode: "all" }, permission: "allow" }, "Acme"),
+      ),
+    );
+
+    // The map key used to be overwritten, so this resolved to `allow`: one connection's
+    // policy authorizing a call that may well have belonged to the other.
+    assert.equal(mcpToolPermission(table.get("Acme"), "delete"), "deny");
+    assert.equal(mcpToolPermission(table.get("Acme"), "read"), "deny");
+  });
+
+  it("refuses whichever order the two were declared in", () => {
+    const table = mcpPermissionsFromRequest(
+      request(
+        server({ tools: { mode: "all" }, permission: "allow" }, "Acme"),
+        server({ tools: { mode: "all" }, permission: "deny" }, "Acme"),
+      ),
+    );
+
+    assert.equal(mcpToolPermission(table.get("Acme"), "delete"), "deny");
+  });
+
+  it("refuses even when neither named a permission at all", () => {
+    // Deferring would hand the call to the run's default, which is `allow_reads` out of the
+    // box. Two connections and no way to tell them apart is not a case for a default.
+    const table = mcpPermissionsFromRequest(
+      request(
+        server({ tools: { mode: "all" } }, "Acme"),
+        server({ tools: { mode: "all" } }, "Acme"),
+      ),
+    );
+
+    assert.equal(mcpToolPermission(table.get("Acme"), "delete"), "deny");
+  });
+
+  it("refuses a per-tool verdict one of them declared", () => {
+    // The tool name a call arrives with belongs to whichever server the model meant, which
+    // is exactly what nobody can determine, so a per-tool allow cannot be honoured here.
+    const table = mcpPermissionsFromRequest(
+      request(
+        server(
+          { tools: { mode: "all" }, toolPermissions: { read: "allow" } },
+          "Acme",
+        ),
+        server({ tools: { mode: "all" }, permission: "ask" }, "Acme"),
+      ),
+    );
+
+    assert.equal(mcpToolPermission(table.get("Acme"), "read"), "deny");
+  });
+
+  it("leaves distinctly named servers entirely alone", () => {
+    const table = mcpPermissionsFromRequest(
+      request(
+        server({ tools: { mode: "all" }, permission: "deny" }, "Acme_work"),
+        server({ tools: { mode: "all" }, permission: "allow" }, "Acme_personal"),
+      ),
+    );
+
+    assert.equal(mcpToolPermission(table.get("Acme_work"), "delete"), "deny");
+    assert.equal(
+      mcpToolPermission(table.get("Acme_personal"), "delete"),
+      "allow",
+    );
+  });
+
+  it("says which name to fix, once, at intake", () => {
+    const lines: string[] = [];
+    mcpPermissionsFromRequest(
+      request(
+        server({ tools: { mode: "all" }, permission: "deny" }, "Acme"),
+        server({ tools: { mode: "all" }, permission: "allow" }, "Acme"),
+        server({ tools: { mode: "all" }, permission: "allow" }, "Acme"),
+        server({ tools: { mode: "all" }, permission: "allow" }, "Other"),
+      ),
+      (message) => lines.push(message),
+    );
+
+    // D2's refusal is per call and says nothing about why two servers share a name.
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /more than one configured server is named 'Acme'/);
+  });
+});
+
+describe("why intake marks the name rather than leaving it to the gate", () => {
+  it("D2's ambiguity check cannot see two servers that share a name", () => {
+    // D2 enumerates the candidates from the permission table's KEYS, and two servers named
+    // `Acme` are one key. So the split is unambiguous — one candidate, `kind: "resolved"` —
+    // and the collision has already been decided by the map before that code runs. It is a
+    // different ambiguity: D2's is in parsing the rendered name, this one is in which
+    // connection the name denotes.
+    const table = mcpPermissionsFromRequest(
+      request(
+        server({ tools: { mode: "all" }, permission: "deny" }, "Acme"),
+        server({ tools: { mode: "all" }, permission: "allow" }, "Acme"),
+      ),
+    );
+
+    const resolution = resolveMcpToolName("mcp__Acme__delete", table);
+
+    assert.equal(resolution.kind, "resolved");
+    // And yet the verdict is D2's, because intake marked the entry and the one rule that
+    // reads that mark lives where every consumer looks.
+    assert.equal(
+      resolution.kind === "resolved" ? resolution.permission : undefined,
+      "deny",
+    );
+  });
+
+  it("the two names D2 is about still reach D2's own refusal", () => {
+    const table = mcpPermissionsFromRequest(
+      request(
+        server({ tools: { mode: "all" }, permission: "deny" }, "acme"),
+        server({ tools: { mode: "all" }, permission: "allow" }, "acme__prod"),
+      ),
+    );
+
+    const resolution = resolveMcpToolName("mcp__acme__prod__delete", table);
+
+    assert.equal(resolution.kind, "ambiguous");
   });
 });
