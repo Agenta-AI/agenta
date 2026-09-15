@@ -251,8 +251,9 @@ def _is_git_plumbing(path: str) -> bool:
 
 def _is_hidden_path(path: str) -> bool:
     """A dot-prefixed (hidden) file or folder anywhere in the path — `.claude/…`, `.gitignore`, etc.
-    Mirrors the web `isHiddenPath`. Dropped from the RECENCY view only (it is meant to read like
-    "what did I just work on", not dotfile plumbing); the browsable tree still lists them (dimmed)."""
+    Mirrors the web `isHiddenPath`. Dropped from the curated FLAT view (count + recency): those read
+    like "what is in my drive / what did I just work on", not dotfile plumbing. The browsable tree
+    and `depth=1` levels still list them (dimmed), behind the UI's "show hidden" toggle."""
     return any(
         segment.startswith(".") for segment in path.strip("/").split("/") if segment
     )
@@ -959,9 +960,10 @@ class MountsService:
         mount_base: str,
         cap: Optional[int] = None,
     ) -> Tuple[List[StoreObject], List[Tuple[str, "pathspec.PathSpec"]], bool]:
-        """Enumerate a mount's FILES by descending the tree LEVEL BY LEVEL, skipping `.git` and
-        gitignored DIRECTORIES at the store layer — so a dependency dump (`node_modules`, tens of
-        thousands of objects) is never enumerated at all. The flat `recursive=True` listing cannot
+        """Enumerate a mount's FILES by descending the tree LEVEL BY LEVEL, skipping every directory
+        the curated view discards — `.git`, gitignored, runner-internal (`agents/`) and hidden
+        (dot-prefixed) — at the store layer, so a dependency dump (`node_modules`, tens of thousands
+        of objects) is never enumerated at all. The flat `recursive=True` listing cannot
         exclude a prefix, so it must scan every object; this walks only what survives, listing sibling
         directories concurrently (bounded by `_LIST_CONCURRENCY`) so wall-clock tracks the tree DEPTH,
         not the object count. Each level's `.gitignore` files are read before that level's children are
@@ -969,6 +971,9 @@ class MountsService:
 
         `cap` early-stops the descent once that many files are collected — for a bounded COUNT of a
         pathologically large (non-ignored) tree, so the cost never runs away regardless of contents.
+        Because the prunes above run DURING the walk, what `cap` budgets is (near enough) the files
+        the caller will actually count, so a drive only reports "N+" when it genuinely holds that
+        many VISIBLE files.
 
         Returns (kept StoreObjects, specs, truncated). `truncated` is True when the `cap` stopped the
         walk early (the real count is higher). The caller still applies FILE-level gitignore for
@@ -998,17 +1003,27 @@ class MountsService:
             subdir_prefixes: List[str] = []
             for level_files, level_subdirs in listings:
                 for obj in level_files:
-                    kept.append(obj)
                     rel = (
                         obj.key[len(mount_base) :]
                         if obj.key.startswith(mount_base)
                         else obj.key
                     )
+                    # Read BEFORE the prune below: `.gitignore` is itself a hidden file.
                     if rel == ".gitignore" or rel.endswith("/.gitignore"):
                         dir_rel = (
                             "" if rel == ".gitignore" else rel[: -len("/.gitignore")]
                         )
                         gitignore_reads.append((dir_rel, obj.key))
+                    # Charge `cap` only for files the caller can actually count, so a root full of
+                    # dotfiles can't report "N+" over an exactly countable drive. Gitignored files
+                    # still pass here; their specs are not in scope until the level is read.
+                    if (
+                        _is_git_plumbing(rel)
+                        or _is_internal_mount_path(rel)
+                        or _is_hidden_path(rel)
+                    ):
+                        continue
+                    kept.append(obj)
                 subdir_prefixes.extend(level_subdirs)
 
             # Bounded COUNT: enough to know it's "more than the cap" — stop before descending further.
@@ -1033,7 +1048,16 @@ class MountsService:
                 ).rstrip("/")
                 if not dir_rel:
                     continue
-                if _is_git_plumbing(dir_rel) or _path_gitignored(dir_rel, True, specs):
+                # Every directory whose files the curated view would discard anyway. Pruning them
+                # HERE, not after the walk, is what keeps `cap` a budget of COUNTABLE files: a big
+                # `.claude/` or `agents/` tree would otherwise spend the budget and then be filtered
+                # out, reporting a needless "N+" on a drive that could be counted exactly.
+                if (
+                    _is_git_plumbing(dir_rel)
+                    or _is_internal_mount_path(dir_rel)
+                    or _is_hidden_path(dir_rel)
+                    or _path_gitignored(dir_rel, True, specs)
+                ):
                     continue
                 visited.add(sub_prefix)
                 frontier.append(sub_prefix)
@@ -1069,6 +1093,8 @@ class MountsService:
         output) are pruned, runner-internal artifacts are hidden, and — for perf — the flat/recency
         modes descend level-by-level pruning ignored DIRECTORIES at the store layer instead of
         enumerating a `node_modules` dump. Pruning drives both the count and the tree in that mode.
+        The curated FLAT view (count + recency) additionally drops dot-prefixed paths; the browse and
+        `depth=1` views keep them, so the explorer can still show them behind its own toggle.
 
         `include_gitignored` (git_aware only) surfaces `.gitignore`-matched files again — the UI's
         "show git-ignored files" toggle — while STILL hiding `.git` plumbing and runner internals.
@@ -1264,23 +1290,29 @@ class MountsService:
                 for o in store_files
             ]
             if git_aware:
-                # Whole-directory pruning happened at the store level; a `.git` file or a gitignored
-                # FILE inside a KEPT directory (e.g. a stray `*.pyc`) still needs dropping here.
+                # The descent already pruned these as whole DIRECTORIES. What is left to drop is the
+                # matching FILE sitting in a KEPT directory — a stray `*.pyc`, a root `.gitignore` or
+                # `.env`, a `.agenta-*` marker — which no directory prune can reach.
+                #
+                # Hidden files leave the curated flat view entirely: this is the "N files" badge and
+                # the recency list it labels, which are about user content, not plumbing. The
+                # browsable tree still lists them (dimmed, behind the UI's "show hidden" toggle),
+                # which is why they drop here and not in the browse/`depth=1` views.
                 files = [f for f in files if not _is_git_plumbing(f.path)]
                 if specs:
                     files = [
                         f for f in files if not _path_gitignored(f.path, False, specs)
                     ]
                 files = [f for f in files if not _is_internal_mount_path(f.path)]
+                files = [f for f in files if not _is_hidden_path(f.path)]
             total = len(files)
             if count_only:
                 return MountFileList(files=[], total=total, total_capped=truncated)
             if order == "recent":
                 if git_aware:
-                    # Drop dotfile plumbing (`.claude/…`, `.gitignore`) — the recency list reads as
-                    # "what did I just work on" — then roll a fresh directory into one folder row.
-                    visible = [f for f in files if not _is_hidden_path(f.path)]
-                    entries = _rollup_recent_entries(visible, limit)
+                    # Hidden/internal plumbing is already gone above; roll a fresh directory into
+                    # one folder row so the list reads as "what did I just work on".
+                    entries = _rollup_recent_entries(files, limit)
                     return MountFileList(files=entries, total=total)
                 # RAW recency: newest object-store mtime first, no rollup/hidden pruning.
                 files.sort(key=lambda f: f.mtime or 0, reverse=True)
