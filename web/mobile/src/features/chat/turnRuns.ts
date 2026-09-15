@@ -1,61 +1,70 @@
 import type {RenderItem, TurnViewModel} from "@agenta/chat/model"
 
-/**
- * One display turn per response.
- *
- * A live run arrives as several assistant messages — the stream opens a new one after each tool
- * result — and they are folded into one only when the durable record is adopted at settle. Shown
- * as they arrive, a running turn stacks two or three folds and the earlier ones read as finished
- * ("Worked for 7s") while the run is still going. This folds them the way adoption will: the first
- * message keys the turn (its fold and clock), the last one carries the status, trace and usage,
- * and the steps run end to end.
- */
+// One display turn per response: the stream opens a message per tool result; fold them as adoption will.
 
 /** Keeps every item's `index` unique across the merged parts, which the row keys depend on. */
 const INDEX_STRIDE = 100_000
 
-/** What an item is, for spotting the same one arriving twice across a run's messages. */
+/** What a part is, for spotting the same one arriving twice across a run's messages. */
+const partIdentity = (part: {type: string; toolCallId?: string; text?: string}): string | null => {
+    if (part.toolCallId) return `tool:${part.toolCallId}`
+    if (part.type === "text" || part.type === "reasoning") {
+        return part.text?.trim() ? `${part.type}:${part.text}` : null
+    }
+    return null
+}
+
 const itemIdentity = (item: RenderItem): string[] => {
     if (item.kind === "tools") return item.parts.map((part) => `tool:${part.toolCallId}`)
     if (item.kind === "clientTool") return [`tool:${item.part.toolCallId}`]
-    if (item.kind === "part" && (item.part.type === "text" || item.part.type === "reasoning")) {
-        const text = (item.part as {text?: string}).text ?? ""
-        return text.trim() ? [`${item.part.type}:${text}`] : []
-    }
-    return []
+    if (item.kind !== "part") return []
+    const id = partIdentity(item.part as {type: string; text?: string})
+    return id ? [id] : []
 }
 
-/**
- * A run's messages, end to end, each item once. The message the stream opens after a tool
- * result briefly carries a copy of the parts before it — the same call, the same thought — so
- * a plain concatenation showed every step twice until the copy dropped.
- */
-const mergeItems = (run: TurnViewModel[]): RenderItem[] => {
-    const seen = new Set<string>()
-    const items: RenderItem[] = []
-    run.forEach((turn, k) => {
-        for (const item of turn.items) {
-            const ids = itemIdentity(item)
-            if (ids.length && ids.every((id) => seen.has(id))) continue
-            ids.forEach((id) => seen.add(id))
-            items.push({...item, index: item.index + k * INDEX_STRIDE})
+// The message the stream opens after a tool result briefly echoes the previous message's parts:
+// a call id is unique for good, a text counts as an echo only of the message right before.
+const dropEchoes = <T>(
+    messages: T[][],
+    identify: (entry: T) => string[],
+    keep: (entry: T, position: number) => void,
+) => {
+    const calls = new Set<string>()
+    let previous = new Set<string>()
+    messages.forEach((entries, k) => {
+        const own = new Set<string>()
+        for (const entry of entries) {
+            const ids = identify(entry)
+            if (ids.length && ids.every((id) => calls.has(id) || previous.has(id))) continue
+            ids.forEach((id) => (id.startsWith("tool:") ? calls : own).add(id))
+            keep(entry, k)
         }
+        previous = own
     })
-    return items
 }
 
 const mergeRun = (run: TurnViewModel[]): TurnViewModel => {
     if (run.length === 1) return run[0]
     const first = run[0]
     const last = run[run.length - 1]
-    const items = mergeItems(run)
+    const items: RenderItem[] = []
+    dropEchoes(
+        run.map((turn) => turn.items),
+        itemIdentity,
+        (item, k) => items.push({...item, index: item.index + k * INDEX_STRIDE}),
+    )
+    const parts: TurnViewModel["message"]["parts"] = []
+    dropEchoes(
+        run.map((turn) => turn.message.parts),
+        (part) => {
+            const id = partIdentity(part as {type: string; toolCallId?: string; text?: string})
+            return id ? [id] : []
+        },
+        (part) => parts.push(part),
+    )
     return {
         ...last,
-        message: {
-            ...last.message,
-            id: first.message.id,
-            parts: run.flatMap((t) => t.message.parts),
-        },
+        message: {...last.message, id: first.message.id, parts},
         index: first.index,
         items,
         isStreamingTurn: run.some((turn) => turn.isStreamingTurn),

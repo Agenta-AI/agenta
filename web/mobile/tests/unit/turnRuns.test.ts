@@ -69,6 +69,23 @@ describe("mergeAssistantRuns", () => {
         expect(texts).toEqual(["thinking", "tools", "next"])
     })
 
+    it("keeps a thought the model genuinely repeats later in the run", () => {
+        const say = (text: string) =>
+            ({
+                items: [{kind: "part", index: 0, part: {type: "reasoning", text}}],
+                message: {id: "x", role: "assistant", parts: [{type: "reasoning", text}]},
+            }) as Partial<TurnViewModel>
+        const merged = mergeAssistantRuns([
+            turn("u1", true),
+            turn("a1", false, say("Let me check.")),
+            turn("a2", false, say("Let me check.")),
+            turn("a3", false, say("Let me check.")),
+        ])
+        // a2 echoes a1 and is dropped; a3 echoes nothing a2 kept, so it stands.
+        expect(merged[1].items).toHaveLength(2)
+        expect(merged[1].message.parts).toHaveLength(2)
+    })
+
     it("leaves a lone assistant turn untouched, by identity", () => {
         const a = turn("a1", false)
         expect(mergeAssistantRuns([turn("u1", true), a])[1]).toBe(a)
