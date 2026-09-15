@@ -118,8 +118,9 @@ export function SessionFilesPane({
                 onClose={closeControl === "collapse" ? close : undefined}
                 closeVariant="collapse"
                 mirrored
-                // A quick look flagged hideTree (a config file row) opens on the file alone.
-                initialShowTree={!quickLook?.hideTree}
+                // The rail starts closed: the grid + breadcrumb browse on their own, and the row-1
+                // toggle (or a search, which needs the rows) brings it in.
+                initialShowTree={false}
                 driveIds={driveIds}
                 stagedFiles={staged}
                 onStagedChange={setStaged}
