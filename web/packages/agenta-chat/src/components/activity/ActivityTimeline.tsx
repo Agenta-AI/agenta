@@ -305,10 +305,10 @@ export const ActivityTimeline = ({
                 type="button"
                 onClick={() => setExpanded({key, value: !open})}
                 aria-expanded={open}
-                className="-ml-1.5 flex w-fit max-w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group"
+                className="-ml-1.5 flex w-fit max-w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row"
             >
                 {awaiting ? <WaitingGlyph kind={waitingKind(steps)} /> : live ? <LiveDots /> : null}
-                <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover:text-colorText">
+                <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-colorText">
                     {title}
                 </span>
                 {!live && files.length ? (
