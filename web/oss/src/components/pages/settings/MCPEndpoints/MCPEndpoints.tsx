@@ -2,6 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {
     deleteMcpEndpointAtom,
+    disconnectMcpEndpointAtom,
     getMcpConnectionState,
     getMcpConnectionStateLabel,
     mcpEndpointsQueryAtom,
@@ -18,9 +19,11 @@ import {
     type StandardColumnDef,
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
-import {PencilSimpleLine, Plug, Plus, Trash} from "@phosphor-icons/react"
+import {PencilSimpleLine, Plug, Plus, PlugsConnected, Trash} from "@phosphor-icons/react"
 import {Button, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 
 import MCPEndpointDrawer from "./MCPEndpointDrawer"
 
@@ -32,6 +35,7 @@ interface MCPEndpointRow extends MCPEndpoint {
 const MCPEndpoints: React.FC = () => {
     const {data: endpoints, isPending: isLoading} = useAtomValue(mcpEndpointsQueryAtom)
     const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
+    const disconnectEndpoint = useSetAtom(disconnectMcpEndpointAtom)
     const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
 
     const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -59,6 +63,29 @@ const MCPEndpoints: React.FC = () => {
             }
         },
         [deleteEndpoint],
+    )
+
+    const handleDisconnect = useCallback(
+        (endpoint: MCPEndpoint) => {
+            if (!endpoint.id) return
+            const label = endpoint.name || endpoint.slug || "this server"
+            AlertPopup({
+                title: "Disconnect server",
+                message: `Agents using ${label} stop working until it is connected again. The server, its tools and its permissions are kept.`,
+                okText: "Disconnect",
+                onOk: async () => {
+                    try {
+                        await disconnectEndpoint(endpoint.id as string)
+                        message.success("MCP server disconnected.")
+                    } catch (error) {
+                        message.error(
+                            (error as Error)?.message || "Failed to disconnect the MCP server.",
+                        )
+                    }
+                },
+            })
+        },
+        [disconnectEndpoint],
     )
 
     const handleDrawerClose = useCallback(() => {
@@ -151,6 +178,18 @@ const MCPEndpoints: React.FC = () => {
                             onClick: (record: MCPEndpointRow) => handleConnect(record),
                         },
                         {
+                            key: "disconnect",
+                            label: "Disconnect",
+                            icon: <PlugsConnected size={16} />,
+                            // Only where there is a grant to revoke. A server that is not
+                            // connected offers Connect instead.
+                            hidden: (record: MCPEndpointRow) =>
+                                record.namespace !== "custom" ||
+                                record.auth_mode !== "oauth" ||
+                                getMcpConnectionState(record) !== "ready",
+                            onClick: (record: MCPEndpointRow) => handleDisconnect(record),
+                        },
+                        {
                             key: "edit",
                             label: "Edit",
                             icon: <PencilSimpleLine size={16} />,
@@ -169,7 +208,7 @@ const MCPEndpoints: React.FC = () => {
                     ],
                 } satisfies StandardColumnDef<MCPEndpointRow>,
             ]),
-        [handleConnect, handleDelete, handleEdit],
+        [handleConnect, handleDelete, handleDisconnect, handleEdit],
     )
 
     const {tableScope, pagination} = useStaticTable<MCPEndpointRow>(

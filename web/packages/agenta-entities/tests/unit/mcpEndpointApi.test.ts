@@ -2,7 +2,12 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 
 import {axios} from "@agenta/shared/api"
 
-import {beginMcpConnect, discoverMcpConnect, editMcpEndpoint} from "../../src/mcpEndpoint/api/api"
+import {
+    beginMcpConnect,
+    discoverMcpConnect,
+    disconnectMcpEndpoint,
+    editMcpEndpoint,
+} from "../../src/mcpEndpoint/api/api"
 
 vi.mock("@agenta/shared/api", () => ({
     axios: {get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn()},
@@ -95,5 +100,35 @@ describe("mcpEndpoints api", () => {
             {},
             {params: undefined},
         )
+    })
+})
+
+describe("disconnectMcpEndpoint", () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+    })
+
+    it("DELETEs the endpoint's connect resource, not the endpoint", async () => {
+        vi.mocked(axios.delete).mockResolvedValue({
+            data: {count: 1, endpoint: {id: "endpoint-1", slug: "acme"}},
+        })
+
+        const result = await disconnectMcpEndpoint("endpoint-1", "project-1")
+
+        expect(axios.delete).toHaveBeenCalledWith(`${BASE}/endpoint-1/connect`, {
+            params: {project_id: "project-1"},
+        })
+        // The row survives: disconnecting takes the credential, deleting takes the identity.
+        expect(result.endpoint?.slug).toBe("acme")
+    })
+
+    it("returns the endpoint with no grant, which reads as needing authorization", async () => {
+        vi.mocked(axios.delete).mockResolvedValue({
+            data: {count: 1, endpoint: {id: "endpoint-1", auth_mode: "oauth"}},
+        })
+
+        const result = await disconnectMcpEndpoint("endpoint-1", "project-1")
+
+        expect(result.endpoint?.secret_id).toBeUndefined()
     })
 })
