@@ -28,17 +28,15 @@ import {
     CopySimple,
     DownloadSimple,
     FolderOpen,
-    FolderSimpleDashed,
     PencilSimple,
     Trash,
 } from "@phosphor-icons/react"
 
-/** The write verbs an item offers. Rename / duplicate / move are file-only (no backend move
+/** The write verbs an item offers. Rename / duplicate are file-only (no backend move
  * endpoint), so for a folder only `onDelete` is honoured. Absent = read-only mount. */
 export interface DriveItemWriteActions {
     onRename: (path: string) => void
     onDuplicate: (path: string) => void
-    onMove: (path: string) => void
     onDelete: (path: string, isFolder: boolean) => void
 }
 import {useAtomValue} from "jotai"
@@ -124,7 +122,7 @@ export const DriveItemContextMenu = ({
     onCopyPath: (path: string) => void
     /** Download this item (a file's bytes, or a folder as a zip). Omit → no Download entry. */
     onDownload?: (path: string, isFolder: boolean) => void
-    /** Rename / duplicate / move / delete — omit on a read-only mount. */
+    /** Rename / duplicate / delete — omit on a read-only mount. */
     writes?: DriveItemWriteActions
     /** Wrapper class — defaults to `min-w-0` so grid-cell truncation still wins; pass `w-full`
      * variants where the cell needs to stretch. */
@@ -157,8 +155,8 @@ export const DriveItemContextMenu = ({
                 {writes ? (
                     <>
                         <ContextMenuSeparator />
-                        {/* Folder rename / move need a backend move endpoint — shown, disabled, so
-                            the verb is discoverable and its absence explained. */}
+                        {/* Folder rename needs a backend move endpoint — shown, disabled, so the
+                            verb is discoverable and its absence explained. */}
                         <ContextMenuItem
                             disabled={isFolder}
                             onSelect={() => writes.onRename(path)}
@@ -177,15 +175,6 @@ export const DriveItemContextMenu = ({
                                 Duplicate
                             </ContextMenuItem>
                         )}
-                        <ContextMenuItem disabled={isFolder} onSelect={() => writes.onMove(path)}>
-                            <FolderSimpleDashed size={14} />
-                            Move to…
-                            {isFolder ? (
-                                <span className="ml-auto pl-3 text-[11px] text-colorTextQuaternary">
-                                    files only
-                                </span>
-                            ) : null}
-                        </ContextMenuItem>
                         <ContextMenuSeparator />
                         <ContextMenuItem
                             onSelect={() => writes.onDelete(path, isFolder)}
