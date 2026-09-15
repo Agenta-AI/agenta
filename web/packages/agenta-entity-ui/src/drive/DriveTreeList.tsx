@@ -13,7 +13,7 @@ import {type DriveTreeViewport} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
 import {motion} from "motion/react"
 
-import {DriveItemContextMenu} from "./DriveItemContextMenu"
+import {DriveItemContextMenu, type DriveItemWriteActions} from "./DriveItemContextMenu"
 import {TreeLoadingRow, TreeRow} from "./DriveTreeRow"
 
 /** antd `Typography.Text` stand-in: the only prop this module used is `type="secondary"`. */
@@ -50,6 +50,7 @@ export function DriveTreeList({
     select,
     copyPath,
     download,
+    writes,
 }: {
     flatRows: FlatTreeRow[]
     /** The on-demand full-tree fetch (search) is in flight — the empty line says so. */
@@ -76,10 +77,12 @@ export function DriveTreeList({
     select: (path: string | null) => void
     copyPath: (path: string) => void
     download: (path: string, isFolder: boolean) => void
+    /** Rename / duplicate / move / delete for the row menus — omit on a read-only mount. */
+    writes?: DriveItemWriteActions
 }) {
     return flatRows.length === 0 ? (
-        <Text type="secondary" className="px-1 !text-xs">
-            {searchLoading ? "Searching all files…" : "No files match."}
+        <Text type="secondary" className="px-2 !text-xs">
+            {searchLoading ? "Searching…" : "No matches"}
         </Text>
     ) : (
         // Only the visible rows mount. Full pane width; each row handles its
@@ -134,6 +137,7 @@ export function DriveTreeList({
                                     onOpen={() => select(node.path)}
                                     onCopyPath={copyPath}
                                     onDownload={download}
+                                    writes={writes}
                                     className="w-full"
                                 >
                                     <TreeRow

@@ -40,7 +40,7 @@ const MEDIA_CAP = 25 * 1024 * 1024
 
 /** Quote-aware-enough CSV parse for previews (RFC 4180 essentials: quotes, escaped quotes,
  * newlines in quotes). Row-capped by the caller. */
-export function parseCsv(text: string, maxRows = 500): string[][] {
+export function parseCsv(text: string, maxRows = 500, delimiter = ","): string[][] {
     const rows: string[][] = []
     let row: string[] = []
     let cell = ""
@@ -55,7 +55,7 @@ export function parseCsv(text: string, maxRows = 500): string[][] {
                 } else inQuotes = false
             } else cell += ch
         } else if (ch === '"') inQuotes = true
-        else if (ch === ",") {
+        else if (ch === delimiter) {
             row.push(cell)
             cell = ""
         } else if (ch === "\n" || ch === "\r") {
@@ -111,7 +111,7 @@ const DownloadAction = ({mount, path}: {mount: Mount | null; path: string}) => {
 }
 
 /** The honest fallback: no registry match (or an over-cap file) → name it, offer Download. */
-const DownloadCard = ({
+export const DownloadCard = ({
     mount,
     path,
     title = "No preview for this type",
@@ -215,8 +215,11 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     // +2 (header + CSV_ROW_CAP body + 1 probe): parse one row PAST the display cap so `capped` below
     // can tell "exactly CSV_ROW_CAP body rows" from "more than that" and show the truncation banner.
     const rows = useMemo(
-        () => (typeof content === "string" ? parseCsv(content, CSV_ROW_CAP + 2) : []),
-        [content],
+        () =>
+            typeof content === "string"
+                ? parseCsv(content, CSV_ROW_CAP + 2, /\.tsv$/i.test(path) ? "\t" : ",")
+                : [],
+        [content, path],
     )
 
     if (contentQuery.isPending)

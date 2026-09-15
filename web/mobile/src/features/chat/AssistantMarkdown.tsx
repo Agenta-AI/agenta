@@ -12,7 +12,7 @@ import {chatFileResolver} from "@agenta/entity-ui/drive"
  * From `sm:` the prose steps up to the desktop app's 14px body (oss AgentChatSlice/markdown.tsx),
  * so a wide window reads at the same scale as /w instead of staying phone-sized.
  */
-const proseClassName = [
+export const proseClassName = [
     "w-full min-w-0 space-y-2 overflow-hidden text-xs wrap-anywhere sm:text-sm",
     "[&_a]:text-primary [&_a]:font-medium [&_a]:underline",
     "[&_p]:text-foreground [&_p]:text-xs sm:[&_p]:text-sm",
@@ -38,7 +38,7 @@ const proseClassName = [
  */
 /** A markdown link to a path, not to the web, opens the file in the Files pane (#6659). Module
  * scope so the renderer's resolver context keeps a stable identity across streamed tokens. */
-const useDriveLinkResolver = () => chatFileResolver
+export const useDriveLinkResolver = () => chatFileResolver
 
 export const AssistantMarkdown = ({
     streaming,

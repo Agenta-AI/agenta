@@ -22,12 +22,12 @@ const bar = "animate-pulse rounded bg-colorFillSecondary"
 // off there's no global border-box reset — without it the padding+border would push the tile ~18px
 // past its grid cell, overflowing into the gap (looks like "larger tiles / no gap").
 const SkeletonTile = () => (
-    <div className="box-border flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2">
-        <div className={`aspect-[4/3] w-full ${bar}`} />
-        <div className="flex h-4 items-center justify-center">
+    <div className="box-border flex w-full min-w-0 flex-col items-center gap-1 px-1.5 pb-2 pt-1.5">
+        <div className={`h-14 w-11 ${bar}`} />
+        <div className="flex h-4 w-full items-center justify-center">
             <div className={`h-2.5 w-2/3 ${bar}`} />
         </div>
-        <div className="flex h-4 items-center justify-center">
+        <div className="flex h-3.5 w-full items-center justify-center">
             <div className={`h-2 w-1/3 ${bar}`} />
         </div>
     </div>
@@ -37,16 +37,16 @@ const SKELETON_TILES = Array.from({length: 24}, (_, i) => i)
 
 /**
  * Tile-grid placeholder rendered through the REAL {@link VirtualTileGrid} with the SAME grid params
- * the browse grid uses (`minColumnWidth` 200, `estimateRowHeight` 180, `gap` 8) — so columns, gap, and
+ * the browse grid uses (`minColumnWidth` 132, `estimateRowHeight` 124, `gap` 4) — so columns, gap, and
  * row rhythm are identical BY CONSTRUCTION (no hand-copied grid CSS to drift). Needs a `min-h-0 flex-1`
  * slot in a flex-col parent, same as the real grid.
  */
-export const TileGridSkeleton = ({className = "p-4"}: {className?: string}) => (
+export const TileGridSkeleton = ({className = "px-5 pb-6 pt-4"}: {className?: string}) => (
     <VirtualTileGrid
         items={SKELETON_TILES}
-        minColumnWidth={200}
-        estimateRowHeight={180}
-        gap={8}
+        minColumnWidth={132}
+        estimateRowHeight={124}
+        gap={4}
         className={className}
         getKey={(i) => String(i)}
         renderTile={() => <SkeletonTile />}
@@ -66,16 +66,23 @@ const TREE_ROWS: {depth: number; w: string}[] = [
     {depth: 1, w: "46%"},
 ]
 
-/** Left tree pane — matches the real list-view tree pane: 260px, `px-3 pb-3 pt-2`, and NO own search
- * box (the drawer toolbar above owns search), so rows start at the top. */
-const TreePaneSkeleton = () => (
-    <div className="w-[260px] shrink-0 border-0 border-r border-solid border-colorBorderSecondary px-3 pb-3 pt-2">
-        <div className="flex flex-col gap-2.5">
+/** The tree rail — 200px docked width, its 36px search header, then rows at the real 28px rhythm.
+ * `mirrored` docks it right (the Files pane) instead of left (the overlay drawer). */
+const TreePaneSkeleton = ({mirrored}: {mirrored: boolean}) => (
+    <div
+        className={`w-[200px] shrink-0 border-0 border-solid border-colorBorderSecondary bg-colorBgLayout ${
+            mirrored ? "border-l" : "border-r"
+        }`}
+    >
+        <div className="flex h-9 items-center border-0 border-b border-solid border-colorBorderSecondary px-2">
+            <div className={`h-[26px] w-full rounded-md ${bar}`} />
+        </div>
+        <div className="flex flex-col px-2 py-2">
             {TREE_ROWS.map((r, i) => (
                 <div
                     key={i}
-                    className="flex items-center gap-2"
-                    style={{paddingLeft: r.depth * 14}}
+                    className="flex h-7 items-center gap-1.5"
+                    style={{paddingLeft: 6 + r.depth * 12}}
                 >
                     <div className={`h-3.5 w-3.5 shrink-0 ${bar}`} />
                     <div className={`h-3 ${bar}`} style={{width: r.w}} />
@@ -93,35 +100,30 @@ const PreviewPaneSkeleton = () => (
     </div>
 )
 
-/** The content pane — no header band (the drawer's header owns breadcrumb/name/count). */
-const ContentPaneSkeleton = ({mode}: {mode: "grid" | "preview"}) =>
-    mode === "preview" ? (
-        <PreviewPaneSkeleton />
-    ) : (
-        <div className="flex min-w-0 flex-1 flex-col">
-            <TileGridSkeleton />
+/** The content column: row 2's band, then the grid or the preview. */
+const ContentPaneSkeleton = ({mode}: {mode: "grid" | "preview"}) => (
+    <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-9 shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2.5">
+            <div className={`h-[22px] w-12 rounded-md ${bar}`} />
+            <div className={`h-[22px] w-20 rounded-md ${bar}`} />
+            <div className={`ml-auto h-6 w-6 ${bar}`} />
         </div>
-    )
+        {mode === "preview" ? <PreviewPaneSkeleton /> : <TileGridSkeleton />}
+    </div>
+)
 
-/** The header + toolbar bands, matching DriveHeader/DriveToolbar's own geometry (both are
- * `h-auto shrink-0 … border-b … px-3 py-2`), so the chrome does not appear out of nowhere when
- * the real explorer mounts. */
+/** Row 1's band (48px), matching DriveHeader's geometry, so the chrome does not appear out of
+ * nowhere when the real explorer mounts. */
 const ChromeSkeleton = () => (
-    <>
-        <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2">
-            <div className={`h-6 w-6 shrink-0 ${bar}`} />
-            <div className={`h-3.5 w-40 ${bar}`} />
-            <div className="ml-auto flex items-center gap-2">
-                <div className={`h-6 w-6 ${bar}`} />
-                <div className={`h-6 w-6 ${bar}`} />
-            </div>
+    <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
+        <div className={`h-6 w-6 shrink-0 ${bar}`} />
+        <div className={`h-6 w-6 shrink-0 ${bar}`} />
+        <div className={`ml-1 h-3.5 w-40 ${bar}`} />
+        <div className="ml-auto flex items-center gap-1.5">
+            <div className={`h-6 w-6 ${bar}`} />
+            <div className={`h-6 w-6 ${bar}`} />
         </div>
-        <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2">
-            <div className={`h-6 w-6 shrink-0 ${bar}`} />
-            <div className={`h-6 w-[220px] max-w-[45%] ${bar}`} />
-            <div className={`ml-auto h-6 w-28 ${bar}`} />
-        </div>
-    </>
+    </div>
 )
 
 /**
@@ -137,15 +139,18 @@ export const DriveExplorerSkeleton = ({
     mode = "grid",
     showTree = true,
     withChrome = false,
+    mirrored = false,
 }: {
     mode?: "grid" | "preview"
     showTree?: boolean
     withChrome?: boolean
+    /** Tree docked RIGHT (the Files pane) rather than left (the overlay drawer). */
+    mirrored?: boolean
 }) => (
     <div className="flex min-h-0 w-full flex-1 flex-col" aria-hidden>
         {withChrome ? <ChromeSkeleton /> : null}
-        <div className="flex min-h-0 w-full flex-1">
-            {showTree ? <TreePaneSkeleton /> : null}
+        <div className={`flex min-h-0 w-full flex-1 ${mirrored ? "flex-row-reverse" : ""}`}>
+            {showTree ? <TreePaneSkeleton mirrored={mirrored} /> : null}
             <ContentPaneSkeleton mode={mode} />
         </div>
     </div>

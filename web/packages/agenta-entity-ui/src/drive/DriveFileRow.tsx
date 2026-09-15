@@ -5,11 +5,12 @@
  *   row  (default) — compact list line: icon · name · trailing meta. Dense, dev-facing surfaces.
  *   card           — horizontal thumbnail: a FileThumb preview + name + folder/meta. The friendly
  *                    treatment for the chat rail (recent files a user recognises at a glance).
- *   tile           — vertical thumbnail for the Files grid (thumb on top, centred name + meta).
  *
- * card/tile render a real preview (image/video/pdf/text) via {@link FileThumb} and so need the
- * `file` + `mount`; without them they fall back to the kind icon. The "just changed" teal accent
- * shows as a left bar (row) or a ring (card/tile). Semantic tokens throughout so it sits correctly
+ * The Files grid's own tiles live in `FolderTile.tsx` (type marks, no thumbnails).
+ *
+ * card renders a real preview (image/video/pdf/text) via {@link FileThumb} and so needs the
+ * `file` + `mount`; without them it falls back to the kind icon. The "just changed" teal accent
+ * shows as a left bar (row) or a ring (card). Semantic tokens throughout so it sits correctly
  * on any surface. One component so every surface's file items align instead of drifting.
  */
 import {type CSSProperties, type ReactNode} from "react"
@@ -24,7 +25,7 @@ import {driveFileIcon} from "./driveIcons"
 import {FileThumb} from "./FileThumb"
 import {AGENT_ACCENT_SOFT, OriginTag} from "./OriginTag"
 
-export type DriveFileVariant = "row" | "card" | "tile"
+export type DriveFileVariant = "row" | "card"
 
 // Themed keyboard-focus ring (replaces the browser's default blue outline, which ignores the row's
 // radius and reads harsh). Inset so it stays within the row bounds. Matches the PrettyJsonView rows.
@@ -137,7 +138,7 @@ export const DriveFileRow = ({
 }: {
     /** Required unless `loading`. */
     path?: string
-    /** Right-aligned (row) or secondary-line (card/tile) meta — size / relative time. */
+    /** Right-aligned (row) or secondary-line (card) meta — size / relative time. */
     trailing?: ReactNode
     /** Highlight as just-changed (teal accent). */
     recent?: boolean
@@ -145,18 +146,18 @@ export const DriveFileRow = ({
     onOpen?: () => void
     /** Item look; see file header. Defaults to the compact row. */
     variant?: DriveFileVariant
-    /** The file + its mount — required by the card/tile thumbnail preview. */
+    /** The file + its mount — required by the card thumbnail preview. */
     file?: DriveRecentFile
     mount?: Mount | null
     /** Show the agent/session origin tag. Pass true only when the drive holds both kinds. */
     showOrigin?: boolean
-    /** Drop the folder from the card/tile meta — for the folder view, where every file shares the
+    /** Drop the folder from the card meta — for the folder view, where every file shares the
      * (already-shown) current folder. */
     hideFolder?: boolean
     /** Render as a folder (folder glyph, no thumbnail preview) — the recency view rolls a whole
      * freshly-written directory into one such row. */
     isFolder?: boolean
-    /** card/tile: draw the kind icon instead of fetching a content thumbnail — for the always-mounted
+    /** card: draw the kind icon instead of fetching a content thumbnail — for the always-mounted
      * summary surfaces, so they don't read every recent file just to preview it. */
     staticThumb?: boolean
     /** Loading placeholder: same shell (dimensions/padding/border) as a real row of this variant, with
@@ -187,26 +188,6 @@ export const DriveFileRow = ({
                     </span>
                     <span className="shrink-0 text-xs">
                         <span className={`inline-block h-2.5 w-9 align-middle ${BAR}`} />
-                    </span>
-                </div>
-            )
-        }
-        // TILE placeholder — the vertical grid tile (thumb on top + centred name + meta).
-        if (variant === "tile") {
-            return (
-                <div
-                    aria-hidden
-                    className="flex w-full min-w-0 flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2"
-                >
-                    <div className={`aspect-[4/3] w-full ${BAR}`} />
-                    <span className="flex h-4 items-center justify-center font-mono text-xs">
-                        <span
-                            className={`inline-block h-2.5 align-middle ${BAR}`}
-                            style={{width: nameW}}
-                        />
-                    </span>
-                    <span className="flex h-4 items-center justify-center text-xs">
-                        <span className={`inline-block h-2 w-1/3 align-middle ${BAR}`} />
                     </span>
                 </div>
             )
@@ -274,7 +255,7 @@ export const DriveFileRow = ({
         )
     }
 
-    // card / tile — thumbnail-forward, "avg user friendly". Agent files show their path relative to
+    // card — thumbnail-forward, "avg user friendly". Agent files show their path relative to
     // `agent-files/` (the tag already conveys the origin); session files show their raw folder.
     const rawFolder = path.includes("/") ? path.split("/").slice(0, -1).join("/") : null
     // When the tag is shown, agent files drop the redundant `agent-files/` prefix (the tag conveys
@@ -294,7 +275,7 @@ export const DriveFileRow = ({
                 {kindIcon(22)}
             </div>
         )
-    // Just-changed on a card/tile: an accent on the LEFT edge only (matching the list rows); the
+    // Just-changed on a card: an accent on the LEFT edge only (matching the list rows); the
     // card keeps its rounded corners and its other borders stay the neutral secondary.
     const recentStyle: CSSProperties | undefined = recent
         ? {borderLeftColor: RECENT_BORDER}
@@ -311,30 +292,6 @@ export const DriveFileRow = ({
                 {trailing}
             </>
         ) : null
-
-    if (variant === "tile") {
-        return (
-            // min-w-0 + w-full: without it the grid item's `min-width: auto` lets a long unbreakable
-            // path (name or meta) expand the column past its track, which widens the tile and — since
-            // the thumb is w-full aspect-[4/3] — blows its height up too. Constrained → truncation wins.
-            <button
-                type="button"
-                onClick={onOpen}
-                className={`flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${FOCUS_RING} ${hidden ? "opacity-60" : ""}`}
-                style={recentStyle}
-            >
-                {thumb}
-                <span className="w-full truncate text-center font-mono text-xs" title={path}>
-                    {name}
-                </span>
-                {meta ? (
-                    <span className="w-full truncate text-center text-xs text-colorTextTertiary">
-                        {meta}
-                    </span>
-                ) : null}
-            </button>
-        )
-    }
 
     // card (horizontal)
     return (
