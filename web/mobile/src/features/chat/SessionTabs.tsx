@@ -7,6 +7,7 @@ import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
+import {PanelRight, PanelRightClose} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -14,7 +15,6 @@ import {PageTitle} from "@/components/PageTitle"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {ConfigRevealButton} from "./ConfigRevealButton"
-import {FilesPaneIcon} from "./FilesPaneIcon"
 import {InspectSessionButton} from "./InspectSessionButton"
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
 import {useSessionTabClose} from "./useSessionTabClose"
@@ -128,8 +128,8 @@ export const SessionTabs = ({
                                 />
                             </>
                         )}
-                        {/* One fixed icon that shows the state (filled = open) and flips it — it
-                            stays put in both modes, since the pane can be open in either. */}
+                        {/* One fixed icon that shows the state and flips it — it stays put in
+                            both modes, since the pane can be open in either. */}
                         <SimpleTooltip
                             title={
                                 <span className="flex items-center gap-1.5">
@@ -148,7 +148,11 @@ export const SessionTabs = ({
                                 onClick={toggleFiles}
                                 className={`h-7 w-7 shrink-0 p-0 ${filesOpen ? "text-foreground" : "text-muted-foreground"}`}
                             >
-                                <FilesPaneIcon open={filesOpen} />
+                                {filesOpen ? (
+                                    <PanelRightClose size={14} />
+                                ) : (
+                                    <PanelRight size={14} />
+                                )}
                             </Button>
                         </SimpleTooltip>
                     </>
