@@ -1,4 +1,4 @@
-import {memo, useCallback, useMemo, type ReactNode} from "react"
+import {memo, useCallback, useMemo, useRef, type ReactNode} from "react"
 
 import {
     getMessageTraceId,
@@ -66,8 +66,8 @@ const downloadAttachment = (url: string, name: string) => {
 }
 
 /** One transcript turn: a user bubble, or an assistant fold, answer, meta line and any run error. */
-/** How long a closed trailing text waits for a following call before it reads as the answer. */
-const ANSWER_HOLD_MS = 400
+/** How long a closed text waits for a following call; it only ever delays while the run is open. */
+const ANSWER_HOLD_MS = 1200
 const ASSISTANT_META: ("tokens" | "cost")[] = ["tokens", "cost"]
 
 const TurnRowInner = ({
@@ -136,13 +136,18 @@ const TurnRowInner = ({
     const live = !turn.isUser && (turn.isStreamingTurn || (turn.isLast && remoteRunning))
     // A just-closed text becomes the answer after a beat: a following call lands a commit later.
     const trailingClosed = useMemo(() => endsOnClosedText(turn.items), [turn.items])
-    const closedLongEnough = useHeldFor(trailingClosed && turn.isStreamingTurn, ANSWER_HOLD_MS)
+    // Hold while the run is open anywhere. A turn this client streamed is over the moment its
+    // stream closes, so it never waits on the liveness poll that still says "running".
+    const streamedHereRef = useRef(false)
+    if (turn.isStreamingTurn) streamedHereRef.current = true
+    const runOpen = turn.isStreamingTurn || (live && !streamedHereRef.current)
+    const closedLongEnough = useHeldFor(trailingClosed && runOpen, ANSWER_HOLD_MS)
     const activity = useMemo(
         () =>
             splitTurnActivity(turn.items, {
-                holdClosedText: turn.isStreamingTurn && trailingClosed && !closedLongEnough,
+                holdClosedText: runOpen && trailingClosed && !closedLongEnough,
             }),
-        [turn.items, turn.isStreamingTurn, trailingClosed, closedLongEnough],
+        [turn.items, runOpen, trailingClosed, closedLongEnough],
     )
     // Browser-fulfilled tools keep their place on the timeline, widget and all.
     const renderClientTool = useCallback(
