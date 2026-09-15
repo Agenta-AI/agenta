@@ -20,11 +20,11 @@ closes moves to the closed record below.
 
 ---
 
-### OR82. Six changes to the legacy path that no flag covers
+### OR82. Six changes to the legacy path that no flag covers — CLOSED
 
-Added 2026-09-15 alongside the plane switches. Five dispositioned "keep"; the fourth, the
-evaluation streaming change, needs a decision from the PR author. Debt where it stays; no
-severity.
+Added 2026-09-15 alongside the plane switches, resolved the same day. All six dispositioned
+"keep". The fourth, the evaluation streaming change, was held for a decision and kept on the
+condition that its two missing unit tests were written first; they were. No severity.
 
 `AGENTA_LLM_GATEWAY_ENABLED` and `AGENTA_MCP_GATEWAY_ENABLED` decide whether each gateway
 serves. They do not cover everything this branch changed on the path a deployment with both
@@ -66,7 +66,7 @@ does not match, and the function returns exactly what `main` returned. The regex
 blast radius is every endpoint, and that is the reason to name it here rather than the reason
 to change it: the behaviour is identical for every caller that existed before this branch.
 
-**4. Evaluations are forced out of streaming. NEEDS A DECISION.** `_force_batch_mode`
+**4. Evaluations are forced out of streaming. Keep, now covered.** `_force_batch_mode`
 (`api/oss/src/core/evaluations/runtime/adapters.py:93-104`, called at `:129`) and
 `flags = {**(flags or {}), "stream": False}` at `:507`, with `_response_outputs` (`:81-90`)
 reading outputs from `data.outputs` instead of `response.outputs`.
@@ -88,17 +88,29 @@ The two halves are both defensible on their own terms, and neither is gateway wo
   as the next step's input, so invoking a revision whose interactive default is streaming would
   hand it a generator.
 
-What makes it a decision rather than a keep is that neither function is covered by a single
+What made this a decision rather than a keep was that neither function was covered by a single
 test anywhere in the repository, both are behaviour changes on the evaluation path, and both
-ride a gateway PR where nobody reviewing gateways would look for them. A reviewer approving
-this PR is approving an untested change to how every evaluation invokes a workflow.
+ride a gateway PR where nobody reviewing gateways would look for them. Approving the PR meant
+approving an untested change to how every evaluation invokes a workflow.
 
-Closure, either way: the author states whether the change is intended for this release. If yes,
-it needs two unit tests beside `api/oss/tests/pytest/unit/evaluations/test_run_flags.py` —
-outputs read from the batch envelope, and a revision with a streaming default invoked in batch
-mode by an evaluation — and one line in the PR description saying an unrelated evaluation fix
-rides along. If no, both halves lift out cleanly into their own PR; nothing in the gateway code
-references either function.
+**Resolved 2026-09-15: keep, because both halves fix real defects, with the tests written
+first.** `api/oss/tests/pytest/unit/evaluations/test_run_batch_invocation.py` covers both:
+
+| Test | What it pins |
+|---|---|
+| `test_an_evaluation_reads_outputs_from_the_batch_envelope` | Outputs come from `data.outputs`, which is the half that was silently returning `None` |
+| `test_an_adapter_that_puts_outputs_on_the_response_still_works` | The flat-response fallback, so deleting it does not look free |
+| `test_a_streaming_revision_is_still_invoked_in_batch_mode` | A revision defaulting to streaming is invoked in batch mode by an evaluation |
+| `test_the_revisions_other_flags_survive_the_override` | Only `stream` is overridden; the revision's other flags are not dropped |
+| `test_the_service_runner_forces_batch_mode_on_the_request_it_forwards` | The second call site, which reaches the service as a kwargs dict, three flag shapes |
+
+Six of the seven cases were confirmed to fail against the pre-change adapter and pass against
+it, so they are regression tests rather than descriptions. The seventh is the compatibility
+fallback, which passes either way by construction.
+
+The disposition is keep, not endorse. The change is still not gateway work, and the PR
+description should say in one line that an unrelated evaluation fix rides along, so a future
+reader looking for where evaluation batching changed does not have to find it in a gateway PR.
 
 **5. Secret redaction and conflict types changed. Keep.** `CREDENTIAL_FIELDS`
 (`api/oss/src/core/secrets/redaction.py:37-45`) replaces the single-field map and redaction now
