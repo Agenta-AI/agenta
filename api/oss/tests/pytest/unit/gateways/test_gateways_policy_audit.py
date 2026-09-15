@@ -201,6 +201,134 @@ def test_a_call_that_reported_no_usage_carries_no_token_counts():
     assert "output_tokens" not in attributes
 
 
+# --- what was called, how long it took, and which run made it ---------------- #
+
+
+def test_attributes_carry_the_method_and_tool_an_mcp_call_named():
+    """`GatewayTarget` carried both from the relay's first day and the event read
+    neither, so an MCP audit record said an endpoint had been called and nothing about
+    what was called on it."""
+    attributes = build_gateway_call_attributes(
+        scope=_scope(),
+        target=_mcp_target(method="tools/call", tool="search"),
+        decision=_allowed(permission=Permission.USE_MCP_ENDPOINTS),
+        outcome=GatewayOutcome(status_code=200),
+    )
+
+    assert attributes["method"] == "tools/call"
+    assert attributes["tool"] == "search"
+
+
+def test_a_method_that_names_no_tool_carries_no_tool_attribute():
+    attributes = build_gateway_call_attributes(
+        scope=_scope(),
+        target=_mcp_target(method="tools/list", tool=None),
+        decision=_allowed(permission=Permission.USE_MCP_ENDPOINTS),
+        outcome=GatewayOutcome(status_code=200),
+    )
+
+    assert attributes["method"] == "tools/list"
+    assert "tool" not in attributes
+
+
+def test_an_llm_call_carries_neither_method_nor_tool():
+    attributes = build_gateway_call_attributes(
+        scope=_scope(),
+        target=_llm_target(),
+        decision=_allowed(),
+        outcome=GatewayOutcome(status_code=200),
+    )
+
+    assert "method" not in attributes
+    assert "tool" not in attributes
+
+
+def test_a_caller_cannot_make_one_relay_into_an_unbounded_event():
+    """`method` and `tool` are read off the caller's own JSON-RPC body, and the event
+    goes onto a shared stream, so their length cannot be the caller's to choose."""
+    attributes = build_gateway_call_attributes(
+        scope=_scope(),
+        target=_mcp_target(method="m" * 5_000, tool="t" * 5_000),
+        decision=_allowed(permission=Permission.USE_MCP_ENDPOINTS),
+        outcome=GatewayOutcome(status_code=200),
+        run_id="r" * 5_000,
+    )
+
+    assert len(attributes["method"]) == 200
+    assert len(attributes["tool"]) == 200
+    assert len(attributes["run_id"]) == 200
+
+
+def test_attributes_carry_the_duration_the_call_took():
+    attributes = build_gateway_call_attributes(
+        scope=_scope(),
+        target=_mcp_target(),
+        decision=_allowed(permission=Permission.USE_MCP_ENDPOINTS),
+        outcome=GatewayOutcome(status_code=200, duration_ms=42),
+    )
+
+    assert attributes["duration_ms"] == 42
+
+
+def test_a_call_that_reported_no_duration_carries_none():
+    """An unmeasured call must not read as an instant one."""
+    attributes = build_gateway_call_attributes(
+        scope=_scope(),
+        target=_mcp_target(),
+        decision=_allowed(permission=Permission.USE_MCP_ENDPOINTS),
+        outcome=GatewayOutcome(status_code=200),
+    )
+
+    assert "duration_ms" not in attributes
+
+
+def test_attributes_carry_the_run_the_call_belongs_to():
+    attributes = build_gateway_call_attributes(
+        scope=_scope(),
+        target=_mcp_target(),
+        decision=_allowed(permission=Permission.USE_MCP_ENDPOINTS),
+        outcome=GatewayOutcome(status_code=200),
+        run_id="9d3f4a1c2b5e4f7a",
+    )
+
+    assert attributes["run_id"] == "9d3f4a1c2b5e4f7a"
+
+
+def test_a_caller_that_belongs_to_no_run_carries_no_run_id():
+    """A browser or an API-key caller holds no run-bound gateway credential, so there is
+    no run to name and none is invented."""
+    attributes = build_gateway_call_attributes(
+        scope=_scope(),
+        target=_mcp_target(),
+        decision=_allowed(permission=Permission.USE_MCP_ENDPOINTS),
+        outcome=GatewayOutcome(status_code=200),
+        run_id=None,
+    )
+
+    assert "run_id" not in attributes
+
+
+@pytest.mark.asyncio
+async def test_record_passes_the_run_through_to_the_event(monkeypatch):
+    publish = AsyncMock()
+    monkeypatch.setattr("oss.src.core.events.utils.publish_event", publish)
+
+    service = GatewayPolicyService(resolver=AsyncMock())
+    await service.record(
+        scope=_scope(),
+        target=_mcp_target(),
+        decision=_allowed(permission=Permission.USE_MCP_ENDPOINTS),
+        outcome=GatewayOutcome(status_code=200, duration_ms=17),
+        run_id="run-abc",
+    )
+
+    event = publish.await_args.kwargs["event"]
+    assert event.attributes["run_id"] == "run-abc"
+    assert event.attributes["duration_ms"] == 17
+    assert event.attributes["method"] == "tools/call"
+    assert event.attributes["tool"] == "search"
+
+
 # --- publish_gateway_call ---------------------------------------------------- #
 
 

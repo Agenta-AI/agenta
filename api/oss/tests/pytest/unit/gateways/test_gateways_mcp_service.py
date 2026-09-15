@@ -8,6 +8,7 @@ and relay orchestration.
 """
 
 import json
+from types import SimpleNamespace
 from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -554,9 +555,14 @@ class MockPolicyService:
             reason=None if self.allow else "permission_denied",
         )
 
-    async def record(self, *, scope, target, decision, outcome):
+    async def record(self, *, scope, target, decision, outcome, run_id=None):
         self.record_calls.append(
-            {"target": target, "decision": decision, "outcome": outcome}
+            {
+                "target": target,
+                "decision": decision,
+                "outcome": outcome,
+                "run_id": run_id,
+            }
         )
 
 
@@ -970,6 +976,163 @@ async def test_relay_upstream_failure_records_outcome_before_raising():
 
     assert len(policy.record_calls) == 1
     assert policy.record_calls[0]["outcome"].status_code == 502
+
+
+# --- what the audit record says about the call ------------------------------- #
+
+
+class _RequestWithRunId:
+    """The one attribute the relay reads off a request: the run the caller is on.
+
+    A real `Request` cannot be built without an ASGI scope, and the relay reads nothing
+    else from it on this path, so standing in for `request.state` is the whole of it.
+    """
+
+    def __init__(self, run_id=None) -> None:
+        self.state = SimpleNamespace()
+        if run_id is not None:
+            self.state.gateway_run_id = run_id
+
+
+@pytest.mark.asyncio
+async def test_a_recorded_relay_says_which_method_and_tool_were_called():
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao)
+    policy = MockPolicyService()
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        policy=policy,
+        adapters={"http": MockUpstreamAdapter()},
+    )
+
+    await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=MCPCallContext(method="tools/call", target="echo"),
+        body=b"{}",
+        headers={},
+    )
+
+    target = policy.record_calls[0]["target"]
+    assert target.method == "tools/call"
+    assert target.tool == "echo"
+
+
+@pytest.mark.asyncio
+async def test_every_ending_of_a_relay_is_recorded_with_a_duration():
+    """Denial, upstream failure and success are three different endings, and the slow
+    ones are the endings a duration is worth having."""
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao)
+
+    denied = MockPolicyService(allow=False)
+    with pytest.raises(PolicyDeniedError):
+        await _relay_service(
+            mcp_endpoints_dao=dao,
+            policy=denied,
+            adapters={"http": MockUpstreamAdapter()},
+        ).relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=MCPCallContext(method="tools/call", target="echo"),
+            body=b"{}",
+            headers={},
+        )
+
+    failed = MockPolicyService()
+    with pytest.raises(MCPUpstreamError):
+        await _relay_service(
+            mcp_endpoints_dao=dao,
+            policy=failed,
+            adapters={
+                "http": MockUpstreamAdapter(
+                    raise_exc=MCPUpstreamError(target="x", status_code=502)
+                )
+            },
+        ).relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=MCPCallContext(method="tools/call", target="echo"),
+            body=b"{}",
+            headers={},
+        )
+
+    succeeded = MockPolicyService()
+    await _relay_service(
+        mcp_endpoints_dao=dao,
+        policy=succeeded,
+        adapters={"http": MockUpstreamAdapter()},
+    ).relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=MCPCallContext(method="tools/call", target="echo"),
+        body=b"{}",
+        headers={},
+    )
+
+    for policy in (denied, failed, succeeded):
+        assert len(policy.record_calls) == 1
+        assert policy.record_calls[0]["outcome"].duration_ms is not None
+        assert policy.record_calls[0]["outcome"].duration_ms >= 0
+
+
+@pytest.mark.asyncio
+async def test_a_relay_on_a_run_records_the_run_it_belongs_to():
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao)
+    policy = MockPolicyService()
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        policy=policy,
+        adapters={"http": MockUpstreamAdapter()},
+    )
+
+    await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=MCPCallContext(method="tools/call", target="echo"),
+        body=b"{}",
+        headers={},
+        request=_RequestWithRunId("3f9c1d2e4a6b8c0d"),
+    )
+
+    assert policy.record_calls[0]["run_id"] == "3f9c1d2e4a6b8c0d"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "request_",
+    [None, _RequestWithRunId(), _RequestWithRunId("")],
+    ids=["no-request", "no-run-on-the-request", "empty-run"],
+)
+async def test_a_relay_that_belongs_to_no_run_records_none(request_):
+    """A browser or API-key caller holds no run-bound credential. The recorded run must
+    then be absent rather than an empty string that reads as a run."""
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao)
+    policy = MockPolicyService()
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        policy=policy,
+        adapters={"http": MockUpstreamAdapter()},
+    )
+
+    await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=MCPCallContext(method="tools/call", target="echo"),
+        body=b"{}",
+        headers={},
+        request=request_,
+    )
+
+    assert policy.record_calls[0]["run_id"] is None
 
 
 def _tools_list_result(names: List[str]) -> MCPRelayResult:

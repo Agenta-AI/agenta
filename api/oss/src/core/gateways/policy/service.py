@@ -1,5 +1,7 @@
 """Authorize gateway access and publish audit events."""
 
+from typing import Optional
+
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.policy.audit import publish_gateway_call
@@ -69,11 +71,18 @@ class GatewayPolicyService:
         target: GatewayTarget,
         decision: PolicyDecision,
         outcome: GatewayOutcome,
+        run_id: Optional[str] = None,
     ) -> None:
         # Publish audit events for both allowed and denied relays.
+        #
+        # `run_id` is call context rather than target, verdict or outcome, so it travels
+        # beside them instead of being folded into one of the three. It is optional
+        # because only a caller that arrived on a run-bound gateway credential has one:
+        # a browser or an API key belongs to no run.
         await publish_gateway_call(
             scope=scope,
             target=target,
             decision=decision,
             outcome=outcome,
+            run_id=run_id,
         )
