@@ -8,7 +8,7 @@
  */
 import {type KeyboardEvent, useCallback} from "react"
 
-import {driveCodeLanguage} from "@agenta/entities/drive"
+import {driveCodeLanguage, useDriveFileDraft} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {type CodeLanguage, EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
@@ -39,22 +39,15 @@ const editorLanguage = (path: string): CodeLanguage => {
 export interface DriveCodeEditorProps {
     mount: Mount | null
     path: string
-    value: string | null
     loading: boolean
     failed: boolean
-    onChange: (text: string) => void
     onSave: () => void
 }
 
-export function DriveCodeEditor({
-    mount,
-    path,
-    value,
-    loading,
-    failed,
-    onChange,
-    onSave,
-}: DriveCodeEditorProps) {
+export function DriveCodeEditor({mount, path, loading, failed, onSave}: DriveCodeEditorProps) {
+    // The editor owns its text between seeds; feeding each keystroke back as `initialValue`
+    // would make the code plugin re-read the whole document per keystroke (O(lines)).
+    const {seed, onChange} = useDriveFileDraft(mount, path)
     const onKeyDown = useCallback(
         (e: KeyboardEvent<HTMLDivElement>) => {
             if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
@@ -70,7 +63,7 @@ export function DriveCodeEditor({
                 <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
             </div>
         )
-    if (loading || value === null)
+    if (loading || seed === null)
         return (
             <div className="flex flex-col gap-2 p-5">
                 {Array.from({length: 8}).map((_, i) => (
@@ -89,14 +82,14 @@ export function DriveCodeEditor({
             <EditorProvider
                 key={editorId}
                 id={editorId}
-                initialValue={value}
+                initialValue={seed}
                 showToolbar={false}
                 codeOnly
                 language={language}
             >
                 <SharedEditor
                     id={editorId}
-                    initialValue={value}
+                    initialValue={seed}
                     handleChange={onChange}
                     editorType="borderless"
                     disableDebounce
