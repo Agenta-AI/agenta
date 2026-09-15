@@ -1,10 +1,4 @@
-/**
- * A run error as the reader should meet it: one plain sentence, with the raw text a tap away.
- *
- * The runner relays provider failures verbatim — `402: {"message":"…","code":402,"metadata":{…}}` —
- * and that blob is what the transcript used to paint in red. The sentence inside it is the part
- * a person can act on; the status, the URLs and the metadata are for the details.
- */
+// A run error as the reader should meet it: one plain sentence, the provider's raw blob a tap away.
 export interface RunErrorView {
     /** What went wrong, in one sentence. */
     headline: string
@@ -26,10 +20,7 @@ const providerOf = (text: string): string | null => {
     return null
 }
 
-/**
- * The failures a reader can do something about, said in the product's words. Anything else
- * keeps the provider's own sentence.
- */
+/** The failures a reader can act on, in the product's words; anything else keeps the provider's sentence. */
 const recognise = (
     status: number | undefined,
     text: string,
@@ -37,7 +28,7 @@ const recognise = (
     const lower = text.toLowerCase()
     const provider = providerOf(text)
     const key = provider ? `the ${provider} key` : "the model key"
-    if (status === 402 || /credits|insufficient.*(balance|quota)|billing/.test(lower)) {
+    if (status === 402 || /(not enough|insufficient|out of) (credits?|balance|quota)/.test(lower)) {
         return {
             headline: `The model provider refused the request: not enough credits on ${key}.`,
             remedy: "Add credits or pick another model, then try again.",
