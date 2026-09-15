@@ -85,6 +85,7 @@ export type McpJourneyEvent =
     | {type: "submit_name"}
     | {type: "endpoint_created"; endpointId: string; slug: string}
     | {type: "create_failed"; error: string}
+    | {type: "name_taken"; error: string}
     | {type: "scopes_discovered"; scopes: string[]}
     | {type: "scopes_failed"; error: string}
     | {type: "scope_toggled"; scope: string}
@@ -251,6 +252,11 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
 
         case "create_failed":
             return {...state, status: "create_failed", error: event.error}
+
+        case "name_taken":
+            // Back to the field the person can fix, rather than a Try again that would
+            // submit the same name and be refused the same way.
+            return {...state, status: "naming", error: event.error}
 
         case "scopes_discovered":
             // Pre-checked: the person is narrowing what was offered, not assembling a

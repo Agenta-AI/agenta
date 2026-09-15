@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {gatewayRefusalMessage} from "../../src/mcpEndpoint/core/refusal"
+import {gatewayRefusalMessage, isNameTakenRefusal} from "../../src/mcpEndpoint/core/refusal"
 
 describe("gatewayRefusalMessage", () => {
     it("returns the plain detail a refusal carries, not the transport's status line", () => {
@@ -46,5 +46,28 @@ describe("gatewayRefusalMessage", () => {
         expect(gatewayRefusalMessage({response: {data: {}}})).toBeNull()
         expect(gatewayRefusalMessage({response: {data: {detail: "   "}}})).toBeNull()
         expect(gatewayRefusalMessage(undefined)).toBeNull()
+    })
+})
+
+describe("isNameTakenRefusal", () => {
+    const refusal = (detail: unknown) => ({response: {data: {detail}}})
+
+    it("recognizes the duplicate-name conflict by its code", () => {
+        expect(
+            isNameTakenRefusal(
+                refusal({
+                    code: "mcp_connection_name_taken",
+                    message: "Another connection in this project already uses this name.",
+                    next_step: "Give this connection a name no other one in the project uses.",
+                }),
+            ),
+        ).toBe(true)
+    })
+
+    it("does not mistake another refusal for it", () => {
+        expect(isNameTakenRefusal(refusal({code: "secret_missing", message: "x"}))).toBe(false)
+        expect(isNameTakenRefusal(refusal("endpoint is not a custom OAuth target"))).toBe(false)
+        expect(isNameTakenRefusal(new Error("Request failed with status code 409"))).toBe(false)
+        expect(isNameTakenRefusal(null)).toBe(false)
     })
 })
