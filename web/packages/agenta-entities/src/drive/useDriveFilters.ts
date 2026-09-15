@@ -47,14 +47,19 @@ export function useDriveFilters({showOrigin = false}: {showOrigin?: boolean} = {
     // Session copies, seeded once from the preference (see the module note).
     const [showHidden, setShowHidden] = useState(showHiddenPref)
     const [showGitignored, setShowGitignored] = useState(showGitignoredPref)
+    // Both copies take the NEXT of the shown (session) value: after an upload reveal they can
+    // differ, and flipping each independently would leave the menu showing the opposite of the
+    // preference it just wrote.
     const toggleShowHiddenPref = useCallback(() => {
-        setShowHiddenPref((v) => !v)
-        setShowHidden((v) => !v)
-    }, [setShowHiddenPref])
+        const next = !showHidden
+        setShowHiddenPref(next)
+        setShowHidden(next)
+    }, [showHidden, setShowHiddenPref])
     const toggleShowGitignoredPref = useCallback(() => {
-        setShowGitignoredPref((v) => !v)
-        setShowGitignored((v) => !v)
-    }, [setShowGitignoredPref])
+        const next = !showGitignored
+        setShowGitignoredPref(next)
+        setShowGitignored(next)
+    }, [showGitignored, setShowGitignoredPref])
 
     // "Show temporary files" is the origin filter in disguise: session-scoped files are the
     // temporary ones. It only bites on a drive that HAS both origins — a plain session drive with
