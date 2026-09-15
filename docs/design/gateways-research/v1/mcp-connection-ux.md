@@ -55,6 +55,8 @@ Sources: [MCP authorization](https://modelcontextprotocol.io/specification/2025-
 
 Internal pending endpoint/attempt records are allowed. They must not appear as a successfully added connection before authentication succeeds. Cancellation must not delete an existing working connection. Keep pending records recoverable or expirable using existing lifecycle patterns.
 
+As implemented, a pending record is an ordinary endpoint row carrying no credential, and every surface reads it as needing authorization, which is what it is. Cancelling the journey deletes the row it created; a reconnect deletes nothing, because that row was already a working connection. Nothing is written to the row after consent: the edit route is a full replace, and by then the callback has stored a credential reference this client never saw, so a write to flip a flag would discard the grant the journey had just obtained. The consequence is that an attempt abandoned outside the journey, by closing the browser during consent, leaves a connection reading "Needs authorization" rather than disappearing. That is recoverable by one Connect and is the intended behaviour, not an oversight.
+
 ## Tools and permissions
 
 Reuse the integration permission UI and runner approval behavior. Show discovered tools for the selected account connection. Match policy and calls by stable connection identity plus upstream tool identity. Preserve existing permission precedence and make new-tool defaults explicit in code and tests. Renaming a display label must not reset policy.
