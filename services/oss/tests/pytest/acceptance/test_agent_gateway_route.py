@@ -7,6 +7,8 @@ from uuid import uuid4
 
 import pytest
 
+from utils.gateways import skip_unless_llm_gateway
+
 pytestmark = [pytest.mark.acceptance]
 
 _MOCK_BASE_URL = "http://mock-llm-gateway:9091/v1"
@@ -113,11 +115,14 @@ def mcp_gateway_connection(request, mod_api):
 
 
 @pytest.fixture
-def llm_gateway_connection(request, harness, mod_api):
+def llm_gateway_connection(request, harness, mod_api, llm_gateway_plane):
     """Provision the selected mock LLM route as normal project resources."""
     namespace = request.param
     if not _MOCKS_ENABLED:
         pytest.skip("gateway mock services are disabled")
+    # Every route this fixture hands back is a gateway route, so with the plane off there is
+    # nothing here to exercise: the run would resolve its model from the vault instead.
+    skip_unless_llm_gateway(llm_gateway_plane)
 
     provider, model = _HARNESS_CONNECTIONS[harness]
     cleanup: list[tuple[str, str]] = []
