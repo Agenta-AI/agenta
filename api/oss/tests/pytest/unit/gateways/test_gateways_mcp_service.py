@@ -212,9 +212,12 @@ def _connection(
     )
 
 
-def _endpoint_create(slug: str = "acme-notion") -> MCPEndpointCreate:
+def _endpoint_create(
+    slug: str = "acme-notion", name: Optional[str] = None
+) -> MCPEndpointCreate:
     return MCPEndpointCreate(
         slug=slug,
+        name=name,
         auth_mode=MCPAuthScheme.NONE,
         data=MCPEndpointData(
             route=MCPEndpointRoute(base_url="https://example.com/mcp")
@@ -302,7 +305,10 @@ async def test_edit_endpoint_delegates_to_dao():
         project_id=uuid4(), user_id=uuid4(), endpoint=edit
     )
 
-    assert dao.calls == ["edit_endpoint"]
+    # One indexed read to see whether the name moved, then the write. The project-wide
+    # name scan is not among them, because this edit did not touch the name (D12).
+    assert dao.calls == ["fetch_endpoint", "edit_endpoint"]
+    assert "query_endpoints" not in dao.calls
     assert edited.data.route.base_url == "https://example.com/mcp-v2"
 
 
@@ -2214,3 +2220,60 @@ async def test_edit_allows_a_connection_to_keep_the_name_it_already_has():
 
     assert edited is not None
     assert edited.name == "Acme work"
+
+
+@pytest.mark.asyncio
+async def test_renaming_a_connection_still_checks_the_name_is_free():
+    """The scan is skipped only where the answer cannot have changed. A rename is
+    exactly where it can."""
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    project_id = uuid4()
+    created = await service.create_endpoint(
+        project_id=project_id, user_id=uuid4(), endpoint=_endpoint_create()
+    )
+    dao.calls.clear()
+
+    await service.edit_endpoint(
+        project_id=project_id,
+        user_id=uuid4(),
+        endpoint=MCPEndpointEdit(
+            id=created.id,
+            name="Acme, personal",
+            auth_mode=MCPAuthScheme.NONE,
+            data=created.data,
+        ),
+    )
+
+    assert "query_endpoints" in dao.calls
+
+
+@pytest.mark.asyncio
+async def test_a_rename_onto_a_name_another_connection_answers_to_is_refused():
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    project_id, user_id = uuid4(), uuid4()
+    first = await service.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint=_endpoint_create(slug="one", name="Acme Notion"),
+    )
+    second = await service.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint=_endpoint_create(slug="two", name="Acme Linear"),
+    )
+
+    with pytest.raises(MCPConnectionNameTakenError):
+        await service.edit_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            endpoint=MCPEndpointEdit(
+                id=second.id,
+                # Renders to the same prefix as the first connection's name.
+                name="Acme-Notion",
+                auth_mode=MCPAuthScheme.NONE,
+                data=second.data,
+            ),
+        )
+    assert first.name == "Acme Notion"
