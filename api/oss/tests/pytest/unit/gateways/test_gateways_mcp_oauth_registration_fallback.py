@@ -608,6 +608,140 @@ async def test_a_grant_still_refreshes_after_the_address_change_re_registers():
 
 
 @pytest.mark.asyncio
+async def test_a_grant_keeps_its_registration_across_two_consecutive_renewals():
+    """D24. The case the D6 fix never ran: refresh twice.
+
+    The first renewal rewrote the grant with no registration reference at all, because
+    the reader that resolves a grant's own registration never recorded which one it had
+    resolved and the write persists whatever that holds. So the pin survived the consent
+    and died on the first refresh, and every refresh after it resolved whatever
+    registration the issuer holds now — which is the address-change failure D6 closed,
+    reappearing one renewal later.
+    """
+    registrations: list = []
+    dao = _FakeSecretsDAO()
+    project_id, user_id = uuid4(), uuid4()
+    endpoint_a, endpoint_b = uuid4(), uuid4()
+    authorization_server = _client_binding_as_handler(registrations=registrations)
+
+    before, _dao, _attempts = _service(
+        resolve=lambda _h: ["10.0.0.5"], dao=dao, handler=authorization_server
+    )
+    await _connect(
+        before, project_id=project_id, user_id=user_id, endpoint_id=endpoint_a
+    )
+    issued_against = registration_slug(
+        issuer_url=f"{_AS_BASE}/",
+        redirect_uri=f"{_API_URL}/gateways/mcps/connect/callback",
+    )
+
+    # The deployment moves, so a second connect registers a different client at the same
+    # issuer. Now there are two, and only the pin says which one A's tokens belong to.
+    after, _dao, _attempts = _service(
+        resolve=lambda _h: ["10.0.0.5"],
+        dao=dao,
+        api_url=_MOVED_API_URL,
+        handler=authorization_server,
+    )
+    await _connect(
+        after, project_id=project_id, user_id=user_id, endpoint_id=endpoint_b
+    )
+    assert [r["client_id"] for r in registrations] == ["client-1", "client-2"]
+
+    storage = _grant_storage(dao, project_id=project_id, endpoint_id=endpoint_a)
+
+    for renewal in (1, 2):
+        await after.refresh_grant(
+            project_id=project_id, endpoint_id=endpoint_a, server_url=_SERVER_URL
+        )
+        renewed = await storage.get_grant()
+        assert renewed is not None, f"renewal {renewal} left no grant"
+        assert renewed.access_token == "renewed"
+        # The whole finding: this was None after the first renewal.
+        assert renewed.client_registration_slug == issued_against, (
+            f"renewal {renewal} lost the registration reference"
+        )
+
+
+@pytest.mark.asyncio
+async def test_resolving_a_grants_registration_records_which_one_it_resolved():
+    """The root of D24, at the seam that lost it.
+
+    `write_tokens` persists whatever the storage last resolved, so a reader that returns
+    a registration without recording it leaves the next write with nothing to persist.
+    Both branches have to record: the pinned one, and the by-issuer fallback a grant
+    written before the reference existed still takes.
+    """
+    dao = _FakeSecretsDAO()
+    project_id, endpoint_id = uuid4(), uuid4()
+    storage = _grant_storage(
+        dao,
+        project_id=project_id,
+        endpoint_id=endpoint_id,
+        authorization_server=f"{_AS_BASE}/",
+    )
+    await storage.set_client_info(
+        OAuthClientInformationFull(
+            redirect_uris=[f"{_API_URL}/gateways/mcps/connect/callback"],
+            client_id="client-1",
+        )
+    )
+    # Whatever slug the row is actually stored under: this storage knows no callback
+    # address, so `set_client_info` wrote it under the issuer's own slug.
+    slug = _stored_registration(dao).slug
+    assert slug
+
+    # A grant carrying no reference: resolved by issuer, and now pinned for next time.
+    storage.resolved_registration_slug = None
+    resolved = await storage.get_client_info_for_grant(
+        OAuthGrantSettingsDTO(
+            server=_SERVER_URL, scopes=["read"], issuer=f"{_AS_BASE}/"
+        )
+    )
+    assert resolved is not None and resolved.client_id == "client-1"
+    assert storage.resolved_registration_slug == slug
+
+    # A grant carrying one: resolved by it, and kept.
+    storage.resolved_registration_slug = None
+    resolved = await storage.get_client_info_for_grant(
+        OAuthGrantSettingsDTO(
+            server=_SERVER_URL,
+            scopes=["read"],
+            issuer=f"{_AS_BASE}/",
+            client_registration_slug=slug,
+        )
+    )
+    assert resolved is not None
+    assert storage.resolved_registration_slug == slug
+
+
+@pytest.mark.asyncio
+async def test_a_pin_naming_a_deleted_registration_is_still_carried_forward():
+    """Dropping it would silently downgrade the next renewal to "whatever this issuer
+    has now", which is the behaviour the pin exists to prevent."""
+    dao = _FakeSecretsDAO()
+    storage = _grant_storage(
+        dao,
+        project_id=uuid4(),
+        endpoint_id=uuid4(),
+        authorization_server=f"{_AS_BASE}/",
+    )
+
+    assert (
+        await storage.get_client_info_for_grant(
+            OAuthGrantSettingsDTO(
+                server=_SERVER_URL,
+                scopes=["read"],
+                issuer=f"{_AS_BASE}/",
+                client_registration_slug="oauth-provider-does-not-exist",
+            )
+        )
+        is None
+    )
+    assert storage.resolved_registration_slug == "oauth-provider-does-not-exist"
+
+
+@pytest.mark.asyncio
 async def test_a_grant_records_the_registration_it_was_issued_against():
     """The bookkeeping the renewal above depends on."""
     registrations: list = []
