@@ -42,10 +42,7 @@ export interface ListTableProps<Row> {
     renderRow: (row: Row) => ReactNode
     /** Opening a row. Absent ⇒ rows are not clickable and take no focus. */
     onOpenRow?: (row: Row) => void
-    /**
-     * Wrap the finished row element — for a context menu trigger that must own the row
-     * without displacing it from the grid (`ContextMenuTrigger asChild`). Identity by default.
-     */
+    /** Wrap the finished row element (a `ContextMenuTrigger asChild`, say). Identity by default. */
     wrapRow?: (row: Row, rowNode: ReactNode) => ReactNode
     /**
      * Below this the table scrolls sideways rather than crushing its columns. In px; the frame

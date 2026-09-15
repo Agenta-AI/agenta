@@ -120,6 +120,9 @@ export const humanSize = (bytes?: number | null): string => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+/** "1 item" / "N items" — the folder meta every drive surface shows. */
+export const itemCountLabel = (count: number): string => `${count} item${count === 1 ? "" : "s"}`
+
 export const relativeTime = (at?: number | null): string => {
     if (!at) return ""
     const s = Math.max(0, Math.round((Date.now() - at) / 1000))

@@ -138,8 +138,6 @@ export const SessionTabs = ({
                         {chatMaximized ? null : (
                             <>
                                 <InspectSessionButton sessionId={sessionId} />
-                                {/* Same slot and order as the desktop bar: inspector, history,
-                                    then the files toggle at the right edge the pane expands from. */}
                                 <SessionHistoryMenu
                                     agentId={agentId}
                                     base={base}
@@ -147,8 +145,7 @@ export const SessionTabs = ({
                                 />
                             </>
                         )}
-                        {/* One fixed icon that shows the state and flips it — it stays put in
-                            both modes, since the pane can be open in either. */}
+                        {/* Shows the state and flips it; the pane can be open in either mode. */}
                         <SimpleTooltip
                             title={
                                 <span className="flex items-center gap-1.5">

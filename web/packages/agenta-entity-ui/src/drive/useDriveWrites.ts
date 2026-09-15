@@ -1,10 +1,4 @@
-/**
- * useDriveWrites — the Files pane's write verbs bound to one drive: create folder / file, rename,
- * duplicate, delete. Resolves the presented path to its mount (cwd or the folded
- * `agent-files/` mount), calls the transport in `@agenta/entities/drive`, refreshes the listing
- * and reports through the kit's message service. The name / path prompts are the caller's
- * ({@link DriveNameDialog}); delete confirms here through `modal.confirm`.
- */
+/** The Files pane's write verbs bound to one drive: resolve the mount, run, refresh, toast. */
 import {useCallback, useMemo, useState} from "react"
 
 import {
@@ -12,6 +6,10 @@ import {
     copyMountFile,
     createMountFolder,
     deleteMountPath,
+    itemCountLabel,
+    joinPath,
+    nameOf,
+    parentOf,
     refreshMountListing,
     saveMountText,
     type SessionDriveData,
@@ -21,15 +19,11 @@ import {message, modal} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-const nameOf = (path: string) => path.split("/").pop() ?? path
-const joinPath = (folder: string, name: string) => (folder ? `${folder}/${name}` : name)
-
 export function useDriveWrites(drive: SessionDriveData) {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const queryClient = useAtomValue(queryClientAtom)
     const [busy, setBusy] = useState(false)
 
-    // Every verb: resolve the mount, run, refresh, toast — one wrapper so none of them drifts.
     const run = useCallback(
         async (
             presentedPath: string,
@@ -78,43 +72,28 @@ export function useDriveWrites(drive: SessionDriveData) {
             ),
         [run, projectId],
     )
-    const rename = useCallback(
-        (presentedPath: string, newName: string) => {
-            const folder = presentedPath.slice(0, Math.max(0, presentedPath.lastIndexOf("/")))
-            const target = drive.resolveMount(joinPath(folder, newName))
+    // Rename / duplicate: a copy into the same folder, with or without the source removed.
+    const copyAs = useCallback(
+        (presentedPath: string, newName: string, removeSource: boolean, success: string) => {
+            const sibling = joinPath(parentOf(presentedPath), newName)
+            const toPath = drive.resolveMount(sibling)?.path ?? sibling
             return run(
                 presentedPath,
-                ({mount, path}) =>
-                    copyMountFile({
-                        mount,
-                        path,
-                        projectId,
-                        toPath: target?.path ?? joinPath(folder, newName),
-                        removeSource: true,
-                    }),
-                `Renamed to ${newName}`,
+                ({mount, path}) => copyMountFile({mount, path, projectId, toPath, removeSource}),
+                success,
             )
         },
         [drive, run, projectId],
     )
+    const rename = useCallback(
+        (presentedPath: string, newName: string) =>
+            copyAs(presentedPath, newName, true, `Renamed to ${newName}`),
+        [copyAs],
+    )
     const duplicate = useCallback(
-        (presentedPath: string, newName: string) => {
-            const folder = presentedPath.slice(0, Math.max(0, presentedPath.lastIndexOf("/")))
-            const target = drive.resolveMount(joinPath(folder, newName))
-            return run(
-                presentedPath,
-                ({mount, path}) =>
-                    copyMountFile({
-                        mount,
-                        path,
-                        projectId,
-                        toPath: target?.path ?? joinPath(folder, newName),
-                        removeSource: false,
-                    }),
-                `Duplicated as ${newName}`,
-            )
-        },
-        [drive, run, projectId],
+        (presentedPath: string, newName: string) =>
+            copyAs(presentedPath, newName, false, `Duplicated as ${newName}`),
+        [copyAs],
     )
     const remove = useCallback(
         (presentedPath: string, isFolder: boolean, itemCount?: number | null) =>
@@ -124,7 +103,7 @@ export function useDriveWrites(drive: SessionDriveData) {
                     centered: true,
                     title: isFolder ? "Delete folder" : "Delete file",
                     content: isFolder
-                        ? `"${name}"${itemCount ? ` and its ${itemCount} item${itemCount === 1 ? "" : "s"}` : " and everything in it"} will be permanently deleted.`
+                        ? `"${name}"${itemCount ? ` and its ${itemCountLabel(itemCount)}` : " and everything in it"} will be permanently deleted.`
                         : `"${name}" will be permanently deleted.`,
                     okText: "Delete",
                     okButtonProps: {danger: true},
@@ -143,8 +122,7 @@ export function useDriveWrites(drive: SessionDriveData) {
         [run, projectId],
     )
 
-    /** The root and the `agent-files/` fold point are mount roots — deleting one would empty the
-     * whole mount, so they never offer Delete. */
+    /** Mount roots (the root, `agent-files/`) never offer Delete. */
     const canDelete = useCallback(
         (presentedPath: string) => presentedPath !== "" && presentedPath !== AGENT_FILES_DIR,
         [],

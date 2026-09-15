@@ -186,10 +186,7 @@ export function CommandPalettePlugin({palettes, anchorRef, disabled}: CommandPal
      * `as: "code"` writes an inline-code node rather than literal backticks: `$convertToMarkdownString`
      * escapes a typed backtick in unformatted text, so a path written as plain text would ship as
      * `\`a/b.md\`` and never resolve to a file chip.
-     *
-     * `keepOpen` writes `text` with no separator after it and the caret flush against it, so the
-     * result is still a run: a drill-in rewrites the run to the bare trigger and the menu must
-     * survive that. A separator there would end the run and close the menu it meant to keep.
+     * `keepOpen` writes no separator, so the result is still a run (a drill-in's bare trigger).
      */
     const replaceRun = useCallback(
         (text: string, as: PaletteInsertAs = "text", keepOpen = false) => {
@@ -259,8 +256,7 @@ export function CommandPalettePlugin({palettes, anchorRef, disabled}: CommandPal
             item.onDrillIn()
             // Entering a level clears what was typed, so the new level lists rather than filters.
             // Rewriting the run to the bare trigger leaves `start` where it was, so the dismissal
-            // latch still names the same run. A run that is already bare is left alone: a no-op
-            // rewrite still reconciles the node, and the caret does not reliably survive that.
+            // latch still names the same run; an already-bare run is left alone (the caret).
             if (active && run?.query) replaceRun(active.trigger, "text", true)
             setActiveIndex(0)
         },

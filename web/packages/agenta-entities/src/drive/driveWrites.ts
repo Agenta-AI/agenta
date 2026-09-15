@@ -1,12 +1,7 @@
 /**
- * Drive WRITES — the transport behind the Files pane's create / save / rename / duplicate /
- * delete. Folder creation and deletion go through the Fern mounts client; a text save reuses the
- * upload endpoint ({@link uploadMountFile} → `write_file`, which overwrites), and the file-only
- * rename / duplicate compose bytes-out → upload → delete because the backend has no move
- * endpoint (folders are therefore not renameable from here).
- *
- * Every write ends with {@link refreshMountListing} so the open directory, the recents summary
- * and the file bodies refetch through the host's query client.
+ * The transport behind the Files pane's writes. Create / delete use the Fern mounts client; a
+ * text save is an upload (`write_file` overwrites); rename / duplicate are read → upload → delete
+ * because the backend has no move endpoint (so folders can't be renamed here).
  */
 import {getMountsClient} from "@agenta/sdk/resources"
 import {type QueryClient} from "@tanstack/react-query"
@@ -14,12 +9,17 @@ import {type QueryClient} from "@tanstack/react-query"
 import {type Mount, projectScopedRequest} from "@agenta/entities/session"
 
 import {fetchMountFileBlob, uploadMountFile} from "./driveMedia"
-import {parentOf} from "./driveTreeView"
+import {nameOf, parentOf} from "./driveTreeView"
 
-/** Prefix-match every mount file-query root for the project (dir listing, root, latest, summary,
- * bodies) — the one refresh every drive write (upload, save, delete, …) ends with. */
-export const refreshMountListing = (queryClient: QueryClient, projectId: string): void => {
-    for (const root of ["files", "files-latest", "files-root", "files-dir", "file"]) {
+/** Invalidate the project's mount listings (and, unless `contents` is off, the file bodies). */
+export const refreshMountListing = (
+    queryClient: QueryClient,
+    projectId: string,
+    {contents = true}: {contents?: boolean} = {},
+): void => {
+    const roots = ["files", "files-latest", "files-root", "files-dir"]
+    if (contents) roots.push("file")
+    for (const root of roots) {
         void queryClient.invalidateQueries({queryKey: ["mounts", root, projectId]})
     }
 }
@@ -73,7 +73,7 @@ export async function saveMountText({
     projectId,
     text,
 }: DriveWriteTarget & {text: string}) {
-    const name = path.split("/").pop() ?? path
+    const name = nameOf(path)
     try {
         await uploadMountFile({
             mountId: mount.id,
@@ -97,7 +97,7 @@ export async function copyMountFile({
 }: DriveWriteTarget & {toPath: string; removeSource: boolean}) {
     const blob = await fetchMountFileBlob({mountId: mount.id, projectId, path})
     if (!blob) throw new Error("Couldn't read the file")
-    const name = toPath.split("/").pop() ?? toPath
+    const name = nameOf(toPath)
     try {
         await uploadMountFile({
             mountId: mount.id,

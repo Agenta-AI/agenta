@@ -1,8 +1,4 @@
-/**
- * Folder-content ordering for the grid and list views. Folders always come first (the tree's
- * rule); within each group the sort key applies. Folders carry no mtime and their size is not
- * meaningful, so under "modified" / "size" they keep name order.
- */
+/** Folder-content order: folders first (by name), then files by the sort key. */
 import {compareFoldersFirstByName, type DriveTreeNode} from "./driveTree"
 import {type DriveSortKey} from "./useDriveFilters"
 

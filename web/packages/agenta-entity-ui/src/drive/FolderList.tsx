@@ -1,13 +1,14 @@
-/**
- * FolderList — the Files pane's list view: the shared {@link ListTable} (the same frame the
- * sessions and automations lists use) over a folder's immediate children. Columns: type mark ·
- * Name · Type · Size · Modified · download. Rows open on click and carry the item context menu
- * through `wrapRow`.
- */
+/** The Files pane's list view: the shared {@link ListTable} over a folder's children. */
 import {useCallback, useMemo} from "react"
 
-import {type DriveTreeNode, fileTypeLabel, humanSize, relativeTime} from "@agenta/entities/drive"
-import {isHiddenPath} from "@agenta/entities/drive"
+import {
+    type DriveTreeNode,
+    fileTypeLabel,
+    humanSize,
+    isHiddenPath,
+    itemCountLabel,
+    relativeTime,
+} from "@agenta/entities/drive"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
@@ -42,7 +43,6 @@ export const FolderList = ({
     const renderRow = useCallback(
         (n: DriveTreeNode) => {
             const hidden = isHiddenPath(n.path)
-            const count = n.itemCount ?? n.children.length
             return (
                 <>
                     <span className="flex min-w-0 items-center gap-2">
@@ -64,7 +64,9 @@ export const FolderList = ({
                         {n.isFolder ? "Folder" : fileTypeLabel(n.path)}
                     </span>
                     <span className="text-xs tabular-nums text-colorTextSecondary">
-                        {n.isFolder ? `${count} item${count === 1 ? "" : "s"}` : humanSize(n.size)}
+                        {n.isFolder
+                            ? itemCountLabel(n.itemCount ?? n.children.length)
+                            : humanSize(n.size)}
                     </span>
                     <span className="text-xs text-colorTextSecondary">
                         {n.modifiedAt ? relativeTime(n.modifiedAt) : "—"}
@@ -103,8 +105,7 @@ export const FolderList = ({
         [onCopyPath, onDownload, onOpen, writes],
     )
     return (
-        // The top inset sits OUTSIDE the scroller: on the scroller itself it would be a strip above
-        // the sticky header that rows scroll through.
+        // The top inset sits outside the scroller so rows don't scroll through it.
         <div className="flex min-h-0 flex-1 flex-col pt-2">
             <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
                 <ListTable

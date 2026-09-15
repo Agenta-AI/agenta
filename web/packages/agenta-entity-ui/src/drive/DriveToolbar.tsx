@@ -1,15 +1,6 @@
 /**
- * DriveToolbar — row 2 of the Files pane ("what can I do with what I'm looking at"), in the
- * content column under row 1 ({@link DriveHeader}). Its contents follow the selection:
- *
- *   folder   — grid / list · Sort ▾ · ⋯ (New folder · New file · Upload files… · Copy path ·
- *              Download all)
- *   markdown — the formatting bar (portalled in by the editor) · Revert / Save while dirty ·
- *              save status · the Markdown / Plain text mode dropdown · ⋯ (Rename · Duplicate · Delete)
- *   other    — the type mark + the file name, renamed in place · save status while a code draft
- *              is open · ⋯ (the same file actions)
- *
- * Pure presentation; every value comes from DriveExplorer's hooks.
+ * Row 2 of the Files pane, following the selection: a folder (grid / list · sort · ⋯), a markdown
+ * file (formatting bar · save status · mode · ⋯) or any other file (name · save status · ⋯).
  */
 import {type ReactNode} from "react"
 
@@ -56,11 +47,8 @@ import {ROW_ICON_BTN} from "./DriveHeader"
 import {DriveInlineName} from "./DriveInlineName"
 import {SelectedMark} from "./DriveMenuMark"
 
-/** Row 2's text buttons (Sort ▾, Revert, the mode dropdown): the kit's ghost sm, muted until hover. */
-const SEG_TRIGGER = "h-full rounded-[5px] px-1.5 py-0"
+/** Row 2's text buttons: the kit's ghost sm, muted until hover. */
 const ROW_TEXT_BTN = "h-[26px] gap-1 px-2 text-xs text-colorTextSecondary hover:text-colorText"
-
-/** The chosen entry of a single-choice menu — a check on the RIGHT, no radio dot. */
 
 const SORT_LABELS: Record<DriveSortKey, string> = {
     name: "Name",
@@ -86,7 +74,26 @@ export interface ToolbarMode {
     onChange: (value: string) => void
 }
 
-/** The mode dropdown: the current option as a text button, the options with the check on the right. */
+/** An icon-only pill at the row's 26px control height (icons carry `size-3.5`, the trigger's default is 16px). */
+const IconPill = ({value, options, onChange}: ToolbarMode) => (
+    <Tabs value={value} onValueChange={onChange}>
+        <TabsList variant="pill" aria-label="View" className="h-[26px] rounded-md p-0.5">
+            {options.map((o) => (
+                <TabsTrigger
+                    key={o.value}
+                    value={o.value}
+                    aria-label={o.label}
+                    title={o.label}
+                    className="h-full rounded-[5px] px-1.5 py-0"
+                >
+                    {o.icon}
+                </TabsTrigger>
+            ))}
+        </TabsList>
+    </Tabs>
+)
+
+/** The mode dropdown: the current option as its trigger, a check on the chosen item. */
 const ModeMenu = ({value, options, onChange}: ToolbarMode) => {
     const current = options.find((o) => o.value === value) ?? options[0]
     return (
@@ -117,22 +124,22 @@ const ModeMenu = ({value, options, onChange}: ToolbarMode) => {
     )
 }
 
-/** The actions a FILE offers (rename / duplicate / delete) — absent = read-only mount. */
+/** A file's write actions; absent on a read-only mount. */
 export interface DriveFileActions {
     onRename: () => void
-    /** The in-place rename (row 2's name): the new name, resolving true once it landed. */
+    /** The in-place rename; resolves true once it landed. */
     renameTo: (name: string) => Promise<boolean>
-    /** A reason a new name can't be used here, or null. */
+    /** A reason a name can't be used, or null. */
     validateName: (name: string) => string | null
     onDuplicate: () => void
     onDelete: () => void
 }
 
-/** The actions a FOLDER offers — absent = read-only mount. */
+/** A folder's write actions; absent on a read-only mount. */
 export interface DriveFolderActions {
     onNewFolder: () => void
     onNewFile: () => void
-    /** Pick files — or, with files staged from a drop elsewhere, write those here. */
+    /** Pick files, or write the staged ones here. */
     onUpload: () => void
     stagedCount?: number
 }
@@ -166,19 +173,18 @@ export type DriveToolbarProps =
           variant: "other"
           path: string
           actions?: DriveFileActions
-          /** Present while the file is open in the code editor: its draft state. */
+          /** The draft state while the file is open in the code editor. */
           draft?: {status: DriveSaveStatus; onRetry: () => void}
-          /** A muted line after the name — why the file isn't editable, say. */
+          /** A muted line after the name. */
           note?: string
-          /** A view switch (HTML: Source / Preview) — an icon-only pill beside the ⋯. */
+          /** A view switch (HTML: Source / Preview). */
           mode?: ToolbarMode
           onCopyPath?: () => void
           onDownload?: () => void
       }
 
-/** The draft's save state — Saving… / Saved as it happens; a failed write offers Retry. */
+/** Saving… / Saved as it happens; a failed write offers Retry; pending edits say nothing. */
 const DraftStatus = ({status, onRetry}: {status: DriveSaveStatus; onRetry: () => void}) => {
-    // Pending edits say nothing — the write follows within a moment and narrates itself.
     if (status === "clean" || status === "pending") return null
     if (status === "error")
         return (
@@ -204,7 +210,7 @@ const FileActionsMenu = ({
     onDownload,
 }: {
     actions?: DriveFileActions
-    /** Read-side actions — offered on a read-only mount too. */
+    /** Read-side actions, offered on a read-only mount too. */
     onCopyPath?: () => void
     onDownload?: () => void
 }) => (
@@ -251,7 +257,7 @@ const FileActionsMenu = ({
     </DropdownMenu>
 )
 
-/** The shared row frame — 36px, one bottom hairline (the rail's search header shares it). */
+/** The 36px row frame with the hairline the rail's search header shares. */
 const Row = ({children}: {children: ReactNode}) => (
     <div className="flex h-9 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2.5">
         {children}
@@ -264,32 +270,14 @@ export function DriveToolbar(props: DriveToolbarProps) {
             props
         return (
             <Row>
-                <Tabs value={view} onValueChange={(v) => setView(v as DriveViewMode)}>
-                    {/* The kit pill at the row's own 26px control height (the design's 2px-padded
-                        segmented). `size-3.5`: the trigger sizes an unclassed svg to 16px. */}
-                    <TabsList
-                        variant="pill"
-                        aria-label="View"
-                        className="h-[26px] rounded-md p-0.5"
-                    >
-                        <TabsTrigger
-                            value="grid"
-                            aria-label="Grid"
-                            title="Grid"
-                            className={SEG_TRIGGER}
-                        >
-                            <SquaresFour className="size-3.5" />
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="list"
-                            aria-label="List"
-                            title="List"
-                            className={SEG_TRIGGER}
-                        >
-                            <ListBullets className="size-3.5" />
-                        </TabsTrigger>
-                    </TabsList>
-                </Tabs>
+                <IconPill
+                    value={view}
+                    onChange={(v) => setView(v as DriveViewMode)}
+                    options={[
+                        {value: "grid", label: "Grid", icon: <SquaresFour className="size-3.5" />},
+                        {value: "list", label: "List", icon: <ListBullets className="size-3.5" />},
+                    ]}
+                />
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button
@@ -338,7 +326,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         <DropdownMenuItem disabled={!actions} onSelect={actions?.onUpload}>
                             <UploadSimple />
                             {actions?.stagedCount
-                                ? `Upload ${actions.stagedCount} staged file${actions.stagedCount === 1 ? "" : "s"} here`
+                                ? `Upload ${actions.stagedCount} staged ${actions.stagedCount === 1 ? "file" : "files"} here`
                                 : "Upload files…"}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -365,8 +353,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
         const rendered = mode === "rendered"
         return (
             <Row>
-                {/* The editor portals its formatting bar here in rendered mode; in source mode the
-                    slot stays mounted (empty) so the portal target never flips. */}
+                {/* The portal slot stays mounted in source mode so its target never flips. */}
                 <div
                     ref={toolbarRef}
                     className={`flex min-w-0 shrink items-center overflow-hidden ${rendered ? "" : "hidden"}`}
@@ -408,27 +395,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
             ) : null}
             <span className="flex-1" />
             {draft ? <DraftStatus {...draft} /> : null}
-            {mode ? (
-                <Tabs value={mode.value} onValueChange={mode.onChange}>
-                    <TabsList
-                        variant="pill"
-                        aria-label="View"
-                        className="h-[26px] rounded-md p-0.5"
-                    >
-                        {mode.options.map((o) => (
-                            <TabsTrigger
-                                key={o.value}
-                                value={o.value}
-                                aria-label={o.label}
-                                title={o.label}
-                                className={SEG_TRIGGER}
-                            >
-                                {o.icon}
-                            </TabsTrigger>
-                        ))}
-                    </TabsList>
-                </Tabs>
-            ) : null}
+            {mode ? <IconPill {...mode} /> : null}
             <FileActionsMenu actions={actions} onCopyPath={onCopyPath} onDownload={onDownload} />
         </Row>
     )

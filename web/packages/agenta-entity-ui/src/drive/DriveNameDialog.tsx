@@ -1,10 +1,7 @@
-/**
- * DriveNameDialog — the one prompt behind New folder / New file / Rename / Duplicate: a name
- * with the validation the mount needs — no
- * empty names, no `/` inside a name, no `..`, no clash with a sibling. Submit on Enter.
- */
+/** The one name prompt behind New folder / New file / Rename / Duplicate. */
 import {type FormEvent, useEffect, useMemo, useState} from "react"
 
+import {nameOf} from "@agenta/entities/drive"
 import {
     Button,
     Dialog,
@@ -21,9 +18,9 @@ export type DriveNameDialogKind = "new-folder" | "new-file" | "rename" | "duplic
 
 export interface DriveNameDialogRequest {
     kind: DriveNameDialogKind
-    /** The item being renamed / duplicated (presented path); the folder for new items. */
+    /** The item (rename / duplicate) or the folder (new items). */
     path: string
-    /** Sibling names in the target folder — the clash check. */
+    /** Sibling names in the target folder. */
     siblings: string[]
 }
 
@@ -47,25 +44,19 @@ const COPY: Record<
     },
 }
 
-const nameOf = (path: string) => path.split("/").pop() ?? path
-
 /** "article.md" → "article copy.md"; "notes" → "notes copy". */
 const copyName = (name: string) => {
     const dot = name.lastIndexOf(".")
     return dot > 0 ? `${name.slice(0, dot)} copy${name.slice(dot)}` : `${name} copy`
 }
 
-/** Why `value` can't be the name for this request — or null when it can. */
-export const validateDriveName = (
-    kind: DriveNameDialogKind,
-    value: string,
-    req: DriveNameDialogRequest,
-) => {
+/** Why `value` can't be used, or null. */
+export const validateDriveName = (value: string, req: DriveNameDialogRequest) => {
     const v = value.trim()
     if (!v) return "Enter a name"
     if (v.includes("/")) return "A name can't contain “/”"
     if (v === "." || v === "..") return "That name isn't allowed"
-    if (v === nameOf(req.path) && (kind === "rename" || kind === "duplicate"))
+    if (v === nameOf(req.path) && (req.kind === "rename" || req.kind === "duplicate"))
         return "Choose a different name"
     if (req.siblings.includes(v)) return "Something with that name already exists here"
     return null
@@ -84,8 +75,6 @@ export const DriveNameDialog = ({
 }) => {
     const [value, setValue] = useState("")
     const [touched, setTouched] = useState(false)
-    // Seed per request: the current name for rename, "<name> copy" for duplicate, empty for new
-    // items.
     useEffect(() => {
         if (!request) return
         setTouched(false)
@@ -98,7 +87,7 @@ export const DriveNameDialog = ({
         )
     }, [request])
     const error = useMemo(
-        () => (request ? validateDriveName(request.kind, value, request) : null),
+        () => (request ? validateDriveName(value, request) : null),
         [request, value],
     )
     const copy = request ? COPY[request.kind] : null
@@ -106,7 +95,7 @@ export const DriveNameDialog = ({
         e?.preventDefault()
         setTouched(true)
         if (!request || error || busy) return
-        onSubmit(request, value.trim().replace(/^\/+|\/+$/g, ""))
+        onSubmit(request, value.trim())
     }
     return (
         <Dialog open={request !== null} onOpenChange={(open) => (!open ? onClose() : undefined)}>

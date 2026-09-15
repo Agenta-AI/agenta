@@ -12,7 +12,7 @@
  */
 import {useCallback, useEffect, useMemo, useReducer, useState, type ReactNode} from "react"
 
-import {cleanPath} from "@agenta/entities/drive"
+import {cleanPath, parentOf} from "@agenta/entities/drive"
 import {AGENT_FILES_DIR, type SessionDriveData} from "@agenta/entities/drive"
 import {mountDirQueryFamily, mountFilesQueryFamily, type MountFile} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
@@ -99,21 +99,16 @@ export function useLazyDriveTree(
         (path: string, files: MountFile[] | null, fetching: boolean) => {
             let changed = false
             if (files) {
-                // A folder's own listing carries a row for the folder itself; its PARENT's listing
-                // is what says the folder exists (the backend answers a listing for a deleted
-                // folder with that self row too), so the self row is dropped here.
+                // Drop the folder's self row: only its parent's listing says it exists.
                 const own = path ? files.filter((f) => cleanPath(f.path) !== path) : files
                 dirFilesRef.map.set(path, own)
-                // A subfolder this listing no longer names was deleted (or moved): drop its own
-                // entry and everything under it, or its old rows would linger in the tree.
+                // A subfolder this listing no longer names is gone, with everything under it.
                 const listed = new Set(own.map((f) => cleanPath(f.path)))
-                for (const key of [...dirFilesRef.map.keys()]) {
-                    if (!key || key === path) continue
-                    const parent = key.slice(0, Math.max(0, key.lastIndexOf("/")))
-                    if (parent !== path || listed.has(key)) continue
-                    for (const k of [...dirFilesRef.map.keys()])
-                        if (k === key || k.startsWith(`${key}/`)) dirFilesRef.map.delete(k)
-                }
+                const keys = [...dirFilesRef.map.keys()]
+                const gone = keys.filter((k) => k && parentOf(k) === path && !listed.has(k))
+                for (const k of keys)
+                    if (gone.some((g) => k === g || k.startsWith(`${g}/`)))
+                        dirFilesRef.map.delete(k)
                 changed = true
             }
             setFetching(path, fetching)

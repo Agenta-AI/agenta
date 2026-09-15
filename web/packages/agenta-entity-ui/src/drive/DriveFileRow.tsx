@@ -162,7 +162,7 @@ export const DriveFileRow = ({
     /** card: draw the kind icon instead of fetching a content thumbnail — for the always-mounted
      * summary surfaces, so they don't read every recent file just to preview it. */
     staticThumb?: boolean
-    /** row: the compact phosphor glyph (chat rail), or the Files pane's typed page mark + folder. */
+    /** row: the compact phosphor glyph, or the Files pane's typed mark. */
     mark?: "glyph" | "typed"
     /** Loading placeholder: same shell (dimensions/padding/border) as a real row of this variant, with
      * shimmer bars instead of content — so skeleton→real is a content swap with zero layout shift.

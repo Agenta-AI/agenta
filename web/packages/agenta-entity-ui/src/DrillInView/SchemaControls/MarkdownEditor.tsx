@@ -64,10 +64,9 @@ export interface MarkdownEditorProps {
     filename?: string
     /** Show a formatting toolbar (heading/bold/italic/lists/link/code/quote) above the editor. */
     showToolbar?: boolean
-    /** Portal the toolbar into a host-owned element (a chrome row above the editor) instead of
-     * rendering its own row. The toolbar keeps the editor's composer context through the portal. */
+    /** Portal the toolbar into a host-owned element instead of rendering its own row. */
     toolbarContainer?: HTMLElement | null
-    /** Passed to `MarkdownToolbar` — `inline` for the compact H1/H2/H3 bar. */
+    /** `inline` for the compact H1/H2/H3 bar. */
     toolbarLayout?: "default" | "inline"
     /** Initial view when uncontrolled. @default "source" */
     defaultView?: MarkdownView
@@ -237,8 +236,7 @@ export function MarkdownEditor({
     const toolbarControls = (
         <MarkdownToolbar disabled={editorDisabled || markdownView} layout={toolbarLayout} />
     )
-    // `null` = the host owns the slot but has not mounted it yet: render nothing rather than
-    // flashing the inline row for a frame. `undefined` = no slot, the inline row is ours.
+    // `null` = the host's slot isn't mounted yet (render nothing); `undefined` = no slot.
     const toolbar =
         toolbarContainer !== undefined ? (
             toolbarContainer ? (

@@ -94,6 +94,13 @@ export const parentOf = (path: string): string => {
     return i < 0 ? "" : path.slice(0, i)
 }
 
+/** The leaf name of a path. */
+export const nameOf = (path: string): string => path.slice(path.lastIndexOf("/") + 1)
+
+/** `folder/name`, or just `name` at the root. */
+export const joinPath = (folder: string, name: string): string =>
+    folder ? `${folder}/${name}` : name
+
 /** Every folder path in the tree, depth-first — the "expand all" target set. */
 export const collectFolderPaths = (nodes: DriveTreeNode[]): string[] =>
     nodes.flatMap((n) => (n.isFolder ? [n.path, ...collectFolderPaths(n.children)] : []))

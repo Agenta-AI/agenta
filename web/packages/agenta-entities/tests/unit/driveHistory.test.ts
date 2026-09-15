@@ -4,6 +4,7 @@ import {
     canGoBack,
     canGoForward,
     currentDriveHistoryPath,
+    DRIVE_HISTORY_MAX,
     EMPTY_DRIVE_HISTORY,
     pushDriveHistory,
     replaceDriveHistory,
@@ -55,5 +56,13 @@ describe("driveHistory", () => {
         expect(h.entries).toEqual(["a.md", "c.md"])
         expect(h.index).toBe(1)
         expect(replaceDriveHistory(EMPTY_DRIVE_HISTORY, "x").entries).toEqual(["x"])
+    })
+
+    it("caps the stack at DRIVE_HISTORY_MAX, dropping the oldest entries", () => {
+        let h = EMPTY_DRIVE_HISTORY
+        for (let i = 0; i < DRIVE_HISTORY_MAX + 10; i++) h = pushDriveHistory(h, `f${i}`)
+        expect(h.entries).toHaveLength(DRIVE_HISTORY_MAX)
+        expect(h.entries[0]).toBe("f10")
+        expect(currentDriveHistoryPath(h)).toBe(`f${DRIVE_HISTORY_MAX + 9}`)
     })
 })

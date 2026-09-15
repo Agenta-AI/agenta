@@ -160,11 +160,7 @@ export interface ChatMarkdownProps {
     streaming?: boolean
     /** Without it, code spans and relative links render plain. */
     useLinkResolver?: UseChatMarkdownLinkResolver
-    /**
-     * Streamdown's control glyphs (the fence's copy / copied pair, chiefly). Module-scope on the
-     * host, so the identity is stable across streamed tokens; a host may render a label beside
-     * the glyph here, since the copy button itself never does.
-     */
+    /** Streamdown's control glyphs (the fence's copy / copied pair); keep at module scope on the host. */
     icons?: Partial<IconMap>
 }
 

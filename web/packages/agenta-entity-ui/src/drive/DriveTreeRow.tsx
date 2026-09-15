@@ -9,7 +9,7 @@ import {FOCUS_RING} from "./DriveFileRow"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 import {OriginTag} from "./OriginTag"
 
-/** Row geometry shared with the loading placeholder: 28px tall, indent 6 + depth × 12. */
+/** Indent shared with the loading placeholder. */
 const ROW_INDENT = (depth: number) => 6 + depth * 12
 
 /** One tree row (folder or file), indented by depth; selection = fill + primary ring. Renders a

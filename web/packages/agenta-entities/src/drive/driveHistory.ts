@@ -1,8 +1,4 @@
-/**
- * The explorer's back / forward stack — pure, so the selection hook stays thin and the rules are
- * unit-testable: a new selection drops any forward entries (browser semantics), re-selecting the
- * current entry is a no-op, and stepping never leaves the stack.
- */
+/** The explorer's back / forward stack (pure, browser semantics: a push drops forward entries). */
 export interface DriveHistory {
     entries: string[]
     /** Index of the current entry; -1 while nothing has been selected. */
@@ -11,9 +7,13 @@ export interface DriveHistory {
 
 export const EMPTY_DRIVE_HISTORY: DriveHistory = {entries: [], index: -1}
 
+/** Entries kept; older ones drop off. */
+export const DRIVE_HISTORY_MAX = 100
+
 export const pushDriveHistory = (h: DriveHistory, path: string): DriveHistory => {
     if (h.index >= 0 && h.entries[h.index] === path) return h
-    return {entries: [...h.entries.slice(0, h.index + 1), path], index: h.index + 1}
+    const entries = [...h.entries.slice(0, h.index + 1), path].slice(-DRIVE_HISTORY_MAX)
+    return {entries, index: entries.length - 1}
 }
 
 /** Replace the current entry (a rename / move keeps its place in the stack). */

@@ -1,9 +1,6 @@
 /**
- * DriveHeader — row 1 of the Files pane ("where am I"), spanning the content column AND the tree
- * rail: ‹ › history · the icon breadcrumb · the view-options menu (temporary / hidden /
- * git-ignored files, plus the inspector's ids) · the tree toggle · and, for a host that owns no
- * toggle of its own, the close ("×" overlay / "»" docked). Every action on the current path
- * (download, upload, copy path, the writes) lives in row 2's `⋯` — {@link DriveToolbar}.
+ * Row 1 of the Files pane, spanning content and rail: ‹ › · the icon breadcrumb · view options ·
+ * the tree toggle · an optional close. Actions on the path live in row 2 ({@link DriveToolbar}).
  */
 import {type DriveId} from "@agenta/entities/drive"
 import {shortcutAria} from "@agenta/shared/utils"
@@ -38,7 +35,7 @@ import {DriveBreadcrumb} from "./DriveBreadcrumb"
 import {DriveRetryButton} from "./DriveFileRow"
 import {SelectedMark} from "./DriveMenuMark"
 
-/** The quiet icon button every chrome control is: the kit's ghost icon-sm, muted until hover. */
+/** The chrome's icon button: the kit's ghost icon-sm, muted until hover. */
 export const ROW_ICON_BTN = "text-colorTextTertiary hover:text-colorText"
 const ROW_ICON_BTN_ON = "bg-accent text-colorText"
 
@@ -81,9 +78,9 @@ export const DriveHeader = ({
     onBack: () => void
     onForward: () => void
     copyText: (text: string, successMessage?: string) => void
-    /** Raw ids (drive / owner) for the inspector — empty when the inspector is off. */
+    /** Raw ids for the inspector; empty when it is off. */
     ids: DriveId[]
-    /** The drive mixes agent and session files — only then is "Show temporary files" offered. */
+    /** The drive mixes agent and session files, so "Show temporary files" applies. */
     showOrigin: boolean
     showTemporary: boolean
     onToggleTemporary: () => void
@@ -93,10 +90,10 @@ export const DriveHeader = ({
     showGitignored: boolean
     onToggleGitignored: () => void
     treeVisible: boolean
-    /** A search forces the rail (its rows are the results), so the toggle is disabled. */
+    /** A search forces the rail, so the toggle is disabled. */
     searchActive: boolean
     onToggleTree: () => void
-    /** Present for hosts whose close lives in this row (overlay "×", desktop docked "»"). */
+    /** For hosts whose close lives in this row. */
     onClose?: () => void
     closeVariant?: "close" | "collapse"
     expanded?: boolean
@@ -106,8 +103,7 @@ export const DriveHeader = ({
     retrying?: boolean
 }) => {
     return (
-        // Pinned to the session bar's height + border token so its bottom border continues the
-        // bar's line across the divider.
+        // The session bar's height and border token, so its line continues across the divider.
         <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
             {onClose && closeVariant === "close" ? (
                 <Tooltip title="Close">
@@ -132,7 +128,7 @@ export const DriveHeader = ({
                         onClick={onToggleExpand}
                         className={ROW_ICON_BTN}
                     >
-                        expanded ? <ArrowsIn size={15} /> : <ArrowsOut size={15} />
+                        {expanded ? <ArrowsIn size={15} /> : <ArrowsOut size={15} />}
                     </Button>
                 </Tooltip>
             ) : null}
@@ -158,8 +154,7 @@ export const DriveHeader = ({
             >
                 <CaretRight size={15} weight="bold" />
             </Button>
-            {/* The crumb takes the row's slack (the controls to its right are shrink-0) and scrolls
-                sideways once a deep path outgrows it. */}
+            {/* The crumb takes the row's slack and scrolls sideways when a deep path outgrows it. */}
             <div className="ml-1 flex min-w-0 flex-1 items-center">
                 <DriveBreadcrumb
                     variant="icons"
@@ -169,8 +164,7 @@ export const DriveHeader = ({
                     onNavigate={onNavigate}
                 />
             </div>
-            {/* A mount failed but the drive still browses — a compact warning + retry in the row's
-                slack. Tooltip carries the full message so the inline footprint stays "⚠ Try again". */}
+            {/* One mount failed but the drive still browses: a compact warning + retry. */}
             {partialErrored && onRetry ? (
                 <Tooltip title="Some files couldn’t be loaded">
                     <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
@@ -196,9 +190,7 @@ export const DriveHeader = ({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[220px]">
-                    {/* Plain items with the check on the right (as the sort menu), not the kit's
-                        checkbox items whose left indicator indents every label. `preventDefault`
-                        keeps the menu open across toggles. */}
+                    {/* Plain items with a right-side check; `preventDefault` keeps the menu open. */}
                     {showOrigin ? (
                         <DropdownMenuItem
                             role="menuitemcheckbox"

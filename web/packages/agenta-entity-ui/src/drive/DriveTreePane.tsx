@@ -27,10 +27,9 @@ export function DriveTreePane({
     treeDropProps?: ReturnType<DriveDrop["containerDropProps"]>
     /** The tree's virtualized rows (see DriveTreeList) — a slot, so this module stays pure geometry. */
     rows: ReactNode
-    /** The rail's own header (the search field), pinned above the rows at the same height as the
-     * content header so the two share one hairline. */
+    /** The rail's header (the search field), at row 2's height so they share one hairline. */
     railHeader?: ReactNode
-    /** Row 2 — the context toolbar pinned above the content pane. */
+    /** Row 2, above the content pane. */
     contentHeader?: ReactNode
     /** The content pane: the folder grid or the file preview. */
     children: ReactNode
@@ -106,9 +105,7 @@ export function DriveTreePane({
                     />
                 </div>
             ) : null}
-            {/* The content column is the pane's reading surface (the design's white board; the rail
-                sits on the layout tone beside it) — also what the list view's sticky header,
-                which is `bg-background`, has to sit on so it doesn't read as a lighter strip. */}
+            {/* The content column is the reading surface; the rail sits on the layout tone. */}
             <div className="flex min-w-0 flex-1 flex-col bg-background">
                 {contentHeader}
                 {children}

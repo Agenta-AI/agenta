@@ -63,9 +63,9 @@ export function useDriveSelection({
         })
     }, [])
 
-    // Landing on the root is a DEFAULT, not a choice — only a real pick is worth restoring later.
+    // Only a real pick (not the root default) is worth restoring later.
     const chosenRef = useRef(false)
-    // Back / forward over every pick (tree, tile, breadcrumb, quick look) — the explorer's `‹ ›`.
+    // Back / forward over every pick.
     const [history, setHistory] = useState<DriveHistory>(() => {
         const init = initialPath ?? persistedSelection ?? null
         return init != null ? pushDriveHistory(EMPTY_DRIVE_HISTORY, init) : EMPTY_DRIVE_HISTORY
@@ -80,7 +80,7 @@ export function useDriveSelection({
         },
         [hasMount, setPersistedSelection],
     )
-    // A rename / move keeps its place in the stack rather than adding a step.
+    // A rename keeps its place in the stack.
     const replaceSelection = useCallback(
         (nextPath: string) => {
             chosenRef.current = true
@@ -90,8 +90,7 @@ export function useDriveSelection({
         },
         [hasMount, setPersistedSelection],
     )
-    // Mirror for the step callbacks: reading state inside a setter's updater would put a side
-    // effect (the selection write) in a function StrictMode runs twice.
+    // A ref for the step callbacks: a setter updater must not carry the selection write.
     const historyRef = useRef(history)
     historyRef.current = history
     const step = useCallback(

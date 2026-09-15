@@ -412,7 +412,7 @@ const HtmlBody = ({
     displayPath?: string
     /** Open another drive file (an internal link click resolves to its path). */
     onNavigate?: (path: string) => void
-    /** Just the rendered document, no Preview / Source switch — the host offers the source itself. */
+    /** Just the rendered document; the host offers the source itself. */
     previewOnly?: boolean
 }) => {
     const projectId = useAtomValue(projectIdAtom)
@@ -513,7 +513,7 @@ const HtmlBody = ({
     )
 }
 
-/** The rendered HTML document on its own — the Files pane's "Preview" mode for an editable file. */
+/** The rendered HTML document on its own (the Files pane's Preview mode). */
 export const DriveHtmlPreview = (props: {
     mount: Mount | null
     path: string
