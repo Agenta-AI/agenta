@@ -236,9 +236,10 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
                 logo={logo}
                 appLabel={appLabel}
                 yourTurn={
-                    display.icon === "ask" ||
-                    display.icon === "connect" ||
-                    display.icon === "secret"
+                    (state === "running" || state === "queued" || state === "awaiting") &&
+                    (display.icon === "ask" ||
+                        display.icon === "connect" ||
+                        display.icon === "secret")
                 }
             />
             <span
