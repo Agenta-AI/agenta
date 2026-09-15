@@ -2,6 +2,7 @@ import type {TurnViewModel} from "@agenta/chat/model"
 import {describe, expect, it} from "vitest"
 
 import {mergeAssistantRuns} from "@/features/chat/turnRuns"
+import {isFirstResponse} from "@/features/chat/turnStatus"
 
 const turn = (id: string, isUser: boolean, over: Partial<TurnViewModel> = {}): TurnViewModel =>
     ({
@@ -71,5 +72,16 @@ describe("mergeAssistantRuns", () => {
     it("leaves a lone assistant turn untouched, by identity", () => {
         const a = turn("a1", false)
         expect(mergeAssistantRuns([turn("u1", true), a])[1]).toBe(a)
+    })
+})
+
+describe("isFirstResponse", () => {
+    it("is true until a response exists, for the placeholder too", () => {
+        const u = {isUser: true}
+        const a = {isUser: false}
+        expect(isFirstResponse([u], 1)).toBe(true)
+        expect(isFirstResponse([u, a], 1)).toBe(true)
+        expect(isFirstResponse([u, a, u], 3)).toBe(false)
+        expect(isFirstResponse([u, a, u, a], 3)).toBe(false)
     })
 })

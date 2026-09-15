@@ -103,10 +103,13 @@ const RunErrorCallout = ({text, onRetry}: {text: string; onRetry?: () => void}) 
 export const PendingTurn = ({
     sessionId,
     runId,
+    firstTurn = false,
 }: {
     sessionId: string
     /** The run's clock key — the assistant turn that follows inherits it. */
     runId?: string
+    /** The session's first response: the one that narrates the agent's startup. */
+    firstTurn?: boolean
 }) => {
     return (
         <div className={`${turnRowClass} justify-start`}>
@@ -122,6 +125,7 @@ export const PendingTurn = ({
                         steps={[]}
                         streaming
                         answerStarted={false}
+                        firstTurn={firstTurn}
                     />
                 }
             />
@@ -159,6 +163,7 @@ const TurnRowInner = ({
     remoteRunning = false,
     waitingOnUser = false,
     runId,
+    firstTurn = false,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -176,6 +181,8 @@ const TurnRowInner = ({
     /** Keys the working clock to the run, not the message, so the clock the placeholder turn
      * started keeps counting once the real turn replaces it. */
     runId?: string
+    /** The session's first response: the one that narrates the agent's startup. */
+    firstTurn?: boolean
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
@@ -252,6 +259,7 @@ const TurnRowInner = ({
                 answerStarted={activity.answer !== null}
                 waitingOnUser={turn.isLast && waitingOnUser}
                 traceId={traceId}
+                firstTurn={firstTurn}
                 renderClientTool={renderClientTool}
             />
             {activity.answer ? (

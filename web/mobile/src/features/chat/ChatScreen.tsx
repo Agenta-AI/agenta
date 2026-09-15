@@ -25,7 +25,7 @@ import {SessionWorkspace} from "./SessionWorkspace"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
 import {PendingTurn, TurnRow} from "./TurnRow"
 import {mergeAssistantRuns} from "./turnRuns"
-import {runIdFor} from "./turnStatus"
+import {isFirstResponse, runIdFor} from "./turnStatus"
 import {useAgentEntity} from "./useAgentEntity"
 import {useApprovalActions} from "./useApprovalActions"
 import {useReferenceToolDisplays} from "./useReferenceToolDisplays"
@@ -216,12 +216,14 @@ const ReplayScreen = ({
                         remoteRunning={running}
                         waitingOnUser={pendingCount > 0}
                         runId={runIdFor(visibleTurns, i)}
+                        firstTurn={isFirstResponse(visibleTurns, i)}
                     />
                 ))}
                 {running && visibleTurns[visibleTurns.length - 1]?.isUser ? (
                     <PendingTurn
                         sessionId={sessionId}
                         runId={runIdFor(visibleTurns, visibleTurns.length)}
+                        firstTurn={isFirstResponse(visibleTurns, visibleTurns.length)}
                     />
                 ) : null}
             </ContentRail>
