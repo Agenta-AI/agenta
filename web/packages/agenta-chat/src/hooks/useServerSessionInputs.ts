@@ -165,7 +165,7 @@ export const readRunAdmission = async (
             if (accepted) continue
             accepted = true
             watcher?.onAccepted?.(frame.executionId)
-            return "accepted"
+            // The chunk may carry a status frame right behind the acceptance; keep going.
         }
         return null
     }
