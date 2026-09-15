@@ -66,8 +66,7 @@ const stateOf = (part: ToolUIPart): ActivityState => {
 
 const basename = (path: string): string => path.split("/").filter(Boolean).pop() ?? path
 
-/** The verb, then the object set apart: "Read **ApprovalDock.tsx**". The detail (a filename, a
- * command) stands in for the generic object when the call has one. */
+/** The verb, then the object set apart: "Read **ApprovalDock.tsx**"; a detail replaces the object. */
 const Sentence = ({
     part,
     display,
@@ -166,8 +165,7 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
     const errorText = (part as {errorText?: string}).errorText
     const rawState = part.state as string
 
-    // Presence, not truthiness: a legit `null` output is real, and a missing `output` key must not
-    // open an empty expander.
+    // Presence, not truthiness: a `null` output is real.
     const hasInput = input !== undefined
     const hasOutput = rawState === "output-available" && output !== undefined
     const hasNote = errorText !== undefined && state === "deferred"
@@ -267,10 +265,7 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
 })
 ActivityToolStepView.displayName = "ActivityToolStepView"
 
-/**
- * Re-resolve once the catalog names the app ("GitHub", not "Github") and hands over its logo.
- * Mounted only for rows with a `sourceKey`, so shell, file and platform steps subscribe to nothing.
- */
+/** Re-resolve once the catalog names the app and hands over its logo; only `sourceKey` rows mount it. */
 const CatalogToolStep = ({
     part,
     files,
@@ -307,8 +302,7 @@ export const ActivityToolStep = ({
     files: FileActivity[]
     live?: boolean
 }) => {
-    // A skin registered after this row mounted (the agent's own tools arrive with its config)
-    // has to reach rows already on screen.
+    // A skin registered after this row mounted has to reach it.
     const skinVersion = useSyncExternalStore(
         subscribeChatSkin,
         getChatSkinVersion,

@@ -14,11 +14,7 @@ import RevealCollapse from "../RevealCollapse"
 
 import {ActivityNode, LIVE_TEXT_CLASS, type ActivityState} from "./activityIcons"
 
-/**
- * A question on the timeline, in the same row shape as every other step: while open, that the
- * dock below is waiting on the reader; once settled, what they said. The form itself never
- * renders here.
- */
+/** A question on the timeline: what the dock below waits on, then what the reader said. */
 export const ActivityAnswersStep = ({part}: {part: ToolUIPart}) => {
     const [open, setOpen] = useState(false)
     const input = (part as {input?: unknown}).input

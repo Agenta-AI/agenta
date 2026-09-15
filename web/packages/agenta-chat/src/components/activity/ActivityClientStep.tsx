@@ -9,12 +9,6 @@ import {canonicalToolName, resolveToolDisplay} from "../../skin"
 import {ActivityAnswersStep} from "./ActivityAnswersStep"
 import {ActivityNode} from "./activityIcons"
 
-/**
- * A browser-fulfilled tool on the timeline: the node says what kind of ask it is (a question, a
- * connect), the host's widget beside it does the asking. It is the reader's move, so the node
- * wears the warning tint until the part settles — unless the ask names an app, whose logo is the
- * node, as on any gateway step. Each connect request is its own step, so several apps stack.
- */
 /** The node, with the app's own mark when the ask names one. Only that case mounts the lookup. */
 const AppNode = ({
     sourceKey,
@@ -40,8 +34,7 @@ export const ActivityClientStep = ({
     const name = partToolName(part)
     const display = resolveToolDisplay(name, (part as {input?: unknown}).input)
     const settled = (part.state as string).startsWith("output-")
-    // A question is a step of its own in every state: its widget is desktop chrome, and the form
-    // lives in the dock.
+    // A question's form lives in the dock; the step only says so.
     if (canonicalToolName(name) === "request_input") return <ActivityAnswersStep part={part} />
     const widget = render?.(part)
     return (

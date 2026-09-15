@@ -3,15 +3,7 @@ import type {ChatSkinRegistration, ToolDisplayEntry} from "./types"
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === "object" && value !== null && !Array.isArray(value)
 
-/**
- * What an agent's revision `parameters` teach the tool-display registry about its own tools.
- *
- * A reference tool runs under the name the user gave it (`list-devto-articles`), which carries no
- * provenance: the resolver reads it as a bare platform name and the row gets the platform glyph.
- * The config knows which app it fronts, so each entry maps that name to its integration — enough
- * for the row to wear the app's logo. Wording stays name-derived: "Checked devto articles" reads
- * better than anything conjugated from `LIST_USER_ALL_ARTICLES`.
- */
+// A reference tool runs under the user's name for it; the revision knows which app it fronts.
 const str = (value: unknown): string => (typeof value === "string" ? value.trim() : "")
 
 export const referenceToolSkin = (parameters: unknown): ChatSkinRegistration => {
@@ -29,8 +21,7 @@ export const referenceToolSkin = (parameters: unknown): ChatSkinRegistration => 
             toolDisplay[name] = {kind: "gateway", app: () => ({slug})}
             appHints.add(slug)
         }
-        // A whole-app connection only says which apps are around; a tool named after one of them
-        // (from an earlier config, or one the model coined) is read as that app's.
+        // A whole-app connection: a tool named after the app is read as its own.
         if (tool.type === "gateway_connection") {
             const slug = str(isRecord(tool.connection) ? tool.connection.integration : undefined)
             if (slug) appHints.add(slug)

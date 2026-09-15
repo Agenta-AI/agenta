@@ -35,8 +35,7 @@ export interface ServerInputWatcher {
      * not arrived by now it never will, so the echo stops waiting silently.
      */
     onSettled?: () => void
-    /** The runner narrated a startup phase (#6047) — what it is doing while the environment
-     * boots. The shared reader never carries these frames; the run stream is their only source. */
+    /** The runner narrated a startup phase (#6047); the run stream is their only source. */
     onStartupPhase?: (label: string) => void
 }
 
@@ -162,8 +161,7 @@ export const readRunAdmission = async (
         for (;;) {
             const {done, value} = await reader.read()
             if (done) break
-            // Past acceptance the stream is still scanned: the startup phases arrive after it,
-            // and they are the only thing left to read here.
+            // Still scanned past acceptance: the startup phases arrive after it.
             if (scan(decoder.decode(value, {stream: true})) === "error") {
                 watcher?.onFailed?.()
                 await reader.cancel().catch(() => undefined)

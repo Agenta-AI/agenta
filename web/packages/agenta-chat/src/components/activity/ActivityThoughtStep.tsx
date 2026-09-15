@@ -13,10 +13,7 @@ const LiveText = ({text, urgent}: {text: string; urgent?: boolean}) => {
     return <>{revealed}</>
 }
 
-/**
- * A thought on the timeline, shaped like a tool row: its first line beside the brain node, the
- * whole of it a tap away — the same gesture that opens a tool's input and result.
- */
+/** A thought on the timeline, shaped like a tool row: first line beside the node, the rest a tap away. */
 export const ActivityThoughtStep = ({
     text,
     streaming,

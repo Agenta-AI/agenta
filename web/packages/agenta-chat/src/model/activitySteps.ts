@@ -6,14 +6,7 @@ import {partToolName} from "./parts"
 import type {RenderItem} from "./renderModel"
 import {isNonFinalRunnerError, isSettled} from "./toolSummary"
 
-/**
- * The activity fold's steps, derived from a turn's render items.
- *
- * A turn reads as one collapsed line ("Worked for 11s") over a timeline of what the agent did
- * before it answered. Reasoning and any text the model wrote BETWEEN tool calls are thought
- * steps; each tool call is a tool step. Only the last text item, when nothing follows it, is the
- * answer and stays out of the fold.
- */
+// The activity fold's steps: reasoning and between-call text are thoughts, each call a tool step.
 export type ActivityStep =
     | {
           kind: "thought"
@@ -71,18 +64,11 @@ const isFoldable = (item: RenderItem): boolean =>
     item.kind === "clientTool" ||
     (item.kind === "part" && (item.part.type === "reasoning" || item.part.type === "text"))
 
-/** Whether the fold would show anything of this item. A hidden call, a `step-start`, a `data-*`
- * sibling: none of these come between a text and its place as the answer. */
+/** Whether the fold would show anything of this item. */
 const showsInFold = (item: RenderItem): boolean =>
     item.kind === "tools" ? item.parts.some((part) => !hiddenFromFold(part)) : isFoldable(item)
 
-/**
- * The last text item is the answer only when nothing the fold would show comes after it — and
- * only once it is written out. The runner closes a text (`text-end`) the moment it knows what
- * comes next, a tool call or the end of the run, so a text still open may yet turn out to be an
- * aside on the way to a call; it types in the fold until then and leaves it as the answer, not
- * the other way round.
- */
+/** The last text is the answer only once closed (`text-end`) and followed by nothing the fold shows. */
 const findAnswer = (items: RenderItem[], holdClosedText: boolean): number => {
     for (let i = items.length - 1; i >= 0; i--) {
         const item = items[i]
@@ -96,9 +82,7 @@ const findAnswer = (items: RenderItem[], holdClosedText: boolean): number => {
     return -1
 }
 
-/** Whether the turn ends on a text no longer being written — closed by the runner
- * (`text-end`), or already adopted from the record — the candidate answer the host holds for a
- * beat before it leaves the fold. */
+/** Whether the turn ends on a text no longer being written: the candidate answer. */
 export const endsOnClosedText = (items: RenderItem[]): boolean => {
     for (let i = items.length - 1; i >= 0; i--) {
         const item = items[i]
@@ -111,8 +95,7 @@ export const endsOnClosedText = (items: RenderItem[]): boolean => {
 }
 
 export interface SplitTurnActivityOptions {
-    /** Keep a just-closed text in the fold a beat longer: the call that makes it an aside lands
-     * a commit or two after its `text-end`, and the host holds the line until that beat passes. */
+    /** Keep a just-closed text in the fold: the call that makes it an aside lands a beat later. */
     holdClosedText?: boolean
 }
 
@@ -174,8 +157,7 @@ export const splitTurnActivity = (
 export const activityFiles = (steps: ActivityStep[]): FileActivity[] =>
     dedupeByPath(steps.flatMap((step) => (step.kind === "tool" ? step.files : [])))
 
-/** The step still in flight, if any — the one the collapsed line narrates. A client step is the
- * reader's move, not the agent's, so it never counts: the host says when the run is parked. */
+/** The step still in flight, if any; a client step is the reader's move and never counts. */
 export const currentStep = (steps: ActivityStep[]): ActivityStep | null => {
     for (let i = steps.length - 1; i >= 0; i--) {
         const step = steps[i]

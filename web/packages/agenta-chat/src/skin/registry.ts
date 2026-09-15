@@ -80,8 +80,7 @@ export const registerChatSkin = (skin: ChatSkinRegistration): void => {
     for (const slug of skin.appHints ?? []) store.appHints.add(slug.toLowerCase())
 }
 
-/** The connected app a bare name carries as one of its words, if any. Bare names only: a gateway
- * or MCP name already says where it comes from, and our own ops name no app. */
+/** The connected app a bare name carries as one of its words, if any. */
 const hintedApp = (canonical: string): string | undefined =>
     canonical
         .toLowerCase()
@@ -245,8 +244,7 @@ const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
     // A tool search reports which tool it landed on. That name is worth far more than the keywords
     // it searched with, which are model-written and shapeless.
     discover_tools: {app: (_input, output) => matchedTool(output)},
-    // The runtime pair every connected agent gets (SDK `platform/gateway.py`): a search that
-    // names the tool it landed on, and a run that IS that tool's call — logo, wording and all.
+    // The runtime pair every connected agent gets (SDK `platform/gateway.py`).
     search_tools: {
         icon: "tool-search",
         app: (_input, output) => firstResult(output),
@@ -346,8 +344,7 @@ const DEFAULT_TOOL_DISPLAY: Record<string, ToolDisplayEntry> = {
     },
 }
 
-/** Platform-op glyphs by canonical name; a family (`*_schedule`) shares one. Closed set: a new
- * op takes its family's glyph or the platform fallback, never a glyph of its own. */
+/** Platform-op glyphs by canonical name; a family (`*_schedule`) shares one. Closed set. */
 const PLATFORM_ICONS: Record<string, ActivityIcon> = {
     annotate_trace: "annotation",
     commit_revision: "commit",
@@ -746,11 +743,7 @@ const singleEntry = (output: unknown): string | undefined => {
 
 const stripFenceLine = (text: string): string => text.replace(/^```\w*\n?|\n?```$/g, "").trim()
 
-/**
- * What a path is called. A skill is read through its manifest, but its name is the folder
- * (`…/deslope/SKILL.md`); an attachment lives in a folder named by id, so it is called by the
- * file the listing found inside, or failing that just "an attachment".
- */
+/** What a path is called: a skill by its folder, an attachment by the file its listing found. */
 const fileLabel = (path: string, output?: unknown): string => {
     const parts = path.split("/").filter(Boolean)
     const name = parts.pop() ?? path
@@ -817,9 +810,7 @@ const overrideActivity = (
     return built ? {activity: built, namedApp: Boolean(ownApp), verb: override.verb} : null
 }
 
-/** How a tool another call merely *reported* reads. Read-only verbs only: the call found the
- * tool, it did not run it, so "Sent a Gmail email" would be a false claim. A call that RAN the
- * tool (`run_tool`) keeps every verb: it did send that email. */
+/** How a reported tool reads: read-only verbs unless the call actually ran it. */
 const reportedActivity = (action: string, appName: string, ran: boolean): BuiltActivity | null => {
     const label = parseGatewayToolName(action).label
     const split = splitVerb(label, appName)
@@ -865,8 +856,7 @@ export const resolveToolDisplay = (
     const own: {slug?: string; action?: string; ran?: boolean} | undefined =
         override?.app?.(input, output) ?? (hinted ? {slug: hinted} : undefined)
     const ownApp = own?.slug ? (appName ?? parseGatewayToolName(own.slug).label) : undefined
-    // An override that names its own app already shows it as the logo; the sentence keeps the
-    // wording the tool's own name gives ("Checked devto articles"), not the app spliced in.
+    // An override that names its own app shows it as the logo, not spliced into the sentence.
     const parsed = parseShape(raw, input, ours, own ? undefined : appName)
     // A registered label/source overrides the parsed shape piecewise — the skin contract. The
     // built-in defaults never set either; they word a call through `activity` instead.

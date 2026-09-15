@@ -13,11 +13,7 @@ export const formatElapsed = (ms: number, {live}: {live: boolean}): string => {
     return minutes ? `${minutes}m ${seconds}s` : `${seconds}s`
 }
 
-/**
- * The turn's working time, clocked locally. Starts on the first render that says the turn is
- * live, freezes on the first that says it is not, and ticks once a second in between. Null for
- * a turn this client never saw live.
- */
+/** The turn's working time, clocked locally; null for a turn this client never saw live. */
 export const useTurnClock = (messageId: string, live: boolean): number | null => {
     const span = useAtomValue(turnSpanAtomFamily(messageId))
     const start = useSetAtom(startTurnSpanAtom)
