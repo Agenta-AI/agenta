@@ -374,10 +374,14 @@ export async function registerPiGatewayMcpTools(
       if (claimant !== undefined && claimant !== server.name) {
         // Two DIFFERENT configured servers rewrote to one Pi tool name. Whichever registered first
         // would answer for both, so the model would reach one account's tool believing it had
-        // reached the other's. Refuse both rather than pick (OR80).
+        // reached the other's. The name keeps its first claimant and the SECOND server's tool is
+        // refused, which is what makes every remaining call unambiguous; the registration then
+        // fails at the end so the operator sees it. Following OR59, one shadowed name does not
+        // cost the other servers their tools (OR80).
         log(
           `[mcp] error: servers '${claimant}' and '${server.name}' both render tool ` +
-            `'${tool.name}' as '${name}'; neither was registered`,
+            `'${tool.name}' as '${name}'; it stays with '${claimant}' and ` +
+            `'${server.name}' did not register it`,
         );
         collisions.push(name);
         continue;
