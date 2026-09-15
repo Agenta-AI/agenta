@@ -147,6 +147,14 @@ def _elapsed_ms(started: float) -> int:
     return max(0, round((monotonic() - started) * 1000))
 
 
+def _presented_access_token(auth: MCPRelayAuth) -> Optional[str]:
+    """The OAuth access token a relay actually sent, if it sent one."""
+    secret = getattr(auth, "secret", None)
+    data = getattr(secret, "secret", None)
+    grant = getattr(getattr(data, "data", None), "grant", None)
+    return getattr(grant, "access_token", None)
+
+
 def _target_path(
     *,
     namespace: GatewayEndpointNamespace,
@@ -714,7 +722,11 @@ class MCPGatewayService:
             and result.status_code == 401
         ):
             await record(GatewayOutcome(status_code=401))
-            await self._invalidate_endpoint(scope=scope, endpoint=target.endpoint)
+            await self._invalidate_endpoint(
+                scope=scope,
+                endpoint=target.endpoint,
+                presented_access_token=_presented_access_token(auth),
+            )
             raise self._reconnect_required(
                 endpoint=target.endpoint,
                 path=_target_path(
@@ -996,7 +1008,11 @@ class MCPGatewayService:
                 server_url=server_url,
             )
         except MCPOAuthRefreshFailedError as e:
-            await self._invalidate_endpoint(scope=scope, endpoint=endpoint)
+            await self._invalidate_endpoint(
+                scope=scope,
+                endpoint=endpoint,
+                presented_access_token=getattr(grant, "access_token", None),
+            )
             raise self._reconnect_required(endpoint=endpoint, path=path) from e
 
         # The refresh rewrote the row this reference already names, so the same lookup
@@ -1022,17 +1038,61 @@ class MCPGatewayService:
             )
         )
 
+    async def _credential_was_replaced(
+        self,
+        *,
+        scope: AuthScope,
+        endpoint: MCPEndpoint,
+        presented: Optional[str],
+    ) -> bool:
+        """Whether the connection now holds a different credential from the one that failed.
+
+        A reconnect rewrites the grant in place, under the slug the connection's identity
+        derives, so the row keeps its id and only the tokens inside it change. Comparing
+        the row's id therefore cannot tell a repaired connection from the one that failed
+        (D33): what moves is the access token, so that is what is compared.
+
+        Reads through the resolver rather than the vault directly, which is the same path
+        the relay used to obtain the credential in the first place. A grant that has gone
+        entirely is not this caller's to invalidate either.
+        """
+        if presented is None or endpoint.secret_id is None:
+            return False
+        try:
+            current = await self.resolver.resolve(
+                scope=scope,
+                ref=BoundSecretRef(secret_id=endpoint.secret_id),
+                mode=SecretMode.PROJECT_ONLY,
+            )
+        except (SecretNotFoundError, SecretInvalidError):
+            return True
+        grant = getattr(current.secret.data, "grant", None)
+        return getattr(grant, "access_token", None) != presented
+
     async def _invalidate_endpoint(
-        self, *, scope: AuthScope, endpoint: MCPEndpoint
+        self,
+        *,
+        scope: AuthScope,
+        endpoint: MCPEndpoint,
+        presented_access_token: Optional[str] = None,
     ) -> None:
         """Record that the endpoint's stored authorization is dead.
 
         Only a stored row can be marked: generated endpoints (builtin, standard) carry no
         persisted flags, and none of them reach this path.
+
+        `presented_access_token` is the credential the failing call actually sent. The
+        connection is marked invalid only while it still holds that credential, so a
+        reconnect that landed during the round trip is not condemned by the 401 the old
+        token earned.
         """
         if endpoint.namespace != GatewayEndpointNamespace.CUSTOM:
             return
         if not endpoint.flags.is_valid:
+            return
+        if await self._credential_was_replaced(
+            scope=scope, endpoint=endpoint, presented=presented_access_token
+        ):
             return
         # One column. This used to be a full PUT built from `endpoint`, which is the
         # snapshot read before the relay dialled the upstream, so an administrator who

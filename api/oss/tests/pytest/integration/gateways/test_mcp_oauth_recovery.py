@@ -1013,3 +1013,124 @@ async def test_a_failed_renewal_still_releases_its_lock(
         )
 
     assert connect_service._refresh_locks == {}
+
+
+# --- a reconnect that lands before the late refusal --------------------------- #
+
+
+async def test_a_reconnect_in_flight_is_not_condemned_by_the_old_credentials_401(
+    project, relay_service, connect_service, local_mcp_oauth_provider
+):
+    """D33. The Reconnect button rewrites the grant in place, under the slug the
+    connection's identity derives, so the row keeps its id and only the tokens change.
+    Comparing the row id could not tell the repaired connection from the failed one, and
+    the late 401 marked a working connection as needing another reconnect."""
+    connection = await _connected(
+        project=project,
+        connect_service=connect_service,
+        provider=local_mcp_oauth_provider,
+        slug="reconnect-in-flight",
+        name="Acme",
+    )
+    storage = _storage(
+        project=project, provider=local_mcp_oauth_provider, endpoint_id=connection.id
+    )
+    failing = await storage.get_grant()
+    assert failing is not None
+
+    # The person reconnects while the doomed call is still out. Same connection, same
+    # vault row, new tokens.
+    await _consent(
+        service=connect_service,
+        provider=local_mcp_oauth_provider,
+        project=project,
+        endpoint=await _reload(project, connection),
+    )
+    repaired = await storage.get_grant()
+    assert repaired is not None
+    assert repaired.access_token != failing.access_token
+    assert len(await _grants(project=project)) == 1
+
+    # Now the 401 earned by the old token arrives.
+    await relay_service._invalidate_endpoint(  # noqa: SLF001 - the relay's own seam
+        scope=_scope(project),
+        endpoint=await _reload(project, connection),
+        presented_access_token=failing.access_token,
+    )
+
+    stored = await _reload(project, connection)
+    assert stored.flags.is_valid is True
+    assert (
+        await _connection_state(relay_service, project, stored)
+        == GatewayConnectionState.READY
+    )
+    # And the repaired connection still relays.
+    assert (await _call(relay_service, project, stored)).status_code == 200
+
+
+async def test_the_credential_that_failed_is_still_invalidated_when_it_is_still_held(
+    project, relay_service, connect_service, local_mcp_oauth_provider
+):
+    """The comparison must not swallow the case it lives inside."""
+    connection = await _connected(
+        project=project,
+        connect_service=connect_service,
+        provider=local_mcp_oauth_provider,
+        slug="still-held",
+        name="Acme",
+    )
+    grant = await _storage(
+        project=project, provider=local_mcp_oauth_provider, endpoint_id=connection.id
+    ).get_grant()
+    assert grant is not None
+
+    await relay_service._invalidate_endpoint(  # noqa: SLF001 - the relay's own seam
+        scope=_scope(project),
+        endpoint=await _reload(project, connection),
+        presented_access_token=grant.access_token,
+    )
+
+    stored = await _reload(project, connection)
+    assert stored.flags.is_valid is False
+    assert (
+        await _connection_state(relay_service, project, stored)
+        == GatewayConnectionState.NEEDS_AUTH
+    )
+
+
+async def test_a_renewal_that_lands_in_flight_is_not_condemned_either(
+    project, relay_service, connect_service, local_mcp_oauth_provider
+):
+    """A refresh replaces the tokens in the same row the same way a reconnect does, so
+    the token a relay presented can go stale without anyone pressing anything."""
+    connection = await _connected(
+        project=project,
+        connect_service=connect_service,
+        provider=local_mcp_oauth_provider,
+        slug="renewal-in-flight",
+        name="Acme",
+    )
+    storage = _storage(
+        project=project, provider=local_mcp_oauth_provider, endpoint_id=connection.id
+    )
+    presented = await storage.get_grant()
+    assert presented is not None
+
+    await _age_the_grant(
+        project=project,
+        provider=local_mcp_oauth_provider,
+        endpoint_id=connection.id,
+    )
+    await connect_service.refresh_grant(
+        project_id=project["project_id"],
+        endpoint_id=connection.id,
+        server_url=local_mcp_oauth_provider.server_url,
+    )
+
+    await relay_service._invalidate_endpoint(  # noqa: SLF001 - the relay's own seam
+        scope=_scope(project),
+        endpoint=await _reload(project, connection),
+        presented_access_token=presented.access_token,
+    )
+
+    assert (await _reload(project, connection)).flags.is_valid is True
