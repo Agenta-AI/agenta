@@ -2,7 +2,7 @@
  * DriveMarkdownEditor — the Files pane's body for an editable `.md` / `.mdx`: the shared Lexical
  * {@link MarkdownEditor} (the instructions / skills editor) over the drive draft. Rendered mode is
  * the rich-text view with its formatting bar portalled into row 2; source mode is the monospace
- * markdown. `Cmd/Ctrl+S` saves. The draft itself (dirty / save / revert) belongs to the explorer,
+ * markdown. Edits autosave; `Cmd/Ctrl+S` writes at once. The draft belongs to the explorer,
  * which also feeds row 2 — this component only renders it.
  *
  * Loaded lazily by the explorer so the Lexical graph arrives only when a markdown file opens.

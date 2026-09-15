@@ -1,12 +1,15 @@
 /**
- * useDriveFileEditor — a file's editable draft over its content query. Drafts live in module
- * atoms keyed by mount + path, so navigating away and back (or closing the pane) keeps an
- * unsaved edit; the host mounts {@link useDriveDirtyGuard} once so a tab close still warns.
+ * useDriveFileEditor — a file's editable draft over its content query, saved on its own: every
+ * edit re-arms a short timer and the draft writes when it lapses (or at once on `Cmd/Ctrl+S`,
+ * and when the editor for the file is left while an edit is pending). Drafts live in module
+ * atoms keyed by mount + path, so navigating away and back (or closing the pane) keeps an edit
+ * the write hasn't caught up with; the host mounts {@link useDriveDirtyGuard} once so a tab
+ * close still warns.
  *
  * The draft model ({@link driveDraft}) counts an edit only once the editor has emitted one — see
  * that module for why.
  */
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -19,11 +22,19 @@ import {
     applyDriveDraftChange,
     commitDriveDraft,
     type DriveDraft,
+    driveDraftTextToSave,
     isDriveDraftDirty,
-    revertDriveDraft,
     seedDriveDraft,
 } from "./driveDraft"
 import {refreshMountListing, saveMountText} from "./driveWrites"
+
+/** Idle time after the last edit before the draft writes. */
+export const DRIVE_AUTOSAVE_DELAY_MS = 1500
+/** How long "Saved" stays up after a write. */
+const SAVED_FLASH_MS = 2000
+
+/** What row 2 says about the draft. */
+export type DriveSaveStatus = "clean" | "pending" | "saving" | "saved" | "error"
 
 const draftKey = (mountId: string, path: string) => `${mountId}:${path}`
 
@@ -44,6 +55,9 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
     const [draft, setDraft] = useAtom(driveDraftAtomFamily(key))
     const [, setKeys] = useAtom(draftKeysAtom)
     const [saving, setSaving] = useState(false)
+    const [outcome, setOutcome] = useState<{ok: boolean; error?: string; at: number} | null>(
+        null,
+    )
 
     const fileText = typeof query.data === "string" ? query.data : null
     // Seed once the text lands; re-seed when a clean draft's file changed underneath it.
@@ -61,35 +75,87 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
         (text: string) => setDraft((d) => (d ? applyDriveDraftChange(d, text) : d)),
         [setDraft],
     )
-    const revert = useCallback(() => setDraft((d) => (d ? revertDriveDraft(d) : d)), [setDraft])
-    /** Write the draft. Resolves `{ok: true}` or `{ok: false, error}` so the host can toast. */
+
+    const dirty = isDriveDraftDirty(draft)
+    // The latest draft for the writers below — they run from timers and cleanups, not renders.
+    const draftRef = useRef(draft)
+    draftRef.current = draft
+    const savingRef = useRef(false)
+
+    /** Write the draft now. Resolves `{ok: true}` or `{ok: false, error}`. */
     const save = useCallback(async (): Promise<{ok: boolean; error?: string}> => {
-        if (!mount || !draft || !isDriveDraftDirty(draft)) return {ok: false}
+        const current = draftRef.current
+        if (!mount || !current || !isDriveDraftDirty(current) || savingRef.current)
+            return {ok: false}
+        const text = driveDraftTextToSave(current)
+        savingRef.current = true
         setSaving(true)
         try {
-            await saveMountText({mount, path, projectId, text: draft.value})
-            setDraft(commitDriveDraft(draft))
+            await saveMountText({mount, path, projectId, text})
+            setDraft((d) => (d ? commitDriveDraft(d, text) : d))
             refreshMountListing(queryClient, projectId)
+            setOutcome({ok: true, at: Date.now()})
             return {ok: true}
         } catch (e) {
-            return {ok: false, error: e instanceof Error ? e.message : "Couldn't save the file"}
+            const error = e instanceof Error ? e.message : "Couldn't save the file"
+            setOutcome({ok: false, error, at: Date.now()})
+            return {ok: false, error}
         } finally {
+            savingRef.current = false
             setSaving(false)
         }
-    }, [mount, draft, path, projectId, queryClient, setDraft])
+    }, [mount, path, projectId, queryClient, setDraft])
+    const saveRef = useRef(save)
+    saveRef.current = save
+
+    // Autosave: each edit re-arms the timer; a failed write waits for the next edit (or Cmd+S).
+    const failed = outcome != null && !outcome.ok
+    useEffect(() => {
+        if (!dirty || saving || failed) return
+        const timer = setTimeout(() => void saveRef.current(), DRIVE_AUTOSAVE_DELAY_MS)
+        return () => clearTimeout(timer)
+    }, [dirty, draft?.value, saving, failed])
+    // A failed write's status clears on the next edit, so the timer re-arms.
+    useEffect(() => {
+        if (failed) setOutcome(null)
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- runs on edits only
+    }, [draft?.value])
+    // Leaving the file with an edit pending writes it at once rather than holding it in the atom.
+    useEffect(
+        () => () => {
+            if (isDriveDraftDirty(draftRef.current)) void saveRef.current()
+        },
+        [key],
+    )
+    // "Saved" is a flash, not a state.
+    const [now, setNow] = useState(0)
+    useEffect(() => {
+        if (!outcome?.ok) return
+        const timer = setTimeout(() => setNow(Date.now()), SAVED_FLASH_MS)
+        return () => clearTimeout(timer)
+    }, [outcome])
+
+    const status: DriveSaveStatus = saving
+        ? "saving"
+        : failed
+          ? "error"
+          : dirty
+            ? "pending"
+            : outcome?.ok && now < outcome.at + SAVED_FLASH_MS
+              ? "saved"
+              : "clean"
 
     return {
         /** The text to hand the editor; null while the file is still loading. */
         value: draft?.value ?? null,
-        /** Bumps on every revert / re-seed so a controlled editor re-hydrates. */
-        seed: draft?.seed ?? null,
-        dirty: isDriveDraftDirty(draft),
+        status,
+        /** The last write's failure, while `status` is "error". */
+        error: failed ? outcome.error : undefined,
         loading: query.isPending,
         failed: !query.isPending && fileText === null,
-        saving,
         onChange,
+        /** Write now (Cmd/Ctrl+S, or Retry after a failure). */
         save,
-        revert,
     }
 }
 

@@ -4,16 +4,20 @@
  *
  *   folder   — grid / list · Sort ▾ · ⋯ (New folder · New file · Upload files… · Download all)
  *   markdown — the formatting bar (portalled in by the editor) · Revert / Save while dirty ·
- *              the Markdown / Plain text mode dropdown · ⋯ (Rename · Duplicate · Delete)
- *   other    — the type badge + the file name, renamed in place · ⋯ (the same file actions)
+ *              save status · the Markdown / Plain text mode dropdown · ⋯ (Rename · Duplicate · Delete)
+ *   other    — the type mark + the file name, renamed in place · save status while a code draft
+ *              is open · ⋯ (the same file actions)
  *
  * Pure presentation; every value comes from DriveExplorer's hooks.
  */
 import {type ReactNode} from "react"
 
-import {type DriveEditorMode, type DriveSortKey, type DriveViewMode} from "@agenta/entities/drive"
-import {shortcutAria} from "@agenta/shared/utils"
-import {ShortcutKeys} from "@agenta/ui/shortcuts"
+import {
+    type DriveEditorMode,
+    type DriveSaveStatus,
+    type DriveSortKey,
+    type DriveViewMode,
+} from "@agenta/entities/drive"
 import {
     Button,
     DropdownMenu,
@@ -22,14 +26,13 @@ import {
     DropdownMenuSeparator,
     DropdownMenuShortcut,
     DropdownMenuTrigger,
-    LoadingButton,
-    SimpleTooltip as Tooltip,
     Tabs,
     TabsList,
     TabsTrigger,
 } from "@agenta/ui/ui"
 import {
     CaretDown,
+    CircleNotch,
     DotsThreeVertical,
     ListBullets,
     SortAscending,
@@ -89,17 +92,38 @@ export type DriveToolbarProps =
           toolbarRef: (el: HTMLDivElement | null) => void
           mode: DriveEditorMode
           setMode: (mode: DriveEditorMode) => void
-          dirty: boolean
-          saving: boolean
-          onSave: () => void
-          onRevert: () => void
+          status: DriveSaveStatus
+          onRetry: () => void
           actions?: DriveFileActions
       }
     | {
           variant: "other"
           path: string
           actions?: DriveFileActions
+          /** Present while the file is open in the code editor: its draft state. */
+          draft?: {status: DriveSaveStatus; onRetry: () => void}
       }
+
+/** The draft's save state — autosave narrates itself; a failed write offers Retry. */
+const DraftStatus = ({status, onRetry}: {status: DriveSaveStatus; onRetry: () => void}) => {
+    if (status === "clean") return null
+    if (status === "error")
+        return (
+            <>
+                <span className="text-xs text-colorError">Couldn't save</span>
+                <Button variant="ghost" size="sm" onClick={onRetry} className={ROW_TEXT_BTN}>
+                    Retry
+                </Button>
+                <span className="mx-1 h-4 w-px bg-colorBorderSecondary" aria-hidden />
+            </>
+        )
+    return (
+        <span className="flex items-center gap-1.5 pr-1 text-xs text-colorTextTertiary">
+            {status === "saving" ? <CircleNotch className="size-3 animate-spin" /> : null}
+            {status === "saving" ? "Saving…" : status === "saved" ? "Saved" : "Unsaved"}
+        </span>
+    )
+}
 
 const FileActionsMenu = ({actions}: {actions?: DriveFileActions}) => (
     <DropdownMenu>
@@ -227,7 +251,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
     }
 
     if (props.variant === "markdown") {
-        const {toolbarRef, mode, setMode, dirty, saving, onSave, onRevert, actions} = props
+        const {toolbarRef, mode, setMode, status, onRetry, actions} = props
         const rendered = mode === "rendered"
         return (
             <Row>
@@ -243,37 +267,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                     </span>
                 )}
                 <span className="flex-1" />
-                {dirty ? (
-                    <>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={onRevert}
-                            disabled={saving}
-                            className={ROW_TEXT_BTN}
-                        >
-                            Revert
-                        </Button>
-                        <Tooltip
-                            title={
-                                <span className="flex items-center gap-1.5">
-                                    Save <ShortcutKeys id="drive.save" tone="inverse" />
-                                </span>
-                            }
-                        >
-                            <LoadingButton
-                                size="sm"
-                                onClick={onSave}
-                                loading={saving}
-                                aria-keyshortcuts={shortcutAria("drive.save")}
-                                className="h-[26px] px-2.5 text-xs"
-                            >
-                                Save
-                            </LoadingButton>
-                        </Tooltip>
-                        <span className="mx-1 h-4 w-px bg-colorBorderSecondary" aria-hidden />
-                    </>
-                ) : null}
+                <DraftStatus status={status} onRetry={onRetry} />
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button
@@ -305,7 +299,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
         )
     }
 
-    const {path, actions} = props
+    const {path, actions, draft} = props
     return (
         <Row>
             <DriveInlineName
@@ -314,6 +308,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 onRename={actions?.renameTo}
             />
             <span className="flex-1" />
+            {draft ? <DraftStatus {...draft} /> : null}
             <FileActionsMenu actions={actions} />
         </Row>
     )

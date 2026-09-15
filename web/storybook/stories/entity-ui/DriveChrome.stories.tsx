@@ -12,7 +12,7 @@ import {
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // The Files pane's chrome and content pieces with static props — the states a reviewer cannot
-// reach by clicking a live drive: a dirty markdown row, a read-only mount, a search-forced tree,
+// reach by clicking a live drive: a saving markdown row, a read-only mount, a search-forced tree,
 // the preview label for every kind.
 const meta = {
     title: "@agenta/entity-ui/Drive/Files pane chrome",
@@ -121,7 +121,7 @@ const Row2Folder = () => {
     )
 }
 
-/** Row 2 in its three shapes: folder, markdown (clean / dirty / plain text) and preview. */
+/** Row 2 in its three shapes: folder, markdown (clean / saving / failed save) and preview. */
 export const Row2: Story = {
     render: () => (
         <div className="flex flex-col gap-4">
@@ -134,10 +134,8 @@ export const Row2: Story = {
                     toolbarRef={noop}
                     mode="rendered"
                     setMode={noop}
-                    dirty={false}
-                    saving={false}
-                    onSave={noop}
-                    onRevert={noop}
+                    status="clean"
+                    onRetry={noop}
                     actions={FILE_ACTIONS}
                 />
             </Frame>
@@ -147,10 +145,8 @@ export const Row2: Story = {
                     toolbarRef={noop}
                     mode="rendered"
                     setMode={noop}
-                    dirty
-                    saving={false}
-                    onSave={noop}
-                    onRevert={noop}
+                    status="saving"
+                    onRetry={noop}
                     actions={FILE_ACTIONS}
                 />
             </Frame>
@@ -160,10 +156,8 @@ export const Row2: Story = {
                     toolbarRef={noop}
                     mode="source"
                     setMode={noop}
-                    dirty
-                    saving
-                    onSave={noop}
-                    onRevert={noop}
+                    status="error"
+                    onRetry={noop}
                 />
             </Frame>
             <Frame>
