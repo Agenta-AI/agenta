@@ -68,7 +68,10 @@ def _guard_custom_endpoint_url(*, url: Optional[str]) -> None:
 
 
 def _as_edit(
-    endpoint: MCPEndpoint, *, secret_id: Optional[UUID] = None
+    endpoint: MCPEndpoint,
+    *,
+    secret_id: Optional[UUID] = None,
+    clear_secret_id: bool = False,
 ) -> MCPEndpointEdit:
     """Create an editable copy of an endpoint.
 
@@ -76,18 +79,26 @@ def _as_edit(
     stored authorization expires and cannot be renewed (OR55); reconnecting is the cure,
     and carrying that flag forward would leave the endpoint refusing calls it can now
     serve.
+
+    `clear_secret_id` exists because `secret_id=None` already means "leave the handle
+    alone", which is what every caller that is not writing a grant wants. Disconnecting
+    needs the other thing, and the two cannot share one argument.
     """
-    flags = (
-        MCPEndpointFlags(is_active=endpoint.flags.is_active, is_valid=True)
-        if secret_id is not None
-        else endpoint.flags
-    )
+    if clear_secret_id:
+        # Valid, not invalid: nothing is wrong with the endpoint, it simply has no
+        # authorization now, and `_connection_state` reads a missing handle as
+        # "connect" on its own. Marking it invalid would say the credential died.
+        flags = MCPEndpointFlags(is_active=endpoint.flags.is_active, is_valid=True)
+    elif secret_id is not None:
+        flags = MCPEndpointFlags(is_active=endpoint.flags.is_active, is_valid=True)
+    else:
+        flags = endpoint.flags
     return MCPEndpointEdit(
         id=endpoint.id,
         name=endpoint.name,
         description=endpoint.description,
         auth_mode=endpoint.auth_mode,
-        secret_id=secret_id if secret_id is not None else endpoint.secret_id,
+        secret_id=None if clear_secret_id else (secret_id or endpoint.secret_id),
         data=endpoint.data,
         flags=flags,
     )
@@ -164,6 +175,14 @@ class MCPGatewayRouter:
             methods=["POST"],
             operation_id="connect_mcp_endpoint",
             response_model=MCPConnectResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/endpoints/{endpoint_id}/connect",
+            self.disconnect_endpoint,
+            methods=["DELETE"],
+            operation_id="disconnect_mcp_endpoint",
+            response_model=MCPEndpointResponse,
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
@@ -375,6 +394,18 @@ class MCPGatewayRouter:
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
+        # Take the connection's grant with it. Deleting the row alone left the grant in
+        # the vault with nothing naming it: unreachable, unlistable as a connection, and
+        # still holding a live token. Ordered before the row goes, because the row is
+        # what says which grant this was.
+        endpoint = await self.service.fetch_endpoint(
+            project_id=scope.project_id,
+            #
+            endpoint_id=endpoint_id,
+        )
+        if endpoint is not None:
+            await self._drop_grant(scope=scope, endpoint=endpoint)
+
         deleted = await self.service.delete_endpoint(
             project_id=scope.project_id,
             #
@@ -385,6 +416,19 @@ class MCPGatewayRouter:
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=str(endpoint_id),
             )
+
+    async def _drop_grant(self, *, scope: AuthScope, endpoint: MCPEndpoint) -> bool:
+        """Delete the connection's stored grant, if it is the kind that has one."""
+        if endpoint.auth_mode != GatewayAuthScheme.OAUTH:
+            return False
+        server_url = endpoint.data.route.base_url
+        if not server_url:
+            return False
+        return await self.oauth_connect_service.disconnect(
+            project_id=scope.project_id,
+            endpoint_id=endpoint.id,
+            server_url=server_url,
+        )
 
     # OAuth consent
 
@@ -455,6 +499,62 @@ class MCPGatewayRouter:
         )
 
         return MCPConnectResponse(count=1, redirect_url=start.authorization_url)
+
+    @intercept_exceptions()
+    @handle_gateway_exceptions()
+    async def disconnect_endpoint(
+        self,
+        request: Request,
+        *,
+        endpoint_id: UUID,
+    ) -> MCPEndpointResponse:
+        """Drop one connection's authorization and keep the connection itself.
+
+        The connection survives with its id, slug, name, URL and tool policy intact, so
+        every agent configured against it stays configured and one Connect reconnects
+        it. Deleting the endpoint is the other operation, and it is not this one.
+
+        Only this connection's grant goes. Another account at the same server keeps its
+        own, which is what the connection-keyed grant is for.
+
+        Idempotent: disconnecting something already disconnected returns the endpoint
+        and changes nothing, so a repeated click or a retried request is not an error.
+        """
+        scope = get_auth_scope()
+        await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
+
+        endpoint = await self.service.fetch_endpoint(
+            project_id=scope.project_id,
+            #
+            endpoint_id=endpoint_id,
+        )
+        if not endpoint:
+            raise MCPEndpointNotFoundError(
+                namespace=GatewayEndpointNamespace.CUSTOM,
+                name=str(endpoint_id),
+            )
+        if (
+            endpoint.namespace != GatewayEndpointNamespace.CUSTOM
+            or endpoint.auth_mode != GatewayAuthScheme.OAUTH
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="endpoint is not a custom OAuth target",
+            )
+
+        await self._drop_grant(scope=scope, endpoint=endpoint)
+
+        # The handle goes whether or not a row was there to delete: a `secret_id`
+        # pointing at nothing is the state that made an endpoint report itself ready
+        # and then fail every call.
+        disconnected = await self.service.edit_endpoint(
+            project_id=scope.project_id,
+            user_id=scope.user_id,
+            #
+            endpoint=_as_edit(endpoint, clear_secret_id=True),
+        )
+
+        return MCPEndpointResponse(count=1, endpoint=disconnected)
 
     async def connect_callback(
         self,

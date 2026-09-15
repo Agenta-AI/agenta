@@ -2,19 +2,19 @@
 
 ## Active review findings
 
-The record runs OR36 to OR80, forty-five findings: thirty-seven closed, seven open and one
+The record runs OR36 to OR81, forty-six findings: thirty-seven closed, eight open and one
 withdrawn.
 Entries numbered below OR36 predate that record and are all closed.
 
-Seven findings are open. OR69 heads this section but counts as neither open nor closed: it was
+Eight findings are open. OR69 heads this section but counts as neither open nor closed: it was
 withdrawn on 2026-09-13, and its entry stays in place so the reading is not repeated. No P0 and no
 P1 remain: OR79, opened and closed on 2026-09-15, was the last P0 and OR80 the last P1, and both
-are closed. The highest severity open is P2, carried by OR76 alone; the other five entries are
-debt and carry no severity. The open set is OR63, OR65 to OR68 and OR76. The five debt entries are
-also tracked as CU15 to CU19 in `cleanups.md`, which records why each is still open. None of the
-six waits on a design decision. OD24 to OD27 in `open-designs.md` are all decided. Every open entry
-states the closure that would settle it and the test that would prove it. A finding that closes
-moves to the closed record below.
+are closed. The highest severity open is P2, carried by OR76 alone; the other six entries are
+debt and carry no severity. The open set is OR63, OR65 to OR68, OR76 and OR81. The six debt entries
+are also tracked as CU15 to CU20 in `cleanups.md`, which records why each is still open. None of
+the seven waits on a design decision. OD24 to OD27 in `open-designs.md` are all decided. Every open
+entry states the closure that would settle it and the test that would prove it. A finding that
+closes moves to the closed record below.
 
 ---
 
@@ -47,6 +47,29 @@ redirect URI against the current one and re-registers on a difference. Proven by
 beside `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_oauth_registration_fallback.py`
 that stores a registration, changes the deployment's public URL, and asserts the next begin
 registers again rather than sending the stale `client_id`.
+
+---
+
+### OR81. Disconnecting a connection deletes its grant locally and never tells the authorization server
+
+Added 2026-09-15 alongside the connection-keyed grant. Debt, carried deliberately; no severity.
+
+`api/oss/src/core/gateways/mcps/oauth/storage.py::delete_grant` removes the vault row, and
+`MCPOAuthConnectService.disconnect` is the only caller. Nothing is sent to the authorization
+server, so the access token and the refresh token stay live upstream until they expire. A person
+who disconnects an account has told Agenta to stop using it, and Agenta does stop; what they have
+not got is the provider forgetting the authorization Agenta still holds material for.
+
+Why it is still open: RFC 7009 revocation needs a `revocation_endpoint`, which this deployment does
+not read out of authorization-server metadata today, and a server that advertises none cannot be
+revoked at anyway. Adding the discovery, the call, and the behaviour when the call fails — a
+disconnect must still disconnect — is more than the connection-identity change should carry.
+
+Closure: `disconnect` reads the revocation endpoint from the authorization server's metadata,
+presents the grant there, and deletes the row whether or not the revocation succeeded. Proven by a
+case beside `api/oss/tests/pytest/integration/gateways/test_mcp_oauth_connection_identity.py` where
+the local provider records the revocation and a provider advertising no revocation endpoint still
+disconnects. Also tracked as CU20 in `cleanups.md`.
 
 ---
 
