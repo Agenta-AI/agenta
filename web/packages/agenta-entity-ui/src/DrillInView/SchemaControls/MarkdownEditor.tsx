@@ -29,7 +29,6 @@ import {
     useRef,
     useState,
 } from "react"
-import {createPortal} from "react-dom"
 
 import {
     EditorProvider,
@@ -41,6 +40,7 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
 import {Badge} from "@agenta/ui/ui"
 import {registerCodeHighlighting} from "@lexical/code"
+import {createPortal} from "react-dom"
 
 import {CodeBlockLanguageMenu} from "./CodeBlockLanguageMenu"
 
@@ -235,10 +235,7 @@ export function MarkdownEditor({
     // Toolbar row pinned above a scroll area this component owns, so it never moves with content.
     // `justify-between` puts formatting on the left and the source/rich toggle hard-right.
     const toolbarControls = (
-        <MarkdownToolbar
-            disabled={editorDisabled || markdownView}
-            layout={toolbarLayout}
-        />
+        <MarkdownToolbar disabled={editorDisabled || markdownView} layout={toolbarLayout} />
     )
     // `null` = the host owns the slot but has not mounted it yet: render nothing rather than
     // flashing the inline row for a frame. `undefined` = no slot, the inline row is ours.
@@ -248,13 +245,13 @@ export function MarkdownEditor({
                 createPortal(toolbarControls, toolbarContainer)
             ) : null
         ) : (
-        // border-0 first: preflight is off, so a bare `border-b` still paints the UA's other
-        // three sides — the top one doubling up with the container's own border.
-        <div className="flex shrink-0 items-center justify-between gap-1 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] px-3 py-1.5">
-            {toolbarControls}
-            {viewToggle}
-        </div>
-    )
+            // border-0 first: preflight is off, so a bare `border-b` still paints the UA's other
+            // three sides — the top one doubling up with the container's own border.
+            <div className="flex shrink-0 items-center justify-between gap-1 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] px-3 py-1.5">
+                {toolbarControls}
+                {viewToggle}
+            </div>
+        )
 
     const plainHeader = hideHeader ? undefined : (
         <div className="flex w-full items-center justify-between gap-2">

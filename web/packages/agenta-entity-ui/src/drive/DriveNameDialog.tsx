@@ -39,7 +39,12 @@ const COPY: Record<
     },
     "new-file": {title: "New file", label: "File name", action: "Create", placeholder: "notes.md"},
     rename: {title: "Rename", label: "New name", action: "Rename", placeholder: ""},
-    duplicate: {title: "Duplicate", label: "Name for the copy", action: "Duplicate", placeholder: ""},
+    duplicate: {
+        title: "Duplicate",
+        label: "Name for the copy",
+        action: "Duplicate",
+        placeholder: "",
+    },
 }
 
 const nameOf = (path: string) => path.split("/").pop() ?? path
@@ -116,7 +121,10 @@ export const DriveNameDialog = ({
                         ) : null}
                     </DialogHeader>
                     <div className="flex flex-col gap-1.5">
-                        <Label htmlFor="drive-name-input" className="text-xs text-colorTextSecondary">
+                        <Label
+                            htmlFor="drive-name-input"
+                            className="text-xs text-colorTextSecondary"
+                        >
                             {copy?.label}
                         </Label>
                         <Input

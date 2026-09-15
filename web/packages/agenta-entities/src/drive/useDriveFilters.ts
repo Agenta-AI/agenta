@@ -14,7 +14,6 @@ import {useCallback, useDeferredValue, useState} from "react"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
-
 export type DriveViewMode = "grid" | "list"
 export type DriveSortKey = "name" | "modified" | "size"
 export type DriveEditorMode = "rendered" | "source"
@@ -32,10 +31,7 @@ export const driveShowGitignoredPrefAtom = atomWithStorage<boolean>(
 )
 // On by default: the session's working files (everything beside `agent-files/`) are what the
 // agent is editing right now; the toggle is for narrowing to the persistent files.
-export const driveShowTemporaryAtom = atomWithStorage<boolean>(
-    "agenta:drive:show-temporary",
-    true,
-)
+export const driveShowTemporaryAtom = atomWithStorage<boolean>("agenta:drive:show-temporary", true)
 
 export function useDriveFilters() {
     const [search, setSearch] = useState("")

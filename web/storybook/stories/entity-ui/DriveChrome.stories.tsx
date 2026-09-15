@@ -167,10 +167,30 @@ export const Row2: Story = {
 const NODES: DriveTreeNode[] = [
     {name: "articles", path: "articles", isFolder: true, itemCount: 3, children: []},
     {name: "skills", path: "skills", isFolder: true, itemCount: 2, children: []},
-    {name: "agent.json", path: "agent.json", isFolder: false, size: 11980, modifiedAt: Date.now() - 3.6e6, children: []},
-    {name: "article.md", path: "article.md", isFolder: false, size: 6963, modifiedAt: Date.now() - 7.2e6, children: []},
+    {
+        name: "agent.json",
+        path: "agent.json",
+        isFolder: false,
+        size: 11980,
+        modifiedAt: Date.now() - 3.6e6,
+        children: [],
+    },
+    {
+        name: "article.md",
+        path: "article.md",
+        isFolder: false,
+        size: 6963,
+        modifiedAt: Date.now() - 7.2e6,
+        children: [],
+    },
     {name: "brand-guide.pdf", path: "brand-guide.pdf", isFolder: false, size: 839680, children: []},
-    {name: "migrate_article_writer.py", path: "migrate_article_writer.py", isFolder: false, size: 18636, children: []},
+    {
+        name: "migrate_article_writer.py",
+        path: "migrate_article_writer.py",
+        isFolder: false,
+        size: 18636,
+        children: [],
+    },
     {name: "seo-keywords.csv", path: "seo-keywords.csv", isFolder: false, size: 4506, children: []},
     {name: "preview.html", path: "preview.html", isFolder: false, size: 23040, children: []},
     {name: "screenshot.png", path: "screenshot.png", isFolder: false, size: 151552, children: []},
@@ -183,9 +203,19 @@ export const Tiles: Story = {
         <div className="grid w-[640px] grid-cols-5 gap-x-2 gap-y-1">
             {NODES.map((n) =>
                 n.isFolder ? (
-                    <FolderTile key={n.path} node={n} onOpen={noop} selected={n.name === "skills"} />
+                    <FolderTile
+                        key={n.path}
+                        node={n}
+                        onOpen={noop}
+                        selected={n.name === "skills"}
+                    />
                 ) : (
-                    <FileTile key={n.path} node={n} onOpen={noop} selected={n.name === "article.md"} />
+                    <FileTile
+                        key={n.path}
+                        node={n}
+                        onOpen={noop}
+                        selected={n.name === "article.md"}
+                    />
                 ),
             )}
             <FileTile

@@ -226,44 +226,44 @@ export const ListTable = <Row,>({
                                     // and a button inside a button is invalid HTML that browsers
                                     // repair by dropping one of them.
                                     const rowNode = (
-                                    <div
-                                        key={rowKey(row)}
-                                        role={onOpenRow ? "button" : undefined}
-                                        tabIndex={onOpenRow ? 0 : undefined}
-                                        onClick={onOpenRow ? () => onOpenRow(row) : undefined}
-                                        onKeyDown={
-                                            onOpenRow
-                                                ? (event) => {
-                                                      if (
-                                                          event.key !== "Enter" &&
-                                                          event.key !== " "
-                                                      )
-                                                          return
-                                                      event.preventDefault()
-                                                      onOpenRow(row)
-                                                  }
-                                                : undefined
-                                        }
-                                        className={cn(
-                                            // `group`, so a cell can reveal a control on the
-                                            // ROW's hover rather than on its own — a pin that
-                                            // appears only while the pointer is inside its own
-                                            // cell is one you have to find before you can see it.
-                                            // The fill reaches 12px past the text on each side
-                                            // while the text itself stays on the table's edge:
-                                            // the row's BOX grows by the same 12px its padding
-                                            // gives back, so its content box — and so its grid
-                                            // tracks — stay identical to the header's.
-                                            "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
-                                            rowPad,
-                                            "-mx-3 w-[calc(100%+1.5rem)] px-3",
-                                            onOpenRow && "cursor-pointer hover:bg-accent/60",
-                                            onOpenRow && FOCUS_RING,
-                                        )}
-                                        style={{gridTemplateColumns: grid}}
-                                    >
-                                        {renderRow(row)}
-                                    </div>
+                                        <div
+                                            key={rowKey(row)}
+                                            role={onOpenRow ? "button" : undefined}
+                                            tabIndex={onOpenRow ? 0 : undefined}
+                                            onClick={onOpenRow ? () => onOpenRow(row) : undefined}
+                                            onKeyDown={
+                                                onOpenRow
+                                                    ? (event) => {
+                                                          if (
+                                                              event.key !== "Enter" &&
+                                                              event.key !== " "
+                                                          )
+                                                              return
+                                                          event.preventDefault()
+                                                          onOpenRow(row)
+                                                      }
+                                                    : undefined
+                                            }
+                                            className={cn(
+                                                // `group`, so a cell can reveal a control on the
+                                                // ROW's hover rather than on its own — a pin that
+                                                // appears only while the pointer is inside its own
+                                                // cell is one you have to find before you can see it.
+                                                // The fill reaches 12px past the text on each side
+                                                // while the text itself stays on the table's edge:
+                                                // the row's BOX grows by the same 12px its padding
+                                                // gives back, so its content box — and so its grid
+                                                // tracks — stay identical to the header's.
+                                                "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
+                                                rowPad,
+                                                "-mx-3 w-[calc(100%+1.5rem)] px-3",
+                                                onOpenRow && "cursor-pointer hover:bg-accent/60",
+                                                onOpenRow && FOCUS_RING,
+                                            )}
+                                            style={{gridTemplateColumns: grid}}
+                                        >
+                                            {renderRow(row)}
+                                        </div>
                                     )
                                     return wrapRow ? (
                                         <Fragment key={rowKey(row)}>

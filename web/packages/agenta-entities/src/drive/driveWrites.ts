@@ -8,9 +8,8 @@
  * Every write ends with {@link refreshMountListing} so the open directory, the recents summary
  * and the file bodies refetch through the host's query client.
  */
-import {type QueryClient} from "@tanstack/react-query"
-
 import {getMountsClient} from "@agenta/sdk/resources"
+import {type QueryClient} from "@tanstack/react-query"
 
 import {type Mount, projectScopedRequest} from "@agenta/entities/session"
 
@@ -68,7 +67,12 @@ export async function deleteMountPath({mount, path, projectId}: DriveWriteTarget
 }
 
 /** Write text to a path (a new file or an overwrite). */
-export async function saveMountText({mount, path, projectId, text}: DriveWriteTarget & {text: string}) {
+export async function saveMountText({
+    mount,
+    path,
+    projectId,
+    text,
+}: DriveWriteTarget & {text: string}) {
     const name = path.split("/").pop() ?? path
     try {
         await uploadMountFile({
