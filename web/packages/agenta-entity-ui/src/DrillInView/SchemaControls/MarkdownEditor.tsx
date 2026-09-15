@@ -29,6 +29,7 @@ import {
     useRef,
     useState,
 } from "react"
+import {createPortal} from "react-dom"
 
 import {
     EditorProvider,
@@ -63,6 +64,11 @@ export interface MarkdownEditorProps {
     filename?: string
     /** Show a formatting toolbar (heading/bold/italic/lists/link/code/quote) above the editor. */
     showToolbar?: boolean
+    /** Portal the toolbar into a host-owned element (a chrome row above the editor) instead of
+     * rendering its own row. The toolbar keeps the editor's composer context through the portal. */
+    toolbarContainer?: HTMLElement | null
+    /** Passed to `MarkdownToolbar` — `inline` for the compact H1/H2/H3 bar. */
+    toolbarLayout?: "default" | "inline"
     /** Initial view when uncontrolled. @default "source" */
     defaultView?: MarkdownView
     /** Controlled view. When set, the toggle calls `onViewChange` instead of local state. */
@@ -126,6 +132,8 @@ export function MarkdownEditor({
     disabled,
     filename,
     showToolbar = false,
+    toolbarContainer,
+    toolbarLayout,
     defaultView = "source",
     view,
     onViewChange,
@@ -226,11 +234,19 @@ export function MarkdownEditor({
 
     // Toolbar row pinned above a scroll area this component owns, so it never moves with content.
     // `justify-between` puts formatting on the left and the source/rich toggle hard-right.
-    const toolbar = (
+    const toolbarControls = (
+        <MarkdownToolbar
+            disabled={editorDisabled || markdownView}
+            layout={toolbarLayout}
+        />
+    )
+    const toolbar = toolbarContainer ? (
+        createPortal(toolbarControls, toolbarContainer)
+    ) : (
         // border-0 first: preflight is off, so a bare `border-b` still paints the UA's other
         // three sides — the top one doubling up with the container's own border.
         <div className="flex shrink-0 items-center justify-between gap-1 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] px-3 py-1.5">
-            <MarkdownToolbar disabled={editorDisabled || markdownView} />
+            {toolbarControls}
             {viewToggle}
         </div>
     )
