@@ -922,6 +922,11 @@ class MockGatewaysConfig(BaseModel):
     mcp_url: str = os.getenv(
         "AGENTA_MOCK_MCP_GATEWAY_URL", "http://mock-mcp-gateway:9092"
     )
+    # The address the mock OAuth issuer publishes itself under, for the case where that has
+    # to differ from the Docker address above: a browser completing the consent flow cannot
+    # resolve a container name, so a tunnelled stack points this at its public HTTPS address.
+    # Empty means "the address the gateway dials", which is every stack with no browser leg.
+    mcp_public_url: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_PUBLIC_URL", "")
     upstream_token: str = os.getenv(
         "AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN", "agenta-gateway-mock-token"
     )

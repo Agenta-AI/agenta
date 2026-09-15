@@ -77,6 +77,32 @@ environment variable dedicated to development. The custom mock upstream validate
 receives the expected injected credential but never returns the credential in a response, log,
 or assertion message.
 
+### Reaching the mock OAuth issuer from a browser
+
+The mock MCP service also serves a mock OAuth authorization server, and the consent flow ends
+in a browser that has to open its authorize page. A browser cannot resolve a Docker service
+name, so on a stack where a person completes the flow by hand the mock has to publish itself
+under an address that resolves outside the Docker network:
+
+```text
+AGENTA_MOCK_MCP_GATEWAY_PUBLIC_URL=https://<public-host>
+```
+
+Unset, the issuer publishes the `AGENTA_MOCK_MCP_GATEWAY_URL` above, which is what every
+automated suite uses and what a stack with no browser leg wants. Set, it replaces the base in
+every document the issuer serves, not only in `authorization_endpoint`. Publishing two
+different bases does not work: RFC 8414 s3.3 compares issuer identifiers as strings, the
+gateway's OAuth client enforces that comparison, and it also requires the `resource` in the
+protected-resource document to share an origin with the MCP server URL it was given. So the
+MCP server has to be configured under the same public address the variable names, and the
+acceptance suite has to be told the same address through `AGENTA_MOCK_MCP_GATEWAY_URL` and
+`AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL`, or its assertions still expect the Docker address.
+
+Publishing a public address costs the gateway nothing in egress terms: a public HTTPS host
+passes the outbound guard on its own merits, so it needs no entry in
+`AGENTA_MCP_GATEWAY_HOST_ALLOWLIST`. The Docker address needs the guard's mock exemption
+precisely because it is neither public nor HTTPS.
+
 Project-owned mock credentials are created by test fixtures for standard and custom cases.
 They live only for the test project and are removed in fixture cleanup.  Builtin Agenta and mock
 entries use platform-owned development credentials or `NONE`, according to the provider's
