@@ -13,6 +13,7 @@ stream-consumer entrypoint.
 """
 
 import sys
+import signal
 import asyncio
 from typing import List
 
@@ -37,7 +38,10 @@ from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.tasks.asyncio.events.worker import EventsWorker
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
-from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
+from oss.src.tasks.asyncio.shared.consumer import (
+    StreamConsumer,
+    run_consumers_until_shutdown,
+)
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
 from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
@@ -176,11 +180,18 @@ async def main_async() -> int:
                     removed=removed,
                 )
 
+        # SIGTERM is what Docker/Kubernetes/watchmedo send to stop us; without a
+        # handler asyncio.run never unwinds and the consumers are hard-killed
+        # mid-loop. Mirrors worker_queues so the two entrypoints shut down the
+        # same way.
+        shutdown_event = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, shutdown_event.set)
+
         log.info("[STREAMS] Starting worker-streams", selected=streams)
 
-        await asyncio.gather(*(consumer.run() for consumer in consumers))
-
-        return 0
+        return await run_consumers_until_shutdown(consumers, shutdown_event)
 
     except Exception:
         log.error("[STREAMS] Fatal error", exc_info=True)
