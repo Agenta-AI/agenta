@@ -11,7 +11,13 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {createMcpEndpoint, deleteMcpEndpoint, editMcpEndpoint, listMcpEndpoints} from "../api/api"
+import {
+    createMcpEndpoint,
+    deleteMcpEndpoint,
+    disconnectMcpEndpoint,
+    editMcpEndpoint,
+    listMcpEndpoints,
+} from "../api/api"
 import type {MCPEndpoint, MCPEndpointCreate, MCPEndpointEdit} from "../core/types"
 
 export const MCP_ENDPOINTS_QUERY_KEY = "mcp-endpoints"
@@ -62,4 +68,35 @@ export const deleteMcpEndpointAtom = atom(null, async (get, _set, endpointId: st
     const projectId = get(projectIdAtom)
     await deleteMcpEndpoint(endpointId, projectId ?? undefined)
     await invalidateMcpEndpoints()
+})
+
+/**
+ * Revoke one endpoint's grant and put the answer straight into the cache.
+ *
+ * Written rather than invalidated because the response is the endpoint itself, already in
+ * the shape the list holds. Refetching instead would leave the row reading Authorized until
+ * the round trip landed, which is the wrong thing to say about a credential that is already
+ * gone. The row is replaced wholesale: the response is a full endpoint, and merging would
+ * keep the `secret_id` the disconnect just removed.
+ */
+export const disconnectMcpEndpointAtom = atom(null, async (get, _set, endpointId: string) => {
+    const projectId = get(projectIdAtom)
+    const result = await disconnectMcpEndpoint(endpointId, projectId ?? undefined)
+    const endpoint = result.endpoint ?? null
+
+    const queryClient = getHostQueryClient()
+    const queryKey = [MCP_ENDPOINTS_QUERY_KEY, projectId]
+    const cached = queryClient.getQueryData<MCPEndpoint[]>(queryKey)
+
+    if (endpoint && cached) {
+        queryClient.setQueryData<MCPEndpoint[]>(
+            queryKey,
+            cached.map((row) => (row.id === endpoint.id ? endpoint : row)),
+        )
+    } else {
+        // Nothing to write into, so fall back to the refetch the other mutations use.
+        await invalidateMcpEndpoints()
+    }
+
+    return endpoint
 })

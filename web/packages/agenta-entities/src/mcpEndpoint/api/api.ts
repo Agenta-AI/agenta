@@ -48,6 +48,25 @@ export const deleteMcpEndpoint = async (endpointId: string, projectId?: string):
     })
 }
 
+/**
+ * Revoke this endpoint's OAuth grant, keeping the endpoint.
+ *
+ * Deleting the row is not the same act: the row carries the identity agent configs
+ * reference, so disconnecting must leave `id`, `slug`, `name`, URL and policy in place and
+ * take only the credential. Idempotent, so a second click is safe. The endpoint comes back
+ * with no `secret_id` (the response omits nulls), which `getMcpConnectionState` reads as
+ * `needs_auth`.
+ */
+export const disconnectMcpEndpoint = async (
+    endpointId: string,
+    projectId?: string,
+): Promise<MCPEndpointResponse> => {
+    const response = await axios.delete(`${getAgentaApiUrl()}${BASE}/${endpointId}/connect`, {
+        params: projectId ? {project_id: projectId} : undefined,
+    })
+    return response.data
+}
+
 // Omit scopes to discover the authorization-server scope checklist.
 export const discoverMcpConnect = async (
     endpointId: string,
