@@ -194,19 +194,58 @@ settings list is unaffected, because its state is derived from the endpoint row.
 this mid-run gets no connect action to offer. Pre-existing and not introduced by the disconnect
 work; raise it as a finding if the agent path is meant to offer reconnect.
 
-### Not yet verified
+### The migration, run against the deployment's own rows
 
-**Migration `oss000000032` has not run on this deployment.** `alembic_version_oss` reads
-`oss000000031`. The API container applies migrations at start and has only hot-reloaded its Python
-code since the revision landed, and a reload does not re-run migrations. So the pre-existing rows
-are untouched: the two real-provider connections still carry their URL-derived grant slug, and the
-one project holding six connections that share a single grant row still shares it.
+Applied on 2026-09-15, after the checks above. `alembic_version_oss` now reads
+`oss000000032`.
 
-Everything in the table above therefore proves the new key for connections created after the code
-landed. It does not prove the migration against real data. The migration itself is covered by a
-suite that drives the revision's own `upgrade()` against a scratch database on real Postgres,
-including both cases in one project and a second run changing nothing, but the deployment's own
-rows still need the revision to run and the two real-provider connections re-checked afterwards.
+How to apply it, because the obvious way does not work. The API container does **not** run
+migrations: its command is plain `uvicorn`, and it reaches a migrated database only through a
+`depends_on` on a one-shot `alembic` service with `condition: service_completed_successfully`.
+`run.sh --recreate api` runs `up -d --no-deps`, which skips exactly that dependency, so recreating
+the API leaves the schema where it was. Recreate the one-shot service instead, which runs the
+migration and exits:
+
+```bash
+COMPOSE_PROJECT_NAME=agenta-ee-dev-gateways bash hosting/docker-compose/run.sh \
+  --ee --dev --env-file .env.ee.dev.gateways --recreate alembic
+```
+
+The `COMPOSE_PROJECT_NAME` prefix is not optional from a worktree. Without it Compose derives the
+project from the directory name and builds a second stack beside the running one instead of acting
+on it.
+
+It exited `0` and reported what it did:
+
+```
+Running upgrade oss000000031 -> oss000000032, Move stored MCP OAuth grants onto the connection-derived key.
+[oss000000032] rekeyed 3 MCP OAuth grant(s) onto their connection; cleared 6 handle(s) that shared 1 ambiguous grant(s), which now need a reconnect.
+```
+
+Three and six are the counts measured before the revision was written, so the deployment held no
+case the revision had not been designed against.
+
+| Connection | Server | Before | After |
+| --- | --- | --- | --- |
+| `linear` | `mcp.linear.app` | connected, grant slugged from the URL | connected, grant slugged from the connection, **no reconnect** |
+| `ad` | `mcp.axiom.co` | connected, grant slugged from the URL | connected, grant slugged from the connection, **no reconnect** |
+| `oauth-live-1bebe702` | mock | connected, sole owner of its row | connected, re-slugged, **no reconnect** |
+| `mock-mcp`, `qa-desktop-oauth`, `qa-mobile-oauth`, `qa-phone-d`, `qa-phone-e`, `qa-phone-f` | mock | six connections sharing one grant row | handle cleared on all six, row deleted, each needs authorization |
+
+The two real-provider connections are the ones that mattered: both migrated silently, keeping the
+account they were connected to. Each rekeyed row is addressed by
+`oauth-grant-<last twelve hex of its own endpoint id>`, checked against each endpoint's id rather
+than taken on trust, and **no grant row is referenced by more than one connection any more**.
+
+The six cleared connections read as needing authorization rather than as broken:
+`_connection_state` returns `needs_auth` for a custom OAuth endpoint with no handle, which is the
+same state a never-connected one reports, and one Connect restores each. Their shared row held one
+account's tokens while all six claimed them, so five of the six were already presenting an account
+that was not theirs.
+
+Grant rows that were already orphaned before the revision ran were left in place, as its
+`upgrade()` says they are: the total went from eleven rows to ten, which is the one ambiguous row
+and nothing else.
 
 ## Result and follow-up
 
