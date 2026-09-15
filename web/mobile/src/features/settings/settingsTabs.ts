@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import type {SettingsAccess, SettingsTabKey} from "@agenta/settings"
-import {isBillingEnabled, isEE, isToolsEnabled} from "@agenta/shared/api"
+import {isBillingEnabled, isEE, isMcpGatewayEnabled, isToolsEnabled} from "@agenta/shared/api"
 import {useRouter} from "next/router"
 
 /** Tabs this app has a page for. The rest are listed nowhere rather than dead-ending. */
@@ -33,12 +33,17 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
     const enterprise = isEE()
     const billingEnabled = isBillingEnabled()
     const toolsEnabled = isToolsEnabled()
+    const mcpGatewayEnabled = isMcpGatewayEnabled()
 
     return useMemo(
         () => ({
             // Names the tab "Usage & Billing" rather than "Usage" — this surface can now change
             // a subscription, not only report against one.
             billingEnabled,
+            // This app lists no MCP endpoints tab at all (see AVAILABLE_SETTINGS_TABS), but the
+            // flag is read from the same place the desktop reads it so the two cannot disagree
+            // if the tab is ported here later.
+            canShowMcpEndpoints: mcpGatewayEnabled,
             canShowTools: toolsEnabled,
             canViewApiKeys: true,
             canViewEvents: true,
@@ -47,7 +52,7 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             // every other view flag here — their pages are read-only and the API authorizes.
             isOwner: true,
         }),
-        [enterprise, billingEnabled, toolsEnabled],
+        [enterprise, billingEnabled, toolsEnabled, mcpGatewayEnabled],
     )
 }
 

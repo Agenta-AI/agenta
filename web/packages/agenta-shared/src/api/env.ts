@@ -30,6 +30,7 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_LICENSE: process.env.NEXT_PUBLIC_AGENTA_LICENSE,
     NEXT_PUBLIC_AGENTA_BILLING_ENABLED: process.env.NEXT_PUBLIC_AGENTA_BILLING_ENABLED,
     NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_TOOLS_ENABLED,
+    NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED: process.env.NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED,
     NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED:
         process.env.NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED,
     NEXT_PUBLIC_AGENTA_WEB_URL: process.env.NEXT_PUBLIC_AGENTA_WEB_URL,
@@ -132,6 +133,18 @@ export const isToolsEnabled = (): boolean => getEnv("NEXT_PUBLIC_AGENTA_TOOLS_EN
 
 export const isBillingEnabled = (): boolean =>
     getEnv("NEXT_PUBLIC_AGENTA_BILLING_ENABLED") === "true"
+
+/**
+ * Whether this deployment serves the MCP gateway, and so whether the MCP endpoints settings
+ * tab has anything behind it. The API's `AGENTA_MCP_GATEWAY_ENABLED` is the authority;
+ * `entrypoint.sh` mirrors that same variable into `__env.js`, so this is a view of the API's
+ * switch and not a second one.
+ *
+ * ON unless set to the literal "false", matching the API default. An existing deployment sets
+ * nothing and keeps the tab, which is the behavior it has today.
+ */
+export const isMcpGatewayEnabled = (): boolean =>
+    getEnv("NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED").trim().toLowerCase() !== "false"
 
 export const isEmailInvitationsEnabled = (): boolean =>
     getEnv("NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED") === "true"
