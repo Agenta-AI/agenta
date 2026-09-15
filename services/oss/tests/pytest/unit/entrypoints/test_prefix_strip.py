@@ -112,7 +112,9 @@ def test_mounted_route_at_root_without_root_path():
 
 
 def test_mounted_route_with_public_prefix_and_no_root_path():
-    # The managed-ingress shape: the prefix arrives verbatim and must be stripped.
+    # The managed-ingress shape this middleware was written for: the ingress cannot rewrite
+    # paths, so the prefix arrives verbatim, and the server (gunicorn's uvicorn worker) sets
+    # no root_path. The chart passes SCRIPT_NAME, which that worker ignores.
     r = _mounted_app().get("/services/agent/v0/inspect", follow_redirects=False)
     assert r.status_code == 200
     assert r.json() == {"inspected": True}
@@ -145,3 +147,36 @@ def test_raw_path_keeps_the_root_path_head():
     r = _mounted_app(root_path="/services").get("/services/services/raw/caf%C3%A9")
     assert r.status_code == 200
     assert r.json()["raw_path"] == "/services/raw/caf%C3%A9"
+
+
+def test_root_path_is_never_rewritten():
+    """`root_path` is the server's to set, so the strip may only ever shorten `path`.
+
+    Rewriting `root_path` to match a shortened `path` would route just as well here, and
+    would then hand every mounted sub-app and every `url_for` a mount point the server never
+    published. This pins the narrower contract instead.
+    """
+    seen = {}
+
+    async def app(scope, receive, send):
+        seen.update(root_path=scope["root_path"], path=scope["path"])
+        await send({"type": "http.response.start", "status": 204, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    for root_path, sent, expected_path in (
+        # Managed ingress: no root_path, prefix arrives verbatim and is consumed.
+        ("", "/services/agent/v0/inspect", "/agent/v0/inspect"),
+        # Dev stack: uvicorn --root-path re-prepends the prefix Traefik stripped.
+        ("/services", "/services/agent/v0/inspect", "/services/agent/v0/inspect"),
+        # Both at once: one prefix is the server's, the other the ingress's.
+        (
+            "/services",
+            "/services/services/agent/v0/inspect",
+            "/services/agent/v0/inspect",
+        ),
+    ):
+        seen.clear()
+        client = TestClient(ServicesPrefixStripMiddleware(app), root_path=root_path)
+        assert client.get(sent).status_code == 204
+        assert seen["root_path"] == root_path
+        assert seen["path"] == expected_path
