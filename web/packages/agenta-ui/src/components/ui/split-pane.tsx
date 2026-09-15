@@ -34,6 +34,14 @@ export interface SplitPaneProps {
     resizable?: boolean
     /** Transition the driven pane's flex-basis (240ms, the playground curve). */
     animate?: boolean
+    /**
+     * Fade the pane's content out with a close (opacity only; a blur over a pane this size costs
+     * a GPU pass per frame for little). The content still translates out under the closing edge
+     * — this softens the clip rather than replacing the motion. An open shows the content at
+     * once: fading it in lagged the slide by the mount's own render and read as a load, not a
+     * reveal.
+     */
+    revealContent?: boolean
     /** Collapse the divider to zero width (collapsed rail). It stays MOUNTED and, while
      * `animate`, closes on the same curve as the driven pane — unmounting it moved the fill 9px in
      * the first frame of a collapse, which read as a snap before the slide. */
@@ -147,6 +155,7 @@ export function SplitPane({
     fillMin = 0,
     resizable = true,
     animate = false,
+    revealContent = false,
     barHidden = false,
     paneGrow = false,
     barLabel = "Resize panes",
@@ -290,6 +299,12 @@ export function SplitPane({
     if (paneSize > 0) lastOpenSizeRef.current = paneSize
     const sliding = animate && !dragging
     const slideMs = paneSlideMs()
+    const revealStyle: React.CSSProperties | undefined = revealContent
+        ? {
+              opacity: paneSize > 0 ? 1 : 0,
+              transition: sliding ? `opacity ${slideMs}ms ${PANE_SLIDE_CURVE}` : undefined,
+          }
+        : undefined
 
     const paneNode = (
         <div
@@ -320,14 +335,15 @@ export function SplitPane({
             <div
                 data-slot="split-pane-pane-content"
                 className={cn("h-full min-h-0", sliding && "absolute inset-y-0")}
-                style={
-                    sliding
+                style={{
+                    ...(sliding
                         ? {
                               width: lastOpenSizeRef.current,
                               ...(paneSide === "start" ? {right: 0} : {left: 0}),
                           }
-                        : {width: "100%"}
-                }
+                        : {width: "100%"}),
+                    ...revealStyle,
+                }}
             >
                 {pane}
             </div>
