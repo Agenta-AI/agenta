@@ -23,7 +23,7 @@ import {type ReactNode, useCallback, useMemo, useRef, useState} from "react"
 import {looksLikeFilePath} from "@agenta/entities/drive"
 import {type DriveId, type DriveScope} from "@agenta/entities/drive"
 import {type DroppedFile} from "@agenta/entities/drive"
-import {isMarkdownPath} from "@agenta/entities/drive"
+import {filterDriveTree, isMarkdownPath} from "@agenta/entities/drive"
 import {useDriveFileEditor} from "@agenta/entities/drive"
 import {useDriveFilters} from "@agenta/entities/drive"
 import {useDriveSelection} from "@agenta/entities/drive"
@@ -203,6 +203,7 @@ export function DriveExplorer({
         lazyTree,
         inGitScope,
         tree,
+        shownTree,
         shownExpanded,
         isDirLoading,
         flatRows,
@@ -462,7 +463,16 @@ export function DriveExplorer({
             ) : selectedIsFolder ? (
                 <FolderView
                     folderPath={selectedPath}
-                    nodes={selectedPath === "" ? tree : (selectedNode?.children ?? [])}
+                    // A search narrows the content too: matching files, and folders holding one.
+                    nodes={
+                        selectedPath === ""
+                            ? searchActive
+                                ? shownTree
+                                : tree
+                            : searchActive
+                              ? filterDriveTree(selectedNode?.children ?? [], deferredSearch)
+                              : (selectedNode?.children ?? [])
+                    }
                     rootLabel={rootLabel}
                     drive={drive}
                     view={view}
