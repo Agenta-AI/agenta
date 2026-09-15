@@ -9,6 +9,7 @@ import Section from "./Section.astro";
 // (e.g. /pricing) can override any of them via the `cta` prop forwarded by
 // Site.astro. Without this, per-page CTA overrides were silently ignored.
 interface Props {
+  eyebrow?: string;
   title?: string;
   body?: string;
   primaryLabel?: string;
@@ -17,6 +18,7 @@ interface Props {
   secondaryHref?: string;
 }
 const {
+  eyebrow,
   title = "Ship agents that actually work",
   body = "Build with skills and tools, run on any harness in any environment, and improve with real feedback. All open source.",
   primaryLabel = "Start building",
@@ -56,6 +58,7 @@ const btnWhite =
     style="position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;width:min(1072px,100%);margin:0 auto;gap:48px;"
   >
     <div style="display:flex;flex-direction:column;gap:24px;max-width:520px;">
+      {eyebrow && <span style="font:var(--text-caption);text-transform:uppercase;color:var(--text-on-yellow);">{eyebrow}</span>}
       <h2
         style="margin:0;font:var(--text-display-lg);color:var(--text-on-yellow);text-wrap:pretty;"
       >
