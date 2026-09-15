@@ -93,12 +93,16 @@ class MCPEndpointsDAOInterface(ABC):
         user_id: UUID,
         #
         endpoint_id: UUID,
+        secret_id: Optional[UUID],
     ) -> Optional[MCPEndpoint]:
         """Record that a connection's stored authorization is dead, touching nothing else.
 
-        Deliberately does not take the handle. The relay decides this after a round trip
-        the connection may have been reconfigured during, so the handle it read at the
-        start is exactly the value that must not be written back.
+        `secret_id` is the handle the caller was using, and it is a precondition rather
+        than a value to write: the row is marked invalid only while it still names that
+        handle. The relay decides this after a round trip the connection may have been
+        reconfigured during, so writing back what it read would undo a concurrent
+        change, and invalidating without looking would condemn a credential a reconnect
+        has already replaced (D21).
         """
         raise NotImplementedError
 

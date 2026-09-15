@@ -244,6 +244,7 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
         user_id: UUID,
         #
         endpoint_id: UUID,
+        secret_id: Optional[UUID],
     ) -> Optional[MCPEndpoint]:
         async with self.engine.session() as session:
             dbe = await self._locked(
@@ -252,11 +253,16 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
             if dbe is None:
                 return None
 
-            # Read inside the transaction rather than trusted from the caller: a
-            # reconnect that landed while the relay was in flight has already written a
-            # live handle and set this back to valid, and invalidating then would kill a
-            # credential that works.
-            if dbe.secret_id is None:
+            # Conditional on the handle the caller was actually using, compared inside
+            # the transaction and never written back. The relay decides this after a
+            # round trip, so what it holds is the connection as it was before the call
+            # went out; if a reconnect landed meanwhile, the credential that failed is
+            # not the credential the connection holds now, and marking it invalid would
+            # report a freshly repaired connection as needing another reconnect (D21).
+            #
+            # `None` means the handle went entirely, which is the disconnect case and
+            # equally not this caller's to invalidate.
+            if dbe.secret_id is None or dbe.secret_id != secret_id:
                 return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
 
             self._set_is_valid(dbe, False)

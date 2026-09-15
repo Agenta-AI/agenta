@@ -1050,6 +1050,10 @@ class MCPGatewayService:
             user_id=scope.user_id,  # type: ignore[arg-type]
             #
             endpoint_id=endpoint.id,
+            # The handle this call was made with. Compared, never written: if a
+            # reconnect landed while the call was in flight, the credential that failed
+            # is not the one the connection holds now (D21).
+            secret_id=endpoint.secret_id,
         )
 
     def _route_for(
