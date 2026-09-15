@@ -311,7 +311,7 @@ const sharedAcceptanceChunk = (chunk: AnyChunk): AnyChunk | undefined => {
         chunk.type === "data-agent-error" ||
         chunk.type === "data-session-accepted" ||
         // The runner's startup narration (#6047): control, not content — the shared reader
-        // carries none of it, and without it a cold start reads as a bare "Warming up".
+        // carries none of it, and without it a cold start reads as a bare "Waking up the agent".
         chunk.type === "data-agent-status"
     )
         return chunk

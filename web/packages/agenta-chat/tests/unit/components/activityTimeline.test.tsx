@@ -86,7 +86,7 @@ describe("ActivityTimeline", () => {
         expect(screen.getByRole("button").textContent).toContain("Starting the sandbox")
         cleanup()
         mount({streaming: true, sessionId: "s2"})
-        expect(screen.getByRole("button").textContent).toContain("Warming up")
+        expect(screen.getByRole("button").textContent).toContain("Waking up the agent")
     })
 
     it("settles to the worked time and stays closed", () => {
@@ -155,7 +155,7 @@ describe("ActivityTimeline", () => {
         const view = mount({streaming: true})
         const button = screen.getByRole("button")
         const line = button.textContent ?? ""
-        expect(line).toContain("Warming up")
+        expect(line).toContain("Waking up the agent")
         expect(line).not.toMatch(/\d:\d\d/)
         expect(button.querySelector("svg")).toBeNull()
         // Ten seconds of warm-up add nothing: the count begins with the first step.
