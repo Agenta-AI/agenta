@@ -22,7 +22,7 @@ import json
 import re
 import time
 import uuid
-from typing import Any, AsyncIterator, Dict, Iterator, Optional
+from typing import Any, AsyncIterator, Dict, Iterator, Optional, Tuple
 
 from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
@@ -170,7 +170,9 @@ MCP_ECHO_SERVER_NAME = "mock-mcp"
 _ECHO_TOOL_NAME_RE = re.compile(rf"(?:^|[^A-Za-z0-9]){MCP_ECHO_TOOL}$", re.IGNORECASE)
 
 
-def _tool_catalog_names(value: Any, namespace: str | None = None) -> Iterator[str]:
+def _tool_catalog_entries(
+    value: Any, namespace: str | None = None
+) -> Iterator[tuple[str | None, str]]:
     """Yield every tool name in a request's tool catalog, as the model would have to CALL it.
 
     Three shapes, and the third is the one that cost two wrong guesses. Chat Completions nests the
@@ -185,7 +187,7 @@ def _tool_catalog_names(value: Any, namespace: str | None = None) -> Iterator[st
     """
     if isinstance(value, list):
         for item in value:
-            yield from _tool_catalog_names(item, namespace)
+            yield from _tool_catalog_entries(item, namespace)
         return
     if not isinstance(value, dict):
         return
@@ -196,46 +198,61 @@ def _tool_catalog_names(value: Any, namespace: str | None = None) -> Iterator[st
     if value.get("type") == "namespace" and own:
         # The namespace itself is not callable; its members are, under its name.
         for item in value.get("tools") or []:
-            yield from _tool_catalog_names(item, own)
+            yield from _tool_catalog_entries(item, own)
         return
 
     if own:
-        yield f"{namespace}.{own}" if namespace else own
+        yield (namespace, own)
 
     for key, child in value.items():
         # `name` is this entry's own identity, already handled; every other value may nest a tool.
         if key in ("name", "tools"):
             continue
-        yield from _tool_catalog_names(child, namespace)
+        yield from _tool_catalog_entries(child, namespace)
 
 
-def _echo_tool_name(body: bytes) -> str | None:
-    """Read the harness's OWN name for the MCP echo tool out of the request's tool catalog.
+#: One resolved tool reference: the namespace it lives in (``None`` at top level) and its own name.
+#: They stay separate because Codex's Responses wire keeps them separate — see `_echo_tool_ref`.
+EchoToolRef = Tuple[Optional[str], str]
 
-    This is the only spelling that can be trusted, and reading it beats knowing it. Claude renders
-    ``mcp__<server>__<tool>`` while Codex renders ``mcp__<server>.<tool>`` through a namespace
-    entry; hardcoding a guess per protocol made the Codex cell falsely pass on one guess and then
-    fail on the next, both times naming a tool no harness had.
 
-    The names seen are logged, because when the cell fails for a harness whose catalog is absent or
-    differently shaped, the list of what WAS offered is the one thing that says why.
+def _echo_tool_ref(body: bytes) -> EchoToolRef | None:
+    """Read the harness's OWN reference to the MCP echo tool out of the request's tool catalog.
+
+    Reading beats knowing. Claude renders a flat ``mcp__<server>__<tool>`` while Codex advertises a
+    ``{"type": "namespace", "name": "mcp__<server>", "tools": [...]}`` entry, and hardcoding a guess
+    per protocol made the Codex cell falsely pass on one guess and then fail on two more, each time
+    naming a tool no harness had.
+
+    The namespace is returned beside the name rather than joined into it, because joining is what
+    kept failing: Codex's `ResponseItem::FunctionCall` carries `name` and `namespace` as SEPARATE
+    wire fields, and reassembles them itself
+    (``codex-rs/core/src/tools/router.rs``, ``build_tool_call``, at tag ``rust-v0.154.0`` — the
+    version the runner image installs). Any joined spelling arrives as a name in the default
+    namespace, matches no registered tool, and comes back as ``unsupported call: <name>``.
+
+    The entries seen are logged, because when the cell fails for a harness whose catalog is absent
+    or differently shaped, the list of what WAS offered is the one thing that says why.
     """
     try:
         payload = json.loads(body)
     except (json.JSONDecodeError, TypeError):
         return None
 
-    names = list(_tool_catalog_names(payload.get("tools", [])))
+    entries = list(_tool_catalog_entries(payload.get("tools", [])))
     matched = next(
-        (name for name in names if _ECHO_TOOL_NAME_RE.search(name)),
+        (entry for entry in entries if _ECHO_TOOL_NAME_RE.search(entry[1])),
         None,
     )
-    if names:
+    if entries:
         log.debug(
             "mock LLM: tool catalog carried %d tool(s); echo tool resolved to %r. Names: %s",
-            len(names),
+            len(entries),
             matched,
-            ", ".join(names[:24]),
+            ", ".join(
+                name if namespace is None else f"{namespace}/{name}"
+                for namespace, name in entries[:24]
+            ),
         )
     else:
         log.debug(
@@ -313,8 +330,22 @@ def _messages_tool_call_payload(
 
 
 def _responses_tool_call_payload(
-    *, response_id: str, created: int, model: str, tool_name: str, marker: str
+    *,
+    response_id: str,
+    created: int,
+    model: str,
+    tool_name: str,
+    tool_namespace: Optional[str],
+    marker: str,
 ) -> Dict[str, Any]:
+    """Codex keeps a namespaced tool's namespace in its own wire field, not joined into the name.
+
+    ``ResponseItem::FunctionCall`` has `name` and an optional `namespace`
+    (``codex-rs/protocol/src/models.rs``), and ``build_tool_call`` rebuilds the identity with
+    ``ToolName::new(namespace, name)`` (``codex-rs/core/src/tools/router.rs``), both at tag
+    ``rust-v0.154.0``. Omitting the field for a namespaced tool puts the call in the default
+    namespace, where no MCP tool is registered.
+    """
     return {
         "id": response_id,
         "object": "response",
@@ -327,6 +358,7 @@ def _responses_tool_call_payload(
                 "type": "function_call",
                 "call_id": "call_mock_mcp_echo",
                 "name": tool_name,
+                **({"namespace": tool_namespace} if tool_namespace else {}),
                 "arguments": json.dumps({"marker": marker}),
                 "status": "completed",
             }
@@ -434,7 +466,11 @@ class MockLLMAdapter(LLMUpstreamInterface):
 
         content = _last_message_content(body)
         marker = _mcp_marker(body)
-        tool_name = _echo_tool_name(body) or _default_mcp_echo_tool(context.protocol)
+        tool_ref = _echo_tool_ref(body)
+        if tool_ref is None:
+            fallback = _default_mcp_echo_tool(context.protocol)
+            tool_ref = (None, fallback) if fallback else None
+        tool_namespace, tool_name = tool_ref if tool_ref else (None, None)
         needs_tool_call = bool(marker and tool_name and not _contains_tool_result(body))
         if marker and _contains_tool_result(body):
             content = (
@@ -471,6 +507,7 @@ class MockLLMAdapter(LLMUpstreamInterface):
                         created=created,
                         model=model,
                         tool_name=tool_name,
+                        tool_namespace=tool_namespace,
                         marker=marker,
                     )
                     payload["usage"] = usage
