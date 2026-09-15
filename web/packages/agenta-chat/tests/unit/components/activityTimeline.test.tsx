@@ -215,6 +215,25 @@ describe("ActivityTimeline", () => {
         expect(line).not.toMatch(/\d:\d\d/)
     })
 
+    it("folds back a fold the reader opened once the run ends", () => {
+        const store = createStore()
+        const tree = (state: string, streaming: boolean) => (
+            <Provider store={store}>
+                <ActivityTimeline
+                    messageId="m1"
+                    steps={[toolStep(state)]}
+                    streaming={streaming}
+                    answerStarted={false}
+                />
+            </Provider>
+        )
+        const {rerender} = render(tree("input-available", true))
+        act(() => screen.getAllByRole("button")[0].click())
+        expect(screen.getAllByRole("button")[0].getAttribute("aria-expanded")).toBe("true")
+        rerender(tree("output-available", false))
+        expect(screen.getAllByRole("button")[0].getAttribute("aria-expanded")).toBe("false")
+    })
+
     it("keeps narrating while the run streams past an answer, and stays folded for a gate", () => {
         mount({steps: [toolStep("output-available")], streaming: true, answerStarted: true})
         const line = screen.getAllByRole("button")[0]

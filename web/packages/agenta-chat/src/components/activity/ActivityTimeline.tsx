@@ -226,6 +226,12 @@ export const ActivityTimeline = ({
     const setExpanded = useSetAtom(setExpandedAtom)
     // Closed by default, even parked on the reader: the header already says what it waits for.
     const open = stored ?? false
+    // A fold opened to watch the run folds back once the run ends: the answer is the point now.
+    const wasLiveRef = useRef(live)
+    useEffect(() => {
+        if (wasLiveRef.current && !live && open) setExpanded({key, value: false})
+        wasLiveRef.current = live
+    }, [live, open, key, setExpanded])
 
     if (!steps.length && !live) return null
 
