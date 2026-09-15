@@ -1,7 +1,7 @@
 """Vault-backed OAuth token storage."""
 
 import time
-from typing import Optional
+from typing import List, Optional, Tuple
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
@@ -63,7 +63,29 @@ def grant_slug(endpoint_id: UUID) -> str:
 
 
 def _issuer_slug(issuer_url: str) -> str:
+    """Where a registration lived before it was addressed per callback address.
+
+    Still read, and still written by a caller that knows no callback address. Every
+    registration stored before this is here, and so is every grant that references none,
+    so it is the fallback both resolve to.
+    """
     return get_slug_from_name_and_id("oauth-provider", uuid5(NAMESPACE_URL, issuer_url))
+
+
+def registration_slug(*, issuer_url: str, redirect_uri: str) -> str:
+    """Where one client registration lives: one issuer, one callback address.
+
+    A registration under RFC 7591 is bound to the redirect URIs it was created with, so a
+    changed public address needs a new one. Keyed on the pair rather than on the issuer
+    alone so that the new registration is a NEW ROW and the old one survives beside it:
+    every grant already issued was bound to the old client, and an authorization server
+    refuses a refresh presented by a client it never issued those tokens to. One mutable
+    row per issuer meant that fixing an endpoint which could not connect silently stopped
+    every endpoint that could (D6).
+    """
+    return get_slug_from_name_and_id(
+        "oauth-provider", uuid5(NAMESPACE_URL, f"{issuer_url}\n{redirect_uri}")
+    )
 
 
 class SecretsTokenStorage:
@@ -75,8 +97,13 @@ class SecretsTokenStorage:
     A client registration under RFC 7591 names this *deployment* to an authorization
     server; it is not an account, two connections at one authorization server
     legitimately share one, and registering per connection would mint a fresh client on
-    every connect, which authorization servers rate limit. So it stays keyed on the
-    issuer.
+    every connect, which authorization servers rate limit. So it is keyed on the issuer
+    and on the callback address it was created with, never on the connection.
+
+    The callback address is part of that key because a registration is bound to it. A
+    changed public address therefore writes a NEW registration row rather than
+    overwriting the one in use, and a grant records which registration issued it so a
+    renewal presents the client its tokens were bound to.
 
     Both slugs are deterministic, so two callbacks completing at once compute the same
     slug and both find nothing to update. The write is therefore create-first, and the
@@ -94,12 +121,19 @@ class SecretsTokenStorage:
         server_url: str,
         endpoint_id: Optional[UUID] = None,
         authorization_server: Optional[str] = None,
+        redirect_uri: Optional[str] = None,
     ) -> None:
         self.vault_service = vault_service
         self.project_id = project_id
         self.server_url = server_url
         self.endpoint_id = endpoint_id
         self.authorization_server = authorization_server
+        # The callback address this storage speaks for. Absent on the paths that never
+        # resolve a registration for the current address, which then read the issuer's.
+        self.redirect_uri = redirect_uri
+        # The registration slug the last `get_client_info`/`set_client_info` resolved, so
+        # `write_tokens` can record on the grant which client issued it.
+        self.resolved_registration_slug: Optional[str] = None
 
     # Tokens
 
@@ -180,6 +214,9 @@ class SecretsTokenStorage:
             # metadata document may read by then.
             issuer=self.authorization_server,
             endpoint_id=endpoint_id,
+            # Which client these tokens were issued against, so a renewal presents that
+            # one rather than whatever registration the issuer holds by then.
+            client_registration_slug=self.resolved_registration_slug,
         )
         secret = SecretDTO(
             kind=SecretKind.OAUTH_GRANT,
@@ -226,33 +263,71 @@ class SecretsTokenStorage:
 
     # Client registration
 
-    async def _find_provider(self) -> Optional[SecretResponseDTO]:
-        """The client registration for this authorization server.
+    @property
+    def _issuer(self) -> str:
+        return self.authorization_server or self.server_url
 
-        A lookup first, for the same reason the grant half is one: the slug is a pure
-        function of the issuer, so the row can be addressed instead of found, and a
-        project listing decrypts every secret the project holds (D14).
+    async def _provider_by_slug(self, slug: str) -> Optional[SecretResponseDTO]:
+        """One registration row, accepted only if it names this issuer.
 
-        The scan stays as a fallback, and is not dead code. The registration slug has
-        always been issuer-derived, but a row written under an older naming, or one whose
-        slug is absent, is still reachable by its `issuer_url`, and losing track of a
-        registration means re-registering a client at a server that may rate limit it.
+        The issuer check is D14's, and it is what stops a slug collision handing one
+        authorization server another's client.
         """
-        target = self.authorization_server or self.server_url
-
         secret = await self.vault_service.get_secret_by_slug(
-            secret_slug=_issuer_slug(target),
+            secret_slug=slug,
             project_id=self.project_id,
         )
         if (
             secret is not None
             and secret.kind == SecretKind.OAUTH_PROVIDER
-            and secret.data.provider.issuer_url == target
+            and secret.data.provider.issuer_url == self._issuer
         ):
             return secret
+        return None
 
+    def _registration_slugs(self, *, current_address: bool) -> List[str]:
+        """Where to look for a registration, best first.
+
+        The per-address slug is what a registration is written under when the caller
+        knows its callback address. The issuer slug follows, because every registration
+        written before the address joined the key is there. `current_address=False` skips
+        the first, which is what a grant that references no registration wants: it
+        predates per-address registrations, so the issuer's row is its own and a newer
+        one at this address was never the client it was issued against.
+        """
+        slugs: List[str] = []
+        if current_address and self.redirect_uri:
+            slugs.append(
+                registration_slug(
+                    issuer_url=self._issuer, redirect_uri=self.redirect_uri
+                )
+            )
+        slugs.append(_issuer_slug(self._issuer))
+        return slugs
+
+    async def _find_provider(
+        self, *, current_address: bool = True
+    ) -> Optional[Tuple[Optional[str], SecretResponseDTO]]:
+        """This deployment's registration, with the slug it was found under.
+
+        Lookups first, for the same reason the grant half is addressed: a project listing
+        decrypts every secret the project holds (D14).
+
+        The scan stays as a fallback, and is not dead code. A row written under an older
+        naming, or one whose slug is absent, is still reachable by its `issuer_url`, and
+        losing track of a registration means re-registering a client at a server that may
+        rate limit it. Such a row is returned with whatever slug it actually carries,
+        which may be none, so a grant referencing it either addresses it or falls back to
+        this same search rather than to a slug nothing is stored under.
+        """
+        for slug in self._registration_slugs(current_address=current_address):
+            provider = await self._provider_by_slug(slug)
+            if provider is not None:
+                return slug, provider
+
+        target = self._issuer
         secrets = await self.vault_service.list_secrets(project_id=self.project_id)
-        return next(
+        found = next(
             (
                 s
                 for s in secrets
@@ -261,11 +336,10 @@ class SecretsTokenStorage:
             ),
             None,
         )
+        return (found.slug, found) if found is not None else None
 
-    async def get_client_info(self) -> Optional[OAuthClientInformationFull]:
-        provider = await self._find_provider()
-        if provider is None:
-            return None
+    @staticmethod
+    def _as_client_info(provider: SecretResponseDTO) -> OAuthClientInformationFull:
         settings = provider.data.provider
         # The secret lives in the settings field the vault knows how to redact, never in
         # the registration metadata beside it; put it back only here, where the caller is
@@ -276,6 +350,37 @@ class SecretsTokenStorage:
                 "client_secret": settings.client_secret or None,
             }
         )
+
+    async def get_client_info(self) -> Optional[OAuthClientInformationFull]:
+        """The registration this deployment would present at its current address."""
+        found = await self._find_provider()
+        if found is None:
+            return None
+        slug, provider = found
+        self.resolved_registration_slug = slug
+        return self._as_client_info(provider)
+
+    async def get_client_info_for_grant(
+        self, grant: OAuthGrantSettingsDTO
+    ) -> Optional[OAuthClientInformationFull]:
+        """The registration a stored grant was issued against, not the current one.
+
+        A renewal must present the client the authorization server bound these tokens to.
+        Presenting a newer registration for the same issuer gets the refresh refused,
+        because that client was never issued these tokens — which is what made a changed
+        public address quietly stop every connection that was working (D6).
+
+        A grant referencing none predates the reference, so it resolves the issuer's
+        registration, which is exactly where it was already being resolved.
+        """
+        slug = grant.client_registration_slug
+        if slug:
+            provider = await self._provider_by_slug(slug)
+            # Nothing else can stand in for a registration that is gone: any other client
+            # at this issuer was never issued these tokens.
+            return self._as_client_info(provider) if provider is not None else None
+        found = await self._find_provider(current_address=False)
+        return self._as_client_info(found[1]) if found is not None else None
 
     async def set_client_info(self, client_info: OAuthClientInformationFull) -> None:
         issuer = self.authorization_server or self.server_url
@@ -299,9 +404,21 @@ class SecretsTokenStorage:
             data=OAuthProviderDTO(provider=provider_settings),
         )
 
-        slug = _issuer_slug(issuer)
-        existing = await self._find_provider()
+        # One row per callback address. A registration for a DIFFERENT address is left
+        # exactly where it is, because the grants issued against it still need it; only
+        # the row for this address is written. A caller with no callback address keeps
+        # writing the issuer row, which is where it always wrote.
+        slug = (
+            registration_slug(issuer_url=issuer, redirect_uri=self.redirect_uri)
+            if self.redirect_uri
+            else _issuer_slug(issuer)
+        )
+        self.resolved_registration_slug = slug
+
+        existing = await self._provider_by_slug(slug)
         if existing is not None:
+            # Re-registering at the same address, so this replaces a client the
+            # authorization server has already forgotten us under, not one in use.
             await self._update(existing=existing, secret=secret)
             return
 
