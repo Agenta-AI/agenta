@@ -47,7 +47,7 @@ export default function ConnectToolsStep({
         if (!selectedIds.includes(id)) onChange([...selectedIds, id])
         setPendingIntegration(null)
     }, [pendingIntegration, connections, selectedIds, onChange])
-    const scrollRef = useRef<HTMLDivElement>(null)
+    const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null)
     const {hasNextPage, isFetchingNextPage, requestMore, prefetchThreshold} = catalog
     const activeKeys = new Set(
         connections
@@ -86,7 +86,7 @@ export default function ConnectToolsStep({
                 <p>No apps found.</p>
             )}
             <div className="relative">
-                <div ref={scrollRef} className="max-h-[360px] overflow-auto pb-8 pr-1">
+                <div ref={setScrollRoot} className="max-h-[360px] overflow-auto pb-8 pr-1">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
                         {visible.map((integration, index) => {
                             const connection = connections.find(
@@ -112,7 +112,7 @@ export default function ConnectToolsStep({
                                                 onVisible={requestMore}
                                                 hasMore={hasNextPage && !catalog.error}
                                                 isFetching={isFetchingNextPage}
-                                                root={scrollRef.current}
+                                                root={scrollRoot}
                                             />
                                         </div>
                                     )}
@@ -168,7 +168,7 @@ export default function ConnectToolsStep({
                         onVisible={requestMore}
                         hasMore={hasNextPage && !catalog.error}
                         isFetching={isFetchingNextPage}
-                        root={scrollRef.current}
+                        root={scrollRoot}
                     />
                     {catalog.isFetchingNextPage && (
                         <div role="status" className="flex items-center justify-center gap-2 py-3">
