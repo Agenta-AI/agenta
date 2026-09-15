@@ -143,11 +143,6 @@ class MCPPolicy(BaseModel):
     tool_permissions: Dict[str, Permission] = Field(default_factory=dict)
     new_tool_permission: Optional[Permission] = None
 
-    @property
-    def is_per_tool(self) -> bool:
-        """Whether the author opted into per-tool policy for this server."""
-        return bool(self.tool_permissions) or self.new_tool_permission is not None
-
     def resolved_new_tool_permission(self) -> Optional[Permission]:
         """The decision an advertised tool gets when the table has no entry of its own.
 
@@ -156,7 +151,8 @@ class MCPPolicy(BaseModel):
         server whose author took the trouble to write a per-tool table. Returns ``None`` when the
         author opted out entirely, which is what keeps an existing configuration unchanged.
         """
-        if not self.is_per_tool:
+        # Either field set is the opt-in; neither set leaves this server on the ladder.
+        if not self.tool_permissions and self.new_tool_permission is None:
             return None
         return self.new_tool_permission or self.permission or "ask"
 

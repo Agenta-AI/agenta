@@ -991,7 +991,7 @@ _ROUTE_ABSENT_BODY = {"detail": "Not Found"}
 
 
 def _llm_gateway_is_unavailable(
-    *, status_code: int, body: Any, refusal: GatewayConnectionRefusedError
+    *, body: Any, refusal: GatewayConnectionRefusedError
 ) -> bool:
     """Whether this refusal means "this deployment does not route models through a gateway".
 
@@ -1009,7 +1009,9 @@ def _llm_gateway_is_unavailable(
     """
     if refusal.failure_code == LLM_GATEWAY_DISABLED_CODE:
         return True
-    return status_code == 404 and body == _ROUTE_ABSENT_BODY
+    # `gateway_status` is the status the gateway actually answered with, which is what the
+    # refusal was built from; the class's own `status_code` is the one it reports upward.
+    return refusal.gateway_status == 404 and body == _ROUTE_ABSENT_BODY
 
 
 class VaultConnectionResolver:
@@ -1142,9 +1144,7 @@ class VaultConnectionResolver:
                 status_code=response.status_code,
                 body=body,
             )
-            if _llm_gateway_is_unavailable(
-                status_code=response.status_code, body=body, refusal=refusal
-            ):
+            if _llm_gateway_is_unavailable(body=body, refusal=refusal):
                 return await self._resolve_from_vault(
                     api_base=api_base,
                     authorization=authorization,
