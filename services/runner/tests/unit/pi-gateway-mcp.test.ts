@@ -589,9 +589,10 @@ describe("Pi MCP permissions", () => {
     );
   });
 
-  it("refuses both servers when two of them render one tool name", async () => {
-    // Whichever registered first would answer for both, so the model would reach one account's
-    // tool believing it had reached the other's. OR80.
+  it("keeps the first claimant and refuses the second when two render one name", async () => {
+    // Whichever registered first would otherwise answer for both, so the model would reach one
+    // account's tool believing it had reached the other's. The name stays with its first
+    // claimant, the second server's tool is refused, and the registration fails loudly. OR80.
     globalThis.fetch = builtinAdapterFetch();
     const registered: string[] = [];
     const logs: string[] = [];
@@ -625,8 +626,10 @@ describe("Pi MCP permissions", () => {
 
     assert.deepEqual(registered, ["mcp__acme_prod__echo"]);
     assert.ok(
-      logs.some((line) =>
-        line.includes("both render tool 'echo' as 'mcp__acme_prod__echo'"),
+      logs.some(
+        (line) =>
+          line.includes("both render tool 'echo' as 'mcp__acme_prod__echo'") &&
+          line.includes("it stays with 'acme-prod'"),
       ),
     );
   });

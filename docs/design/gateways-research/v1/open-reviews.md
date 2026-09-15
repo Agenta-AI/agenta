@@ -331,14 +331,16 @@ arbitrate rather than the punctuation — it takes the longest configured name t
 starts with, so a server called `acme__prod` resolves to itself instead of to `acme`.
 
 The collision is refused rather than resolved. When two different configured servers rewrite to one
-Pi tool name, neither is registered and the registration fails loudly, because whichever registered
-first would otherwise answer for both and the model would reach one account's tool believing it had
-reached the other's. The cross-server check runs BEFORE the warm-turn no-op, which is the fix
-rather than an optimisation: `ours.has(name)` is true for a name the OTHER server registered a
-moment earlier, so the no-op used to swallow exactly this case.
+Pi tool name, the name stays with its first claimant, the second server's tool is not registered,
+and the registration fails at the end so the operator sees it — because whichever registered first
+would otherwise answer for both, and the model would reach one account's tool believing it had
+reached the other's. Following OR59, one shadowed name does not cost the other servers their tools.
+The cross-server check runs BEFORE the warm-turn no-op, which is the fix rather than an
+optimisation: `ours.has(name)` is true for a name the OTHER server registered a moment earlier, so
+the no-op used to swallow exactly this case.
 
 Proven by `services/runner/tests/unit/pi-gateway-mcp.test.ts` (a hyphenated server reaches its own
-policy; two servers that render alike are both refused) and
+policy; the second of two servers that render alike is refused) and
 `tests/unit/sandbox-agent-acp-interactions.test.ts` (a server whose name contains the separator
 resolves, and the longest match wins).
 
