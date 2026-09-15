@@ -33,17 +33,27 @@ export const ActivityClientStep = ({
 }) => {
     const name = partToolName(part)
     const display = resolveToolDisplay(name, (part as {input?: unknown}).input)
+    const failed = (part.state as string) === "output-error"
     const settled = (part.state as string).startsWith("output-")
     // A question's form lives in the dock; the step only says so.
     if (canonicalToolName(name) === "request_input") return <ActivityAnswersStep part={part} />
     const widget = render?.(part)
     return (
         <div className="flex min-w-0 items-center gap-3.5">
-            <AppNode sourceKey={display.sourceKey} icon={display.icon} yourTurn={!settled} />
+            <AppNode
+                sourceKey={display.sourceKey}
+                icon={display.icon}
+                state={failed ? "failed" : undefined}
+                yourTurn={!settled}
+            />
             <div className="min-w-0 flex-1">
                 {widget ?? (
-                    <span className="text-sm text-colorText">
-                        {settled ? display.activity.done : display.activity.running}
+                    <span className={`text-sm ${failed ? "text-colorError" : "text-colorText"}`}>
+                        {failed
+                            ? `${display.activity.running} failed`
+                            : settled
+                              ? display.activity.done
+                              : display.activity.running}
                     </span>
                 )}
             </div>
