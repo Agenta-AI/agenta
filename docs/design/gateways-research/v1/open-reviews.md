@@ -2,21 +2,22 @@
 
 ## Active review findings
 
-The record runs OR36 to OR83, forty-eight findings: thirty-nine closed, eight open and one
-withdrawn.
-Entries numbered below OR36 predate that record and are all closed.
+The record runs OR36 to OR83, forty-eight findings: forty closed, seven open and one withdrawn.
+Every number in that range is present. Entries numbered below OR36 predate the record and are
+all closed. Recounted from the headings on 2026-09-15, after several findings closed the same
+day.
 
-Eight findings are open. OR69 heads this section but counts as neither open nor closed: it was
-withdrawn on 2026-09-13, and its entry stays in place so the reading is not repeated. No P0 and no
-P1 remain: OR79, opened and closed on 2026-09-15, was the last P0 and OR80 the last P1, and both
-are closed. The highest severity open is P2, carried by OR76 alone; the other seven entries are
-debt and carry no severity. The open set is OR63, OR65 to OR68, OR76, OR81 and OR82. OR82 asks a
-question of the PR author rather than of an implementer: one of its six items is an untested
-evaluation change that is not gateway work. Six of the debt entries are also tracked as CU15 to
-CU20 in `cleanups.md`, which records why each is still open. None of them waits on a design
-decision. OD24 to OD27 in `open-designs.md` are all decided. Every open
-entry states the closure that would settle it and the test that would prove it. A finding that
-closes moves to the closed record below.
+Seven findings are open: OR63, OR65 to OR68, OR76 and OR81. OR69 heads this section but counts
+as neither open nor closed; it was withdrawn on 2026-09-13, and its entry stays in place so the
+reading is not repeated.
+
+No P0 and no P1 remain. OR79, opened and closed on 2026-09-15, was the last P0 and OR80 the last
+P1. The highest severity open is P2, carried by OR76 alone. The other six carry no severity and
+are debt, each also tracked in `cleanups.md` as CU15 to CU20, which records why it is still open.
+None of them waits on a design decision, and OD24 to OD27 in `open-designs.md` are all decided.
+
+Every open entry states the closure that would settle it and the test that would prove it. A
+finding that closes moves to the closed record below.
 
 ---
 
