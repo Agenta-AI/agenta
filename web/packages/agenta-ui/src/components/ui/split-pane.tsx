@@ -205,6 +205,7 @@ export function SplitPane({
         // Seed the total up front: a press-and-release with no movement never reaches
         // `handlePointerMove`, and a `total` of 0 breaks any ratio the caller derives from it.
         lastRef.current = {size: paneSize, total: readTotal()}
+        draggingRef.current = true
         setDragging(true)
         onResizeStart?.()
     }
@@ -219,16 +220,38 @@ export function SplitPane({
                 : rect.right - e.clientX - barWidth / 2
         commit(clamp(Math.round(raw), total), total)
     }
-    /** `pointerup` and `pointercancel` (scroll takeover, browser gesture) share one exit — without
-     * it a cancelled pointer leaves `dragging` stuck true and `onResizeEnd` never fires. */
+    /** One idempotent exit for every way a drag can end: the divider's own `pointerup` /
+     * `pointercancel`, or — when the divider is gone before the pointer lifts (the pane toggled
+     * shut by a shortcut mid-drag, the window losing focus) — the window-level listeners below.
+     * A stuck `dragging` is not cosmetic: it disables the pane's open/close slide for good. */
+    const draggingRef = React.useRef(false)
+    const finishDrag = React.useCallback(() => {
+        if (!draggingRef.current) return
+        draggingRef.current = false
+        setDragging(false)
+        onResizeEnd?.(lastRef.current.size, lastRef.current.total)
+    }, [onResizeEnd])
     const handlePointerFinish = (e: React.PointerEvent<HTMLDivElement>) => {
-        if (!dragging) return
         if (e.currentTarget.hasPointerCapture(e.pointerId)) {
             e.currentTarget.releasePointerCapture(e.pointerId)
         }
-        setDragging(false)
-        onResizeEnd?.(lastRef.current.size, lastRef.current.total)
+        finishDrag()
     }
+    React.useEffect(() => {
+        if (!dragging) return
+        window.addEventListener("pointerup", finishDrag)
+        window.addEventListener("pointercancel", finishDrag)
+        window.addEventListener("blur", finishDrag)
+        return () => {
+            window.removeEventListener("pointerup", finishDrag)
+            window.removeEventListener("pointercancel", finishDrag)
+            window.removeEventListener("blur", finishDrag)
+        }
+    }, [dragging, finishDrag])
+    // A pane that stops being resizable (closed under the pointer) ends any drag with it.
+    React.useEffect(() => {
+        if (!resizable) finishDrag()
+    }, [resizable, finishDrag])
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
         if (!resizable) return
