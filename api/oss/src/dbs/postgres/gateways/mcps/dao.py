@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -190,6 +191,103 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
             await session.refresh(dbe)
 
             return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
+
+    @suppress_exceptions()
+    async def bind_endpoint_secret(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        secret_id: Optional[UUID],
+    ) -> Optional[MCPEndpoint]:
+        async with self.engine.session() as session:
+            dbe = await self._locked(
+                session, project_id=project_id, endpoint_id=endpoint_id
+            )
+            if dbe is None:
+                return None
+
+            await check_secret_is_owned_by_project(
+                session,
+                project_id=project_id,
+                bound_secret=secret_id,
+                target=f"custom/{dbe.slug}",
+            )
+
+            dbe.secret_id = secret_id
+            # A connection holding a fresh grant is valid again. The data plane marks one
+            # invalid when its authorization dies (OR55) and reconnecting is the cure, so
+            # carrying that flag forward would leave a reconnected connection refusing
+            # calls it can now serve.
+            self._set_is_valid(dbe, True)
+            self._stamp(dbe, user_id)
+
+            await session.commit()
+            await session.refresh(dbe)
+
+            return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
+
+    @suppress_exceptions()
+    async def invalidate_endpoint_secret(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+    ) -> Optional[MCPEndpoint]:
+        async with self.engine.session() as session:
+            dbe = await self._locked(
+                session, project_id=project_id, endpoint_id=endpoint_id
+            )
+            if dbe is None:
+                return None
+
+            # Read inside the transaction rather than trusted from the caller: a
+            # reconnect that landed while the relay was in flight has already written a
+            # live handle and set this back to valid, and invalidating then would kill a
+            # credential that works.
+            if dbe.secret_id is None:
+                return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
+
+            self._set_is_valid(dbe, False)
+            self._stamp(dbe, user_id)
+
+            await session.commit()
+            await session.refresh(dbe)
+
+            return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
+
+    async def _locked(self, session, *, project_id: UUID, endpoint_id: UUID):
+        """The row, locked for the rest of the transaction.
+
+        `FOR UPDATE` because these two writes are read-modify-write on one JSON column:
+        two of them landing together would otherwise each write the flags they read.
+        """
+        stmt = (
+            select(self.MCPEndpointDBE)
+            .filter(self.MCPEndpointDBE.project_id == project_id)
+            .filter(self.MCPEndpointDBE.id == endpoint_id)
+            .limit(1)
+            .with_for_update()
+        )
+        result = await session.execute(stmt)
+        return result.scalars().first()
+
+    @staticmethod
+    def _set_is_valid(dbe, is_valid: bool) -> None:
+        """Rewrite one key of the stored flags, keeping every other key it holds."""
+        flags = dict(dbe.flags or {})
+        flags["is_valid"] = is_valid
+        dbe.flags = flags
+        flag_modified(dbe, "flags")
+
+    @staticmethod
+    def _stamp(dbe, user_id: UUID) -> None:
+        dbe.updated_at = datetime.now(timezone.utc)
+        dbe.updated_by_id = user_id
 
     @suppress_exceptions(default=False)
     async def delete_endpoint(

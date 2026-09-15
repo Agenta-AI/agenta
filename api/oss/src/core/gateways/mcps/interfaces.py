@@ -63,6 +63,46 @@ class MCPEndpointsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def bind_endpoint_secret(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        secret_id: Optional[UUID],
+    ) -> Optional[MCPEndpoint]:
+        """Point a connection at its stored authorization, or at none, and mark it valid.
+
+        `secret_id=None` is the disconnect: the handle goes and the connection stays
+        valid, because nothing died — it simply holds no authorization now.
+
+        Separate from `edit_endpoint` because a credential transition is not an edit of
+        the connection. `edit_endpoint` is a full PUT built from a snapshot the caller
+        read earlier, so expressing "the grant changed" through it wrote back every other
+        column as the caller last saw it: fields the builder omitted were nulled, and an
+        administrator's concurrent change was reverted (D3). This writes two columns.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def invalidate_endpoint_secret(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+    ) -> Optional[MCPEndpoint]:
+        """Record that a connection's stored authorization is dead, touching nothing else.
+
+        Deliberately does not take the handle. The relay decides this after a round trip
+        the connection may have been reconfigured during, so the handle it read at the
+        start is exactly the value that must not be written back.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     async def delete_endpoint(
         self,
         *,

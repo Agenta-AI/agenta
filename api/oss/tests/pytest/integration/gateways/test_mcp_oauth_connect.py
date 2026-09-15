@@ -20,6 +20,7 @@ from oss.src.core.gateways.dtos import GatewayAuthScheme
 from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
     MCPEndpointData,
+    MCPEndpointFlags,
     MCPEndpointRoute,
 )
 from oss.src.utils.context import AuthScope
@@ -55,6 +56,22 @@ class _EndpointStore:
 
     async def edit_endpoint(self, *, project_id, user_id, endpoint):
         self.endpoint = MCPEndpoint.model_validate(endpoint.model_dump())
+        return self.endpoint
+
+    async def bind_endpoint_secret(
+        self, *, project_id, user_id, endpoint_id, secret_id
+    ):
+        # Two columns, the way the real DAO writes a credential transition (D3).
+        if endpoint_id != self.endpoint.id:
+            return None
+        self.endpoint = self.endpoint.model_copy(
+            update={
+                "secret_id": secret_id,
+                "flags": MCPEndpointFlags(
+                    is_active=self.endpoint.flags.is_active, is_valid=True
+                ),
+            }
+        )
         return self.endpoint
 
     async def query_endpoints(self, *, project_id, endpoint=None, windowing=None):

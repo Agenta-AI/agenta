@@ -120,6 +120,15 @@ class MockMCPGatewayService:
         self.calls.append("edit_endpoint")
         return self.edit_return
 
+    async def bind_endpoint_secret(
+        self, *, project_id, user_id, endpoint_id, secret_id
+    ):
+        # Records the handle it was given: a credential transition writes two columns,
+        # so what a caller supplies is the whole of what it can change (D3).
+        self.calls.append("bind_endpoint_secret")
+        self.bound_secret_id = secret_id
+        return self.edit_return
+
     async def delete_endpoint(self, *, project_id, endpoint_id):
         self.calls.append("delete_endpoint")
         return self.delete_return
@@ -634,7 +643,7 @@ def test_callback_completes_and_puts_the_secret_id_onto_the_bound_endpoint(
     assert "text/html" in response.headers["content-type"]
     assert "mcp:oauth:connected" in response.text
     # The endpoint came from the record's bound id, not a query by server URL.
-    assert service.calls == ["fetch_endpoint", "edit_endpoint"]
+    assert service.calls == ["fetch_endpoint", "bind_endpoint_secret"]
     assert oauth_service.calls == [
         ("claim", "opaque-handle"),
         ("complete", "auth-code", "opaque-handle"),
@@ -982,7 +991,9 @@ def test_disconnect_drops_this_connections_grant_and_clears_its_handle(
     # The grant that went is this connection's, named by id rather than by the server
     # URL that its neighbours share.
     assert oauth_service.disconnected == [endpoint_id]
-    assert "edit_endpoint" in service.calls
+    # The handle is cleared by the two-column write, not by replacing the row (D3).
+    assert "bind_endpoint_secret" in service.calls
+    assert service.bound_secret_id is None
     assert "secret_id" not in response.json()["endpoint"]
 
 
@@ -1017,7 +1028,9 @@ def test_disconnect_clears_the_handle_even_when_no_grant_was_stored(
     response = client.delete(f"/endpoints/{endpoint_id}/connect")
 
     assert response.status_code == 200, response.text
-    assert "edit_endpoint" in service.calls
+    # The handle is cleared by the two-column write, not by replacing the row (D3).
+    assert "bind_endpoint_secret" in service.calls
+    assert service.bound_secret_id is None
     assert "secret_id" not in response.json()["endpoint"]
 
 

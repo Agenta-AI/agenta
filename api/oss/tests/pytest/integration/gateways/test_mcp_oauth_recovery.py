@@ -35,7 +35,6 @@ from mcp.shared.auth import OAuthToken
 from sqlalchemy import text
 
 from oss.src.apis.fastapi.gateways.mcps.proxy import _map_gateway_exception
-from oss.src.apis.fastapi.gateways.mcps.router import _as_edit
 from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.gateways.dtos import (
     GatewayConnectionState,
@@ -196,9 +195,9 @@ async def _create_connection(*, project, slug: str, name: str, base_url: str):
 async def _consent(*, service, provider, project, endpoint):
     """One complete consent, then the row update the callback performs.
 
-    `_as_edit` is the router's own helper, reused rather than reproduced: it is what
-    decides that a new grant makes a connection valid again, which is the behaviour every
-    reconnect case below turns on.
+    The bind is the DAO's own credential transition, the one the callback route performs:
+    two columns, and it is what decides that a new grant makes a connection valid again,
+    which is the behaviour every reconnect case below turns on.
     """
     start = await service.begin(
         project_id=project["project_id"],
@@ -212,29 +211,30 @@ async def _consent(*, service, provider, project, endpoint):
         attempt=attempt,
         code=provider.callback_params(state=start.state)["code"],
     )
-    return await _dao().edit_endpoint(
+    return await _dao().bind_endpoint_secret(
         project_id=project["project_id"],
         user_id=project["user_id"],
-        endpoint=_as_edit(endpoint, secret_id=completion.secret_id),
+        endpoint_id=endpoint.id,
+        secret_id=completion.secret_id,
     )
 
 
 async def _disconnect(*, project, connect_service, connection):
     """Drop a connection's grant and clear its handle, the way the route does.
 
-    `_as_edit(clear_secret_id=True)` is the router's own helper again: both halves belong
-    to one operation, and a test that dropped only the vault row would leave the
-    connection naming a grant nothing holds, which is a different case.
+    Both halves belong to one operation, and a test that dropped only the vault row would
+    leave the connection naming a grant nothing holds, which is a different case.
     """
     await connect_service.disconnect(
         project_id=project["project_id"],
         endpoint_id=connection.id,
         server_url=connection.data.route.base_url,
     )
-    return await _dao().edit_endpoint(
+    return await _dao().bind_endpoint_secret(
         project_id=project["project_id"],
         user_id=project["user_id"],
-        endpoint=_as_edit(connection, clear_secret_id=True),
+        endpoint_id=connection.id,
+        secret_id=None,
     )
 
 
