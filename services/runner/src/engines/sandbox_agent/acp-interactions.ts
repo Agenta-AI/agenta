@@ -20,6 +20,10 @@ import {
 } from "./pi-gate-envelope.ts";
 import { redactContextBoundArgs } from "../../tools/relay.ts";
 import { bareToolName } from "./client-tools.ts";
+import {
+  mcpToolPermission,
+  type McpPermissionTable,
+} from "./runtime-policy.ts";
 
 /** The parkable ACP gate types a paused turn can record. */
 export type ParkedApprovalGateType =
@@ -46,7 +50,8 @@ export interface AttachPermissionResponderInput {
   responder: Responder;
   /** The ACP adapter in this run, used only where permission frame contracts differ. */
   acpAgent?: string;
-  serverPermissions?: ReadonlyMap<string, ToolPermission>;
+  /** Per-server MCP permission tables, from `runtime-policy.ts` intake. */
+  mcpPermissions?: McpPermissionTable;
   /**
    * Called when a gate pauses the turn. The orchestration loop uses this to end the turn
    * gracefully because a paused Claude turn never resolves `session.prompt()` on its own.
@@ -204,7 +209,7 @@ export function attachPermissionResponder({
   run,
   responder,
   acpAgent,
-  serverPermissions = new Map(),
+  mcpPermissions = new Map(),
   onPause,
   log,
   onPausedToolCall,
@@ -618,14 +623,18 @@ export function attachPermissionResponder({
     // Codex sends the approval BEFORE the `tool_call` frame that carries the arguments, so the
     // gate has to let that frame land or it mints an authorization for a call it cannot see. Only
     // a frame that arrived WITHOUT arguments waits, so every other harness is untouched.
-    if (isCodex && toolCall?.rawInput === undefined && toolCall?.input === undefined) {
+    if (
+      isCodex &&
+      toolCall?.rawInput === undefined &&
+      toolCall?.input === undefined
+    ) {
       await awaitRecordedToolCallArgs(run, toolCall?.toolCallId, log);
     }
     const { gate, spec } = buildGateDescriptor(
       req,
       toolCall,
       run,
-      serverPermissions,
+      mcpPermissions,
       toolSpecsByName,
       isCodex,
     );
@@ -847,7 +856,7 @@ export function buildGateDescriptor(
   request: any,
   toolCall: any,
   run: { events?: () => AgentEvent[] },
-  serverPermissions: ReadonlyMap<string, ToolPermission>,
+  mcpPermissions: McpPermissionTable,
   toolSpecsByName: ReadonlyMap<string, ResolvedToolSpec> | undefined,
   isCodex: boolean,
 ): { gate: GateDescriptor; spec: ResolvedToolSpec | undefined } {
@@ -890,7 +899,7 @@ export function buildGateDescriptor(
     specPermission,
     serverPermission: spec
       ? undefined
-      : serverPermissionFor(toolName, serverPermissions),
+      : mcpPermissionFor(toolName, mcpPermissions),
     readOnlyHint:
       typeof spec?.readOnly === "boolean" ? spec.readOnly : undefined,
     args,
@@ -898,22 +907,52 @@ export function buildGateDescriptor(
   return { gate, spec };
 }
 
-function serverPermissionFor(
-  toolName: string | undefined,
-  serverPermissions: ReadonlyMap<string, ToolPermission>,
-): ToolPermission | undefined {
-  // Codex uses mcp.<server>.<tool>; Claude uses mcp__<server>__<tool>.
-  if (toolName?.startsWith("mcp.")) {
-    const rest = toolName.slice("mcp.".length);
-    const separator = rest.indexOf(".");
-    if (separator <= 0) return undefined;
-    return serverPermissions.get(rest.slice(0, separator));
+/**
+ * Split a harness-rendered MCP tool name back into its server and its upstream tool.
+ *
+ * The separator is ambiguous, and that is the whole difficulty: a server named `acme__prod`
+ * renders as `mcp__acme__prod__search`, where the first `__` is not the boundary. Splitting on the
+ * first occurrence, which is what this did before, resolves that server to `acme` and misses its
+ * policy — silently, and in the permissive direction.
+ *
+ * So the known server names arbitrate rather than the punctuation: take the LONGEST configured
+ * server name the rest of the string starts with. Longest wins because both `acme` and
+ * `acme__prod` can be configured at once, and the longer is the more specific match. A name no
+ * configured server claims returns undefined, exactly as an unconfigured server always did.
+ */
+function splitMcpToolName(
+  toolName: string,
+  separator: string,
+  mcpPermissions: McpPermissionTable,
+): { server: string; tool: string } | undefined {
+  let best: { server: string; tool: string } | undefined;
+  for (const server of mcpPermissions.keys()) {
+    const prefix = `${server}${separator}`;
+    if (!toolName.startsWith(prefix)) continue;
+    if (best && best.server.length >= server.length) continue;
+    best = { server, tool: toolName.slice(prefix.length) };
   }
-  if (!toolName?.startsWith("mcp__")) return undefined;
-  const rest = toolName.slice("mcp__".length);
-  const separator = rest.indexOf("__");
-  if (separator <= 0) return undefined;
-  return serverPermissions.get(rest.slice(0, separator));
+  return best;
+}
+
+/**
+ * The MCP permission for one harness-rendered tool name, per tool where the author set one.
+ *
+ * Only reached for a tool with no resolved spec, which is exactly an external user MCP tool.
+ */
+function mcpPermissionFor(
+  toolName: string | undefined,
+  mcpPermissions: McpPermissionTable,
+): ToolPermission | undefined {
+  if (!toolName) return undefined;
+  // Codex uses mcp.<server>.<tool>; Claude uses mcp__<server>__<tool>.
+  const split = toolName.startsWith("mcp.")
+    ? splitMcpToolName(toolName.slice("mcp.".length), ".", mcpPermissions)
+    : toolName.startsWith("mcp__")
+      ? splitMcpToolName(toolName.slice("mcp__".length), "__", mcpPermissions)
+      : undefined;
+  if (!split) return undefined;
+  return mcpToolPermission(mcpPermissions.get(split.server), split.tool);
 }
 
 function firstString(values: unknown[]): string | undefined {
@@ -970,7 +1009,9 @@ function errorMessage(err: unknown): string {
  * Recorded here rather than fixed, because deepening the listing is a bigger change than the
  * class it would serve.
  */
-export function formatResolutionDetail(detail: Record<string, unknown>): string {
+export function formatResolutionDetail(
+  detail: Record<string, unknown>,
+): string {
   const parts: string[] = [];
   if (typeof detail.code === "string") parts.push(`code=${detail.code}`);
   if (typeof detail.value_pointer === "string")
