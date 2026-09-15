@@ -79,6 +79,12 @@ export {
     type UseSessionCardListArgs,
 } from "./useSessionCardList"
 export {
+    useSessionTabRows,
+    sessionTabListArgs,
+    sessionTabRowsPending,
+    type SessionTabRows,
+} from "./useSessionTabRows"
+export {
     pendingSessionOpensAtom,
     addPendingSessionOpenAtom,
     removePendingSessionOpensAtom,

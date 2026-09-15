@@ -29,8 +29,8 @@ const fadeMask = (left: boolean, right: boolean): string => {
     return `linear-gradient(to right, ${start}, ${end})`
 }
 
-/** Footprint of the inline New session (+): the 28px button plus the 4px it sits off the last chip. */
-const INLINE_ADD_PX = 32
+/** Footprint of the inline New session (+): the 28px button; the last chip's own margin is the gap. */
+const INLINE_ADD_PX = 28
 
 /**
  * The scroller's content width from LAYOUT geometry: the chips, plus the inline (+) while it is
@@ -78,6 +78,13 @@ export interface SessionTabStripProps {
     reorder?: {ids: string[]; onReorder: (ids: string[]) => void}
     className?: string
 }
+
+/** The hairline the tab chips are "separated by" — see SessionTab's own note. Drawn in the gap
+ *  left of a tab, so it never touches the chip's own fill. The gap is 9px and the line sits 5px
+ *  in from this tab's edge, which clears 4px on each side of it. `colorBorder`, not the
+ *  secondary step: on the canvas the lighter hairline all but vanished. */
+export const TAB_DIVIDER =
+    "relative before:absolute before:-left-[5px] before:top-1/2 before:h-4 before:w-px before:-translate-y-1/2 before:bg-colorBorder before:content-['']"
 
 const SCROLLER_CLASS =
     "flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -203,9 +210,10 @@ export const SessionTabStrip = ({
         </SimpleTooltip>
     ) : null
     // Scroller's last child, so it trails the last chip. Not a reorder value, so never a drag slot.
+    // It takes the same hairline the chips do, so the row ends the way every gap in it reads.
     const inlineAdd =
         canAdd && !pinAdd ? (
-            <div className="ml-1 flex shrink-0 items-center">{addButton}</div>
+            <div className={clsx("flex shrink-0 items-center", TAB_DIVIDER)}>{addButton}</div>
         ) : null
 
     return (
