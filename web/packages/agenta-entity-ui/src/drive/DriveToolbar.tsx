@@ -31,7 +31,6 @@ import {
 } from "@agenta/ui/ui"
 import {
     CaretDown,
-    Check,
     DotsThreeVertical,
     ListBullets,
     SortAscending,
@@ -41,6 +40,7 @@ import {
 } from "@phosphor-icons/react"
 
 import {ROW_ICON_BTN} from "./DriveHeader"
+import {SelectedMark} from "./DriveMenuMark"
 import {DriveTypeMark} from "./DriveTypeMark"
 
 /** Row 2's text buttons (Sort ▾, Revert, the mode dropdown): the kit's ghost sm, muted until hover. */
@@ -48,13 +48,6 @@ const SEG_TRIGGER = "h-full rounded-[5px] px-1.5 py-0"
 const ROW_TEXT_BTN = "h-[26px] gap-1 px-2 text-xs text-colorTextSecondary hover:text-colorText"
 
 /** The chosen entry of a single-choice menu — a check on the RIGHT, no radio dot. */
-const SelectedMark = ({on, className = "ml-auto"}: {on: boolean; className?: string}) => (
-    // Sized as the menu's own icons (size-4); padding on an svg would shrink the glyph.
-    <Check
-        aria-hidden
-        className={`size-4 shrink-0 ${className} ${on ? "text-colorText" : "invisible"}`}
-    />
-)
 
 const SORT_LABELS: Record<DriveSortKey, string> = {
     name: "Name",
@@ -154,12 +147,23 @@ export function DriveToolbar(props: DriveToolbarProps) {
         return (
             <Row>
                 <Tabs value={view} onValueChange={(v) => setView(v as DriveViewMode)}>
-                    <TabsList variant="pill" aria-label="View">
-                        {/* `size-3.5`: the trigger sizes an unclassed svg to 16px; these are 14. */}
-                        <TabsTrigger value="grid" aria-label="Grid" title="Grid">
+                    {/* The kit pill at the row's own 26px control height (the design's 2px-padded
+                        segmented). `size-3.5`: the trigger sizes an unclassed svg to 16px. */}
+                    <TabsList variant="pill" aria-label="View" className="h-[26px] rounded-md p-0.5">
+                        <TabsTrigger
+                            value="grid"
+                            aria-label="Grid"
+                            title="Grid"
+                            className={SEG_TRIGGER}
+                        >
                             <SquaresFour className="size-3.5" />
                         </TabsTrigger>
-                        <TabsTrigger value="list" aria-label="List" title="List">
+                        <TabsTrigger
+                            value="list"
+                            aria-label="List"
+                            title="List"
+                            className={SEG_TRIGGER}
+                        >
                             <ListBullets className="size-3.5" />
                         </TabsTrigger>
                     </TabsList>

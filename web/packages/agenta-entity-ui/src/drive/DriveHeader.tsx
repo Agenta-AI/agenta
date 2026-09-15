@@ -12,7 +12,6 @@ import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
     Button,
     DropdownMenu,
-    DropdownMenuCheckboxItem,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
@@ -36,6 +35,7 @@ import {
 
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
 import {DriveRetryButton} from "./DriveFileRow"
+import {SelectedMark} from "./DriveMenuMark"
 
 /** The quiet icon button every chrome control is: the kit's ghost icon-sm, muted until hover. */
 export const ROW_ICON_BTN = "text-colorTextTertiary hover:text-colorText"
@@ -253,31 +253,46 @@ export const DriveHeader = ({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[220px]">
+                    {/* Plain items with the check on the right (as the sort menu), not the kit's
+                        checkbox items whose left indicator indents every label. `preventDefault`
+                        keeps the menu open across toggles. */}
                     {showOrigin ? (
-                        <DropdownMenuCheckboxItem
-                            checked={showTemporary}
-                            onCheckedChange={onToggleTemporary}
-                            onSelect={(e) => e.preventDefault()}
+                        <DropdownMenuItem
+                            role="menuitemcheckbox"
+                            aria-checked={showTemporary}
+                            onSelect={(e) => {
+                                e.preventDefault()
+                                onToggleTemporary()
+                            }}
                         >
                             Show temporary files
-                            <DropdownMenuShortcut>session</DropdownMenuShortcut>
-                        </DropdownMenuCheckboxItem>
+                            <DropdownMenuShortcut className="ml-auto">session</DropdownMenuShortcut>
+                            <SelectedMark on={showTemporary} className="ml-2" />
+                        </DropdownMenuItem>
                     ) : null}
-                    <DropdownMenuCheckboxItem
-                        checked={showHidden}
-                        onCheckedChange={onToggleHidden}
-                        onSelect={(e) => e.preventDefault()}
+                    <DropdownMenuItem
+                        role="menuitemcheckbox"
+                        aria-checked={showHidden}
+                        onSelect={(e) => {
+                            e.preventDefault()
+                            onToggleHidden()
+                        }}
                     >
                         Show hidden files
-                    </DropdownMenuCheckboxItem>
+                        <SelectedMark on={showHidden} />
+                    </DropdownMenuItem>
                     {inGitScope ? (
-                        <DropdownMenuCheckboxItem
-                            checked={showGitignored}
-                            onCheckedChange={onToggleGitignored}
-                            onSelect={(e) => e.preventDefault()}
+                        <DropdownMenuItem
+                            role="menuitemcheckbox"
+                            aria-checked={showGitignored}
+                            onSelect={(e) => {
+                                e.preventDefault()
+                                onToggleGitignored()
+                            }}
                         >
                             Show git-ignored files
-                        </DropdownMenuCheckboxItem>
+                            <SelectedMark on={showGitignored} />
+                        </DropdownMenuItem>
                     ) : null}
                 </DropdownMenuContent>
             </DropdownMenu>
