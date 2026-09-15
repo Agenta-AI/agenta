@@ -104,17 +104,33 @@ agent/run configuration:
    — and ask the agent to call its `echo` tool with a unique marker. There is no builtin MCP
    catalogue to select from: `Add MCP server` is a free-form name, URL and authentication form.
 
-   **Two preconditions, or the cell fails for a reason that is not the product.** The mock only
-   echoes a prompt carrying an acceptance marker matching `MCP-ACCEPTANCE-[A-Za-z0-9_-]+`, which is
-   what `_mcp_marker` in the mock adapter reads; a plain-English prompt gets no echo back. And on
-   the Anthropic Messages path the server must be **named `mock-mcp`**, because
-   `_default_mcp_echo_tool` returns the hardcoded tool name `mcp__mock-mcp__echo` for that protocol,
-   so a server under any other name exposes a tool the harness cannot call.
+   **Three preconditions, or the cell fails for a reason that is not the product.**
+
+   - The mock only echoes a prompt carrying an acceptance marker matching
+     `MCP-ACCEPTANCE-[A-Za-z0-9_-]+`, which is what `_mcp_marker` in the mock adapter reads; a
+     plain-English prompt gets no echo back.
+   - On the ACP harnesses the server must be **named `mock-mcp`**, because
+     `_default_mcp_echo_tool` returns a tool name built from that fixed server name — Claude's
+     `mcp__mock-mcp__echo` on Messages, Codex's `mcp.mock-mcp.echo` on Responses — so a server
+     under any other name exposes a tool the harness cannot call.
+   - **Keep the marker to 16 characters or fewer** on any cell that answers an approval, for
+     example `MCP-ACCEPTANCE-D`. A longer marker comes back truncated to its first 16 characters on
+     the resumed turn, which makes the stored decision key (`toolName#args`) miss, so the gate is
+     raised again instead of resolving and the cell reads as a broken resume. Measured on
+     2026-09-15 across four runs; the truncation is in the fixture path, not in the approval
+     machinery, and has not been traced further because a short marker costs nothing.
 
    The cell passes when the `tools/call` reaches the mock and the assistant turn ends with the
    mock's round-trip confirmation, `mock MCP echo: <marker>`. A server whose handshake fails now
-   rides an `mcp_server_failed` notice rather than vanishing (OR32). Automated acceptance covers
-   this interaction for all three harnesses; record the live result as product-path evidence.
+   rides an `mcp_server_failed` notice rather than vanishing (OR32).
+
+   **Read the transcript against the gateway's own request log, not against the reply.** Until
+   2026-09-15 this row could go green with no `tools/call` at all: the round-trip check accepted
+   any tool result in the body as the echo, so a harness that called a tool name it did not have
+   still produced `mock MCP echo: <marker>`. That check now looks inside the tool result, so the
+   failure is visible — but the habit is the safeguard. `docker logs <api container> | grep
+   'gateways/mcps'` must show a POST to the MCP route AFTER the model call, and a rejected
+   approval must show none.
 5. Add an existing Agenta callback tool and the builtin Agenta MCP server. Confirm the tool list is
    scoped to the run and that the selected callback can be invoked.
 6. Induce a **typed gateway refusal** using the dashboard-supported configuration — preferably a

@@ -22,7 +22,7 @@ import json
 import re
 import time
 import uuid
-from typing import Any, AsyncIterator, Dict, Optional
+from typing import Any, AsyncIterator, Dict, Iterator, Optional
 
 from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
@@ -89,21 +89,71 @@ def _contains_tool_result(body: bytes) -> bool:
     )
 
 
+def _tool_result_texts(value: Any) -> Iterator[str]:
+    """Yield the text of every TOOL RESULT in a request body, whatever the protocol.
+
+    Three shapes, one per protocol: a Chat Completions ``{"role": "tool"}`` message, an
+    Anthropic ``{"type": "tool_result"}`` block, and a Responses
+    ``{"type": "function_call_output"}`` item. Each carries its payload under a different key,
+    so the key is chosen per shape rather than guessed.
+    """
+    if isinstance(value, list):
+        for item in value:
+            yield from _tool_result_texts(item)
+        return
+    if not isinstance(value, dict):
+        return
+
+    payload: Any = None
+    if value.get("role") == "tool":
+        payload = value.get("content")
+    elif value.get("type") == "tool_result":
+        payload = value.get("content")
+    elif value.get("type") == "function_call_output":
+        payload = value.get("output")
+
+    if payload is not None:
+        yield json.dumps(payload) if not isinstance(payload, str) else payload
+
+    for child in value.values():
+        yield from _tool_result_texts(child)
+
+
 def _contains_successful_mcp_echo_result(body: bytes, marker: str) -> bool:
     """Recognize the mock MCP adapter's successful echo result in a tool turn.
 
-    The marker also appears in the user prompt and generated tool-call arguments, so
-    it alone cannot prove that a harness reached the MCP server.  The mock adapter's
-    result includes ``isError: false``; failed gateway responses do not.
+    The marker has to be found INSIDE a tool result, not merely somewhere in the body. That
+    distinction is the whole function: the marker is also in the user prompt and in the generated
+    tool-call arguments, so a body that merely contains it and, separately, contains some tool
+    result proves nothing about this tool.
+
+    It used to prove nothing, and reported success anyway. A Codex run on 2026-09-15 called an MCP
+    tool name its own catalog did not have, produced a `function_call_output` for an unrelated
+    tool, and this function read "marker present" plus "a tool result exists" as a round trip that
+    never happened — a green transcript for a call that never left the sandbox. A QA fixture that
+    passes when the product did nothing is worse than one that fails, so the check now looks where
+    the evidence would actually be.
+
+    The echo tool returns the arguments it was called with, so a successful result is a tool result
+    whose own text carries the marker and does not report an error.
     """
-    normalized = body.decode(errors="replace").replace(" ", "").replace("\\", "")
-    if marker not in normalized or not _contains_tool_result(body):
+    try:
+        payload = json.loads(body) if body else {}
+    except (json.JSONDecodeError, TypeError):
         return False
-    return (
-        '"isError":true' not in normalized
-        and '"is_error":true' not in normalized
-        and '"error":' not in normalized
-    )
+
+    for text in _tool_result_texts(payload):
+        normalized = text.replace(" ", "").replace("\\", "")
+        if marker not in normalized:
+            continue
+        if (
+            '"isError":true' in normalized
+            or '"is_error":true' in normalized
+            or '"error":' in normalized
+        ):
+            continue
+        return True
+    return False
 
 
 def _echo_tool_name(body: bytes) -> str | None:
@@ -132,16 +182,36 @@ def _echo_tool_name(body: bytes) -> str | None:
     return visit(payload.get("tools", []))
 
 
-def _default_mcp_echo_tool(protocol: LLMProtocol) -> str | None:
-    """Return the stable remote-MCP tool name used by ACP harnesses.
+#: The MCP server name every harness cell must use, because the two fallbacks below hard-code it.
+MCP_ECHO_SERVER_NAME = "mock-mcp"
 
-    Codex and Claude configure remote MCP servers at session start, rather than
-    serialising their tool catalog into every model request.  Their model-facing
-    tool name still follows the MCP server/tool convention.
+#: Claude renders an MCP tool as ``mcp__<server>__<tool>``; Codex renders it as
+#: ``mcp.<server>.<tool>``. The runner states both spellings in one place —
+#: ``services/runner/src/engines/sandbox_agent/acp-interactions.ts``, where the gate lookup splits
+#: a rendered name back into its server — and these follow it.
+MCP_ECHO_TOOL_BY_PROTOCOL: Dict[LLMProtocol, str] = {
+    LLMProtocol.MESSAGES: f"mcp__{MCP_ECHO_SERVER_NAME}__echo",
+    LLMProtocol.RESPONSES: f"mcp.{MCP_ECHO_SERVER_NAME}.echo",
+}
+
+
+def _default_mcp_echo_tool(protocol: LLMProtocol) -> str | None:
+    """Return the remote-MCP tool name the ACP harnesses expose to the model.
+
+    Codex and Claude configure remote MCP servers at session start rather than serialising their
+    tool catalog into every model request, so there is nothing in the request to read the name off
+    and it has to be known here. They do not spell it the same way, and assuming they did is what
+    made the Codex cell report a pass for a call that never left the sandbox on 2026-09-15: the
+    mock emitted Claude's spelling on the Responses protocol, Codex had no such tool, and the
+    round-trip check accepted an unrelated tool result as the echo (see
+    ``_contains_successful_mcp_echo_result``).
+
+    A cell that still finds no matching tool now fails rather than passing, which is the property
+    that matters here: this mapping is read from the runner's own gate-lookup convention, not
+    measured against a live Codex, so it must not be the only thing standing between a broken
+    harness and a green row.
     """
-    if protocol in (LLMProtocol.RESPONSES, LLMProtocol.MESSAGES):
-        return "mcp__mock-mcp__echo"
-    return None
+    return MCP_ECHO_TOOL_BY_PROTOCOL.get(protocol)
 
 
 def _chat_tool_call_payload(
