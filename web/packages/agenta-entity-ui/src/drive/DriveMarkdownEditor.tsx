@@ -66,7 +66,8 @@ export function DriveMarkdownEditor({
             </div>
         )
     return (
-        <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onKeyDown}>
+        // text-sm: the document prose reads at 14px here (the editor's paragraphs inherit).
+        <div className="flex min-h-0 flex-1 flex-col text-sm" onKeyDown={onKeyDown}>
             <MarkdownEditor
                 value={value}
                 onChange={onChange}
