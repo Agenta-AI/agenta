@@ -154,6 +154,60 @@ preserve only `message` plus the embedded code marker, so absent `retryable`, `n
 `details` is acceptable only if the code reaches the UI and the UI offers the generic recovery
 path.
 
+## Connection identity
+
+Verified on 2026-09-15 against the EE development deployment at commit `1762cc19fc`, which the
+deployment's API container serves with reload. Driven through the API as a browser drives it: a
+disposable account, a real SuperTokens session, the mock issuer's own authorize and token
+endpoints, the real callback, and a real `tools/call` through the relay. The vault's non-secret
+columns were read directly from Postgres to see which rows exist and under which slugs. No secret
+values were read or recorded. Everything created was deleted afterwards.
+
+Two adjustments are needed to drive this deployment from the host, and any later script needs them
+too. The session cookie SuperTokens sets is scoped to the deployment's public address, so it must
+be re-pinned to the address the script dials. And the callback URL the deployment mints names that
+same public address, so the script dials the equivalent path on the direct address instead.
+
+| # | Check | Result |
+| --- | --- | --- |
+| 1 | A create sending no slug is given one, and it comes back in the response | `name: "Acme, derived name"` returned `slug: "acme-derived-name-ac9527953c85"` |
+| 2 | Two connections can be created at one server URL in one project | both created, same `base_url` |
+| 3 | Two consents at that URL write two grants, not one | two distinct `secret_id` values, two vault rows |
+| 4 | Each grant row is addressed by its own connection | slugs were `oauth-grant-<last twelve hex of each endpoint id>`, one per connection, each referenced by exactly one endpoint |
+| 5 | Both connections relay | `200` each, each echoing its own text |
+| 6 | Disconnect returns `200` and the endpoint survives | id, slug and name all unchanged |
+| 7 | The disconnect body omits `secret_id` rather than sending null | the key is absent from the JSON entirely |
+| 8 | Disconnecting one leaves the other working | only the other connection's grant row remained; it relayed `200` |
+| 9 | The disconnected connection refuses | `409`, code `secret_missing` |
+| 10 | Reconnecting lands on the same connection | same id and slug, a new grant row under the same connection-derived slug |
+| 11 | Deleting a connection takes its grant with it | the row was gone; deleting the second left the project with none |
+
+Row 7 is the one the web cache write depends on. The response model excludes nulls, so a cleared
+handle arrives as an absent key. Derived connection state already reads a missing `secret_id` as
+needing authorization, so nothing downstream has to change.
+
+Row 9 records behaviour rather than endorsing it. A disconnected OAuth connection refuses a relayed
+call with `secret_missing` and no reconnect affordance, which is exactly what a never-connected one
+has always done — `_resolve_auth` raises `SecretNotFoundError` when an OAuth endpoint holds no
+handle, and only a failed *renewal* raises the `needs_auth` affordance with a connect action. The
+settings list is unaffected, because its state is derived from the endpoint row. An agent that hits
+this mid-run gets no connect action to offer. Pre-existing and not introduced by the disconnect
+work; raise it as a finding if the agent path is meant to offer reconnect.
+
+### Not yet verified
+
+**Migration `oss000000032` has not run on this deployment.** `alembic_version_oss` reads
+`oss000000031`. The API container applies migrations at start and has only hot-reloaded its Python
+code since the revision landed, and a reload does not re-run migrations. So the pre-existing rows
+are untouched: the two real-provider connections still carry their URL-derived grant slug, and the
+one project holding six connections that share a single grant row still shares it.
+
+Everything in the table above therefore proves the new key for connections created after the code
+landed. It does not prove the migration against real data. The migration itself is covered by a
+suite that drives the revision's own `upgrade()` against a scratch database on real Postgres,
+including both cases in one project and a second run changing nothing, but the deployment's own
+rows still need the revision to run and the two real-provider connections re-checked afterwards.
+
 ## Result and follow-up
 
 Record the date, worktree commit, compose project name, harness versions, run ids, screenshots,
