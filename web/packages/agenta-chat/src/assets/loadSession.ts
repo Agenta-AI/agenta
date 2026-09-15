@@ -174,10 +174,13 @@ export const reloadSessionMessages = async (
         store.set(revalidateSessionRecordsAtom, sessionId)
         const {transcript, refreshed} = await readSessionTranscript(sessionId)
         if (transcript) onTranscript(transcript)
+        // No flight means the cache had nothing: that read WAS the fresh one.
         if (!refreshed) return transcript !== null
         const fresh = await refreshed
         if (fresh) onTranscript(fresh)
-        return fresh !== null || transcript !== null
+        // Only the fresh read counts. The cached transcript was delivered for the screen, but it
+        // predates the turn, so it says nothing about whether the rows landed.
+        return fresh !== null
     } catch (err) {
         console.warn("[reloadSessionMessages] records read failed:", err)
         return false
