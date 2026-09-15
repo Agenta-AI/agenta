@@ -9,6 +9,11 @@ describe("fileCandidate", () => {
         )
     })
 
+    it("rejects a directory mention: a trailing slash has no file to open or name to show", () => {
+        expect(fileCandidate("client/src/")).toBeNull()
+        expect(fileCandidate("./knowledge-base/")).toBeNull()
+    })
+
     it("still normalizes an explicitly relative path", () => {
         expect(fileCandidate("./src/README.md")).toBe("src/README.md")
     })
