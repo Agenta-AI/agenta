@@ -3,8 +3,8 @@
  * atoms keyed by mount + path, so navigating away and back (or closing the pane) keeps an
  * unsaved edit; the host mounts {@link useDriveDirtyGuard} once so a tab close still warns.
  *
- * The draft model ({@link driveDraft}) baselines on the editor's own first serialisation, not on
- * the file text — see that module for why.
+ * The draft model ({@link driveDraft}) counts an edit only once the editor has emitted one — see
+ * that module for why.
  */
 import {useCallback, useEffect, useState} from "react"
 
@@ -44,7 +44,6 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
     const [draft, setDraft] = useAtom(driveDraftAtomFamily(key))
     const [, setKeys] = useAtom(draftKeysAtom)
     const [saving, setSaving] = useState(false)
-    const [error, setError] = useState<string | null>(null)
 
     const fileText = typeof query.data === "string" ? query.data : null
     // Seed once the text lands; re-seed when a clean draft's file changed underneath it.
@@ -63,18 +62,17 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
         [setDraft],
     )
     const revert = useCallback(() => setDraft((d) => (d ? revertDriveDraft(d) : d)), [setDraft])
-    const save = useCallback(async () => {
-        if (!mount || !draft || !isDriveDraftDirty(draft)) return false
+    /** Write the draft. Resolves `{ok: true}` or `{ok: false, error}` so the host can toast. */
+    const save = useCallback(async (): Promise<{ok: boolean; error?: string}> => {
+        if (!mount || !draft || !isDriveDraftDirty(draft)) return {ok: false}
         setSaving(true)
-        setError(null)
         try {
             await saveMountText({mount, path, projectId, text: draft.value})
             setDraft(commitDriveDraft(draft))
             refreshMountListing(queryClient, projectId)
-            return true
+            return {ok: true}
         } catch (e) {
-            setError(e instanceof Error ? e.message : "Couldn't save the file")
-            return false
+            return {ok: false, error: e instanceof Error ? e.message : "Couldn't save the file"}
         } finally {
             setSaving(false)
         }
@@ -89,7 +87,6 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
         loading: query.isPending,
         failed: !query.isPending && fileText === null,
         saving,
-        error,
         onChange,
         save,
         revert,

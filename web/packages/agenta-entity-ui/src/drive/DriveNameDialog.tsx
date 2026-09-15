@@ -100,8 +100,8 @@ export const DriveNameDialog = ({
         [request, value],
     )
     const copy = request ? COPY[request.kind] : null
-    const submit = (e: FormEvent) => {
-        e.preventDefault()
+    const submit = (e?: FormEvent) => {
+        e?.preventDefault()
         setTouched(true)
         if (!request || error || busy) return
         onSubmit(request, value.trim().replace(/^\/+|\/+$/g, ""))
@@ -131,6 +131,12 @@ export const DriveNameDialog = ({
                             onChange={(e) => {
                                 setValue(e.target.value)
                                 setTouched(true)
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault()
+                                    submit()
+                                }
                             }}
                             aria-invalid={touched && error ? true : undefined}
                         />

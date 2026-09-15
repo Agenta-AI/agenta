@@ -37,6 +37,7 @@ import {useTreeGroupScroll} from "@agenta/entities/drive"
 import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
+import {message} from "@agenta/ui/app-message"
 import {InputAffix as Input} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -57,6 +58,7 @@ import {DriveNameDialog, type DriveNameDialogRequest} from "./DriveNameDialog"
 import {type DriveFileActions, DriveToolbar} from "./DriveToolbar"
 import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
+import {TreeRow} from "./DriveTreeRow"
 import {FolderView} from "./FolderView"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
 import {useDriveTreeData} from "./useDriveTreeData"
@@ -72,6 +74,9 @@ const DriveMarkdownEditor = dynamic(
 )
 
 const parentPath = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")))
+const noop = () => undefined
+/** The rail's static root row — always open; selecting it lands on the root folder. */
+const ROOT_NODE = {name: "All files", path: "", isFolder: true, children: []}
 
 /**
  * The browsing body — loading/empty/error states + the two-pane search/tree/preview. Owns its
@@ -352,7 +357,12 @@ export function DriveExplorer({
     )
     // Row 2's slot for the editor's formatting bar; the editor portals into it.
     const [toolbarEl, setToolbarEl] = useState<HTMLDivElement | null>(null)
-    const onSave = useCallback(() => void editor.save(), [editor])
+    const onSave = useCallback(() => {
+        void editor.save().then(({ok, error}) => {
+            if (ok) void message.success(`Saved ${selectedPath?.split("/").pop() ?? "file"}`)
+            else if (error) void message.error(error)
+        })
+    }, [editor, selectedPath])
 
     const {onMeasureContent, scrollXFor, attachTreeWheel} = useTreeGroupScroll({
         deferredSearch,
@@ -554,6 +564,22 @@ export function DriveExplorer({
                         copyPath={copyPath}
                         download={download}
                         writes={itemWrites}
+                        depthOffset={chrome && !searchActive ? 1 : 0}
+                        rootRow={
+                            chrome && !searchActive ? (
+                                <TreeRow
+                                    node={ROOT_NODE}
+                                    depth={0}
+                                    isOpen
+                                    selected={selectedPath === ""}
+                                    parent=""
+                                    scrollX={0}
+                                    onMeasureContent={noop}
+                                    onToggle={noop}
+                                    onSelect={select}
+                                />
+                            ) : null
+                        }
                     />
                 }
             >

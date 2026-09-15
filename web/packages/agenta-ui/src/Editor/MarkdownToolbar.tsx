@@ -325,7 +325,14 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
     return (
         // Below sm the row scrolls sideways instead of wrapping: a second row of buttons ate
         // vertical space the editor needs in a phone drawer.
-        <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden">
+        <div
+            className={
+                layout === "inline"
+                    ? // One fixed row: the host's chrome row is 36px and never grows.
+                      "flex min-w-0 flex-nowrap items-center gap-0.5 overflow-hidden"
+                    : "flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden"
+            }
+        >
             {layout === "inline" ? (
                 <>
                     {headingButton("h1")}
