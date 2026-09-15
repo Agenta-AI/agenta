@@ -27,7 +27,7 @@ const itemIdentity = (item: RenderItem): string[] => {
 const dropEchoes = <T>(
     messages: T[][],
     identify: (entry: T) => string[],
-    keep: (entry: T, position: number) => void,
+    keep: (entry: T, position: number, fresh: (id: string) => boolean) => void,
 ) => {
     const calls = new Set<string>()
     let previous = new Set<string>()
@@ -35,13 +35,20 @@ const dropEchoes = <T>(
         const own = new Set<string>()
         for (const entry of entries) {
             const ids = identify(entry)
-            if (ids.length && ids.every((id) => calls.has(id) || previous.has(id))) continue
+            const fresh = (id: string) => !calls.has(id) && !previous.has(id)
+            if (ids.length && !ids.some(fresh)) continue
+            keep(entry, k, fresh)
             ids.forEach((id) => (id.startsWith("tool:") ? calls : own).add(id))
-            keep(entry, k)
         }
         previous = own
     })
 }
+
+/** A tool group that carries an echoed call beside a new one keeps only the new one. */
+const freshTools = (item: RenderItem, fresh: (id: string) => boolean): RenderItem =>
+    item.kind === "tools"
+        ? {...item, parts: item.parts.filter((part) => fresh(`tool:${part.toolCallId}`))}
+        : item
 
 const mergeRun = (run: TurnViewModel[]): TurnViewModel => {
     if (run.length === 1) return run[0]
@@ -51,7 +58,8 @@ const mergeRun = (run: TurnViewModel[]): TurnViewModel => {
     dropEchoes(
         run.map((turn) => turn.items),
         itemIdentity,
-        (item, k) => items.push({...item, index: item.index + k * INDEX_STRIDE}),
+        (item, k, fresh) =>
+            items.push({...freshTools(item, fresh), index: item.index + k * INDEX_STRIDE}),
     )
     const parts: TurnViewModel["message"]["parts"] = []
     dropEchoes(
