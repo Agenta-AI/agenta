@@ -25,6 +25,7 @@ from pydantic import ValidationError
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
     egress_client,
+    exempt_hosts,
     open_egress,
 )
 from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthDiscovery
@@ -159,6 +160,16 @@ def _authorization_server_metadata_urls(issuer: str) -> List[str]:
 
 def _check_https(url: str, *, label: str, server_url: str) -> None:
     if not _requires_https():
+        return
+    # The same hosts `core/gateways/egress.py` already lets through: an operator's
+    # `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` entry, and the development mock upstreams while
+    # `AGENTA_GATEWAYS_MOCKS_ENABLED` is on. Both are operator environment that no tenant
+    # can reach. Without this, the exemption that module documents as *the* way a dev
+    # stack reaches its own containers ("not by disabling the guard") did not exist on
+    # this path: discovery admitted the plaintext mock at the socket and then refused it
+    # here, so an http authorization server on the private Docker network was
+    # unreachable and the consent flow could not be run end to end at all.
+    if (urlparse(url).hostname or "").lower() in exempt_hosts():
         return
     if urlparse(url).scheme.lower() != "https":
         raise MCPOAuthDiscoveryError(
