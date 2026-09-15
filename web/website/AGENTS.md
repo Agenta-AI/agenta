@@ -1,9 +1,9 @@
-# website/ — Agenta marketing site (Astro)
+# web/website/ — Agenta marketing site (Astro)
 
 The Agenta marketing website (`agenta.ai`): Astro, static-first, deployed on
-Cloudflare. Independent of `web/` (the app) and `docs/` (Docusaurus). Full project
+Cloudflare. A member of the `web` pnpm workspace, deployed independently of the product and `docs/` (Docusaurus). Full project
 context, decisions, and the design source live in
-[docs/design/marketing-website/](../docs/design/marketing-website/) — read its
+[docs/design/marketing-website/](../../docs/design/marketing-website/) — read its
 `AGENTS.md` first.
 
 ## Asset hosting — proprietary and large files (IMPORTANT)
@@ -49,7 +49,7 @@ The rule: **proprietary/large assets live in the deployed output, never in git.*
 
 ## Running locally
 
-- `pnpm install` then `pnpm dev` → http://localhost:4321/ (localhost only).
+- From `web`, run `pnpm install --filter website... --frozen-lockfile`; then in `web/website`, run `pnpm dev` → http://localhost:4321/ (localhost only).
 - **Remote preview on the dev box:** bind to all interfaces —
   `pnpm exec astro dev --host 0.0.0.0 --port 4321` — then open
   `http://<box-ip>:4321/` (the box's port 4321 must be reachable).
@@ -64,7 +64,7 @@ The rule: **proprietary/large assets live in the deployed output, never in git.*
 
 ## CI preview deploys
 
-Every PR that touches `website/**` gets an automatically deployed preview, via
+Every PR that touches `web/website/**` gets an automatically deployed preview, via
 `.github/workflows/15-website-preview.yml`.
 
 - **How:** the workflow builds the site and runs `wrangler versions upload
@@ -134,7 +134,7 @@ run against the deployed URL.
 
 ## CI production deploy
 
-Every merge to `main` that touches `website/**` deploys production, via
+Every merge to `main` that touches `web/website/**` deploys production, via
 `.github/workflows/16-website-production.yml` (also `workflow_dispatch`).
 
 - **How:** builds with the same R2 font secrets, then runs `wrangler deploy

@@ -6,7 +6,7 @@ import { normalize } from "./copy-openapi.mjs";
 
 const SOURCE = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  "../../docs/docs/reference/openapi.json",
+  "../../../docs/docs/reference/openapi.json",
 );
 
 describe("normalize", () => {

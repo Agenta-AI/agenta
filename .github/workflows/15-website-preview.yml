@@ -4,8 +4,11 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - 'website/**'
-      # The site publishes /openapi.json from this spec (website/scripts/copy-openapi.mjs),
+      - 'web/website/**'
+      - 'web/packages/**'
+      - 'web/pnpm-lock.yaml'
+      - 'web/pnpm-workspace.yaml'
+      # The site publishes /openapi.json from this spec (web/website/scripts/copy-openapi.mjs),
       # so a regenerated spec has to redeploy the site.
       - 'docs/docs/reference/openapi.json'
       - '.github/workflows/15-website-preview.yml'
@@ -25,7 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # wrangler itself is a pinned devDependency in website/package.json (the worker
+  # wrangler itself is a pinned devDependency in web/website/package.json (the worker
   # bundler must match everywhere); this stays as documentation of that pin.
   WRANGLER_VERSION: "4.113.0"
   R2_FONTS_BUCKET: agenta-brand-fonts
@@ -43,20 +46,20 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          package_json_file: website/package.json
+          package_json_file: web/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: 'pnpm'
-          cache-dependency-path: website/pnpm-lock.yaml
+          cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: cd website && pnpm install --frozen-lockfile
+        run: cd web/website && pnpm install --filter website... --frozen-lockfile
 
       - name: Run unit tests
-        run: cd website && pnpm test
+        run: cd web/website && pnpm test
 
   deploy:
     name: Build and deploy preview
@@ -77,17 +80,17 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          package_json_file: website/package.json
+          package_json_file: web/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: 'pnpm'
-          cache-dependency-path: website/pnpm-lock.yaml
+          cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: cd website && pnpm install --frozen-lockfile
+        run: cd web/website && pnpm install --filter website... --frozen-lockfile
 
       - name: Build site
         env:
@@ -99,7 +102,7 @@ jobs:
           # as duplicate content against production. Production build (workflow 16)
           # deliberately does NOT set this.
           PUBLIC_NOINDEX: "true"
-        run: cd website && pnpm run build
+        run: cd web/website && pnpm run build
 
       - name: Deploy preview version
         id: deploy
@@ -107,9 +110,9 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          cd website
+          cd web/website
           alias="pr-${PR_NUMBER}"
-          # wrangler is a pinned devDependency (see website/package.json), so the
+          # wrangler is a pinned devDependency (see web/website/package.json), so the
           # worker bundles with the same version everywhere.
           pnpm exec wrangler versions upload \
             --preview-alias "$alias" 2>&1 | tee /tmp/wrangler.log
@@ -125,7 +128,7 @@ jobs:
       # 404s, /openapi.json — plus the static behavior it must not break
       # (the _redirects 308s and trailing-slash normalization).
       - name: Verify preview serves the site
-        run: cd website && bash scripts/verify-deployment.sh "${{ steps.deploy.outputs.url }}"
+        run: cd web/website && bash scripts/verify-deployment.sh "${{ steps.deploy.outputs.url }}"
 
       - name: Comment preview URL
         uses: marocchino/sticky-pull-request-comment@v2

@@ -19,7 +19,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const SOURCE = resolve(here, "../../docs/docs/reference/openapi.json");
+const SOURCE = resolve(here, "../../../docs/docs/reference/openapi.json");
 const TARGET = resolve(here, "../public/openapi.json");
 
 /** Paths we do not advertise on the marketing domain. */

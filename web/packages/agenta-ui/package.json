@@ -57,7 +57,8 @@
         "./ui": "./src/components/ui/index.ts",
         "./utils": "./src/utils/index.ts",
         "./agent-icon": "./src/agent-icon/index.ts",
-        "./page-title": "./src/page-title/index.tsx"
+        "./page-title": "./src/page-title/index.tsx",
+        "./github-mark": "./src/github-mark.tsx"
     },
     "peerDependencies": {
         "@lexical/code": ">=0.38.0",
