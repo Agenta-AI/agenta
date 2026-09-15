@@ -163,3 +163,230 @@ finding and must be added to `open-reviews.md`; do not silently normalize it in 
 
 Delete the disposable project when the run is complete. Do not place screenshots, tokens, or raw
 request headers in the repository.
+
+## MCP permissions: discovery, policy, call, approval, resume
+
+This section is the live evidence for per-tool MCP permissions, and the re-proof of OR79 and OR80.
+Unlike the dashboard procedure above it is script-driven, because the thing under test is a
+sequence — a gate raised, answered, and resumed — and a person clicking through it cannot show that
+a rejected call performed no upstream request.
+
+**Read every cell against the gateway's own request log, never against the reply.** The model's
+prose is not evidence and the mock's confirmation is not either: until 2026-09-15 the round-trip
+check accepted any tool result in the body as the echo, so a harness that called a tool name it did
+not have still produced `mock MCP echo: <marker>`. A `tools/call` is a POST to the MCP route that
+lands AFTER the model call; a rejected approval must show none.
+
+### Fixture
+
+- Stack: EE dev, compose project `agenta-ee-dev-gateways`, API `http://127.0.0.1:8680/api`.
+- MCP server: the builtin mock route `/gateways/mcps/builtin/mock/mock`, declared on the agent as
+  `{"type": "gateway", "namespace": "builtin", "provider": "mock"}` under the name `mock-mcp`. It
+  advertises three tools: `echo`, `fail`, `slow`.
+- Model: the compose mock LLM behind a custom gateway endpoint (`http://mock-llm-gateway:9091/v1`),
+  on the protocol each harness needs. **No real model credential is used anywhere in this section**
+  — this deployment has no Anthropic credit, so the Claude rows run against the mock LLM exactly as
+  the Pi rows do. That is sufficient here because the mock emits a deterministic tool call when the
+  prompt carries an acceptance marker, and what is under test is the gate, not the model.
+- Account: a disposable one minted through `POST /admin/simple/accounts/`.
+- Turns are posted to `POST {BASE}/services/agent/v0/invoke`, the URL the playground posts.
+
+Driver: `mcp_permission_proof.py`, with `cell.sh` capturing the API access log for the same window.
+Both are QA scratch, not committed. One cell is one command:
+
+```bash
+./cell.sh pi-ask-reject --harness pi_core --permission ask --answer deny --marker MCP-ACCEPTANCE-2
+```
+
+Keep markers to 16 characters, per the precondition in the dashboard procedure above.
+
+### Results
+
+| Cell | Configuration | Expected | Result |
+| --- | --- | --- | --- |
+| Pi deny | `permission: deny` | tool not offered, no `tools/call` | PASS |
+| Pi ask, rejected | `permission: ask` | gate raised, rejection performs no `tools/call` | PASS |
+| Pi ask, approved | `permission: ask` | gate raised, approval resumes and returns the result | PASS |
+| Pi allow | `permission: allow` | runs unattended, no gate | PASS |
+| Pi per-tool over server | `permission: allow`, `tool_permissions {echo: ask}` | `echo` asks despite the server allowing | PASS |
+| Pi per-tool deny | `permission: allow`, `tool_permissions {echo: deny}` | `echo` not offered | PASS |
+| Pi sibling deny | `permission: ask`, `tool_permissions {fail: deny}` | `echo` still offered and still asks | PASS |
+| Pi two servers, one rendered name | servers `mock-mcp` and `mock.mcp` | one unambiguous tool, no silent shadowing | PASS |
+| Claude ask, rejected | `permission: ask` | `tool-output-denied`, no `tools/call` | PASS |
+| Claude ask, approved | `permission: ask` | approval resumes and returns the result | PASS |
+| Claude deny | `permission: deny` | tool absent from the catalog | PASS |
+| Claude allow | `permission: allow` | runs unattended | PASS |
+| Codex ask | `permission: ask` | gate raised | BLOCKED — see below |
+
+### Pi: the OR79 re-proof
+
+Before this change the Pi harness raised no gate for an MCP tool at all, so `policy.permission` was
+dead configuration on it in both directions: an `ask` server ran unattended and a `deny` server ran
+too.
+
+`deny` — the tool is no longer offered, so nothing reaches the server:
+
+```
+frames=['start','start-step','message-metadata','data-agent-status'x4,
+        'text-start','text-delta','text-end','finish-step','finish']
+```
+
+```
+21:03:05.459Z  mcps/builtin/mock/mock -> 200     handshake
+21:03:05.475Z  mcps/builtin/mock/mock -> 202     notifications/initialized
+21:03:05.485Z  mcps/builtin/mock/mock -> 200     tools/list
+21:03:08.877Z  llms/custom/wp4-mock-llm-.../v1/chat/completions -> 200
+                                                 <- no MCP POST after the model call
+```
+
+No tool-call frame at all, because a denied tool is dropped from the advertised catalog rather than
+offered and refused later.
+
+`ask`, rejected — the gate is raised under the new `pi-mcp-tool` kind and the rejection performs no
+upstream call:
+
+```
+[HITL] pi-gate id=79ae32f6-... {"gate":"pi-mcp-tool","toolCallId":"call_mock_mcp_echo",
+       "toolName":"mcp__mock_mcp__echo","executor":"harness"}
+[HITL] gate toolName="mcp__mock_mcp__echo" permission=ask outcome=pendingApproval
+...
+[HITL] gate toolName="mcp__mock_mcp__echo" permission=ask outcome=deny
+```
+
+Turn 1 ends `finish=other` with a `tool-approval-request`; turn 2 answers it rejected and the tool
+returns the refusal text, so the model loop continues:
+
+```
+tool-output-available: "The 'mcp__mock_mcp__echo' call was refused and did not run. That decision
+is already made: sending the same call again, or a reshaped version of it, will be refused too."
+text='mock MCP tool call failed'
+```
+
+Neither turn shows an MCP POST after its model call.
+
+`ask`, approved — the same gate resolves `allow` and the call reaches the server:
+
+```
+[HITL] gate toolName="mcp__mock_mcp__echo" permission=ask outcome=pendingApproval
+[HITL] cold replay: ... resumeFrame=approval
+[HITL] resume state: decisions=["mcp__mock_mcp__echo#{\"marker\":\"MCP-ACCEPTANCE-3\"}"]
+[HITL] gate toolName="mcp__mock_mcp__echo" permission=ask outcome=allow
+```
+
+```
+21:37:32.010Z  mcps/builtin/mock/mock -> 200                       tools/list
+21:37:32.049Z  llms/custom/.../v1/chat/completions -> 200
+21:37:32.082Z  mcps/builtin/mock/mock -> 200                       tools/call
+21:37:32.107Z  llms/custom/.../v1/chat/completions -> 200
+```
+
+```
+tool-output-available: {"resultType":"complete","content":[{"type":"text",
+  "text":"{\"marker\": \"MCP-ACCEPTANCE-3\"}"}],"isError":false,
+  "_meta":{"io.modelcontextprotocol/serverInfo":{"name":"agenta-mock-mcp","version":"0.1.0"}}}
+text='mock MCP echo: MCP-ACCEPTANCE-3'
+```
+
+`allow` resolves without a human — one turn, no approval frame, `outcome=allow`, and the
+`tools/call` lands after the model call.
+
+### Pi: per-tool policy
+
+A per-tool entry beats the whole-server permission. With the server set to `allow` and
+`tool_permissions {"echo": "ask"}`, the gate reports the tool's own verdict and parks:
+
+```
+[HITL] gate toolName="mcp__mock_mcp__echo" permission=ask outcome=pendingApproval
+```
+
+with no MCP POST after the model call. This is the property that makes a per-tool table worth
+writing: the table is authoritative for its server, so neither the server permission nor the run's
+own default permission can widen it.
+
+The table is per tool, not per server. `tool_permissions {"echo": "deny"}` removes `echo` and the
+run produces no tool call; `tool_permissions {"fail": "deny"}` removes only `fail`, and `echo` is
+still offered and still gated at the server's `ask`. The two cells together show the split.
+
+### Pi: two connections that render one tool name (OR80)
+
+Pi rewrites every character outside `[A-Za-z0-9_]` in both the server and the tool name, so the
+distinct connections `mock-mcp` and `mock.mcp` both render `mcp__mock_mcp__echo`. Configured
+together on one agent, the run now ends with a single unambiguous tool: the name keeps its first
+claimant, the second server's tool is refused, and the registration fails so the operator sees it.
+Both servers still complete their handshakes, which is what distinguishes this from a server that
+failed to connect:
+
+```
+21:03:33.246Z  mcps/builtin/mock/mock -> 200     server 1 handshake
+21:03:33.259Z  mcps/builtin/mock/mock -> 202
+21:03:33.265Z  mcps/builtin/mock/mock -> 200     server 1 tools/list
+21:03:33.273Z  mcps/builtin/mock/mock -> 200     server 2 handshake
+21:03:33.280Z  mcps/builtin/mock/mock -> 202
+21:03:33.290Z  mcps/builtin/mock/mock -> 200     server 2 tools/list
+21:03:33.322Z  llms/custom/.../v1/chat/completions -> 200
+```
+
+```
+[HITL] pi-gate id=3e0a4e31-... {"gate":"pi-mcp-tool","toolName":"mcp__mock_mcp__echo", ...}
+[HITL] gate toolName="mcp__mock_mcp__echo" permission=ask outcome=pendingApproval
+```
+
+The per-tool refusal line is written by the in-sandbox extension and does not reliably reach the
+runner's container log, so read the outcome — one registered tool, gated once — rather than
+grepping for it. The unit case in `services/runner/tests/unit/pi-gateway-mcp.test.ts` asserts the
+message directly.
+
+### Claude Code: regression
+
+The ACP path already worked at server granularity and still does. `ask` raises the gate, a
+rejection yields `tool-output-denied` with no `tools/call`, and an approval resumes:
+
+```
+[HITL] ACP gate id=adaf0906-... {"toolCallId":"toolu_mock_mcp_echo",
+       "anchor":"mcp__mock-mcp__echo","executor":"harness","argKeys":["marker"]}
+[HITL] gate toolName="mcp__mock-mcp__echo" permission=ask outcome=pendingApproval
+[HITL] gate toolName="mcp__mock-mcp__echo" permission=ask outcome=deny
+```
+
+`allow` runs unattended with the `tools/call` after the model call. `deny` is enforced one layer
+earlier than on Pi: the SDK renders `deny: ["mcp__mock-mcp"]` into `.claude/settings.json`, so
+Claude drops the tool from its own catalog and the model is told
+`No such tool available: mcp__mock-mcp__echo`. Either way no request reaches the gateway.
+
+Note the two spellings in the logs above: Claude's `mcp__mock-mcp__echo` keeps the hyphen, Pi's
+`mcp__mock_mcp__echo` does not. That divergence is why the permission table is keyed on the name
+the server advertises rather than on any rendered name.
+
+### Codex: BLOCKED, and not by the product
+
+The Codex row could not be run. The harness exits before it starts a turn:
+
+```
+ERROR {"type":"error","errorText":"Agent run failed: Codex process has exited with code 1:"}
+[sandbox-agent] geesefs stderr: Failed to flush small file .../.codex/config.toml:
+  InternalError: We encountered an internal error, please try again.
+```
+
+The cause is the dev box, not the gateway chain. Its object store has no writable volumes because
+the host filesystem is full:
+
+```
+$ df -h /
+/dev/md2  436G  411G  2.7G  100% /
+
+$ docker logs agenta-ee-dev-gateways-seaweedfs-1
+failed to find writable volumes for collection:agenta-store ...
+No writable volumes and no free volumes left
+volume_growth.go:142 create 7 volume, created 0: Not enough data nodes found!
+```
+
+Codex writes `.codex/config.toml` into its mounted working directory at startup, so it is the first
+harness to die when the mount cannot accept writes; Pi and Claude had already completed. Three
+attempts, all identical. This must be re-run once the box has space.
+
+What the Codex row would have proved is narrower than it looks. The mock adapter now emits the
+Codex spelling `mcp.mock-mcp.echo` on the Responses protocol instead of Claude's
+`mcp__mock-mcp__echo`, and that mapping is read from the runner's own gate-lookup convention rather
+than measured against a live Codex. Until this cell runs, treat Codex MCP gating as unverified and
+the mapping as unconfirmed. It can no longer report a false pass: a tool result that is not the
+echo's own no longer satisfies the round-trip check.
