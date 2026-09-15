@@ -38,9 +38,10 @@ The remaining documents are the design itself: `decisions.md`, `architecture.md`
 recorded forty-one findings that every green suite ran straight past, OR36 to OR76. Six of them came
 out of reviewing the repairs rather than the original code (OR70 to OR75), and OR76 came out of
 closing OR49. OR77 came later and from a different direction: it is a product-reach gap on the
-playground surface rather than a credential-boundary defect. The record therefore runs OR36 to
-OR77, forty-two findings. One of them, OR69, was withdrawn, so forty-one stand. Thirty-five are now
-fixed and closed: the agent config's MCP server form can choose OAuth and authorize in place, so
+playground surface rather than a credential-boundary defect. OR78 came later still, a latent defect found while refuting a
+hypothesis about the Linear failure rather than one that has bitten. The record therefore runs OR36
+to OR78, forty-three findings. One of them, OR69, was withdrawn, so forty-two stand. Thirty-five are
+now fixed and closed: the agent config's MCP server form can choose OAuth and authorize in place, so
 the playground can express an OAuth server (OR77); request headers travel by
 allowlist, so the caller's session no longer reaches a tenant's upstream (OR36, OR37); a response
 echoing the injected key is refused, in the body and in the header block (OR39, OR70), and a
@@ -69,15 +70,18 @@ usage on every route that reports it (OR49); a secret save writes only the field
 (OR51); the registrar carries the region and the Vertex project (OR52); a standard connection
 resolves by its slug (OR53); and endpoint writes refuse a secret the project does not own (OR62).
 
-**Six remain open, and none is a P0 or a P1.** OR45 was the last P0 and OR75 the last P1, and both
-are closed. The highest severity open is P2, carried by OR76 alone: an OpenAI Chat Completions
+**Seven remain open, and none is a P0 or a P1.** OR45 was the last P0 and OR75 the last P1, and both
+are closed. The highest severity open is P2, carried by OR76 and OR78. OR76 is an OpenAI Chat Completions
 stream records no usage unless the caller itself sent `stream_options.include_usage`, while
 Responses and Messages meter on every call. Nothing prices usage yet, so it is a gap the metering
 work must settle rather than a defect with a consequence today, and the trade recorded under OR49
-says why adding the field was tried and backed out. The other five are debt: OR63 and OR65 to OR68,
-which `cleanups.md` also tracks as CU15 to CU19. Nothing waits on a decision any more: OD24 to OD27
-in `open-designs.md` are all decided and all four have landed. The open set is OR63, OR65 to OR68,
-and OR76. Read `open-reviews.md` before planning work here. Green suites are not evidence on this
+says why adding the field was tried and backed out. OR78 is a client registration keyed on the
+issuer alone, so a deployment that changes its public address silently reuses a registration the
+authorization server will refuse; it has not bitten, because nothing has stored a registration yet.
+The other five are debt: OR63 and OR65 to OR68, which `cleanups.md` also tracks as CU15 to CU19.
+Nothing waits on a decision any more: OD24 to OD28 in `open-designs.md` are all decided. The open
+set is OR63, OR65 to OR68, OR76 and OR78. Read `open-reviews.md` before planning work here.
+Green suites are not evidence on this
 branch, and `OR65` says why.
 
 **OR69 was recorded and then withdrawn on 2026-09-13**, after the file it cited,
