@@ -61,6 +61,9 @@ export interface SessionCardListProps extends UseSessionCardListArgs {
     activeRowId?: string
 }
 
+/** Title widths for the compact placeholder rows — uneven, so they read as names, not a bar chart. */
+const COMPACT_SKELETON_TITLE_WIDTHS = ["w-[58%]", "w-[42%]", "w-[66%]", "w-[36%]", "w-[50%]"]
+
 /**
  * The nav rail's status glyph, so a compact row reads exactly as the same session does in the
  * sidebar: a turn in flight spins, an automation is a bolt, a chat is a dot; fill means live,
@@ -376,6 +379,21 @@ export const SessionCardList = ({
     )
 
     if (list.isPending) {
+        // Compact: the rail row's own geometry — 28px, glyph, title, time — so the rows land on
+        // the placeholder without a shift.
+        if (compact) {
+            return (
+                <div className="flex flex-col" aria-busy>
+                    {COMPACT_SKELETON_TITLE_WIDTHS.map((width) => (
+                        <div key={width} className="mb-1 flex h-7 items-center gap-[10px] px-3">
+                            <SkeletonBlock active shape="circle" className="size-2.5 shrink-0" />
+                            <SkeletonBlock active className={clsx("h-3", width)} />
+                            <SkeletonBlock active className="ml-auto h-3 w-12 shrink-0" />
+                        </div>
+                    ))}
+                </div>
+            )
+        }
         return (
             <div className="flex flex-col gap-2 px-2 py-2">
                 {[0, 1, 2, 3].map((i) => (

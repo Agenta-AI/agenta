@@ -32,7 +32,7 @@ import {
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {Skeleton, SimpleTooltip} from "@agenta/ui/ui"
+import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowLineRightIcon, PencilSimpleIcon, XIcon, XSquareIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
@@ -357,6 +357,9 @@ const moved = (ids: string[], index: number, direction: -1 | 1): string[] => {
     return next
 }
 
+/** Placeholder chips while the first rows load — a long, a short and a middling title. */
+const SKELETON_CHIP_WIDTHS = ["w-40", "w-28", "w-36"]
+
 /** The pending tab has no stream yet, so it wears the same idle chrome every quiet row does. */
 const IDLE_STATUS = sessionRowStatusMeta("idle")
 
@@ -532,7 +535,16 @@ export const SessionTabRail = ({
             className={className}
         >
             {tabs.isPending && rows.length === 0
-                ? [0, 1].map((i) => <Skeleton key={i} className="mr-2.25 h-7 w-28 shrink-0" />)
+                ? // Three chips at the widths real titles land on, so the strip does not jump
+                  // when they arrive. SkeletonBlock, not the composite: that one is a title plus
+                  // paragraph rows, and squeezed into 28px it read as a smear.
+                  SKELETON_CHIP_WIDTHS.map((width) => (
+                      <SkeletonBlock
+                          key={width}
+                          active
+                          className={clsx("mr-2.25 h-7 shrink-0 rounded", width)}
+                      />
+                  ))
                 : rows.map((vm, index) => (
                       <RailTab
                           key={vm.id}
