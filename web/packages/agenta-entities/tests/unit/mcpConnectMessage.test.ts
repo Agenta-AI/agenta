@@ -1,6 +1,9 @@
 import {describe, expect, it} from "vitest"
 
-import {buildTrustedOrigins, isTrustedOauthConnectedMessage} from "./connectMessage"
+import {
+    buildTrustedOrigins,
+    isTrustedOauthConnectedMessage,
+} from "../../src/mcpEndpoint/core/connectMessage"
 
 describe("buildTrustedOrigins", () => {
     it("collects the origin of every valid URL", () => {

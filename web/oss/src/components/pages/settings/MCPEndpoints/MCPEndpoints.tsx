@@ -1,6 +1,16 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {
+    deleteMcpEndpointAtom,
+    getMcpConnectionState,
+    getMcpConnectionStateLabel,
+    mcpEndpointsQueryAtom,
+    refreshMcpEndpointsAtom,
+    type McpConnectionState,
+    type MCPEndpoint,
+} from "@agenta/entities/mcpEndpoint"
 import {SecretKind, vaultSecretsQueryAtom} from "@agenta/entities/secret"
+import {McpConnectDialog} from "@agenta/entity-ui/mcpEndpoint"
 import {useStaticTable} from "@agenta/settings"
 import {message} from "@agenta/ui"
 import {
@@ -13,20 +23,7 @@ import {PencilSimpleLine, Plug, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {MCPEndpoint} from "@/oss/services/mcpEndpoints/types"
-import {
-    deleteMcpEndpointAtom,
-    mcpEndpointsAtom,
-    refreshMcpEndpointsAtom,
-} from "@/oss/state/mcpEndpoints/atoms"
-
 import ComposioProjectKey from "./ComposioProjectKey"
-import {
-    getMcpConnectionState,
-    getMcpConnectionStateLabel,
-    type McpConnectionState,
-} from "./connectionState"
-import MCPConnectDialog from "./MCPConnectDialog"
 import MCPEndpointDrawer from "./MCPEndpointDrawer"
 
 interface MCPEndpointRow extends MCPEndpoint {
@@ -35,7 +32,7 @@ interface MCPEndpointRow extends MCPEndpoint {
 }
 
 const MCPEndpoints: React.FC = () => {
-    const {data: endpoints, isPending: isLoading} = useAtomValue(mcpEndpointsAtom)
+    const {data: endpoints, isPending: isLoading} = useAtomValue(mcpEndpointsQueryAtom)
     const vaultSecrets = useAtomValue(vaultSecretsQueryAtom)
     const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
     const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
@@ -254,7 +251,7 @@ const MCPEndpoints: React.FC = () => {
                 endpoint={editingEndpoint}
                 onClose={handleDrawerClose}
             />
-            <MCPConnectDialog
+            <McpConnectDialog
                 endpoint={connectingEndpoint}
                 onClose={() => setConnectingEndpoint(null)}
                 onSuccess={() => refreshEndpoints()}

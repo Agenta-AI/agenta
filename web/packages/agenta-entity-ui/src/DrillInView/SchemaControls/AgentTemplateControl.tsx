@@ -58,6 +58,7 @@ import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
 import {ChangedPathsProvider} from "../../drawers/shared"
+import {McpServerConnectAction} from "../../mcpEndpoint"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
@@ -80,7 +81,10 @@ import {
 } from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
-import {registerMcpServerDraft} from "./agentTemplate/mcpEndpointRegistration"
+import {
+    deriveMcpEndpointSlug,
+    registerMcpServerDraft,
+} from "./agentTemplate/mcpEndpointRegistration"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
@@ -876,6 +880,17 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         }
     }, [statusForKind, toolResolutionStatus])
     const mcpStatusFor = useMemo(() => statusForKind("mcp"), [statusForKind])
+    // An OAuth server is registered but unusable until someone completes the consent flow, so the
+    // row carries that state and runs the flow here rather than sending the author to Settings.
+    const mcpExtraFor = useCallback(
+        (item: unknown) => {
+            const server = (item ?? {}) as Record<string, unknown>
+            const slug = deriveMcpEndpointSlug(String(server.name ?? ""))
+            if (!slug) return undefined
+            return <McpServerConnectAction slug={slug} disabled={disabled} />
+        },
+        [disabled],
+    )
     // Registry head versions for the pinned-row nudge. The bridge's presence is host-stable,
     // so the conditional hook resolution keeps a stable hook order in practice.
     const useHeadVersions = skillsBridge?.useHeadVersions ?? useNoHeadVersions
@@ -1216,6 +1231,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     closeEditor={closeEditor}
                     disabled={disabled}
                     statusFor={mcpStatusFor}
+                    extraFor={mcpExtraFor}
                     emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
                 />
             ),

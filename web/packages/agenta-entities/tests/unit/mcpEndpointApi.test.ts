@@ -1,14 +1,11 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
+import {axios} from "@agenta/shared/api"
 
-import {beginMcpConnect, discoverMcpConnect, editMcpEndpoint} from "./api"
+import {beginMcpConnect, discoverMcpConnect, editMcpEndpoint} from "../../src/mcpEndpoint/api/api"
 
-vi.mock("@/oss/lib/api/assets/axiosConfig", () => ({
-    default: {get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn()},
-}))
-
-vi.mock("@/oss/lib/helpers/api", () => ({
+vi.mock("@agenta/shared/api", () => ({
+    axios: {get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn()},
     getAgentaApiUrl: vi.fn(() => "https://api.example.test"),
 }))
 

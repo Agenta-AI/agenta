@@ -1,14 +1,13 @@
-// This domain uses the shared Axios client.
-import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+// This domain uses the shared Axios client the host configures.
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 
-import {
+import type {
     MCPConnectResponse,
     MCPEndpointCreate,
     MCPEndpointEdit,
     MCPEndpointResponse,
     MCPEndpointsResponse,
-} from "./types"
+} from "../core/types"
 
 const BASE = "/gateways/mcps/endpoints"
 

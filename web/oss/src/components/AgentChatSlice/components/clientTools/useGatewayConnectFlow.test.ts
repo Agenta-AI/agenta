@@ -1,9 +1,8 @@
 /**
  * Unit tests for pure gateway connection-flow helpers.
  */
+import type {MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {describe, expect, it} from "vitest"
-
-import type {MCPEndpoint} from "@/oss/services/mcpEndpoints/types"
 
 import {
     gatewayCancelledOutput,
