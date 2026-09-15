@@ -1,9 +1,9 @@
 /**
  * Drive WRITES — the transport behind the Files pane's create / save / rename / duplicate /
- * move / delete. Folder creation and deletion go through the Fern mounts client; a text save
- * reuses the upload endpoint ({@link uploadMountFile} → `write_file`, which overwrites), and the
- * file-only rename / duplicate / move compose bytes-out → upload → delete because the backend has
- * no move endpoint (folders are therefore not renameable from here).
+ * delete. Folder creation and deletion go through the Fern mounts client; a text save reuses the
+ * upload endpoint ({@link uploadMountFile} → `write_file`, which overwrites), and the file-only
+ * rename / duplicate compose bytes-out → upload → delete because the backend has no move
+ * endpoint (folders are therefore not renameable from here).
  *
  * Every write ends with {@link refreshMountListing} so the open directory, the recents summary
  * and the file bodies refetch through the host's query client.

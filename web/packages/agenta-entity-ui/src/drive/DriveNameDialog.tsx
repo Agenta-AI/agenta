@@ -1,6 +1,6 @@
 /**
- * DriveNameDialog — the one prompt behind New folder / New file / Rename / Duplicate / Move to…:
- * a name (or, for Move, a destination folder path) with the validation the mount needs — no
+ * DriveNameDialog — the one prompt behind New folder / New file / Rename / Duplicate: a name
+ * with the validation the mount needs — no
  * empty names, no `/` inside a name, no `..`, no clash with a sibling. Submit on Enter.
  */
 import {type FormEvent, useEffect, useMemo, useState} from "react"
@@ -17,11 +17,11 @@ import {
     Label,
 } from "@agenta/ui/ui"
 
-export type DriveNameDialogKind = "new-folder" | "new-file" | "rename" | "duplicate" | "move"
+export type DriveNameDialogKind = "new-folder" | "new-file" | "rename" | "duplicate"
 
 export interface DriveNameDialogRequest {
     kind: DriveNameDialogKind
-    /** The item being renamed / duplicated / moved (presented path); the folder for new items. */
+    /** The item being renamed / duplicated (presented path); the folder for new items. */
     path: string
     /** Sibling names in the target folder — the clash check. */
     siblings: string[]
@@ -40,11 +40,9 @@ const COPY: Record<
     "new-file": {title: "New file", label: "File name", action: "Create", placeholder: "notes.md"},
     rename: {title: "Rename", label: "New name", action: "Rename", placeholder: ""},
     duplicate: {title: "Duplicate", label: "Name for the copy", action: "Duplicate", placeholder: ""},
-    move: {title: "Move to…", label: "Destination folder", action: "Move", placeholder: "folder/sub"},
 }
 
 const nameOf = (path: string) => path.split("/").pop() ?? path
-const folderOf = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")))
 
 /** "article.md" → "article copy.md"; "notes" → "notes copy". */
 const copyName = (name: string) => {
@@ -54,11 +52,6 @@ const copyName = (name: string) => {
 
 const validate = (kind: DriveNameDialogKind, value: string, req: DriveNameDialogRequest) => {
     const v = value.trim()
-    if (kind === "move") {
-        if (v.split("/").some((seg) => seg === "..")) return "The path can't contain “..”"
-        if (v === folderOf(req.path)) return "The file is already in that folder"
-        return null
-    }
     if (!v) return "Enter a name"
     if (v.includes("/")) return "A name can't contain “/”"
     if (v === "." || v === "..") return "That name isn't allowed"
@@ -81,8 +74,8 @@ export const DriveNameDialog = ({
 }) => {
     const [value, setValue] = useState("")
     const [touched, setTouched] = useState(false)
-    // Seed per request: the current name for rename, "<name> copy" for duplicate, the current
-    // folder for move, empty for new items.
+    // Seed per request: the current name for rename, "<name> copy" for duplicate, empty for new
+    // items.
     useEffect(() => {
         if (!request) return
         setTouched(false)
@@ -91,9 +84,7 @@ export const DriveNameDialog = ({
                 ? nameOf(request.path)
                 : request.kind === "duplicate"
                   ? copyName(nameOf(request.path))
-                  : request.kind === "move"
-                    ? folderOf(request.path)
-                    : "",
+                  : "",
         )
     }, [request])
     const error = useMemo(
@@ -113,13 +104,9 @@ export const DriveNameDialog = ({
                 <form onSubmit={submit} className="flex flex-col gap-4">
                     <DialogHeader>
                         <DialogTitle>{copy?.title}</DialogTitle>
-                        {request && request.kind !== "move" && request.kind.startsWith("new") ? (
+                        {request?.kind.startsWith("new") ? (
                             <DialogDescription>
                                 In {request.path ? request.path : "All files"}
-                            </DialogDescription>
-                        ) : request?.kind === "move" ? (
-                            <DialogDescription>
-                                Move {nameOf(request.path)} to a folder (empty = All files)
                             </DialogDescription>
                         ) : null}
                     </DialogHeader>

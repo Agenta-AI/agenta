@@ -1,6 +1,6 @@
 /**
  * useDriveWrites — the Files pane's write verbs bound to one drive: create folder / file, rename,
- * duplicate, move, delete. Resolves the presented path to its mount (cwd or the folded
+ * duplicate, delete. Resolves the presented path to its mount (cwd or the folded
  * `agent-files/` mount), calls the transport in `@agenta/entities/drive`, refreshes the listing
  * and reports through the kit's message service. The name / path prompts are the caller's
  * ({@link DriveNameDialog}); delete confirms here through `modal.confirm`.
@@ -21,7 +21,6 @@ import {message, modal} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-const nameOf = (path: string) => path.split("/").pop() ?? path
 const joinPath = (folder: string, name: string) => (folder ? `${folder}/${name}` : name)
 
 export function useDriveWrites(drive: SessionDriveData) {
@@ -113,31 +112,6 @@ export function useDriveWrites(drive: SessionDriveData) {
         },
         [drive, run, projectId],
     )
-    /** Move a FILE to another folder of the SAME mount (the copy runs inside one mount). */
-    const move = useCallback(
-        (presentedPath: string, toFolder: string) => {
-            const name = nameOf(presentedPath)
-            const source = drive.resolveMount(presentedPath)
-            const target = drive.resolveMount(joinPath(toFolder, name))
-            if (source?.mount && target?.mount && source.mount.id !== target.mount.id) {
-                void message.error("Moving between the agent's files and the session's isn't supported")
-                return Promise.resolve(false)
-            }
-            return run(
-                presentedPath,
-                ({mount, path}) =>
-                    copyMountFile({
-                        mount,
-                        path,
-                        projectId,
-                        toPath: target?.path ?? joinPath(toFolder, name),
-                        removeSource: true,
-                    }),
-                `Moved to ${toFolder || "All files"}`,
-            )
-        },
-        [drive, run, projectId],
-    )
     const remove = useCallback(
         (presentedPath: string, isFolder: boolean, itemCount?: number | null) =>
             new Promise<boolean>((resolve) => {
@@ -173,8 +147,8 @@ export function useDriveWrites(drive: SessionDriveData) {
     )
 
     return useMemo(
-        () => ({busy, createFolder, createFile, rename, duplicate, move, remove, canDelete}),
-        [busy, createFolder, createFile, rename, duplicate, move, remove, canDelete],
+        () => ({busy, createFolder, createFile, rename, duplicate, remove, canDelete}),
+        [busy, createFolder, createFile, rename, duplicate, remove, canDelete],
     )
 }
 
