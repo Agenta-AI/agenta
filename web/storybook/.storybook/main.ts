@@ -66,29 +66,35 @@ const config: StorybookConfig = {
                 if (rule.test instanceof RegExp && rule.test.test("demo.css")) {
                     rule.resourceQuery = {not: [/raw/]}
                 }
-                if (Array.isArray(rule.use))
-                    for (const use of rule.use) {
+                if (Array.isArray(rule.use)) {
+                    rule.use = rule.use.map((entry) => {
+                        const use = typeof entry === "string" ? {loader: entry} : entry
                         if (
                             use &&
                             typeof use === "object" &&
                             use.loader?.includes("postcss-loader")
                         ) {
-                            use.options = {
-                                postcssOptions: {
-                                    config: false,
-                                    plugins: [
-                                        require("tailwindcss")({
-                                            config: path.resolve(
-                                                __dirname,
-                                                "../tailwind.config.ts",
-                                            ),
-                                        }),
-                                        require("autoprefixer")(),
-                                    ],
+                            return {
+                                loader: use.loader,
+                                options: {
+                                    postcssOptions: {
+                                        config: false,
+                                        plugins: [
+                                            require("tailwindcss")({
+                                                config: path.resolve(
+                                                    __dirname,
+                                                    "../tailwind.config.ts",
+                                                ),
+                                            }),
+                                            require("autoprefixer")(),
+                                        ],
+                                    },
                                 },
                             }
                         }
-                    }
+                        return entry
+                    })
+                }
             }
         }
         prepareRules(cfg.module.rules)
