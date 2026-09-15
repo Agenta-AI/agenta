@@ -664,6 +664,43 @@ class MCPGatewayService:
             await record(GatewayOutcome(status_code=exc.status_code))
             raise
 
+        # A refused credential is a reconnect, not a relayed 401.
+        #
+        # `_renewed` above only renews a grant this deployment can see has expired. It
+        # cannot see a grant the provider retired early — someone removing the
+        # application at the provider, an administrator revoking the account's
+        # authorization, a server that expires a token sooner than it said it would. In
+        # every one of those the stored grant looks live, the relay sends it, and the
+        # upstream answers 401.
+        #
+        # That 401 used to travel back to the caller as the upstream's own response, so
+        # the connection went on reporting itself connected, the settings screen showed
+        # nothing wrong, and an agent saw an authentication error from a server it had
+        # no way to re-authorize. There is nothing the caller can retry: the credential
+        # is dead and only its owner can replace it. So the connection is marked invalid
+        # — which is what `_connection_state` reads — and the caller is handed the same
+        # reconnect affordance a never-connected connection gets.
+        #
+        # Scoped to a stored OAuth connection: a 401 from an unauthenticated or
+        # API-key connection is that server's own answer about that server's own
+        # credential, and neither has a consent flow to send anyone back through.
+        if (
+            namespace == GatewayEndpointNamespace.CUSTOM
+            and target.endpoint.auth_mode == MCPAuthScheme.OAUTH
+            and result.status_code == 401
+        ):
+            await record(GatewayOutcome(status_code=401))
+            await self._invalidate_endpoint(scope=scope, endpoint=target.endpoint)
+            raise self._reconnect_required(
+                endpoint=target.endpoint,
+                path=_target_path(
+                    namespace=namespace,
+                    provider=provider,
+                    integration=integration,
+                    name=name,
+                ),
+            )
+
         # Convert OAuth insufficient-scope challenges into a reconnect interaction.
         if (
             namespace == GatewayEndpointNamespace.CUSTOM

@@ -1304,6 +1304,102 @@ async def test_relay_403_without_insufficient_scope_challenge_passes_through_unt
     assert result.status_code == 403
 
 
+def _refused_credential_result() -> MCPRelayResult:
+    return MCPRelayResult(
+        status_code=401,
+        headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
+        body=b'{"error":"invalid_token"}',
+    )
+
+
+@pytest.mark.asyncio
+async def test_relay_401_on_an_oauth_connection_asks_for_a_reconnect():
+    """A provider can retire a grant this deployment still believes in — the account's
+    authorization revoked, the application removed, a token expired earlier than the
+    server said. The stored grant looks live, so nothing renews it, and the upstream
+    refuses the credential. The caller cannot fix that by retrying."""
+    dao = MockMCPEndpointsDAO()
+    endpoint = await _oauth_endpoint(dao)
+    policy = MockPolicyService()
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=MockResolver(secret=_resolved_secret()),
+        policy=policy,
+        adapters={"http": MockUpstreamAdapter(result=_refused_credential_result())},
+    )
+
+    with pytest.raises(MCPAuthRequiredError) as excinfo:
+        await service.relay(
+            scope=_scope(),
+            namespace="custom",
+            name="acme-notion",
+            context=MCPCallContext(method="tools/call", target="write_page"),
+            body=b"{}",
+            headers={},
+        )
+
+    requirement = excinfo.value.requirement
+    assert requirement.state == GatewayConnectionState.NEEDS_AUTH
+    assert requirement.connect is not None
+    assert requirement.connect.endpoint == (
+        f"/gateways/mcps/endpoints/{endpoint.id}/connect"
+    )
+    assert requirement.target == "custom/acme-notion"
+    assert policy.record_calls[-1]["outcome"].status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_a_connection_whose_credential_was_refused_stops_reporting_ready():
+    """The settings screen reads the stored flag, so a refused credential has to reach
+    it; otherwise the connection goes on showing itself connected."""
+    dao = MockMCPEndpointsDAO()
+    endpoint = await _oauth_endpoint(dao)
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=MockResolver(secret=_resolved_secret()),
+        adapters={"http": MockUpstreamAdapter(result=_refused_credential_result())},
+    )
+    scope = _scope()
+
+    with pytest.raises(MCPAuthRequiredError):
+        await service.relay(
+            scope=scope,
+            namespace="custom",
+            name="acme-notion",
+            context=MCPCallContext(method="tools/call", target="write_page"),
+            body=b"{}",
+            headers={},
+        )
+
+    stored = await dao.fetch_endpoint(
+        project_id=scope.project_id, endpoint_id=endpoint.id
+    )
+    assert stored is not None and stored.flags.is_valid is False
+
+
+@pytest.mark.asyncio
+async def test_relay_401_from_a_none_scheme_connection_passes_through_untouched():
+    """A connection with no stored credential has nothing to reconnect. Its 401 is the
+    server's own answer about the caller's own authentication and must reach them."""
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao)  # auth_mode=NONE
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        adapters={"http": MockUpstreamAdapter(result=_refused_credential_result())},
+    )
+
+    result = await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=MCPCallContext(method="tools/call", target="write_page"),
+        body=b"{}",
+        headers={},
+    )
+
+    assert result.status_code == 401
+
+
 @pytest.mark.asyncio
 async def test_relay_scope_challenge_ignored_for_a_none_scheme_endpoint():
     """Only an OAuth endpoint can step up — a `none`-scheme endpoint has nothing to
