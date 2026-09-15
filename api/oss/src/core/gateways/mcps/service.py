@@ -189,11 +189,18 @@ def derive_endpoint_slug(endpoint: MCPEndpointCreate) -> str:
     return get_slug_from_name_and_id(seed or _FALLBACK_SLUG_BASE, uuid4())
 
 
-# Exactly the runner's own normalization (`piMcpToolName` in
+# The runner's own normalization (`piMcpToolName` in
 # services/runner/src/extensions/pi-mcp.ts), because the string this produces is what a
 # harness puts in front of the model. Two display names that normalize to one prefix are
 # one name as far as a tool call is concerned, so that is the comparison a uniqueness
 # check has to make.
+#
+# One deliberate difference: this strips surrounding whitespace first and the runner does
+# not, so "  Acme  " is compared here as "Acme" and rendered by the runner as "__Acme__".
+# The effect is to refuse a pair the harness would in fact keep apart, never to admit a
+# pair it would collide, so the mismatch can only over-refuse. Converging the two would
+# change which names a project may hold and belongs with the decision about keying policy
+# on the connection slug rather than the display name.
 _TOOL_PREFIX_UNSAFE = re.compile(r"[^A-Za-z0-9_]")
 
 

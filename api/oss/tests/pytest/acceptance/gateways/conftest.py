@@ -65,13 +65,24 @@ def llm_gateway_plane(cls_account) -> bool:
     return code != "llm_gateway_disabled"
 
 
-@pytest.fixture
-def requires_llm_gateway(llm_gateway_plane: bool) -> None:
+def skip_without_llm_gateway(llm_gateway_plane: bool) -> None:
+    """Skip unless the deployment under test serves the LLM gateway plane.
+
+    A callable as well as the fixture below, because a class-scoped setup fixture that
+    provisions through the LLM management routes is refused before any function-scoped skip
+    runs, so those fixtures have to ask the question themselves. One reason, one wording,
+    wherever it is asked.
+    """
     if not llm_gateway_plane:
         pytest.skip(
             "the LLM gateway plane is disabled on this deployment "
             "(set AGENTA_LLM_GATEWAY_ENABLED=true to run it)"
         )
+
+
+@pytest.fixture
+def requires_llm_gateway(llm_gateway_plane: bool) -> None:
+    skip_without_llm_gateway(llm_gateway_plane)
 
 
 @pytest.fixture
