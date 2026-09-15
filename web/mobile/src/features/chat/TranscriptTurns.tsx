@@ -1,7 +1,8 @@
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import type {TurnViewModel} from "@agenta/chat/model"
 
-import {PendingTurn, TurnRow} from "./TurnRow"
+import {PendingTurn} from "./PendingTurn"
+import {TurnRow} from "./TurnRow"
 import {isFirstResponse, runIdFor} from "./turnStatus"
 
 /** The transcript's turns, and the placeholder turn while a run has nothing to show yet. */
