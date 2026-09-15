@@ -38,15 +38,26 @@ reviews:
   # sparse checkout, so an excluded file is never even cloned.
   #
   # CodeRabbit reads this file from the branch under review, so the block below scopes to
-  # this PR alone and leaves every other pull request untouched. `inheritance: true` merges
-  # arrays child-first, so the organization's own exclusions (lock files, generated code)
-  # still apply on top of these.
+  # this PR alone and leaves every other pull request untouched.
+  #
+  # `inheritance: true` does NOT merge this array with the organization's. Asking
+  # `@coderabbitai configuration` on #6049 returned a path_filters list sourced entirely
+  # from "Repository YAML (base)" and containing only the entries below: for this field a
+  # repository list REPLACES the organization's rather than appending to it. The
+  # organization's own exclusions are therefore repeated here explicitly, or its lock files
+  # and generated code would be reviewed as if they were hand-written.
   #
   # This is pass 1: production source and infrastructure, which is what actually needs
   # reviewing. Pass 2 swaps this list for the tests. Neither pass covers the design-doc
   # markdown under docs/design/**, which is this team's working notes rather than shipped
   # code and is reviewed by the people writing it.
   path_filters:
+    # Repeated from the Organization UI configuration, which this list replaces rather than
+    # extends. Keep them in step with the organization's settings.
+    - "!**/*.lock"
+    - "!**/*.generated.*"
+    - "!**/generated/**"
+    # This pull request's own scoping.
     - "!docs/design/**"
     - "!docs/designs/**"
     - "!**/tests/**"

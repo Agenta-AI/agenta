@@ -67,19 +67,28 @@ Files excluded by path filters are not counted. CodeRabbit's own skip comment li
 ignored by the organization's filters and then reported 518 files selected against 525 changed,
 which is the subtraction made visible. CodeRabbit also reads this configuration from the branch
 under review, so filters committed here scope to this pull request and change nothing for any other
-one. `inheritance: true` merges arrays child-first, so the organization's exclusions still apply on
-top.
+one.
+
+`inheritance: true` does **not** merge this array with the organization's. Asking
+`@coderabbitai configuration` on the pull request returned a `path_filters` list sourced entirely
+from "Repository YAML (base)" and holding only the repository's own entries: for this field a
+repository list replaces the organization's rather than appending to it. The first review therefore
+ran with the organization's lock-file and generated-code exclusions dropped, and seven generated
+files were reviewed as though hand-written. Those three patterns are now repeated explicitly at the
+top of the block in `.coderabbit.yaml` and have to be kept in step with the organization's settings
+by hand. Assume the same replacement behavior for any other array a repository config sets.
 
 The review therefore runs in two passes, each well under the cap:
 
 | Pass | Contents | Files |
 | --- | --- | --- |
-| 1 | Production source and infrastructure. The `path_filters` block now in `.coderabbit.yaml` | 259 |
+| 1 | Production source and infrastructure. The `path_filters` block now in `.coderabbit.yaml` | 265 |
 | 2 | Tests. Swap that block for the inverse list and request another review | 179 |
 
-Counts were measured at the revision that added this note, against base `236619ebb768`, and the
-branch has grown substantially since. Re-measure before each pass rather than trusting these
-numbers. If a later pass approaches the cap, move infrastructure and configuration into pass 2
+Counts were measured at the revision that folded the organization's patterns back in, against base
+`236619ebb768`, and the branch grows by a few files an hour while this work runs. Re-measure before
+each pass rather than trusting these numbers. For the record, the first review actually ran at 270
+files, because it went out before those three patterns were restored. If a later pass approaches the cap, move infrastructure and configuration into pass 2
 before splitting anything.
 
 Run each pass with `@coderabbitai full review` after pushing, and confirm the skip banner is gone
