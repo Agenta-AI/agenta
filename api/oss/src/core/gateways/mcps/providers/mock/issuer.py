@@ -69,8 +69,15 @@ def base_url() -> str:
     Read from the same `AGENTA_MOCK_MCP_GATEWAY_URL` the API reads, so the issuer
     identifier in the metadata is byte-identical to the URL the gateway dialled — RFC 8414
     s3.3 compares issuers as strings, and `_check_authorization_server` enforces it.
+
+    `AGENTA_MOCK_MCP_GATEWAY_PUBLIC_URL` overrides it for a stack whose consent flow runs in
+    a real browser, which cannot resolve a Docker name. It replaces the base in EVERY
+    document rather than only in `authorization_endpoint`: the issuer identifier and the
+    `resource` are compared against the address discovery reached, so publishing two bases
+    would make the issuer refuse its own metadata. Configure the MCP server under the same
+    public address.
     """
-    return env.mock_gateways.mcp_url.rstrip("/")
+    return (env.mock_gateways.mcp_public_url or env.mock_gateways.mcp_url).rstrip("/")
 
 
 def resource_metadata_url() -> str:
