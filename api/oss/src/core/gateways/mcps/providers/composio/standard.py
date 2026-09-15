@@ -7,6 +7,7 @@ import httpx
 
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
+    classify_transport_error,
     egress_client,
     open_egress,
 )
@@ -121,7 +122,9 @@ class StandardComposioMCPAdapter(MCPUpstreamInterface):
                     extensions=target.extensions,
                 )
         except httpx.RequestError as exc:
-            raise MCPUpstreamError(target=session_url, detail=str(exc)) from exc
+            # The Composio session credential is in these headers (OR86).
+            failure = classify_transport_error(exc)
+            raise MCPUpstreamError(target=session_url, detail=failure.detail) from exc
 
         # OR75: same refusal as the other two relays — the session credential injected
         # above the caller's headers must not come back in the response.
@@ -167,8 +170,15 @@ class StandardComposioMCPAdapter(MCPUpstreamInterface):
                 )
                 response.raise_for_status()
                 session: Any = response.json()
+        except httpx.RequestError as exc:
+            failure = classify_transport_error(exc)
+            raise MCPUpstreamError(
+                target="standard/composio", detail=failure.detail
+            ) from exc
         except (httpx.HTTPError, ValueError) as exc:
-            raise MCPUpstreamError(target="standard/composio", detail=str(exc)) from exc
+            raise MCPUpstreamError(
+                target="standard/composio", detail="session creation failed"
+            ) from exc
 
         if not isinstance(session, dict):
             raise MCPUpstreamError(

@@ -937,51 +937,114 @@ function piGateSubject(gate: PiGateEnvelope["gate"]): string {
 }
 
 /**
- * Split a harness-rendered MCP tool name back into its server and its upstream tool.
+ * Every configured server whose name could be the prefix of this rendered tool name.
  *
- * The separator is ambiguous, and that is the whole difficulty: a server named `acme__prod`
- * renders as `mcp__acme__prod__search`, where the first `__` is not the boundary. Splitting on the
- * first occurrence, which is what this did before, resolves that server to `acme` and misses its
- * policy — silently, and in the permissive direction.
+ * More than one is possible, and that is the whole difficulty. A harness renders
+ * `<server><sep><tool>` with the same separator that may appear inside a server name, so
+ * `mcp__acme__prod__delete` is `acme` calling `prod__delete` AND `acme__prod` calling `delete`,
+ * and nothing in the string says which. The API does not prevent the pair either: `tool_prefix`
+ * (`api/oss/src/core/gateways/mcps/service.py`) maps each name to itself, so `acme` and
+ * `acme__prod` are distinct names and both register.
  *
- * So the known server names arbitrate rather than the punctuation: take the LONGEST configured
- * server name the rest of the string starts with. Longest wins because both `acme` and
- * `acme__prod` can be configured at once, and the longer is the more specific match. A name no
- * configured server claims returns undefined, exactly as an unconfigured server always did.
+ * This used to return the LONGEST match, on the reasoning that the longer name is the more
+ * specific one. That is a guess, and it guesses in the permissive direction: with `acme` denying
+ * `prod__delete` and `acme__prod` allowing `delete`, the longest match answers `allow` for a call
+ * the operator denied (D2). So every candidate is returned and the caller refuses to choose.
  */
-function splitMcpToolName(
+function mcpToolNameCandidates(
   toolName: string,
   separator: string,
   mcpPermissions: McpPermissionTable,
-): { server: string; tool: string } | undefined {
-  let best: { server: string; tool: string } | undefined;
+): { server: string; tool: string }[] {
+  const candidates: { server: string; tool: string }[] = [];
   for (const server of mcpPermissions.keys()) {
     const prefix = `${server}${separator}`;
     if (!toolName.startsWith(prefix)) continue;
-    if (best && best.server.length >= server.length) continue;
-    best = { server, tool: toolName.slice(prefix.length) };
+    candidates.push({ server, tool: toolName.slice(prefix.length) });
   }
-  return best;
+  return candidates;
+}
+
+/** Why a rendered MCP tool name did or did not resolve, so a caller can log the difference. */
+export type McpNameResolution =
+  /** Not an MCP tool name at all; the caller's other ladders decide. */
+  | { kind: "not-mcp" }
+  /** Exactly one configured server claims it. */
+  | { kind: "resolved"; server: string; tool: string; permission?: ToolPermission }
+  /** MCP-shaped, but more than one configured server claims it (D2). */
+  | { kind: "ambiguous"; servers: string[] }
+  /** MCP-shaped, and no configured server claims it (D7). */
+  | { kind: "unconfigured" };
+
+/**
+ * Resolve one harness-rendered MCP tool name against the run's configured servers.
+ *
+ * Codex renders `mcp.<server>.<tool>`; Claude renders `mcp__<server>__<tool>`. Both are the
+ * harness's own spelling of an identity the runner already holds, which is why the Pi path stopped
+ * reconstructing it and carries `mcpServer`/`mcpTool` in its gate envelope instead
+ * (`pi-gate-envelope.ts`). The ACP harnesses give us no such field, so this is a parse, and a parse
+ * that cannot be sure must say so rather than pick.
+ */
+export function resolveMcpToolName(
+  toolName: string | undefined,
+  mcpPermissions: McpPermissionTable,
+): McpNameResolution {
+  if (!toolName) return { kind: "not-mcp" };
+  const candidates = toolName.startsWith("mcp.")
+    ? mcpToolNameCandidates(toolName.slice("mcp.".length), ".", mcpPermissions)
+    : toolName.startsWith("mcp__")
+      ? mcpToolNameCandidates(toolName.slice("mcp__".length), "__", mcpPermissions)
+      : undefined;
+  if (candidates === undefined) return { kind: "not-mcp" };
+  if (candidates.length === 0) return { kind: "unconfigured" };
+  if (candidates.length > 1) {
+    return { kind: "ambiguous", servers: candidates.map((c) => c.server) };
+  }
+  const [only] = candidates;
+  return {
+    kind: "resolved",
+    server: only.server,
+    tool: only.tool,
+    permission: mcpToolPermission(mcpPermissions.get(only.server), only.tool),
+  };
 }
 
 /**
  * The MCP permission for one harness-rendered tool name, per tool where the author set one.
  *
  * Only reached for a tool with no resolved spec, which is exactly an external user MCP tool.
+ *
+ *  - AMBIGUOUS (D2): two configured servers both claim the name and they may disagree. Deferring
+ *    would hand the call to the run's default permission, which is `allow_reads` out of the box —
+ *    so the safe-looking "we could not tell" becomes `ask`, and under an authored `allow` becomes
+ *    execution. The operator configured a policy for both candidates; running under neither is
+ *    not an option this code gets to choose.
+ * An MCP-shaped name that no configured server claims still defers, which is its own problem and
+ * is carried as D7.
+ *
+ * `undefined` keeps exactly one meaning: this is not an MCP tool name, so the caller's existing
+ * ladder (spec permission, rules, run default) decides as it always did. A CONFIGURED server that
+ * simply has no permission set still reaches that ladder through `mcpToolPermission`, which is
+ * deliberate and unchanged: it is how every configuration written before per-tool policy existed
+ * keeps behaving as it did.
  */
 function mcpPermissionFor(
   toolName: string | undefined,
   mcpPermissions: McpPermissionTable,
 ): ToolPermission | undefined {
-  if (!toolName) return undefined;
-  // Codex uses mcp.<server>.<tool>; Claude uses mcp__<server>__<tool>.
-  const split = toolName.startsWith("mcp.")
-    ? splitMcpToolName(toolName.slice("mcp.".length), ".", mcpPermissions)
-    : toolName.startsWith("mcp__")
-      ? splitMcpToolName(toolName.slice("mcp__".length), "__", mcpPermissions)
-      : undefined;
-  if (!split) return undefined;
-  return mcpToolPermission(mcpPermissions.get(split.server), split.tool);
+  const resolution = resolveMcpToolName(toolName, mcpPermissions);
+  switch (resolution.kind) {
+    case "not-mcp":
+      return undefined;
+    case "ambiguous":
+      return "deny";
+    case "unconfigured":
+      // Today's behaviour, and wrong for its own reason — see D7, which changes it separately so
+      // the ambiguity fix and the recognition fix are reviewable apart.
+      return undefined;
+    case "resolved":
+      return resolution.permission;
+  }
 }
 
 function firstString(values: unknown[]): string | undefined {

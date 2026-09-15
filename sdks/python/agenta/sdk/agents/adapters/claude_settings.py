@@ -100,35 +100,47 @@ def _rules_from_sandbox_permission(sandbox_permission: Any) -> Dict[str, List[st
 
 
 def _rules_from_mcp_permissions(mcp_servers: Any) -> Dict[str, List[str]]:
-    """Derive whole-server Claude rules from each MCP server's Layer-3 ``permission`` (S3b).
+    """Derive Claude rules from each MCP server's Layer-3 permissions (S3b).
 
-    Claude addresses a whole MCP server as ``mcp__<serverName>`` (a per-tool rule is
-    ``mcp__<server>__<tool>``); the server name is the ``name`` carried to the runtime verbatim.
-    ``allow``/``ask``/``deny`` route to the matching list; a server with no permission contributes
-    nothing (falls back to the global policy). Accepts a list of
-    :class:`~agenta.sdk.agents.mcp.models.ResolvedMCPServer` or plain dicts.
+    Claude addresses a whole MCP server as ``mcp__<serverName>`` and one of its tools as
+    ``mcp__<server>__<tool>``; the server name is the ``name`` carried to the runtime verbatim, and
+    the tool name is the one the SERVER advertises. Both levels are rendered:
+
+    - ``policy.permission`` becomes the whole-server rule.
+    - each ``policy.tool_permissions`` entry becomes a per-tool rule, which Claude applies over the
+      server rule because it is the more specific pattern.
+
+    The per-tool half is not decoration. A denied tool that is still ADVERTISED is a tool the model
+    will try, and the refusal it gets back is a worse experience than never being offered it — and
+    on this harness a deny rule is what removes it from the catalog at all (D2). Pi drops a denied
+    tool at registration; Codex cannot be told (see ``codex_settings``), so its denied tools are
+    advertised and stopped at the runner gate instead.
+
+    A server or tool with no permission contributes nothing and falls back to the global policy.
+    Accepts a list of :class:`~agenta.sdk.agents.mcp.models.ResolvedMCPServer` or plain dicts.
     """
-    allow: List[str] = []
-    ask: List[str] = []
-    deny: List[str] = []
+    lists: Dict[str, List[str]] = {"allow": [], "ask": [], "deny": []}
+
+    def add(permission: Any, rule: str) -> None:
+        if permission in lists:
+            lists[permission].append(rule)
+
     for server in mcp_servers or []:
         name = _get(server, "name")
         policy = _get(server, "policy")
-        permission = _get(policy, "permission")
-        if not permission or not name:
+        if not name or policy is None:
             continue
         if name == INTERNAL_TOOL_MCP_SERVER:
             # Reserved for backend-resolved tools; a user server rule like ``mcp__agenta-tools``
             # would collide with resolved-tool rules ``mcp__agenta-tools__<tool>``.
             continue
-        rule = f"mcp__{name}"
-        if permission == "allow":
-            allow.append(rule)
-        elif permission == "ask":
-            ask.append(rule)
-        elif permission == "deny":
-            deny.append(rule)
-    return {"allow": allow, "ask": ask, "deny": deny}
+        add(_get(policy, "permission"), f"mcp__{name}")
+        tool_permissions = _get(policy, "tool_permissions") or {}
+        if isinstance(tool_permissions, dict):
+            for tool, permission in sorted(tool_permissions.items()):
+                if tool:
+                    add(permission, f"mcp__{name}__{tool}")
+    return lists
 
 
 def _rules_from_tool_specs(

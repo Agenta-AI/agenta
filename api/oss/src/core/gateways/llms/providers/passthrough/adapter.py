@@ -19,6 +19,7 @@ from oss.src.core.gateways.dtos import (
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
     EgressTarget,
+    classify_transport_error,
     harden_pooled_client,
     open_egress,
 )
@@ -332,11 +333,20 @@ class RelayLLMAdapter(LLMUpstreamInterface):
                 status_code=None,
                 detail="upstream timed out",
             ) from exc
+        except httpx.RequestError as exc:
+            # The provider key is in these headers, and a refusal raised while building
+            # the request quotes them (OR86).
+            failure = classify_transport_error(exc)
+            raise LLMUpstreamError(
+                provider_key=route.provider_key,
+                status_code=None,
+                detail=failure.detail,
+            ) from exc
         except httpx.HTTPError as exc:
             raise LLMUpstreamError(
                 provider_key=route.provider_key,
                 status_code=None,
-                detail=str(exc),
+                detail="The gateway could not complete the request to the upstream.",
             ) from exc
 
         # Before either response shape is built, and before the error path reads a body: the

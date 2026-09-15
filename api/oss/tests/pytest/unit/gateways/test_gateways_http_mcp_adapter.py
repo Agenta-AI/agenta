@@ -766,3 +766,113 @@ async def test_response_that_merely_resembles_the_credential_is_relayed():
 
     assert result.status_code == 200
     assert _SYNTHETIC_GRANT.encode()[:-1] in result.body
+
+
+# ---------------------------------------------------------------------------
+# OR86: a transport failure must not quote the request it failed to send
+# ---------------------------------------------------------------------------
+
+# What h11 actually produces when it refuses the header the relay built. Reproduced
+# against a real socket in `reviews/repro_header_leak2.py`: a stored credential with a
+# trailing newline arrives here verbatim, inside `httpx.LocalProtocolError`, which is a
+# subclass of `httpx.RequestError` and so was caught and copied onto the caller's field.
+_LEAKY_TOKEN = "ag-secret-value-DO-NOT-LEAK"
+_H11_REFUSAL = f"Illegal header value b'Bearer {_LEAKY_TOKEN}\\n'"
+
+
+def _oauth_secret(token: str):
+    return SimpleNamespace(
+        secret=SimpleNamespace(
+            data=SimpleNamespace(
+                grant=SimpleNamespace(access_token=token, token_type="Bearer")
+            )
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_refused_request_does_not_return_the_credential_it_was_carrying():
+    """The P0 of review round 1. The relay caught h11's refusal and handed its text —
+    which quotes the header bytes, credential included — back to the caller as the
+    JSON-RPC error message."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.LocalProtocolError(_H11_REFUSAL)
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(MCPUpstreamError) as excinfo:
+        await adapter.relay(
+            route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+            auth=MCPDirectAuth.model_construct(
+                secret=_oauth_secret(f"{_LEAKY_TOKEN}\n")
+            ),
+            context=_context(),
+            body=b"{}",
+            headers={},
+        )
+
+    error = excinfo.value
+    assert _LEAKY_TOKEN not in (error.detail or "")
+    assert _LEAKY_TOKEN not in error.message
+    assert _LEAKY_TOKEN not in str(error)
+    # And it still says something a person can act on.
+    assert "stray characters" in (error.detail or "")
+
+
+@pytest.mark.asyncio
+async def test_the_refusal_reaches_the_caller_through_the_proxy_with_no_credential():
+    """The adapter is not the boundary a caller reads. This drives the real proxy mapper
+    over the real exception, which is where the value actually escaped."""
+    from oss.src.apis.fastapi.gateways.mcps.proxy import _map_gateway_exception
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.LocalProtocolError(_H11_REFUSAL)
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(MCPUpstreamError) as excinfo:
+        await adapter.relay(
+            route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+            auth=MCPDirectAuth.model_construct(
+                secret=_oauth_secret(f"{_LEAKY_TOKEN}\n")
+            ),
+            context=_context(),
+            body=b"{}",
+            headers={},
+        )
+
+    rendered = _map_gateway_exception(excinfo.value).body.decode()
+
+    assert _LEAKY_TOKEN not in rendered
+    assert json.loads(rendered)["error"]["data"]["cause"] == "upstream_error"
+
+
+@pytest.mark.asyncio
+async def test_an_ordinary_transport_failure_still_says_which_kind_it_was():
+    """Classifying must not flatten every failure into one sentence: an operator reading
+    a refusal has to be able to tell a timeout from an unreachable host."""
+    seen = {}
+
+    for raised, expected in (
+        (httpx.ConnectTimeout("timed out"), "did not answer in time"),
+        (httpx.ConnectError("connection refused"), "could not be reached"),
+    ):
+
+        def handler(request: httpx.Request, exc=raised) -> httpx.Response:
+            raise exc
+
+        adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+        with pytest.raises(MCPUpstreamError) as excinfo:
+            await adapter.relay(
+                route=MCPResolvedRoute(url=f"https://{_PUBLIC_IP}/mcp"),
+                auth=_auth(),
+                context=_context(),
+                body=b"{}",
+                headers={},
+            )
+        seen[expected] = excinfo.value.detail
+
+    for expected, detail in seen.items():
+        assert expected in (detail or "")
+    assert len(set(seen.values())) == 2
