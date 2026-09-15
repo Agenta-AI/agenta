@@ -108,7 +108,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- define "agenta.seaweedfs.image" -}}
 {{- $img := default dict (default dict (default dict .Values.store).seaweedfs).image -}}
-{{- printf "%s:%s" (default "chrislusf/seaweedfs" $img.repository) (default "4.37" $img.tag) -}}
+{{- printf "%s:%s" (default "chrislusf/seaweedfs" $img.repository) (default "4.47" $img.tag) -}}
 {{- end }}
 {{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.store).seaweedfs).image).pullPolicy }}{{- end }}
 {{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.store).seaweedfs).port }}{{- end }}

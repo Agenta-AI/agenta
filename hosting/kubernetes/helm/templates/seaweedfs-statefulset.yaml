@@ -48,7 +48,9 @@ spec:
           # `agenta-store` (whole-bucket role), and its per-request inline session policy narrows
           # each credential to one mount prefix. GetFederationToken is NOT modelled by SeaweedFS
           # IAM and yields actionless (denied) tokens. `-volume.max=64` lifts the default 8-volume
-          # cap ("No writable volumes"). Pin a 4.37-era image: IAM regressed in other releases.
+          # cap ("No writable volumes"). Pin the image: IAM regressed in other releases, and
+          # anything below 4.42 keeps listing a pre-versioning object after its delete marker is
+          # written, so a deleted file reappears in a geesefs mount and cannot be read.
           command:
             - sh
             - -c
