@@ -209,6 +209,7 @@ const RailTab = ({
         <SessionRowContextMenu entries={menuFor?.(vm)} onSelect={handleMenuSelect}>
             <SessionTab
                 active={active}
+                maskLabel={!rename.renaming}
                 label={
                     rename.renaming ? (
                         // The editor owns its own events: a click here must not select the tab and
@@ -530,7 +531,7 @@ export const SessionTabRail = ({
             className={className}
         >
             {tabs.isPending && rows.length === 0
-                ? [0, 1].map((i) => <Skeleton key={i} className="mr-2.25 h-7 w-[112px] shrink-0" />)
+                ? [0, 1].map((i) => <Skeleton key={i} className="mr-2.25 h-7 w-28 shrink-0" />)
                 : rows.map((vm, index) => (
                       <RailTab
                           key={vm.id}
