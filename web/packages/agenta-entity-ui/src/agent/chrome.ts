@@ -4,7 +4,7 @@
  */
 
 /** The bar's 24px chip: geometry only, so a host's colours (or the agent's) are the only ones set. */
-export const AGENT_CHIP_BOX = "flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
+export const AGENT_CHIP_BOX = "flex h-6 w-6 shrink-0 items-center justify-center rounded"
 
 /** What the chip wears when nobody picked an icon. */
 export const AGENT_CHIP_FALLBACK = "bg-colorFillSecondary text-[var(--ag-preset-cyan-text)]"
