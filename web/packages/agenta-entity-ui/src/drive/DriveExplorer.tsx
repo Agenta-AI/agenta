@@ -23,7 +23,12 @@ import {type ReactNode, useCallback, useMemo, useRef, useState} from "react"
 import {looksLikeFilePath} from "@agenta/entities/drive"
 import {type DriveId, type DriveScope} from "@agenta/entities/drive"
 import {type DroppedFile} from "@agenta/entities/drive"
-import {filterDriveTree, isMarkdownPath} from "@agenta/entities/drive"
+import {
+    type DriveFileKind,
+    filterDriveTree,
+    isMarkdownPath,
+    resolveDriveFileKind,
+} from "@agenta/entities/drive"
 import {useDriveFileEditor} from "@agenta/entities/drive"
 import {useDriveFilters} from "@agenta/entities/drive"
 import {useDriveSelection} from "@agenta/entities/drive"
@@ -37,7 +42,6 @@ import {useTreeGroupScroll} from "@agenta/entities/drive"
 import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
-import {message} from "@agenta/ui/app-message"
 import {InputAffix as Input} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -71,11 +75,18 @@ import {useUploadReveal} from "./useUploadReveal"
 
 export type {DriveId, DriveScope} from "@agenta/entities/drive"
 
-// The Lexical editor graph is heavy and only a markdown file needs it.
+// The Lexical editor graph is heavy and only an editable file needs it.
 const DriveMarkdownEditor = dynamic(
     () => import("./DriveMarkdownEditor").then((m) => m.DriveMarkdownEditor),
     {ssr: false},
 )
+const DriveCodeEditor = dynamic(
+    () => import("./DriveCodeEditor").then((m) => m.DriveCodeEditor),
+    {ssr: false},
+)
+/** The kinds the code editor takes: source, JSON / YAML, plain text. Markdown has its own editor;
+ * HTML keeps its rendered preview. */
+const CODE_EDIT_KINDS = new Set<DriveFileKind>(["code", "json", "text"])
 
 const parentPath = (path: string) => path.slice(0, Math.max(0, path.lastIndexOf("/")))
 const noop = () => undefined
@@ -367,21 +378,20 @@ export function DriveExplorer({
         ],
     )
 
-    // ---- Markdown editing --------------------------------------------------------------------------
-    const editableMarkdown =
-        chrome && canWrite && !selectedIsFolder && !!selectedPath && isMarkdownPath(selectedPath)
+    // ---- File editing (markdown / code) --------------------------------------------------------
+    const editableFile = chrome && canWrite && !selectedIsFolder && !!selectedPath
+    const editableMarkdown = editableFile && isMarkdownPath(selectedPath)
+    const editableCode =
+        editableFile && !editableMarkdown && CODE_EDIT_KINDS.has(resolveDriveFileKind(selectedPath))
+    const editing = editableMarkdown || editableCode
     const editor = useDriveFileEditor(
-        editableMarkdown ? selectedMount : null,
-        editableMarkdown ? selectedMountPath : "",
+        editing ? selectedMount : null,
+        editing ? selectedMountPath : "",
     )
     // Row 2's slot for the editor's formatting bar; the editor portals into it.
     const [toolbarEl, setToolbarEl] = useState<HTMLDivElement | null>(null)
-    const onSave = useCallback(() => {
-        void editor.save().then(({ok, error}) => {
-            if (ok) void message.success(`Saved ${selectedPath?.split("/").pop() ?? "file"}`)
-            else if (error) void message.error(error)
-        })
-    }, [editor, selectedPath])
+    // Cmd/Ctrl+S (and Retry) write now; autosave covers the rest and row 2 shows the state.
+    const onSave = useCallback(() => void editor.save(), [editor])
 
     const {onMeasureContent, scrollXFor, attachTreeWheel} = useTreeGroupScroll({
         deferredSearch,
@@ -460,14 +470,17 @@ export function DriveExplorer({
                 toolbarRef={setToolbarEl}
                 mode={editorMode}
                 setMode={setEditorMode}
-                dirty={editor.dirty}
-                saving={editor.saving}
-                onSave={onSave}
-                onRevert={editor.revert}
+                status={editor.status}
+                onRetry={onSave}
                 actions={fileActions}
             />
         ) : (
-            <DriveToolbar variant="other" path={selectedPath ?? ""} actions={fileActions} />
+            <DriveToolbar
+                variant="other"
+                path={selectedPath ?? ""}
+                actions={fileActions}
+                draft={editableCode ? {status: editor.status, onRetry: onSave} : undefined}
+            />
         )
 
         // What shows for the current selection: the folder's children (grid / list), the markdown
@@ -524,6 +537,16 @@ export function DriveExplorer({
                     path={selectedMountPath}
                     mode={editorMode}
                     toolbarContainer={toolbarEl}
+                    value={editor.value}
+                    loading={editor.loading}
+                    failed={editor.failed}
+                    onChange={editor.onChange}
+                    onSave={onSave}
+                />
+            ) : editableCode ? (
+                <DriveCodeEditor
+                    mount={selectedMount}
+                    path={selectedMountPath}
                     value={editor.value}
                     loading={editor.loading}
                     failed={editor.failed}
