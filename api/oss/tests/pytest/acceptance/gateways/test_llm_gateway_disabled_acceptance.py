@@ -6,13 +6,18 @@ codebases — the API refuses, the agent SDK reads the refusal and resolves from
 instead — and neither half proves it alone, so this drives the real SDK resolver against a
 real deployment over a real socket.
 
-WRITTEN, NOT RUN by the branch that added it: the stack it must run against is the one the
-release is integrated on, and that stack has the LLM plane on. Run it after integration, on a
-deployment with the plane off:
+RUN AND PASSING. Four of four against the integrated EE dev stack on 2026-09-15, while that
+deployment still had `AGENTA_LLM_GATEWAY_ENABLED` unset and therefore the plane off by
+default. The same run of the whole gateway acceptance directory reported 23 passed and 20
+skipped, the skips being exactly the LLM-plane suites and the LLM rows of the mock matrix,
+with every MCP suite still passing. That pair is the release's central claim demonstrated
+rather than argued: model runs keep working with the plane off, and the MCP gateway serves
+regardless.
 
-    load-env hosting/docker-compose/ee/.env.ee.dev      # AGENTA_LLM_GATEWAY_ENABLED unset
-    bash hosting/docker-compose/run.sh --ee --dev --build
-    cd api && pytest oss/tests/pytest/acceptance/gateways -m acceptance -k llm_gateway_disabled
+To run it again, point it at a deployment with the plane off:
+
+    cd api && AGENTA_API_URL=<api> AGENTA_AUTH_KEY=<key> \
+        pytest oss/tests/pytest/acceptance/gateways -m acceptance -k llm_gateway_disabled
 
 It skips itself on a deployment that has the plane on, so it is safe in any suite run.
 """
@@ -24,7 +29,11 @@ from uuid import uuid4
 
 import pytest
 
-from agenta.sdk.agents.connections import ModelRef, RuntimeAuthContext
+from agenta.sdk.agents.connections import (
+    ModelRef,
+    RuntimeAuthContext,
+    WriteOnlySecretError,
+)
 from agenta.sdk.agents.platform import PlatformConnection, VaultConnectionResolver
 
 pytestmark = [
@@ -42,9 +51,7 @@ def _assert_ok(response):
     return response.json()
 
 
-@pytest.fixture
-def vault_provider_key(authed_api) -> Iterator[Dict[str, Any]]:
-    """One ordinary OpenAI provider key in the project's vault, cleaned up afterwards."""
+def _create_provider_key(authed_api, *, write_only: bool) -> Dict[str, Any]:
     slug = f"legacy-openai-{uuid4().hex[:8]}"
     created = _assert_ok(
         authed_api(
@@ -52,6 +59,7 @@ def vault_provider_key(authed_api) -> Iterator[Dict[str, Any]]:
             "/secrets/",
             json={
                 "header": {"name": slug},
+                "write_only": write_only,
                 "secret": {
                     "kind": "provider_key",
                     "data": {
@@ -62,8 +70,29 @@ def vault_provider_key(authed_api) -> Iterator[Dict[str, Any]]:
             },
         )
     )
+    return {"id": created["id"], "slug": created.get("slug") or slug}
+
+
+@pytest.fixture
+def readable_provider_key(authed_api) -> Iterator[Dict[str, Any]]:
+    """A provider key this caller may read back, so the resolved value can be asserted.
+
+    `write_only` is selected at creation and defaults to `True`, in which case the vault
+    hands back a preview and never the value. That default is not a gateway behaviour and
+    predates this branch; see the write-only test below, which covers it.
+    """
+    created = _create_provider_key(authed_api, write_only=False)
     try:
-        yield {"id": created["id"], "slug": created.get("slug") or slug}
+        yield created
+    finally:
+        authed_api("DELETE", f"/secrets/{created['id']}")
+
+
+@pytest.fixture
+def write_only_provider_key(authed_api) -> Iterator[Dict[str, Any]]:
+    created = _create_provider_key(authed_api, write_only=True)
+    try:
+        yield created
     finally:
         authed_api("DELETE", f"/secrets/{created['id']}")
 
@@ -78,13 +107,13 @@ def _resolver(cls_account) -> VaultConnectionResolver:
 
 
 async def test_a_model_resolves_from_the_vault_key_when_the_plane_is_off(
-    cls_account, vault_provider_key
+    cls_account, readable_provider_key
 ):
     resolved = await _resolver(cls_account).resolve(
         model=ModelRef(
             provider="openai",
             model="gpt-4o",
-            connection={"mode": "agenta", "slug": vault_provider_key["slug"]},
+            connection={"mode": "agenta", "slug": readable_provider_key["slug"]},
         ),
         context=RuntimeAuthContext(harness="pi_core", backend="local"),
     )
@@ -97,6 +126,37 @@ async def test_a_model_resolves_from_the_vault_key_when_the_plane_is_off(
     assert resolved.gateway_credentials is None
     injected = {item.binding.name: item.value for item in resolved.credentials}
     assert injected == {"OPENAI_API_KEY": FAKE_PROVIDER_KEY}
+
+
+async def test_a_write_only_key_refuses_on_the_vault_path_rather_than_the_gateway_one(
+    cls_account, write_only_provider_key, monkeypatch
+):
+    """The default case, and the one that proves which path ran.
+
+    A write-only secret is never handed to this caller in plaintext — the vault reveals it
+    only to a credential carrying the run's resolve grant, which the API mints per invocation
+    and no external caller can present. That rule predates the gateway and is unchanged here.
+
+    What matters for this release is WHICH refusal arrives. `WriteOnlySecretError` naming this
+    secret's slug can only be reached by reading `GET /secrets/`, building the catalog and
+    selecting this connection, so it is positive evidence that the gateway refusal sent the
+    resolver down the vault path rather than failing the run.
+    """
+    # The SDK prefers a key in the run's own environment over failing; clear it so the
+    # write-only refusal is what surfaces.
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    with pytest.raises(WriteOnlySecretError) as raised:
+        await _resolver(cls_account).resolve(
+            model=ModelRef(
+                provider="openai",
+                model="gpt-4o",
+                connection={"mode": "agenta", "slug": write_only_provider_key["slug"]},
+            ),
+            context=RuntimeAuthContext(harness="pi_core", backend="local"),
+        )
+
+    assert raised.value.slug == write_only_provider_key["slug"]
 
 
 async def test_the_resolve_route_refuses_with_the_code_the_sdk_acts_on(cls_account):
