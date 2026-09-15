@@ -50,7 +50,7 @@ on two findings.
 | Codex, as filed | 2 | 5 | 2 | 1 | 10 |
 | Second reviewer, as filed | 0 | 1 | 6 | 5 | 12 |
 | **After verification and merge** | **1** | **3** | **8** | **5** | **17** |
-| After the fixes landed so far | 0 | 0 | 2 | 3 | 5 open, 13 closed, 1 withdrawn, 3 new |
+| After the fixes landed so far | 0 | 0 | 0 | 2 | 2 open, 15 closed, 1 withdrawn, 3 new |
 
 Five findings overlapped and are merged below. Four Codex severities were lowered on reachability
 grounds and one second-reviewer severity was raised; each change is argued in the finding's own
@@ -73,11 +73,11 @@ against the code and its test.
 | D3 | both | P1 | `api/oss/src/apis/fastapi/gateways/mcps/router.py:71`, `api/oss/src/core/gateways/mcps/service.py:1013` | Fix, blocking | `9deba3942c` | **yes**, code, tests, suite run |
 | D4 | both | P2 | `api/oss/databases/postgres/migrations/core_oss/versions/oss000000032_rekey_mcp_oauth_grants_by_connection.py:81` | Fix | `6972c570b3` | **yes**, incl. pre-fix run |
 | D5 | Codex 5 | P2 | `api/oss/src/core/gateways/mcps/oauth/service.py:302` | Fix, the cheaper half | `53da962b6b` | **yes**, code, tests, suite run |
-| D6 | Codex 6 | P2 | `api/oss/src/core/gateways/mcps/oauth/storage.py:257`, `oauth/service.py:83` | Fix | on a branch, not landed | pending |
+| D6 | Codex 6 | P2 | `api/oss/src/core/gateways/mcps/oauth/storage.py:257`, `oauth/service.py:83` | Fix | `d1d2eb0e72` | **yes**, code, tests, suite run |
 | D7 | both | P2 | `services/runner/src/mcp-permission.ts:114`, `acp-interactions.ts:966` | Fix the ACP half | `e57627d8e5` | **yes**, code, tests, suite run |
 | D8 | reviewer 2 | — | `services/runner/package.json:10` | **Withdrawn**, the finding was wrong | `fe58e68162` | **yes**, dispute confirmed |
 | D9 | reviewer 2 | P2 | `services/runner/src/mcp-permission.ts:82` | Fix | `21d5591326` | **yes**, code, tests, suite run |
-| D10 | reviewer 2 | P2 | `api/oss/src/core/gateways/mcps/service.py:264`, `services/runner/src/engines/sandbox_agent/runtime-policy.ts:145` | Fix, reconciling with D2 | pending | pending |
+| D10 | reviewer 2 | P2 | `api/oss/src/core/gateways/mcps/service.py:264`, `services/runner/src/engines/sandbox_agent/runtime-policy.ts:145` | Fix, one rule with D2 | `dd6e51cb54` | **yes**, code, tests, suite run |
 | D11 | Codex 8 | P2 | `api/oss/src/core/gateways/mcps/service.py:569` | Defer into OR66 | `dd40682836` | **yes**, defer recorded, not a fix claim |
 | D12 | both | P3 | `api/oss/src/core/gateways/mcps/service.py:289`, `api/oss/src/dbs/postgres/gateways/mcps/dao.py:215` | **Part fixed**, rest deferred | `7c17078254` | **yes**, code, tests, suite run |
 | D13 | reviewer 2 | P3 | `.../oss000000032_rekey_mcp_oauth_grants_by_connection.py:86` | Fix the reporting | `f133fe435f` | **yes**, incl. pre-fix run |
@@ -366,6 +366,32 @@ the replacement happened and never refreshes an existing grant afterwards.
 **Suggested fix.** Keep registrations immutable and addressed by a reference stored on the grant,
 retaining an old one while any grant still names it, rather than mutating one row per issuer.
 
+**Fixed in `d1d2eb0e72`, verified.** Exactly that shape, built on D14's addressed lookup. A
+registration is now keyed on the issuer *and* the callback address it was created with, so a
+changed address writes a new row and leaves the old one in place. A grant records which
+registration issued it, and a renewal reads that one rather than whatever the issuer holds by then.
+
+Retention has no collection step, which is the right call and is argued rather than assumed:
+deleting a registration would mean proving no grant in the project still names it, the rows are
+small, and the retention is the property the fix exists for.
+
+Backward compatibility holds without a migration. A grant written before the reference carries none
+and resolves the issuer's registration, which is where it was already resolving, and every
+registration written before this sits under that same issuer slug, which stays in both the read and
+the write path.
+
+**The inverted assertion is legitimate, and I checked it rather than taking it on trust.** The old
+test asserted `len(providers) == 1` — that the fresh registration replaced the stale one — which is
+the defect stated as an expectation. It now asserts both rows exist, each carrying its own callback
+address. That is the correct direction.
+
+The real proof is a new case that drives a mock authorization server issuing a distinct client per
+registration and refusing a refresh from the wrong one: one connection connects, the address
+changes, a second connect re-registers, and the first still renews. Three bookkeeping cases sit
+beside it, including a grant that records no registration falling back to the issuer's, and a grant
+whose registration is gone getting no substitute — right, because any other client at that issuer
+was never issued those tokens.
+
 ### D7. Unresolved MCP identity falls through to the run's default permission — P2
 
 This needs splitting, because one half is deliberate and one is not.
@@ -480,6 +506,29 @@ policy. The Pi path at least detects and logs its equivalent collision
 **Suggested fix.** Detect a duplicate key and resolve it to the more restrictive entry rather than
 the last, and log it. The deeper fix is D2's: key the table on the connection slug the SDK already
 carries.
+
+**Fixed in `dd6e51cb54`, verified, and reconciled with D2 into one rule.** The distinction the
+commit draws is correct and worth keeping: D2 enumerates its candidates from the permission table's
+*keys*, so two servers sharing a name are already one key by the time D2's code runs and its check
+cannot see them. Two different ambiguities — D2's is in parsing a rendered name, this one is in
+which connection a name denotes.
+
+So intake marks the entry ambiguous instead of overwriting, and `mcpToolPermission` refuses an
+ambiguous entry with D2's own verdict. Placing it there rather than in the ACP resolver is the
+right call: it is the single function every consumer reads.
+
+The suggestion to merge to the more restrictive entry was considered and dropped, and the reason
+given is better than the suggestion: a merged verdict would be a second, quieter policy nobody
+configured, which is the objection to two mechanisms restated.
+
+**One claim in the commit message overstates the reach, and the behaviour is still correct.** It
+says the Pi extension's registration filter now declines to advertise such a server's tools. It does
+not receive this flag: `services/runner/src/extensions/pi-mcp.ts:344` builds its table per server
+with `normalizeMcpServerPermissions`, which never sets `ambiguous`. Two same-named servers are still
+kept apart there by the pre-existing OR80 collision check at `pi-mcp.ts:373`, which refuses the
+second server's tool and reports it. So the ACP gate and the Pi gate get the new verdict, the Pi
+registration path is covered by a different mechanism, and execution fails closed on all three. Only
+the description is off.
 
 ### D11. Refusals before the audit recorder produce no audit event — P2, deferred
 
@@ -655,6 +704,15 @@ of the whole gateway integration directory is not currently obtainable outside t
 Closing it means running these suites inside the compose network, or publishing Redis for the dev
 stack the way Postgres already is.
 
+**An unidentified flake in the runner unit suite.** Recorded because it is the only thing in this
+round I could not pin down, and a reader should not infer from the green numbers below that the
+suite is perfectly stable. Verifying D10, one run of the full runner unit suite reported 1 failed of
+3367; three consecutive runs afterwards were clean at 193 files and 3367 tests. I did not capture
+which test it was before it stopped reproducing, so I cannot say whether it is timing-sensitive or
+order-sensitive. It is not a D10 regression — the D10 and D2 permission suites pass individually and
+repeatedly — but it is unexplained, and a one-in-four flake in the suite the release leans on is
+worth someone's attention.
+
 ### D20. The new credential write swallows the tenant refusal it raises — P3
 
 Found while verifying D3's fix, in the fix itself.
@@ -781,10 +839,12 @@ Recorded so round 2 does not spend time here again.
 **After the fixes landed so far: no finding from this round blocks the release.** All four blockers
 are resolved. D1, D2 and D3 are fixed and verified; D8 was withdrawn on the evidence.
 
-Fixed and verified: D1, D2, D3, D4, D5, D7, D9, D12 in part, D13, D14, D15, D16 and D17. Deferred
-with a stated closure: D11 into OR66, plus D18, D19 and D12's remainder. Still open from the
-original set: **D6** and **D10**, both P2, neither a blocker. Opened while verifying: **D20** and
-**D21**, both P3 residuals of D3's fix.
+**Every finding from the original seventeen is now closed, withdrawn or deferred with a stated
+closure.** Fixed and verified: D1, D2, D3, D4, D5, D6, D7, D9, D10, D12 in part, D13, D14, D15, D16
+and D17. Withdrawn: D8. Deferred with a stated closure: D11 into OR66, plus D18, D19 and D12's
+remainder.
+
+Still open, both opened while verifying and both P3 residuals of D3's fix: **D20** and **D21**.
 
 This is a judgement about the seventeen findings this round raised and the eight open findings it
 was asked to disposition. It is not a release sign-off: the gate's own evidence rows are tracked in
