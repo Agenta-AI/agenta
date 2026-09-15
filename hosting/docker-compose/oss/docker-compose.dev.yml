@@ -850,6 +850,18 @@ services:
                 "--port",
                 "9091",
                 "--reload",
+                # Scoped, because `--reload` alone watches everything mounted at /app and
+                # this image mounts the whole api source tree. Any edit anywhere under
+                # `api/oss/src` then restarts these containers, which on a shared dev box
+                # happens constantly and kills whatever request was in flight — the
+                # occasional timeout in `integration/gateways/test_mock_upstreams.py`. It
+                # also wipes the mock issuer's state, which is process-local by design, so
+                # a consent flow spanning a restart fails. Watch the gateway code these
+                # apps are, plus `utils` for the env they read.
+                "--reload-dir",
+                "/app/oss/src/core/gateways",
+                "--reload-dir",
+                "/app/oss/src/utils",
             ]
         # === SOURCE =============================================== #
         # The mock gateways run a module out of the api image. Without this mount they are
@@ -887,6 +899,18 @@ services:
                 "--port",
                 "9092",
                 "--reload",
+                # Scoped, because `--reload` alone watches everything mounted at /app and
+                # this image mounts the whole api source tree. Any edit anywhere under
+                # `api/oss/src` then restarts these containers, which on a shared dev box
+                # happens constantly and kills whatever request was in flight — the
+                # occasional timeout in `integration/gateways/test_mock_upstreams.py`. It
+                # also wipes the mock issuer's state, which is process-local by design, so
+                # a consent flow spanning a restart fails. Watch the gateway code these
+                # apps are, plus `utils` for the env they read.
+                "--reload-dir",
+                "/app/oss/src/core/gateways",
+                "--reload-dir",
+                "/app/oss/src/utils",
             ]
         # === SOURCE =============================================== #
         # The mock gateways run a module out of the api image. Without this mount they are
