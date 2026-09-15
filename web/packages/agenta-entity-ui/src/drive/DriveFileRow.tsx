@@ -22,6 +22,7 @@ import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
 import {ArrowClockwise, CircleNotch, FolderSimple} from "@phosphor-icons/react"
 
 import {driveFileIcon} from "./driveIcons"
+import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 import {FileThumb} from "./FileThumb"
 import {AGENT_ACCENT_SOFT, OriginTag} from "./OriginTag"
 
@@ -133,6 +134,7 @@ export const DriveFileRow = ({
     hideFolder,
     isFolder,
     staticThumb,
+    mark = "glyph",
     loading,
     skeletonIndex = 0,
 }: {
@@ -160,6 +162,8 @@ export const DriveFileRow = ({
     /** card: draw the kind icon instead of fetching a content thumbnail — for the always-mounted
      * summary surfaces, so they don't read every recent file just to preview it. */
     staticThumb?: boolean
+    /** row: the compact phosphor glyph (chat rail), or the Files pane's typed page mark + folder. */
+    mark?: "glyph" | "typed"
     /** Loading placeholder: same shell (dimensions/padding/border) as a real row of this variant, with
      * shimmer bars instead of content — so skeleton→real is a content swap with zero layout shift.
      * Non-interactive (aria-hidden, not a button). `path`/`onOpen` are ignored. */
@@ -223,7 +227,13 @@ export const DriveFileRow = ({
     const hidden = isHiddenPath(path)
     const isFolderEntry = isFolder ?? file?.is_folder ?? false
     const kindIcon = (size: number) =>
-        isFolderEntry ? (
+        mark === "typed" ? (
+            isFolderEntry ? (
+                <DriveFolderGlyph size={size + 2} />
+            ) : (
+                <DriveTypeMark path={path} size="mini" />
+            )
+        ) : isFolderEntry ? (
             <FolderSimple size={size} weight="fill" className="text-colorWarning" />
         ) : (
             driveFileIcon(path, size)

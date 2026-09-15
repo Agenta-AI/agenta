@@ -66,17 +66,21 @@ const RecentFileRow = ({
             recent={recent}
             showOrigin={showOrigin}
             isFolder={!!file.is_folder}
+            mark="typed"
+            // Size / count and time, " · " between only the parts that exist (a file with no size
+            // must not start with the dot). Rollup folders carry a count; the shallow fallback
+            // doesn't (a count needs a descent) — shown only when known, never a wrong "0".
             trailing={
-                <>
-                    {file.is_folder
-                        ? // Rollup folders carry a count; the top-level shallow fallback doesn't (a
-                          // count needs a descent) — so show it only when known, never a wrong "0".
-                          file.item_count != null
+                [
+                    file.is_folder
+                        ? file.item_count != null
                             ? `${file.item_count} item${file.item_count === 1 ? "" : "s"}`
                             : null
-                        : humanSize(file.size)}
-                    {file.touchedAt ? <> · {relativeTime(file.touchedAt)}</> : null}
-                </>
+                        : humanSize(file.size),
+                    file.touchedAt ? relativeTime(file.touchedAt) : null,
+                ]
+                    .filter(Boolean)
+                    .join(" · ") || null
             }
             onOpen={onOpen}
         />
@@ -144,7 +148,9 @@ export default function StorageSection({
 
     return (
         <div
-            className={`flex flex-col gap-2 rounded-md transition-colors ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
+            // Bled past the section's inset by the rows' own padding + accent bar, so a row's mark
+            // starts on the "Files" title's line and its time ends on the header icon's.
+            className={`-ml-2 -mr-1.5 flex flex-col gap-2 rounded-md transition-colors ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
             {...stageDropProps}
         >
             <AnimatePresence mode="popLayout" initial={false}>
