@@ -875,11 +875,13 @@ export const resolveToolDisplay = (
     // Whichever sentence wins answers "is the app already in it?", which decides the chip.
     const built =
         overrideActivity(override, ownApp) ??
-        (own?.action && appName ? reportedActivity(own.action, appName, !!own.ran) : null) ??
+        (own?.action && ownApp ? reportedActivity(own.action, ownApp, !!own.ran) : null) ??
         parsed.activity
+    const kind =
+        override?.kind ?? (own?.slug && parsed.kind === "platform" ? "gateway" : parsed.kind)
     return {
         raw,
-        kind: override?.kind ?? (own?.slug && parsed.kind === "platform" ? "gateway" : parsed.kind),
+        kind,
         label,
         source:
             override?.source ??
@@ -889,7 +891,7 @@ export const resolveToolDisplay = (
         detail: toolDetail(raw, input, output),
         summary: override?.summary,
         verb: built?.verb,
-        icon: override?.icon ?? resolveActivityIcon(override?.kind ?? parsed.kind, canonical),
+        icon: override?.icon ?? resolveActivityIcon(kind, canonical),
     }
 }
 
