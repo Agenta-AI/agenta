@@ -1019,8 +1019,12 @@ export function resolveMcpToolName(
  *    so the safe-looking "we could not tell" becomes `ask`, and under an authored `allow` becomes
  *    execution. The operator configured a policy for both candidates; running under neither is
  *    not an option this code gets to choose.
- * An MCP-shaped name that no configured server claims still defers, which is its own problem and
- * is carried as D7.
+ *  - UNCONFIGURED (D7): the name is MCP-shaped and no configured server claims it. The runner is
+ *    the only thing that puts `mcp__`/`mcp.` names in front of a model, so this is a tool the run
+ *    advertised and then failed to recognize — a name the harness rewrote, most likely, since
+ *    nothing constrains a display name to characters a harness leaves alone. Deferring makes that
+ *    indistinguishable from a server with no policy at all, which is a real and deliberate case,
+ *    and conflating the two is what lets an unrecognized name inherit a permissive default.
  *
  * `undefined` keeps exactly one meaning: this is not an MCP tool name, so the caller's existing
  * ladder (spec permission, rules, run default) decides as it always did. A CONFIGURED server that
@@ -1037,11 +1041,8 @@ function mcpPermissionFor(
     case "not-mcp":
       return undefined;
     case "ambiguous":
-      return "deny";
     case "unconfigured":
-      // Today's behaviour, and wrong for its own reason — see D7, which changes it separately so
-      // the ambiguity fix and the recognition fix are reviewable apart.
-      return undefined;
+      return "deny";
     case "resolved":
       return resolution.permission;
   }
