@@ -404,11 +404,46 @@ function computeBuiltinGatingActive(
   }
 }
 
+/**
+ * Root of the LOCAL provider's durable mounts: `<root>/mounts/<project_id>/<mount_id>`.
+ *
+ * Deliberately NOT under `/tmp`. Every harness treats `/tmp` as scratch it is free to clear, and
+ * on this provider a single mount namespace holds every concurrent session's geesefs mount, so one
+ * session clearing `/tmp` walks into drives it does not own (2026-09-10 data loss).
+ *
+ * `agenta` must stay its own path segment with `mounts` directly beneath it: the UI recovers a
+ * drive path from a harness tool path by scanning for exactly that pair (`sandboxRootEnd` in
+ * `@agenta/entities`), and a root that breaks the pair silently mis-resolves every file link.
+ *
+ * Sessions recorded before this move keep `/tmp/agenta/...` tool paths in the database forever, so
+ * every consumer of these paths must accept both roots.
+ */
+export const LOCAL_DURABLE_MOUNT_ROOT = "/var/lib/agenta";
+
+/** Root of the DAYTONA provider's durable mounts. Each session owns its sandbox, so it is safe. */
+export const DAYTONA_DURABLE_MOUNT_ROOT = "/home/sandbox/agenta";
+
 function defaultLocalCwd(durableCwd?: string): string {
   // When the caller pre-computed a durable cwd from the sign prefix, use it — same prefix means
   // same mountpoint across turns, so checkMounted short-circuits and no geesefs leak accrues.
   if (durableCwd) {
-    mkdirSync(durableCwd, { recursive: true });
+    try {
+      mkdirSync(durableCwd, { recursive: true });
+    } catch (err) {
+      // The runner images pre-create the root world-writable, so this only fires for a runner run
+      // straight on a host, where the root's parent is root-owned. The bare EACCES names a path
+      // nobody recognizes, so say what to create instead of making the reader find this line.
+      const code = (err as NodeJS.ErrnoException)?.code;
+      if (code === "EACCES" || code === "EPERM") {
+        throw new Error(
+          `cannot create the durable session cwd '${durableCwd}': ${code}. The runner images ` +
+            `pre-create this root; running the runner directly on a host needs it once: ` +
+            `sudo mkdir -p ${LOCAL_DURABLE_MOUNT_ROOT}/mounts && sudo chmod 1777 ` +
+            `${LOCAL_DURABLE_MOUNT_ROOT} ${LOCAL_DURABLE_MOUNT_ROOT}/mounts`,
+        );
+      }
+      throw err;
+    }
     return durableCwd;
   }
   // Ephemeral fallback for non-session runs.

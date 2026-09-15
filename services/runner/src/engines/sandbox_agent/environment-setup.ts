@@ -35,7 +35,11 @@ import {
 } from "./pi-model-config.ts";
 import { loadPiBuiltinRegistry } from "./pi-builtin-registry.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
-import { buildRunPlan } from "./run-plan.ts";
+import {
+  buildRunPlan,
+  DAYTONA_DURABLE_MOUNT_ROOT,
+  LOCAL_DURABLE_MOUNT_ROOT,
+} from "./run-plan.ts";
 import {
   materializeSubscriptionLoginForRun,
   SUBSCRIPTION_MATERIALIZE_FAILED_MESSAGE,
@@ -153,15 +157,15 @@ export async function prepareEnvironmentSetup(
     );
   }
   // Derive the durable cwd from the sign prefix (one source of truth, both providers).
-  // local: /tmp/agenta/<prefix>  —  daytona: /home/sandbox/agenta/<prefix>
   // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
   let durableCwd: string | undefined;
   if (mountCreds?.prefix) {
     const isDaytonaReq =
       (request.sandbox ?? loadRunnerConfig().providers.default) === "daytona";
-    durableCwd = isDaytonaReq
-      ? `/home/sandbox/agenta/${mountCreds.prefix}`
-      : `/tmp/agenta/${mountCreds.prefix}`;
+    const root = isDaytonaReq
+      ? DAYTONA_DURABLE_MOUNT_ROOT
+      : LOCAL_DURABLE_MOUNT_ROOT;
+    durableCwd = `${root}/${mountCreds.prefix}`;
   }
 
   const planResult = buildRunPlan(request, {
