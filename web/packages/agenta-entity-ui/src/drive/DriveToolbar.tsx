@@ -1,151 +1,301 @@
 /**
- * DriveToolbar — the drawer's shared filters row (header row 2): the show/hide-tree toggle, the
- * search box, the origin segmented control, and the hidden / git-ignored visibility toggles. Pure
- * presentation over {@link useDriveFilters} + {@link useDriveTreePane} state.
+ * DriveToolbar — row 2 of the Files pane ("what can I do with what I'm looking at"), in the
+ * content column under row 1 ({@link DriveHeader}). Its contents follow the selection:
+ *
+ *   folder   — grid / list · Sort ▾ · ⋯ (New folder · New file · Upload files… · Download all)
+ *   markdown — the formatting bar (portalled in by the editor) · Revert / Save while dirty ·
+ *              the Markdown / Plain text mode dropdown · ⋯ (Rename · Duplicate · Move to… · Delete)
+ *   other    — the type badge + "<Type> · preview" · ⋯ (the same file actions)
+ *
+ * Pure presentation; every value comes from DriveExplorer's hooks.
  */
-import {type FileOrigin} from "@agenta/entities/drive"
+import {type ReactNode} from "react"
+
+import {type DriveEditorMode, type DriveSortKey, type DriveViewMode} from "@agenta/entities/drive"
+import {fileTypeLabel} from "@agenta/entities/drive"
+import {shortcutAria} from "@agenta/shared/utils"
 import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
-import {InputAffix as Input, Segmented, SimpleTooltip as Tooltip} from "@agenta/ui/ui"
-import {Eye, EyeClosed, FileDashed, MagnifyingGlass, SidebarSimple} from "@phosphor-icons/react"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuSeparator,
+    DropdownMenuShortcut,
+    DropdownMenuTrigger,
+    Segmented,
+    SimpleTooltip as Tooltip,
+} from "@agenta/ui/ui"
+import {
+    CaretDown,
+    DotsThreeVertical,
+    ListBullets,
+    SortAscending,
+    SquaresFour,
+    TextAa,
+    TextT,
+} from "@phosphor-icons/react"
 
-import {ORIGIN_TIP} from "./OriginTag"
+import {ROW_ICON_BTN} from "./DriveHeader"
+import {DriveTypeMark} from "./DriveTypeMark"
 
-export function DriveToolbar({
-    search,
-    setSearch,
-    searchActive,
-    showTree,
-    treeVisible,
-    toggleTree,
-    showOrigin,
-    originFilter,
-    setOriginFilter,
-    showHidden,
-    setShowHidden,
-    inGitScope,
-    showGitignored,
-    setShowGitignored,
-    mirrored = false,
-}: {
-    search: string
-    setSearch: (value: string) => void
-    searchActive: boolean
-    showTree: boolean
-    treeVisible: boolean
-    toggleTree: () => void
-    showOrigin: boolean
-    originFilter: "all" | FileOrigin
-    setOriginFilter: (value: "all" | FileOrigin) => void
-    showHidden: boolean
-    setShowHidden: (update: (v: boolean) => boolean) => void
-    /** A `.gitignore` governs this folder or an ancestor — only then is the git-ignored toggle shown. */
-    inGitScope: boolean
-    showGitignored: boolean
-    setShowGitignored: (update: (v: boolean) => boolean) => void
-    /** Mirrored explorer (tree docked RIGHT): reverse the row so the tree toggle stays above the
-     * tree pane it controls and the filters take the left. */
-    mirrored?: boolean
-}) {
-    return (
-        /* Shared toolbar — the show/hide tree toggle sits FIRST, directly above the tree pane it
-            controls (left normally, right when mirrored); then search + filters. Search forces the
-            tree of matches (see body), so the toggle is disabled while searching. */
-        <div
-            className={`flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2 ${
-                mirrored ? "flex-row-reverse" : ""
-            }`}
-        >
-            <Tooltip
-                title={
-                    searchActive
-                        ? "Tree shown while searching"
-                        : showTree
-                          ? "Hide file tree"
-                          : "Show file tree"
-                }
-            >
-                <Button
-                    type="text"
-                    aria-label="Show file tree"
-                    aria-pressed={treeVisible}
-                    disabled={searchActive}
-                    icon={
-                        <SidebarSimple
-                            size={16}
-                            weight={treeVisible ? "fill" : "regular"}
-                            className="block"
-                        />
-                    }
-                    onClick={toggleTree}
-                    className={treeVisible ? "!text-colorPrimary" : "!text-colorTextTertiary"}
-                />
-            </Tooltip>
-            <Input
-                allowClear
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search files"
-                className="w-[220px] max-w-[45%]"
-                prefix={<MagnifyingGlass size={12} className="text-colorTextQuaternary" />}
+const SORT_LABELS: Record<DriveSortKey, string> = {
+    name: "Name",
+    modified: "Modified",
+    size: "Size",
+}
+
+/** The actions a FILE offers (rename / duplicate / move / delete) — absent = read-only mount. */
+export interface DriveFileActions {
+    onRename: () => void
+    onDuplicate: () => void
+    onMove: () => void
+    onDelete: () => void
+}
+
+/** The actions a FOLDER offers — absent = read-only mount. */
+export interface DriveFolderActions {
+    onNewFolder: () => void
+    onNewFile: () => void
+    onUpload: () => void
+}
+
+export type DriveToolbarProps =
+    | {
+          variant: "folder"
+          view: DriveViewMode
+          setView: (view: DriveViewMode) => void
+          sort: DriveSortKey
+          setSort: (sort: DriveSortKey) => void
+          actions?: DriveFolderActions
+          onDownloadAll?: () => void
+          downloadingAll?: boolean
+      }
+    | {
+          variant: "markdown"
+          /** Where the editor portals its formatting bar. */
+          toolbarRef: (el: HTMLDivElement | null) => void
+          mode: DriveEditorMode
+          setMode: (mode: DriveEditorMode) => void
+          dirty: boolean
+          saving: boolean
+          onSave: () => void
+          onRevert: () => void
+          actions?: DriveFileActions
+      }
+    | {
+          variant: "other"
+          path: string
+          actions?: DriveFileActions
+      }
+
+const FileActionsMenu = ({actions}: {actions?: DriveFileActions}) => (
+    <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+            <Button
+                type="text"
+                aria-label="More actions"
+                title="More"
+                icon={<DotsThreeVertical size={16} weight="bold" />}
+                className={ROW_ICON_BTN}
             />
-            {showOrigin ? (
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-[180px]">
+            <DropdownMenuItem disabled={!actions} onSelect={actions?.onRename}>
+                Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={!actions} onSelect={actions?.onDuplicate}>
+                Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={!actions} onSelect={actions?.onMove}>
+                Move to…
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+                disabled={!actions}
+                onSelect={actions?.onDelete}
+                className="text-colorError focus:text-colorError"
+            >
+                Delete
+            </DropdownMenuItem>
+        </DropdownMenuContent>
+    </DropdownMenu>
+)
+
+/** The shared row frame — 36px, one bottom hairline (the rail's search header shares it). */
+const Row = ({children}: {children: ReactNode}) => (
+    <div className="flex h-9 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2.5">
+        {children}
+    </div>
+)
+
+export function DriveToolbar(props: DriveToolbarProps) {
+    if (props.variant === "folder") {
+        const {view, setView, sort, setSort, actions, onDownloadAll, downloadingAll} = props
+        return (
+            <Row>
                 <Segmented
-                    value={originFilter}
-                    onChange={(v) => setOriginFilter(v as "all" | FileOrigin)}
+                    size="sm"
+                    value={view}
+                    onChange={(v) => setView(v as DriveViewMode)}
                     options={[
-                        {value: "all", label: "All"},
-                        {
-                            value: "agent",
-                            label: (
-                                <Tooltip title={ORIGIN_TIP.agent}>
-                                    <span>Agent</span>
-                                </Tooltip>
-                            ),
-                        },
-                        {
-                            value: "session",
-                            label: (
-                                <Tooltip title={ORIGIN_TIP.session}>
-                                    <span>Session</span>
-                                </Tooltip>
-                            ),
-                        },
+                        {value: "grid", icon: <SquaresFour size={14} />, "aria-label": "Grid"},
+                        {value: "list", icon: <ListBullets size={14} />, "aria-label": "List"},
                     ]}
                 />
-            ) : null}
-            <Tooltip title={showHidden ? "Hide hidden files" : "Show hidden files"}>
-                <Button
-                    type="text"
-                    aria-label="Show hidden files"
-                    aria-pressed={showHidden}
-                    icon={
-                        showHidden ? (
-                            <Eye size={16} className="block" />
-                        ) : (
-                            <EyeClosed size={16} className="block" />
-                        )
-                    }
-                    onClick={() => setShowHidden((v) => !v)}
-                    className={showHidden ? "!text-colorTextTertiary" : "!text-colorPrimary"}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            type="text"
+                            aria-label="Sort"
+                            icon={<SortAscending size={13} />}
+                            className="!h-[26px] !gap-1 !px-2 !text-xs !text-colorTextSecondary hover:!bg-colorFillTertiary hover:!text-colorText"
+                        >
+                            {SORT_LABELS[sort]}
+                            <CaretDown size={10} weight="bold" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="min-w-[170px]">
+                        <DropdownMenuRadioGroup
+                            value={sort}
+                            onValueChange={(v) => setSort(v as DriveSortKey)}
+                        >
+                            {(Object.keys(SORT_LABELS) as DriveSortKey[]).map((key) => (
+                                <DropdownMenuRadioItem key={key} value={key}>
+                                    Sort by {SORT_LABELS[key].toLowerCase()}
+                                </DropdownMenuRadioItem>
+                            ))}
+                        </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+                <span className="flex-1" />
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            type="text"
+                            aria-label="More actions"
+                            title="More"
+                            icon={<DotsThreeVertical size={16} weight="bold" />}
+                            className={ROW_ICON_BTN}
+                        />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[180px]">
+                        <DropdownMenuItem disabled={!actions} onSelect={actions?.onNewFolder}>
+                            New folder
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled={!actions} onSelect={actions?.onNewFile}>
+                            New file
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled={!actions} onSelect={actions?.onUpload}>
+                            Upload files…
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            disabled={!onDownloadAll || downloadingAll}
+                            onSelect={onDownloadAll}
+                        >
+                            {downloadingAll ? "Preparing download…" : "Download all"}
+                            <DropdownMenuShortcut>.zip</DropdownMenuShortcut>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </Row>
+        )
+    }
+
+    if (props.variant === "markdown") {
+        const {toolbarRef, mode, setMode, dirty, saving, onSave, onRevert, actions} = props
+        const rendered = mode === "rendered"
+        return (
+            <Row>
+                {/* The editor portals its formatting bar here in rendered mode; in source mode the
+                    slot stays mounted (empty) so the portal target never flips. */}
+                <div
+                    ref={toolbarRef}
+                    className={`flex min-w-0 items-center ${rendered ? "" : "hidden"}`}
                 />
-            </Tooltip>
-            {/* Git-ignored files hidden by default; the toggle appears only inside a repo. */}
-            {inGitScope ? (
-                <Tooltip
-                    title={showGitignored ? "Hide git-ignored files" : "Show git-ignored files"}
-                >
-                    <Button
-                        type="text"
-                        aria-label="Show git-ignored files"
-                        aria-pressed={showGitignored}
-                        icon={<FileDashed size={16} className="block" />}
-                        onClick={() => setShowGitignored((v) => !v)}
-                        className={
-                            showGitignored ? "!text-colorPrimary" : "!text-colorTextTertiary"
-                        }
-                    />
-                </Tooltip>
-            ) : null}
-        </div>
+                {rendered ? null : (
+                    <span className="pl-1 text-xs text-colorTextTertiary">
+                        Plain text · formatting off
+                    </span>
+                )}
+                <span className="flex-1" />
+                {dirty ? (
+                    <>
+                        <Button
+                            type="text"
+                            size="small"
+                            onClick={onRevert}
+                            disabled={saving}
+                            className="!h-[26px] !px-2 !text-xs !text-colorTextSecondary hover:!bg-colorFillTertiary hover:!text-colorText"
+                        >
+                            Revert
+                        </Button>
+                        <Tooltip
+                            title={
+                                <span className="flex items-center gap-1.5">
+                                    Save <ShortcutKeys id="drive.save" tone="inverse" />
+                                </span>
+                            }
+                        >
+                            <Button
+                                type="primary"
+                                size="small"
+                                onClick={onSave}
+                                loading={saving}
+                                aria-keyshortcuts={shortcutAria("drive.save")}
+                                className="!h-[26px] !px-2.5 !text-xs"
+                            >
+                                Save
+                            </Button>
+                        </Tooltip>
+                        <span className="mx-1 h-4 w-px bg-colorBorderSecondary" aria-hidden />
+                    </>
+                ) : null}
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            type="text"
+                            aria-label="Editor mode"
+                            icon={rendered ? <TextAa size={13} /> : <TextT size={13} />}
+                            className="!h-[26px] !gap-1 !px-2 !text-xs !text-colorTextSecondary hover:!bg-colorFillTertiary hover:!text-colorText"
+                        >
+                            {rendered ? "Markdown" : "Plain text"}
+                            <CaretDown size={10} weight="bold" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[180px]">
+                        <DropdownMenuRadioGroup
+                            value={mode}
+                            onValueChange={(v) => setMode(v as DriveEditorMode)}
+                        >
+                            <DropdownMenuRadioItem value="rendered">
+                                Markdown
+                                <DropdownMenuShortcut>rendered</DropdownMenuShortcut>
+                            </DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="source">
+                                Plain text
+                                <DropdownMenuShortcut>source</DropdownMenuShortcut>
+                            </DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+                <FileActionsMenu actions={actions} />
+            </Row>
+        )
+    }
+
+    const {path, actions} = props
+    return (
+        <Row>
+            <span className="flex items-center gap-1.5 pl-1 text-xs text-colorTextSecondary">
+                <DriveTypeMark path={path} size="badge" />
+                {fileTypeLabel(path)} · preview
+            </span>
+            <span className="flex-1" />
+            <FileActionsMenu actions={actions} />
+        </Row>
     )
 }

@@ -15,8 +15,32 @@ import {downloadMountArchive} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger} from "@agenta/ui/ui"
-import {ArrowSquareOut, Copy, DownloadSimple, FolderOpen} from "@phosphor-icons/react"
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuTrigger,
+} from "@agenta/ui/ui"
+import {
+    ArrowSquareOut,
+    Copy,
+    CopySimple,
+    DownloadSimple,
+    FolderOpen,
+    FolderSimpleDashed,
+    PencilSimple,
+    Trash,
+} from "@phosphor-icons/react"
+
+/** The write verbs an item offers. Rename / duplicate / move are file-only (no backend move
+ * endpoint), so for a folder only `onDelete` is honoured. Absent = read-only mount. */
+export interface DriveItemWriteActions {
+    onRename: (path: string) => void
+    onDuplicate: (path: string) => void
+    onMove: (path: string) => void
+    onDelete: (path: string, isFolder: boolean) => void
+}
 import {useAtomValue} from "jotai"
 
 import {useDriveFileDownload} from "./useDriveFileDownload"
@@ -88,6 +112,7 @@ export const DriveItemContextMenu = ({
     onOpen,
     onCopyPath,
     onDownload,
+    writes,
     className = "min-w-0",
     children,
 }: {
@@ -99,6 +124,8 @@ export const DriveItemContextMenu = ({
     onCopyPath: (path: string) => void
     /** Download this item (a file's bytes, or a folder as a zip). Omit → no Download entry. */
     onDownload?: (path: string, isFolder: boolean) => void
+    /** Rename / duplicate / move / delete — omit on a read-only mount. */
+    writes?: DriveItemWriteActions
     /** Wrapper class — defaults to `min-w-0` so grid-cell truncation still wins; pass `w-full`
      * variants where the cell needs to stretch. */
     className?: string
@@ -126,6 +153,48 @@ export const DriveItemContextMenu = ({
                         <DownloadSimple size={14} />
                         {isFolder ? "Download as zip" : "Download"}
                     </ContextMenuItem>
+                ) : null}
+                {writes ? (
+                    <>
+                        <ContextMenuSeparator />
+                        {/* Folder rename / move need a backend move endpoint — shown, disabled, so
+                            the verb is discoverable and its absence explained. */}
+                        <ContextMenuItem
+                            disabled={isFolder}
+                            onSelect={() => writes.onRename(path)}
+                        >
+                            <PencilSimple size={14} />
+                            Rename
+                            {isFolder ? (
+                                <span className="ml-auto pl-3 text-[11px] text-colorTextQuaternary">
+                                    files only
+                                </span>
+                            ) : null}
+                        </ContextMenuItem>
+                        {isFolder ? null : (
+                            <ContextMenuItem onSelect={() => writes.onDuplicate(path)}>
+                                <CopySimple size={14} />
+                                Duplicate
+                            </ContextMenuItem>
+                        )}
+                        <ContextMenuItem disabled={isFolder} onSelect={() => writes.onMove(path)}>
+                            <FolderSimpleDashed size={14} />
+                            Move to…
+                            {isFolder ? (
+                                <span className="ml-auto pl-3 text-[11px] text-colorTextQuaternary">
+                                    files only
+                                </span>
+                            ) : null}
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                            onSelect={() => writes.onDelete(path, isFolder)}
+                            className="text-colorError focus:text-colorError"
+                        >
+                            <Trash size={14} />
+                            Delete
+                        </ContextMenuItem>
+                    </>
                 ) : null}
             </ContextMenuContent>
         </ContextMenu>
