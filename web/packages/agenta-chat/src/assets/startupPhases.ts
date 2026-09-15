@@ -1,9 +1,10 @@
-// In the order the runner emits them; create_session alone is ~78% of a cold start.
+// In the order the runner emits them; create_session alone is ~78% of a cold start. Before the
+// first frame the line reads "Waking up the agent".
 const STARTUP_LABELS = {
-    environment_starting: "Starting the agent",
-    preparing_workspace: "Preparing the workspace",
-    opening_session: "Opening the agent session",
-    environment_ready: "Agent ready",
+    environment_starting: "Getting things ready",
+    preparing_workspace: "Loading details",
+    opening_session: "Almost there",
+    environment_ready: "Ready",
 } as const
 
 export const startupLabelFromDataPart = (part: unknown): string | null => {

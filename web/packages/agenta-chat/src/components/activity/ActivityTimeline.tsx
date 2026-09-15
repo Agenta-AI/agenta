@@ -167,7 +167,7 @@ const VERB_HOLD_MS = 2500
  * the model composes the next one — the last step, so the verb holds. Before any step there is
  * only the runner's startup narration, or the warm-up. */
 const liveVerb = (step: ActivityStep | null, startupLabel?: string | null): string => {
-    if (!step) return startupLabel || "Warming up"
+    if (!step) return startupLabel || "Waking up the agent"
     if (step.kind === "thought") return step.source === "text" ? "Writing" : "Thinking"
     const part = step.part
     if ((part.state as string) === "approval-requested") return "Waiting for your approval"

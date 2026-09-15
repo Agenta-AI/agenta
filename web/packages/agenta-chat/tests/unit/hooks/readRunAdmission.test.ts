@@ -45,9 +45,9 @@ describe("readRunAdmission", () => {
             w,
         )
         expect(w.onStartupPhase.mock.calls.map(([label]) => label)).toEqual([
-            "Starting the agent",
-            "Preparing the workspace",
-            "Agent ready",
+            "Getting things ready",
+            "Loading details",
+            "Ready",
         ])
         expect(w.onAccepted).toHaveBeenCalledTimes(1)
         expect(w.onFailed).not.toHaveBeenCalled()
