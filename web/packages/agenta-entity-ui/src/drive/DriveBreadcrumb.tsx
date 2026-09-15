@@ -48,7 +48,7 @@ export const DriveBreadcrumb = ({
                     <BreadcrumbItem>
                         {segs.length === 0 ? (
                             <BreadcrumbPage className="flex h-auto items-center gap-1.5 px-1.5 py-[3px] font-medium">
-                                <House size={15} weight="fill" />
+                                <House size={15} />
                                 All files
                             </BreadcrumbPage>
                         ) : (
@@ -61,7 +61,7 @@ export const DriveBreadcrumb = ({
                                     title={rootLabel}
                                     className={crumbLink}
                                 >
-                                    <House size={15} weight="fill" />
+                                    <House size={15} />
                                 </Button>
                             </BreadcrumbLink>
                         )}
