@@ -17,6 +17,8 @@ already orphaned before this ran.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -171,9 +173,13 @@ def _run_upgrade(sync_connection) -> None:
         revision.upgrade()
 
 
-async def _upgrade(engine) -> None:
-    async with engine.begin() as connection:
-        await connection.run_sync(_run_upgrade)
+async def _upgrade(engine) -> str:
+    """Run the revision and return the summary line it printed."""
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        async with engine.begin() as connection:
+            await connection.run_sync(_run_upgrade)
+    return buffer.getvalue()
 
 
 async def _slug_of(connection, secret_id):
@@ -539,3 +545,76 @@ async def test_rerunning_after_an_adoption_changes_nothing_further(scratch_engin
         assert await _handle_of(connection, endpoint_id) == occupant
         assert await _slug_of(connection, occupant) == _expected_slug(endpoint_id)
         assert await _slug_of(connection, legacy) == "oauth-grant-ff8ef6b614b8"
+
+
+# --- D13: what the revision leaves behind, said out loud -------------------------- #
+
+
+async def test_a_cross_project_grant_is_left_alone_and_reported(scratch_engine):
+    """The rename joins on the project, so a grant row whose project does not match its
+    referencing endpoint's is passed over. OR62 records that the schema does not
+    constrain that, so the row is possible by construction.
+
+    Leaving it is right: the connection reads as needing authorization and one Connect
+    fixes it. Being quiet about it is not, because the other counts would read as
+    "everything was handled".
+    """
+    endpoint_project, grant_project = uuid.uuid4(), uuid.uuid4()
+    async with scratch_engine.begin() as connection:
+        foreign_grant = await _seed_grant(
+            connection, project_id=grant_project, slug="oauth-grant-elsewhere"
+        )
+        endpoint_id = await _seed_connection(
+            connection,
+            project_id=endpoint_project,
+            slug="acme",
+            secret_id=foreign_grant,
+        )
+
+    summary = await _upgrade(scratch_engine)
+
+    assert "1 connection(s) name a grant belonging to another project" in summary
+    async with scratch_engine.connect() as connection:
+        assert await _slug_of(connection, foreign_grant) == "oauth-grant-elsewhere"
+        assert await _handle_of(connection, endpoint_id) == foreign_grant
+
+
+async def test_a_rename_the_guard_skipped_is_reported(scratch_engine):
+    """The other way a connection is left naming a grant that is not at its key."""
+    project_id = uuid.uuid4()
+    async with scratch_engine.begin() as connection:
+        legacy = await _seed_grant(
+            connection, project_id=project_id, slug="oauth-grant-legacy"
+        )
+        endpoint_id = await _seed_connection(
+            connection, project_id=project_id, slug="acme", secret_id=legacy
+        )
+        await _seed_grant(
+            connection,
+            project_id=project_id,
+            slug=_expected_slug(endpoint_id),
+            kind="CUSTOM_SECRET",
+        )
+
+    summary = await _upgrade(scratch_engine)
+
+    assert "1 connection(s) still name a grant that is not at their key" in summary
+
+
+async def test_an_ordinary_run_reports_no_leftovers(scratch_engine):
+    """The counts only appear when there is something to say, so a clean run's summary
+    stays readable."""
+    project_id = uuid.uuid4()
+    async with scratch_engine.begin() as connection:
+        secret_id = await _seed_grant(
+            connection, project_id=project_id, slug="oauth-grant-legacy"
+        )
+        await _seed_connection(
+            connection, project_id=project_id, slug="acme", secret_id=secret_id
+        )
+
+    summary = await _upgrade(scratch_engine)
+
+    assert "rekeyed 1 MCP OAuth grant(s)" in summary
+    assert "left alone" not in summary
+    assert "not at their key" not in summary

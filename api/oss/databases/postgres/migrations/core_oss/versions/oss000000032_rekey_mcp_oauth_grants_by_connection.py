@@ -178,6 +178,35 @@ def upgrade() -> None:
             {"shared_grant_ids": list(shared_grant_ids)},
         ).rowcount
 
+    # What is left over, said out loud (D13).
+    #
+    # A connection can still name a grant that is not at its key after everything above.
+    # The rename joins on `secret.project_id = sole.project_id`, so a grant row whose
+    # project does not match its referencing endpoint's is passed over — OR62 records
+    # that the schema does not constrain that, so such rows are possible by
+    # construction. The `NOT EXISTS` guard passes over an occupied destination the
+    # adoption could not resolve. Neither outcome is wrong: the connection reads as
+    # needing authorization and one Connect fixes it. Being quiet about it is wrong,
+    # because the counts above would otherwise read as "everything was handled".
+    left_behind = connection.execute(
+        sa.text(
+            f"""
+            WITH referencing AS ({_REFERENCING}),
+                 sole AS (SELECT * FROM referencing WHERE sharers = 1)
+            SELECT
+                count(*) FILTER (
+                    WHERE secret.project_id IS DISTINCT FROM sole.project_id
+                ) AS cross_project,
+                count(*) FILTER (
+                    WHERE secret.project_id IS NOT DISTINCT FROM sole.project_id
+                ) AS same_project
+              FROM sole
+              JOIN secrets AS secret ON secret.id = sole.secret_id
+             WHERE secret.slug IS DISTINCT FROM {_NEW_SLUG}
+            """
+        )
+    ).one()
+
     summary = (
         f"[oss000000032] rekeyed {renamed} MCP OAuth grant(s) onto their connection; "
         f"cleared {disconnected} handle(s) that shared {deleted} ambiguous grant(s), "
@@ -187,6 +216,16 @@ def upgrade() -> None:
         summary += (
             f" {adopted} connection(s) already had a grant at their new key and were "
             f"repointed at it; the row each previously named is left as an orphan."
+        )
+    if left_behind.cross_project:
+        summary += (
+            f" {left_behind.cross_project} connection(s) name a grant belonging to "
+            f"another project and were left alone; each needs a reconnect."
+        )
+    if left_behind.same_project:
+        summary += (
+            f" {left_behind.same_project} connection(s) still name a grant that is not "
+            f"at their key; each needs a reconnect."
         )
     print(summary)
 
