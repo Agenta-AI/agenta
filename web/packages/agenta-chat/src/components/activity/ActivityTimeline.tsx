@@ -230,7 +230,6 @@ export const ActivityTimeline = ({
     if (!steps.length && !live) return null
 
     const count = steps.length
-    const stepsText = count ? ` · ${count} ${count === 1 ? "step" : "steps"}` : ""
     // No clock before the first step.
     const clock =
         elapsed === null || awaiting || !count ? "" : ` · ${formatElapsed(elapsed, {live: true})}`
@@ -254,15 +253,11 @@ export const ActivityTimeline = ({
                 {/* `pre`: the leading space would otherwise collapse at the flex item's start. */}
                 <span className="min-w-0 overflow-hidden text-ellipsis whitespace-pre text-colorTextTertiary">
                     {clock}
-                    {stepsText}
                 </span>
             </>
         )
     } else {
-        title =
-            elapsed === null
-                ? `Worked${stepsText}`
-                : `Worked for ${formatElapsed(elapsed, {live: false})}`
+        title = elapsed === null ? "Worked" : `Worked for ${formatElapsed(elapsed, {live: false})}`
     }
 
     return (

@@ -61,11 +61,11 @@ afterEach(() => {
 })
 
 describe("ActivityTimeline", () => {
-    it("narrates the running step, with the clock and the count, while live", () => {
+    it("narrates the running step, with the clock, while live", () => {
         mount({steps: [toolStep("input-available")], streaming: true})
         const line = screen.getByRole("button", {expanded: false})
         expect(line.textContent).toContain("Reading a file")
-        expect(line.textContent).toContain("1 step")
+        expect(line.textContent).not.toContain("step")
         expect(line.textContent).toMatch(/0:00/)
     })
 
@@ -199,13 +199,13 @@ describe("ActivityTimeline", () => {
                 {kind: "thought", key: "t", text: "hmm", streaming: false, source: "reasoning"},
             ],
         })
-        expect(screen.getAllByRole("button")[0].textContent).toContain("Worked · 1 step")
+        expect(screen.getAllByRole("button")[0].textContent).toContain("Worked")
         expect(container.querySelector("[aria-hidden].w-px")).toBeNull()
     })
 
     it("keeps Worked for a lone tool call", () => {
         mount({steps: [toolStep("output-available")]})
-        expect(screen.getAllByRole("button")[0].textContent).toContain("Worked · 1 step")
+        expect(screen.getAllByRole("button")[0].textContent).toContain("Worked")
     })
 
     it("shows no clock while parked on the reader", () => {
