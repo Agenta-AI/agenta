@@ -43,6 +43,28 @@ def identity_document_client_info(
     )
 
 
+def registration_covers(
+    client_info: OAuthClientInformationFull, *, redirect_uri: str
+) -> bool:
+    """Whether a stored registration still names the callback we would send.
+
+    A registration under RFC 7591 is bound to the redirect URIs it was created with, so
+    one that does not list the current callback is not a registration this deployment
+    can use: the authorization server refuses the `client_id` outright, and its refusal
+    says nothing about redirect URIs (OR78).
+
+    Compared as exact strings after dropping a trailing slash, which is the one
+    difference an OAuth client library can introduce without changing where the browser
+    lands. Nothing else is normalized on purpose: the redirect URI is matched exactly by
+    the authorization server, so a comparison looser than the server's would reuse a
+    registration the server will refuse, which is the defect this exists to prevent.
+    """
+    wanted = redirect_uri.rstrip("/")
+    return any(
+        str(stored).rstrip("/") == wanted for stored in client_info.redirect_uris
+    )
+
+
 def _is_public_ip(ip: ipaddress._BaseAddress) -> bool:
     return not (
         ip.is_private
