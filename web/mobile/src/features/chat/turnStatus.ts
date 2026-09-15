@@ -38,3 +38,10 @@ export const showRunningElsewhere = ({
     running: boolean
     localStatus: SessionRunStatus
 }): boolean => running && localStatus !== "running" && localStatus !== "awaiting"
+
+/**
+ * Whether the turn at `index` is the session's first response — the one that boots the agent
+ * and narrates its startup. The placeholder turn (index = length) counts the same way.
+ */
+export const isFirstResponse = (turns: {isUser: boolean}[], index: number): boolean =>
+    !turns.slice(0, Math.min(index, turns.length)).some((turn) => !turn.isUser)

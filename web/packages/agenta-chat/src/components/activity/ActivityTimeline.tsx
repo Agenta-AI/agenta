@@ -166,8 +166,14 @@ const VERB_HOLD_MS = 2500
 /** What the collapsed line narrates: the step in flight, or — for a beat after it settles, while
  * the model composes the next one — the last step, so the verb holds. Before any step there is
  * only the runner's startup narration, or the warm-up. */
-const liveVerb = (step: ActivityStep | null, startupLabel?: string | null): string => {
-    if (!step) return startupLabel || "Waking up the agent"
+const liveVerb = (
+    step: ActivityStep | null,
+    startupLabel: string | null,
+    firstTurn: boolean,
+): string => {
+    // Only a session's first turn boots anything worth narrating; a later turn's few seconds
+    // before its first step are the model's, and one word covers them.
+    if (!step) return firstTurn ? startupLabel || "Waking up the agent" : "Working"
     if (step.kind === "thought") return step.source === "text" ? "Writing" : "Thinking"
     const part = step.part
     if ((part.state as string) === "approval-requested") return "Waiting for your approval"
@@ -188,6 +194,9 @@ export interface ActivityTimelineProps {
     /** The session whose startup narration the line reads until the first step arrives. Only a
      * streaming fold subscribes; settled ones read an empty key. */
     sessionId?: string
+    /** This is the session's first turn — the one that boots the agent. Only it narrates the
+     * startup phases; a later turn reads "Working" until its first step. */
+    firstTurn?: boolean
     /** The run is parked on the reader (a question, a connect). */
     waitingOnUser?: boolean
     /** The turn's trace. Once settled, the line reads the trace's duration — the run's own
@@ -212,9 +221,10 @@ export const ActivityTimeline = ({
     sessionId,
     waitingOnUser = false,
     traceId,
+    firstTurn = false,
     renderClientTool,
 }: ActivityTimelineProps) => {
-    const startupLabel = useStartupPhase(streaming && sessionId ? sessionId : "")
+    const startupLabel = useStartupPhase(streaming && firstTurn && sessionId ? sessionId : "")
     const current = currentStep(steps)
     const awaiting =
         waitingOnUser ||
@@ -281,7 +291,7 @@ export const ActivityTimeline = ({
                               ? "Answering"
                               : idle
                                 ? "Working"
-                                : liveVerb(current ?? lastAgentStep(steps), startupLabel)
+                                : liveVerb(current ?? lastAgentStep(steps), startupLabel, firstTurn)
                     }
                 />
                 {/* `pre`: the leading space before the dot would otherwise collapse at the

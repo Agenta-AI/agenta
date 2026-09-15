@@ -60,7 +60,12 @@ import {ChatLoading} from "./states/ChatStates"
 import {cancelledStopAction} from "./stopHereState"
 import {PendingTurn, TurnRow} from "./TurnRow"
 import {mergeAssistantRuns} from "./turnRuns"
-import {deriveMobileRemoteTurnPresentation, runIdFor, showTrailingWorkingPulse} from "./turnStatus"
+import {
+    deriveMobileRemoteTurnPresentation,
+    isFirstResponse,
+    runIdFor,
+    showTrailingWorkingPulse,
+} from "./turnStatus"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
@@ -646,6 +651,7 @@ export const LiveConversation = ({
                         remoteRunning={showingTurnActivity && !streamingHere}
                         waitingOnUser={conversation.hitlPending}
                         runId={runIdFor(visibleTurns, i)}
+                        firstTurn={isFirstResponse(visibleTurns, i)}
                     />
                 ))}
                 {/* The run's state lives on the turn's own fold line. The one gap: the request is
@@ -654,6 +660,7 @@ export const LiveConversation = ({
                     <PendingTurn
                         sessionId={sessionId}
                         runId={runIdFor(visibleTurns, visibleTurns.length)}
+                        firstTurn={isFirstResponse(visibleTurns, visibleTurns.length)}
                     />
                 ) : null}
             </ContentRail>

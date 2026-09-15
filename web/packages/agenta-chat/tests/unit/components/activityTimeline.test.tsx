@@ -69,23 +69,29 @@ describe("ActivityTimeline", () => {
         expect(line.textContent).toMatch(/0:00/)
     })
 
-    it("shows the startup narration before the first step, else the warm-up", () => {
+    it("narrates the startup on a session's first turn; a later turn just works", () => {
         const store = createStore()
         store.set(startTurnClockAtom, "s1", "Starting the sandbox")
-        render(
-            <Provider store={store}>
-                <ActivityTimeline
-                    messageId="m1"
-                    sessionId="s1"
-                    steps={[]}
-                    streaming
-                    answerStarted={false}
-                />
-            </Provider>,
-        )
+        const at = (firstTurn: boolean) =>
+            render(
+                <Provider store={store}>
+                    <ActivityTimeline
+                        messageId="m1"
+                        sessionId="s1"
+                        steps={[]}
+                        streaming
+                        answerStarted={false}
+                        firstTurn={firstTurn}
+                    />
+                </Provider>,
+            )
+        at(true)
         expect(screen.getByRole("button").textContent).toContain("Starting the sandbox")
         cleanup()
-        mount({streaming: true, sessionId: "s2"})
+        at(false)
+        expect(screen.getByRole("button").textContent).toContain("Working")
+        cleanup()
+        mount({streaming: true, sessionId: "s2", firstTurn: true})
         expect(screen.getByRole("button").textContent).toContain("Waking up the agent")
     })
 
@@ -152,7 +158,7 @@ describe("ActivityTimeline", () => {
     })
 
     it("shows no clock and no caret before the first step, and starts counting at the first", () => {
-        const view = mount({streaming: true})
+        const view = mount({streaming: true, firstTurn: true})
         const button = screen.getByRole("button")
         const line = button.textContent ?? ""
         expect(line).toContain("Waking up the agent")
