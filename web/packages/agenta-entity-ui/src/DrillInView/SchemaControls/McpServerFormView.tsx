@@ -19,6 +19,7 @@ import {
     getMcpConnectionStateLabel,
     isLegacyMcpItem,
     mcpEndpointsQueryAtom,
+    readMcpPolicy,
     readMcpConnectionSlug,
     RESERVED_TOOL_PREFIX,
     toolPrefixFromName,
@@ -39,6 +40,7 @@ import {useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 import McpConnectJourney from "../../mcpEndpoint/McpConnectJourney"
+import McpToolPermissions from "../../mcpEndpoint/McpToolPermissions"
 
 export interface McpServerFormViewProps {
     value: Record<string, unknown>
@@ -155,6 +157,15 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     </span>
                 </RailField>
             ) : null}
+
+            <RailField label="Permissions" align="top">
+                <McpToolPermissions
+                    slug={selected?.slug ?? undefined}
+                    policy={readMcpPolicy(value)}
+                    onChange={(policy) => onChange({...value, policy})}
+                    disabled={disabled}
+                />
+            </RailField>
 
             {legacy ? (
                 // Saved before connections had their own identity. It still resolves, and

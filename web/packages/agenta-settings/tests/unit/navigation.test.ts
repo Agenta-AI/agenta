@@ -58,9 +58,9 @@ describe("resolveSettingsTab", () => {
     it("gates MCP endpoints on the deployment serving the MCP gateway", () => {
         // A deployment with AGENTA_MCP_GATEWAY_ENABLED=false refuses every MCP gateway route,
         // so the tab would list endpoints nothing can reach.
-        expect(resolveSettingsTab("mcpEndpoints", {...baseAccess, canShowMcpEndpoints: false})).toBe(
-            "workspace",
-        )
+        expect(
+            resolveSettingsTab("mcpEndpoints", {...baseAccess, canShowMcpEndpoints: false}),
+        ).toBe("workspace")
     })
 
     it("keeps MCP endpoints listed while the gateway serves", () => {
