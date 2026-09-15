@@ -50,7 +50,7 @@ on two findings.
 | Codex, as filed | 2 | 5 | 2 | 1 | 10 |
 | Second reviewer, as filed | 0 | 1 | 6 | 5 | 12 |
 | **After verification and merge** | **1** | **3** | **8** | **5** | **17** |
-| After the fixes landed so far | 0 | 1 | 2 | 1 | 4 open, 12 closed, 1 withdrawn, 1 new |
+| After the fixes landed so far | 0 | 0 | 2 | 3 | 5 open, 13 closed, 1 withdrawn, 3 new |
 
 Five findings overlapped and are merged below. Four Codex severities were lowered on reachability
 grounds and one second-reviewer severity was raised; each change is argued in the finding's own
@@ -70,7 +70,7 @@ against the code and its test.
 | --- | --- | --- | --- | --- | --- | --- |
 | D1 | Codex 3 | P0 | `api/oss/src/core/gateways/mcps/providers/http/adapter.py:147`, `api/oss/src/apis/fastapi/gateways/mcps/proxy.py:215` | Fix, blocking | `8a2a59f76a` | **yes**, code, tests, suite run |
 | D2 | Codex 1 | P1 | `services/runner/src/engines/sandbox_agent/acp-interactions.ts:946`, `:966` | Fix, blocking | `8a2a59f76a` | **yes**, code, tests, suite run |
-| D3 | both | P1 | `api/oss/src/apis/fastapi/gateways/mcps/router.py:71`, `api/oss/src/core/gateways/mcps/service.py:1013` | Fix, blocking | pending | pending |
+| D3 | both | P1 | `api/oss/src/apis/fastapi/gateways/mcps/router.py:71`, `api/oss/src/core/gateways/mcps/service.py:1013` | Fix, blocking | `9deba3942c` | **yes**, code, tests, suite run |
 | D4 | both | P2 | `api/oss/databases/postgres/migrations/core_oss/versions/oss000000032_rekey_mcp_oauth_grants_by_connection.py:81` | Fix | `6972c570b3` | **yes**, incl. pre-fix run |
 | D5 | Codex 5 | P2 | `api/oss/src/core/gateways/mcps/oauth/service.py:302` | Fix, the cheaper half | `53da962b6b` | **yes**, code, tests, suite run |
 | D6 | Codex 6 | P2 | `api/oss/src/core/gateways/mcps/oauth/storage.py:257`, `oauth/service.py:83` | Fix | on a branch, not landed | pending |
@@ -87,6 +87,8 @@ against the code and its test.
 | D17 | reviewer 2 | P3 | `api/oss/src/core/gateways/mcps/service.py:823` | Document | `0940769da2` | **yes**, docs read |
 | D18 | D2 residual | P3 | `sdks/python/agenta/sdk/agents/adapters/codex_settings.py` | Defer | n/a | n/a |
 | D19 | verification | P3 | `hosting/docker-compose/test.sh`, the gateways stack's unpublished Redis | Defer, testing infrastructure | n/a | n/a |
+| D20 | D3 residual | P3 | `api/oss/src/dbs/postgres/gateways/mcps/dao.py:195` | Fix, small | pending | pending |
+| D21 | D3 residual | P3 | `api/oss/src/dbs/postgres/gateways/mcps/dao.py:232` | Fix or accept | pending | pending |
 
 **One finding still blocks the release: D3.** D1 and D2 are fixed and verified. D8 is withdrawn:
 the finding was wrong, and the section below says why. D18 is a residual that D2's fix left
@@ -110,8 +112,11 @@ revision as it stood before each fix, to prove the new cases fail without it rat
 either way; **6 of the 7 failed**, the seventh being a deliberate non-regression case that must
 pass both ways.
 
-`8a2a59f76a` carries both the D2 runner change and the D1 API change under a single D2-titled
-message, so the D1 fix is easy to miss when reading the log. Both were verified.
+**A note on where the D1 fix lives, so the history reads honestly.** `8a2a59f76a` is titled for D2
+and carries the D2 runner change, but the D1 API change is inside it too: a concurrent commit swept
+the in-progress D1 files in. Nothing was lost and both changes were verified, but anyone reading the
+log for "the D1 commit" will not find one. D1's own finding entry in the running log is **OR86**,
+which is where its detail and closure live; this round file records the verification.
 
 ## The findings
 
@@ -226,6 +231,26 @@ interleaves an endpoint edit with a 401 recovery.
 replacement. Add a narrow DAO method that updates only `secret_id` and `flags.is_valid` under the
 row's own lock. If the full replacement has to stay, carry `tags` and `meta` through both builders
 and re-read the row inside the transaction.
+
+**Fixed in `9deba3942c`, verified. This was the last blocker.** The suggested route was taken and
+went further. Two narrow DAO writes replace the full replacement: `bind_endpoint_secret` points a
+connection at its stored authorization or clears it and marks it valid, and
+`invalidate_endpoint_secret` records that the authorization is dead. Each takes the row under
+`FOR UPDATE` and writes only the columns it owns, which matters because both are read-modify-write
+on one JSON column. `_set_is_valid` rewrites a single key of the stored flags, so `is_active`
+survives.
+
+The one full replacement that remains is the discovery step, which genuinely is an edit of the
+connection's data, and `_as_edit` now carries `tags` and `meta` through rather than defaulting them
+away.
+
+Both halves of the finding are closed, and the tests are the right ones: tags and metadata survive
+connect, disconnect and invalidate; an administrator's change survives a relay that started before
+it; and two transitions at once do not lose one another's column. Six integration cases and 163
+unit cases pass.
+
+Reading the fix turned up two small residuals, recorded as **D20** and **D21**. Neither is a reason
+to hold anything.
 
 ### D4. The migration aborts on a destination slug the new writer already created — P2
 
@@ -630,6 +655,54 @@ of the whole gateway integration directory is not currently obtainable outside t
 Closing it means running these suites inside the compose network, or publishing Redis for the dev
 stack the way Postgres already is.
 
+### D20. The new credential write swallows the tenant refusal it raises — P3
+
+Found while verifying D3's fix, in the fix itself.
+
+`bind_endpoint_secret` calls `check_secret_is_owned_by_project`
+(`api/oss/src/dbs/postgres/gateways/tenancy.py:30`), which raises `SecretInvalidError` when a write
+would bind a credential the project does not own. But the method carries a bare
+`@suppress_exceptions()` (`api/oss/src/dbs/postgres/gateways/mcps/dao.py:195`), so that refusal is
+swallowed and the method returns `None`.
+
+**Tenant isolation is not breached.** The exception aborts the transaction before
+`session.commit()`, so nothing cross-tenant is ever written. What is lost is the typed refusal: the
+connect callback gets `None` and answers `count=1` with no endpoint, which is the "a success that
+did nothing" shape this branch already fixed once for `create_endpoint` and recorded in the comment
+at `dao.py:57`.
+
+The sibling method is already right. `edit_endpoint` at `dao.py:148` carries
+`@suppress_exceptions(default=None, exclude=[SecretInvalidError])` precisely so this refusal
+reaches the caller. The new method should match it.
+
+**Suggested fix.** Add `exclude=[SecretInvalidError]` to `bind_endpoint_secret`, and have the
+callers treat `None` as a failure rather than reporting a count of one.
+
+### D21. Invalidate cannot tell a newer credential from the one the relay used — P3
+
+Also from reading D3's fix, and it is the narrow remainder of the race D3 closed.
+
+`invalidate_endpoint_secret` (`api/oss/src/dbs/postgres/gateways/mcps/dao.py:232`) guards only
+against the handle being absent: it returns early when `dbe.secret_id is None`. That covers the
+case the fix set out to cover, a disconnect landing while a doomed call is in flight, and there is
+a test for it.
+
+It does not cover a reconnect that landed with a *different* credential. A relay reads the
+connection holding grant A, dials out, and gets a 401. Meanwhile the person reconnects,
+`bind_endpoint_secret` writes grant B and marks the connection valid. The late invalidate then sees
+a handle that is not `None`, marks the connection invalid, and the freshly repaired connection
+reads as needing another reconnect.
+
+This is deliberate as far as it goes: the commit states that invalidate "deliberately does not take
+the handle", on the reasoning that the handle read before the call is the one value that must not be
+written back. That reasoning is right about *writing* and does not extend to *comparing*.
+
+No data is lost and nothing is exposed; the cost is one unnecessary reconnect in a narrow race.
+
+**Suggested fix.** Pass the handle the relay actually used and compare it, invalidating only when
+the stored handle still equals it. That is a conditional write, not a write-back, so it keeps the
+property the commit was protecting.
+
 ### D17. `deny` is an experience control, not a security boundary — P3, document only
 
 The API enforces the endpoint's tool allowlist at relay (`core/gateways/mcps/service.py:823`) and
@@ -705,11 +778,15 @@ Recorded so round 2 does not spend time here again.
 
 **As reviewed:** do not ship, for four reasons and no more — D1, D2, D3 and D8.
 
-**After the fixes landed so far:** one reason remains, **D3**. The connect, disconnect and
-invalidate paths still write a stale full snapshot, losing `tags` and `meta` and reverting a
-concurrent administrator edit.
+**After the fixes landed so far: no finding from this round blocks the release.** All four blockers
+are resolved. D1, D2 and D3 are fixed and verified; D8 was withdrawn on the evidence.
 
-Fixed and verified: D1, D2, D4, D5, D7, D9, D12 in part, D13, D14, D15, D16 and D17. D8 was
-withdrawn on the evidence, and D11 was deferred into OR66 with its closure stated. Still open: D3,
-then D6 and D10, and the standing defers D11, D18, D19 and D12's remainder. Nothing but D3 needs to
-hold the release.
+Fixed and verified: D1, D2, D3, D4, D5, D7, D9, D12 in part, D13, D14, D15, D16 and D17. Deferred
+with a stated closure: D11 into OR66, plus D18, D19 and D12's remainder. Still open from the
+original set: **D6** and **D10**, both P2, neither a blocker. Opened while verifying: **D20** and
+**D21**, both P3 residuals of D3's fix.
+
+This is a judgement about the seventeen findings this round raised and the eight open findings it
+was asked to disposition. It is not a release sign-off: the gate's own evidence rows are tracked in
+[mcp-release-status.md](../mcp-release-status.md), and D19 records that a green run of the whole
+gateway integration directory is not currently obtainable outside the stack network.
