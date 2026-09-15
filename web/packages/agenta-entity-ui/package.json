@@ -22,6 +22,7 @@
         "./drill-in": "./src/DrillInView/index.ts",
         "./gatewayTool": "./src/gatewayTool/index.ts",
         "./gatewayTrigger": "./src/gatewayTrigger/index.ts",
+        "./mcpEndpoint": "./src/mcpEndpoint/index.ts",
         "./modals": "./src/modals/index.ts",
         "./secret": "./src/secret/index.ts",
         "./secretProvider": "./src/secretProvider/index.ts",

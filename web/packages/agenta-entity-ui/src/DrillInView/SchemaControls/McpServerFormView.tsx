@@ -3,9 +3,9 @@
  */
 import {useState} from "react"
 
+import {findCustomMcpEndpoint, mcpEndpointsQueryAtom} from "@agenta/entities/mcpEndpoint"
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
 import {
-    Badge,
     Button,
     Input,
     Select,
@@ -21,9 +21,15 @@ import {useAtomValue} from "jotai"
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 import {CreateSecretDrawer} from "../../secret"
 
+import {deriveMcpEndpointSlug} from "./agentTemplate/mcpEndpointRegistration"
+import {
+    mcpAuthenticationCredentials,
+    resolveMcpAuthenticationType,
+    type McpAuthenticationType,
+} from "./mcpServerAuthentication"
+
 type Dict = Record<string, string>
-type CredentialType = "none" | "header_secret_refs"
-type AuthenticationType = CredentialType | "oauth"
+type CredentialType = McpAuthenticationType
 
 interface McpCredentials {
     type?: CredentialType
@@ -53,6 +59,7 @@ const MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9._-]{1,128}$/
 
 export function McpServerFormView({value, onChange, disabled}: McpServerFormViewProps) {
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
+    const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
     const server = value as McpServer
     const connection = server.connection ?? {
         type: "http" as const,
@@ -73,6 +80,14 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
 
     const name = server.name ?? ""
     const invalidName = Boolean(name) && !MCP_SERVER_NAME_PATTERN.test(name)
+    // The saved config cannot say "oauth" (the SDK's credential union forbids it), so a server
+    // that is already registered with an OAuth grant reads its authentication back off the
+    // endpoint row instead of off the draft.
+    const registeredAuthMode = findCustomMcpEndpoint(
+        endpointsQuery.data,
+        deriveMcpEndpointSlug(name),
+    )?.auth_mode
+    const authenticationType = resolveMcpAuthenticationType(credentialType, registeredAuthMode)
     const selectedSecretExists = namedSecrets.some((secret) => secret.slug === secretHeader.slug)
     const secretOptions = namedSecrets
         .filter((secret) => Boolean(secret.slug))
@@ -102,20 +117,8 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
         })
     }
 
-    const setAuthenticationType = (type: AuthenticationType) => {
-        if (type === "oauth") return
-        setConnection({
-            credentials:
-                type === "none"
-                    ? {type: "none"}
-                    : {
-                          type: "header_secret_refs",
-                          headers:
-                              secretHeader.name && secretHeader.slug
-                                  ? {[secretHeader.name]: secretHeader.slug}
-                                  : {},
-                      },
-        })
+    const setAuthenticationType = (type: McpAuthenticationType) => {
+        setConnection({credentials: mcpAuthenticationCredentials(type, secretHeader)})
     }
 
     return (
@@ -148,8 +151,8 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
 
             <RailField label="Authentication" align="center">
                 <Select
-                    value={credentialType}
-                    onValueChange={(next) => setAuthenticationType(next as AuthenticationType)}
+                    value={authenticationType}
+                    onValueChange={(next) => setAuthenticationType(next as McpAuthenticationType)}
                     disabled={disabled}
                 >
                     <SelectTrigger className="w-full" aria-label="Authentication">
@@ -158,12 +161,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     <SelectContent>
                         <SelectItem value="none">None</SelectItem>
                         <SelectItem value="header_secret_refs">Secret header</SelectItem>
-                        <SelectItem value="oauth" disabled>
-                            <span className="flex flex-1 items-center justify-between gap-2">
-                                OAuth
-                                <Badge className="text-[12px]">Soon</Badge>
-                            </span>
-                        </SelectItem>
+                        <SelectItem value="oauth">OAuth</SelectItem>
                     </SelectContent>
                 </Select>
             </RailField>

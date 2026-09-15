@@ -191,6 +191,32 @@ export function buildMcpEndpointEdit(
     }
 }
 
+/**
+ * Strip the drawer's `oauth` credential marker out of the item that gets saved.
+ *
+ * OAuth is a property of the gateway endpoint, not of the agent config: the gateway holds the
+ * grant and the SDK dials `gateways/mcps/custom/{name}` with the platform's own credentials. The
+ * SDK's `MCPCredentials` union accepts only `none` and `header_secret_refs` under
+ * `extra="forbid"`, so a config that carried `{"type": "oauth"}` would fail MCP parsing and take
+ * the whole agent run down. The endpoint row's `auth_mode` is what remembers the choice, and the
+ * drawer reads it back from there.
+ */
+export function normalizeMcpDraftCredentials(
+    draft: Record<string, unknown>,
+): Record<string, unknown> {
+    const connection =
+        draft.connection && typeof draft.connection === "object"
+            ? (draft.connection as Record<string, unknown>)
+            : undefined
+    if (!connection) return draft
+    const credentials =
+        connection.credentials && typeof connection.credentials === "object"
+            ? (connection.credentials as Record<string, unknown>)
+            : undefined
+    if (credentials?.type !== "oauth") return draft
+    return {...draft, connection: {...connection, credentials: {type: "none"}}}
+}
+
 /** The backend's own message when it sent one, so the drawer never shows a bare status code. */
 export function registrationErrorDetail(error: unknown): string {
     const response = (error as {response?: {data?: {detail?: unknown}}})?.response
@@ -241,5 +267,5 @@ export async function registerMcpServerDraft(
     // Same key the settings table's query uses, so the new row shows there immediately.
     await getHostQueryClient().invalidateQueries({queryKey: ["mcp-endpoints"]})
 
-    return {...draft, name: registration.slug}
+    return normalizeMcpDraftCredentials({...draft, name: registration.slug})
 }

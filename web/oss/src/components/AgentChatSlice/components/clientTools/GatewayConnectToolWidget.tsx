@@ -1,5 +1,6 @@
 /** Render the gateway-target connection widget. */
 import {providerConnectionsAtom} from "@agenta/entities/secret"
+import {McpConnectDialog} from "@agenta/entity-ui/mcpEndpoint"
 import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
 import {
     isInteractionEndedOutput,
@@ -8,8 +9,6 @@ import {
 import {CheckCircle, Plugs, Spinner, Warning} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import {useAtomValue} from "jotai"
-
-import MCPConnectDialog from "@/oss/components/pages/settings/MCPEndpoints/MCPConnectDialog"
 
 import {useGatewayConnectFlow, type GatewayTarget} from "./useGatewayConnectFlow"
 
@@ -62,7 +61,7 @@ const GatewayConnectToolWidget = ({
                     />
                 ) : (
                     // Only custom endpoints use a per-instance connection dialog.
-                    <MCPConnectDialog
+                    <McpConnectDialog
                         endpoint={connectingEndpoint}
                         onClose={onMcpDialogClosed}
                         onSuccess={onMcpConnectSuccess}

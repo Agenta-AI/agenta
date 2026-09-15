@@ -2,11 +2,9 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolCatalogDrawerOpenAtom} from "@agenta/entities/gatewayTool"
+import {mcpEndpointsQueryAtom, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import type {ClientToolMeta, SettleClientTool} from "@agenta/shared/clientTools"
 import {useAtom, useAtomValue} from "jotai"
-
-import type {MCPEndpoint} from "@/oss/services/mcpEndpoints/types"
-import {mcpEndpointsAtom} from "@/oss/state/mcpEndpoints/atoms"
 
 export type GatewayPlane = "llm" | "mcp"
 
@@ -71,7 +69,7 @@ export const useGatewayConnectFlow = (
     // shared across every mounted widget, so only the opener may settle on its close.
     const openedCatalogRef = useRef(false)
 
-    const mcpEndpointsQuery = useAtomValue(mcpEndpointsAtom)
+    const mcpEndpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
     const customEndpoint = useMemo(
         () => resolveCustomMcpEndpoint(mcpEndpointsQuery.data, target),
         [mcpEndpointsQuery.data, target],
@@ -129,7 +127,7 @@ export const useGatewayConnectFlow = (
     }, [finish, target])
 
     // Closed without success: discovery failure and an explicit decline both land here
-    // (MCPConnectDialog renders the discovery error inline first; only closing after either
+    // (McpConnectDialog renders the discovery error inline first; only closing after either
     // reaches this handler), and both settle as "cancelled" — the same terminal shape the LLM
     // path already uses for "opened, then closed with nothing to show for it". An explicit
     // decline BEFORE opening (see `decline` below) settles as "declined" instead, so the two

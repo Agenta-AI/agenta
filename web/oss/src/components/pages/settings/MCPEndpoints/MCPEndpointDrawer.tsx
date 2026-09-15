@@ -1,5 +1,11 @@
 import {useCallback, useEffect, useState} from "react"
 
+import {
+    createMcpEndpointAtom,
+    editMcpEndpointAtom,
+    type MCPAuthMode,
+    type MCPEndpoint,
+} from "@agenta/entities/mcpEndpoint"
 import {EnhancedModal, ModalContent, ModalFooter, message} from "@agenta/ui"
 import {
     Field,
@@ -11,9 +17,6 @@ import {
     SelectValue,
 } from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
-
-import {MCPAuthMode, MCPEndpoint} from "@/oss/services/mcpEndpoints/types"
-import {createMcpEndpointAtom, editMcpEndpointAtom} from "@/oss/state/mcpEndpoints/atoms"
 
 interface Props {
     open: boolean

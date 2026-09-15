@@ -1,8 +1,11 @@
 import {describe, expect, it} from "vitest"
 
-import {MCPEndpoint} from "@/oss/services/mcpEndpoints/types"
-
-import {getMcpConnectionState, getMcpConnectionStateLabel} from "./connectionState"
+import type {MCPEndpoint} from "../../src/mcpEndpoint/core/types"
+import {
+    findCustomMcpEndpoint,
+    getMcpConnectionState,
+    getMcpConnectionStateLabel,
+} from "../../src/mcpEndpoint/core/connectionState"
 
 const endpoint = (overrides: Partial<MCPEndpoint>): MCPEndpoint => ({
     id: "mcp-1",
@@ -36,5 +39,32 @@ describe("getMcpConnectionStateLabel", () => {
     it("keeps state names product-facing", () => {
         expect(getMcpConnectionStateLabel("needs_auth")).toBe("Needs authorization")
         expect(getMcpConnectionStateLabel("needs_input")).toBe("Needs input")
+    })
+})
+
+describe("findCustomMcpEndpoint", () => {
+    const row = (overrides: Partial<MCPEndpoint>): MCPEndpoint => ({
+        slug: "exa",
+        auth_mode: "oauth",
+        data: {route: {base_url: "https://mcp.example.com"}},
+        ...overrides,
+    })
+
+    it("matches the custom row a config item's slug names", () => {
+        const rows = [row({slug: "other"}), row({slug: "exa"})]
+        expect(findCustomMcpEndpoint(rows, "exa")?.slug).toBe("exa")
+    })
+
+    it("treats a row with no namespace as custom, which is what registration writes", () => {
+        expect(findCustomMcpEndpoint([row({namespace: undefined})], "exa")).toBeDefined()
+    })
+
+    it("ignores a provider-managed row of the same name", () => {
+        expect(findCustomMcpEndpoint([row({namespace: "standard"})], "exa")).toBeUndefined()
+    })
+
+    it("returns nothing without a slug or a loaded list", () => {
+        expect(findCustomMcpEndpoint([row({})], undefined)).toBeUndefined()
+        expect(findCustomMcpEndpoint(undefined, "exa")).toBeUndefined()
     })
 })

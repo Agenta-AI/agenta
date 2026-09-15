@@ -27,6 +27,7 @@ import {
     deriveMcpEndpointSlug,
     mcpEndpointAuthMode,
     mcpEndpointRegistrationFromDraft,
+    normalizeMcpDraftCredentials,
     registerMcpServerDraft,
     registrationErrorDetail,
     resolveMcpEndpointSecretId,
@@ -303,6 +304,30 @@ describe("registerMcpServerDraft", () => {
         )
     })
 
+    it("registers OAuth from the agent form and keeps the marker out of the saved config", async () => {
+        const oauthDraft = {
+            name: "Acme Notion",
+            connection: {
+                type: "http",
+                url: "https://mcp.acme.test/mcp",
+                credentials: {type: "oauth"},
+            },
+        }
+
+        const saved = await registerMcpServerDraft(oauthDraft, "proj-42")
+
+        expect(post).toHaveBeenCalledWith(
+            "https://api.test/gateways/mcps/endpoints/",
+            expect.objectContaining({
+                endpoint: expect.objectContaining({slug: "Acme-Notion", auth_mode: "oauth"}),
+            }),
+            {params: {project_id: "proj-42"}},
+        )
+        // The SDK's credential union has no `oauth` member and forbids extras, so a saved config
+        // carrying the marker would fail MCP parsing and take the whole run down.
+        expect((saved.connection as Record<string, unknown>).credentials).toEqual({type: "none"})
+    })
+
     it("leaves a draft with nothing to register untouched", async () => {
         const untouched = {name: "exa", connection: {type: "http", url: ""}}
         expect(await registerMcpServerDraft(untouched, "proj-42")).toBe(untouched)
@@ -403,5 +428,34 @@ describe("registering an API-key server (OR54)", () => {
             },
             {params: {project_id: "proj-42"}},
         )
+    })
+})
+
+describe("normalizeMcpDraftCredentials", () => {
+    it("rewrites the drawer's oauth marker to the SDK's `none`", () => {
+        const draft = {
+            name: "exa",
+            connection: {type: "http", url: "https://mcp.test", credentials: {type: "oauth"}},
+        }
+        expect(normalizeMcpDraftCredentials(draft)).toEqual({
+            name: "exa",
+            connection: {type: "http", url: "https://mcp.test", credentials: {type: "none"}},
+        })
+    })
+
+    it("leaves a secret-header binding alone — the SDK accepts that one", () => {
+        const draft = {
+            connection: {
+                type: "http",
+                url: "https://mcp.test",
+                credentials: {type: "header_secret_refs", headers: {"x-api-key": "exa"}},
+            },
+        }
+        expect(normalizeMcpDraftCredentials(draft)).toBe(draft)
+    })
+
+    it("leaves a draft with no connection alone", () => {
+        const draft = {name: "exa"}
+        expect(normalizeMcpDraftCredentials(draft)).toBe(draft)
     })
 })

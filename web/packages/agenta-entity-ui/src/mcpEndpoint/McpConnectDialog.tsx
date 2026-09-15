@@ -1,28 +1,36 @@
+/**
+ * The OAuth authorization dialog for one custom MCP endpoint: discover the scopes the
+ * authorization server offers, let the author narrow them, then open the consent popup and wait
+ * for the callback's typed `mcp:oauth:connected` message.
+ *
+ * It lives here, not in the Settings page, because two features drive it: the Settings MCP
+ * dashboard and the agent config form, which registers a server and must then offer
+ * authorization without sending the author out of the playground.
+ */
 import {useCallback, useEffect, useState} from "react"
 
+import {
+    beginMcpConnect,
+    buildTrustedOrigins,
+    discoverMcpConnect,
+    isTrustedOauthConnectedMessage,
+    type MCPEndpoint,
+    type McpOauthCompletionMessage,
+} from "@agenta/entities/mcpEndpoint"
+import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
 import {EnhancedModal, ModalContent, ModalFooter, message} from "@agenta/ui"
 import {Checkbox} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
-import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
-import {beginMcpConnect, discoverMcpConnect} from "@/oss/services/mcpEndpoints/api"
-import {MCPEndpoint} from "@/oss/services/mcpEndpoints/types"
-import {projectIdAtom} from "@/oss/state/project"
-
-import {
-    buildTrustedOrigins,
-    isTrustedOauthConnectedMessage,
-    McpOauthCompletionMessage,
-} from "./connectMessage"
-
-interface Props {
+export interface McpConnectDialogProps {
     endpoint: MCPEndpoint | null
     onClose: () => void
     onSuccess?: () => void
 }
 
 // Discover scopes before opening the OAuth authorization flow.
-export default function MCPConnectDialog({endpoint, onClose, onSuccess}: Props) {
+export default function McpConnectDialog({endpoint, onClose, onSuccess}: McpConnectDialogProps) {
     const projectId = useAtomValue(projectIdAtom)
     const [loading, setLoading] = useState(false)
     const [scopesOffered, setScopesOffered] = useState<string[]>([])
@@ -43,7 +51,8 @@ export default function MCPConnectDialog({endpoint, onClose, onSuccess}: Props) 
             })
             .catch((error) => {
                 setDiscoverError(
-                    error?.message || "Could not discover this server's OAuth configuration.",
+                    (error as Error)?.message ||
+                        "Could not discover this server's OAuth configuration.",
                 )
             })
             .finally(() => setLoading(false))
