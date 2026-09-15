@@ -164,7 +164,7 @@ export const WaitingGlyph = ({kind = "approval"}: {kind?: WaitingKind}) => {
             aria-hidden
             className="flex size-6 shrink-0 items-center justify-center text-colorWarning"
         >
-            <Glyph size={13} />
+            <Glyph size={16} />
         </span>
     )
 }
