@@ -96,7 +96,9 @@ mechanisms and tests: **OR26** (the vault registers and deregisters the LLM endp
 `custom_provider` secret, server-side rather than in the browser), **OR31a** (the provider form
 declares its protocol and the harness control filters on it), **OR31b** (Pi declares the
 `mcp.user_servers` capability, so the panel renders the row) and **OR31c** (`Add MCP server`
-registers the custom MCP endpoint that carries its URL). **OR31d** is reclassified: the Codex
+registers the custom MCP endpoint that carries its URL). **OR77** closes the OAuth half of that same
+form, which sat under OR31's notes as a placeholder until it was tracked on its own. **OR31d** is
+reclassified: the Codex
 refusal is a missing model declaration in the SDK's Codex settings writer and the runner, owned
 elsewhere and not yet proven by a run. **OR28** and **OR32** are closed on the runner and
 agent-service side. Two defects found in passing are closed, and neither belonged to this branch.
@@ -105,13 +107,25 @@ app's hot-reload websocket fails through Traefik and the development client relo
 50 to 60 seconds, discarding every open form. **OR35** (no create control on the API keys page)
 reproduces on `main` and is tracked as issue #6803.
 
-### The security review, as of 2026-09-14
+### The review record, as of 2026-09-15
 
 The credential-boundary review recorded forty-one findings, OR36 to OR76. Six of them came from
 reviewing the repairs rather than the original code: OR70 to OR75, all six closed. OR76 came from
 closing OR49: the usage repair meters every stream that reports usage, and one route still does not
-report it. One finding, OR69, was withdrawn on 2026-09-13, so it counts as neither open nor closed
-and forty stand. Thirty-four are fixed and closed, and six are open: OR63, OR65 to OR68, and OR76.
+report it. OR77 came from the playground surface rather than the credential boundary, and it is
+closed. The record therefore runs OR36 to OR77, forty-two findings. One of them, OR69, was withdrawn
+on 2026-09-13, so it counts as neither open nor closed and forty-one stand. Thirty-five are fixed
+and closed, and six are open: OR63, OR65 to OR68, and OR76.
+
+OR77 is the product-reach entry. The agent config's MCP server form offered OAuth as a disabled
+option behind a `Soon` badge, so only the settings drawer could register an OAuth server and the
+playground could not express one. OAuth is selectable there now, and the row authorizes in place
+through the same discover, scope dialog, popup and connected-message flow the settings page runs.
+OAuth stays a registration choice rather than a stored credential: the SDK's `MCPCredentials` union
+accepts only `none` and `header_secret_refs` under `extra="forbid"`, so registration sends
+`auth_mode: "oauth"`, the commit normalizes credentials back to `none`, and the form reads the OAuth
+state off the endpoint row. The mobile app needs no change, because it renders the same control from
+`@agenta/entity-ui`.
 
 No P0 and no P1 remain. OR45 was the last P0 and it is closed: the credential issuer at
 `POST /gateways/mcps/credentials/agenta` requires the permission its credential is spent under, and
