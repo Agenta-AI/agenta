@@ -21,6 +21,7 @@ import {
     isNotHandledOutput,
     isSettled,
     partToolName,
+    pathArgument,
 } from "../../model"
 import {
     getChatSkinVersion,
@@ -72,15 +73,42 @@ const stateOf = (part: ToolUIPart): ActivityState => {
 
 const basename = (path: string): string => path.split("/").filter(Boolean).pop() ?? path
 
+/** The sentence's object; a file name opens the file, without toggling the row it sits in. */
+const Objct = ({text, onOpen}: {text: string; onOpen?: () => void}) =>
+    onOpen ? (
+        <strong
+            role="link"
+            tabIndex={0}
+            className="cursor-pointer font-medium underline-offset-[3px] decoration-colorTextQuaternary hover:underline"
+            onClick={(event) => {
+                event.stopPropagation()
+                onOpen()
+            }}
+            onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return
+                event.preventDefault()
+                event.stopPropagation()
+                onOpen()
+            }}
+        >
+            {text}
+        </strong>
+    ) : (
+        <strong className="font-medium">{text}</strong>
+    )
+
 /** The verb, then the object set apart: "Read **ApprovalDock.tsx**"; a detail replaces the object. */
 const Sentence = ({
     part,
     display,
     state,
+    onOpenFile,
 }: {
     part: ToolUIPart
     display: ResolvedToolDisplay
     state: ActivityState
+    /** Set when the detail names a file the reader can open. */
+    onOpenFile?: () => void
 }) => {
     const landed = (part.state as string) === "output-available"
     const sentence = landed ? display.activity.done : display.activity.running
@@ -94,10 +122,11 @@ const Sentence = ({
     if (state === "approved") return <>You approved {action}</>
     if (state === "denied") return <>You denied {action}</>
     if (state === "responded") return <>You answered {action}</>
+    const opens = display.detail ? onOpenFile : undefined
     if (verb && object) {
         return (
             <>
-                {verb} <strong className="font-medium">{object}</strong>
+                {verb} <Objct text={object} onOpen={opens} />
             </>
         )
     }
@@ -108,7 +137,7 @@ const Sentence = ({
             {display.detail ? (
                 <>
                     {" "}
-                    <strong className="font-medium">{display.detail}</strong>
+                    <Objct text={display.detail} onOpen={opens} />
                 </>
             ) : null}
         </>
@@ -178,6 +207,9 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
     // A step that wrote one file opens that file; its payload is the file itself.
     const openFile = useOpenFile()
     const opensFile = files.length === 1 && openFile !== null
+    // The file a read or an edit names: its name in the sentence opens it too.
+    const namedPath = files[0]?.path ?? pathArgument(input)
+    const openNamed = openFile && namedPath ? () => openFile(namedPath) : undefined
     const expandable = !opensFile && (hasInput || hasOutput || hasNote)
 
     const rowKey = toolRowKey(part.toolCallId ?? display.raw)
@@ -215,7 +247,7 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
                         : ""
                 }`}
             >
-                <Sentence part={part} display={display} state={state} />
+                <Sentence part={part} display={display} state={state} onOpenFile={openNamed} />
                 {others ? ` and ${others} other${others === 1 ? "" : "s"}` : null}
             </span>
             {opensFile ? (
