@@ -11,8 +11,8 @@ outcome; it must not be read as an open task.
 
 The only implementation follow-up that was still latent — explicit Bedrock/Vertex `base_url`
 registration and coverage — is tracked as OR17 in `open-reviews.md`, where it can be verified
-against code and tests. Apart from OD24 to OD26 below, which are decided but not yet built, no other design finding in this
-document remains open.
+against code and tests. Apart from OD24 to OD28 below, no other design finding in this document remains open, and all of
+those are decided.
 
 **Disposition of the historical residuals.** The package/contract findings and relay behaviour
 are fixed or verified. The following are explicit notes, not deferred requirements hidden in this
@@ -109,6 +109,30 @@ and refuses under the code `upstream_echoed_credential`, keeping an overlap betw
 credential split across two frames is still caught. `open-reviews.md` closes OR39 against this.
 
 **Decided 2026-09-13 by the takeover orchestrator, pending Mahmoud's confirmation.**
+
+---
+
+### OD28. May OAuth discovery reach a plaintext authorization server on an exempt host? — SETTLED yes, for the hosts the egress boundary already admits
+
+Discovery required https unconditionally, so it refused a plaintext authorization server
+even where the egress boundary had already admitted that exact host. On a development stack
+the mock upstream was let through at the socket and then rejected here for not being https.
+The consent flow could not be run end to end at all, which is a large part of why that code
+path went so long without being exercised against a real socket.
+
+The check now returns early for the hosts `core/gateways/egress.py` exempts, and only those:
+an operator's `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` entry, and the development mock upstreams
+while `AGENTA_GATEWAYS_MOCKS_ENABLED` is on. Both are operator environment. A tenant cannot
+name their way into either, because the mock hosts must equal the operator's configured
+values and the allowlist is read from the deployment's own environment. The https
+requirement is unchanged everywhere else, and the egress boundary still resolves, checks and
+pins every one of these calls. That module documents the exemption as the way a dev stack
+reaches its own containers rather than by disabling the guard, and this makes the discovery
+path honour the same rule the rest of the gateway already does.
+
+**Decided 2026-09-15.** Recorded so the next reviewer reads the reasoning rather than
+reopening it: this is not a relaxation of the https rule, it is the discovery path catching
+up with an exemption that already existed one layer down.
 
 ---
 
