@@ -5,14 +5,13 @@
  *   folder   — grid / list · Sort ▾ · ⋯ (New folder · New file · Upload files… · Download all)
  *   markdown — the formatting bar (portalled in by the editor) · Revert / Save while dirty ·
  *              the Markdown / Plain text mode dropdown · ⋯ (Rename · Duplicate · Delete)
- *   other    — the type badge + "<Type> · preview" · ⋯ (the same file actions)
+ *   other    — the type badge + the file name, renamed in place · ⋯ (the same file actions)
  *
  * Pure presentation; every value comes from DriveExplorer's hooks.
  */
 import {type ReactNode} from "react"
 
 import {type DriveEditorMode, type DriveSortKey, type DriveViewMode} from "@agenta/entities/drive"
-import {fileTypeLabel} from "@agenta/entities/drive"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
@@ -40,8 +39,8 @@ import {
 } from "@phosphor-icons/react"
 
 import {ROW_ICON_BTN} from "./DriveHeader"
+import {DriveInlineName} from "./DriveInlineName"
 import {SelectedMark} from "./DriveMenuMark"
-import {DriveTypeMark} from "./DriveTypeMark"
 
 /** Row 2's text buttons (Sort ▾, Revert, the mode dropdown): the kit's ghost sm, muted until hover. */
 const SEG_TRIGGER = "h-full rounded-[5px] px-1.5 py-0"
@@ -58,6 +57,10 @@ const SORT_LABELS: Record<DriveSortKey, string> = {
 /** The actions a FILE offers (rename / duplicate / delete) — absent = read-only mount. */
 export interface DriveFileActions {
     onRename: () => void
+    /** The in-place rename (row 2's name): the new name, resolving true once it landed. */
+    renameTo: (name: string) => Promise<boolean>
+    /** A reason a new name can't be used here, or null. */
+    validateName: (name: string) => string | null
     onDuplicate: () => void
     onDelete: () => void
 }
@@ -305,10 +308,11 @@ export function DriveToolbar(props: DriveToolbarProps) {
     const {path, actions} = props
     return (
         <Row>
-            <span className="flex items-center gap-1.5 pl-1 text-xs text-colorTextSecondary">
-                <DriveTypeMark path={path} size="badge" />
-                {fileTypeLabel(path)} · preview
-            </span>
+            <DriveInlineName
+                path={path}
+                validate={actions?.validateName}
+                onRename={actions?.renameTo}
+            />
             <span className="flex-1" />
             <FileActionsMenu actions={actions} />
         </Row>

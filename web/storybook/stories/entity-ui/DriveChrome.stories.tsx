@@ -23,6 +23,13 @@ export default meta
 type Story = StoryObj
 
 const noop = () => undefined
+const FILE_ACTIONS = {
+    onRename: noop,
+    renameTo: async () => true,
+    validateName: () => null,
+    onDuplicate: noop,
+    onDelete: noop,
+}
 const copyText = (text: string) => void text
 
 const headerBase = {
@@ -131,7 +138,7 @@ export const Row2: Story = {
                     saving={false}
                     onSave={noop}
                     onRevert={noop}
-                    actions={{onRename: noop, onDuplicate: noop, onDelete: noop}}
+                    actions={FILE_ACTIONS}
                 />
             </Frame>
             <Frame>
@@ -144,7 +151,7 @@ export const Row2: Story = {
                     saving={false}
                     onSave={noop}
                     onRevert={noop}
-                    actions={{onRename: noop, onDuplicate: noop, onDelete: noop}}
+                    actions={FILE_ACTIONS}
                 />
             </Frame>
             <Frame>
