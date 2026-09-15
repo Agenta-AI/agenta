@@ -72,6 +72,11 @@ const CONFIRM_LABEL: Partial<Record<McpJourneyState["status"], string>> = {
     verifying: "Connecting",
     verify_failed: "Try again",
     saving: "Connecting",
+    connected: "Done",
+    discovering_tools: "Done",
+    tools_ready: "Done",
+    no_tools: "Done",
+    tools_failed: "Done",
 }
 
 export default function McpConnectJourney({
@@ -103,6 +108,12 @@ export default function McpConnectJourney({
     // A reconnect starts here rather than at a URL, so nothing else kicks discovery off.
     useEffect(() => {
         if (state.status === "discovering_scopes") void journey.startScopeDiscovery()
+    }, [journey, state.status])
+
+    // Credentials are persisted; the last step is reading what the server exposes. Without
+    // this the journey sits in a busy state with no enabled action and cannot be closed.
+    useEffect(() => {
+        if (state.status === "discovering_tools") void journey.loadTools()
     }, [journey, state.status])
 
     const nameProblem =
@@ -137,6 +148,14 @@ export default function McpConnectJourney({
             }
             case "check_failed":
                 void journey.submitUrl(state.url)
+                return
+            case "connected":
+            case "discovering_tools":
+            case "tools_ready":
+            case "no_tools":
+            case "tools_failed":
+                // Nothing is cancelled by closing a connection that succeeded.
+                onClose()
                 return
             case "create_failed":
             case "scopes_failed":
@@ -314,7 +333,8 @@ export default function McpConnectJourney({
                     onCancel={handleClose}
                     onConfirm={handleConfirm}
                     confirmLabel={confirmLabel ?? "Done"}
-                    cancelLabel={isConnectedStatus(state.status) ? "Done" : "Cancel"}
+                    // A finished journey has one action left, so it shows one button.
+                    hideCancel={isConnectedStatus(state.status)}
                     isLoading={isBusy(state)}
                     canConfirm={canConfirm}
                 />
