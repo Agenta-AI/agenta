@@ -7,6 +7,7 @@ import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useReducedMotion} from "motion/react"
 
+import {useHeldFor} from "../../hooks/useHeldFor"
 import {formatElapsed, useTurnClock} from "../../hooks/useTurnClock"
 import {activityFiles, currentStep, hasLiveStep, partToolName, type ActivityStep} from "../../model"
 import {resolveToolDisplay} from "../../skin"
@@ -157,9 +158,14 @@ const lastAgentStep = (steps: ActivityStep[]): ActivityStep | null => {
     return null
 }
 
-/** What the collapsed line narrates: the step in flight, or — while the model composes the next
- * one and nothing is in flight — the last step, so the verb holds. Before any step there is only
- * the runner's startup narration, or the warm-up. */
+/** How long the last step's verb holds after it settles before the line admits it is only
+ * "Working" — long enough to bridge the beat between one step and the next, short enough that a
+ * model composing a whole file in silence does not read as a finished command still running. */
+const VERB_HOLD_MS = 2500
+
+/** What the collapsed line narrates: the step in flight, or — for a beat after it settles, while
+ * the model composes the next one — the last step, so the verb holds. Before any step there is
+ * only the runner's startup narration, or the warm-up. */
 const liveVerb = (step: ActivityStep | null, startupLabel?: string | null): string => {
     if (!step) return startupLabel || "Warming up"
     if (step.kind === "thought") return step.source === "text" ? "Writing" : "Thinking"
@@ -231,6 +237,10 @@ export const ActivityTimeline = ({
           ? null
           : Math.max(traced ?? 0, counted ?? 0)
     const files = useMemo(() => activityFiles(steps), [steps])
+    // Nothing in flight for a while: the model is composing something the stream does not show
+    // (the runner reports a call only once its input is complete — a long file write is silent
+    // until then), and the last step's verb would read as that step still running.
+    const idle = useHeldFor(running && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
     // The latest step reads live for as long as the run does — most calls settle within the
     // same batch they arrive in, and between steps the model composes in silence; the last row
     // is where that work shows.
@@ -269,7 +279,9 @@ export const ActivityTimeline = ({
                             ? "Waiting for you"
                             : answerStarted && !current
                               ? "Answering"
-                              : liveVerb(current ?? lastAgentStep(steps), startupLabel)
+                              : idle
+                                ? "Working"
+                                : liveVerb(current ?? lastAgentStep(steps), startupLabel)
                     }
                 />
                 {/* `pre`: the leading space before the dot would otherwise collapse at the

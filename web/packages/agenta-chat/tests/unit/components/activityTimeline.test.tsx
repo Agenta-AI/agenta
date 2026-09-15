@@ -136,6 +136,21 @@ describe("ActivityTimeline", () => {
         expect(line).not.toContain("Waiting")
     })
 
+    it("holds the last verb for a beat after a step settles, then reads Working", () => {
+        mount({steps: [toolStep("output-available")], streaming: true})
+        const line = () => screen.getAllByRole("button")[0].textContent ?? ""
+        expect(line()).toContain("Reading a file")
+        act(() => {
+            vi.advanceTimersByTime(3000)
+        })
+        expect(line()).toContain("Working")
+        // The roll shows both rows while it slides; once settled only the new verb remains.
+        act(() => {
+            vi.advanceTimersByTime(1000)
+        })
+        expect(line()).not.toContain("Reading a file")
+    })
+
     it("shows no clock and no caret before the first step, and starts counting at the first", () => {
         const view = mount({streaming: true})
         const button = screen.getByRole("button")
