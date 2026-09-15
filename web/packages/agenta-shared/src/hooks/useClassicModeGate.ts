@@ -39,14 +39,14 @@ const clearCookie = (name: string) => {
 }
 
 /**
- * The same kill switch the middleware reads, on the client half.
+ * The same opt-out the middleware reads, on the client half.
  *
- * `AGENTA_CLASSIC_MODE_GATE` is a bare (non-`NEXT_PUBLIC_`) variable resolved server-side, so the
+ * `AGENTA_MOBILE_GATE` is a bare (non-`NEXT_PUBLIC_`) variable resolved server-side, so the
  * browser cannot see it; `entrypoint.sh` mirrors it into `__env.js` under this name. Without the
- * mirror, turning the flag off stopped the middleware and left the client redirecting anyway,
- * which is half a kill switch and worse than none.
+ * mirror, a deployment without `/m` would stop the middleware and leave the client redirecting
+ * into a route that does not exist.
  */
-const classicGateEnabled = () => getEnv("NEXT_PUBLIC_AGENTA_CLASSIC_MODE_GATE") !== "false"
+const mobileGateEnabled = () => getEnv("NEXT_PUBLIC_AGENTA_MOBILE_GATE") !== "false"
 
 /**
  * Publish the preference now, rather than waiting for the sync effect below.
@@ -130,7 +130,7 @@ export const useClassicModeRedirect = (enabled = true, route?: string) => {
 
     useEffect(() => {
         if (!enabled || typeof window === "undefined") return
-        if (!classicGateEnabled()) return
+        if (!mobileGateEnabled()) return
         // No user means no preference to read, and `null` means it is not known yet. Redirecting
         // on either is a navigation this effect cannot take back.
         if (!userId || !advancedNavHidden) return
