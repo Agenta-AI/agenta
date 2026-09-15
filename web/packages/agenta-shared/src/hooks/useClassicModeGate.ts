@@ -111,6 +111,9 @@ export const useClassicModeCookieSync = () => {
  * preference, the middleware does this before anything renders. Pass `enabled: false` while a
  * sign-in is still in flight; see the `/auth` note below for why that matters.
  *
+ * `route` is the host router's path, a dependency only: sign-in and post-signup leave by a
+ * client-side push from pages this hook must skip, so without it the hop never re-runs.
+ *
  * `location.replace`, not the router: `/m` is a different Next app behind the same origin, so
  * this is a document navigation whichever way it is spelled — and replace keeps the desktop URL
  * out of history, where Back would bounce off it.
@@ -121,7 +124,7 @@ export const useClassicModeCookieSync = () => {
  * `/w` ↔ `/m` bounce instead of a stop. Leaving `/m` is the proxy's job — one cookie, and the
  * desktop gate yields to it through `wantsClassic`.
  */
-export const useClassicModeRedirect = (enabled = true) => {
+export const useClassicModeRedirect = (enabled = true, route?: string) => {
     const userId = useAtomValue(activeUserIdAtom)
     const advancedNavHidden = useSettledAdvancedNavHidden()
 
@@ -149,7 +152,7 @@ export const useClassicModeRedirect = (enabled = true) => {
         // to the device check, and bounces a desktop UA straight back here. That is a loop.
         writeClassicModeCookie(false)
         window.location.replace(target)
-    }, [enabled, userId, advancedNavHidden])
+    }, [enabled, userId, advancedNavHidden, route])
 }
 
 /**
