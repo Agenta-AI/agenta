@@ -103,18 +103,22 @@ export const FolderList = ({
         [onCopyPath, onDownload, onOpen, writes],
     )
     return (
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
-            <ListTable
-                columns={COLUMNS}
-                groups={groups}
-                rowKey={(n) => n.path}
-                renderRow={renderRow}
-                onOpenRow={(n) => onOpen(n.path)}
-                wrapRow={wrapRow}
-                density="compact"
-                stickyHeader
-                minWidth={420}
-            />
+        // The top inset sits OUTSIDE the scroller: on the scroller itself it would be a strip above
+        // the sticky header that rows scroll through.
+        <div className="flex min-h-0 flex-1 flex-col pt-2">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
+                <ListTable
+                    columns={COLUMNS}
+                    groups={groups}
+                    rowKey={(n) => n.path}
+                    renderRow={renderRow}
+                    onOpenRow={(n) => onOpen(n.path)}
+                    wrapRow={wrapRow}
+                    density="compact"
+                    stickyHeader
+                    minWidth={420}
+                />
+            </div>
         </div>
     )
 }
