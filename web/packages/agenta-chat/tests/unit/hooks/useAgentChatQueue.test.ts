@@ -75,6 +75,8 @@ interface HarnessProps {
      * than the call, and this stayed synchronous.
      */
     restoreRefusedSend?: Parameters<typeof useAgentChatQueue>[0]["restoreRefusedSend"]
+    onSendAccepted?: Parameters<typeof useAgentChatQueue>[0]["onSendAccepted"]
+    onSendFailed?: Parameters<typeof useAgentChatQueue>[0]["onSendFailed"]
 }
 
 const setup = (initial: HarnessProps) => {
@@ -211,6 +213,62 @@ describe("useAgentChatQueue", () => {
 
         expect(result.current.queued).toHaveLength(0)
         expect(sendQueued).not.toHaveBeenCalled()
+    })
+
+    // A host that showed the session the moment the message left needs to hear about every way
+    // that send can die (#6783 review): rejected before it left, or refused after the 200.
+    it("reports a rejected durable send as failed, once", async () => {
+        const onSendFailed = vi.fn()
+        const onSendAccepted = vi.fn()
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: false,
+            queued: [],
+            submit: vi.fn().mockRejectedValue(new Error("not ready")),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result} = setup({...settledEmpty, server, onSendFailed, onSendAccepted})
+
+        await act(async () => {
+            await expect(result.current.submit({text: "first message"})).rejects.toThrow(
+                "not ready",
+            )
+        })
+
+        expect(onSendFailed).toHaveBeenCalledOnce()
+        expect(onSendFailed.mock.calls[0][0]).toMatchObject({text: "first message"})
+        expect(onSendAccepted).not.toHaveBeenCalled()
+    })
+
+    it("reports a late refusal as failed and an admitted turn as accepted", async () => {
+        const onSendFailed = vi.fn()
+        const onSendAccepted = vi.fn()
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: false,
+            queued: [],
+            submit: vi.fn(async (message, _policy, watcher) => {
+                if (message.text === "refused") watcher?.onFailed?.()
+                else watcher?.onAccepted?.("exec-1")
+                return "running" as const
+            }),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result} = setup({...settledEmpty, server, onSendFailed, onSendAccepted})
+
+        await act(async () => {
+            await result.current.submit({text: "refused"})
+        })
+        expect(onSendFailed).toHaveBeenCalledOnce()
+        expect(onSendAccepted).not.toHaveBeenCalled()
+
+        await act(async () => {
+            await result.current.submit({text: "admitted"})
+        })
+        expect(onSendAccepted).toHaveBeenCalledOnce()
+        expect(onSendAccepted.mock.calls[0][0]).toMatchObject({text: "admitted"})
+        expect(onSendAccepted.mock.calls[0][1]).toBe("exec-1")
+        expect(onSendFailed).toHaveBeenCalledOnce()
     })
 
     it("propagates a refused Steer without inventing a client-only queued message", async () => {

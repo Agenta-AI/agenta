@@ -8,6 +8,7 @@ import {
     type SessionSidebarRef,
 } from "@agenta/navigation"
 import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 /**
@@ -19,10 +20,17 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
  * The server lists a session only once its first turn is admitted, which on a cold runner takes
  * seconds. Until then this is the row's only way into the rail (#6776). `withLocalSessions` lets
  * the server row win the moment it exists.
+ *
+ * Scoped to the active project: the registry is app-wide, and a row sent from project A must not
+ * surface in project B's rail after a switch, where the rail would link it under B's URL.
  */
 export const localMobileSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
+    const projectId = get(projectIdAtom)
     const pinned = get(pinnedSessionIdsAtom)
-    return Object.values(get(localSessionsAtom)).map((session) => {
+    const own = Object.values(get(localSessionsAtom)).filter(
+        (session) => session.projectId === projectId,
+    )
+    return own.map((session) => {
         const status = get(sessionStatusAtomFamily(session.sessionId))
         return {
             id: session.sessionId,

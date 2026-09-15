@@ -152,6 +152,10 @@ export interface UseAgentConversationArgs {
     sharedReaderLivenessUpdatedAt?: number
     /** Hand a late-refused send back to the composer; return whether it took the text. */
     restoreRefusedSend?: (message: {text: string}) => boolean | Promise<boolean>
+    /** A durable send was admitted: the turn it started, or `null` for a parked input. */
+    onSendAccepted?: (message: {text: string}, executionId: string | null) => void
+    /** A durable send was rejected or refused; no turn will ever carry it. */
+    onSendFailed?: (message: {text: string}) => void
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
      * silently folded every client tool into the plain "used N tools" group, leaving the run
@@ -257,6 +261,8 @@ export const useAgentConversation = ({
     sharedReaderRunning = false,
     sharedReaderLivenessUpdatedAt = 0,
     restoreRefusedSend,
+    onSendAccepted,
+    onSendFailed,
     isClientToolPart,
 }: UseAgentConversationArgs): AgentConversation => {
     // Declared FIRST, so its effect re-arms before any effect below can capture a generation.
@@ -534,7 +540,7 @@ export const useAgentConversation = ({
     // `messages`/`busy` change every commit; consumers that must stay referentially stable
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
     messagesRef.current = messages
-    busyRef.current = busy || acceptedRunPending
+    // `busyRef` is assigned after the queue hook below: `sendInFlight` is part of it.
     localRenderBusyRef.current = busy && !acceptedRunPending
 
     useEffect(() => {
@@ -791,10 +797,15 @@ export const useAgentConversation = ({
         // so a late refusal keeps its flagged row instead of restoring the draft. Pass a restorer
         // in to unify it with the desktop.
         restoreRefusedSend,
+        onSendAccepted,
+        onSendFailed,
         sendQueued,
         sessionId,
         server: serverInputs,
     })
+    // A preserve check that misses `sendInFlight` lets a navigation release and stop the chat in
+    // the window between the message leaving and the turn being accepted.
+    busyRef.current = busy || acceptedRunPending || sendInFlight
 
     // The server capability chooses one owner. Feature-off servers keep the original ordered row
     // transition + AI SDK gate release; durable servers own continuation after their 202.

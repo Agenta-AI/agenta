@@ -207,9 +207,11 @@ export {
     markSessionFresh,
 } from "./core/freshSessions"
 export {
+    dropUnacceptedLocalSessionAtom,
     forgetLocalSessionsAtom,
     localSessionNameFromText,
     localSessionsAtom,
+    markLocalSessionAcceptedAtom,
     registerLocalSessionAtom,
     type LocalSession,
 } from "./core/localSessions"

@@ -31,7 +31,9 @@ import {
 import {getSessionTurnId} from "@agenta/chat/state"
 import {
     cancelSessionExecution,
+    dropUnacceptedLocalSessionAtom,
     isSessionFresh,
+    markLocalSessionAcceptedAtom,
     registerLocalSessionAtom,
 } from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
@@ -120,12 +122,19 @@ export const LiveConversation = ({
     // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
     const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
     const startBlankSession = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
+    // The rail row for a fresh session follows its first send: admitted keeps it until the server
+    // lists the session, rejected or refused drops it (nothing will ever list that session).
+    const registerLocalSession = useSetAtom(registerLocalSessionAtom)
+    const markLocalSessionAccepted = useSetAtom(markLocalSessionAcceptedAtom)
+    const dropUnacceptedLocalSession = useSetAtom(dropUnacceptedLocalSessionAtom)
     const conversation = useAgentConversation({
         entityId,
         sessionId,
         sharedReaderAdvertised: sharedReader,
         sharedReaderRunning: running,
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
+        onSendAccepted: () => markLocalSessionAccepted(sessionId),
+        onSendFailed: () => dropUnacceptedLocalSession(sessionId),
     })
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
@@ -205,15 +214,32 @@ export const LiveConversation = ({
     } = conversation
     // A fresh session becomes real on the server only once this first message is admitted, which
     // can take seconds on a cold runner. Note it locally first, so the rail lists it now (#6776).
-    const registerLocalSession = useSetAtom(registerLocalSessionAtom)
     const send = useCallback(
         async (input: Parameters<typeof sendToConversation>[0]) => {
             if (isSessionFresh(sessionId)) {
-                registerLocalSession({sessionId, agentId: agentId ?? null, name: input.text})
+                registerLocalSession({
+                    sessionId,
+                    projectId,
+                    agentId: agentId ?? null,
+                    name: input.text,
+                })
             }
-            await sendToConversation(input)
+            try {
+                await sendToConversation(input)
+            } catch (error) {
+                // The durable path reports this through `onSendFailed` too; this covers the rest.
+                dropUnacceptedLocalSession(sessionId)
+                throw error
+            }
         },
-        [agentId, registerLocalSession, sendToConversation, sessionId],
+        [
+            agentId,
+            dropUnacceptedLocalSession,
+            projectId,
+            registerLocalSession,
+            sendToConversation,
+            sessionId,
+        ],
     )
     useEffect(() => {
         if (!pendingTask || pendingTask.delivery) return
