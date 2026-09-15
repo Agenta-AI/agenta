@@ -35,8 +35,7 @@ import {useAtomValue} from "jotai"
 
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
-/** The write verbs an item offers. Rename / duplicate are file-only (no backend move
- * endpoint), so for a folder only `onDelete` is honoured. Absent = read-only mount. */
+/** An item's write verbs; rename / duplicate are file-only (no backend move endpoint). */
 export interface DriveItemWriteActions {
     onRename: (path: string) => void
     onDuplicate: (path: string) => void
@@ -155,8 +154,7 @@ export const DriveItemContextMenu = ({
                 {writes ? (
                     <>
                         <ContextMenuSeparator />
-                        {/* Folder rename needs a backend move endpoint — shown, disabled, so the
-                            verb is discoverable and its absence explained. */}
+                        {/* Folder rename needs a backend move endpoint: shown disabled. */}
                         <ContextMenuItem disabled={isFolder} onSelect={() => writes.onRename(path)}>
                             <PencilSimple size={14} />
                             Rename

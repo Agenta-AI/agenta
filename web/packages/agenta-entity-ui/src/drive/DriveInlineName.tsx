@@ -1,16 +1,11 @@
-/**
- * DriveInlineName — row 2's leading slot for a non-markdown file: the type mark and the file's
- * name, renamed in place. Click the name (a writable mount) for an input; Enter or blur commits,
- * Escape cancels; a name the mount can't take is reported and the input stays.
- */
+/** Row 2's type mark + file name, renamed in place (Enter / blur commit, Escape cancels). */
 import {type KeyboardEvent, useEffect, useRef, useState} from "react"
 
+import {nameOf} from "@agenta/entities/drive"
 import {message} from "@agenta/ui/app-message"
 import {Input} from "@agenta/ui/ui"
 
 import {DriveTypeMark} from "./DriveTypeMark"
-
-const nameOf = (path: string) => path.split("/").pop() ?? path
 
 export const DriveInlineName = ({
     path,
@@ -20,7 +15,7 @@ export const DriveInlineName = ({
     path: string
     /** A reason the name can't be used, or null. */
     validate?: (name: string) => string | null
-    /** Resolves true once the mount took the new name. Absent = read-only. */
+    /** Absent = read-only. */
     onRename?: (name: string) => Promise<boolean>
 }) => {
     const name = nameOf(path)
@@ -28,7 +23,6 @@ export const DriveInlineName = ({
     const [value, setValue] = useState(name)
     const [busy, setBusy] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
-    // Leaving the file (or a rename landing) ends any edit in progress.
     useEffect(() => {
         setEditing(false)
         setValue(name)
@@ -38,7 +32,7 @@ export const DriveInlineName = ({
         const el = inputRef.current
         if (!el) return
         el.focus()
-        // Select the stem, not the extension — the part a rename usually changes.
+        // Select the stem, not the extension.
         const dot = name.lastIndexOf(".")
         el.setSelectionRange(0, dot > 0 ? dot : name.length)
     }, [editing, name])

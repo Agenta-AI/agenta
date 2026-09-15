@@ -67,8 +67,7 @@ const TREE_ROWS: {depth: number; w: string}[] = [
     {depth: 1, w: "46%"},
 ]
 
-/** The tree rail — 200px docked width, its 36px search header, then rows at the real 28px rhythm.
- * `mirrored` docks it right (the Files pane) instead of left (the overlay drawer). */
+/** The tree rail: 200px, its 36px search header, rows at the real 28px rhythm. */
 const TreePaneSkeleton = ({mirrored}: {mirrored: boolean}) => (
     <div
         className={`w-[200px] shrink-0 border-0 border-solid border-colorBorderSecondary bg-colorBgLayout ${
@@ -113,8 +112,7 @@ const ContentPaneSkeleton = ({mode}: {mode: "grid" | "preview"}) => (
     </div>
 )
 
-/** Row 1's band (48px), matching DriveHeader's geometry, so the chrome does not appear out of
- * nowhere when the real explorer mounts. */
+/** Row 1's 48px band, matching DriveHeader. */
 const ChromeSkeleton = () => (
     <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
         <div className={`h-6 w-6 shrink-0 ${bar}`} />
@@ -145,7 +143,7 @@ export const DriveExplorerSkeleton = ({
     mode?: "grid" | "preview"
     showTree?: boolean
     withChrome?: boolean
-    /** Tree docked RIGHT (the Files pane) rather than left (the overlay drawer). */
+    /** Tree docked right. */
     mirrored?: boolean
 }) => (
     <div className="flex min-h-0 w-full flex-1 flex-col" aria-hidden>

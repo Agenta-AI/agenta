@@ -16,11 +16,8 @@ import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 
 /** Clickable path breadcrumb: each folder segment (and the home root) navigates via `onNavigate`
  * (a folder path, "" = root). The last segment is the current file/folder (plain). Scrolls
- * horizontally rather than truncating, so every part stays reachable.
- *
- * `variant="icons"` is the Files pane's row-1 crumb: a house root labelled "All files" when it
- * stands alone, an open-folder glyph per folder, the typed mark for a file leaf, the leaf at
- * weight 500. The default variant is unchanged — the chat file palette renders it too. */
+ * horizontally rather than truncating, so every part stays reachable. `variant="icons"` is the
+ * Files pane's row-1 crumb (house root, folder glyphs, a typed mark on a file leaf). */
 export const DriveBreadcrumb = ({
     shown,
     rootLabel,
@@ -32,13 +29,12 @@ export const DriveBreadcrumb = ({
     rootLabel: string
     onNavigate: (folderPath: string) => void
     variant?: "default" | "icons"
-    /** The leaf is a file (icons variant draws its type mark instead of a folder). */
+    /** The leaf is a file. */
     isFile?: boolean
 }) => {
     const segs = shown.split("/").filter(Boolean)
     if (variant === "icons") {
-        // A crumb link is the kit's ghost button at the row's own type size. `inline-flex` restated:
-        // BreadcrumbLink's own `inline-block` would otherwise stack the glyph over the label.
+        // `inline-flex` restated: BreadcrumbLink's `inline-block` would stack glyph over label.
         const crumbLink =
             "inline-flex h-auto items-center gap-1.5 px-1.5 py-[3px] text-[13px] font-normal text-colorTextSecondary"
         return (

@@ -1,20 +1,13 @@
-/**
- * DriveTypeMark — the one typed glyph of the Files pane: a page outline carrying the file's kind
- * chip ("MD", "JSON", "PY"…) in the kind's tone. Three sizes: `tile` (the 56px grid icon),
- * `mini` (tree rows, list rows, the breadcrumb leaf) and `badge` (the bare chip for row 2).
- * Folders get the same treatment through {@link DriveFolderGlyph}. Pure presentation over
- * {@link driveKindTone}; the chat rail's `driveFileIcon` stays the compact phosphor glyph.
- */
+/** The Files pane's typed page mark (`tile` 56px with a kind chip, `mini` 15px with a tone bar). */
 import {
     type DriveKindTone,
     driveKindTone,
     fileTypeChip,
     resolveDriveFileKind,
 } from "@agenta/entities/drive"
-import {Badge} from "@agenta/ui/ui"
 import {Folder, FolderOpen} from "@phosphor-icons/react"
 
-/** Chip colours per tone — text on a soft fill, from the theme's semantic pairs. */
+/** Chip colours per tone. */
 const TONE_CLASS: Record<DriveKindTone, string> = {
     info: "bg-colorFillTertiary text-colorInfo",
     warning: "bg-colorWarningBg text-colorWarning",
@@ -22,7 +15,7 @@ const TONE_CLASS: Record<DriveKindTone, string> = {
     error: "bg-colorErrorBg text-colorError",
     neutral: "bg-colorFillTertiary text-colorTextSecondary",
 }
-/** Solid tone for the mini mark's colour bar (no room for a chip). */
+/** The mini mark's colour bar. */
 const TONE_BAR_CLASS: Record<DriveKindTone, string> = {
     info: "bg-colorInfo",
     warning: "bg-colorWarning",
@@ -31,22 +24,17 @@ const TONE_BAR_CLASS: Record<DriveKindTone, string> = {
     neutral: "bg-colorTextQuaternary",
 }
 
-export const driveToneClass = (path: string): string =>
-    TONE_CLASS[driveKindTone(resolveDriveFileKind(path), path)]
-
 const Page = ({size}: {size: number}) => (
-    // 46×56 page with a folded corner, scaled by `size` (its height).
     <svg
         width={(size * 46) / 56}
         height={size}
         viewBox="0 0 46 56"
         fill="none"
         aria-hidden
-        // `size-auto`: inside a kit Button the svg would otherwise be sized as a button icon.
+        // `size-auto`: a kit Button would size the svg as its icon.
         className="block size-auto"
     >
-        {/* Elevated fill (not the container tone) so the page lifts off the pane in dark mode,
-            where container and pane are the same black; the fold a step brighter again there. */}
+        {/* Elevated fill so the page lifts off the pane in dark mode. */}
         <path
             d="M4 3h24l14 14v33a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3z"
             className="fill-colorBgElevated stroke-colorBorder"
@@ -62,30 +50,17 @@ const Page = ({size}: {size: number}) => (
     </svg>
 )
 
-export const DriveTypeMark = ({
-    path,
-    size = "mini",
-}: {
-    path: string
-    size?: "tile" | "mini" | "badge"
-}) => {
-    const kind = resolveDriveFileKind(path)
-    const tone = driveKindTone(kind, path)
-    const chip = fileTypeChip(path)
-    // The chip is the kit Badge at a tiny scale, tinted by tone.
-    const badge = (extra = "") => (
-        <Badge
-            className={`h-auto rounded-[3px] border-0 px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]} ${extra}`}
-        >
-            {chip}
-        </Badge>
-    )
-    if (size === "badge") return badge()
+export const DriveTypeMark = ({path, size = "mini"}: {path: string; size?: "tile" | "mini"}) => {
+    const tone = driveKindTone(resolveDriveFileKind(path), path)
     if (size === "tile")
         return (
             <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center">
                 <Page size={56} />
-                {badge("absolute bottom-[7px] left-1/2 -translate-x-1/2")}
+                <span
+                    className={`absolute bottom-[7px] left-1/2 -translate-x-1/2 rounded-[3px] px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
+                >
+                    {fileTypeChip(path)}
+                </span>
             </span>
         )
     return (
@@ -98,7 +73,7 @@ export const DriveTypeMark = ({
     )
 }
 
-/** The folder glyph in the folder tone: closed by default, open while expanded / current. */
+/** The folder glyph, open while expanded / current. */
 export const DriveFolderGlyph = ({
     open = false,
     size = 14,

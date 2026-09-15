@@ -1,13 +1,7 @@
 /**
- * useDriveFilters — the explorer's search term, listing filters (temporary / hidden / git-ignored
- * files) and view preferences (grid / list, sort, editor mode), plus the DEFERRED search term
- * everything downstream filters on. The chrome writes this state; the tree pipeline
- * ({@link useDriveTreeData}) reads it.
- *
- * Preferences persist per user (`atomWithStorage`). The two visibility toggles are SESSION state
- * seeded from their preference: the view-options menu writes both, while an upload reveal
- * (`useUploadReveal` flipping hidden files on to show a dotfile that just landed) writes only the
- * session copy — a reveal must never rewrite what the user chose.
+ * The explorer's search term, listing filters and persisted view preferences. The hidden /
+ * git-ignored toggles are session state seeded from their preference: the menu writes both, an
+ * upload reveal writes the session copy only.
  */
 import {useCallback, useDeferredValue, useState} from "react"
 
@@ -29,8 +23,7 @@ export const driveShowGitignoredPrefAtom = atomWithStorage<boolean>(
     "agenta:drive:show-gitignored",
     false,
 )
-// On by default: the session's working files (everything beside `agent-files/`) are what the
-// agent is editing right now; the toggle is for narrowing to the persistent files.
+// On by default; the toggle narrows to the persistent files.
 export const driveShowTemporaryAtom = atomWithStorage<boolean>("agenta:drive:show-temporary", true)
 
 export function useDriveFilters() {
@@ -41,12 +34,10 @@ export function useDriveFilters() {
     const [showTemporary, setShowTemporary] = useAtom(driveShowTemporaryAtom)
     const [showHiddenPref, setShowHiddenPref] = useAtom(driveShowHiddenPrefAtom)
     const [showGitignoredPref, setShowGitignoredPref] = useAtom(driveShowGitignoredPrefAtom)
-    // Session copies, seeded once from the preference (see the module note).
+    // Session copies, seeded once from the preference.
     const [showHidden, setShowHidden] = useState(showHiddenPref)
     const [showGitignored, setShowGitignored] = useState(showGitignoredPref)
-    // Both copies take the NEXT of the shown (session) value: after an upload reveal they can
-    // differ, and flipping each independently would leave the menu showing the opposite of the
-    // preference it just wrote.
+    // Both copies take the next of the SHOWN value (a reveal can leave them differing).
     const toggleShowHiddenPref = useCallback(() => {
         const next = !showHidden
         setShowHiddenPref(next)

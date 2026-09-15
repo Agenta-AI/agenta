@@ -80,8 +80,7 @@ const BLOCK_TYPES = [
 export interface MarkdownToolbarProps {
     /** Disable the buttons (e.g. while the editor shows raw Markdown source or is read-only). */
     disabled?: boolean
-    /** `inline` trades the block-type dropdown for H1 / H2 / H3 buttons and adds strikethrough,
-     * inline code and quote buttons — the compact bar a 36px chrome row can hold. */
+    /** `inline`: H1 / H2 / H3 buttons instead of the dropdown, plus strikethrough, code and quote. */
     layout?: "default" | "inline"
 }
 
@@ -312,7 +311,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
 
     const blockLabel = BLOCK_TYPES.find((b) => b.key === blockType)?.label ?? "Normal text"
 
-    // A heading button toggles: pressing the active level returns the block to a paragraph.
+    // Pressing the active level returns the block to a paragraph.
     const headingButton = (level: "h1" | "h2" | "h3") =>
         button(
             level,
@@ -328,8 +327,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
         <div
             className={
                 layout === "inline"
-                    ? // One fixed row: the host's chrome row is 36px and never grows.
-                      "flex min-w-0 flex-nowrap items-center gap-0.5 overflow-hidden"
+                    ? "flex min-w-0 flex-nowrap items-center gap-0.5 overflow-hidden"
                     : "flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden"
             }
         >

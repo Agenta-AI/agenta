@@ -112,9 +112,7 @@ export const ListTable = <Row,>({
                     style={{gridTemplateColumns: grid}}
                 >
                     {columns.map((column) => (
-                        // The cell stays in the grid flow even when its label is for screen
-                        // readers only: `sr-only` is `position: absolute`, and an absent cell
-                        // would shift every header after it one track to the left.
+                        // The cell stays in the grid flow (`sr-only` is absolute) so tracks line up.
                         <span
                             key={column.key}
                             role="columnheader"

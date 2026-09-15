@@ -90,11 +90,7 @@ export function VirtualTileGrid<T>({
     renderTile: (item: T, index: number) => ReactNode
     /** Rough row height (incl. gap) for the initial scrollbar; corrected once a real tile is measured. */
     estimateRowHeight?: number
-    /**
-     * Height the tile's top block adds per px of width (a 4:3 thumbnail by default). `0` for tiles
-     * whose height doesn't follow their width (a fixed glyph over text): the measured height is then
-     * the whole story, so a pane resize can't mis-predict and stack rows.
-     */
+    /** Height the tile's top block adds per px of width (4:3 by default; 0 for a fixed glyph). */
     thumbAspect?: number
     gap?: number
     /** Rows mounted beyond the viewport on each side. For tile grids whose cells fetch a thumbnail,

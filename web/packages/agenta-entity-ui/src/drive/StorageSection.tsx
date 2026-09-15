@@ -12,7 +12,7 @@ import {isAgentFileUploadsEnabled} from "@agenta/entities/drive"
 import {useConfigDrive} from "@agenta/entities/drive"
 import {listArrowKeyDown} from "@agenta/entities/drive"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@agenta/entities/drive"
-import {humanSize, relativeTime} from "@agenta/entities/drive"
+import {humanSize, itemCountLabel, relativeTime} from "@agenta/entities/drive"
 import {isRecentlyChanged, useRecentChangeClock} from "@agenta/entities/drive"
 import {useStageDrop} from "@agenta/entities/drive"
 import {driveHasMixedOrigins, type DriveRecentFile} from "@agenta/entities/drive"
@@ -67,14 +67,12 @@ const RecentFileRow = ({
             showOrigin={showOrigin}
             isFolder={!!file.is_folder}
             mark="typed"
-            // Size / count and time, " · " between only the parts that exist (a file with no size
-            // must not start with the dot). Rollup folders carry a count; the shallow fallback
-            // doesn't (a count needs a descent) — shown only when known, never a wrong "0".
+            // " · " only between the parts that exist; a folder count only when known.
             trailing={
                 [
                     file.is_folder
                         ? file.item_count != null
-                            ? `${file.item_count} item${file.item_count === 1 ? "" : "s"}`
+                            ? itemCountLabel(file.item_count)
                             : null
                         : humanSize(file.size),
                     file.touchedAt ? relativeTime(file.touchedAt) : null,
@@ -148,8 +146,7 @@ export default function StorageSection({
 
     return (
         <div
-            // Bled past the section's inset by the rows' own padding + accent bar, so a row's mark
-            // starts on the "Files" title's line and its time ends on the header icon's.
+            // Bled past the inset so a row's mark and time sit on the title's and icon's lines.
             className={`-ml-2 -mr-1.5 flex flex-col gap-2 rounded-md transition-colors ${dropActive ? "bg-[var(--ant-color-primary-bg)]" : ""}`}
             {...stageDropProps}
         >

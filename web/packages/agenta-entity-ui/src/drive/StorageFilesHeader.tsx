@@ -28,8 +28,7 @@ export default function StorageFilesHeader({
     sessionId?: string | null
 }) {
     const {drive} = useConfigDrive(revisionId, sessionId)
-    // A quick look at the root: the per-session request the docked pane latches open on, so no
-    // panel scope key has to reach this header.
+    // A root quick look opens the docked pane without a panel scope key reaching here.
     const setQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
     const openPane = () => setQuickLook({path: ""})
 
@@ -90,8 +89,7 @@ export default function StorageFilesHeader({
     return (
         <button
             type="button"
-            // Blur on open so focus doesn't sit on this trigger under the opened pane. Genuine Tab
-            // focus still shows the ring via FOCUS_RING.
+            // Blur on open so focus doesn't sit under the opened pane.
             onClick={(e) => {
                 e.currentTarget.blur()
                 openPane()
@@ -99,8 +97,7 @@ export default function StorageFilesHeader({
             className={BROWSE_BUTTON}
         >
             <ConfigRowTrailing
-                // Opens the docked Files pane, NOT a new tab — a folder-open glyph, not the
-                // external-link arrow that read as "leaves the page". A mount failure badges it.
+                // A folder-open glyph, not an external-link arrow; a mount failure badges it.
                 affordance={
                     <DriveWarningBadge show={drive.partialErrored}>
                         <FolderOpen size={13} />

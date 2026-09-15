@@ -1,13 +1,12 @@
 /**
- * SessionFilesPane — the chat host's DOCKED replacement for {@link SessionFilesDrawer}: the same
- * per-session glue (this conversation's open + quick-look + staged atoms → the shared
- * {@link DriveExplorer}), but rendered inline in a resizable right-side splitter pane instead of an
- * overlay drawer. The pane mirrors the explorer (tree RIGHT, content LEFT); the close is either row
- * 1's "»" or the host's own session-bar toggle (`closeControl`). The overlay drawer stays in use for
- * the non-chat hosts (config panel, agent overview).
+ * SessionFilesPane — the chat host's DOCKED Files pane: this conversation's open + quick-look +
+ * staged atoms → the shared {@link DriveExplorer}, rendered inline in a resizable right-side
+ * splitter pane (tree RIGHT, content LEFT). The close is row 1's "»" or the host's own
+ * session-bar toggle (`closeControl`).
  *
- * Openers are unchanged: tiles, in-thread cards, rail rows, and chat links all set the same
- * per-session atoms; `useSessionFilesPane` folds them into the split's open flag.
+ * Every opener (tiles, in-thread cards, rail rows, chat links, the config pane's Files section,
+ * the agent overview) sets the same per-session atoms; `useSessionFilesPane` folds them into the
+ * split's open flag.
  */
 import {useCallback, useEffect, useMemo} from "react"
 
@@ -83,8 +82,7 @@ export function SessionFilesPane({
         open ? (artifactId ?? undefined) : undefined,
     )
 
-    // Resolve the quick-look path (possibly a tail) to the presented drive path the tree selects by.
-    // An empty path is a request for the root itself (the config pane's "browse all"), not a tail.
+    // A quick look resolves a tail to the presented path; an empty path is the root itself.
     const initialPath = useMemo(
         () =>
             quickLook

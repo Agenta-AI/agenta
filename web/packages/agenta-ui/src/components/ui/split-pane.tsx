@@ -34,13 +34,7 @@ export interface SplitPaneProps {
     resizable?: boolean
     /** Transition the driven pane's flex-basis (240ms, the playground curve). */
     animate?: boolean
-    /**
-     * Fade the pane's content out with a close (opacity only; a blur over a pane this size costs
-     * a GPU pass per frame for little). The content still translates out under the closing edge
-     * — this softens the clip rather than replacing the motion. An open shows the content at
-     * once: fading it in lagged the slide by the mount's own render and read as a load, not a
-     * reveal.
-     */
+    /** Fade the content out with a close (opacity only; an open shows it at once). */
     revealContent?: boolean
     /** Collapse the divider to zero width (collapsed rail). It stays MOUNTED and, while
      * `animate`, closes on the same curve as the driven pane — unmounting it moved the fill 9px in
@@ -229,10 +223,7 @@ export function SplitPane({
                 : rect.right - e.clientX - barWidth / 2
         commit(clamp(Math.round(raw), total), total)
     }
-    /** One idempotent exit for every way a drag can end: the divider's own `pointerup` /
-     * `pointercancel`, or — when the divider is gone before the pointer lifts (the pane toggled
-     * shut by a shortcut mid-drag, the window losing focus) — the window-level listeners below.
-     * A stuck `dragging` is not cosmetic: it disables the pane's open/close slide for good. */
+    /** One idempotent exit for every way a drag can end (a stuck `dragging` disables the slide for good). */
     const draggingRef = React.useRef(false)
     const finishDrag = React.useCallback(() => {
         if (!draggingRef.current) return
@@ -257,7 +248,7 @@ export function SplitPane({
             window.removeEventListener("blur", finishDrag)
         }
     }, [dragging, finishDrag])
-    // A pane that stops being resizable (closed under the pointer) ends any drag with it.
+    // A pane closed under the pointer ends its drag.
     React.useEffect(() => {
         if (!resizable) finishDrag()
     }, [resizable, finishDrag])

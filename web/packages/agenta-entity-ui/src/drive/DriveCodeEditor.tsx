@@ -1,22 +1,12 @@
-/**
- * DriveCodeEditor — the Files pane's body for an editable code / text file: the shared
- * {@link SharedEditor} in code mode (the testcase / preset YAML-JSON editor) over the drive draft,
- * with the kit's Prism / Shiki highlighting. Edits autosave; `Cmd/Ctrl+S` writes at once. The
- * draft belongs to the explorer, which also feeds row 2 — this component only renders it.
- *
- * Loaded lazily by the explorer so the Lexical graph arrives only when such a file opens.
- */
-import {type KeyboardEvent, useCallback} from "react"
-
+/** The Files pane's body for an editable code / text file: the kit's code editor over the draft. */
 import {driveCodeLanguage, useDriveFileDraft} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {type CodeLanguage, EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Skeleton} from "@agenta/ui/ui"
 
-import {DownloadCard} from "./renderers"
+import {DriveEditorPlaceholder, useDriveSaveKey} from "./DriveEditorFrame"
 
-/** The kit editor's grammar for a file: its own for the languages it tokenizes, generic otherwise. */
+/** The kit editor's grammar for a file; generic for languages it doesn't tokenize. */
 const editorLanguage = (path: string): CodeLanguage => {
     switch (driveCodeLanguage(path)) {
         case "json":
@@ -45,38 +35,15 @@ export interface DriveCodeEditorProps {
 }
 
 export function DriveCodeEditor({mount, path, loading, failed, onSave}: DriveCodeEditorProps) {
-    // The editor owns its text between seeds; feeding each keystroke back as `initialValue`
-    // would make the code plugin re-read the whole document per keystroke (O(lines)).
+    // Mounted on the seed only: `initialValue` per keystroke would re-read the whole document.
     const {seed, onChange} = useDriveFileDraft(mount, path)
-    const onKeyDown = useCallback(
-        (e: KeyboardEvent<HTMLDivElement>) => {
-            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-                e.preventDefault()
-                onSave()
-            }
-        },
-        [onSave],
-    )
-    if (failed)
-        return (
-            <div className="flex min-h-0 flex-1 flex-col p-4">
-                <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
-            </div>
-        )
-    if (loading || seed === null)
-        return (
-            <div className="flex flex-col gap-2 p-5">
-                {Array.from({length: 8}).map((_, i) => (
-                    <Skeleton key={i} className="h-4 w-full" />
-                ))}
-            </div>
-        )
+    const onKeyDown = useDriveSaveKey(onSave)
+    if (failed || loading || seed === null)
+        return <DriveEditorPlaceholder mount={mount} path={path} failed={failed} lines={8} />
     const language = editorLanguage(path)
-    // Keyed by mount + path: a different file is a different editor, never a re-seeded one.
     const editorId = `drive-code-${mount?.id ?? ""}-${path}`
     return (
-        // The kit editor sizes to its content; here every wrapper takes the column's height and the
-        // <code> element is the scroller, so the body fills the pane and scrolls inside it.
+        // Every kit wrapper takes the column's height; the <code> element is the scroller.
         <div
             className={[
                 "flex min-h-0 flex-1 flex-col overflow-hidden text-xs",

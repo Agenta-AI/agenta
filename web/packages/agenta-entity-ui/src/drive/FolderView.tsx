@@ -1,9 +1,9 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {META_REVEAL, PANE_FADE, revealFade} from "@agenta/entities/drive"
+import {PANE_FADE, revealFade} from "@agenta/entities/drive"
 import {useRepoInfo} from "@agenta/entities/drive"
 import {type DriveSortKey, type DriveTreeNode, type DriveViewMode} from "@agenta/entities/drive"
-import {parentOf, sortDriveEntries} from "@agenta/entities/drive"
+import {itemCountLabel, parentOf, sortDriveEntries} from "@agenta/entities/drive"
 import {useDelayedTrue} from "@agenta/entities/drive"
 import {type DriveDrop} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
@@ -49,7 +49,6 @@ export const FolderView = ({
     sort = "name",
     selectedPath = null,
     writes,
-    detailsOpen,
     autoFocus,
     anticipateShift,
     onSelect,
@@ -69,7 +68,7 @@ export const FolderView = ({
     sort?: DriveSortKey
     /** The explorer's selection — a tile / row that is the current path draws selected. */
     selectedPath?: string | null
-    /** Rename / duplicate / move / delete for the item context menus — omit on a read-only mount. */
+    /** Item context-menu writes; omit on a read-only mount. */
     writes?: DriveItemWriteActions
     /** Drag-and-drop upload behaviour (folder highlight, spring-load, drop) — absent = disabled. */
     drop?: DriveDrop
@@ -84,10 +83,8 @@ export const FolderView = ({
     onRemoveStaged?: (id: string) => void
     /** This folder's level is still loading (lazy) — show the tile skeleton, not "Empty folder". */
     loading?: boolean
-    /** Chrome mode: the drawer's single header owns the breadcrumb/name/repo toggle, so drop this
-     * pane's header band — render only the repo meta (when `detailsOpen`) above the grid. */
+    /** Chrome mode: rows 1 + 2 own the breadcrumb and actions, so no header band (nor repo details). */
     hideHeader?: boolean
-    detailsOpen?: boolean
     /** Focus the first tile on mount (grid is the primary nav — not the list view's right pane). */
     autoFocus?: boolean
     /** Announced pane-width shift (tree pane toggling) — forwarded to the tile grid so it lays out
@@ -100,15 +97,12 @@ export const FolderView = ({
     const folderName = folderPath === "" ? rootLabel : (folderPath.split("/").pop() ?? folderPath)
     // Which mount + mount-relative path backs this folder, so the repo probe reads its `.git`.
     const resolvedFolder = drive.resolveMount(folderPath)
-    // Git facts, probed on demand (self-null for a non-repo folder). Its details render like the
-    // file preview's metadata — a bare grid behind a header toggle, NOT an always-on card.
-    const repo = useRepoInfo(resolvedFolder?.mount ?? null, resolvedFolder?.path ?? "", true)
+    // Git facts, probed only where the header band that shows them renders.
+    const repo = useRepoInfo(resolvedFolder?.mount ?? null, resolvedFolder?.path ?? "", !hideHeader)
     const [repoExpanded, setRepoExpanded] = useState(false)
-    // Folders first (matching the tree's sort), then files — one combined list so the grid windows
-    // uniformly even when a folder holds thousands of immediate children.
-    // Staged files (no destination yet) get synthetic `__staged__/` ghost tiles prepended; in-flight
-    // uploads are already REAL nodes in `nodes` (injected into the tree under their folder) and are
-    // decorated in renderTile via pendingUploadByPath.
+    // One combined list, folders first, so the grid windows uniformly.
+    const sorted = useMemo(() => sortDriveEntries(nodes, sort), [nodes, sort])
+    // Staged drops are ghost tiles in the grid only (the list shows real rows; row 2's ⋯ uploads them).
     const stagedByPath = useMemo(
         () =>
             new Map<string, StagedTileItem>(
@@ -123,21 +117,18 @@ export const FolderView = ({
             isFolder: false,
             children: [],
         }))
-        return [...synthetic, ...sortDriveEntries(nodes, sort)]
-    }, [stagedItems, nodes, sort])
+        return [...synthetic, ...sorted]
+    }, [stagedItems, sorted])
     // Only surface the skeleton if the level is genuinely slow to load (>140ms); a quick load skips
     // straight to the grid so the user never sees a one-frame skeleton flash.
     const showSkeleton = useDelayedTrue(Boolean(loading) && nodes.length === 0, 140)
-
-    // Which meta-open state drives the repo panel: the drawer's single header (chrome) or this pane's
-    // own toggle (embedded). One expression so the panel reads the same in both modes.
-    const repoOpen = hideHeader ? Boolean(detailsOpen) : repoExpanded
 
     // One-shot stagger gate for the tile grid — true ONLY on the render where this folder+view's content
     // first appears (folder nav or skeleton→grid), so the tiles cascade in; empty on every render after,
     // so the virtualizer's scroll remounts never replay it (mirrors the tree's reveal). StrictMode-safe:
     // the ref advances in an effect, not during render, so the diff doesn't cancel itself out.
-    const gridRevealKey = entries.length > 0 ? `${folderPath}:${view}` : null
+    const shown = view === "list" ? sorted : entries
+    const gridRevealKey = shown.length > 0 ? `${folderPath}:${view}` : null
     const prevGridRevealRef = useRef<string | null>(null)
     const gridRevealNow = gridRevealKey !== null && gridRevealKey !== prevGridRevealRef.current
     useEffect(() => {
@@ -146,23 +137,7 @@ export const FolderView = ({
 
     return (
         <div className="flex h-full min-h-0 w-full flex-col">
-            {hideHeader ? (
-                // Chrome mode: no header band — just the repo meta when the header's toggle is on.
-                // AnimatePresence owns the mount/unmount so the bordered band collapses on close.
-                <AnimatePresence initial={false}>
-                    {repo.isRepo && repoOpen ? (
-                        <motion.div
-                            key="repo-meta"
-                            {...META_REVEAL}
-                            className="shrink-0 overflow-hidden"
-                        >
-                            <div className="border-0 border-b border-solid border-colorBorderSecondary px-4 py-3">
-                                <DriveRepoMetaList info={repo} expanded />
-                            </div>
-                        </motion.div>
-                    ) : null}
-                </AnimatePresence>
-            ) : (
+            {hideHeader ? null : (
                 <div className="flex shrink-0 flex-col gap-2 border-0 border-b border-solid border-colorBorderSecondary p-4 pb-3">
                     <DriveBreadcrumb
                         shown={folderPath}
@@ -180,7 +155,7 @@ export const FolderView = ({
                                 {folderName}
                             </span>
                             <span className="shrink-0 text-xs text-colorTextTertiary">
-                                {nodes.length} item{nodes.length === 1 ? "" : "s"}
+                                {itemCountLabel(nodes.length)}
                             </span>
                         </div>
                         {/* Action cluster — Copy path mirrors the file preview header; repo-details
@@ -236,7 +211,7 @@ export const FolderView = ({
                 {...(drop ? drop.containerDropProps(folderPath) : {})}
             >
                 <AnimatePresence initial={false}>
-                    {entries.length > 0 ? (
+                    {shown.length > 0 ? (
                         <motion.div
                             key={`grid:${folderPath}`}
                             className="absolute inset-0 flex min-h-0 flex-col"
@@ -250,7 +225,7 @@ export const FolderView = ({
                         >
                             {view === "list" ? (
                                 <FolderList
-                                    nodes={entries}
+                                    nodes={sorted}
                                     selectedPath={selectedPath}
                                     onOpen={onSelect}
                                     onCopyPath={copyPath}

@@ -79,11 +79,11 @@ export function DriveTreeList({
     select: (path: string | null) => void
     copyPath: (path: string) => void
     download: (path: string, isFolder: boolean) => void
-    /** Rename / duplicate / move / delete for the row menus — omit on a read-only mount. */
+    /** Row context-menu writes; omit on a read-only mount. */
     writes?: DriveItemWriteActions
-    /** The static "All files" root row above the virtualised rows (absent while searching). */
+    /** The static "All files" row above the virtualised rows. */
     rootRow?: ReactNode
-    /** Extra indent for every row — 1 when the root row is shown, so children sit under it. */
+    /** Extra indent per row: 1 when the root row is shown. */
     depthOffset?: number
 }) {
     return flatRows.length === 0 ? (

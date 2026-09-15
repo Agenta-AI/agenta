@@ -25,13 +25,10 @@ export const proseClassName = [
     "[&_hr]:my-3",
     "[&_code]:text-[0.95em]",
     "[&_:is(th,td)]:px-2 [&_:is(th,td)]:py-1 [&_:is(th,td)]:text-xs",
-    // A fence is ONE surface: a hairline box on `muted`, a 28px header strip with the language
-    // at the left and a bare copy control at the right, a divider, then the code at 12/18px on
-    // a 12px inset. Streamdown ships it as a card with padding around a second bordered box and
-    // a bordered pill around the copy icon — three borders for one block.
+    // A fence as one surface: Streamdown ships three borders for one block.
     "[&_[data-streamdown=code-block]]:my-2 [&_[data-streamdown=code-block]]:gap-0 [&_[data-streamdown=code-block]]:overflow-hidden [&_[data-streamdown=code-block]]:rounded-md [&_[data-streamdown=code-block]]:border-border [&_[data-streamdown=code-block]]:bg-muted [&_[data-streamdown=code-block]]:p-0",
     "[&_[data-streamdown=code-block-header]]:h-7 [&_[data-streamdown=code-block-header]]:border-b [&_[data-streamdown=code-block-header]]:border-border [&_[data-streamdown=code-block-header]]:px-3 [&_[data-streamdown=code-block-header]]:text-[11px] [&_[data-streamdown=code-block-header]]:tracking-[0.02em] [&_[data-streamdown=code-block-header]_span]:ml-0",
-    // The sticky frame the actions float in is unlabelled: reach it as the header's sibling.
+    // The actions' sticky frame is unlabelled: reach it as the header's sibling.
     "[&_[data-streamdown=code-block-header]+div]:-mt-7 [&_[data-streamdown=code-block-header]+div]:h-7 [&_[data-streamdown=code-block-header]+div]:top-0 [&_[data-streamdown=code-block-header]+div]:pr-1.5",
     "[&_[data-streamdown=code-block-actions]]:rounded-none [&_[data-streamdown=code-block-actions]]:border-0 [&_[data-streamdown=code-block-actions]]:bg-transparent [&_[data-streamdown=code-block-actions]]:p-0 [&_[data-streamdown=code-block-actions]]:backdrop-blur-none",
     "[&_[data-streamdown=code-block-copy-button]]:flex [&_[data-streamdown=code-block-copy-button]]:h-[22px] [&_[data-streamdown=code-block-copy-button]]:items-center [&_[data-streamdown=code-block-copy-button]]:gap-1 [&_[data-streamdown=code-block-copy-button]]:rounded [&_[data-streamdown=code-block-copy-button]]:px-1.5 [&_[data-streamdown=code-block-copy-button]]:py-0 [&_[data-streamdown=code-block-copy-button]]:text-[11px] [&_[data-streamdown=code-block-copy-button]]:hover:bg-accent",
@@ -39,11 +36,7 @@ export const proseClassName = [
     "[&_[data-streamdown=table-wrapper]]:bg-muted",
 ].join(" ")
 
-/**
- * The fence's copy control, with a word beside the glyph: Streamdown swaps the icon to a check
- * on copy but never says so, and a 14px glyph changing shape is easy to miss. Module scope, so
- * the map keeps one identity across streamed tokens.
- */
+/** The fence's copy control with a word beside the glyph (module scope: one identity across tokens). */
 const CopyLabelled = ({size = 14}: {size?: number}) => (
     <>
         <Copy size={size} aria-hidden />

@@ -1,13 +1,7 @@
 /**
- * useDriveFileEditor — a file's editable draft over its content query, saved on its own: every
- * edit re-arms a short timer and the draft writes when it lapses (or at once on `Cmd/Ctrl+S`,
- * and when the editor for the file is left while an edit is pending). Drafts live in module
- * atoms keyed by mount + path, so navigating away and back (or closing the pane) keeps an edit
- * the write hasn't caught up with; the host mounts {@link useDriveDirtyGuard} once so a tab
- * close still warns.
- *
- * The draft model ({@link driveDraft}) counts an edit only once the editor has emitted one — see
- * that module for why.
+ * A file's editable draft over its content query, autosaved: each edit re-arms a timer, and
+ * leaving the file (or Cmd/Ctrl+S) writes at once. Drafts are module atoms keyed by mount + path;
+ * the host mounts {@link useDriveDirtyGuard} once so a tab close still warns.
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
@@ -36,12 +30,7 @@ import {refreshMountListing, saveMountText} from "./driveWrites"
 export const DRIVE_AUTOSAVE_DELAY_MS = 1500
 /** How long "Saved" stays up after a write. */
 const SAVED_FLASH_MS = 2000
-/**
- * Above these sizes a file opens read-only: the editors hold the whole document as Lexical
- * nodes, and the code editor re-tokenises on every keystroke. Measured on /m: a 272 KB / 2 000
- * line JS file took 2.7 s to open and 260 ms per keystroke; a 1.4 MB one 17 s and 540 MB of heap.
- * Markdown is cheaper (a 409 KB document opened in 0.4 s, 86 ms per keystroke).
- */
+/** Above these a file opens read-only (272 KB of JS: 2.7 s to open, 260 ms per keystroke). */
 export const DRIVE_CODE_EDIT_CAP = 96 * 1024
 export const DRIVE_MARKDOWN_EDIT_CAP = 512 * 1024
 
@@ -51,21 +40,29 @@ export type DriveSaveStatus = "clean" | "pending" | "saving" | "saved" | "error"
 const draftKey = (mountId: string, path: string) => `${mountId}:${path}`
 
 const driveDraftAtomFamily = atomFamily((_key: string) => atom<DriveDraft | null>(null))
-/** Dirty as its own atom: the explorer re-renders when it flips, not on every keystroke. */
+/** Dirty as its own atom, so the explorer re-renders on the flip, not per keystroke. */
 const driveDraftDirtyAtomFamily = atomFamily((key: string) =>
     atom((get) => isDriveDraftDirty(get(driveDraftAtomFamily(key)))),
 )
-/** Keys with a draft — the dirty guard derives "anything unsaved?" from these. */
+/** Keys with a draft, for the dirty guard. */
 const draftKeysAtom = atom<string[]>([])
 
 const anyDriveDraftDirtyAtom = atom((get) =>
     get(draftKeysAtom).some((key) => isDriveDraftDirty(get(driveDraftAtomFamily(key)))),
 )
 
-/**
- * The editor body's side of a draft: the text to mount and the change sink. Subscribes to the
- * draft, so only the (cheap) body re-renders per keystroke.
- */
+/** Editors holding each draft; a draft is dropped only once none does. */
+const draftHolders = new Map<string, number>()
+
+/** Drop a draft nobody holds (else a long session keeps every file it ever opened). */
+const releaseDraft = (store: ReturnType<typeof useStore>, key: string) => {
+    if (draftHolders.get(key)) return
+    // The atom stays in its family (a new instance would re-run every effect keyed on it).
+    store.set(driveDraftAtomFamily(key), null)
+    store.set(draftKeysAtom, (keys) => (keys.includes(key) ? keys.filter((k) => k !== key) : keys))
+}
+
+/** The editor body's side of a draft: the text to mount and the change sink. */
 export function useDriveFileDraft(mount: Mount | null, path: string) {
     const key = draftKey(mount?.id ?? "", path)
     const [draft, setDraft] = useAtom(driveDraftAtomFamily(key))
@@ -74,18 +71,15 @@ export function useDriveFileDraft(mount: Mount | null, path: string) {
         [setDraft],
     )
     return {
-        /** The current text; null while the file is still loading. */
+        /** Null while the file is still loading. */
         value: draft?.value ?? null,
-        /** The saved text the draft was seeded from — changes only on a re-seed, never per edit. */
+        /** Changes only on a re-seed, never per edit. */
         seed: draft?.seed ?? null,
         onChange,
     }
 }
 
-/**
- * The explorer's side: seeding, autosave and the save status. Does NOT subscribe to the draft's
- * text — it watches the dirty flag (an atom of its own) and the store directly for the timer.
- */
+/** The explorer's side: seeding, autosave and the save status (never subscribes to the text). */
 export function useDriveFileEditor(mount: Mount | null, path: string) {
     const mountId = mount?.id ?? ""
     const key = draftKey(mountId, path)
@@ -101,7 +95,7 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
     const [outcome, setOutcome] = useState<{ok: boolean; error?: string; at: number} | null>(null)
 
     const fileText = typeof query.data === "string" ? query.data : null
-    // Seed once the text lands; re-seed when a clean draft's file changed underneath it.
+    // Seed once the text lands; re-seed a clean draft whose file changed underneath.
     useEffect(() => {
         if (fileText === null) return
         setDraft((d) => {
@@ -113,7 +107,7 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
     }, [fileText, key, setDraft, setKeys])
 
     const savingRef = useRef(false)
-    /** Write the draft now. Resolves `{ok: true}` or `{ok: false, error}`. */
+    /** Write the draft now. */
     const save = useCallback(async (): Promise<{ok: boolean; error?: string}> => {
         const current = store.get(draftAtom)
         if (!mount || !current || !isDriveDraftDirty(current) || savingRef.current)
@@ -124,10 +118,9 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
         try {
             await saveMountText({mount, path, projectId, text})
             setDraft((d) => (d ? commitDriveDraft(d, text) : d))
-            // The content query is what previews read (the HTML Preview mode): hand it the saved
-            // text rather than refetching what was just written.
+            // Previews read the content query: hand it the saved text instead of refetching.
             queryClient.setQueryData(mountFileContentQueryKey(projectId, mount.id, path), text)
-            refreshMountListing(queryClient, projectId)
+            refreshMountListing(queryClient, projectId, {contents: false})
             setOutcome({ok: true, at: Date.now()})
             return {ok: true}
         } catch (e) {
@@ -141,9 +134,13 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
     }, [store, draftAtom, mount, path, projectId, queryClient, setDraft])
     const saveRef = useRef(save)
     saveRef.current = save
+    /** Forget the draft (the file is being deleted). */
+    const discard = useCallback(() => {
+        store.set(draftAtom, null)
+        setOutcome(null)
+    }, [store, draftAtom])
 
-    // Autosave: each edit re-arms the timer (a store subscription, so no render per keystroke);
-    // a failed write waits for the next edit or Cmd+S.
+    // Autosave via a store subscription (no render per keystroke); a failed write waits for the next edit.
     const failed = outcome != null && !outcome.ok
     const failedRef = useRef(failed)
     failedRef.current = failed
@@ -158,8 +155,7 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
             const d = store.get(draftAtom)
             if (!d || d.value === lastValue) return
             lastValue = d.value
-            // Guarded by the ref: an unconditional setState here would render the explorer once
-            // per keystroke even when it bails out.
+            // Ref-guarded: an unconditional setState would render the explorer per keystroke.
             if (failedRef.current) setOutcome(null)
             if (isDriveDraftDirty(d)) arm()
         })
@@ -169,13 +165,20 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
             if (timer) clearTimeout(timer)
         }
     }, [store, draftAtom, dirty, saving, failed])
-    // Leaving the file with an edit pending writes it at once rather than holding it in the atom.
-    useEffect(
-        () => () => {
-            if (isDriveDraftDirty(store.get(draftAtom))) void saveRef.current()
-        },
-        [store, draftAtom],
-    )
+    // Leaving the file flushes a pending edit, then releases the draft. `save` is taken at setup:
+    // by cleanup time the ref already holds the next file's.
+    useEffect(() => {
+        const flush = saveRef.current
+        draftHolders.set(key, (draftHolders.get(key) ?? 0) + 1)
+        return () => {
+            draftHolders.set(key, (draftHolders.get(key) ?? 1) - 1)
+            const release = () => {
+                if (!isDriveDraftDirty(store.get(draftAtom))) releaseDraft(store, key)
+            }
+            if (isDriveDraftDirty(store.get(draftAtom))) void flush().then(release)
+            else release()
+        }
+    }, [store, draftAtom, key])
     // "Saved" is a flash, not a state.
     const [now, setNow] = useState(0)
     useEffect(() => {
@@ -196,16 +199,17 @@ export function useDriveFileEditor(mount: Mount | null, path: string) {
 
     return {
         status,
-        /** The last write's failure, while `status` is "error". */
+        /** The last write's failure. */
         error: failed ? outcome.error : undefined,
         loading: query.isPending,
         failed: !query.isPending && fileText === null,
-        /** Write now (Cmd/Ctrl+S, or Retry after a failure). */
+        /** Write now (Cmd/Ctrl+S, Retry). */
         save,
+        discard,
     }
 }
 
-/** Mount once per host: warns before the tab unloads while any drive draft is unsaved. */
+/** Mount once per host: warns before unload while any draft is unsaved. */
 export function useDriveDirtyGuard() {
     const dirty = useAtomValue(anyDriveDraftDirtyAtom)
     useEffect(() => {
