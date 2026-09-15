@@ -9,9 +9,11 @@ import {cn} from "./utils"
  * Tabs — a Radix + cva primitive in @agenta/ui, following shadcn's source conventions (no
  * `forwardRef`, `data-slot` on every part). Re-skinned to antd's default LINE tabs via the shared token bridge.
  *
- * SCOPE: line type only (antd default). antd `type="card"`/`"editable-card"`, `tabPosition`
- * (left/right/bottom), and `addIcon`/editable affordances are a deferred variant — compose
- * later, do NOT add antd-shaped props speculatively.
+ * SCOPE: the antd LINE type (default) plus shadcn's own `pill` look — `TabsList variant="pill"`
+ * is the compact segmented switch (a muted track, the active trigger raised on the surface),
+ * with no ink bar. antd `type="card"`/`"editable-card"`, `tabPosition` (left/right/bottom), and
+ * `addIcon`/editable affordances are a deferred variant — compose later, do NOT add antd-shaped
+ * props speculatively.
  *
  * Ink bar: Radix has none, so `TabsList` renders a single absolutely-positioned bar and
  * measures the active trigger (offsetLeft/offsetWidth) to position it, transitioning left+width
@@ -48,6 +50,23 @@ const tabsTriggerVariants = cva([
     "[&_svg]:pointer-events-none [&_svg]:shrink-0",
 ])
 
+export type TabsListVariant = "line" | "pill"
+
+// The list tells its triggers which look they wear, so a call-site sets the variant once.
+const TabsVariantContext = React.createContext<TabsListVariant>("line")
+
+// shadcn's default trigger: a small rounded segment, raised (surface + shadow) while active.
+const pillTriggerClass = [
+    "box-border border-0 border-solid font-[inherit] bg-transparent",
+    "inline-flex h-full items-center justify-center gap-1.5 rounded-sm px-2 py-0.5 text-field-md",
+    "cursor-pointer whitespace-nowrap outline-none transition-[color,box-shadow,background-color]",
+    "text-muted-foreground hover:text-foreground",
+    "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
+    "disabled:pointer-events-none disabled:opacity-50",
+    "focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+].join(" ")
+
 function Tabs({className, ...props}: React.ComponentProps<typeof TabsPrimitive.Root>) {
     return (
         <TabsPrimitive.Root
@@ -64,14 +83,16 @@ const useIsoLayoutEffect = typeof window !== "undefined" ? React.useLayoutEffect
 function TabsList({
     className,
     children,
+    variant = "line",
     ...props
-}: React.ComponentProps<typeof TabsPrimitive.List>) {
+}: React.ComponentProps<typeof TabsPrimitive.List> & {variant?: TabsListVariant}) {
     const listRef = React.useRef<HTMLDivElement>(null)
     const [ink, setInk] = React.useState<{left: number; width: number} | null>(null)
 
     useIsoLayoutEffect(() => {
         const list = listRef.current
-        if (!list) return
+        // The pill look has no ink bar to place.
+        if (!list || variant === "pill") return
         const measure = () => {
             const active = list.querySelector<HTMLElement>(
                 '[data-slot=tabs-trigger][data-state="active"]',
@@ -89,7 +110,25 @@ function TabsList({
             mo.disconnect()
             ro.disconnect()
         }
-    }, [])
+    }, [variant])
+
+    if (variant === "pill")
+        return (
+            <TabsVariantContext.Provider value="pill">
+                <TabsPrimitive.List
+                    ref={listRef}
+                    data-slot="tabs-list"
+                    data-variant="pill"
+                    className={cn(
+                        "box-border inline-flex h-7 items-center gap-0.5 rounded-md border-0 bg-muted p-0.5 text-muted-foreground",
+                        className,
+                    )}
+                    {...props}
+                >
+                    {children}
+                </TabsPrimitive.List>
+            </TabsVariantContext.Provider>
+        )
 
     return (
         <TabsPrimitive.List
@@ -127,10 +166,11 @@ export interface TabsTriggerProps
         VariantProps<typeof tabsTriggerVariants> {}
 
 function TabsTrigger({className, ...props}: TabsTriggerProps) {
+    const variant = React.useContext(TabsVariantContext)
     return (
         <TabsPrimitive.Trigger
             data-slot="tabs-trigger"
-            className={cn(tabsTriggerVariants(), className)}
+            className={cn(variant === "pill" ? pillTriggerClass : tabsTriggerVariants(), className)}
             {...props}
         />
     )
