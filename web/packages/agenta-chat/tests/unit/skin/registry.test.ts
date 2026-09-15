@@ -1,9 +1,11 @@
 import {describe, expect, it} from "vitest"
 
+import {referenceToolSkin} from "../../../src/skin/referenceTools"
 import {
     hasClientToolWidget,
     registerChatSkin,
     resolveApprovalDescriber,
+    resolveActivityIcon,
     resolveClientToolWidget,
     resolveToolDisplay,
 } from "../../../src/skin/registry"
@@ -118,6 +120,8 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             activity: {running: "Adding a Gmail label", done: "Added a Gmail label"},
             detail: undefined,
             summary: undefined,
+            verb: {running: "Adding", done: "Added"},
+            icon: "gateway",
         })
     })
 
@@ -134,6 +138,8 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             activity: {running: "Searching Linear issues", done: "Searched Linear issues"},
             detail: undefined,
             summary: undefined,
+            verb: {running: "Searching", done: "Searched"},
+            icon: "mcp",
         })
     })
 
@@ -148,6 +154,8 @@ describe("toolDisplay registry — resolveToolDisplay fallback chain", () => {
             activity: {running: "Searching", done: "Searched"},
             detail: undefined,
             summary: undefined,
+            verb: undefined,
+            icon: "platform",
         })
     })
 
@@ -180,9 +188,156 @@ describe("toolDisplay registry — built-in defaults", () => {
         expect(display.summary).toBe(summary)
     })
 
+    it("reads the runtime pair as the app they reach", () => {
+        // `search_tools` returns its JSON as a string; the first hit names the app and the tool.
+        const found = JSON.stringify({
+            results: [{integration: "github", tool: "FIND_PULL_REQUESTS", name: "Find PRs"}],
+        })
+        const search = resolveToolDisplay(
+            "search_tools",
+            {query: "list merged pull requests"},
+            "GitHub",
+            found,
+        )
+        expect(search.sourceKey).toBe("github")
+        expect(search.kind).toBe("gateway")
+        expect(search.icon).toBe("tool-search")
+        expect(search.activity.done).toBe("Found GitHub pull requests")
+        // Nothing matched: the row says what it did, not what the query asked for.
+        const empty = resolveToolDisplay("search_tools", {query: "list merged pull requests"})
+        expect(empty.sourceKey).toBeUndefined()
+        expect(empty.activity.done).toBe("Searched for tools")
+        // `run_tool` IS the tool's call, so it keeps every verb — it did create the release.
+        const run = resolveToolDisplay(
+            "run_tool",
+            {integration: "github", tool: "CREATE_RELEASE", arguments: {}},
+            "GitHub",
+        )
+        expect(run.sourceKey).toBe("github")
+        expect(run.kind).toBe("gateway")
+        expect(run.activity.done).toBe("Created a GitHub release")
+    })
+
     it("puts the call's own detail in the secondary slot", () => {
         expect(resolveToolDisplay("Read", {file_path: "/repo/src/index.ts"}).detail).toBe(
             "index.ts",
         )
+    })
+})
+
+describe("toolDisplay registry — activity icons", () => {
+    it("names a builtin's glyph by verb and a platform op's by family", () => {
+        expect(resolveToolDisplay("Read", {file_path: "a.ts"}).icon).toBe("file-read")
+        expect(resolveToolDisplay("grep", {pattern: "x"}).icon).toBe("file-search")
+        expect(resolveToolDisplay("bash", {command: "ls"}).icon).toBe("terminal")
+        expect(resolveToolDisplay("Terminal", {command: "ls"}).icon).toBe("terminal")
+        expect(resolveToolDisplay("Terminal", {command: "ls"}).activity.done).toBe("Ran a command")
+        expect(resolveToolDisplay("__ag__pause_schedule").icon).toBe("schedule")
+        expect(resolveToolDisplay("__ag__create_subscription").icon).toBe("trigger")
+        expect(resolveToolDisplay("__ag__query_spans").icon).toBe("runs")
+        expect(resolveToolDisplay("__ag__request_input").icon).toBe("ask")
+        expect(resolveToolDisplay("__ag__request_secret").icon).toBe("secret")
+        expect(resolveToolDisplay("request_secret").activity.done).toBe("Asked you for a secret")
+    })
+
+    it("falls back to the kind's glyph for anything unlisted", () => {
+        expect(resolveActivityIcon("gateway", "tools__x__github__ISSUES_LIST__c1")).toBe("gateway")
+        expect(resolveActivityIcon("mcp", "mcp__linear__anything")).toBe("mcp")
+        expect(resolveActivityIcon("platform", "some_reference_tool")).toBe("platform")
+    })
+
+    it("lets a skin override the glyph without restating the wording", () => {
+        registerChatSkin({toolDisplay: {td_icon_only: {icon: "deliveries"}}})
+        const display = resolveToolDisplay("td_icon_only")
+        expect(display.icon).toBe("deliveries")
+        expect(display.label).toBe("Td icon only")
+    })
+
+    it("exposes the verb so a row can set the object apart", () => {
+        expect(resolveToolDisplay("Read", {file_path: "a.ts"}).verb).toEqual({
+            running: "Reading",
+            done: "Read",
+        })
+        expect(resolveToolDisplay("__ag__commit_revision").verb).toEqual({
+            running: "Saving",
+            done: "Saved",
+        })
+    })
+})
+
+describe("toolDisplay registry — shell detail", () => {
+    it("drops a leading cd that only positions the real command", () => {
+        const display = resolveToolDisplay("bash", {
+            command:
+                "cd /tmp/agenta/mounts/01a03952-d243-7890-aafa-8f1c6a42672a/01a068a4-5015-7a60-b42b-9b026927faf0 && git clone https://github.com/x/y",
+        })
+        expect(display.detail).toBe("git clone https://github.com/x/y")
+    })
+
+    it("names a skill by its folder, not its manifest", () => {
+        const display = resolveToolDisplay("Read", {
+            file_path:
+                "/tmp/agenta/mounts/p/m/agents/skills/5692802a/article-writing-feedback/SKILL.md",
+        })
+        expect(display.detail).toBe("article-writing-feedback skill")
+        expect(resolveToolDisplay("Read", {file_path: "docs/README.md"}).detail).toBe("README.md")
+    })
+
+    it("names an attachment folder by the file inside it", () => {
+        const path = "/tmp/agenta/mounts/p/m/attachments/01a05e23-7d4d-77b0-a889-9abde5dc8cab"
+        expect(resolveToolDisplay("ls", {path}, undefined, "report (2).csv").detail).toBe(
+            "report (2).csv",
+        )
+        expect(resolveToolDisplay("ls", {path}, undefined, "a.csv\nb.csv").detail).toBe(
+            "an attachment",
+        )
+        expect(resolveToolDisplay("ls", {path}).detail).toBe("an attachment")
+        expect(
+            resolveToolDisplay("ls", {
+                path: "/tmp/agenta/mounts/p/01a05e24-d3a6-77d3-ace4-10bf6f31364a",
+            }).detail,
+        ).toBe("the workspace")
+        expect(
+            resolveToolDisplay("ls", {
+                path: "/tmp/agenta/mounts/p/01a05e24-d3a6-77d3-ace4-10bf6f31364a-agent",
+            }).detail,
+        ).toBe("the agent's files")
+    })
+
+    it("keeps a bare cd", () => {
+        expect(resolveToolDisplay("bash", {command: "cd src"}).detail).toBe("cd src")
+    })
+})
+
+describe("referenceToolSkin", () => {
+    it("maps an agent's gateway tools to their app, leaving the wording name-derived", () => {
+        const skin = referenceToolSkin({
+            agent: {
+                tools: [
+                    {type: "gateway", name: "list-devto-articles", integration: "devto"},
+                    {type: "gateway_connection", connection: {integration: "hackernews"}},
+                    {type: "gateway", name: "", integration: "github"},
+                ],
+            },
+        })
+        expect(Object.keys(skin.toolDisplay ?? {})).toEqual(["list-devto-articles"])
+        expect(skin.appHints).toEqual(["devto", "hackernews"])
+        registerChatSkin(skin)
+        const display = resolveToolDisplay("list-devto-articles", {per_page: 3}, "DEV Community")
+        expect(display.kind).toBe("gateway")
+        expect(display.sourceKey).toBe("devto")
+        expect(display.icon).toBe("gateway")
+        expect(display.activity.done).toBe("Checked devto articles")
+    })
+
+    it("reads a bare name that carries a connected app's slug as that app's tool", () => {
+        registerChatSkin({appHints: ["hackernews"]})
+        const display = resolveToolDisplay("get_hackernews_latest_posts")
+        expect(display.sourceKey).toBe("hackernews")
+        expect(display.kind).toBe("gateway")
+        expect(display.activity.done).toBe("Got hackernews latest posts")
+        // Our own ops and unrelated names are untouched.
+        expect(resolveToolDisplay("__ag__query_spans").sourceKey).toBeUndefined()
+        expect(resolveToolDisplay("search").sourceKey).toBeUndefined()
     })
 })

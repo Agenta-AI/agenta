@@ -1,0 +1,80 @@
+import {ActivityNode} from "@agenta/chat/components"
+import {Alert, Button} from "@agenta/ui/ui"
+import {WarningCircle} from "@phosphor-icons/react"
+
+import {describeRunError} from "./runError"
+import {RunErrorDetails} from "./RunErrorDetails"
+
+/** A run that stopped: a `step` on the wire when it failed partway, a `card` when it never started. */
+export const RunErrorCallout = ({
+    text,
+    onRetry,
+    variant = "step",
+}: {
+    text: string
+    onRetry?: () => void
+    variant?: "step" | "card"
+}) => {
+    const error = describeRunError(text)
+
+    if (variant === "card") {
+        return (
+            <Alert
+                type="info"
+                showIcon
+                icon={<WarningCircle className="text-colorError" />}
+                className="max-w-[520px] px-3.5 py-3"
+                message="Couldn't start the run"
+                description={
+                    <div className="flex flex-col gap-1.5">
+                        {/* Not a <p>: the Alert gives every non-last paragraph a 16px margin. */}
+                        <span className="block text-[13px] leading-relaxed">
+                            {error.headline}
+                            {error.remedy ? ` ${error.remedy}` : null}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-3">
+                            {onRetry ? (
+                                <Button size="sm" variant="outline" onClick={onRetry}>
+                                    Try again
+                                </Button>
+                            ) : null}
+                            <RunErrorDetails raw={error.raw} />
+                        </div>
+                    </div>
+                }
+            />
+        )
+    }
+
+    return (
+        <div className="flex min-w-0 items-start gap-3.5">
+            <ActivityNode icon="platform" state="failed" />
+            <div className="flex min-w-0 flex-1 flex-col gap-1 pt-0.5">
+                <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span className="text-sm font-medium text-colorText">The run stopped</span>
+                    {error.status ? (
+                        <span className="font-mono text-[11px] text-colorTextTertiary">
+                            {error.status}
+                        </span>
+                    ) : null}
+                </div>
+                <p className="m-0 max-w-[64ch] text-sm leading-relaxed text-colorTextSecondary">
+                    {error.headline}
+                    {error.remedy ? ` ${error.remedy}` : null}
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                    {onRetry ? (
+                        <button
+                            type="button"
+                            onClick={onRetry}
+                            className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium text-colorText underline-offset-4 hover:underline"
+                        >
+                            Try again
+                        </button>
+                    ) : null}
+                    <RunErrorDetails raw={error.raw} />
+                </div>
+            </div>
+        </div>
+    )
+}

@@ -72,6 +72,36 @@ export interface ToolActivity {
     done: string
 }
 
+/** The closed set of activity-step glyphs, chosen by kind and canonical name, never per raw tool. */
+export type ActivityIcon =
+    | "brain"
+    | "terminal"
+    | "file-read"
+    | "file-write"
+    | "file-list"
+    | "file-search"
+    | "web-search"
+    | "web-fetch"
+    | "subtask"
+    | "task-list"
+    | "commit"
+    | "config"
+    | "rename"
+    | "test"
+    | "schedule"
+    | "trigger"
+    | "runs"
+    | "annotation"
+    | "deliveries"
+    | "tool-search"
+    | "connections"
+    | "gateway"
+    | "mcp"
+    | "platform"
+    | "ask"
+    | "connect"
+    | "secret"
+
 /**
  * One toolDisplay registry entry — mirrors the *registration-time* shape OSS actually stores in its
  * `BY_TOOL_NAME` map (`toolDisplay.ts`'s unexported `ToolDisplayOverride`: `{label?; source?;
@@ -87,14 +117,16 @@ export interface ToolDisplayEntry {
     /** Where the tool comes from ("Gmail", "Linear · MCP"); overrides the parsed default. */
     source?: string
     kind?: ToolKind
-    /** The row's sentence. A function when it names an app: it gets the real name, or undefined
-     * until the catalog answers. */
-    activity?: ToolActivity | ((appName?: string) => ToolActivity)
-    /** The app this call is about, read from its own arguments or result. `action` is the gateway
-     * ACTION token of a tool this one merely reported. */
-    app?: (input: unknown, output: unknown) => {slug?: string; action?: string}
+    /** The row's sentence; a function gets the app's name (undefined until known) and may decline. */
+    activity?: ToolActivity | ((appName?: string) => ToolActivity | undefined)
+    /** The app this call is about; `action` is a tool it reported, or with `ran`, called. */
+    app?: (input: unknown, output: unknown) => {slug?: string; action?: string; ran?: boolean}
     /** Friendly one-liner for a settled row; null/absent falls back to the generic summary. */
     summary?: (input: unknown, output: unknown) => string | null
+    /** The verb forms a static `activity` opens with, so a row can bold what follows. */
+    verb?: ToolActivity
+    /** The step glyph; overrides the kind's default. */
+    icon?: ActivityIcon
 }
 
 /**
@@ -113,6 +145,10 @@ export interface ResolvedToolDisplay {
     /** Short technical detail for the row's secondary slot (a command, a filename). */
     detail?: string
     summary?: (input: unknown, output: unknown) => string | null
+    /** The verb alone, in both tenses, when the sentence was built from one. */
+    verb?: ToolActivity
+    /** The step glyph, from the override or the kind's default. */
+    icon: ActivityIcon
 }
 
 /**
@@ -132,4 +168,6 @@ export interface ChatSkinRegistration {
     approvals?: Record<string, ApprovalDescriber>
     /** Raw tool name → display override (mirrors OSS `BY_TOOL_NAME`). */
     toolDisplay?: Record<string, ToolDisplayEntry>
+    /** Connected integration slugs: a bare tool name carrying one (`list-devto-articles`) is that app's. */
+    appHints?: string[]
 }

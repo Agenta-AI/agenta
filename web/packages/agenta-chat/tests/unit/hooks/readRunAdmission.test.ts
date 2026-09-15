@@ -27,7 +27,39 @@ const watcher = () => ({
     onFailed: vi.fn(),
 })
 
+const status = (phase: string) =>
+    `data: ${JSON.stringify({type: "data-agent-status", data: {phase}})}\n`
+
 describe("readRunAdmission", () => {
+    it("narrates the startup phases, before and after acceptance, and accepts only once", async () => {
+        const w = {...watcher(), onStartupPhase: vi.fn()}
+        await readRunAdmission(
+            streamOf([
+                status("environment_starting"),
+                accepted("turn-0"),
+                status("preparing_workspace"),
+                accepted("turn-0"),
+                `data: ${JSON.stringify({type: "error", errorText: "late"})}\n`,
+                status("environment_ready"),
+            ]),
+            w,
+        )
+        expect(w.onStartupPhase.mock.calls.map(([label]) => label)).toEqual([
+            "Getting things ready",
+            "Loading details",
+            "Ready",
+        ])
+        expect(w.onAccepted).toHaveBeenCalledTimes(1)
+        expect(w.onFailed).not.toHaveBeenCalled()
+    })
+
+    it("reads a status frame that shares the acceptance's chunk", async () => {
+        const w = {...watcher(), onStartupPhase: vi.fn()}
+        await readRunAdmission(streamOf([accepted("turn-0") + status("environment_ready")]), w)
+        expect(w.onStartupPhase).toHaveBeenCalledWith("Ready")
+        expect(w.onAccepted).toHaveBeenCalledTimes(1)
+    })
+
     it("reports the accepted turn id", async () => {
         const w = watcher()
         await readRunAdmission(streamOf([accepted("turn-1"), "data: {}\n"]), w)

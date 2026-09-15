@@ -52,18 +52,19 @@ export const useTranscriptAutoScroll = (content: unknown) => {
     // The pin above measures at layout time, but a transcript keeps growing after that — a fence
     // finishes highlighting, an image loads, a tool card lays itself out. Without this the opening
     // pin lands on a fraction of the final height and a long chat reads as starting at the top.
-    // Follow the growth while the reader is at the bottom; the moment they scroll up this no-ops.
+    // Follow growth at the bottom; parked mid-scroll, re-measure (a shrink clamps without a scroll event).
     useEffect(() => {
         const el = ref.current
         if (!el) return
         const observer = new ResizeObserver(() => {
-            if (!nearBottomRef.current || el.clientHeight === 0) return
-            el.scrollTop = el.scrollHeight
+            if (el.clientHeight === 0) return
+            if (nearBottomRef.current) el.scrollTop = el.scrollHeight
+            else measure(el)
         })
         observer.observe(el)
         for (const child of Array.from(el.children)) observer.observe(child)
         return () => observer.disconnect()
-    }, [content])
+    }, [content, measure])
 
     return {ref, onScroll, jumpToLatest, showJump}
 }
