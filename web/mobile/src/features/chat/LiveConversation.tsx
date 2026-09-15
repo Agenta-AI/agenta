@@ -29,7 +29,13 @@ import {
     type TurnViewModel,
 } from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
-import {cancelSessionExecution} from "@agenta/entities/session"
+import {
+    cancelSessionExecution,
+    dropUnacceptedLocalSessionAtom,
+    isSessionFresh,
+    markLocalSessionAcceptedAtom,
+    registerLocalSessionAtom,
+} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
@@ -116,12 +122,19 @@ export const LiveConversation = ({
     // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
     const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
     const startBlankSession = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
+    // The rail row for a fresh session follows its first send: admitted keeps it until the server
+    // lists the session, rejected or refused drops it (nothing will ever list that session).
+    const registerLocalSession = useSetAtom(registerLocalSessionAtom)
+    const markLocalSessionAccepted = useSetAtom(markLocalSessionAcceptedAtom)
+    const dropUnacceptedLocalSession = useSetAtom(dropUnacceptedLocalSessionAtom)
     const conversation = useAgentConversation({
         entityId,
         sessionId,
         sharedReaderAdvertised: sharedReader,
         sharedReaderRunning: running,
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
+        onSendAccepted: () => markLocalSessionAccepted(sessionId),
+        onSendFailed: () => dropUnacceptedLocalSession(sessionId),
     })
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
@@ -192,7 +205,42 @@ export const LiveConversation = ({
     const sendPendingTask = useSetAtom(sendPendingTaskAtom)
     const failPendingTask = useSetAtom(failPendingTaskAtom)
     const pendingTaskError = pendingTask?.delivery === "failed"
-    const {isHydrating, revalidate, send, stop, voidPendingResume} = conversation
+    const {
+        isHydrating,
+        revalidate,
+        send: sendToConversation,
+        stop,
+        voidPendingResume,
+    } = conversation
+    // A fresh session becomes real on the server only once this first message is admitted, which
+    // can take seconds on a cold runner. Note it locally first, so the rail lists it now (#6776).
+    const send = useCallback(
+        async (input: Parameters<typeof sendToConversation>[0]) => {
+            if (isSessionFresh(sessionId)) {
+                registerLocalSession({
+                    sessionId,
+                    projectId,
+                    agentId: agentId ?? null,
+                    name: input.text,
+                })
+            }
+            try {
+                await sendToConversation(input)
+            } catch (error) {
+                // The durable path reports this through `onSendFailed` too; this covers the rest.
+                dropUnacceptedLocalSession(sessionId)
+                throw error
+            }
+        },
+        [
+            agentId,
+            dropUnacceptedLocalSession,
+            projectId,
+            registerLocalSession,
+            sendToConversation,
+            sessionId,
+        ],
+    )
     useEffect(() => {
         if (!pendingTask || pendingTask.delivery) return
         const decision = pendingTaskDecision({
@@ -240,7 +288,11 @@ export const LiveConversation = ({
         readerReady: conversation.readerReady,
         ownedContinuation: conversation.acceptedRunPending,
     })
-    const showingTurnActivity = streamingHere || remoteTurn.showActivity
+    // `sendInFlight` covers the gap the other two cannot: the message has left the composer, and
+    // neither `useChat` (the server-owned path never moves its status) nor liveness (a poll away)
+    // knows yet. Without it the pulse arrived a runner accept plus a poll after the send (#6778).
+    const showingTurnActivity =
+        streamingHere || conversation.sendInFlight || remoteTurn.showActivity
     const streamingHereRef = useRef(streamingHere)
     streamingHereRef.current = streamingHere
     const hitlPendingRef = useRef(conversation.hitlPending)
@@ -784,7 +836,7 @@ export const LiveConversation = ({
                                 // An open edit rewrites its held message instead of sending. The
                                 // input clears on submit, so the displaced draft goes back after.
                                 if (!conversation.editingId) {
-                                    await conversation.send({text, parts})
+                                    await send({text, parts})
                                     return
                                 }
                                 const draft = await conversation.commitEdit({

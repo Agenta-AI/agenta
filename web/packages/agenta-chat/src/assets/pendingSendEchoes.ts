@@ -112,6 +112,18 @@ export const retirePendingSendEchoes = (
 }
 
 /** Disposable user rows; the id prefix keeps rewind from finding an echo in the AI SDK array. */
+/**
+ * Is a send still on its way to the runner, or streaming as an echo this client owns?
+ *
+ * Every echo that is not refused and not parked in the queue is a turn THIS client started and is
+ * still waiting on: from the moment it leaves the composer until its durable row retires it. That
+ * is the local "submitted" signal the AI SDK's `status` carries on the direct path, which the
+ * server-owned send path never sets — without it the working indicator waited for the next
+ * liveness poll to notice the run (#6778).
+ */
+export const pendingSendsInFlight = (pending: readonly PendingSendEcho[]): boolean =>
+    pending.some((echo) => !echo.failed && !echo.parkedInputId)
+
 export const pendingSendEchoMessages = (pending: readonly PendingSendEcho[]): UIMessage[] =>
     pending.map(
         (item) =>
