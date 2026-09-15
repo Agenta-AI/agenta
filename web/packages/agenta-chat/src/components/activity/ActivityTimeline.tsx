@@ -224,8 +224,8 @@ export const ActivityTimeline = ({
     const key = activityFoldKey(clockId)
     const stored = useAtomValue(expandedValueAtomFamily(key))
     const setExpanded = useSetAtom(setExpandedAtom)
-    // Closed by default; parked on the reader it opens itself, and the reader's toggle wins.
-    const open = stored ?? awaiting
+    // Closed by default, even parked on the reader: the header already says what it waits for.
+    const open = stored ?? false
 
     if (!steps.length && !live) return null
 

@@ -215,13 +215,13 @@ describe("ActivityTimeline", () => {
         expect(line).not.toMatch(/\d:\d\d/)
     })
 
-    it("keeps narrating while the run streams past an answer, and opens itself for a gate", () => {
+    it("keeps narrating while the run streams past an answer, and stays folded for a gate", () => {
         mount({steps: [toolStep("output-available")], streaming: true, answerStarted: true})
         const line = screen.getAllByRole("button")[0]
         expect(line.textContent).toContain("Answering")
         expect(line.getAttribute("aria-expanded")).toBe("false")
         cleanup()
         mount({steps: [toolStep("approval-requested")], streaming: true})
-        expect(screen.getAllByRole("button")[0].getAttribute("aria-expanded")).toBe("true")
+        expect(screen.getAllByRole("button")[0].getAttribute("aria-expanded")).toBe("false")
     })
 })
