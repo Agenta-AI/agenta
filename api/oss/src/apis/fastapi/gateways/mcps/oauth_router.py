@@ -7,6 +7,7 @@ document; nothing here reads a project, a secret, or any request state.
 
 from fastapi import APIRouter
 
+from oss.src.apis.fastapi.gateways.flags import MCP_GATEWAY_ENABLED
 from oss.src.core.gateways.mcps.oauth.registration import client_metadata_document
 from oss.src.core.gateways.mcps.oauth.service import callback_redirect_uri
 from oss.src.utils.env import env
@@ -14,7 +15,10 @@ from oss.src.utils.env import env
 
 class MCPOAuthClientMetadataRouter:
     def __init__(self) -> None:
-        self.router = APIRouter()
+        # Gated with the rest of the plane. The document exists so an authorization server
+        # can identify us during registration, and with the plane off there is no connection
+        # left to register for.
+        self.router = APIRouter(dependencies=[MCP_GATEWAY_ENABLED])
         self.router.add_api_route(
             "/oauth/client-metadata.json",
             self.get_client_metadata,

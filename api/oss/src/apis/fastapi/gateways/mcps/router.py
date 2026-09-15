@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
 
 from oss.src.apis.fastapi.gateways.exceptions import handle_gateway_exceptions
+from oss.src.apis.fastapi.gateways.flags import MCP_GATEWAY_ENABLED
 from oss.src.apis.fastapi.gateways.mcps.models import (
     MCPAgentaCredentialRequest,
     MCPAgentaCredentialResponse,
@@ -113,7 +114,11 @@ class MCPGatewayRouter:
     ):
         self.service = mcp_gateway_service
         self.oauth_connect_service = oauth_connect_service
-        self.router = APIRouter()
+        # The kill switch covers the connect flow as well as endpoint management: a browser
+        # returning to `/connect/callback` after an operator turned the plane off is holding
+        # an authorization code for a gateway that no longer serves, and storing the grant it
+        # buys would leave a connection nobody can use.
+        self.router = APIRouter(dependencies=[MCP_GATEWAY_ENABLED])
 
         self.router.add_api_route(
             "/credentials/agenta",
@@ -197,6 +202,10 @@ class MCPGatewayRouter:
         # The cron service POSTs to /admin/gateways/mcps/oauth/attempts/sweep, mounted
         # in entrypoints/routers.py under prefix /admin/gateways, the same shape as
         # /admin/triggers/schedules/refresh.
+        #
+        # Deliberately NOT gated on AGENTA_MCP_GATEWAY_ENABLED. Expiring abandoned OAuth
+        # attempts is table maintenance, not a product surface, and a deployment that turns
+        # the plane off still wants the rows it already has swept rather than kept forever.
         self.admin_router = APIRouter()
         self.admin_router.add_api_route(
             "/mcps/oauth/attempts/sweep",

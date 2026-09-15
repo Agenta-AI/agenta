@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, status
 
 from oss.src.apis.fastapi.gateways.exceptions import handle_gateway_exceptions
+from oss.src.apis.fastapi.gateways.flags import LLM_GATEWAY_ENABLED
 from oss.src.apis.fastapi.gateways.llms.models import (
     LLMEndpointCreateRequest,
     LLMEndpointEditRequest,
@@ -51,7 +52,10 @@ def _guard_custom_endpoint_base_url(
 class LLMGatewayRouter:
     def __init__(self, *, llm_gateway_service: "LLMGatewayService"):
         self.service = llm_gateway_service
-        self.router = APIRouter()
+        # Declared on the router rather than repeated in seven handlers, so a route added
+        # later cannot be born ungated. `/resolve` is the one that matters: the agent SDK
+        # reads its refusal as the signal to resolve from the vault instead.
+        self.router = APIRouter(dependencies=[LLM_GATEWAY_ENABLED])
 
         self.router.add_api_route(
             "/resolve",

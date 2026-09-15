@@ -965,12 +965,39 @@ class GatewayEgressConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class LLMGatewayConfig(BaseModel):
+    """Whether this deployment serves the LLM gateway plane at all.
+
+    The product switch, not a security or mock escape hatch: with it off the API refuses
+    every LLM gateway route and the agent SDK resolves a model the way it did before the
+    gateway existed, by reading the project's vault key and injecting it into the sandbox.
+    Default off, because that legacy path is what every existing deployment runs today and
+    a routing change is not something an upgrade should make on an operator's behalf.
+
+    The API is the authority. The SDK carries no matching flag of its own: it learns the
+    plane is off from the refusal this flag produces (`llm_gateway_disabled`), so one
+    deployment cannot end up with a runtime routing through a gateway the API has closed.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_LLM_GATEWAY_ENABLED", default=False)
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class MCPGatewayConfig(BaseModel):
-    """`HttpMCPAdapter`'s outbound-guard escape hatch. Mirrors the runner's
-    `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`: a `custom` MCP server whose host is
-    listed here skips the SSRF guard (`core/webhooks/utils.py`) entirely, so a
-    self-hoster can reach one known internal server without disabling the
+    """The MCP gateway plane: whether it serves, and its outbound-guard escape hatch.
+
+    `enabled` is the operator's kill switch, default on, because the MCP gateway is the
+    feature this release ships. Off, the API refuses every MCP gateway route, the settings
+    navigation hides the MCP endpoints tab, and an agent run dials its declared MCP servers
+    directly with the named secrets the runtime already injects — the pre-gateway behavior.
+
+    `host_allowlist` mirrors the runner's `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`: a `custom` MCP
+    server whose host is listed here skips the SSRF guard (`core/webhooks/utils.py`)
+    entirely, so a self-hoster can reach one known internal server without disabling the
     guard globally via AGENTA_INSECURE_EGRESS_ALLOWED."""
+
+    enabled: bool = _parse_bool_env("AGENTA_MCP_GATEWAY_ENABLED", default=True)
 
     host_allowlist: list[str] = _load_csv_env_list("AGENTA_MCP_GATEWAY_HOST_ALLOWLIST")
 
@@ -2035,6 +2062,7 @@ class EnvironSettings(BaseModel):
     gateway_egress: GatewayEgressConfig = GatewayEgressConfig()
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
+    llm_gateway: LLMGatewayConfig = LLMGatewayConfig()
     loops: LoopsConfig = LoopsConfig()
     mcp_gateway: MCPGatewayConfig = MCPGatewayConfig()
     mock_gateways: MockGatewaysConfig = MockGatewaysConfig()

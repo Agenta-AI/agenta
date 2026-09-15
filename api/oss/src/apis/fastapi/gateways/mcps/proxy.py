@@ -17,7 +17,11 @@ from oss.src.core.gateways.dtos import (
     GatewayEndpointNamespace,
     forwardable_request_headers,
 )
-from oss.src.core.gateways.types import GatewayEndpointInactiveError
+from oss.src.core.gateways.types import (
+    GatewayEndpointInactiveError,
+    GatewayPlaneDisabledError,
+    MCPGatewayDisabledError,
+)
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
     MCPEndpointNotFoundError,
@@ -33,6 +37,7 @@ from oss.src.core.gateways.policy.types import (
     PolicyDeniedError,
 )
 from oss.src.utils.context import get_auth_scope
+from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 
 if TYPE_CHECKING:
@@ -44,6 +49,7 @@ _JSONRPC_SERVER_ERROR = -32000
 
 # Exceptions represented as JSON-RPC gateway errors.
 _MAPPED_EXCEPTIONS = (
+    GatewayPlaneDisabledError,
     GatewayEndpointInactiveError,
     ValueError,
     MCPEndpointNotFoundError,
@@ -106,6 +112,13 @@ def _protocol_error(
 
 
 def _map_gateway_exception(e: BaseException) -> Response:
+    if isinstance(e, GatewayPlaneDisabledError):
+        return _protocol_error(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code=_JSONRPC_SERVER_ERROR,
+            message=e.message,
+            cause=e.code,
+        )
     if isinstance(e, ValueError):
         return _protocol_error(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -261,6 +274,11 @@ class MCPGatewayProxy:
         provider: Optional[str] = None,
         integration: Optional[str] = None,
     ) -> Response:
+        # Checked before the body is read: with the plane off there is nothing to relay to,
+        # and a runner holding a gateway URL needs the refusal, not a parse error.
+        if not env.mcp_gateway.enabled:
+            return _map_gateway_exception(MCPGatewayDisabledError())
+
         scope = get_auth_scope()
         headers = _forwarded_headers(request)
 

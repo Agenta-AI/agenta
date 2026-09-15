@@ -11,12 +11,35 @@ exchange itself is not a data-plane route, which is what stops the confined cred
 minting another one.
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+from oss.src.apis.fastapi.gateways.flags import (
+    require_llm_gateway_enabled,
+    require_mcp_gateway_enabled,
+)
+from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.middlewares.auth import GATEWAY_TOKEN_AUDIENCE, sign_secret_token
 from oss.src.utils.context import get_auth_scope
 from oss.src.utils.exceptions import intercept_exceptions
+
+
+class GatewayCredentialsRequest(BaseModel):
+    """Optionally, which plane the caller is about to use the credential on.
+
+    The exchange itself is plane-agnostic — one credential reaches both data planes — so
+    this field exists for one reason: it is the only moment a caller that is about to use
+    the MCP gateway talks to the API before it dials. Without it, an SDK asking for a
+    credential cannot learn that the MCP plane is switched off until a tool call fails
+    mid-run, which is far too late to fall back to dialling the server directly.
+
+    Optional, so an older SDK that sends `{}` still gets a credential. That caller then
+    meets the refusal on the data plane instead, which is a worse error but not a wrong one.
+    """
+
+    plane: Optional[GatewayPlane] = None
 
 
 class GatewayCredentialsResponse(BaseModel):
@@ -41,13 +64,25 @@ class GatewayCredentialsRouter:
     async def issue_gateway_credentials(
         self,
         request: Request,
+        *,
+        body: Optional[GatewayCredentialsRequest] = None,
     ) -> GatewayCredentialsResponse:
         """Exchange the caller's credential for one that only the gateway accepts.
 
         No permission check of its own: the result is strictly weaker than the credential
         that bought it — same tenant scope, same run, fewer routes — so a caller can reach
         nothing here it could not already reach with what it presented.
+
+        It does check the switch for the plane the caller named, because minting a credential
+        for a plane that will refuse every request is worse than refusing here: the caller
+        still has a pre-gateway path at this point and none once the run is under way.
         """
+        plane = body.plane if body else None
+        if plane is GatewayPlane.LLM:
+            require_llm_gateway_enabled()
+        elif plane is GatewayPlane.MCP:
+            require_mcp_gateway_enabled()
+
         scope = get_auth_scope()
 
         # Carried over rather than re-derived, so the confined credential names the same

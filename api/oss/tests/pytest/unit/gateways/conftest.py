@@ -11,6 +11,8 @@ itself), which wins because it runs inside the test body.
 
 import pytest
 
+from oss.src.utils.env import env
+
 # example.com. Routable and in no blocked range, matching the webhook suite's precedent.
 PUBLIC_ADDRESS = "93.184.216.34"
 
@@ -51,3 +53,18 @@ def _public_dns_by_default(monkeypatch):
         "oss.src.core.webhooks.utils.socket.getaddrinfo",
         lambda *_args, **_kwargs: _addrinfo(PUBLIC_ADDRESS),
     )
+
+
+@pytest.fixture(autouse=True)
+def _llm_gateway_plane_on(monkeypatch):
+    """Serve the LLM gateway plane for the suites in this directory.
+
+    `AGENTA_LLM_GATEWAY_ENABLED` defaults off, so every one of these tests would otherwise
+    be answered by the switch instead of by the code it is about. What the switch itself
+    does — that it refuses, in which shape, on which surfaces, and that it leaves the MCP
+    plane alone — is asserted in `test_gateways_plane_flags.py`, which sets both switches
+    per test and so is unaffected by this default.
+
+    The MCP plane needs no equivalent: its switch ships on.
+    """
+    monkeypatch.setattr(env.llm_gateway, "enabled", True)
