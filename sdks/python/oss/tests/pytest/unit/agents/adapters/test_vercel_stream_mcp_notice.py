@@ -80,3 +80,47 @@ async def test_a_notice_without_a_status_keeps_its_code_and_sentence() -> None:
         "reasonCode": "handshake_unreachable",
         "message": "MCP server gw-mock-mcp failed to connect: handshake_unreachable",
     }
+
+
+AUTH_NOTICE = {
+    "serverName": "acme",
+    "reasonCode": "handshake_http_error",
+    "status": 409,
+    "message": "MCP server acme failed to connect: 409",
+    "detail": {
+        "code": "auth_required",
+        "message": "Authorization required for custom/acme",
+        "retryable": False,
+        "details": {
+            "cause": "auth_required",
+            "requirement": {
+                "target": "custom/acme",
+                "state": "needs_auth",
+                "connect": {
+                    "endpoint": "/gateways/mcps/endpoints/acme-id/connect",
+                    "body": {},
+                },
+            },
+        },
+    },
+}
+
+
+@pytest.mark.asyncio
+async def test_the_notice_carries_the_reconnect_action() -> None:
+    """OR85: a disconnected connection refuses the handshake, and the remedy rides that refusal.
+
+    The projection is an allowlist, so a field the runner adds reaches the client only when it is
+    named here. `detail` holds `requirement.connect` — the endpoint that reconnects the server —
+    and without it the client sees "failed to connect: 409" and nothing to offer the user.
+    """
+    events = _records([{"type": "mcp_server_failed", "data": AUTH_NOTICE}])
+
+    parts = [part async for part in agent_stream_to_vercel_stream(events)]
+
+    notice = next(part for part in parts if part["type"] == "data-mcp-server-failed")
+    assert notice["data"]["detail"]["code"] == "auth_required"
+    assert (
+        notice["data"]["detail"]["details"]["requirement"]["connect"]["endpoint"]
+        == "/gateways/mcps/endpoints/acme-id/connect"
+    )

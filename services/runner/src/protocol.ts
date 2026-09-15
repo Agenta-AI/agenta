@@ -483,6 +483,12 @@ export type AgentEvent =
       /** The handshake's HTTP status, when the server answered at all. */
       status?: number;
       message: string;
+      /**
+       * The gateway's own refusal, when the handshake body carried one. A disconnected MCP
+       * connection refuses the handshake itself, so this is where `requirement.connect` — the
+       * endpoint that reconnects it — reaches a caller (OR85). Absent for any other failure.
+       */
+      detail?: AgentErrorDetail;
     }
   | {
       type: "usage";
