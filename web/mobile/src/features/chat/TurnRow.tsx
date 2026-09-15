@@ -272,8 +272,9 @@ const TurnRowInner = ({
                 />
             ) : null}
             {/* The turn's meta line sits under the answer, revealed on hover or focus like the
-                desktop's; the row keeps its height so nothing shifts when it appears. */}
-            {!live ? (
+                desktop's; the row keeps its height so nothing shifts when it appears. Not while
+                the run is parked on the reader: the turn is not over, only waiting. */}
+            {!live && !(turn.isLast && waitingOnUser) ? (
                 <div
                     className={`flex min-h-6 items-center gap-1 ${
                         inspectorEnabled ? "" : turnToolbarRevealClass
