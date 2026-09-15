@@ -408,3 +408,145 @@ async def test_two_projects_at_one_url_never_see_each_others_grants(
     # Same connection id, another project. Nothing is reachable.
     elsewhere = _storage(project_id=uuid4(), server_url=url, endpoint_id=connection.id)
     assert await elsewhere.get_grant() is None
+
+
+async def test_disconnecting_one_account_leaves_the_other_at_the_same_url_working(
+    project, connect_service, local_mcp_oauth_provider
+):
+    """The operation the settings surface needs: drop one account's authorization and
+    leave every other connection to that server untouched."""
+    project_id, user_id = project["project_id"], project["user_id"]
+    url = local_mcp_oauth_provider.server_url
+
+    account_a = await _create_connection(
+        project=project, slug="disconnect-a", name="Acme, work", base_url=url
+    )
+    account_b = await _create_connection(
+        project=project, slug="disconnect-b", name="Acme, personal", base_url=url
+    )
+    for endpoint_id in (account_a.id, account_b.id):
+        await _consent(
+            service=connect_service,
+            provider=local_mcp_oauth_provider,
+            project_id=project_id,
+            user_id=user_id,
+            endpoint_id=endpoint_id,
+        )
+    assert len(await _grants(project_id=project_id)) == 2
+
+    dropped = await connect_service.disconnect(
+        project_id=project_id, endpoint_id=account_a.id, server_url=url
+    )
+
+    assert dropped is True
+    remaining = await _grants(project_id=project_id)
+    assert len(remaining) == 1
+    assert remaining[0].slug == grant_slug(account_b.id)
+
+    storage_b = _storage(
+        project_id=project_id, server_url=url, endpoint_id=account_b.id
+    )
+    grant_b = await storage_b.get_grant()
+    assert grant_b is not None and grant_b.access_token
+
+    storage_a = _storage(
+        project_id=project_id, server_url=url, endpoint_id=account_a.id
+    )
+    assert await storage_a.get_grant() is None
+
+    # And B can still renew, so A's disconnect did not spend B's handle.
+    aging_b = SecretsTokenStorage(
+        vault_service=VaultService(secrets_dao=SecretsDAO()),
+        project_id=project_id,
+        server_url=url,
+        endpoint_id=account_b.id,
+        authorization_server=grant_b.issuer,
+    )
+    await aging_b.write_tokens(
+        OAuthToken(
+            access_token=grant_b.access_token,
+            token_type="Bearer",
+            expires_in=-3600,
+            refresh_token=grant_b.refresh_token,
+            scope=" ".join(grant_b.scopes) if grant_b.scopes else None,
+        )
+    )
+    await connect_service.refresh_grant(
+        project_id=project_id, endpoint_id=account_b.id, server_url=url
+    )
+    renewed_b = await storage_b.get_grant()
+    assert renewed_b is not None
+    assert renewed_b.expires_at is not None
+    assert renewed_b.expires_at > int(time.time())
+
+
+async def test_disconnecting_something_already_disconnected_changes_nothing(
+    project, connect_service, local_mcp_oauth_provider
+):
+    """A repeated click or a retried request is not an error."""
+    project_id, user_id = project["project_id"], project["user_id"]
+    url = local_mcp_oauth_provider.server_url
+
+    connection = await _create_connection(
+        project=project, slug="twice", name="Acme", base_url=url
+    )
+    await _consent(
+        service=connect_service,
+        provider=local_mcp_oauth_provider,
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=connection.id,
+    )
+
+    assert (
+        await connect_service.disconnect(
+            project_id=project_id, endpoint_id=connection.id, server_url=url
+        )
+        is True
+    )
+    assert (
+        await connect_service.disconnect(
+            project_id=project_id, endpoint_id=connection.id, server_url=url
+        )
+        is False
+    )
+    assert await _grants(project_id=project_id) == []
+
+
+async def test_a_disconnected_connection_can_consent_again(
+    project, connect_service, local_mcp_oauth_provider
+):
+    """Disconnect is not delete: the connection keeps its identity, so reconnecting
+    lands on the same row every configured agent already names."""
+    project_id, user_id = project["project_id"], project["user_id"]
+    url = local_mcp_oauth_provider.server_url
+
+    connection = await _create_connection(
+        project=project, slug="reconnect", name="Acme", base_url=url
+    )
+    first = await _consent(
+        service=connect_service,
+        provider=local_mcp_oauth_provider,
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=connection.id,
+    )
+    await connect_service.disconnect(
+        project_id=project_id, endpoint_id=connection.id, server_url=url
+    )
+
+    second = await _consent(
+        service=connect_service,
+        provider=local_mcp_oauth_provider,
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=connection.id,
+    )
+
+    # A new row, because the old one was deleted, but under the same slug: the
+    # connection's identity outlives its credentials.
+    assert second.secret_id != first.secret_id
+    grants = await _grants(project_id=project_id)
+    assert len(grants) == 1
+    assert grants[0].slug == grant_slug(connection.id)
+    assert grants[0].data.grant.endpoint_id == connection.id

@@ -353,6 +353,26 @@ against production traffic.
 and the upgrade sets a `lock_timeout`. Proven by reading the revision. Tracked as OR68 in
 `open-reviews.md`.
 
+## CU20. Revoke a disconnected grant at the authorization server
+
+**What.** Disconnecting a connection deletes its vault row and tells nobody.
+`api/oss/src/core/gateways/mcps/oauth/storage.py::delete_grant` removes the record, and
+`MCPOAuthConnectService.disconnect` is its only caller. The access token and the refresh token stay
+live at the provider until they expire, so a person who disconnected an account has stopped Agenta
+using it without the provider forgetting what Agenta held.
+
+**Why it is still open.** RFC 7009 revocation needs a `revocation_endpoint`, which this deployment
+does not read out of authorization-server metadata, and a server advertising none cannot be revoked
+at. The discovery, the call and the failure behaviour — a disconnect must disconnect even when the
+revocation fails — are more than the connection-identity change should carry.
+
+**Done.** `disconnect` discovers the revocation endpoint, presents the grant there, and deletes the
+row either way. Proven by a case beside
+`api/oss/tests/pytest/integration/gateways/test_mcp_oauth_connection_identity.py`. Tracked as OR81
+in `open-reviews.md`.
+
+---
+
 ---
 
 ## What is not on this list

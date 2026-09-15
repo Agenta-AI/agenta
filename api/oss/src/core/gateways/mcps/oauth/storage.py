@@ -203,6 +203,27 @@ class SecretsTokenStorage:
         except SecretSlugConflict:
             return await self._update_by_slug(slug=slug, secret=secret)
 
+    async def delete_grant(self) -> bool:
+        """Drop this connection's grant. Returns whether there was one to drop.
+
+        One row, named by one slug, so disconnecting one account cannot take another
+        account's credentials with it. This is safe only because the key moved off the
+        server URL: under the old key it would have disconnected every connection at
+        that server.
+
+        Local only. Nothing is revoked at the authorization server, so the token stays
+        live upstream until it expires. Recorded as debt (CU20) rather than left
+        unsaid: revocation needs an endpoint this deployment does not discover yet.
+        """
+        existing = await self._find_grant()
+        if existing is None:
+            return False
+        await self.vault_service.delete_secret(
+            secret_id=existing.id,
+            project_id=self.project_id,
+        )
+        return True
+
     # Client registration
 
     async def _find_provider(self) -> Optional[SecretResponseDTO]:

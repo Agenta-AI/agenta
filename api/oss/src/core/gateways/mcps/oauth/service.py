@@ -281,6 +281,27 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             secret_id=grant.id,
         )
 
+    async def disconnect(
+        self, *, project_id: UUID, endpoint_id: UUID, server_url: str
+    ) -> bool:
+        """Drop one connection's stored grant. Returns whether there was one.
+
+        The inverse of `complete()`, and keyed the same way, so disconnecting one
+        account at a server leaves every other connection to that server working.
+
+        The client registration is not touched. It names this deployment to the
+        authorization server rather than an account, and other connections there are
+        still using it; re-registering on every disconnect would also mint a fresh
+        client each time anyone reconnects.
+        """
+        storage = SecretsTokenStorage(
+            vault_service=self.vault_service,
+            project_id=project_id,
+            server_url=server_url,
+            endpoint_id=endpoint_id,
+        )
+        return await storage.delete_grant()
+
     # Refresh
 
     def _refresh_lock(self, *, project_id: UUID, endpoint_id: UUID) -> asyncio.Lock:
