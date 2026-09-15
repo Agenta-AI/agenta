@@ -256,7 +256,7 @@ export function DriveExplorer({
     const selectedMountPath = selectedResolved?.path ?? selectedPath ?? ""
     const selectedFileSize = selected?.size ?? selectedNode?.size ?? undefined
 
-    // ---- Writes (create / rename / duplicate / move / delete) -------------------------------------
+    // ---- Writes (create / rename / duplicate / delete) ------------------------------------------
     // Same gate as uploads: a writable, real mount (never the local-file attachment viewer).
     const canWrite = canUpload
     const writes = useDriveWrites(drive)
@@ -296,16 +296,12 @@ export function DriveExplorer({
                     ok = await writes.duplicate(req.path, value)
                     landed = parentPath(req.path) ? `${parentPath(req.path)}/${value}` : value
                     break
-                case "move":
-                    ok = await writes.move(req.path, value)
-                    landed = value ? `${value}/${req.path.split("/").pop()}` : (req.path.split("/").pop() ?? null)
-                    break
             }
             if (!ok) return
             setNameRequest(null)
             if (landed == null) return
-            // A rename / move keeps its place in history; a new item is a real step.
-            if ((req.kind === "rename" || req.kind === "move") && req.path === selectedPath)
+            // A rename keeps its place in history; a new item is a real step.
+            if (req.kind === "rename" && req.path === selectedPath)
                 replaceSelection(landed)
             else select(landed)
         },
@@ -329,7 +325,6 @@ export function DriveExplorer({
                 ? {
                       onRename: (path) => requestName("rename", path),
                       onDuplicate: (path) => requestName("duplicate", path),
-                      onMove: (path) => requestName("move", path),
                       onDelete: (path, isFolder) => void onDelete(path, isFolder),
                   }
                 : undefined,
@@ -341,7 +336,6 @@ export function DriveExplorer({
                 ? {
                       onRename: () => requestName("rename", selectedPath),
                       onDuplicate: () => requestName("duplicate", selectedPath),
-                      onMove: () => requestName("move", selectedPath),
                       onDelete: () => void onDelete(selectedPath, false),
                   }
                 : undefined,

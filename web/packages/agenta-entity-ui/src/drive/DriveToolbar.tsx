@@ -4,7 +4,7 @@
  *
  *   folder   — grid / list · Sort ▾ · ⋯ (New folder · New file · Upload files… · Download all)
  *   markdown — the formatting bar (portalled in by the editor) · Revert / Save while dirty ·
- *              the Markdown / Plain text mode dropdown · ⋯ (Rename · Duplicate · Move to… · Delete)
+ *              the Markdown / Plain text mode dropdown · ⋯ (Rename · Duplicate · Delete)
  *   other    — the type badge + "<Type> · preview" · ⋯ (the same file actions)
  *
  * Pure presentation; every value comes from DriveExplorer's hooks.
@@ -55,11 +55,10 @@ const SORT_LABELS: Record<DriveSortKey, string> = {
     size: "Size",
 }
 
-/** The actions a FILE offers (rename / duplicate / move / delete) — absent = read-only mount. */
+/** The actions a FILE offers (rename / duplicate / delete) — absent = read-only mount. */
 export interface DriveFileActions {
     onRename: () => void
     onDuplicate: () => void
-    onMove: () => void
     onDelete: () => void
 }
 
@@ -118,9 +117,6 @@ const FileActionsMenu = ({actions}: {actions?: DriveFileActions}) => (
             </DropdownMenuItem>
             <DropdownMenuItem disabled={!actions} onSelect={actions?.onDuplicate}>
                 Duplicate
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={!actions} onSelect={actions?.onMove}>
-                Move to…
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

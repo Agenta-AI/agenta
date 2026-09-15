@@ -131,7 +131,7 @@ export const Row2: Story = {
                     saving={false}
                     onSave={noop}
                     onRevert={noop}
-                    actions={{onRename: noop, onDuplicate: noop, onMove: noop, onDelete: noop}}
+                    actions={{onRename: noop, onDuplicate: noop, onDelete: noop}}
                 />
             </Frame>
             <Frame>
@@ -144,7 +144,7 @@ export const Row2: Story = {
                     saving={false}
                     onSave={noop}
                     onRevert={noop}
-                    actions={{onRename: noop, onDuplicate: noop, onMove: noop, onDelete: noop}}
+                    actions={{onRename: noop, onDuplicate: noop, onDelete: noop}}
                 />
             </Frame>
             <Frame>
