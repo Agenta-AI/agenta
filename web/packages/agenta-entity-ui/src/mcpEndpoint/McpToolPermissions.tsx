@@ -125,7 +125,7 @@ export default function McpToolPermissions({
     }
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3" data-testid="mcp-tool-permissions">
             {!perTool ? (
                 <div className="flex flex-col items-start gap-1">
                     <p className="m-0 text-xs text-[var(--ag-colorTextSecondary)]">

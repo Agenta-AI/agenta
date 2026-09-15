@@ -122,7 +122,7 @@ export default function McpConnectionDetail({
             destroyOnClose
         >
             {endpoint ? (
-                <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-5" data-testid="mcp-connection-detail">
                     <div className="flex items-center gap-2">
                         <Tag tone={isReady ? "green" : "gold"} className="m-0 text-xs">
                             {getMcpConnectionStateLabel(connectionState ?? "needs_auth")}
@@ -171,7 +171,9 @@ export default function McpConnectionDetail({
                         <Button variant="ghost" onClick={() => onReconnect(endpoint)}>
                             {isReady ? "Reconnect" : "Connect"}
                         </Button>
-                        {isReady ? (
+                        {/* Only an OAuth connection holds a grant to revoke; the route
+                            refuses anything else. */}
+                        {isReady && endpoint.auth_mode === "oauth" ? (
                             <Button variant="ghost" onClick={() => onDisconnect(endpoint)}>
                                 Disconnect
                             </Button>
@@ -230,7 +232,7 @@ const ToolList = ({
     return (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {state.tools.map((tool) => (
-                <li key={tool.name} className="flex flex-col gap-0.5">
+                <li key={tool.name} data-testid="mcp-tool" className="flex flex-col gap-0.5">
                     <span className="text-sm text-colorText">{tool.name}</span>
                     {tool.description ? (
                         <span className="text-xs text-colorTextDescription">
