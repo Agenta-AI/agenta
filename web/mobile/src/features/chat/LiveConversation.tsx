@@ -2,7 +2,6 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     EDGE_FADE_MASK,
-    jumpGateOpen,
     latestTurnId,
     resolveStopExecution,
     shouldShowStopControl,
@@ -36,7 +35,7 @@ import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
-import {ChatBubble, ChatJumpToLatest} from "@agenta/ui/components/presentational"
+import {ChatBubble} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
@@ -525,15 +524,6 @@ export const LiveConversation = ({
     })
     const secretDockOpen =
         !streamingHere && !stopping && !conversation.stopped && Boolean(pendingSecret)
-    // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
-    // surface has no question-form dock yet, so approvals, connect, and secret cards gate it.
-    const gateOpen =
-        jumpGateOpen({
-            approvals: pendingApprovals.length,
-            elicitationOpen: false,
-            connectionOpen: connects.open,
-        }) || secretDockOpen
-
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
     // so the warning about tools that already ran, and putting a rewound user message back into
     // the composer, are this surface's job — same division the desktop uses. `composerRef` is
@@ -656,12 +646,6 @@ export const LiveConversation = ({
             <ScreenScaffold
                 scrollRef={autoScroll.ref}
                 onScroll={autoScroll.onScroll}
-                scrollOverlay={
-                    <ChatJumpToLatest
-                        show={autoScroll.showJump && !gateOpen}
-                        onClick={autoScroll.jumpToLatest}
-                    />
-                }
                 embedded={embedded}
                 // The top edge fades as a MASK, exactly as the desktop transcript does — content
                 // dissolves under the tab bar instead of being cut by a hard line.

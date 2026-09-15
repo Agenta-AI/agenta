@@ -6,7 +6,6 @@ import {
     createTurnViewModelCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
-import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -222,9 +221,6 @@ const ReplayScreen = ({
         <ScreenScaffold
             scrollRef={autoScroll.ref}
             onScroll={autoScroll.onScroll}
-            scrollOverlay={
-                <ChatJumpToLatest show={autoScroll.showJump} onClick={autoScroll.jumpToLatest} />
-            }
             embedded={embedded}
             header={
                 <>
