@@ -121,11 +121,11 @@ export interface ToolDisplayEntry {
     source?: string
     kind?: ToolKind
     /** The row's sentence. A function when it names an app: it gets the real name, or undefined
-     * until the catalog answers. */
-    activity?: ToolActivity | ((appName?: string) => ToolActivity)
+     * until the catalog answers; returning undefined lets the reported tool's own wording speak. */
+    activity?: ToolActivity | ((appName?: string) => ToolActivity | undefined)
     /** The app this call is about, read from its own arguments or result. `action` is the gateway
-     * ACTION token of a tool this one merely reported. */
-    app?: (input: unknown, output: unknown) => {slug?: string; action?: string}
+     * ACTION token of a tool this one reported — or, with `ran`, actually called. */
+    app?: (input: unknown, output: unknown) => {slug?: string; action?: string; ran?: boolean}
     /** Friendly one-liner for a settled row; null/absent falls back to the generic summary. */
     summary?: (input: unknown, output: unknown) => string | null
     /** The verb forms a static `activity` opens with ("Reading" / "Read"), so a row can bold what
