@@ -358,6 +358,8 @@ async def test_the_harness_own_spelling_is_read_from_the_request(rendered):
 
     payload = json.loads((await _drain(result.body))[0])
     assert payload["output"][0]["name"] == rendered
+    # A top-level tool has no namespace, so the field is omitted rather than sent empty.
+    assert "namespace" not in payload["output"][0]
 
 
 @pytest.mark.asyncio
@@ -396,7 +398,12 @@ async def test_a_namespaced_tool_is_named_by_its_namespace():
     )
 
     payload = json.loads((await _drain(result.body))[0])
-    assert payload["output"][0]["name"] == "mcp__mock_mcp.echo"
+    call = payload["output"][0]
+    # Codex keeps the two halves apart on the wire and rebuilds the identity itself with
+    # `ToolName::new(namespace, name)` (codex-rs/core/src/tools/router.rs, rust-v0.154.0). Any
+    # joined spelling lands in the default namespace and comes back `unsupported call`.
+    assert call["name"] == "echo"
+    assert call["namespace"] == "mcp__mock_mcp"
 
 
 @pytest.mark.asyncio
