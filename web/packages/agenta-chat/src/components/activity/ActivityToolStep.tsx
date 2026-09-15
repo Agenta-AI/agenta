@@ -202,7 +202,9 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
             />
             <span
                 className={`min-w-0 truncate text-sm text-colorText transition-colors group-hover:text-colorTextSecondary ${
-                    live || state === "running" || state === "queued" ? LIVE_TEXT_CLASS : ""
+                    live || state === "running" || state === "queued" || state === "awaiting"
+                        ? LIVE_TEXT_CLASS
+                        : ""
                 }`}
             >
                 <Sentence part={part} display={display} state={state} />
