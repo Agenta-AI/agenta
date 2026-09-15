@@ -2,6 +2,9 @@
 
 ## Active review findings
 
+The record runs OR36 to OR77, forty-two findings: thirty-five closed, six open and one withdrawn.
+Entries numbered below OR36 predate that record and are all closed.
+
 Six findings are open. OR69 heads this section but counts as neither open nor closed: it was
 withdrawn on 2026-09-13, and its entry stays in place so the reading is not repeated. No P0 and no
 P1 remain: OR45 was the last P0 and OR75 the last P1, and both are closed. The highest severity
@@ -199,6 +202,56 @@ The relay stays out of it. Nothing in `providers/passthrough/adapter.py` should 
 a future reader who reaches for that shortcut should read the OR49 record first.
 
 ## Closed review record
+
+### OR77. The agent config's MCP server form cannot choose OAuth, so the playground cannot express an OAuth server — CLOSED, and OAuth is a registration choice rather than a stored credential
+
+**What the defect was.** The `Authentication` select in
+`web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/McpServerFormView.tsx` rendered OAuth
+as a `disabled` option behind a `Soon` badge, and its change handler returned early on that value.
+The settings MCP endpoints drawer could register an OAuth server. The agent config form, which is
+the obvious place an author adds a server, could not. The documented product path was therefore
+unreachable from the surface users actually use, and the playground could not express an OAuth
+server at all. P2: no security consequence, and a product path that does not exist. It sat under
+OR31's notes as a placeholder rather than as a tracked finding.
+
+**OAuth is selectable, and the authorization happens in place.** The option is enabled. The row
+carries a needs-authorization state with a connect action, `McpServerConnectAction`, and that action
+runs the same discover, scope dialog, popup and connected-message flow the settings page runs. The
+author never leaves the playground.
+
+**OAuth is a registration choice, not a stored credential, and this constraint shapes the design.**
+`MCPCredentials` in `sdks/python/agenta/sdk/agents/mcp/models.py:33` is a discriminated union of
+`none` and `header_secret_refs`, and `MCPConnection` sets `extra="forbid"` at `:42`. Writing
+`credentials.type` of `"oauth"` into a config therefore fails validation on every run of that agent,
+not once at save time. So the draft carries the choice, registration sends `auth_mode: "oauth"`, and
+`normalizeMcpDraftCredentials` rewrites the committed credentials back to `none`. The form reads the
+OAuth state back off the endpoint row rather than off the config, through
+`resolveMcpAuthenticationType`. A future reader who moves the choice into `credentials` reintroduces
+the defect, and it breaks the run rather than the save. The `keepsOAuth` behaviour that stops an
+edit disconnecting an already-registered row is unchanged.
+
+**The connect flow moved out of the app layer into the packages.** Three features drive it now: the
+settings dashboard, the agent chat's connect widget and this form. The API calls, the
+connection-state logic and the endpoint atoms are in `@agenta/entities` under a new `mcpEndpoint`
+subpath. The dialog and the connect action are in `@agenta/entity-ui`. The packages take `axios` and
+`getAgentaApiUrl` from `@agenta/shared/api` and use the host query client rather than the singleton.
+Thin re-export shims in the old app paths were removed, because the app's lint bars re-exporting
+from `@agenta` packages, so every call site imports the package directly. No new dependency was
+needed.
+
+The mobile app needs no change. It renders the same control from `@agenta/entity-ui` and
+bind-mounts the same packages directory.
+
+Tests: three suites in `@agenta/entity-ui`. `tests/unit/mcpServerAuthentication.test.ts` asserts the
+form writes the OAuth marker and reads OAuth back off the endpoint row a saved config cannot
+express. `tests/unit/mcpEndpointRegistration.test.ts` asserts registration emits
+`auth_mode: "oauth"` and keeps the marker out of the saved config, with
+`normalizeMcpDraftCredentials` cases beside it.
+`tests/unit/mcpEndpointConnectStatus.render.test.tsx` asserts the connect status renders across the
+grant states and on a read-only config. The moved
+tests are `tests/unit/mcpConnectMessage.test.ts`, `tests/unit/mcpConnectionState.test.ts` and
+`tests/unit/mcpEndpointApi.test.ts` in `@agenta/entities`. Both package suites are green, at 803
+cases in `@agenta/entity-ui` and 1700 in `@agenta/entities`.
 
 ### OR75. The MCP relay has no injected-credential echo scanner, so an upstream that returns the grant it was sent hands it to the caller — CLOSED, and an MCP credential header is endpoint-named rather than fixed
 

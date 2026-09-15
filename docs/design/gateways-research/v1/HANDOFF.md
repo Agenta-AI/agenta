@@ -34,11 +34,14 @@ The remaining documents are the design itself: `decisions.md`, `architecture.md`
 
 ## Current state
 
-**The branch is not mergeable as of 2026-09-14.** A security review of the credential boundary
+**The branch is not mergeable as of 2026-09-15.** A security review of the credential boundary
 recorded forty-one findings that every green suite ran straight past, OR36 to OR76. Six of them came
 out of reviewing the repairs rather than the original code (OR70 to OR75), and OR76 came out of
-closing OR49. One finding, OR69, was withdrawn, so forty stand. Thirty-four are now fixed and
-closed: request headers travel by
+closing OR49. OR77 came later and from a different direction: it is a product-reach gap on the
+playground surface rather than a credential-boundary defect. The record therefore runs OR36 to
+OR77, forty-two findings. One of them, OR69, was withdrawn, so forty-one stand. Thirty-five are now
+fixed and closed: the agent config's MCP server form can choose OAuth and authorize in place, so
+the playground can express an OAuth server (OR77); request headers travel by
 allowlist, so the caller's session no longer reaches a tenant's upstream (OR36, OR37); a response
 echoing the injected key is refused, in the body and in the header block (OR39, OR70), and a
 credential split across two streamed chunks is withheld rather than relayed and regretted (OR71);
@@ -129,7 +132,7 @@ step.
   Traefik and the development client reloads the whole page every 50 to 60 seconds, taking every open
   form with it. **OR35** (no create control on the API keys page) reproduces on `main` and is tracked
   as issue #6803.
-- **Fixed and closed, 2026-09-13.** Twenty-three of the forty that stand: **OR36** and
+- **Fixed and closed, 2026-09-13.** Twenty-three of the forty-one that stand: **OR36** and
   **OR37** (headers travel by allowlist, and the injected credential replaces the caller's in any
   casing), **OR39** and **OR70** (a response echoing the injected key is refused, on the body and
   on the header block), **OR71** (a credential split across streamed chunks is withheld until it
@@ -167,6 +170,18 @@ step.
   standard connection is addressable as `standard/<connection slug>`, with the provider family tried
   first) and **OR62** (a check in the persistence layer, called from the four DAO write methods
   where all six write paths funnel, refuses a secret the project does not own).
+- **Fixed and closed, 2026-09-15.** One more, and a P2 product-reach gap rather than a credential
+  defect: **OR77** (the agent config's MCP server form offered OAuth as a disabled option behind a
+  `Soon` badge, so only the settings drawer could register an OAuth server and the playground could
+  not express one; OAuth is selectable there now and the row authorizes in place through the same
+  flow the settings page runs). The constraint the fix rests on is worth carrying forward: OAuth is
+  a registration choice, not a stored credential. The SDK's `MCPCredentials` union accepts only
+  `none` and `header_secret_refs` under `extra="forbid"`, so a config carrying
+  `credentials.type: "oauth"` would fail validation on every run of that agent. Registration sends
+  `auth_mode: "oauth"`, the commit normalizes credentials back to `none`, and the form reads the
+  OAuth state off the endpoint row. The connect flow moved out of the app layer into
+  `@agenta/entities` and `@agenta/entity-ui`, because the settings dashboard, the agent chat's
+  connect widget and this form all drive it.
 - **Open.** Six findings: **OR63**, **OR65** to **OR68**, and **OR76**. No P0 and no P1 remain. One
   is P2 (OR76); the other five are debt (OR63, OR65 to OR68), and `cleanups.md` tracks the same five
   as **CU15** to **CU19**, with a **Why it is still open** field on each. None waits on a decision.
