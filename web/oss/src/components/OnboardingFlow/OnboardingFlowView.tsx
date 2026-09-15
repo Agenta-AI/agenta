@@ -173,7 +173,7 @@ export default function OnboardingFlowView({
                 ))}
             </div>
             <div
-                className={`flex w-[92%] flex-col ${step === 5 ? "max-w-[1200px]" : step === 3 ? "max-w-[600px]" : "max-w-[700px]"}`}
+                className={`flex w-[92%] flex-col ${step === 5 ? "min-h-0 max-w-[1200px] flex-1" : step === 3 ? "max-w-[600px]" : "max-w-[700px]"}`}
             >
                 {step !== 3 && step < 5 && (
                     <>
@@ -226,7 +226,7 @@ export default function OnboardingFlowView({
                 {step === 3 && <div className="mt-14">{model}</div>}
                 {step === 5 && variant === "control" && (
                     <>
-                        <div className="flex min-h-[440px] flex-col items-center justify-center pt-6">
+                        <div className="flex min-h-[420px] flex-1 flex-col items-center justify-center py-6">
                             {identity ?? (
                                 <Robot size={96} weight="fill" className="mb-6 text-colorPrimary" />
                             )}
@@ -245,7 +245,7 @@ export default function OnboardingFlowView({
                         <p className="mb-3 text-sm text-colorTextSecondary">
                             Suggestions for {role}
                         </p>
-                        <div className="flex gap-3 overflow-x-auto pb-2">
+                        <div className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                             {templates.map((template, index) => {
                                 const TemplateIcon = templateIcons[index % templateIcons.length]
                                 return (
