@@ -54,7 +54,11 @@ import {
     useCopyText,
     useDriveItemDownload,
 } from "./DriveItemContextMenu"
-import {DriveNameDialog, type DriveNameDialogRequest} from "./DriveNameDialog"
+import {
+    DriveNameDialog,
+    type DriveNameDialogRequest,
+    validateDriveName,
+} from "./DriveNameDialog"
 import {type DriveFileActions, DriveToolbar} from "./DriveToolbar"
 import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
@@ -335,11 +339,32 @@ export function DriveExplorer({
             canWrite && selectedPath && !selectedIsFolder
                 ? {
                       onRename: () => requestName("rename", selectedPath),
+                      renameTo: async (name) => {
+                          const ok = await writes.rename(selectedPath, name)
+                          const parent = parentPath(selectedPath)
+                          if (ok) replaceSelection(parent ? `${parent}/${name}` : name)
+                          return ok
+                      },
+                      validateName: (name) =>
+                          validateDriveName("rename", name, {
+                              kind: "rename",
+                              path: selectedPath,
+                              siblings: siblingsOf(parentPath(selectedPath)),
+                          }),
                       onDuplicate: () => requestName("duplicate", selectedPath),
                       onDelete: () => void onDelete(selectedPath, false),
                   }
                 : undefined,
-        [canWrite, selectedPath, selectedIsFolder, requestName, onDelete],
+        [
+            canWrite,
+            selectedPath,
+            selectedIsFolder,
+            requestName,
+            onDelete,
+            writes,
+            replaceSelection,
+            siblingsOf,
+        ],
     )
 
     // ---- Markdown editing --------------------------------------------------------------------------
