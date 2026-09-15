@@ -155,13 +155,13 @@ describe("ActivityTimeline", () => {
         expect(screen.getAllByRole("button")[0].textContent).toContain("1 file")
     })
 
-    it("says a lone thought was thought, not worked, and draws no wire for one step", () => {
+    it("reads Worked for a lone thought too, and draws no wire for one step", () => {
         const {container} = mount({
             steps: [
                 {kind: "thought", key: "t", text: "hmm", streaming: false, source: "reasoning"},
             ],
         })
-        expect(screen.getAllByRole("button")[0].textContent).toContain("Thought · 1 step")
+        expect(screen.getAllByRole("button")[0].textContent).toContain("Worked · 1 step")
         expect(container.querySelector("[aria-hidden].w-px")).toBeNull()
     })
 
