@@ -1,14 +1,14 @@
 /**
  * The markdown editor's draft model — pure, so the rules are unit-testable and the hook stays
- * thin. A draft holds the editor's text against a BASELINE: the first serialisation the editor
- * emits after (re)seeding, not the raw file text. Lexical normalises markdown on the way in
- * (list markers, table padding, front matter), so comparing against the file would flag every
- * agent-written document dirty the moment it opens. Dirty = the text moved past that baseline.
+ * thin. A draft holds the editor's text against the saved text it was seeded from, and counts
+ * as dirty only once the editor has EMITTED a change and that text differs from the seed. The
+ * editor never emits on hydration (only on edits), so an untouched document — however Lexical
+ * would normalise it — is never dirty on open.
  */
 export interface DriveDraft {
     /** The saved text the draft was seeded from — detects a file that changed underneath. */
     seed: string
-    /** The editor's own first serialisation of `seed`; null until it has emitted one. */
+    /** The seed again once the editor has emitted; null until the first edit. */
     baseline: string | null
     /** The current editor text. */
     value: string
@@ -16,9 +16,9 @@ export interface DriveDraft {
 
 export const seedDriveDraft = (text: string): DriveDraft => ({seed: text, baseline: null, value: text})
 
-/** The editor emitted text. The first emission after a seed is the baseline; later ones edit. */
+/** The editor emitted text (an edit): from here on the draft compares against the seed. */
 export const applyDriveDraftChange = (draft: DriveDraft, text: string): DriveDraft => {
-    if (draft.baseline === null) return {...draft, baseline: text, value: text}
+    if (draft.baseline === null) return {...draft, baseline: draft.seed, value: text}
     if (draft.value === text) return draft
     return {...draft, value: text}
 }

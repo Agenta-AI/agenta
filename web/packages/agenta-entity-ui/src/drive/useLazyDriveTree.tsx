@@ -99,7 +99,21 @@ export function useLazyDriveTree(
         (path: string, files: MountFile[] | null, fetching: boolean) => {
             let changed = false
             if (files) {
-                dirFilesRef.map.set(path, files)
+                // A folder's own listing carries a row for the folder itself; its PARENT's listing
+                // is what says the folder exists (the backend answers a listing for a deleted
+                // folder with that self row too), so the self row is dropped here.
+                const own = path ? files.filter((f) => cleanPath(f.path) !== path) : files
+                dirFilesRef.map.set(path, own)
+                // A subfolder this listing no longer names was deleted (or moved): drop its own
+                // entry and everything under it, or its old rows would linger in the tree.
+                const listed = new Set(own.map((f) => cleanPath(f.path)))
+                for (const key of [...dirFilesRef.map.keys()]) {
+                    if (!key || key === path) continue
+                    const parent = key.slice(0, Math.max(0, key.lastIndexOf("/")))
+                    if (parent !== path || listed.has(key)) continue
+                    for (const k of [...dirFilesRef.map.keys()])
+                        if (k === key || k.startsWith(`${key}/`)) dirFilesRef.map.delete(k)
+                }
                 changed = true
             }
             setFetching(path, fetching)

@@ -214,7 +214,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                     slot stays mounted (empty) so the portal target never flips. */}
                 <div
                     ref={toolbarRef}
-                    className={`flex min-w-0 items-center ${rendered ? "" : "hidden"}`}
+                    className={`flex min-w-0 shrink items-center overflow-hidden ${rendered ? "" : "hidden"}`}
                 />
                 {rendered ? null : (
                     <span className="pl-1 text-xs text-colorTextTertiary">
