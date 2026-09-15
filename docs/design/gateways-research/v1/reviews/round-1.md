@@ -50,7 +50,7 @@ on two findings.
 | Codex, as filed | 2 | 5 | 2 | 1 | 10 |
 | Second reviewer, as filed | 0 | 1 | 6 | 5 | 12 |
 | **After verification and merge** | **1** | **3** | **8** | **5** | **17** |
-| After the fixes landed so far | 0 | 0 | 0 | 2 | 2 open, 15 closed, 1 withdrawn, 3 new |
+| **At the close of round 1** | **0** | **0** | **0** | **0** | **0 open, 17 closed, 1 withdrawn, 4 deferred** |
 
 Five findings overlapped and are merged below. Four Codex severities were lowered on reachability
 grounds and one second-reviewer severity was raised; each change is argued in the finding's own
@@ -87,8 +87,8 @@ against the code and its test.
 | D17 | reviewer 2 | P3 | `api/oss/src/core/gateways/mcps/service.py:823` | Document | `0940769da2` | **yes**, docs read |
 | D18 | D2 residual | P3 | `sdks/python/agenta/sdk/agents/adapters/codex_settings.py` | Defer | n/a | n/a |
 | D19 | verification | P3 | `hosting/docker-compose/test.sh`, the gateways stack's unpublished Redis | Defer, testing infrastructure | n/a | n/a |
-| D20 | D3 residual | P3 | `api/oss/src/dbs/postgres/gateways/mcps/dao.py:195` | Fix, small | pending | pending |
-| D21 | D3 residual | P3 | `api/oss/src/dbs/postgres/gateways/mcps/dao.py:232` | Fix or accept | pending | pending |
+| D20 | D3 residual | P3 | `api/oss/src/dbs/postgres/gateways/mcps/dao.py:195` | Fix | `c1a10571d6` | **yes**, code, tests, suite run |
+| D21 | D3 residual | P3 | `api/oss/src/dbs/postgres/gateways/mcps/dao.py:232` | Fix | `f8436d75d2` | **yes**, code, tests, suite run |
 
 **One finding still blocks the release: D3.** D1 and D2 are fixed and verified. D8 is withdrawn:
 the finding was wrong, and the section below says why. D18 is a residual that D2's fix left
@@ -736,6 +736,15 @@ reaches the caller. The new method should match it.
 **Suggested fix.** Add `exclude=[SecretInvalidError]` to `bind_endpoint_secret`, and have the
 callers treat `None` as a failure rather than reporting a count of one.
 
+**Fixed in `c1a10571d6`, verified.** Both halves. The decorator now matches the sibling edit
+method, and both callers stop reporting a write that produced no row as a success: disconnect
+answers not found, and the connect callback shows the failure card.
+
+The callback half matters more than this finding said, and the commit spells out why: the grant is
+written before the connection is pointed at it, so the old behaviour showed a success card over a
+connection that still read as needing authorization. Telling someone they are connected when they
+are not is worse than the count-of-one the finding named.
+
 ### D21. Invalidate cannot tell a newer credential from the one the relay used — P3
 
 Also from reading D3's fix, and it is the narrow remainder of the race D3 closed.
@@ -760,6 +769,15 @@ No data is lost and nothing is exposed; the cost is one unnecessary reconnect in
 **Suggested fix.** Pass the handle the relay actually used and compare it, invalidating only when
 the stored handle still equals it. That is a conditional write, not a write-back, so it keeps the
 property the commit was protecting.
+
+**Fixed in `f8436d75d2`, verified.** Exactly that. `invalidate_endpoint_secret` now takes the
+handle the relay was using and returns early unless the stored handle still equals it, compared
+inside the transaction and never written back. The service passes the handle off the snapshot the
+relay read before dialling out.
+
+The absent case keeps its own branch and its own reason: a handle that went entirely is the
+disconnect case, equally not this caller's to invalidate. Both races now leave a repaired
+connection alone.
 
 ### D17. `deny` is an experience control, not a security boundary — P3, document only
 
@@ -832,21 +850,50 @@ Recorded so round 2 does not spend time here again.
 - The JSON serialisation change in `api/oss/src/dbs/postgres/secrets/mappings.py:54` is the correct
   fix for the new identifier field and does not change how any pre-existing field renders.
 
-## Recommendation
+## Round 1 is closed
 
 **As reviewed:** do not ship, for four reasons and no more — D1, D2, D3 and D8.
 
-**After the fixes landed so far: no finding from this round blocks the release.** All four blockers
-are resolved. D1, D2 and D3 are fixed and verified; D8 was withdrawn on the evidence.
+**At the close:** nothing from this round blocks the release. Twenty-one findings were raised
+across the round, seventeen by the two reviewers and four more while verifying the fixes. Every one
+is closed, withdrawn, or deferred with a stated closure, and every fix was read against its finding,
+read against its test, and run.
 
-**Every finding from the original seventeen is now closed, withdrawn or deferred with a stated
-closure.** Fixed and verified: D1, D2, D3, D4, D5, D6, D7, D9, D10, D12 in part, D13, D14, D15, D16
-and D17. Withdrawn: D8. Deferred with a stated closure: D11 into OR66, plus D18, D19 and D12's
-remainder.
+### Closed and verified
 
-Still open, both opened while verifying and both P3 residuals of D3's fix: **D20** and **D21**.
+D1, D2, D3, D4, D5, D6, D7, D9, D10, D13, D14, D15, D16, D17, D20 and D21, with D12 closed in part.
+Four of these were release blockers: D1, D2 and D3 were fixed, and D8 was withdrawn.
 
-This is a judgement about the seventeen findings this round raised and the eight open findings it
-was asked to disposition. It is not a release sign-off: the gate's own evidence rows are tracked in
-[mcp-release-status.md](../mcp-release-status.md), and D19 records that a green run of the whole
-gateway integration directory is not currently obtainable outside the stack network.
+### Withdrawn
+
+**D8** — the finding was wrong. The permission cells did run against the Codex the runner ships; the
+probe that produced the finding reached an artifact that is never launched. Kept in the record with
+its correction, because the misleading probe is the one an operator would reach for.
+
+### Deferred, each with a stated closure
+
+| Finding | Closure |
+| --- | --- |
+| **D11**, refusals raised before the audit recorder leave no event | Folded into **OR66**, which keeps the closure line. The two early checks sit ahead of the authorization decision on purpose, so recording them means authorizing first or inventing a decision to record against. |
+| **D12 remainder**, the name check still scans the project and still races | Store the rendered prefix as a column with a partial unique index on `(project_id, prefix)`. That closes the scan and the check-then-act together. It is a migration, not a change at this seam, and the code now says so in place. |
+| **D18**, one harness is still offered tools the run denies | Have the gateway filter `tools/list` by the run's deny set, the way it already filters by the endpoint's allowlist. That removes a denied tool from the catalogue for every harness at once and depends on no harness-specific settings file. Execution already fails closed. |
+| **D19**, the gateway integration suites cannot be run correctly from the host | Run them inside the compose network, or publish Redis for the dev stack the way Postgres already is. Until then a green run of one file means what it says and a green run of the whole directory is not obtainable. |
+
+### Verdict
+
+Round 1 found one credential disclosure, two authorization bypasses, one data-loss path and a
+migration that could abort a deployment, and all five are fixed with regression tests that fail
+without the fix — checked, not assumed, by pinning the migration suite to the pre-fix revision and
+watching the predicted unique violation come back. The two reviewers agreed on mechanism far more
+than on severity: every defect Codex described was confirmed, four of its severities were lowered on
+reachability, and one of the second reviewer's findings did not survive verification at all. The
+fixes were consistently better than the fixes this review proposed — adopting an occupied migration
+destination rather than skipping it, measuring the residual state rather than inferring it from a
+rowcount, refusing an ambiguous name in the one place all three consumers read — which is the
+clearest signal in the round that the findings were understood rather than merely actioned.
+
+What this is not is a release sign-off. It covers the findings this round raised and the eight open
+findings it was asked to disposition, nothing wider. The gate's own evidence rows live in
+[mcp-release-status.md](../mcp-release-status.md); D19 records that one class of green run is not
+currently obtainable outside the stack network; and an unexplained one-in-four flake in the runner
+unit suite is recorded there too, unresolved.
