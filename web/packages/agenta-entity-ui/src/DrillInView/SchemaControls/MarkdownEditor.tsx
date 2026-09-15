@@ -240,9 +240,14 @@ export function MarkdownEditor({
             layout={toolbarLayout}
         />
     )
-    const toolbar = toolbarContainer ? (
-        createPortal(toolbarControls, toolbarContainer)
-    ) : (
+    // `null` = the host owns the slot but has not mounted it yet: render nothing rather than
+    // flashing the inline row for a frame. `undefined` = no slot, the inline row is ours.
+    const toolbar =
+        toolbarContainer !== undefined ? (
+            toolbarContainer ? (
+                createPortal(toolbarControls, toolbarContainer)
+            ) : null
+        ) : (
         // border-0 first: preflight is off, so a bare `border-b` still paints the UA's other
         // three sides — the top one doubling up with the container's own border.
         <div className="flex shrink-0 items-center justify-between gap-1 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] px-3 py-1.5">
