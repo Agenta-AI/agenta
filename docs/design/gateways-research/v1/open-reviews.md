@@ -2,18 +2,98 @@
 
 ## Active review findings
 
-The record runs OR36 to OR78, forty-three findings: thirty-five closed, seven open and one
+The record runs OR36 to OR80, forty-five findings: thirty-five closed, nine open and one
 withdrawn.
 Entries numbered below OR36 predate that record and are all closed.
 
-Seven findings are open. OR69 heads this section but counts as neither open nor closed: it was
-withdrawn on 2026-09-13, and its entry stays in place so the reading is not repeated. No P0 and no
-P1 remain: OR45 was the last P0 and OR75 the last P1, and both are closed. The highest severity
-open is P2, carried by OR76 alone; the other five entries are debt and carry no severity. The open
-set is OR63, OR65 to OR68 and OR76. The five debt entries are also tracked as CU15 to CU19 in
-`cleanups.md`, which records why each is still open. None of the six waits on a design decision.
-OD24 to OD27 in `open-designs.md` are all decided. Every open entry states the closure that would
-settle it and the test that would prove it. A finding that closes moves to the closed record below.
+Nine findings are open. OR69 heads this section but counts as neither open nor closed: it was
+withdrawn on 2026-09-13, and its entry stays in place so the reading is not repeated. One P0 is
+open, OR79, and one P1, OR80. Both were found on 2026-09-15 while proving the per-tool MCP
+permission chain against a running deployment, and both sit in the Pi MCP delivery path; before
+them OR45 was the last P0 and OR75 the last P1, and both of those are closed. Below the two new
+entries the highest severity open is P2, carried by OR76 alone; the remaining five entries are
+debt and carry no severity. The open set is OR63, OR65 to OR68, OR76, OR79 and OR80. The five debt
+entries are also tracked as CU15 to CU19 in `cleanups.md`, which records why each is still open.
+None of those six waits on a design decision, and OR79 and OR80 have an agreed closure recorded in
+their own entries. OD24 to OD27 in `open-designs.md` are all decided. Every open entry states the
+closure that would settle it and the test that would prove it. A finding that closes moves to the
+closed record below.
+
+---
+
+### OR79. The Pi harness never gates an MCP tool, so a server configured `deny` executes anyway
+
+`registerPiGatewayMcpTools` in `services/runner/src/extensions/pi-mcp.ts:330-342` registers every
+discovered MCP tool with an `execute` that calls the upstream directly. No approval gate runs
+first. Compare `services/runner/src/extensions/agenta.ts:357` and `:380-381`, where every
+executable custom tool raises `piDialogAllows` before it relays. Present in the branch as of
+2026-09-15. Severity P0.
+
+`MCPPolicy.permission` is therefore dead configuration on Pi, in both directions. An `ask` server
+runs unattended with no approval card, and a `deny` server runs too. The word `permission` does not
+appear anywhere in `pi-mcp.ts`, and `PiGatewayMcpServer.policy` is declared as
+`{ tools?: { mode?: "all" | "include"; names?: string[] } }` (`pi-mcp.ts:33`), so the field has no
+place in the type the Pi extension consumes even though the JSON that reaches
+`AGENTA_AGENT_GATEWAY_MCP_SERVERS` still carries it. `PiGateKind` is
+`"pi-builtin" | "pi-custom-tool"` (`services/runner/src/engines/sandbox_agent/pi-gate-envelope.ts:32`),
+so there is no gate identity an MCP tool could even be raised under: a hand-rolled dialog would
+fail closed at the unknown-tool branch in
+`services/runner/src/engines/sandbox_agent/acp-interactions.ts:625-633`.
+
+This is the one invariant the release gate states outright — a rejected call must have no upstream
+side effect — and on Pi it does not hold. Observed on a running EE deployment on 2026-09-15: an
+agent whose only MCP server carried `policy.permission: "deny"` emitted no approval frame, the
+tool returned `isError: false`, and the API access log recorded the `tools/call` on the gateway
+route after the model call. The same configuration on Claude Code parked correctly, which is what
+makes this a Pi-path defect rather than a wire or SDK one: the SDK serialises `permission` and the
+runner receives it. `serverPermissionsFromRequest`
+(`services/runner/src/engines/sandbox_agent/runtime-policy.ts:121-131`) records it, and only the
+ACP harnesses ever read the result.
+
+Closure: the registered `execute` raises a real gate before `client.call`, under a new
+`pi-mcp-tool` gate kind, with a fail-closed intake so a permission that is not exactly `allow`,
+`ask` or `deny` denies rather than falls through to the run default. Proven by a unit case
+asserting a `deny` server's tool returns the refusal text without the client being called, an
+`ask` server's tool raises the gate, and an `allow` server's tool executes unprompted; plus a live
+cell on Pi repeating the three-way ask/deny/allow run above and reading the gateway's own request
+log to confirm a denied call never reaches it.
+
+---
+
+### OR80. Pi rewrites an MCP server's name into its tool names, so the permission lookup misses and two connections collapse into one
+
+`piMcpToolName` (`services/runner/src/extensions/pi-mcp.ts:232-235`) builds a Pi tool name as
+`mcp__${normalize(server)}__${normalize(tool)}` where `normalize` replaces every character outside
+`[A-Za-z0-9_]` with `_`. The permission map is keyed on the server's raw name
+(`services/runner/src/engines/sandbox_agent/runtime-policy.ts:127`), and `serverPermissionFor`
+(`services/runner/src/engines/sandbox_agent/acp-interactions.ts:901-917`) recovers the key by
+parsing it back out of the tool name. Present in the branch as of 2026-09-15. Severity P1.
+
+Two consequences, and the second is the one that outlives any single fix.
+
+A server named `mock-mcp` becomes `mcp__mock_mcp__echo`, so a lookup for `mock_mcp` in a map keyed
+`mock-mcp` misses. Today that costs nothing only because OR79 means Pi never performs the lookup;
+the moment Pi gates, every hyphenated or dotted server name silently loses its policy and falls
+through to the run default. The two harness families already disagree on the spelling for the same
+configured server, which is what makes the mismatch easy to miss in review: on the same agent the
+Pi run reported `mcp__mock_mcp__echo` while the Claude run reported `mcp__mock-mcp__echo`.
+
+The normalization is also not injective, so distinct connections can produce one tool name.
+Observed on a running deployment on 2026-09-15 with two servers on one agent, `mock-mcp` and
+`mock.mcp`: both registered `mcp__mock_mcp__echo`, the run completed against whichever registered
+first, and nothing in the operator-visible logs said so. The collision guard at `pi-mcp.ts:317-327`
+does not catch this — it fires only for a name Pi already holds that this module did not register,
+and it logs inside the sandbox. Two accounts on one server are the release's own headline case
+(`release-decisions-2026-09-15.md`, account identity), so a naming scheme that cannot keep them
+apart is not survivable.
+
+Closure: identity is the connection's stable slug, carried explicitly beside each server rather
+than recovered by parsing a display name, and the permission map is keyed on that same slug. The
+connection experience document already requires this — match policy and calls by stable connection
+identity plus upstream tool identity, and a renamed display label must not reset policy
+(`mcp-connection-ux.md`). Proven by a unit case asserting that two servers whose display names
+normalise alike keep distinct tool names and distinct policies, and that a server whose name
+contains a character the harness rewrites still resolves its own permission.
 
 ---
 
