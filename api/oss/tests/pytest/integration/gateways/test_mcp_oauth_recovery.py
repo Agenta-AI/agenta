@@ -53,7 +53,10 @@ from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage, grant_
 from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.service import MCPGatewayService
-from oss.src.core.gateways.mcps.oauth.types import MCPOAuthStateInvalidError
+from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthRefreshFailedError,
+    MCPOAuthStateInvalidError,
+)
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
     MCPUpstreamError,
@@ -947,3 +950,97 @@ async def test_disconnecting_one_connection_leaves_anothers_consent_in_flight(
     )
     assert completion.endpoint_id == other.id
     assert len(await _grants(project=project)) == 1
+
+
+# --- the refresh lock does not accumulate ------------------------------------ #
+
+
+async def test_the_refresh_lock_is_released_and_forgotten_after_a_renewal(
+    project, connect_service, local_mcp_oauth_provider
+):
+    """D15. One `asyncio.Lock` per connection was kept for the life of the worker, so a
+    long-lived process held one for every connection it had ever refreshed."""
+    connection = await _connected(
+        project=project,
+        connect_service=connect_service,
+        provider=local_mcp_oauth_provider,
+        slug="lock-evicted",
+        name="Acme",
+    )
+    await _age_the_grant(
+        project=project,
+        provider=local_mcp_oauth_provider,
+        endpoint_id=connection.id,
+    )
+
+    await connect_service.refresh_grant(
+        project_id=project["project_id"],
+        endpoint_id=connection.id,
+        server_url=local_mcp_oauth_provider.server_url,
+    )
+
+    assert connect_service._refresh_locks == {}
+
+
+async def test_concurrent_renewals_share_one_lock_and_still_leave_none_behind(
+    project, connect_service, local_mcp_oauth_provider
+):
+    """Eviction must not break the serialization it sits inside: a coroutine waiting to
+    acquire is a holder, and handing the next arrival a fresh lock would let two
+    exchanges run and spend a handle the provider has already retired."""
+    connection = await _connected(
+        project=project,
+        connect_service=connect_service,
+        provider=local_mcp_oauth_provider,
+        slug="lock-shared",
+        name="Acme",
+    )
+    await _age_the_grant(
+        project=project,
+        provider=local_mcp_oauth_provider,
+        endpoint_id=connection.id,
+    )
+    local_mcp_oauth_provider.token_requests = 0
+
+    await asyncio.gather(
+        *(
+            connect_service.refresh_grant(
+                project_id=project["project_id"],
+                endpoint_id=connection.id,
+                server_url=local_mcp_oauth_provider.server_url,
+            )
+            for _ in range(5)
+        )
+    )
+
+    assert local_mcp_oauth_provider.token_requests == 1
+    assert connect_service._refresh_locks == {}
+
+
+async def test_a_failed_renewal_still_releases_its_lock(
+    project, connect_service, local_mcp_oauth_provider
+):
+    """The eviction is in a finally: a connection whose renewal fails must not keep a
+    lock forever, which is the case a leak would reach first."""
+    connection = await _connected(
+        project=project,
+        connect_service=connect_service,
+        provider=local_mcp_oauth_provider,
+        slug="lock-after-failure",
+        name="Acme",
+    )
+    await _age_the_grant(
+        project=project,
+        provider=local_mcp_oauth_provider,
+        endpoint_id=connection.id,
+    )
+    local_mcp_oauth_provider.revoke_renewal_handles()
+
+    with pytest.raises(MCPOAuthRefreshFailedError):
+        await connect_service.refresh_grant(
+            project_id=project["project_id"],
+            endpoint_id=connection.id,
+            server_url=local_mcp_oauth_provider.server_url,
+        )
+
+    assert connect_service._refresh_locks == {}

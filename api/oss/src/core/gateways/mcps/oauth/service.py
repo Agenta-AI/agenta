@@ -1,6 +1,8 @@
 """Run the two-phase MCP OAuth connection flow, and renew the grants it stores."""
 
 import asyncio
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
@@ -51,6 +53,14 @@ def callback_redirect_uri(*, api_url: str) -> str:
     return f"{api_url.rstrip('/')}{_CALLBACK_PATH}"
 
 
+@dataclass
+class _RefreshLock:
+    """One connection's refresh lock, and how many coroutines are holding or awaiting it."""
+
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    holders: int = 0
+
+
 class MCPOAuthConnectService(MCPOAuthRefresherInterface):
     def __init__(
         self,
@@ -67,8 +77,9 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         self.attempts_dao = attempts_dao
         # Tests may inject DNS resolution.
         self._resolve_kwargs = {"resolve": resolve} if resolve is not None else {}
-        # One lock per connection. See `refresh_grant`.
-        self._refresh_locks: Dict[Tuple[UUID, UUID], asyncio.Lock] = {}
+        # One lock per connection, for as long as a refresh is using it. See
+        # `refresh_grant`.
+        self._refresh_locks: Dict[Tuple[UUID, UUID], _RefreshLock] = {}
 
     async def discover(self, *, server_url: str) -> MCPOAuthDiscovery:
         return await self.client.discover(server_url=server_url)
@@ -332,8 +343,33 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
 
     # Refresh
 
-    def _refresh_lock(self, *, project_id: UUID, endpoint_id: UUID) -> asyncio.Lock:
-        return self._refresh_locks.setdefault((project_id, endpoint_id), asyncio.Lock())
+    @asynccontextmanager
+    async def _refresh_lock(self, *, project_id: UUID, endpoint_id: UUID):
+        """Hold this connection's refresh lock, and drop it when nobody is left holding it.
+
+        The dictionary used to be `setdefault` with no removal, so a worker accumulated
+        one `asyncio.Lock` for every connection it had ever refreshed, for its whole life
+        (D15). Small per entry and unbounded in time, which is the shape of a leak.
+
+        Counting holders rather than reading `lock.locked()`: a coroutine waiting to
+        acquire is a holder too, and evicting the entry while it waits would hand the next
+        arrival a different lock and defeat the serialization this exists for. Every line
+        between the lookup and the increment runs without awaiting, so no other coroutine
+        can interleave and find the entry mid-registration.
+        """
+        key = (project_id, endpoint_id)
+        entry = self._refresh_locks.get(key)
+        if entry is None:
+            entry = _RefreshLock()
+            self._refresh_locks[key] = entry
+        entry.holders += 1
+        try:
+            async with entry.lock:
+                yield
+        finally:
+            entry.holders -= 1
+            if entry.holders == 0 and self._refresh_locks.get(key) is entry:
+                del self._refresh_locks[key]
 
     async def refresh_grant(
         self, *, project_id: UUID, endpoint_id: UUID, server_url: str
