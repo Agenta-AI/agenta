@@ -1,3 +1,5 @@
+import {Fragment} from "react"
+
 import {ChevronDown} from "lucide-react"
 
 import {SkeletonBlock} from "../components/ui/skeleton"
@@ -54,6 +56,7 @@ export const ListTable = <Row,>({
     rowKey,
     renderRow,
     onOpenRow,
+    wrapRow,
     minWidth = 572,
     loading = false,
     skeletonRows = 5,
@@ -211,10 +214,11 @@ export const ListTable = <Row,>({
                                     </p>
                                 )}
 
-                                {(collapsed ? [] : group.rows).map((row) => (
+                                {(collapsed ? [] : group.rows).map((row) => {
                                     // Not a <button>: a row often carries a control of its own,
                                     // and a button inside a button is invalid HTML that browsers
                                     // repair by dropping one of them.
+                                    const rowNode = (
                                     <div
                                         key={rowKey(row)}
                                         role={onOpenRow ? "button" : undefined}
@@ -253,7 +257,15 @@ export const ListTable = <Row,>({
                                     >
                                         {renderRow(row)}
                                     </div>
-                                ))}
+                                    )
+                                    return wrapRow ? (
+                                        <Fragment key={rowKey(row)}>
+                                            {wrapRow(row, rowNode)}
+                                        </Fragment>
+                                    ) : (
+                                        rowNode
+                                    )
+                                })}
                             </div>
                         )
                     })
