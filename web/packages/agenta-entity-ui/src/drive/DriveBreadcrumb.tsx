@@ -37,8 +37,10 @@ export const DriveBreadcrumb = ({
 }) => {
     const segs = shown.split("/").filter(Boolean)
     if (variant === "icons") {
-        // A crumb link is the kit's ghost button at the row's own type size.
-        const crumbLink = "h-auto gap-1.5 px-1.5 py-[3px] text-[13px] font-normal text-colorTextSecondary"
+        // A crumb link is the kit's ghost button at the row's own type size. `inline-flex` restated:
+        // BreadcrumbLink's own `inline-block` would otherwise stack the glyph over the label.
+        const crumbLink =
+            "inline-flex h-auto items-center gap-1.5 px-1.5 py-[3px] text-[13px] font-normal text-colorTextSecondary"
         return (
             <Breadcrumb
                 className="min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
