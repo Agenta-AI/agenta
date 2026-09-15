@@ -66,3 +66,16 @@ export {
     toolPrefixFromName,
 } from "./agentReference"
 export type {McpGatewayConnectionRef} from "./agentReference"
+export {
+    clearPerToolPolicy,
+    effectiveToolPermission,
+    isPerTool,
+    isToolHidden,
+    readMcpPolicy,
+    resolvedNewToolPermission,
+    setNewToolPermission,
+    setToolPermission,
+    staleToolPermissions,
+    toolPermissions,
+} from "./toolPolicy"
+export type {McpPermission, McpServerPolicy, McpToolFilterPolicy} from "./toolPolicy"

@@ -79,5 +79,8 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey)) return "preferences"
     if (requested === "tools" && !access.canShowTools) return "preferences"
     if (requested === "billing" && !access.billingEnabled) return "preferences"
+    // A deployment serving no MCP gateway refuses every route behind this tab, so a deep
+    // link to it would render a surface whose every action fails.
+    if (requested === "mcpEndpoints" && !access.canShowMcpEndpoints) return "preferences"
     return requested as SettingsTabKey
 }
