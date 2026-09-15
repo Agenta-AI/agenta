@@ -16,7 +16,7 @@ import {
     deleteMcpEndpoint,
     disconnectMcpEndpoint,
     editMcpEndpoint,
-    listMcpEndpoints,
+    queryMcpEndpoints,
 } from "../api/api"
 import type {MCPEndpoint, MCPEndpointCreate, MCPEndpointEdit} from "../core/types"
 
@@ -28,7 +28,9 @@ export const mcpEndpointsQueryAtom = atomWithQuery<MCPEndpoint[]>((get) => {
     return {
         queryKey: [MCP_ENDPOINTS_QUERY_KEY, projectId],
         queryFn: async () => {
-            const response = await listMcpEndpoints(projectId ?? undefined)
+            // The query route, not the list route: the list mixes in synthesized builtin
+            // and provider rows that carry no id, and every caller filters them out again.
+            const response = await queryMcpEndpoints(projectId ?? undefined)
             return response.endpoints
         },
         staleTime: 30_000,
