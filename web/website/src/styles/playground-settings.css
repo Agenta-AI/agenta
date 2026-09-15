@@ -1,0 +1,160 @@
+.ag-demo-config {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--ag-shell-line);
+  background: var(--ag-surface-raised);
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ag-settings-header {
+  display: flex;
+  flex-shrink: 0;
+  height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--ag-surface-section-header);
+}
+.ag-settings-header:first-child {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.ag-settings-header strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.ag-settings-header > span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.ag-settings-header button {
+  display: flex;
+  border: 0;
+  border-radius: 4px;
+  padding: 4px;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+.ag-settings-sections {
+  padding: 0 16px;
+}
+.ag-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0 16px;
+}
+.ag-settings-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--foreground);
+  text-align: left;
+  font: inherit;
+}
+.ag-settings-item > img,
+.ag-settings-item > svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+.ag-settings-item > svg {
+  color: var(--muted-foreground);
+}
+.ag-settings-item > svg:last-child {
+  width: 12px;
+  height: 12px;
+}
+.ag-settings-item > span {
+  flex: 1;
+  min-width: 0;
+}
+.ag-settings-item strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ag-settings-item small {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.45;
+  margin-top: 2px;
+}
+.ag-settings-automations,
+.ag-settings-files {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+}
+.ag-settings-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ag-settings-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.ag-settings-fields input,
+.ag-settings-fields textarea {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--input);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+}
+.ag-settings-fields textarea {
+  min-height: 210px;
+  resize: vertical;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.ag-settings-note,
+.ag-settings-integration {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.ag-settings-integration h4 {
+  margin: 10px 0;
+  color: var(--foreground);
+  font-size: 14px;
+}
+.ag-settings-integration ul {
+  padding-left: 18px;
+  line-height: 1.8;
+}
+.ag-settings-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+}
+[data-theme="dark"] .ag-settings-item img {
+  filter: brightness(0) invert(0.8);
+}
