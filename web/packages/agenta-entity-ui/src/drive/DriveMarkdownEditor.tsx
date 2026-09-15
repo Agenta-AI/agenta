@@ -9,7 +9,7 @@
  */
 import {type KeyboardEvent, useCallback} from "react"
 
-import {type DriveEditorMode} from "@agenta/entities/drive"
+import {type DriveEditorMode, useDriveFileDraft} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {Skeleton} from "@agenta/ui/ui"
 
@@ -23,10 +23,8 @@ export interface DriveMarkdownEditorProps {
     mode: DriveEditorMode
     /** Row 2's slot for the formatting bar. */
     toolbarContainer: HTMLElement | null
-    value: string | null
     loading: boolean
     failed: boolean
-    onChange: (text: string) => void
     onSave: () => void
 }
 
@@ -35,12 +33,11 @@ export function DriveMarkdownEditor({
     path,
     mode,
     toolbarContainer,
-    value,
     loading,
     failed,
-    onChange,
     onSave,
 }: DriveMarkdownEditorProps) {
+    const {value, onChange} = useDriveFileDraft(mount, path)
     const onKeyDown = useCallback(
         (e: KeyboardEvent<HTMLDivElement>) => {
             if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
