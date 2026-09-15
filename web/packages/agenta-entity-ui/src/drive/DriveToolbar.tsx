@@ -48,11 +48,10 @@ const ROW_TEXT_BTN = "h-[26px] gap-1 px-2 text-xs text-colorTextSecondary hover:
 
 /** The chosen entry of a single-choice menu — a check on the RIGHT, no radio dot. */
 const SelectedMark = ({on, className = "ml-auto"}: {on: boolean; className?: string}) => (
+    // Sized as the menu's own icons (size-4); padding on an svg would shrink the glyph.
     <Check
-        size={14}
-        weight="bold"
         aria-hidden
-        className={`shrink-0 pl-2 ${className} ${on ? "text-colorText" : "invisible"}`}
+        className={`size-4 shrink-0 ${className} ${on ? "text-colorText" : "invisible"}`}
     />
 )
 
