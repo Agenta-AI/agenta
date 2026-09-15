@@ -55,11 +55,13 @@ export type McpPermissionTable = ReadonlyMap<string, McpServerPermissions>;
  *    already does, so a malformed one is never more permissive than saying nothing.
  *  - A malformed `toolPermissions` entry is dropped and falls to `newTool`, which is itself a real
  *    decision whenever the author opted in.
- *  - An author who opted in but whose `newToolPermission` is PRESENT AND CORRUPT gets `deny`. The
- *    wire is misdescribing its own shape at that point, and the runner must not guess a floor on
- *    behalf of someone who asked for a restriction. An OMITTED `newToolPermission` beside a
- *    readable table is a different thing — an older or hand-written sender, not a corrupt one — and
- *    gets `ask`, so a human decides rather than a parser.
+ *  - An author who opted in but whose `newToolPermission` or `toolPermissions` is PRESENT AND
+ *    CORRUPT gets `deny`. The wire is misdescribing its own shape at that point, and the runner
+ *    must not guess a floor on behalf of someone who asked for a restriction. Opting in is read
+ *    from what the sender DECLARED rather than from what parsed, so a corrupt container cannot
+ *    take the whole table down with it (D9). An OMITTED `newToolPermission` beside a readable
+ *    table is a different thing — an older or hand-written sender, not a corrupt one — and gets
+ *    `ask`, so a human decides rather than a parser.
  */
 export function normalizeMcpServerPermissions(
   rawPolicy: unknown,
@@ -79,14 +81,25 @@ export function normalizeMcpServerPermissions(
     }
   }
 
+  // What the sender DECLARED, not what parsed. A declared-and-corrupt field is a sender
+  // misdescribing its own shape, and the one thing it must not do is vanish: reading intent off
+  // the parse is how a `toolPermissions` that arrived as a string silently switched the whole
+  // per-tool table back to the run default (D9).
   const declaredNewTool = "newToolPermission" in policy;
-  const optedIn = declaredNewTool || isRecord(rawTools);
+  const declaredTools = "toolPermissions" in policy;
+  const optedIn = declaredNewTool || declaredTools;
   let newTool: McpPermission | undefined;
   if (optedIn) {
     if (isMcpPermission(policy.newToolPermission)) {
       newTool = policy.newToolPermission;
+    } else if (declaredNewTool || (declaredTools && !isRecord(rawTools))) {
+      // Declared and unreadable, on either field: deny. The author asked for a restriction and
+      // the runner cannot tell which one, so it does not get to guess a floor on their behalf.
+      newTool = "deny";
     } else {
-      newTool = declaredNewTool ? "deny" : "ask";
+      // A readable table with no floor beside it — an older or hand-written sender, not a corrupt
+      // one. A human decides for anything the table does not name.
+      newTool = "ask";
     }
   }
 

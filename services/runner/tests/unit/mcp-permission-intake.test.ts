@@ -161,3 +161,39 @@ describe("mcpToolPermission", () => {
     assert.equal(mcpToolPermission(undefined, "search"), undefined);
   });
 });
+
+describe("a declared but unreadable toolPermissions container (D9)", () => {
+  for (const corrupt of ["", "echo", 42, ["echo"], null, true]) {
+    it(`denies rather than silently dropping the table for ${JSON.stringify(corrupt)}`, () => {
+      // The asymmetry this closes: `optedIn` used to be computed from what PARSED, so a
+      // container that arrived as anything but an object made the whole per-tool table vanish
+      // into the run's default permission — the opposite of what the sibling field does.
+      const table = mcpPermissionsFromRequest(
+        request(
+          server({ tools: { mode: "all" }, permission: "allow", toolPermissions: corrupt }),
+        ),
+      );
+      const entry = table.get("acme");
+      assert.equal(entry?.newTool, "deny");
+      assert.equal(mcpToolPermission(entry, "anything"), "deny");
+    });
+  }
+
+  it("still asks when the container is readable and no floor is declared", () => {
+    // The distinction that makes the rule above safe: omission is not corruption.
+    const table = mcpPermissionsFromRequest(
+      request(server({ tools: { mode: "all" }, toolPermissions: { search: "allow" } })),
+    );
+    assert.equal(table.get("acme")?.newTool, "ask");
+    assert.equal(mcpToolPermission(table.get("acme"), "search"), "allow");
+  });
+
+  it("leaves a server that declared neither field on the run's own ladder", () => {
+    // Unchanged, and deliberately: per-tool policy is an opt-in.
+    const table = mcpPermissionsFromRequest(
+      request(server({ tools: { mode: "all" }, permission: "ask" })),
+    );
+    assert.equal(table.get("acme")?.newTool, undefined);
+    assert.equal(mcpToolPermission(table.get("acme"), "anything"), "ask");
+  });
+});
