@@ -47,6 +47,9 @@ export interface GateInput {
      * device heuristic or the Classic mode preference asks for it. Resolved by the adapter at
      * request time with `resolveGateEnabled`. DEFAULT ON: a deployment without `/m` opts out
      * with `AGENTA_MOBILE_GATE=false`, and nothing is redirected in either direction.
+     *
+     * One exception runs before this flag: an OAuth callback the mobile app started
+     * (`MOBILE_AUTH_CALLBACK_COOKIE`) is always handed to `/m`, where its state lives.
      */
     gateEnabled: boolean
     /**
