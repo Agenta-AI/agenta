@@ -856,8 +856,8 @@ export const resolveToolDisplay = (
     const own: {slug?: string; action?: string; ran?: boolean} | undefined =
         override?.app?.(input, output) ?? (hinted ? {slug: hinted} : undefined)
     const ownApp = own?.slug ? (appName ?? parseGatewayToolName(own.slug).label) : undefined
-    // An override that names its own app shows it as the logo, not spliced into the sentence.
-    const parsed = parseShape(raw, input, ours, own ? undefined : appName)
+    // A bare name that already carries its app shows it as the logo, not spliced into the sentence.
+    const parsed = parseShape(raw, input, ours, bare && own ? undefined : appName)
     // A registered label/source overrides the parsed shape piecewise — the skin contract. The
     // built-in defaults never set either; they word a call through `activity` instead.
     const label = override?.label ?? parsed.label
