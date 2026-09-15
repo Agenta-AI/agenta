@@ -276,10 +276,11 @@ const RailTab = ({
                     <SimpleTooltip title={vm.status.label}>
                         <span
                             aria-label={vm.status.label}
+                            // No pulse: at 6px the fade to half read as a washed-out colour,
+                            // not as motion. The hue alone says running / waiting.
                             className={clsx(
                                 "h-1.5 w-1.5 shrink-0 rounded-full",
                                 vm.status.dotClassName,
-                                vm.status.pulse && "motion-safe:animate-pulse",
                             )}
                         />
                     </SimpleTooltip>
