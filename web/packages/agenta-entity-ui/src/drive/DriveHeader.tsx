@@ -23,8 +23,12 @@ import {
     CaretDoubleRight,
     CaretLeft,
     CaretRight,
+    ClockCountdown,
+    Copy,
+    EyeSlash,
     Folder,
     FolderOpen,
+    GitBranch,
     Sliders,
     WarningCircle,
     X,
@@ -204,6 +208,7 @@ export const DriveHeader = ({
                                 onToggleTemporary()
                             }}
                         >
+                            <ClockCountdown />
                             Show temporary files
                             <SelectedMark on={showTemporary} />
                         </DropdownMenuItem>
@@ -216,6 +221,7 @@ export const DriveHeader = ({
                             onToggleHidden()
                         }}
                     >
+                        <EyeSlash />
                         Show hidden files
                         <SelectedMark on={showHidden} />
                     </DropdownMenuItem>
@@ -228,6 +234,7 @@ export const DriveHeader = ({
                                 onToggleGitignored()
                             }}
                         >
+                            <GitBranch />
                             Show git-ignored files
                             <SelectedMark on={showGitignored} />
                         </DropdownMenuItem>
@@ -238,6 +245,7 @@ export const DriveHeader = ({
                             key={id.key}
                             onSelect={() => copyText(id.value, `${id.label} copied`)}
                         >
+                            <Copy />
                             <span className="flex flex-col gap-0.5 py-0.5">
                                 <span className="text-xs font-medium">Copy {id.label}</span>
                                 <span className="font-mono text-[12px] text-colorTextTertiary">
