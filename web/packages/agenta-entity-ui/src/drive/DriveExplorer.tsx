@@ -422,7 +422,11 @@ export function DriveExplorer({
         focusTreeRow,
     })
 
-    // Row 1's download: the file's bytes, a folder as a scoped zip, or the whole drive at the root.
+    // Row 2's read-side actions on the selection: copy its path (none at the root), download the
+    // file's bytes, a folder as a scoped zip, or the whole drive at the root.
+    const onCopyCurrentPath = selectedPath
+        ? () => copyText(selectedPath, "Path copied")
+        : undefined
     const onDownloadCurrent =
         selectedPath === "" || selectedPath == null
             ? archiveMounts.length
@@ -465,10 +469,12 @@ export function DriveExplorer({
                         ? {
                               onNewFolder: () => requestName("new-folder", selectedPath ?? ""),
                               onNewFile: () => requestName("new-file", selectedPath ?? ""),
-                              onUpload: openUploadPicker,
+                              onUpload: staged.length ? commitStaged : openUploadPicker,
+                              stagedCount: staged.length,
                           }
                         : undefined
                 }
+                onCopyPath={onCopyCurrentPath}
                 onDownloadAll={onDownloadCurrent}
                 downloadingAll={downloadingAll}
             />
@@ -481,6 +487,7 @@ export function DriveExplorer({
                 status={editor.status}
                 onRetry={onSave}
                 actions={fileActions}
+                onCopyPath={onCopyCurrentPath}
                 onDownload={onDownloadCurrent}
             />
         ) : (
@@ -490,6 +497,7 @@ export function DriveExplorer({
                 actions={fileActions}
                 draft={editableCode ? {status: editor.status, onRetry: onSave} : undefined}
                 note={tooLargeToEdit ? "Read-only · too large to edit here" : undefined}
+                onCopyPath={onCopyCurrentPath}
                 onDownload={onDownloadCurrent}
             />
         )
@@ -663,16 +671,6 @@ export function DriveExplorer({
                         onForward={goForward}
                         copyText={copyText}
                         ids={driveIds ?? []}
-                        fileSize={selectedFileSize}
-                        onDownload={onDownloadCurrent}
-                        downloading={downloadingAll}
-                        onUpload={
-                            staged.length && canUpload
-                                ? commitStaged
-                                : canUpload
-                                  ? openUploadPicker
-                                  : undefined
-                        }
                         showOrigin={showOrigin}
                         showTemporary={showTemporary}
                         onToggleTemporary={() => setShowTemporary((v) => !v)}

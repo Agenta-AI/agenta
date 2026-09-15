@@ -1,12 +1,11 @@
 /**
  * DriveHeader — row 1 of the Files pane ("where am I"), spanning the content column AND the tree
- * rail: ‹ › history · the icon breadcrumb · a `⋯` for actions on the current path (copy path,
- * download, upload) · the view-options menu (temporary / hidden / git-ignored files) · the tree
- * toggle · and, for a host that owns no toggle of its own, the close ("×" overlay / "»" docked).
- * Row 2 (what can I do with what I'm looking at) is {@link DriveToolbar}.
+ * rail: ‹ › history · the icon breadcrumb · the view-options menu (temporary / hidden /
+ * git-ignored files, plus the inspector's ids) · the tree toggle · and, for a host that owns no
+ * toggle of its own, the close ("×" overlay / "»" docked). Every action on the current path
+ * (download, upload, copy path, the writes) lives in row 2's `⋯` — {@link DriveToolbar}.
  */
 import {type DriveId} from "@agenta/entities/drive"
-import {humanSize} from "@agenta/entities/drive"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
@@ -15,7 +14,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
-    DropdownMenuShortcut,
     DropdownMenuTrigger,
     SimpleTooltip as Tooltip,
 } from "@agenta/ui/ui"
@@ -25,7 +23,6 @@ import {
     CaretDoubleRight,
     CaretLeft,
     CaretRight,
-    DotsThree,
     Folder,
     FolderOpen,
     Sliders,
@@ -52,10 +49,6 @@ export const DriveHeader = ({
     onForward,
     copyText,
     ids,
-    fileSize,
-    onDownload,
-    downloading,
-    onUpload,
     showOrigin,
     showTemporary,
     onToggleTemporary,
@@ -86,13 +79,6 @@ export const DriveHeader = ({
     copyText: (text: string, successMessage?: string) => void
     /** Raw ids (drive / owner) for the inspector — empty when the inspector is off. */
     ids: DriveId[]
-    /** The selected file's size, for the "Download" hint. */
-    fileSize?: number
-    /** Download the current path: the file's bytes, or the folder (root = whole drive) as a zip. */
-    onDownload?: () => void
-    downloading?: boolean
-    /** Pick files to upload into the current folder — absent when the mount is read-only. */
-    onUpload?: () => void
     /** The drive mixes agent and session files — only then is "Show temporary files" offered. */
     showOrigin: boolean
     showTemporary: boolean
@@ -115,9 +101,6 @@ export const DriveHeader = ({
     onRetry?: () => void
     retrying?: boolean
 }) => {
-    const atRoot = !selectedPath
-    const downloadLabel = isFolder ? "Download all" : "Download"
-    const downloadHint = isFolder ? ".zip" : fileSize != null ? humanSize(fileSize) : undefined
     return (
         // Pinned to the session bar's height + border token so its bottom border continues the
         // bar's line across the divider.
@@ -171,8 +154,9 @@ export const DriveHeader = ({
             >
                 <CaretRight size={15} weight="bold" />
             </Button>
-            {/* The crumb is capped so the path controls stay reachable; it scrolls past the cap. */}
-            <div className="ml-1 flex min-w-0 max-w-[60%] shrink items-center">
+            {/* The crumb takes the row's slack (the controls to its right are shrink-0) and scrolls
+                sideways once a deep path outgrows it. */}
+            <div className="ml-1 flex min-w-0 flex-1 items-center">
                 <DriveBreadcrumb
                     variant="icons"
                     shown={selectedPath ?? ""}
@@ -181,51 +165,6 @@ export const DriveHeader = ({
                     onNavigate={onNavigate}
                 />
             </div>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Path actions"
-                        title="Path actions"
-                        className={ROW_ICON_BTN}
-                    >
-                        <DotsThree size={16} weight="bold" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="min-w-[200px]">
-                    <DropdownMenuItem
-                        disabled={atRoot}
-                        onSelect={() => copyText(selectedPath ?? "", "Path copied")}
-                    >
-                        Copy path
-                    </DropdownMenuItem>
-                    <DropdownMenuItem disabled={!onDownload || downloading} onSelect={onDownload}>
-                        {downloading ? "Preparing download…" : downloadLabel}
-                        {downloadHint ? (
-                            <DropdownMenuShortcut>{downloadHint}</DropdownMenuShortcut>
-                        ) : null}
-                    </DropdownMenuItem>
-                    {onUpload ? (
-                        <DropdownMenuItem onSelect={onUpload}>Upload files…</DropdownMenuItem>
-                    ) : null}
-                    {ids.length ? <DropdownMenuSeparator /> : null}
-                    {ids.map((id) => (
-                        <DropdownMenuItem
-                            key={id.key}
-                            onSelect={() => copyText(id.value, `${id.label} copied`)}
-                        >
-                            <span className="flex flex-col gap-0.5 py-0.5">
-                                <span className="text-xs font-medium">Copy {id.label}</span>
-                                <span className="font-mono text-[12px] text-colorTextTertiary">
-                                    {id.value}
-                                </span>
-                            </span>
-                        </DropdownMenuItem>
-                    ))}
-                </DropdownMenuContent>
-            </DropdownMenu>
-            <span className="flex-1" />
             {/* A mount failed but the drive still browses — a compact warning + retry in the row's
                 slack. Tooltip carries the full message so the inline footprint stays "⚠ Try again". */}
             {partialErrored && onRetry ? (
@@ -293,6 +232,20 @@ export const DriveHeader = ({
                             <SelectedMark on={showGitignored} />
                         </DropdownMenuItem>
                     ) : null}
+                    {ids.length ? <DropdownMenuSeparator /> : null}
+                    {ids.map((id) => (
+                        <DropdownMenuItem
+                            key={id.key}
+                            onSelect={() => copyText(id.value, `${id.label} copied`)}
+                        >
+                            <span className="flex flex-col gap-0.5 py-0.5">
+                                <span className="text-xs font-medium">Copy {id.label}</span>
+                                <span className="font-mono text-[12px] text-colorTextTertiary">
+                                    {id.value}
+                                </span>
+                            </span>
+                        </DropdownMenuItem>
+                    ))}
                 </DropdownMenuContent>
             </DropdownMenu>
             <Tooltip
