@@ -481,6 +481,7 @@ export function DriveExplorer({
                 status={editor.status}
                 onRetry={onSave}
                 actions={fileActions}
+                onDownload={onDownloadCurrent}
             />
         ) : (
             <DriveToolbar
@@ -489,6 +490,7 @@ export function DriveExplorer({
                 actions={fileActions}
                 draft={editableCode ? {status: editor.status, onRetry: onSave} : undefined}
                 note={tooLargeToEdit ? "Read-only · too large to edit here" : undefined}
+                onDownload={onDownloadCurrent}
             />
         )
 

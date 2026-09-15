@@ -34,6 +34,7 @@ import {
     CaretDown,
     CircleNotch,
     DotsThreeVertical,
+    DownloadSimple,
     ListBullets,
     SortAscending,
     SquaresFour,
@@ -95,6 +96,7 @@ export type DriveToolbarProps =
           status: DriveSaveStatus
           onRetry: () => void
           actions?: DriveFileActions
+          onDownload?: () => void
       }
     | {
           variant: "other"
@@ -104,6 +106,7 @@ export type DriveToolbarProps =
           draft?: {status: DriveSaveStatus; onRetry: () => void}
           /** A muted line after the name — why the file isn't editable, say. */
           note?: string
+          onDownload?: () => void
       }
 
 /** The draft's save state — Saving… / Saved as it happens; a failed write offers Retry. */
@@ -128,7 +131,14 @@ const DraftStatus = ({status, onRetry}: {status: DriveSaveStatus; onRetry: () =>
     )
 }
 
-const FileActionsMenu = ({actions}: {actions?: DriveFileActions}) => (
+const FileActionsMenu = ({
+    actions,
+    onDownload,
+}: {
+    actions?: DriveFileActions
+    /** The file's bytes — offered on a read-only mount too. */
+    onDownload?: () => void
+}) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
             <Button
@@ -142,6 +152,11 @@ const FileActionsMenu = ({actions}: {actions?: DriveFileActions}) => (
             </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-[180px]">
+            <DropdownMenuItem disabled={!onDownload} onSelect={onDownload}>
+                <DownloadSimple />
+                Download
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem disabled={!actions} onSelect={actions?.onRename}>
                 Rename
             </DropdownMenuItem>
@@ -254,7 +269,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
     }
 
     if (props.variant === "markdown") {
-        const {toolbarRef, mode, setMode, status, onRetry, actions} = props
+        const {toolbarRef, mode, setMode, status, onRetry, actions, onDownload} = props
         const rendered = mode === "rendered"
         return (
             <Row>
@@ -297,12 +312,12 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
-                <FileActionsMenu actions={actions} />
+                <FileActionsMenu actions={actions} onDownload={onDownload} />
             </Row>
         )
     }
 
-    const {path, actions, draft, note} = props
+    const {path, actions, draft, note, onDownload} = props
     return (
         <Row>
             <DriveInlineName
@@ -313,7 +328,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
             {note ? <span className="truncate pl-1 text-xs text-colorTextTertiary">{note}</span> : null}
             <span className="flex-1" />
             {draft ? <DraftStatus {...draft} /> : null}
-            <FileActionsMenu actions={actions} />
+            <FileActionsMenu actions={actions} onDownload={onDownload} />
         </Row>
     )
 }
