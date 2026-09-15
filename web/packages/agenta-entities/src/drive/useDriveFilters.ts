@@ -14,7 +14,6 @@ import {useCallback, useDeferredValue, useState} from "react"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
-import {type FileOrigin} from "./useSessionDrive"
 
 export type DriveViewMode = "grid" | "list"
 export type DriveSortKey = "name" | "modified" | "size"
@@ -31,12 +30,14 @@ export const driveShowGitignoredPrefAtom = atomWithStorage<boolean>(
     "agenta:drive:show-gitignored",
     false,
 )
+// On by default: the session's working files (everything beside `agent-files/`) are what the
+// agent is editing right now; the toggle is for narrowing to the persistent files.
 export const driveShowTemporaryAtom = atomWithStorage<boolean>(
     "agenta:drive:show-temporary",
-    false,
+    true,
 )
 
-export function useDriveFilters({showOrigin = false}: {showOrigin?: boolean} = {}) {
+export function useDriveFilters() {
     const [search, setSearch] = useState("")
     const [view, setView] = useAtom(driveViewModeAtom)
     const [sort, setSort] = useAtom(driveSortKeyAtom)
@@ -61,11 +62,6 @@ export function useDriveFilters({showOrigin = false}: {showOrigin?: boolean} = {
         setShowGitignored(next)
     }, [showGitignored, setShowGitignoredPref])
 
-    // "Show temporary files" is the origin filter in disguise: session-scoped files are the
-    // temporary ones. It only bites on a drive that HAS both origins — a plain session drive with
-    // no `agent-files/` mount would otherwise filter itself empty.
-    const originFilter: "all" | FileOrigin = showOrigin && !showTemporary ? "agent" : "all"
-
     // Defer the search term so typing stays responsive — the input updates now, the filter/flatten
     // trails a frame (React interrupts it if you keep typing).
     const deferredSearch = useDeferredValue(search)
@@ -76,7 +72,6 @@ export function useDriveFilters({showOrigin = false}: {showOrigin?: boolean} = {
         setSearch,
         deferredSearch,
         searchActive,
-        originFilter,
         showTemporary,
         setShowTemporary,
         showHidden,

@@ -18,8 +18,11 @@ import {
     collectFolderPaths,
     flattenTree,
     looksLikeFilePath,
+    driveHasMixedOrigins,
+    fileOrigin,
+    type FileOrigin,
+    type SessionDriveData,
 } from "@agenta/entities/drive"
-import {fileOrigin, type FileOrigin, type SessionDriveData} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
 
 import {useLazyDriveTree} from "./useLazyDriveTree"
@@ -32,7 +35,7 @@ export function useDriveTreeData({
     selectedPath,
     searchActive,
     deferredSearch,
-    originFilter,
+    showTemporary,
     showHidden,
     showGitignored,
 }: {
@@ -45,7 +48,8 @@ export function useDriveTreeData({
     selectedPath: string | null
     searchActive: boolean
     deferredSearch: string
-    originFilter: "all" | FileOrigin
+    /** "Show temporary files" — the session-scoped files beside the `agent-files/` mount. */
+    showTemporary: boolean
     showHidden: boolean
     showGitignored: boolean
 }) {
@@ -90,6 +94,17 @@ export function useDriveTreeData({
             return name === ".gitignore" && ancestors.has(dir)
         })
     }, [lazyTree.files, selectedPath])
+    // Origins carry information only on a drive that HAS both — read off the LOADED listing, not the
+    // recents (a drive whose recent activity is all agent files still has session files at its
+    // root). A single-origin drive never filters: a plain session drive with no `agent-files/`
+    // mount would otherwise empty itself.
+    const showOrigin = useMemo(
+        () => driveHasMixedOrigins(explicitFiles ?? lazyTree.files),
+        [explicitFiles, lazyTree.files],
+    )
+    // "Show temporary files" is the origin filter in disguise: session-scoped files are the
+    // temporary ones.
+    const originFilter: "all" | FileOrigin = showOrigin && !showTemporary ? "agent" : "all"
     const originFiltered = useMemo(() => {
         // Local-file mode: the explicit list is the whole tree; the mount's lazy files are ignored.
         let files = explicitFiles ?? lazyTree.files
@@ -193,6 +208,8 @@ export function useDriveTreeData({
     }
     return {
         lazyTree,
+        /** The drive holds both agent and session files — origin tags and the filter apply. */
+        showOrigin,
         inGitScope,
         tree,
         /** The tree narrowed to the search — what the rail AND the content pane show while searching. */
