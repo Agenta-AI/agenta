@@ -136,11 +136,13 @@ describe("ActivityTimeline", () => {
         expect(line).not.toContain("Waiting")
     })
 
-    it("shows no clock before the first step", () => {
+    it("shows no clock and no caret before the first step", () => {
         mount({streaming: true})
-        const line = screen.getByRole("button").textContent ?? ""
+        const button = screen.getByRole("button")
+        const line = button.textContent ?? ""
         expect(line).toContain("Warming up")
         expect(line).not.toMatch(/\d:\d\d/)
+        expect(button.querySelector("svg")).toBeNull()
     })
 
     it("renders nothing for a settled turn with no steps", () => {
