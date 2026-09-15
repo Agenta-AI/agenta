@@ -1,19 +1,19 @@
 ---
 import Badge from "./Badge.astro";
 import Section from "./Section.astro";
-// Hero — dark landing. Copy = the approved pivot rev-5 headline.
+// Homepage hero copy from the coworkers landing design.
 import HeroVideo from "./HeroVideo.astro";
 
 const GET_STARTED = "https://cloud.agenta.ai/";
-const READ_DOCS = "https://docs.agenta.ai/";
+const BOOK_DEMO = "https://cal.com/mahmoud-mabrouk-ogzgey/demo?duration=30";
 
 // heroPre + [chip] + heroPost form the headline. The chip is the single
 // PP Mondwest highlighted word (yellow), per the type-role rules.
-const heroPre = "The open-source workspace for your ";
-const heroChip = "agents";
-const heroPost = ".";
+const heroPre = "AI ";
+const heroChip = "coworkers";
+const heroPost = " that learn how you work.";
 const heroSub =
-  "Build agents through chat. Improve them with feedback. Share them with your whole team.";
+  "Get more work done with AI coworkers for every team. Work alongside them in Slack or Telegram to run and automate tasks.";
 
 // No hero video asset yet — the placeholder card stays gated off until one lands.
 const SHOW_HERO_VIDEO = false;
@@ -35,7 +35,7 @@ const SHOW_HERO_VIDEO = false;
           class="ag-hero-chip"
           style="display:inline-block;padding:0.02em 0.1em 0.08em;border-radius:10px;background:var(--hchip-bg);box-shadow:var(--hchip-shadow);font-family:var(--font-bitmap,'PP Mondwest',monospace);font-weight:400;line-height:1.06;color:var(--hchip-text);vertical-align:baseline;"
           >{heroChip}</span
-        ><span style="margin-left:-0.02em;">{heroPost}</span>
+        ><span>{heroPost}</span>
       </h1>
       <p
         style="margin:0;font:var(--text-body-md);color:var(--th-text-body);max-width:600px;text-wrap:pretty;"
@@ -54,7 +54,7 @@ const SHOW_HERO_VIDEO = false;
       >
       <a
         class="ag-btn ag-btn--outline"
-        href={READ_DOCS}
+        href={BOOK_DEMO}
         target="_blank"
         rel="noopener"
         >Read the docs</a
