@@ -1,3 +1,37 @@
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  CalendarBlank,
+  CaretDoubleLeft,
+  CaretDoubleRight,
+  CaretDown,
+  CaretRight,
+  ChatsCircle,
+  Check,
+  ClockCounterClockwise,
+  Copy,
+  Cpu,
+  DotsThree,
+  FileText,
+  Funnel,
+  GearSix,
+  GraduationCap,
+  House,
+  Lightning,
+  ListBullets,
+  MagnifyingGlass,
+  Plugs,
+  Plus,
+  PuzzlePiece,
+  Question,
+  Robot,
+  ShieldCheck,
+  SidebarSimple,
+  Wrench,
+  X,
+} from "@phosphor-icons/react";
+import AutomationHistory from "./workspace-demo/AutomationHistory.jsx";
 import { Component, Fragment } from "react";
 
 // Sample workspace content from the approved landing design. All actions stay local.
@@ -62,6 +96,8 @@ export default class WorkspaceDemo extends Component {
     homeAgent: 0,
     configOpen: true,
     stepsOpen: true,
+    historyOpen: false,
+    ...this.props.initialState,
   };
 
   render() {
@@ -107,7 +143,7 @@ export default class WorkspaceDemo extends Component {
         data-mobile-config={this.state.mobileConfig || false}
         aria-label="Interactive Agenta workspace demo"
         style={css(
-          `position:relative;z-index:6;width:min(1120px,100%);height:680px;border-radius:12px;box-shadow:var(--tplx-panel-shadow);display:grid;grid-template-columns:255px minmax(0,1fr);overflow:hidden;text-align:left;font-family:var(--font-sans);color:var(--foreground);background:var(--background);`,
+          `position:relative;z-index:6;width:min(1120px,100%);height:680px;border-radius:12px;border:1px solid var(--border);box-shadow:0 0 0 6px var(--muted),0 0 0 7px var(--border),var(--ag-boxShadowSecondary);display:grid;grid-template-columns:255px minmax(0,1fr);overflow:hidden;text-align:left;font-family:var(--font-sans);color:var(--foreground);background:var(--background);`,
         )}
       >
         <nav className="ag-demo-mobile-nav" aria-label="Demo screens">
@@ -166,17 +202,7 @@ export default class WorkspaceDemo extends Component {
                 `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
               )}
             >
-              <svg
-                width={`16`}
-                height={`16`}
-                viewBox={`0 0 256 256`}
-                fill={`currentColor`}
-                aria-hidden={`true`}
-              >
-                <path
-                  d={`M216 40H40a16 16 0 0 0-16 16v144a16 16 0 0 0 16 16h176a16 16 0 0 0 16-16V56a16 16 0 0 0-16-16ZM40 56h56v144H40Zm176 144h-104V56h104Z`}
-                />
-              </svg>
+              <SidebarSimple size={16} weight="regular" aria-hidden="true" />
             </span>
           </div>
           <nav
@@ -193,17 +219,7 @@ export default class WorkspaceDemo extends Component {
               <span
                 style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
               >
-                <svg
-                  width={`16`}
-                  height={`16`}
-                  viewBox={`0 0 256 256`}
-                  fill={`currentColor`}
-                  aria-hidden={`true`}
-                >
-                  <path
-                    d={`M218.8 103.7 133.3 25.9a8 8 0 0 0-10.7 0L37.2 103.7A16 16 0 0 0 32 115.6V208a16 16 0 0 0 16 16h48a8 8 0 0 0 8-8v-56h48v56a8 8 0 0 0 8 8h48a16 16 0 0 0 16-16v-92.4a16 16 0 0 0-5.2-11.9ZM208 208h-40v-56a16 16 0 0 0-16-16h-48a16 16 0 0 0-16 16v56H48v-92.4l80-72.7 80 72.7Z`}
-                  />
-                </svg>
+                <House size={16} weight="regular" aria-hidden="true" />
               </span>
               <span
                 style={css(
@@ -219,17 +235,7 @@ export default class WorkspaceDemo extends Component {
               <span
                 style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
               >
-                <svg
-                  width={`16`}
-                  height={`16`}
-                  viewBox={`0 0 256 256`}
-                  fill={`currentColor`}
-                  aria-hidden={`true`}
-                >
-                  <path
-                    d={`M200 48h-64V16a8 8 0 0 0-16 0v32H56a32 32 0 0 0-32 32v112a32 32 0 0 0 32 32h144a32 32 0 0 0 32-32V80a32 32 0 0 0-32-32Zm16 144a16 16 0 0 1-16 16H56a16 16 0 0 1-16-16V80a16 16 0 0 1 16-16h144a16 16 0 0 1 16 16Zm-52-56H92a28 28 0 0 0 0 56h72a28 28 0 0 0 0-56Zm-24 16v24h-24v-24Zm-60 12a12 12 0 0 1 12-12h8v24h-8a12 12 0 0 1-12-12Zm84 12h-8v-24h8a12 12 0 0 1 0 24ZM72 108a12 12 0 1 1 12 12 12 12 0 0 1-12-12Zm88 0a12 12 0 1 1 12 12 12 12 0 0 1-12-12Z`}
-                  />
-                </svg>
+                <Robot size={16} weight="regular" aria-hidden="true" />
               </span>
               <span
                 style={css(
@@ -245,17 +251,7 @@ export default class WorkspaceDemo extends Component {
               <span
                 style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
               >
-                <svg
-                  width={`16`}
-                  height={`16`}
-                  viewBox={`0 0 256 256`}
-                  fill={`currentColor`}
-                  aria-hidden={`true`}
-                >
-                  <path
-                    d={`M215.8 118.2a8 8 0 0 0-5-5.7L153.2 90.9l14.6-73.3a8 8 0 0 0-13.7-7.1L42.1 129.3a8 8 0 0 0 3.1 12.9l57.6 21.6-14.6 73.3a8 8 0 0 0 13.7 7.1l112-118.9a8 8 0 0 0 1.9-7.1Zm-105.4 97.5 11.4-57.3a8 8 0 0 0-5-9.1L61.2 129.6 145.6 40l-11.4 57.3a8 8 0 0 0 5 9.1l55.6 20.9Z`}
-                  />
-                </svg>
+                <Lightning size={16} weight="regular" aria-hidden="true" />
               </span>
               <span
                 style={css(
@@ -271,17 +267,7 @@ export default class WorkspaceDemo extends Component {
               <span
                 style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
               >
-                <svg
-                  width={`16`}
-                  height={`16`}
-                  viewBox={`0 0 256 256`}
-                  fill={`currentColor`}
-                  aria-hidden={`true`}
-                >
-                  <path
-                    d={`M220.3 158.5a8 8 0 0 0-7.1-.6 24 24 0 1 1 0-43.8 8 8 0 0 0 10.8-7.4V64a16 16 0 0 0-16-16h-46.3a40 40 0 1 0-67.4 0H48a16 16 0 0 0-16 16v40a8 8 0 0 0 10.8 7.5 24 24 0 1 1 0 43.8A8 8 0 0 0 32 163v45a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16v-42.6a8 8 0 0 0-3.7-6.9ZM208 208H48v-33.4a40 40 0 1 0 0-77.2V64h64a8 8 0 0 0 6.9-12A24 24 0 1 1 158 45a24 24 0 0 1-4.9 7 8 8 0 0 0 6.9 12h48v33.4a40 40 0 1 0 0 77.2Z`}
-                  />
-                </svg>
+                <PuzzlePiece size={16} weight="regular" aria-hidden="true" />
               </span>
               <span
                 style={css(
@@ -306,17 +292,7 @@ export default class WorkspaceDemo extends Component {
               <span
                 style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
               >
-                <svg
-                  width={`16`}
-                  height={`16`}
-                  viewBox={`0 0 256 256`}
-                  fill={`currentColor`}
-                  aria-hidden={`true`}
-                >
-                  <path
-                    d={`M232 128a104 104 0 0 1-135.1 99.3l-40.7 13.6a16 16 0 0 1-20.3-20.3l13.6-40.7A104 104 0 1 1 232 128Zm-16 0a88 88 0 1 0-165.1 42 8 8 0 0 1 .5 6.3L37 216l39.7-14.4a8 8 0 0 1 6.3.5A88 88 0 0 0 216 128Z`}
-                  />
-                </svg>
+                <ChatsCircle size={16} weight="regular" aria-hidden="true" />
               </span>
               <span
                 style={css(
@@ -333,17 +309,7 @@ export default class WorkspaceDemo extends Component {
                     `display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;border-radius:6px;`,
                   )}
                 >
-                  <svg
-                    width={`13`}
-                    height={`13`}
-                    viewBox={`0 0 256 256`}
-                    fill={`currentColor`}
-                    aria-hidden={`true`}
-                  >
-                    <path
-                      d={`M230.6 49.5A16 16 0 0 0 216 40H40a16 16 0 0 0-11.8 26.8L96 141.1V216a16 16 0 0 0 24.9 13.3l32-21.3a16 16 0 0 0 7.1-13.3v-53.6l67.8-74.3a16 16 0 0 0 2.8-17.3ZM148.5 133a8 8 0 0 0-2.5 5.4V194.7l-32 21.3v-77.6a8 8 0 0 0-2.1-5.4L40 56h176Z`}
-                    />
-                  </svg>
+                  <Funnel size={13} weight="regular" aria-hidden="true" />
                 </span>
               </span>
             </div>
@@ -372,17 +338,11 @@ export default class WorkspaceDemo extends Component {
                         `margin-right:4px;display:flex;width:22px;height:22px;flex:0 0 auto;align-items:center;justify-content:center;transform:rotate(90deg);`,
                       )}
                     >
-                      <svg
-                        width={`11`}
-                        height={`11`}
-                        viewBox={`0 0 256 256`}
-                        fill={`currentColor`}
-                        aria-hidden={`true`}
-                      >
-                        <path
-                          d={`m181.7 133.7-80 80a8 8 0 0 1-11.4-11.4L164.7 128 90.3 53.7a8 8 0 0 1 11.4-11.4l80 80a8 8 0 0 1 0 11.4Z`}
-                        />
-                      </svg>
+                      <CaretRight
+                        size={11}
+                        weight="regular"
+                        aria-hidden="true"
+                      />
                     </span>
                   </div>
                   {g.rows.map((r, index5) => (
@@ -399,17 +359,11 @@ export default class WorkspaceDemo extends Component {
                         >
                           {r.auto && (
                             <>
-                              <svg
-                                width={`12`}
-                                height={`12`}
-                                viewBox={`0 0 256 256`}
-                                fill={`currentColor`}
-                                aria-hidden={`true`}
-                              >
-                                <path
-                                  d={`M215.8 118.2a8 8 0 0 0-5-5.7L153.2 90.9l14.6-73.3a8 8 0 0 0-13.7-7.1L42.1 129.3a8 8 0 0 0 3.1 12.9l57.6 21.6-14.6 73.3a8 8 0 0 0 13.7 7.1l112-118.9a8 8 0 0 0 1.9-7.1Zm-105.4 97.5 11.4-57.3a8 8 0 0 0-5-9.1L61.2 129.6 145.6 40l-11.4 57.3a8 8 0 0 0 5 9.1l55.6 20.9Z`}
-                                />
-                              </svg>
+                              <Lightning
+                                size={12}
+                                weight="regular"
+                                aria-hidden="true"
+                              />
                             </>
                           )}
                           {r.chat && (
@@ -449,17 +403,7 @@ export default class WorkspaceDemo extends Component {
               <span
                 style={css(`display:flex;flex:0 0 auto;align-items:center;`)}
               >
-                <svg
-                  width={`16`}
-                  height={`16`}
-                  viewBox={`0 0 256 256`}
-                  fill={`currentColor`}
-                  aria-hidden={`true`}
-                >
-                  <path
-                    d={`M128 80a48 48 0 1 0 48 48 48 48 0 0 0-48-48Zm0 80a32 32 0 1 1 32-32 32 32 0 0 1-32 32Zm88-29.8v-4.4l14.3-17.9a8 8 0 0 0 1.5-6.9 111 111 0 0 0-10.9-26.3 8 8 0 0 0-6-3.9L192.4 68l-3.2-3.1-2.6-22.5a8 8 0 0 0-3.9-6 112 112 0 0 0-26.4-11 8 8 0 0 0-6.9 1.5l-17.9 14.3h-4.3L109.3 27a8 8 0 0 0-6.9-1.5 111 111 0 0 0-26.3 10.9 8 8 0 0 0-3.9 6L69.6 65l-3.1 3.2-22.5 2.6a8 8 0 0 0-6 3.9 112 112 0 0 0-11 26.4 8 8 0 0 0 1.5 6.9l14.3 17.9v4.3L28.5 148.1a8 8 0 0 0-1.5 6.9 111 111 0 0 0 10.9 26.3 8 8 0 0 0 6 3.9L66.5 188l3.1 3.2 2.6 22.5a8 8 0 0 0 3.9 6 112 112 0 0 0 26.4 11 8 8 0 0 0 6.9-1.5l17.9-14.3h4.3l17.9 14.3a8 8 0 0 0 6.9 1.5 111 111 0 0 0 26.3-10.9 8 8 0 0 0 3.9-6l2.6-22.6 3.2-3.1 22.5-2.6a8 8 0 0 0 6-3.9 112 112 0 0 0 11-26.4 8 8 0 0 0-1.5-6.9ZM200 121.2v13.6a8 8 0 0 0 1.7 5l13.5 16.9a95 95 0 0 1-5.8 14L188 173.2a8 8 0 0 0-4.8 2.4l-9.6 9.6a8 8 0 0 0-2.4 4.8l-2.5 21.4a95 95 0 0 1-14 5.8l-16.9-13.5a8 8 0 0 0-5-1.7h-13.6a8 8 0 0 0-5 1.7l-16.9 13.5a95 95 0 0 1-14-5.8L80.8 190a8 8 0 0 0-2.4-4.8l-9.6-9.6a8 8 0 0 0-4.8-2.4l-21.4-2.5a95 95 0 0 1-5.8-14l13.5-16.9a8 8 0 0 0 1.7-5v-13.6a8 8 0 0 0-1.7-5L36.8 99.3a95 95 0 0 1 5.8-14L64 82.8a8 8 0 0 0 4.8-2.4l9.6-9.6a8 8 0 0 0 2.4-4.8l2.5-21.4a95 95 0 0 1 14-5.8l16.9 13.5a8 8 0 0 0 5 1.7h13.6a8 8 0 0 0 5-1.7l16.9-13.5a95 95 0 0 1 14 5.8l2.5 21.5a8 8 0 0 0 2.4 4.8l9.6 9.6a8 8 0 0 0 4.8 2.4l21.4 2.5a95 95 0 0 1 5.8 14l-13.5 16.9a8 8 0 0 0-1.7 5Z`}
-                  />
-                </svg>
+                <GearSix size={16} weight="regular" aria-hidden="true" />
               </span>
               <span
                 style={css(
@@ -498,17 +442,7 @@ export default class WorkspaceDemo extends Component {
                   `display:inline-flex;width:24px;height:24px;flex:0 0 auto;align-items:center;justify-content:center;color:var(--muted-foreground);`,
                 )}
               >
-                <svg
-                  width={`16`}
-                  height={`16`}
-                  viewBox={`0 0 256 256`}
-                  fill={`currentColor`}
-                  aria-hidden={`true`}
-                >
-                  <path
-                    d={`M140 180a12 12 0 1 1-12-12 12 12 0 0 1 12 12ZM128 72c-22.1 0-40 16.1-40 36v4a8 8 0 0 0 16 0v-4c0-11 10.8-20 24-20s24 9 24 20-10.8 20-24 20a8 8 0 0 0-8 8v8a8 8 0 0 0 16 0v-.7c18.2-3.3 32-17.5 32-35.3 0-19.9-17.9-36-40-36Zm104 56A104 104 0 1 1 128 24a104.1 104.1 0 0 1 104 104Zm-16 0a88 88 0 1 0-88 88 88.1 88.1 0 0 0 88-88Z`}
-                  />
-                </svg>
+                <Question size={16} weight="regular" aria-hidden="true" />
               </span>
             </div>
           </div>
@@ -576,17 +510,11 @@ export default class WorkspaceDemo extends Component {
                             `display:inline-flex;color:var(--muted-foreground);`,
                           )}
                         >
-                          <svg
-                            width={`10`}
-                            height={`10`}
-                            viewBox={`0 0 256 256`}
-                            fill={`currentColor`}
-                            aria-hidden={`true`}
-                          >
-                            <path
-                              d={`m213.7 101.7-80 80a8 8 0 0 1-11.4 0l-80-80a8 8 0 0 1 11.4-11.4L128 164.7l74.3-74.4a8 8 0 0 1 11.4 11.4Z`}
-                            />
-                          </svg>
+                          <CaretDown
+                            size={10}
+                            weight="regular"
+                            aria-hidden="true"
+                          />
                         </span>
                       </span>
                       <span style={css(`flex:1;`)}></span>
@@ -595,18 +523,11 @@ export default class WorkspaceDemo extends Component {
                           `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:999px;background:var(--primary);color:var(--primary-foreground);`,
                         )}
                       >
-                        <svg
-                          width={`14`}
-                          height={`14`}
-                          viewBox={`0 0 24 24`}
-                          fill={`none`}
-                          stroke={`currentColor`}
-                          strokeWidth={`2.2`}
-                          strokeLinecap={`round`}
-                          strokeLinejoin={`round`}
-                        >
-                          <path d={`M12 19V5M5 12l7-7 7 7`} />
-                        </svg>
+                        <ArrowUp
+                          size={14}
+                          weight="regular"
+                          aria-hidden="true"
+                        />
                       </span>
                     </div>
                   </div>
@@ -637,17 +558,7 @@ export default class WorkspaceDemo extends Component {
                             `display:flex;height:28px;align-items:center;gap:6px;border-radius:6px;border:1px solid var(--border);padding:0 10px;font:400 13px/1 var(--font-sans);color:var(--foreground);white-space:nowrap;`,
                           )}
                         >
-                          <svg
-                            width={`12`}
-                            height={`12`}
-                            viewBox={`0 0 256 256`}
-                            fill={`currentColor`}
-                            aria-hidden={`true`}
-                          >
-                            <path
-                              d={`M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z`}
-                            />
-                          </svg>
+                          <Plus size={12} weight="regular" aria-hidden="true" />
                           {`New agent`}
                         </span>
                       </span>
@@ -692,17 +603,11 @@ export default class WorkspaceDemo extends Component {
                                     `margin-left:8px;display:inline-flex;flex:0 0 auto;color:var(--foreground);`,
                                   )}
                                 >
-                                  <svg
-                                    width={`14`}
-                                    height={`14`}
-                                    viewBox={`0 0 256 256`}
-                                    fill={`currentColor`}
-                                    aria-hidden={`true`}
-                                  >
-                                    <path
-                                      d={`M229.7 77.7 106.3 201a8 8 0 0 1-11.3 0l-53.7-53.7a8 8 0 0 1 11.4-11.3L100.7 184 218.3 66.3a8 8 0 0 1 11.4 11.4Z`}
-                                    />
-                                  </svg>
+                                  <Check
+                                    size={14}
+                                    weight="regular"
+                                    aria-hidden="true"
+                                  />
                                 </span>
                               </>
                             )}
@@ -721,17 +626,11 @@ export default class WorkspaceDemo extends Component {
                                 `display:flex;width:34px;height:34px;flex:0 0 auto;align-items:center;justify-content:center;border-radius:10px;border:1px dashed var(--border);color:var(--muted-foreground);`,
                               )}
                             >
-                              <svg
-                                width={`17`}
-                                height={`17`}
-                                viewBox={`0 0 256 256`}
-                                fill={`currentColor`}
-                                aria-hidden={`true`}
-                              >
-                                <path
-                                  d={`M80 64a8 8 0 0 1 8-8h128a8 8 0 0 1 0 16H88a8 8 0 0 1-8-8Zm136 56H88a8 8 0 0 0 0 16h128a8 8 0 0 0 0-16Zm0 64H88a8 8 0 0 0 0 16h128a8 8 0 0 0 0-16ZM44 52a12 12 0 1 0 12 12 12 12 0 0 0-12-12Zm0 64a12 12 0 1 0 12 12 12 12 0 0 0-12-12Zm0 64a12 12 0 1 0 12 12 12 12 0 0 0-12-12Z`}
-                                />
-                              </svg>
+                              <ListBullets
+                                size={17}
+                                weight="regular"
+                                aria-hidden="true"
+                              />
                             </span>
                             <span
                               style={css(
@@ -743,17 +642,11 @@ export default class WorkspaceDemo extends Component {
                                 `display:inline-flex;color:var(--muted-foreground);`,
                               )}
                             >
-                              <svg
-                                width={`13`}
-                                height={`13`}
-                                viewBox={`0 0 256 256`}
-                                fill={`currentColor`}
-                                aria-hidden={`true`}
-                              >
-                                <path
-                                  d={`m221.7 133.7-72 72a8 8 0 0 1-11.4-11.4L196.7 136H40a8 8 0 0 1 0-16h156.7l-58.4-58.3a8 8 0 0 1 11.4-11.4l72 72a8 8 0 0 1 0 11.4Z`}
-                                />
-                              </svg>
+                              <ArrowRight
+                                size={13}
+                                weight="regular"
+                                aria-hidden="true"
+                              />
                             </span>
                           </div>
                         </>
@@ -786,17 +679,7 @@ export default class WorkspaceDemo extends Component {
                       `display:inline-flex;height:32px;align-items:center;gap:6px;border-radius:6px;padding:0 12px;background:var(--primary);color:var(--primary-foreground);font:500 14px/1 var(--font-sans);`,
                     )}
                   >
-                    <svg
-                      width={`14`}
-                      height={`14`}
-                      viewBox={`0 0 256 256`}
-                      fill={`currentColor`}
-                      aria-hidden={`true`}
-                    >
-                      <path
-                        d={`M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z`}
-                      />
-                    </svg>
+                    <Plus size={14} weight="regular" aria-hidden="true" />
                     {`New agent`}
                   </span>
                 </div>
@@ -821,19 +704,11 @@ export default class WorkspaceDemo extends Component {
                         `display:inline-flex;color:var(--muted-foreground);`,
                       )}
                     >
-                      <svg
-                        width={`14`}
-                        height={`14`}
-                        viewBox={`0 0 24 24`}
-                        fill={`none`}
-                        stroke={`currentColor`}
-                        strokeWidth={`2`}
-                        strokeLinecap={`round`}
-                        strokeLinejoin={`round`}
-                      >
-                        <circle cx={`11`} cy={`11`} r={`8`} />
-                        <path d={`m21 21-4.3-4.3`} />
-                      </svg>
+                      <MagnifyingGlass
+                        size={14}
+                        weight="regular"
+                        aria-hidden="true"
+                      />
                     </span>
                     {`Search agents by name…`}
                   </span>
@@ -842,17 +717,7 @@ export default class WorkspaceDemo extends Component {
                       `display:inline-flex;height:32px;align-items:center;gap:6px;border-radius:6px;border:1px solid var(--border);padding:0 10px;font:500 13px/1 var(--font-sans);color:var(--foreground);background:transparent;`,
                     )}
                   >
-                    <svg
-                      width={`14`}
-                      height={`14`}
-                      viewBox={`0 0 256 256`}
-                      fill={`currentColor`}
-                      aria-hidden={`true`}
-                    >
-                      <path
-                        d={`M230.6 49.5A16 16 0 0 0 216 40H40a16 16 0 0 0-11.8 26.8L96 141.1V216a16 16 0 0 0 24.9 13.3l32-21.3a16 16 0 0 0 7.1-13.3v-53.6l67.8-74.3a16 16 0 0 0 2.8-17.3ZM148.5 133a8 8 0 0 0-2.5 5.4V194.7l-32 21.3v-77.6a8 8 0 0 0-2.1-5.4L40 56h176Z`}
-                      />
-                    </svg>
+                    <Funnel size={14} weight="regular" aria-hidden="true" />
                     {`Filter`}
                   </span>
                 </div>
@@ -950,17 +815,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
                             )}
                           >
-                            <svg
-                              width={`16`}
-                              height={`16`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`M140 128a12 12 0 1 1-12-12 12 12 0 0 1 12 12Zm56-12a12 12 0 1 0 12 12 12 12 0 0 0-12-12ZM60 116a12 12 0 1 0 12 12 12 12 0 0 0-12-12Z`}
-                              />
-                            </svg>
+                            <DotsThree
+                              size={16}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                         </span>
                       </div>
@@ -994,17 +853,7 @@ export default class WorkspaceDemo extends Component {
                           `display:inline-flex;height:32px;align-items:center;gap:6px;border-radius:6px;padding:0 12px;background:var(--primary);color:var(--primary-foreground);font:500 14px/1 var(--font-sans);`,
                         )}
                       >
-                        <svg
-                          width={`14`}
-                          height={`14`}
-                          viewBox={`0 0 256 256`}
-                          fill={`currentColor`}
-                          aria-hidden={`true`}
-                        >
-                          <path
-                            d={`M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z`}
-                          />
-                        </svg>
+                        <Plus size={14} weight="regular" aria-hidden="true" />
                         {`New automation`}
                       </span>
                     </div>
@@ -1029,19 +878,11 @@ export default class WorkspaceDemo extends Component {
                             `display:inline-flex;color:var(--muted-foreground);`,
                           )}
                         >
-                          <svg
-                            width={`14`}
-                            height={`14`}
-                            viewBox={`0 0 24 24`}
-                            fill={`none`}
-                            stroke={`currentColor`}
-                            strokeWidth={`2`}
-                            strokeLinecap={`round`}
-                            strokeLinejoin={`round`}
-                          >
-                            <circle cx={`11`} cy={`11`} r={`8`} />
-                            <path d={`m21 21-4.3-4.3`} />
-                          </svg>
+                          <MagnifyingGlass
+                            size={14}
+                            weight="regular"
+                            aria-hidden="true"
+                          />
                         </span>
                         {`Search automations`}
                       </span>
@@ -1050,17 +891,7 @@ export default class WorkspaceDemo extends Component {
                           `display:inline-flex;height:32px;align-items:center;gap:6px;border-radius:6px;border:1px solid var(--border);padding:0 10px;font:500 13px/1 var(--font-sans);color:var(--foreground);background:transparent;`,
                         )}
                       >
-                        <svg
-                          width={`14`}
-                          height={`14`}
-                          viewBox={`0 0 256 256`}
-                          fill={`currentColor`}
-                          aria-hidden={`true`}
-                        >
-                          <path
-                            d={`M230.6 49.5A16 16 0 0 0 216 40H40a16 16 0 0 0-11.8 26.8L96 141.1V216a16 16 0 0 0 24.9 13.3l32-21.3a16 16 0 0 0 7.1-13.3v-53.6l67.8-74.3a16 16 0 0 0 2.8-17.3ZM148.5 133a8 8 0 0 0-2.5 5.4V194.7l-32 21.3v-77.6a8 8 0 0 0-2.1-5.4L40 56h176Z`}
-                          />
-                        </svg>
+                        <Funnel size={14} weight="regular" aria-hidden="true" />
                         {`Filter`}
                       </span>
                     </div>
@@ -1115,32 +946,20 @@ export default class WorkspaceDemo extends Component {
                                 <span style={css(r.kindStyle)}>
                                   {r.isEvent && (
                                     <>
-                                      <svg
-                                        width={`15`}
-                                        height={`15`}
-                                        viewBox={`0 0 256 256`}
-                                        fill={`currentColor`}
-                                        aria-hidden={`true`}
-                                      >
-                                        <path
-                                          d={`M215.8 118.2a8 8 0 0 0-5-5.7L153.2 90.9l14.6-73.3a8 8 0 0 0-13.7-7.1L42.1 129.3a8 8 0 0 0 3.1 12.9l57.6 21.6-14.6 73.3a8 8 0 0 0 13.7 7.1l112-118.9a8 8 0 0 0 1.9-7.1Zm-105.4 97.5 11.4-57.3a8 8 0 0 0-5-9.1L61.2 129.6 145.6 40l-11.4 57.3a8 8 0 0 0 5 9.1l55.6 20.9Z`}
-                                        />
-                                      </svg>
+                                      <Lightning
+                                        size={15}
+                                        weight="regular"
+                                        aria-hidden="true"
+                                      />
                                     </>
                                   )}
                                   {r.isSchedule && (
                                     <>
-                                      <svg
-                                        width={`15`}
-                                        height={`15`}
-                                        viewBox={`0 0 256 256`}
-                                        fill={`currentColor`}
-                                        aria-hidden={`true`}
-                                      >
-                                        <path
-                                          d={`M136 80v43.5l37.7 22.6a8 8 0 0 1-8.2 13.8l-41.6-25a8 8 0 0 1-3.9-6.9V80a8 8 0 0 1 16 0Zm88-48a8 8 0 0 0-8 8v22.6A104 104 0 0 0 33.6 79.4a8 8 0 0 0 14.1 7.5A88 88 0 0 1 205.1 68H192a8 8 0 0 0 0 16h32a8 8 0 0 0 8-8V40a8 8 0 0 0-8-8Zm-3.3 118.6a8 8 0 0 0-10 5.2A88 88 0 0 1 128 216a87.5 87.5 0 0 1-76.1-44l-3.3-6a8 8 0 1 0-14 7.7l3.3 6A104 104 0 0 0 225.9 160.7a8 8 0 0 0-5.2-10.1Z`}
-                                        />
-                                      </svg>
+                                      <ClockCounterClockwise
+                                        size={15}
+                                        weight="regular"
+                                        aria-hidden="true"
+                                      />
                                     </>
                                   )}
                                 </span>
@@ -1210,17 +1029,11 @@ export default class WorkspaceDemo extends Component {
                                     `display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
                                   )}
                                 >
-                                  <svg
-                                    width={`16`}
-                                    height={`16`}
-                                    viewBox={`0 0 256 256`}
-                                    fill={`currentColor`}
-                                    aria-hidden={`true`}
-                                  >
-                                    <path
-                                      d={`M140 128a12 12 0 1 1-12-12 12 12 0 0 1 12 12Zm56-12a12 12 0 1 0 12 12 12 12 0 0 0-12-12ZM60 116a12 12 0 1 0 12 12 12 12 0 0 0-12-12Z`}
-                                    />
-                                  </svg>
+                                  <DotsThree
+                                    size={16}
+                                    weight="regular"
+                                    aria-hidden="true"
+                                  />
                                 </span>
                               </span>
                             </div>
@@ -1231,7 +1044,15 @@ export default class WorkspaceDemo extends Component {
                   </div>
                 </>
               )}
-              {hasAutomation && (
+              {hasAutomation && this.state.historyOpen && (
+                <AutomationHistory
+                  key={au.name}
+                  automation={au}
+                  empty={this.props.emptyHistory}
+                  onBack={() => this.setState({ historyOpen: false })}
+                />
+              )}
+              {hasAutomation && !this.state.historyOpen && (
                 <>
                   <div
                     style={css(
@@ -1245,17 +1066,11 @@ export default class WorkspaceDemo extends Component {
                         `display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;cursor:default;padding:0;font:400 13px/1 var(--font-sans);color:var(--muted-foreground);`,
                       )}
                     >
-                      <svg
-                        width={`14`}
-                        height={`14`}
-                        viewBox={`0 0 256 256`}
-                        fill={`currentColor`}
-                        aria-hidden={`true`}
-                      >
-                        <path
-                          d={`M224 128a8 8 0 0 1-8 8H59.3l58.4 58.3a8 8 0 0 1-11.4 11.4l-72-72a8 8 0 0 1 0-11.4l72-72a8 8 0 0 1 11.4 11.4L59.3 120H216a8 8 0 0 1 8 8Z`}
-                        />
-                      </svg>
+                      <ArrowLeft
+                        size={14}
+                        weight="regular"
+                        aria-hidden="true"
+                      />
                       {`Automations`}
                     </button>
                   </div>
@@ -1311,17 +1126,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
                             )}
                           >
-                            <svg
-                              width={`16`}
-                              height={`16`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`M140 128a12 12 0 1 1-12-12 12 12 0 0 1 12 12Zm56-12a12 12 0 1 0 12 12 12 12 0 0 0-12-12ZM60 116a12 12 0 1 0 12 12 12 12 0 0 0-12-12Z`}
-                              />
-                            </svg>
+                            <DotsThree
+                              size={16}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                         </span>
                       </div>
@@ -1406,18 +1215,11 @@ export default class WorkspaceDemo extends Component {
                                 `display:inline-flex;color:var(--placeholder);`,
                               )}
                             >
-                              <svg
-                                width={`12`}
-                                height={`12`}
-                                viewBox={`0 0 24 24`}
-                                fill={`none`}
-                                stroke={`currentColor`}
-                                strokeWidth={`2`}
-                                strokeLinecap={`round`}
-                                strokeLinejoin={`round`}
-                              >
-                                <path d={`m6 9 6 6 6-6`} />
-                              </svg>
+                              <CaretDown
+                                size={12}
+                                weight="regular"
+                                aria-hidden="true"
+                              />
                             </span>
                           </span>
                           <span
@@ -1455,32 +1257,20 @@ export default class WorkspaceDemo extends Component {
                               >
                                 {au.isEvent && (
                                   <>
-                                    <svg
-                                      width={`14`}
-                                      height={`14`}
-                                      viewBox={`0 0 256 256`}
-                                      fill={`currentColor`}
-                                      aria-hidden={`true`}
-                                    >
-                                      <path
-                                        d={`M215.8 118.2a8 8 0 0 0-5-5.7L153.2 90.9l14.6-73.3a8 8 0 0 0-13.7-7.1L42.1 129.3a8 8 0 0 0 3.1 12.9l57.6 21.6-14.6 73.3a8 8 0 0 0 13.7 7.1l112-118.9a8 8 0 0 0 1.9-7.1Zm-105.4 97.5 11.4-57.3a8 8 0 0 0-5-9.1L61.2 129.6 145.6 40l-11.4 57.3a8 8 0 0 0 5 9.1l55.6 20.9Z`}
-                                      />
-                                    </svg>
+                                    <Lightning
+                                      size={14}
+                                      weight="regular"
+                                      aria-hidden="true"
+                                    />
                                   </>
                                 )}
                                 {au.isSchedule && (
                                   <>
-                                    <svg
-                                      width={`14`}
-                                      height={`14`}
-                                      viewBox={`0 0 256 256`}
-                                      fill={`currentColor`}
-                                      aria-hidden={`true`}
-                                    >
-                                      <path
-                                        d={`M208 32h-24v-8a8 8 0 0 0-16 0v8H88v-8a8 8 0 0 0-16 0v8H48a16 16 0 0 0-16 16v160a16 16 0 0 0 16 16h160a16 16 0 0 0 16-16V48a16 16 0 0 0-16-16ZM72 48v8a8 8 0 0 0 16 0v-8h80v8a8 8 0 0 0 16 0v-8h24v32H48V48Zm136 160H48V96h160v112Z`}
-                                      />
-                                    </svg>
+                                    <CalendarBlank
+                                      size={14}
+                                      weight="regular"
+                                      aria-hidden="true"
+                                    />
                                   </>
                                 )}
                               </span>
@@ -1497,18 +1287,11 @@ export default class WorkspaceDemo extends Component {
                                 `display:inline-flex;color:var(--placeholder);`,
                               )}
                             >
-                              <svg
-                                width={`12`}
-                                height={`12`}
-                                viewBox={`0 0 24 24`}
-                                fill={`none`}
-                                stroke={`currentColor`}
-                                strokeWidth={`2`}
-                                strokeLinecap={`round`}
-                                strokeLinejoin={`round`}
-                              >
-                                <path d={`m6 9 6 6 6-6`} />
-                              </svg>
+                              <CaretDown
+                                size={12}
+                                weight="regular"
+                                aria-hidden="true"
+                              />
                             </span>
                           </span>
                           <span
@@ -1539,6 +1322,7 @@ export default class WorkspaceDemo extends Component {
                         </div>
                       </div>
                       <button
+                        onClick={() => this.setState({ historyOpen: true })}
                         type={`button`}
                         style={css(
                           `margin-top:30px;display:flex;width:100%;cursor:default;align-items:center;gap:12px;border-radius:8px;border:1px solid var(--border);background:transparent;padding:10px 14px;text-align:left;`,
@@ -1549,17 +1333,11 @@ export default class WorkspaceDemo extends Component {
                             `display:flex;width:28px;height:28px;flex:0 0 auto;align-items:center;justify-content:center;border-radius:6px;background:var(--muted);color:var(--muted-foreground);`,
                           )}
                         >
-                          <svg
-                            width={`15`}
-                            height={`15`}
-                            viewBox={`0 0 256 256`}
-                            fill={`currentColor`}
-                            aria-hidden={`true`}
-                          >
-                            <path
-                              d={`M136 80v43.5l37.7 22.6a8 8 0 0 1-8.2 13.8l-41.6-25a8 8 0 0 1-3.9-6.9V80a8 8 0 0 1 16 0Zm88-48a8 8 0 0 0-8 8v22.6A104 104 0 0 0 33.6 79.4a8 8 0 0 0 14.1 7.5A88 88 0 0 1 205.1 68H192a8 8 0 0 0 0 16h32a8 8 0 0 0 8-8V40a8 8 0 0 0-8-8Zm-3.3 118.6a8 8 0 0 0-10 5.2A88 88 0 0 1 128 216a87.5 87.5 0 0 1-76.1-44l-3.3-6a8 8 0 1 0-14 7.7l3.3 6A104 104 0 0 0 225.9 160.7a8 8 0 0 0-5.2-10.1Z`}
-                            />
-                          </svg>
+                          <ClockCounterClockwise
+                            size={15}
+                            weight="regular"
+                            aria-hidden="true"
+                          />
                         </span>
                         <span
                           style={css(
@@ -1584,17 +1362,11 @@ export default class WorkspaceDemo extends Component {
                             `display:inline-flex;flex:0 0 auto;color:var(--muted-foreground);`,
                           )}
                         >
-                          <svg
-                            width={`14`}
-                            height={`14`}
-                            viewBox={`0 0 256 256`}
-                            fill={`currentColor`}
-                            aria-hidden={`true`}
-                          >
-                            <path
-                              d={`m181.7 133.7-80 80a8 8 0 0 1-11.4-11.4L164.7 128 90.3 53.7a8 8 0 0 1 11.4-11.4l80 80a8 8 0 0 1 0 11.4Z`}
-                            />
-                          </svg>
+                          <CaretRight
+                            size={14}
+                            weight="regular"
+                            aria-hidden="true"
+                          />
                         </span>
                       </button>
                       <div
@@ -1662,19 +1434,11 @@ export default class WorkspaceDemo extends Component {
                           `display:inline-flex;color:var(--muted-foreground);`,
                         )}
                       >
-                        <svg
-                          width={`14`}
-                          height={`14`}
-                          viewBox={`0 0 24 24`}
-                          fill={`none`}
-                          stroke={`currentColor`}
-                          strokeWidth={`2`}
-                          strokeLinecap={`round`}
-                          strokeLinejoin={`round`}
-                        >
-                          <circle cx={`11`} cy={`11`} r={`8`} />
-                          <path d={`m21 21-4.3-4.3`} />
-                        </svg>
+                        <MagnifyingGlass
+                          size={14}
+                          weight="regular"
+                          aria-hidden="true"
+                        />
                       </span>
                       {`Search skills by name…`}
                     </span>
@@ -1683,17 +1447,7 @@ export default class WorkspaceDemo extends Component {
                         `display:inline-flex;height:32px;align-items:center;gap:6px;border-radius:6px;padding:0 12px;background:var(--primary);color:var(--primary-foreground);font:500 14px/1 var(--font-sans);`,
                       )}
                     >
-                      <svg
-                        width={`14`}
-                        height={`14`}
-                        viewBox={`0 0 256 256`}
-                        fill={`currentColor`}
-                        aria-hidden={`true`}
-                      >
-                        <path
-                          d={`M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z`}
-                        />
-                      </svg>
+                      <Plus size={14} weight="regular" aria-hidden="true" />
                       {`New skill`}
                     </span>
                   </div>
@@ -1764,17 +1518,11 @@ export default class WorkspaceDemo extends Component {
                                   <span style={css(k.avatarStyle)}>
                                     {k.builtin && (
                                       <>
-                                        <svg
-                                          width={`13`}
-                                          height={`13`}
-                                          viewBox={`0 0 256 256`}
-                                          fill={`currentColor`}
-                                          aria-hidden={`true`}
-                                        >
-                                          <path
-                                            d={`M215.8 118.2a8 8 0 0 0-5-5.7L153.2 90.9l14.6-73.3a8 8 0 0 0-13.7-7.1L42.1 129.3a8 8 0 0 0 3.1 12.9l57.6 21.6-14.6 73.3a8 8 0 0 0 13.7 7.1l112-118.9a8 8 0 0 0 1.9-7.1Zm-105.4 97.5 11.4-57.3a8 8 0 0 0-5-9.1L61.2 129.6 145.6 40l-11.4 57.3a8 8 0 0 0 5 9.1l55.6 20.9Z`}
-                                          />
-                                        </svg>
+                                        <Lightning
+                                          size={13}
+                                          weight="regular"
+                                          aria-hidden="true"
+                                        />
                                       </>
                                     )}
                                     {k.project && <>{`sk`}</>}
@@ -1831,17 +1579,11 @@ export default class WorkspaceDemo extends Component {
                         <span style={css(sk.avatarStyle)}>
                           {sk.builtin && (
                             <>
-                              <svg
-                                width={`13`}
-                                height={`13`}
-                                viewBox={`0 0 256 256`}
-                                fill={`currentColor`}
-                                aria-hidden={`true`}
-                              >
-                                <path
-                                  d={`M215.8 118.2a8 8 0 0 0-5-5.7L153.2 90.9l14.6-73.3a8 8 0 0 0-13.7-7.1L42.1 129.3a8 8 0 0 0 3.1 12.9l57.6 21.6-14.6 73.3a8 8 0 0 0 13.7 7.1l112-118.9a8 8 0 0 0 1.9-7.1Zm-105.4 97.5 11.4-57.3a8 8 0 0 0-5-9.1L61.2 129.6 145.6 40l-11.4 57.3a8 8 0 0 0 5 9.1l55.6 20.9Z`}
-                                />
-                              </svg>
+                              <Lightning
+                                size={13}
+                                weight="regular"
+                                aria-hidden="true"
+                              />
                             </>
                           )}
                           {sk.project && <>{`sk`}</>}
@@ -1879,17 +1621,7 @@ export default class WorkspaceDemo extends Component {
                             `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;border:none;background:transparent;cursor:default;color:var(--muted-foreground);`,
                           )}
                         >
-                          <svg
-                            width={`14`}
-                            height={`14`}
-                            viewBox={`0 0 24 24`}
-                            fill={`none`}
-                            stroke={`currentColor`}
-                            strokeWidth={`2`}
-                            strokeLinecap={`round`}
-                          >
-                            <path d={`M18 6 6 18M6 6l12 12`} />
-                          </svg>
+                          <X size={14} weight="regular" aria-hidden="true" />
                         </button>
                       </div>
                       <div
@@ -1931,7 +1663,18 @@ export default class WorkspaceDemo extends Component {
                               `margin:0;padding:14px 16px;font:400 12px/1.7 var(--font-mono);color:var(--foreground);white-space:pre-wrap;`,
                             )}
                           >
-                            {sk.md}
+                            {this.state.skillVersion === "v3"
+                              ? sk.md
+                                  .split("\n")
+                                  .filter(
+                                    (line) =>
+                                      !line.startsWith("Output:") &&
+                                      !line.startsWith("Rules:"),
+                                  )
+                                  .join("\n")
+                              : this.state.skillVersion === "v2"
+                                ? `# ${sk.slug}\n\n${sk.desc}`
+                                : sk.md}
                           </pre>
                         </div>
                         <div
@@ -1946,9 +1689,16 @@ export default class WorkspaceDemo extends Component {
                           >{`Versions`}</span>
                           {sk.versions.map((v, index8) => (
                             <Fragment key={index8}>
-                              <div
+                              <button
+                                type="button"
+                                aria-pressed={
+                                  (this.state.skillVersion || "v4") === v.v
+                                }
+                                onClick={() =>
+                                  this.setState({ skillVersion: v.v })
+                                }
                                 style={css(
-                                  `display:flex;flex-direction:column;gap:2px;padding:8px 14px;${v.style}`,
+                                  `display:flex;flex-direction:column;gap:2px;padding:8px 14px;border:0;text-align:left;background:${(this.state.skillVersion || "v4") === v.v ? "var(--accent)" : "transparent"};`,
                                 )}
                               >
                                 <span
@@ -1965,7 +1715,7 @@ export default class WorkspaceDemo extends Component {
                                 >
                                   {v.when}
                                 </span>
-                              </div>
+                              </button>
                             </Fragment>
                           ))}
                           <span
@@ -2040,19 +1790,11 @@ export default class WorkspaceDemo extends Component {
                         `display:inline-flex;color:var(--muted-foreground);`,
                       )}
                     >
-                      <svg
-                        width={`14`}
-                        height={`14`}
-                        viewBox={`0 0 24 24`}
-                        fill={`none`}
-                        stroke={`currentColor`}
-                        strokeWidth={`2`}
-                        strokeLinecap={`round`}
-                        strokeLinejoin={`round`}
-                      >
-                        <circle cx={`11`} cy={`11`} r={`8`} />
-                        <path d={`m21 21-4.3-4.3`} />
-                      </svg>
+                      <MagnifyingGlass
+                        size={14}
+                        weight="regular"
+                        aria-hidden="true"
+                      />
                     </span>
                     {`Search sessions`}
                   </span>
@@ -2061,17 +1803,7 @@ export default class WorkspaceDemo extends Component {
                       `display:inline-flex;height:32px;align-items:center;gap:6px;border-radius:6px;border:1px solid var(--border);padding:0 10px;font:500 13px/1 var(--font-sans);color:var(--foreground);background:transparent;`,
                     )}
                   >
-                    <svg
-                      width={`14`}
-                      height={`14`}
-                      viewBox={`0 0 256 256`}
-                      fill={`currentColor`}
-                      aria-hidden={`true`}
-                    >
-                      <path
-                        d={`M230.6 49.5A16 16 0 0 0 216 40H40a16 16 0 0 0-11.8 26.8L96 141.1V216a16 16 0 0 0 24.9 13.3l32-21.3a16 16 0 0 0 7.1-13.3v-53.6l67.8-74.3a16 16 0 0 0 2.8-17.3ZM148.5 133a8 8 0 0 0-2.5 5.4V194.7l-32 21.3v-77.6a8 8 0 0 0-2.1-5.4L40 56h176Z`}
-                      />
-                    </svg>
+                    <Funnel size={14} weight="regular" aria-hidden="true" />
                     {`Filter`}
                   </span>
                 </div>
@@ -2119,17 +1851,11 @@ export default class WorkspaceDemo extends Component {
                           >
                             {r.auto && (
                               <>
-                                <svg
-                                  width={`12`}
-                                  height={`12`}
-                                  viewBox={`0 0 256 256`}
-                                  fill={`currentColor`}
-                                  aria-hidden={`true`}
-                                >
-                                  <path
-                                    d={`M215.8 118.2a8 8 0 0 0-5-5.7L153.2 90.9l14.6-73.3a8 8 0 0 0-13.7-7.1L42.1 129.3a8 8 0 0 0 3.1 12.9l57.6 21.6-14.6 73.3a8 8 0 0 0 13.7 7.1l112-118.9a8 8 0 0 0 1.9-7.1Zm-105.4 97.5 11.4-57.3a8 8 0 0 0-5-9.1L61.2 129.6 145.6 40l-11.4 57.3a8 8 0 0 0 5 9.1l55.6 20.9Z`}
-                                  />
-                                </svg>
+                                <Lightning
+                                  size={12}
+                                  weight="regular"
+                                  aria-hidden="true"
+                                />
                               </>
                             )}
                             {r.chat && (
@@ -2209,17 +1935,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
                             )}
                           >
-                            <svg
-                              width={`16`}
-                              height={`16`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`M140 128a12 12 0 1 1-12-12 12 12 0 0 1 12 12Zm56-12a12 12 0 1 0 12 12 12 12 0 0 0-12-12ZM60 116a12 12 0 1 0 12 12 12 12 0 0 0-12-12Z`}
-                              />
-                            </svg>
+                            <DotsThree
+                              size={16}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                         </span>
                       </div>
@@ -2290,17 +2010,7 @@ export default class WorkspaceDemo extends Component {
                       `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
                     )}
                   >
-                    <svg
-                      width={`15`}
-                      height={`15`}
-                      viewBox={`0 0 256 256`}
-                      fill={`currentColor`}
-                      aria-hidden={`true`}
-                    >
-                      <path
-                        d={`M140 180a12 12 0 1 1-12-12 12 12 0 0 1 12 12ZM128 72c-22.1 0-40 16.1-40 36v4a8 8 0 0 0 16 0v-4c0-11 10.8-20 24-20s24 9 24 20-10.8 20-24 20a8 8 0 0 0-8 8v8a8 8 0 0 0 16 0v-.7c18.2-3.3 32-17.5 32-35.3 0-19.9-17.9-36-40-36Zm104 56A104 104 0 1 1 128 24a104.1 104.1 0 0 1 104 104Zm-16 0a88 88 0 1 0-88 88 88.1 88.1 0 0 0 88-88Z`}
-                      />
-                    </svg>
+                    <Question size={15} weight="regular" aria-hidden="true" />
                   </span>
                 </div>
               </div>
@@ -2342,19 +2052,11 @@ export default class WorkspaceDemo extends Component {
                             `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;border:none;background:transparent;cursor:default;color:var(--muted-foreground);`,
                           )}
                         >
-                          <svg
-                            width={`14`}
-                            height={`14`}
-                            viewBox={`0 0 24 24`}
-                            fill={`none`}
-                            stroke={`currentColor`}
-                            strokeWidth={`2`}
-                            strokeLinecap={`round`}
-                            strokeLinejoin={`round`}
-                            aria-hidden={`true`}
-                          >
-                            <path d={`m11 17-5-5 5-5M18 17l-5-5 5-5`} />
-                          </svg>
+                          <CaretDoubleLeft
+                            size={14}
+                            weight="regular"
+                            aria-hidden="true"
+                          />
                         </button>
                       </div>
                       <div
@@ -2372,17 +2074,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;color:var(--muted-foreground);`,
                             )}
                           >
-                            <svg
-                              width={`16`}
-                              height={`16`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`M144 96h-32a16 16 0 0 0-16 16v32a16 16 0 0 0 16 16h32a16 16 0 0 0 16-16v-32a16 16 0 0 0-16-16Zm0 48h-32v-32h32Zm88-8a8 8 0 0 0 0-16h-16v-32h16a8 8 0 0 0 0-16h-16.4A32.1 32.1 0 0 0 184 40.4V24a8 8 0 0 0-16 0v16h-32V24a8 8 0 0 0-16 0v16H88V24a8 8 0 0 0-16 0v16.4A32.1 32.1 0 0 0 40.4 72H24a8 8 0 0 0 0 16h16v32H24a8 8 0 0 0 0 16h16v32H24a8 8 0 0 0 0 16h16.4A32.1 32.1 0 0 0 72 215.6V232a8 8 0 0 0 16 0v-16h32v16a8 8 0 0 0 16 0v-16h32v16a8 8 0 0 0 16 0v-16.4a32.1 32.1 0 0 0 31.6-31.6H232a8 8 0 0 0 0-16h-16v-32ZM200 184a16 16 0 0 1-16 16H72a16 16 0 0 1-16-16V72a16 16 0 0 1 16-16h112a16 16 0 0 1 16 16Z`}
-                              />
-                            </svg>
+                            <Cpu
+                              size={16}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                           <span
                             style={css(
@@ -2401,17 +2097,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;color:var(--placeholder);`,
                             )}
                           >
-                            <svg
-                              width={`11`}
-                              height={`11`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`m181.7 133.7-80 80a8 8 0 0 1-11.4-11.4L164.7 128 90.3 53.7a8 8 0 0 1 11.4-11.4l80 80a8 8 0 0 1 0 11.4Z`}
-                              />
-                            </svg>
+                            <CaretRight
+                              size={11}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                         </div>
                         <div
@@ -2424,17 +2114,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;color:var(--muted-foreground);`,
                             )}
                           >
-                            <svg
-                              width={`16`}
-                              height={`16`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`M213.7 82.3l-56-56A8 8 0 0 0 152 24H56a16 16 0 0 0-16 16v176a16 16 0 0 0 16 16h144a16 16 0 0 0 16-16V88a8 8 0 0 0-2.3-5.7ZM160 51.3 188.7 80H160ZM200 216H56V40h88v48a8 8 0 0 0 8 8h48Zm-32-80a8 8 0 0 1-8 8H96a8 8 0 0 1 0-16h64a8 8 0 0 1 8 8Zm0 32a8 8 0 0 1-8 8H96a8 8 0 0 1 0-16h64a8 8 0 0 1 8 8Z`}
-                              />
-                            </svg>
+                            <FileText
+                              size={16}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                           <span
                             style={css(
@@ -2451,17 +2135,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;color:var(--placeholder);`,
                             )}
                           >
-                            <svg
-                              width={`11`}
-                              height={`11`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`m181.7 133.7-80 80a8 8 0 0 1-11.4-11.4L164.7 128 90.3 53.7a8 8 0 0 1 11.4-11.4l80 80a8 8 0 0 1 0 11.4Z`}
-                              />
-                            </svg>
+                            <CaretRight
+                              size={11}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                         </div>
                         <div
@@ -2474,17 +2152,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;color:var(--muted-foreground);`,
                             )}
                           >
-                            <svg
-                              width={`16`}
-                              height={`16`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`M226.8 61.7a8 8 0 0 0-12.9-2.4L182.4 90.8l-17.2-17.2 31.5-31.5a8 8 0 0 0-2.4-12.9 72 72 0 0 0-96.8 90.5L26.3 190.9a24 24 0 0 0 33.9 33.9l71.2-71.2a72 72 0 0 0 95.4-91.9ZM199.2 149a56.1 56.1 0 0 1-65 10.5 8 8 0 0 0-9.3 1.4l-76 76a8 8 0 0 1-11.3-11.3l76-76a8 8 0 0 0 1.4-9.3A56 56 0 0 1 178.6 45l-30.4 30.4a8 8 0 0 0 0 11.3l28.5 28.5a8 8 0 0 0 11.3 0L218.4 85a56 56 0 0 1-19.2 64Z`}
-                              />
-                            </svg>
+                            <Wrench
+                              size={16}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                           <span
                             style={css(
@@ -2501,17 +2173,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;color:var(--placeholder);`,
                             )}
                           >
-                            <svg
-                              width={`11`}
-                              height={`11`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`m181.7 133.7-80 80a8 8 0 0 1-11.4-11.4L164.7 128 90.3 53.7a8 8 0 0 1 11.4-11.4l80 80a8 8 0 0 1 0 11.4Z`}
-                              />
-                            </svg>
+                            <CaretRight
+                              size={11}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                         </div>
                         <div
@@ -2524,17 +2190,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;color:var(--muted-foreground);`,
                             )}
                           >
-                            <svg
-                              width={`16`}
-                              height={`16`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`M149.7 195.7 138.3 207a52.6 52.6 0 0 1-72.3 2.2l-16.3 16.5a8 8 0 0 1-11.4-11.4l16.4-16.4A52.6 52.6 0 0 1 57 125.7l11.3-11.4a8 8 0 0 1 11.4 0l69.9 70a8 8 0 0 1 .1 11.4Zm-71.9-64.4L68.3 141a36.6 36.6 0 0 0 0 51.7 36.5 36.5 0 0 0 51.7 0l9.7-9.6Zm140-86.7a8 8 0 0 0-11.4 0L190 61.1a52.6 52.6 0 0 0-72.3 2.2L106.3 74.7a8 8 0 0 0 0 11.4l69.9 69.9a8 8 0 0 0 11.4 0L199 144.7a52.6 52.6 0 0 0 2.2-72.3l16.6-16.5a8 8 0 0 0 0-11.3Zm-30.1 88.7-9.7 9.7-58.6-58.6 9.6-9.7a36.6 36.6 0 0 1 51.7 0 36.6 36.6 0 0 1 7 51.7Z`}
-                              />
-                            </svg>
+                            <Plugs
+                              size={16}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                           <span
                             style={css(
@@ -2551,17 +2211,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;color:var(--placeholder);`,
                             )}
                           >
-                            <svg
-                              width={`11`}
-                              height={`11`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`m181.7 133.7-80 80a8 8 0 0 1-11.4-11.4L164.7 128 90.3 53.7a8 8 0 0 1 11.4-11.4l80 80a8 8 0 0 1 0 11.4Z`}
-                              />
-                            </svg>
+                            <CaretRight
+                              size={11}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                         </div>
                         <div
@@ -2574,17 +2228,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;color:var(--muted-foreground);`,
                             )}
                           >
-                            <svg
-                              width={`16`}
-                              height={`16`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`M251.8 88.8 133.8 24.9a12 12 0 0 0-11.5 0L4.2 88.8a8 8 0 0 0 0 14.4L32 118.4v50.6a15.9 15.9 0 0 0 4.2 10.8C46.6 191.2 76.1 216 128 216a130.3 130.3 0 0 0 48-8.8V232a8 8 0 0 0 16 0v-32.8a115.6 115.6 0 0 0 27.9-19.4 16 16 0 0 0 4.1-10.8v-50.6l27.8-15.2a8 8 0 0 0 0-14.4ZM128 200c-43.3 0-68.7-18.8-80-31v-42l76.2 41.4a8 8 0 0 0 7.6 0L176 147.5v40a115.3 115.3 0 0 1-48 12.5Zm80-31a92.6 92.6 0 0 1-16 14.7v-44.8l16-8.7Zm-52.1-21.4L128 165.6 24.7 96 128 40.4 231.3 96l-3.7 2a8 8 0 0 0-3.6 5.7Z`}
-                              />
-                            </svg>
+                            <GraduationCap
+                              size={16}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                           <span
                             style={css(
@@ -2601,17 +2249,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;color:var(--placeholder);`,
                             )}
                           >
-                            <svg
-                              width={`11`}
-                              height={`11`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`m181.7 133.7-80 80a8 8 0 0 1-11.4-11.4L164.7 128 90.3 53.7a8 8 0 0 1 11.4-11.4l80 80a8 8 0 0 1 0 11.4Z`}
-                              />
-                            </svg>
+                            <CaretRight
+                              size={11}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                         </div>
                         <div
@@ -2624,17 +2266,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;color:var(--muted-foreground);`,
                             )}
                           >
-                            <svg
-                              width={`16`}
-                              height={`16`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`M208 40H48a16 16 0 0 0-16 16v58.8c0 89.6 75.8 119.3 91 124.4a16 16 0 0 0 10 0c15.2-5.1 91-34.8 91-124.4V56a16 16 0 0 0-16-16Zm0 74.8c0 78.2-66.4 104.4-80 109.2-13.5-4.7-80-30.9-80-109.2V56h160Zm-34.3-25.5-56 56a8 8 0 0 1-11.4 0l-24-24a8 8 0 0 1 11.4-11.3L112 128.3l50.3-50.3a8 8 0 0 1 11.4 11.3Z`}
-                              />
-                            </svg>
+                            <ShieldCheck
+                              size={16}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                           <span
                             style={css(
@@ -2676,17 +2312,11 @@ export default class WorkspaceDemo extends Component {
                               `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
                             )}
                           >
-                            <svg
-                              width={`16`}
-                              height={`16`}
-                              viewBox={`0 0 256 256`}
-                              fill={`currentColor`}
-                              aria-hidden={`true`}
-                            >
-                              <path
-                                d={`M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z`}
-                              />
-                            </svg>
+                            <Plus
+                              size={16}
+                              weight="regular"
+                              aria-hidden="true"
+                            />
                           </span>
                         </span>
                       </div>
@@ -2709,32 +2339,20 @@ export default class WorkspaceDemo extends Component {
                               >
                                 {a.isEvent && (
                                   <>
-                                    <svg
-                                      width={`13`}
-                                      height={`13`}
-                                      viewBox={`0 0 256 256`}
-                                      fill={`currentColor`}
-                                      aria-hidden={`true`}
-                                    >
-                                      <path
-                                        d={`M215.8 118.2a8 8 0 0 0-5-5.7L153.2 90.9l14.6-73.3a8 8 0 0 0-13.7-7.1L42.1 129.3a8 8 0 0 0 3.1 12.9l57.6 21.6-14.6 73.3a8 8 0 0 0 13.7 7.1l112-118.9a8 8 0 0 0 1.9-7.1Zm-105.4 97.5 11.4-57.3a8 8 0 0 0-5-9.1L61.2 129.6 145.6 40l-11.4 57.3a8 8 0 0 0 5 9.1l55.6 20.9Z`}
-                                      />
-                                    </svg>
+                                    <Lightning
+                                      size={13}
+                                      weight="regular"
+                                      aria-hidden="true"
+                                    />
                                   </>
                                 )}
                                 {a.isSchedule && (
                                   <>
-                                    <svg
-                                      width={`13`}
-                                      height={`13`}
-                                      viewBox={`0 0 256 256`}
-                                      fill={`currentColor`}
-                                      aria-hidden={`true`}
-                                    >
-                                      <path
-                                        d={`M136 80v43.5l37.7 22.6a8 8 0 0 1-8.2 13.8l-41.6-25a8 8 0 0 1-3.9-6.9V80a8 8 0 0 1 16 0Zm88-48a8 8 0 0 0-8 8v22.6A104 104 0 0 0 33.6 79.4a8 8 0 0 0 14.1 7.5A88 88 0 0 1 205.1 68H192a8 8 0 0 0 0 16h32a8 8 0 0 0 8-8V40a8 8 0 0 0-8-8Zm-3.3 118.6a8 8 0 0 0-10 5.2A88 88 0 0 1 128 216a87.5 87.5 0 0 1-76.1-44l-3.3-6a8 8 0 1 0-14 7.7l3.3 6A104 104 0 0 0 225.9 160.7a8 8 0 0 0-5.2-10.1Z`}
-                                      />
-                                    </svg>
+                                    <ClockCounterClockwise
+                                      size={13}
+                                      weight="regular"
+                                      aria-hidden="true"
+                                    />
                                   </>
                                 )}
                               </span>
@@ -2789,17 +2407,11 @@ export default class WorkspaceDemo extends Component {
                                   `display:inline-flex;color:var(--muted-foreground);`,
                                 )}
                               >
-                                <svg
-                                  width={`15`}
-                                  height={`15`}
-                                  viewBox={`0 0 256 256`}
-                                  fill={`currentColor`}
-                                  aria-hidden={`true`}
-                                >
-                                  <path
-                                    d={`M213.7 82.3l-56-56A8 8 0 0 0 152 24H56a16 16 0 0 0-16 16v176a16 16 0 0 0 16 16h144a16 16 0 0 0 16-16V88a8 8 0 0 0-2.3-5.7ZM160 51.3 188.7 80H160ZM200 216H56V40h88v48a8 8 0 0 0 8 8h48Zm-32-80a8 8 0 0 1-8 8H96a8 8 0 0 1 0-16h64a8 8 0 0 1 8 8Zm0 32a8 8 0 0 1-8 8H96a8 8 0 0 1 0-16h64a8 8 0 0 1 8 8Z`}
-                                  />
-                                </svg>
+                                <FileText
+                                  size={15}
+                                  weight="regular"
+                                  aria-hidden="true"
+                                />
                               </span>
                               <span
                                 style={css(
@@ -2848,19 +2460,11 @@ export default class WorkspaceDemo extends Component {
                             `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;border:none;background:transparent;cursor:default;color:var(--muted-foreground);`,
                           )}
                         >
-                          <svg
-                            width={`14`}
-                            height={`14`}
-                            viewBox={`0 0 24 24`}
-                            fill={`none`}
-                            stroke={`currentColor`}
-                            strokeWidth={`2`}
-                            strokeLinecap={`round`}
-                            strokeLinejoin={`round`}
-                            aria-hidden={`true`}
-                          >
-                            <path d={`m6 17 5-5-5-5M13 17l5-5-5-5`} />
-                          </svg>
+                          <CaretDoubleRight
+                            size={14}
+                            weight="regular"
+                            aria-hidden="true"
+                          />
                         </button>
                       </>
                     )}
@@ -2897,17 +2501,7 @@ export default class WorkspaceDemo extends Component {
                           `display:inline-flex;width:28px;height:28px;flex:0 0 auto;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
                         )}
                       >
-                        <svg
-                          width={`14`}
-                          height={`14`}
-                          viewBox={`0 0 256 256`}
-                          fill={`currentColor`}
-                          aria-hidden={`true`}
-                        >
-                          <path
-                            d={`M224 128a8 8 0 0 1-8 8h-80v80a8 8 0 0 1-16 0v-80H40a8 8 0 0 1 0-16h80V40a8 8 0 0 1 16 0v80h80a8 8 0 0 1 8 8Z`}
-                          />
-                        </svg>
+                        <Plus size={14} weight="regular" aria-hidden="true" />
                       </span>
                     </div>
                     <span
@@ -2915,36 +2509,22 @@ export default class WorkspaceDemo extends Component {
                         `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
                       )}
                     >
-                      <svg
-                        width={`14`}
-                        height={`14`}
-                        viewBox={`0 0 256 256`}
-                        fill={`currentColor`}
-                        aria-hidden={`true`}
-                      >
-                        <path
-                          d={`M136 80v43.5l37.7 22.6a8 8 0 0 1-8.2 13.8l-41.6-25a8 8 0 0 1-3.9-6.9V80a8 8 0 0 1 16 0Zm88-48a8 8 0 0 0-8 8v22.6A104 104 0 0 0 33.6 79.4a8 8 0 0 0 14.1 7.5A88 88 0 0 1 205.1 68H192a8 8 0 0 0 0 16h32a8 8 0 0 0 8-8V40a8 8 0 0 0-8-8Zm-3.3 118.6a8 8 0 0 0-10 5.2A88 88 0 0 1 128 216a87.5 87.5 0 0 1-76.1-44l-3.3-6a8 8 0 1 0-14 7.7l3.3 6A104 104 0 0 0 225.9 160.7a8 8 0 0 0-5.2-10.1Z`}
-                        />
-                      </svg>
+                      <ClockCounterClockwise
+                        size={14}
+                        weight="regular"
+                        aria-hidden="true"
+                      />
                     </span>
                     <span
                       style={css(
                         `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:6px;color:var(--muted-foreground);`,
                       )}
                     >
-                      <svg
-                        width={`14`}
-                        height={`14`}
-                        viewBox={`0 0 24 24`}
-                        fill={`none`}
-                        stroke={`currentColor`}
-                        strokeWidth={`2`}
-                        strokeLinecap={`round`}
-                        strokeLinejoin={`round`}
-                        aria-hidden={`true`}
-                      >
-                        <path d={`m11 17-5-5 5-5M18 17l-5-5 5-5`} />
-                      </svg>
+                      <CaretDoubleLeft
+                        size={14}
+                        weight="regular"
+                        aria-hidden="true"
+                      />
                     </span>
                   </div>
                   <div
@@ -2994,17 +2574,11 @@ export default class WorkspaceDemo extends Component {
                                   `display:inline-flex;align-items:center;gap:5px;`,
                                 )}
                               >
-                                <svg
-                                  width={`13`}
-                                  height={`13`}
-                                  viewBox={`0 0 256 256`}
-                                  fill={`currentColor`}
-                                  aria-hidden={`true`}
-                                >
-                                  <path
-                                    d={`M213.7 82.3l-56-56A8 8 0 0 0 152 24H56a16 16 0 0 0-16 16v176a16 16 0 0 0 16 16h144a16 16 0 0 0 16-16V88a8 8 0 0 0-2.3-5.7ZM160 51.3 188.7 80H160ZM200 216H56V40h88v48a8 8 0 0 0 8 8h48Zm-32-80a8 8 0 0 1-8 8H96a8 8 0 0 1 0-16h64a8 8 0 0 1 8 8Zm0 32a8 8 0 0 1-8 8H96a8 8 0 0 1 0-16h64a8 8 0 0 1 8 8Z`}
-                                  />
-                                </svg>
+                                <FileText
+                                  size={13}
+                                  weight="regular"
+                                  aria-hidden="true"
+                                />
                                 {ss.files1}
                               </span>
                             </span>
@@ -3013,17 +2587,11 @@ export default class WorkspaceDemo extends Component {
                                 `display:inline-flex;color:var(--placeholder);transform:${stepsRot};transition:transform .2s;`,
                               )}
                             >
-                              <svg
-                                width={`10`}
-                                height={`10`}
-                                viewBox={`0 0 256 256`}
-                                fill={`currentColor`}
-                                aria-hidden={`true`}
-                              >
-                                <path
-                                  d={`m181.7 133.7-80 80a8 8 0 0 1-11.4-11.4L164.7 128 90.3 53.7a8 8 0 0 1 11.4-11.4l80 80a8 8 0 0 1 0 11.4Z`}
-                                />
-                              </svg>
+                              <CaretRight
+                                size={10}
+                                weight="regular"
+                                aria-hidden="true"
+                              />
                             </span>
                           </button>
                           {stepsOpen && (
@@ -3069,17 +2637,11 @@ export default class WorkspaceDemo extends Component {
                                           `display:inline-flex;color:var(--placeholder);transform:rotate(90deg);margin-left:2px;`,
                                         )}
                                       >
-                                        <svg
-                                          width={`9`}
-                                          height={`9`}
-                                          viewBox={`0 0 256 256`}
-                                          fill={`currentColor`}
-                                          aria-hidden={`true`}
-                                        >
-                                          <path
-                                            d={`m181.7 133.7-80 80a8 8 0 0 1-11.4-11.4L164.7 128 90.3 53.7a8 8 0 0 1 11.4-11.4l80 80a8 8 0 0 1 0 11.4Z`}
-                                          />
-                                        </svg>
+                                        <CaretRight
+                                          size={9}
+                                          weight="regular"
+                                          aria-hidden="true"
+                                        />
                                       </span>
                                     </div>
                                   </Fragment>
@@ -3100,27 +2662,7 @@ export default class WorkspaceDemo extends Component {
                         >
                           <span>{ss.meta}</span>
                           <span>{`·`}</span>
-                          <svg
-                            width={`13`}
-                            height={`13`}
-                            viewBox={`0 0 24 24`}
-                            fill={`none`}
-                            stroke={`currentColor`}
-                            strokeWidth={`1.6`}
-                            strokeLinecap={`round`}
-                            strokeLinejoin={`round`}
-                          >
-                            <rect
-                              width={`14`}
-                              height={`14`}
-                              x={`8`}
-                              y={`8`}
-                              rx={`2`}
-                            />
-                            <path
-                              d={`M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2`}
-                            />
-                          </svg>
+                          <Copy size={13} weight="regular" aria-hidden="true" />
                         </div>
                       </div>
                     </div>
@@ -3146,18 +2688,11 @@ export default class WorkspaceDemo extends Component {
                             `display:inline-flex;width:28px;height:28px;align-items:center;justify-content:center;border-radius:999px;background:var(--ag-send-disabled-bg);color:var(--ag-send-disabled-fg);`,
                           )}
                         >
-                          <svg
-                            width={`14`}
-                            height={`14`}
-                            viewBox={`0 0 24 24`}
-                            fill={`none`}
-                            stroke={`currentColor`}
-                            strokeWidth={`2.2`}
-                            strokeLinecap={`round`}
-                            strokeLinejoin={`round`}
-                          >
-                            <path d={`M12 19V5M5 12l7-7 7 7`} />
-                          </svg>
+                          <ArrowUp
+                            size={14}
+                            weight="regular"
+                            aria-hidden="true"
+                          />
                         </span>
                       </div>
                     </div>

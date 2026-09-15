@@ -30,3 +30,16 @@ export const Dark: StoryObj<typeof meta> = {
         ),
     ],
 }
+
+export const AutomationHistory: StoryObj<typeof meta> = {
+    args: {initialState: {view: "automations", automation: 0, historyOpen: true}},
+}
+export const FailedAutomationRun: StoryObj<typeof meta> = {
+    args: {initialState: {view: "automations", automation: 2, historyOpen: true}},
+}
+export const EmptyAutomationHistory: StoryObj<typeof meta> = {
+    args: {
+        initialState: {view: "automations", automation: 0, historyOpen: true},
+        emptyHistory: true,
+    },
+}

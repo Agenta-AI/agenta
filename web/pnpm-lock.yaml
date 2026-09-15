@@ -2779,6 +2779,9 @@ importers:
       '@astrojs/sitemap':
         specifier: ^3.7.4
         version: 3.7.4
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       astro:
         specifier: ^7.2.8
         version: 7.3.2(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@24.13.4)(idb-keyval@6.3.0)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4)

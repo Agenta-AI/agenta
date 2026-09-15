@@ -134,6 +134,7 @@ export function deriveWorkspace(state, setState) {
           view: v,
           session: v === "playground" ? (st.session ?? 0) : null,
           automation: null,
+          historyOpen: false,
           skill: null,
         }),
       style: NAV_ROW + (st.view === v ? SEL : ""),
@@ -324,8 +325,17 @@ export function deriveWorkspace(state, setState) {
               runsWhen.replace("Every ", "").replace(" at ", " ") +
               "."
             : "Runs each time this event arrives.",
-      runsCaption: 12 + i * 3 + " runs · last " + lastRun.split(" · ")[0],
-      open: () => setState({ view: "automations", automation: i }),
+      runsCaption:
+        (runsWhen.includes("Monday") || runsWhen.includes("Friday")
+          ? 4
+          : 12 + i * 3) + " runs in the last 30 days",
+      open: () =>
+        setState({ view: "automations", automation: i, historyOpen: false }),
+      transcript: ag,
+      runCount:
+        runsWhen.includes("Monday") || runsWhen.includes("Friday")
+          ? 4
+          : 12 + i * 3,
     };
   });
   // Skills
@@ -397,7 +407,7 @@ export function deriveWorkspace(state, setState) {
       style: j === 0 ? "background:var(--accent);" : "",
     })),
     usedBy: [sessions[i], sessions[(i + 5) % sessions.length]],
-    open: () => setState({ skill: i }),
+    open: () => setState({ skill: i, skillVersion: "v4" }),
   }));
   const skillSections = [
     {
