@@ -5,7 +5,8 @@ survived verification, and what each finding is waiting on. The running log stay
 [open-reviews.md](../open-reviews.md); the round-2 record, which this one builds on, is
 [round-2.md](round-2.md).
 
-**Reviewed revision:** `5c67a2e871`, against base `236619ebb768`.
+**Reviewed revision:** `5c67a2e871`, against base `236619ebb768`. One commit landed during the
+round and is treated as part of this head: `664838e419`, recorded as D90 below.
 **Scope:** `git diff 3d0bff5dee..5c67a2e871` — roughly sixty fixes closing D22 to D61, the
 CodeRabbit pass-1 findings and their residuals, three rounds of UI QA, and several defects found
 only against real providers.
@@ -43,6 +44,7 @@ nine P3.
 | Codex, as filed | 0 | 3 | 4 | 0 | 7 |
 | Second reviewer, as filed | 0 | 4 | 12 | 9 | 25 |
 | **After verification and merge** | **0** | **5** | **13** | **10** | **28** |
+| **Plus one found and closed during the round** | | | **1** | | **D90** |
 
 Two findings were reached independently by both reviewers, which is the strongest signal in the
 round: the multi-event event-stream parse, and the response-body read that no bound or cancellation
@@ -123,6 +125,30 @@ executing the selection method with that arrangement.
 
 This is the fourth finding at this seam. Each one has been the next layer of the same mistake, and
 that is the argument for treating the next fix here as a design change rather than another patch.
+
+## Found during the round and already closed
+
+### D90. The consent watch was installed after the popup had been sent to the provider
+
+`web/packages/agenta-entities/src/mcpEndpoint/hooks/useMcpConnectJourney.ts` — found by the web
+agent's own investigation, closed at `664838e419`, verified here.
+
+A provider that answers without a consent screen can be back at the callback before the next
+statements run, and the completion it posts then arrives at a window with nothing listening. Nothing
+recovers from that: the poll notices only a **closed** popup, which it reports as a failure, so a
+success nobody heard waits out the three-minute timeout while the connection sits authorized behind
+it, and the person is told the authorization did not complete.
+
+The order is now listen, then navigate. Its case records both events and asserts the sequence, so it
+fails against the old order rather than restating the new one — thirteen cases pass.
+
+**Two things make this worth more than its size.** The mock issuer has no consent screen and
+redirects straight through, so on a local stack the race was not exotic, it was the common path; a
+provider that already holds a grant behaves the same way. And the failure inverts the invariant the
+connect journey was built around. Round 2's D29 established that a failure must never read as a
+success; this is a success reading as a failure, with the grant already stored. Both come from the
+same place — the browser inferring an outcome it did not witness — and the fix is the same in
+spirit: do not start the thing whose answer you cannot hear.
 
 ## The other findings
 
