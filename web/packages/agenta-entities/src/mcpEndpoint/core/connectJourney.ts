@@ -124,7 +124,18 @@ export type McpJourneyEvent =
     | {type: "url_changed"; url: string}
     | {type: "submit_url"}
     | {type: "probe_succeeded"; probe: MCPServerProbe; suggestedName: string}
-    | {type: "probe_failed"; error: string}
+    | {
+          type: "probe_failed"
+          error: string
+          /**
+           * What the probe answered, when it answered at all. The failure screen names the
+           * cause ("couldn't reach" against "reached it, but it isn't an MCP server"), and
+           * `problem.cause` is the only thing that tells those apart. A failure the probe
+           * never returned from — a thrown refusal, a client-side timeout — carries none,
+           * and the screen falls back to the unreachable wording.
+           */
+          probe?: MCPServerProbe | null
+      }
     | {type: "name_changed"; name: string}
     | {type: "submit_name"}
     | {
@@ -151,6 +162,7 @@ export type McpJourneyEvent =
     | {type: "saved"}
     | {type: "tools_loaded"; tools: McpToolSummary[]}
     | {type: "tools_failed"; error: string}
+    | {type: "consent_abandoned"}
     | {type: "retry"}
     | {type: "retry_tools"}
 
@@ -285,7 +297,12 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
 
         case "probe_failed":
             // The URL and the name survive, so a retry does not retype them.
-            return {...state, status: "check_failed", error: event.error}
+            return {
+                ...state,
+                status: "check_failed",
+                probe: event.probe ?? null,
+                error: event.error,
+            }
 
         case "name_changed":
             return {...state, name: event.name, nameTouched: true, error: null}
@@ -390,6 +407,17 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
             // Connected, with a tool problem. The credentials are good and consent is not
             // requested again for this.
             return {...state, status: "tools_failed", error: event.error}
+
+        case "consent_abandoned":
+            // Back to the screen that named the connection, with the name kept, rather than
+            // out of the dialog altogether: the person abandoned one authorization attempt,
+            // not the connection they were making.
+            //
+            // Only a journey that has a probe has that screen. A reconnect entered at scope
+            // discovery and never chose anything, so there is nothing behind it to go back
+            // to and its caller closes instead.
+            if (!state.probe) return state
+            return {...state, status: "naming", error: null}
 
         case "retry_tools":
             if (!isConnected(state)) return state
