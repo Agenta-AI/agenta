@@ -72,6 +72,5 @@ export const UserMarkdown = ({text}: {text: string}) => (
         content={text}
         streaming={false}
         useLinkResolver={useDriveLinkResolver}
-        icons={markdownIcons}
     />
 )
