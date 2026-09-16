@@ -6,6 +6,7 @@ import {
     latestTurnId,
     resolveStopExecution,
     shouldShowStopControl,
+    restoreRefusedSend as restoreRefusedSendInto,
 } from "@agenta/chat/assets"
 import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {
@@ -21,6 +22,7 @@ import {
     useAgentModelKeyStatus,
     useConnectionDock,
     useElicitationDock,
+    useComposerAttachments,
 } from "@agenta/chat/hooks"
 import {
     getInteractionAvailability,
@@ -116,12 +118,37 @@ export const LiveConversation = ({
     // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
     const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
     const startBlankSession = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
+    // The composer's input handle. Declared here because the released task puts its text back in
+    // the composer, rewind (far below) refills it the same way, and a refused send comes back
+    // through it too.
+    const composerRef = useRef<RichChatInputHandle | null>(null)
+    // The composer's tray, owned here for the same reason: a refusal that arrives after the send
+    // resolved has to put the files back from outside the composer's own submit.
+    const attachments = useComposerAttachments({sessionId})
+    const {restoreAttachments, setRejections} = attachments
+    const restoreRefusedSend = useCallback(
+        async (message: QueuedMessage) => {
+            const taken = await restoreRefusedSendInto(
+                composerRef.current,
+                {
+                    text: message.text,
+                    stagedFiles: message.stagedFiles ?? [],
+                    fileParts: message.fileParts ?? [],
+                },
+                restoreAttachments,
+            )
+            if (taken) setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+            return taken
+        },
+        [restoreAttachments, setRejections],
+    )
     const conversation = useAgentConversation({
         entityId,
         sessionId,
         sharedReaderAdvertised: sharedReader,
         sharedReaderRunning: running,
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
+        restoreRefusedSend,
     })
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
@@ -163,10 +190,6 @@ export const LiveConversation = ({
         const timer = setTimeout(() => setModelKeyWaitedMs(Date.now() - startedAt), remaining)
         return () => clearTimeout(timer)
     }, [modelKeyLoading])
-
-    // The composer's input handle. Declared here because the released task puts its text back in
-    // the composer, and rewind (far below) refills it the same way.
-    const composerRef = useRef<RichChatInputHandle | null>(null)
 
     // Editing borrows the composer: the row's text goes in, the draft it displaces is stashed.
     const {beginEdit, cancelEdit} = conversation
@@ -779,12 +802,13 @@ export const LiveConversation = ({
                         <Composer
                             entityId={entityId}
                             sessionId={sessionId}
-                            onSend={async ({text, parts}) => {
+                            attachments={attachments}
+                            onSend={async ({text, parts, stagedFiles}) => {
                                 setStoppingHere(false)
                                 // An open edit rewrites its held message instead of sending. The
                                 // input clears on submit, so the displaced draft goes back after.
                                 if (!conversation.editingId) {
-                                    await conversation.send({text, parts})
+                                    await conversation.send({text, parts, stagedFiles})
                                     return
                                 }
                                 const draft = await conversation.commitEdit({
@@ -796,7 +820,9 @@ export const LiveConversation = ({
                                         composerRef.current?.setMarkdown(draft),
                                     )
                             }}
-                            onSteer={({text, parts}) => conversation.steer({text, parts})}
+                            onSteer={({text, parts, stagedFiles}) =>
+                                conversation.steer({text, parts, stagedFiles})
+                            }
                             disabled={conversation.isHydrating || modelBlocked}
                             placeholder={
                                 modelBlocked ? "Connect a model to start chatting…" : undefined

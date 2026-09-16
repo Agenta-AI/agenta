@@ -61,7 +61,10 @@ Three opt-outs, from coarse to fine:
   opt-out for backend-only runs. On a hand-rolled `docker compose up`, pass both
   `--scale web-mobile=0` and `AGENTA_MOBILE_GATE=false`.
 - `AGENTA_MOBILE_GATE=false`: `/m` still runs and is reachable, but no redirect happens in
-  either direction.
+  either direction, whether the device heuristic or the user's Classic mode preference asks
+  for it. The web entrypoint mirrors the value into `__env.js` so the client-side hop obeys
+  it too. The one exception is an OAuth callback the mobile app started: it is still handed
+  to `/m`, because the sign-in state it needs lives there.
 - `AGENTA_MOBILE_REVERSE_GATE=false`: phones still go to `/m`, and a desktop browser can open
   `/m` instead of being bounced back. This is what a preview or review deployment wants.
 

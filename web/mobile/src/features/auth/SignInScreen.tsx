@@ -7,13 +7,15 @@ import {
     EmailPasswordForm,
     OtpVerifyForm,
     PasswordlessRequestForm,
+    RegionSelector,
     SocialAuthButtons,
     useSignInFlow,
+    useTurnstileSecurity,
 } from "@agenta/auth-ui"
 import {useRouter} from "next/router"
 
 import {AgentaLogo} from "@/components/AgentaLogo"
-import {startOidcSignIn} from "@/lib/auth"
+import {shouldShowRegionSelector, startOidcSignIn} from "@/lib/auth"
 
 import {providerIcon} from "./providerIcons"
 import {AuthMethodsSkeleton} from "./states/AuthMethodsSkeleton"
@@ -28,6 +30,10 @@ import {useAuthSuccess} from "./useAuthSuccess"
  * `useSignInFlow` from @agenta/auth-ui, the same one the desktop page drives. This screen is the
  * rendering of it plus the one transport that differs: /m routes its OIDC redirect through a
  * cookie so the desktop's registered callback URI still works.
+ *
+ * The security seam is the desktop's too: on EE the API refuses every auth POST that carries no
+ * Turnstile token, so the password and OTP forms take the same adapter the desktop hands them.
+ * (The OIDC exchange gets its token on the callback screen.)
  */
 export const SignInScreen = () => {
     const onSuccess = useAuthSuccess()
@@ -43,6 +49,7 @@ export const SignInScreen = () => {
         },
     })
     const {entry, methods, message, setMessage} = flow
+    const security = useTurnstileSecurity(setMessage)
 
     const startProvider = async (providerId: string) => {
         if (oidcLoading) return
@@ -105,6 +112,7 @@ export const SignInScreen = () => {
                         setMessage={setMessage}
                         initialEmail={flow.email}
                         lockEmail
+                        security={security}
                         onAuthError={flow.reportError}
                         onSuccess={async () => onSuccess()}
                     />
@@ -118,6 +126,7 @@ export const SignInScreen = () => {
                         onCodeSent={() => flow.setCodeSent(true)}
                         onAuthError={flow.reportError}
                         lockEmail
+                        security={security}
                     />
                 ) : null}
                 {(methods.password || methods.otp) && methods.sso.length ? <AuthDivider /> : null}
@@ -141,9 +150,11 @@ export const SignInScreen = () => {
         )
     } else {
         // The entry screen, ordered by what the visitor used last: the remembered method first,
-        // the rest under a divider.
+        // the rest under a divider. On a cloud host the data-residency switch comes first, as on
+        // the desktop — an account lives in one region, and the wrong one signs nobody in.
         body = (
             <div className="flex w-full flex-col gap-4">
+                {shouldShowRegionSelector() ? <RegionSelector /> : null}
                 {entry.promotedProvider ? socialButtons([entry.promotedProvider], true) : null}
                 {entry.promotedProvider && (entry.otherProviders.length || emailEntry) ? (
                     <AuthDivider />

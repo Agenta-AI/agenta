@@ -33,6 +33,7 @@ import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
+import {useTriggerTestRun} from "./useTriggerTestRun"
 
 // Build's config panel carries the whole schema-form surface (DrillInView + the editor). Chat
 // mode never renders it, so it loads on demand instead of riding in the session page's bundle —
@@ -94,6 +95,9 @@ export const SessionWorkspace = ({
             ),
         [entityId, pinRevision, sessionId],
     )
+
+    // An automation row's "Test run" (config pane) lands in a new session with this agent.
+    useTriggerTestRun({entityId, agentId, base})
 
     const configCollapsed = useAtomValue(configPanelCollapsedAtom)
     // Files dock as a resizable right-edge pane, as they do on the desktop, rather than an
@@ -230,7 +234,12 @@ export const SessionWorkspace = ({
                             : "hidden"
                     }
                 >
-                    <ConfigPane entityId={entityId} sessionId={sessionId} projectId={projectId} />
+                    <ConfigPane
+                        entityId={entityId}
+                        sessionId={sessionId}
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                    />
                 </div>
             ) : null}
             {configSlide.keepMounted && paneKind === "sessions" ? (
