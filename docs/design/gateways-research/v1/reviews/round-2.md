@@ -397,8 +397,13 @@ direction and it is a narrow case, but it is not the same question.
 disabled. The credential exchange happens server-side in the callback, so a person who authorizes
 and then presses Escape during the `refreshEndpoints()` round trip deletes a row whose grant the API
 has already stored, orphaning it at the provider. `mcp-connection-ux.md` states the invariant this
-breaks. Fix: treat consent success as the point of no return, or move `saving` into the connected
-set.
+breaks.
+
+**Fixed** by `133f17c110`, verified, and it takes both halves of the suggestion. `saving` joins the
+connected states, so nothing deletes from there, and the dialog is sealed across that window as
+well, because Escape and a mask click reach the close handler even while the footer is disabled.
+Belt and braces is right here: the grant exists server-side from the moment consent returns,
+whatever the dialog does next. CodeRabbit raised the same defect independently as **CR15**.
 
 **D30. Retry from a failed create or verify moves to a state nothing drives.** `RETRY_TARGET` sends
 `create_failed` to `creating` and `verify_failed` to `verifying` (`core/connectJourney.ts:185`),
