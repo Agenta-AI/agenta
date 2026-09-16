@@ -160,6 +160,10 @@ export interface UseAgentConversationArgs {
     /** Hand a late-refused send back to the composer; return whether it took the text (and the
      * staged files it carried). See `restoreRefusedSend` in `@agenta/chat/assets`. */
     restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
+    /** A durable send was admitted: the turn it started, or `null` for a parked input. */
+    onSendAccepted?: (message: {text: string}, executionId: string | null) => void
+    /** A durable send was rejected or refused; no turn will ever carry it. */
+    onSendFailed?: (message: {text: string}) => void
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
      * silently folded every client tool into the plain "used N tools" group, leaving the run
@@ -182,6 +186,12 @@ export interface AgentConversation {
     turns: TurnViewModel[]
     /** Send a user message (routes through the queue: sends now, or holds while busy/paused). */
     send: (input: SendInput) => Promise<void>
+    /**
+     * A send this mount admitted is still on its way: the runner has neither named its turn nor
+     * refused it. `status` stays "ready" on the server-owned send path, so a skin that wants to
+     * show work from the moment the message leaves the composer reads this alongside it.
+     */
+    sendInFlight: boolean
     /** Prevent an approval decision still being recorded from starting its delayed resume. */
     voidPendingResume: () => void
     /** Abort the in-flight stream and tag the last assistant turn as user-stopped. */
@@ -259,6 +269,8 @@ export const useAgentConversation = ({
     sharedReaderRunning = false,
     sharedReaderLivenessUpdatedAt = 0,
     restoreRefusedSend,
+    onSendAccepted,
+    onSendFailed,
     isClientToolPart,
 }: UseAgentConversationArgs): AgentConversation => {
     // Declared FIRST, so its effect re-arms before any effect below can capture a generation.
@@ -536,7 +548,7 @@ export const useAgentConversation = ({
     // `messages`/`busy` change every commit; consumers that must stay referentially stable
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
     messagesRef.current = messages
-    busyRef.current = busy || acceptedRunPending
+    // `busyRef` is assigned after the queue hook below: `sendInFlight` is part of it.
     localRenderBusyRef.current = busy && !acceptedRunPending
 
     useEffect(() => {
@@ -780,6 +792,7 @@ export const useAgentConversation = ({
         cancelEdit,
         commitEdit,
         pendingSendRows,
+        sendInFlight,
     } = useAgentChatQueue({
         status,
         messages,
@@ -794,10 +807,15 @@ export const useAgentConversation = ({
         // so a late refusal keeps its flagged row instead of restoring the draft. Pass a restorer
         // in to unify it with the desktop.
         restoreRefusedSend,
+        onSendAccepted,
+        onSendFailed,
         sendQueued,
         sessionId,
         server: serverInputs,
     })
+    // A preserve check that misses `sendInFlight` lets a navigation release and stop the chat in
+    // the window between the message leaving and the turn being accepted.
+    busyRef.current = busy || acceptedRunPending || sendInFlight
 
     // The server capability chooses one owner. Feature-off servers keep the original ordered row
     // transition + AI SDK gate release; durable servers own continuation after their 202.
@@ -971,10 +989,11 @@ export const useAgentConversation = ({
 
     // Publish this session's run state (single source of truth for session-list status dots).
     // Precedence error > awaiting approval > running > idle.
+    // `sendInFlight` too: the dot goes live when the message leaves, not when a poll notices.
     const runStatus = deriveSessionRunStatus({
         error: !!errorBoundary.runError,
         hitlPending,
-        busy: busy || acceptedRunPending || ownsContinuation,
+        busy: busy || acceptedRunPending || ownsContinuation || sendInFlight,
     })
     useEffect(() => {
         setSessionStatus({id: sessionId, status: runStatus})
@@ -1342,6 +1361,7 @@ export const useAgentConversation = ({
         connectionWarning: errorBoundary.connectionWarning,
         turns,
         send,
+        sendInFlight,
         voidPendingResume,
         stop: handleStop,
         regenerate: regenerateTurn,
