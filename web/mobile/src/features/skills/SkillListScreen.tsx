@@ -1,7 +1,5 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
-
 import {
     invalidateSkillsListCache,
     skillsListDataAtom,
@@ -15,6 +13,7 @@ import {
     SkillCreateDrawer,
     SkillDetailDrawer,
     SkillImportDrawer,
+    useSkillCreateEntry,
     type SkillListItem,
 } from "@agenta/skills-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
@@ -100,9 +99,7 @@ export const SkillListScreen = ({
         )
         return buildRegistrySections(projectSkills)
             .sections.flatMap((section) => section.skills)
-            .map((item) =>
-                toSkillListRow(item, ownerNames.get(creators.get(item.id) ?? "")?.trim() ?? ""),
-            )
+            .map((item) => toSkillListRow(item, ownerNames.get(creators.get(item.id) ?? "")))
     }, [ownerNames, projectSkills])
     const repositories = useMemo(() => listRepositories(rows), [rows])
     const groups = useMemo(() => deriveSkillList(rows, view), [rows, view])
@@ -136,18 +133,7 @@ export const SkillListScreen = ({
     const [importOpen, setImportOpen] = useState(false)
     const openImport = useCallback(() => setImportOpen(true), [])
     const closeImport = useCallback(() => setImportOpen(false), [])
-    // Write and Upload share the create drawer; Upload hands it the scan of what was picked.
-    const [createOpen, setCreateOpen] = useState(false)
-    const [upload, setUpload] = useState<Promise<SkillUploadScan> | null>(null)
-    const openWrite = useCallback(() => {
-        setUpload(null)
-        setCreateOpen(true)
-    }, [])
-    const openUpload = useCallback((scan: Promise<SkillUploadScan>) => {
-        setUpload(scan)
-        setCreateOpen(true)
-    }, [])
-    const closeCreate = useCallback(() => setCreateOpen(false), [])
+    const {createOpen, upload, onWrite, onUpload, closeCreate} = useSkillCreateEntry()
 
     const emptyState = isLoading ? null : projectHasSkills || term ? (
         <SkillsNoMatch
@@ -192,8 +178,8 @@ export const SkillListScreen = ({
                                     Skills
                                 </h1>
                                 <NewSkillMenuButton
-                                    onWrite={openWrite}
-                                    onUpload={openUpload}
+                                    onWrite={onWrite}
+                                    onUpload={onUpload}
                                     onImport={openImport}
                                     className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
                                 />
