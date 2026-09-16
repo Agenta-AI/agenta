@@ -1479,10 +1479,11 @@ async def test_subscription_resolves_to_runtime_provided_with_the_login(
     assert resolved.subscription.version == 3
     assert resolved.subscription.generation == 1
     assert resolved.subscription.login == _READY_LOGIN
-    # A named self-managed connection resolves through the gateway, exactly like an
-    # `agenta` one: the vault read moved behind `POST /gateways/llms/resolve`.
-    assert capture["method"] == "POST"
-    assert capture["url"] == "https://api.x/api/gateways/llms/resolve"
+    # A named self-managed connection reads the VAULT. It must not go to
+    # `POST /gateways/llms/resolve`: that endpoint answers with a gateway route, and a
+    # subscription has none — the harness authenticates itself.
+    assert capture["method"] == "GET"
+    assert capture["url"] == "https://api.x/api/secrets/"
 
 
 @pytest.mark.parametrize("harness", ["codex", "claude_code", None])
@@ -1584,3 +1585,43 @@ async def test_self_managed_without_a_slug_still_skips_the_vault(fake_http):
     assert resolved.credential_mode == "runtime_provided"
     assert resolved.subscription is None
     assert resolved.provider == "openai-codex"
+
+
+async def test_a_hosted_subscription_never_takes_the_gateway_route(
+    fake_http, connection
+):
+    """The regression: a named self-managed connection went to `POST /gateways/llms/resolve`.
+
+    That endpoint answers with the dict shape below, which the SDK turns into a gateway route.
+    A subscription has no route — the harness signs itself in — so taking it either discarded
+    the login and handed the harness a connection it cannot use, or the API refused outright
+    because no endpoint row exists for a subscription slug. The tests that covered hosted
+    subscriptions all fed the LIST shape, which only the vault read and the plane-disabled
+    fallback return, so nothing caught it.
+
+    The payload here is what a live API actually answers, and the assertion is that the SDK
+    never asks for it in the first place.
+    """
+    capture = fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "standard",
+                "name": "openai",
+                "provider_key": "openai",
+                "deployment_kind": "direct",
+                "model": "gpt-5.5",
+            }
+        },
+    )
+
+    with pytest.raises(ConnectionResolutionError):
+        # The vault read is what this connection makes, and this fake answers it with a dict.
+        # Failing loudly here is the point: it proves the request went to the vault, because a
+        # gateway resolve would have parsed this payload happily and returned a route.
+        await VaultConnectionResolver(connection).resolve(
+            model=_subscription_model(), context=_context()
+        )
+
+    assert capture["method"] == "GET"
+    assert capture["url"] == "https://api.x/api/secrets/"

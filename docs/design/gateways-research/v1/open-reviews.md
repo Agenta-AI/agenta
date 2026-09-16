@@ -2,7 +2,7 @@
 
 ## Active review findings
 
-The record runs OR36 to OR89, fifty-four findings: forty-seven closed, six open and one withdrawn.
+The record runs OR36 to OR90, fifty-five findings: forty-eight closed, six open and one withdrawn.
 Every number in that range is present. Entries numbered below OR36 predate the record and are
 all closed. Recounted from the headings on 2026-09-16, after several findings closed on that day
 and the one before it.
@@ -394,6 +394,47 @@ Proven by four cases in `sdks/python/oss/tests/pytest/unit/agents/test_invoke_fa
 a handler's exception returns no traceback and keeps its status fields, an `ErrorStatus` the SDK
 raised returns none either, the flag puts it back, and a withheld traceback reaches the log. The
 first, second and fourth fail against the previous behaviour.
+
+---
+
+### OR90. A hosted subscription connection is sent to the gateway, which has no route for it — CLOSED, by keeping every self-managed connection off the gateway resolver
+
+**Found on 2026-09-16 while answering whether a ChatGPT/Codex subscription is metered by the LLM
+gateway.** It is not, and the unnamed sidecar case is correct. The NAMED case is not. Severity P2:
+it is the only way to use a subscription the platform stores, it is Pi-only today, and the LLM
+plane is on by default in this pull request.
+
+A `self_managed` connection means the harness authenticates itself, so there is no provider key
+for the gateway to hold and no route for it to build. The resolver short-circuited only the
+connection with no slug. A named one — a hosted subscription, whose stored OAuth login Agenta
+delivers to the run — fell through to `POST /gateways/llms/resolve`. That endpoint answers with a
+gateway route, so the run either got a gateway connection the harness cannot use, with the
+subscription silently discarded, or was refused outright because no endpoint row exists for a
+subscription slug.
+
+**Why no test caught it.** The branch used to read the vault, and reading the vault is still the
+right thing for it to do; what moved was the fetch, from `GET /secrets/` to the gateway resolver,
+and this branch was not repointed with it. The tests that cover hosted subscriptions all feed the
+LIST payload (`test_connections_http.py`, `fake_http(..., payload=[...])`), which only the vault
+read and the plane-disabled fallback return. `_resolve_from_secrets` handles a list, so they stayed
+green against an endpoint that no longer answers with one. One test even asserted the wrong URL
+outright, as a statement of the drift rather than a check on it.
+
+This is the same shape as the harness-matrix false green and the permissive MCP mock recorded in
+[qa.md](qa.md): a fixture that answers a shape production stopped sending. A test is only evidence
+while the payload it feeds is the payload the caller receives.
+
+**Fix.** `sdks/python/agenta/sdk/agents/platform/connections.py`: the `self_managed` check now
+precedes the slug test, so neither shape reaches the gateway resolver. An unnamed connection still
+resolves to "inject nothing" with no read; a named one reads the vault. Both keep
+`credential_mode="runtime_provided"`, and the named one carries its `subscription` block beside the
+connection.
+
+**Proof.** A new case feeds the CURRENT payload shape — the dict with a `connection` object, which
+is what a live API answers — and asserts the SDK never asks the gateway for it. Before the fix that
+payload parsed happily into a gateway route; after it, the request goes to `GET /secrets/`. The
+misdirected assertion in the existing case is corrected rather than deleted, since what it recorded
+is the drift itself.
 
 ---
 

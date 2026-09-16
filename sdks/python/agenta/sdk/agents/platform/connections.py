@@ -1089,13 +1089,34 @@ class VaultConnectionResolver:
         model: ModelRef,
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
-        # An unnamed self-managed connection resolves to "inject nothing" with no vault read.
-        # A named one points at a hosted subscription secret, so it must fetch like `agenta`.
-        if model.connection.mode == "self_managed" and not _stripped(
-            model.connection.slug
-        ):
-            return await _StaticSecretsResolver([]).resolve(
-                model=model, context=context
+        # A self-managed connection never reaches the gateway, in EITHER shape. The harness
+        # authenticates itself, so there is no provider key for the gateway to hold and no
+        # route for it to build; `resolved_connection` carries `credential_mode`
+        # "runtime_provided" and, for a named one, the subscription login beside it.
+        #
+        # The unnamed case is the operator mount, and resolves to "inject nothing" with no
+        # read at all. The NAMED case is a hosted subscription and does need a vault read,
+        # but of the vault, not of `POST /gateways/llms/resolve`: that endpoint answers with
+        # a gateway route, and taking it either discarded the subscription and returned a
+        # gateway connection the harness cannot use, or was refused outright because no
+        # endpoint row exists for a subscription slug. It used to read the vault, and the
+        # branch was not repointed when the fetch moved to the gateway.
+        if model.connection.mode == "self_managed":
+            slug = _stripped(model.connection.slug)
+            if not slug:
+                return await _StaticSecretsResolver([]).resolve(
+                    model=model, context=context
+                )
+            api_base = self._connection.base_url()
+            if not api_base:
+                raise ConnectionResolutionError(
+                    "no Agenta backend configured for connection resolution"
+                )
+            return await self._resolve_from_vault(
+                api_base=api_base,
+                authorization=self._connection.authorization(),
+                model=model,
+                context=context,
             )
 
         api_base = self._connection.base_url()
