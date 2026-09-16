@@ -15,6 +15,8 @@ export {AgentCard, agentAvatar, type AgentCardData, type AgentCardProps} from ".
 export {
     AgentChip,
     AgentPicker,
+    AgentPickerPanel,
+    type AgentPickerPanelProps,
     type AgentPickerProps,
     type AgentPickerDensity,
     type AgentPickerTriggerVariant,
