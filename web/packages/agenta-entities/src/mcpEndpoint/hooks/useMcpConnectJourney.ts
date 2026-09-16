@@ -159,8 +159,12 @@ export function useMcpConnectJourney({
             if (!redirectUrl) throw new Error("No authorization URL returned.")
 
             if (!popup) {
-                // Blocked. A same-tab redirect still completes the flow, and the callback
-                // returns the person to where they were.
+                // Blocked, which mobile browsers and in-app webviews do far more readily than
+                // desktop. The same-tab redirect still completes the authorization, but it
+                // destroys this app and the journey with it, so the callback page sends the
+                // tab back to the connections list rather than leaving it on the API's origin
+                // under a message about closing itself. Anything unsaved elsewhere is lost;
+                // that is the cost of the popup being refused, not of this branch.
                 window.location.assign(redirectUrl)
                 return
             }
