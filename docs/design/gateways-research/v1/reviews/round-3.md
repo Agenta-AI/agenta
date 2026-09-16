@@ -306,7 +306,7 @@ origin, so the path already returns there, and the fallback lands on the connect
 anywhere wrong. Worth being precise about what stays true — on a deployment that does split them, a
 blocked popup still loses the originating surface.
 
-## D88, REOPENED — the divergence was fixed in one reader of five
+## D88, CLOSED at last — all five readers now agree
 
 `247bfbc9f1`, verified. The finding was that the Claude settings matrices cross every server
 decision with every per-tool decision and then ask about the one tool the table names, so the other
@@ -340,9 +340,26 @@ A fifth reader has the same fallback: `resolvedNewToolPermission`
 (`web/packages/agenta-entities/src/mcpEndpoint/core/toolPolicy.ts:69`) drives the editor's
 "Inherits" label, so the editor also tells an author the wrong thing about an unnamed tool.
 
-**Both halves are in flight** — the SDK resolver with a cross-reader matrix, and the web reader with
-its mobile mirror — and the record stays open until they land, so it never reads closed while the
-wire is wrong.
+**Closed** by `c84e6b2a78` (the SDK resolver) and `2b325c0ea4` (the web reader and its mobile
+mirror), **verified at the wire this time rather than in the file.** Loading the policy and asking
+`to_wire` what it emits:
+
+| policy | wire |
+| --- | --- |
+| `permission: allow` + a tool table | `newToolPermission: "ask"` |
+| `permission: deny` + a tool table | `newToolPermission: "ask"` |
+| `permission: allow`, no table | neither field emitted |
+| explicit `new_tool_permission` | honoured unchanged |
+
+The no-table row is the one that had to stay as it was, and it does: with neither field on the wire
+the runner's intake returns the whole-server permission, which is what it did before. So the change
+narrows exactly the case that was wrong and leaves the case that was right.
+
+The web reader returns null without a table and `new_tool_permission ?? "ask"` with one, and its
+discriminating case — a table beside `permission: allow` — is pinned in the entities suite. The
+editor's "Inherits" label derives directly from that resolver, so the rendered surface follows.
+**One gap worth naming:** no rendered case uses that discriminating shape. The label cases all use a
+table with no server permission beside it, where both the old and new expressions answer `ask`.
 
 **My closure was wrong, and the reason is worth keeping.** I verified the adapter's ladder, read its
 tests, ran them, and pinned the pre-fix revision to watch seven cases fail. All of that was true and
@@ -452,6 +469,61 @@ own guard catches it — the right symptom, the wrong mechanism. And the browser
 that route: there is no mask or overlay click anywhere in the acceptance suites. The omission is
 worth reversing, because the handler guard is the one half of the seal nothing pins and the mask is
 exactly what it defends.
+
+## Two suites are red on the shared head
+
+Both are stale assertions left by correct changes, and both are the same failure mode: an author who
+could not run the suite that covers the file they edited.
+
+**The runner unit suite** fails one case: `services/runner/tests/unit/ssrf-guard.test.ts:47` still
+lists `100.64.0.1` under "allows routable public addresses", and P10 (`ae9911c08c`) added carrier-grade
+NAT `100.64.0.0/10` to the blocked set. The predicate is right and the fixture is stale — that address
+is exactly what the new range is for. 3423 of 3424 pass. A whole-repository sweep found no other
+place still calling a 100.64 address routable.
+
+**The chat package** fails one case, recorded above under D86.
+
+Neither is a defect in the product. Both make every suite run on this branch read red, which is worth
+clearing before the rebase rather than after, because a red baseline is how a real failure hides.
+
+## The API batch, delta-checked
+
+Eleven commits, all closing what they claim, and nearly all proved by mutating the product rather
+than reading it: **P10** (each of the three Python predicates, the generator and the runner table
+mutated in turn, each failing its own cases), **P6**, **P7**, **P11/P12**, the wrapper-agreement
+guard, **P4** (the 273 leaked rows are real, still present, and a full pass no longer adds to them),
+**P8**, **D76** (a wrong port now skips rather than silently reaching another stack, and a malformed
+one is a collection error), **D77** (`fb8a8a51ae`, which closes the standing note that the variable
+was set nowhere), and **D54** in all three of its parts. The shared session rules matter more than
+they sound: removing them fails thirteen cases across four suites, so three suites genuinely could
+not run against the strict mock before.
+
+One correction and one gap:
+
+- P10 has **one** golden vector fixture, not two, and both the Python and runner suites read it. The
+  generator, the fixture and the runner's table are proved equal by a regenerate-and-compare case, so
+  the agreement is measured rather than asserted.
+- **D54's data-plane filter case does not discriminate on pagination.** It asserts the filtered
+  listing is `{"echo"}`, and page one alone already yields exactly that, so a regression that dropped
+  every page after the first would pass it. The claim on the wire is true — the relay was instrumented
+  and the filter does rewrite each page — but a different case carries it.
+
+### D92. The QA runbook gives opposite instructions for the same two variables
+
+`qa.md` tells an integration run to point the mock gateway URLs at loopback and an acceptance run to
+leave them unset, and the difference between those two shells is **seventeen failures that read like
+product defects**. After D76 the name changed meaning again: on the Python side it is now the
+container address, while the browser suite reads the same name as its own preferred base. One
+variable, three meanings, in a document written to be followed literally by someone under time
+pressure. Splitting the name is cheaper than the first hour it costs. Raised by verification, not by
+a fix.
+
+### D93. The API-side plane gate still skips where the services side now fails
+
+`api/oss/tests/pytest/acceptance/gateways/conftest.py:68` skips when the LLM plane is off, and no API
+job carries the expectation variable D77 introduced. On a plane-off preview the API gateway cells go
+green while covering nothing, which is D25's shape once more. Outside D77's recorded scope, so it is
+its own entry rather than a reopening.
 
 ## The fixes that hold
 
