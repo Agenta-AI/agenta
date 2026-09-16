@@ -366,7 +366,11 @@ function McpConnectJourneyBody({
                         />
                     ) : null}
 
-                    {state.error && !isConnectedStatus(state.status) ? (
+                    {/* Not on the name step: there the error belongs to the field, and
+                        rendering it here as well says the same thing twice. */}
+                    {state.error &&
+                    !isConnectedStatus(state.status) &&
+                    state.status !== "naming" ? (
                         <p className="text-sm text-colorErrorText">{state.error}</p>
                     ) : null}
                 </div>

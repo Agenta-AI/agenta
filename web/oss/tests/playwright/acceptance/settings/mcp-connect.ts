@@ -97,6 +97,32 @@ const navigate = async (page: Page, url: string) => {
     }
 }
 
+/**
+ * Create a connection through the API, without the open page hearing about it.
+ *
+ * The client refuses a duplicate name from the list it already holds, so a name typed into a
+ * page that knows about the collision never reaches the server and the API's own refusal is
+ * never exercised (D39). Creating one behind the page's back leaves the list stale, which is
+ * also what happens when a colleague adds a connection while someone has settings open.
+ */
+const createConnectionOutOfBand = async (page: Page, basePath: string, name: string) => {
+    const projectId = basePath.match(/\/p\/([^/]+)/)?.[1]
+    const apiUrl = process.env.AGENTA_API_URL || `${process.env.AGENTA_WEB_URL}/api`
+    const response = await page.request.post(
+        `${apiUrl}/gateways/mcps/endpoints/?project_id=${projectId}`,
+        {
+            data: {
+                endpoint: {
+                    name,
+                    auth_mode: "none",
+                    data: {route: {base_url: `${mockBaseUrl}/`}},
+                },
+            },
+        },
+    )
+    expect(response.ok(), await response.text()).toBe(true)
+}
+
 const openSettings = async (page: Page, basePath: string) => {
     await navigate(page, `${basePath}/settings?tab=mcpEndpoints`)
     // The tab falls back when the deployment serves no MCP gateway, so assert we are on it
@@ -248,26 +274,31 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             const name = uniqueName("Duplicate MCP")
             const basePath = apiHelpers.getProjectScopedBasePath()
 
-            await scenarios.given("a connection already uses the name", async () => {
+            await scenarios.given("the page is open before the name is taken", async () => {
                 await openSettings(page, basePath)
-                const dialog = await startJourney(page, `${mockBaseUrl}/`, name)
-                await dialog.getByRole("button", {name: "Continue"}).click()
-                await finishJourney(page)
-                await expect(connectionRow(page, name)).toBeVisible({timeout: 30000})
             })
 
-            await scenarios.when("the user tries to reuse it", async () => {
+            await scenarios.and("another connection takes it", async () => {
+                // Out of band on purpose: a page that already knows about the collision
+                // refuses the name from its own list and never asks the server.
+                await createConnectionOutOfBand(page, basePath, name)
+            })
+
+            await scenarios.when("the user submits that name", async () => {
                 const dialog = await startJourney(page, `${mockBaseUrl}/`, name)
-                // Refused in the field rather than on submit: the name is the one thing the
-                // person can fix where they are standing.
-                await expect(dialog.getByText("already uses this name")).toBeVisible({
-                    timeout: 20000,
-                })
+                await dialog.getByRole("button", {name: "Continue"}).click()
+
+                // The server's refusal, carried back to the field the person can fix, and
+                // said once rather than twice.
+                const refusal = dialog.getByText("already uses this name")
+                await expect(refusal).toBeVisible({timeout: PROBE_MS})
+                await expect(refusal).toHaveCount(1)
             })
 
             await scenarios.then("the journey stays on the name step", async () => {
                 const dialog = journeyDialog(page)
                 await expect(dialog.getByLabel("Connection name")).toBeVisible()
+                await expect(dialog.getByLabel("Connection name")).toHaveValue(name)
                 await dialog.getByRole("button", {name: "Cancel"}).click()
             })
         },
@@ -366,10 +397,10 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             await expect(detail.getByText("Tools", {exact: true})).toBeVisible({timeout: 30000})
             // The mock advertises `echo`; permissions are the agent's business, so this view
             // says what exists and points at the agent configuration.
-            await expect(detail.getByText("echo", {exact: true})).toBeVisible({timeout: 30000})
-            await expect(
-                detail.getByText("Choose what this server may do in an agent's configuration."),
-            ).toBeVisible()
+            // A tool name the server advertised, not a sentence this page would render
+            // whatever the server said (D39). The mock advertises echo, fail and slow.
+            await expect(detail.getByText("echo", {exact: true})).toBeVisible({timeout: PROBE_MS})
+            await expect(detail.getByText("fail", {exact: true})).toBeVisible()
         })
     })
 

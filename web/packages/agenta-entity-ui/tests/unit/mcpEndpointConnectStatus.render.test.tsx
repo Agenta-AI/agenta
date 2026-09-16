@@ -50,6 +50,15 @@ describe("McpEndpointConnectStatus", () => {
     })
 
     it("does not offer the flow on a read-only config", () => {
-        expect(markup(endpoint({}), true)).toContain("disabled")
+        // The rendered attribute, not the word. The button's own class list carries
+        // `disabled:opacity-50`, so a substring match is satisfied whenever it renders at all
+        // and passes with the prop dropped entirely (D39).
+        expect(markup(endpoint({}), true)).toContain('disabled=""')
+    })
+
+    it("offers it on a config that can be edited", () => {
+        // The other half: without this, the case above is also satisfied by a button that is
+        // always disabled.
+        expect(markup(endpoint({}))).not.toContain('disabled=""')
     })
 })
