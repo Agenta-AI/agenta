@@ -145,7 +145,7 @@ export const SessionTabs = ({
                                 />
                             </>
                         )}
-                        {/* Shows the state and flips it; the pane can be open in either mode. */}
+                        {/* Shows the state and flips it; hidden below md, where the pane never mounts. */}
                         <SimpleTooltip
                             title={
                                 <span className="flex items-center gap-1.5">
@@ -161,7 +161,7 @@ export const SessionTabs = ({
                                 aria-pressed={filesOpen}
                                 aria-keyshortcuts={shortcutAria("panel.files")}
                                 onClick={toggleFiles}
-                                className={`h-7 w-7 shrink-0 p-0 ${filesOpen ? "text-foreground" : "text-muted-foreground"}`}
+                                className={`h-7 w-7 shrink-0 p-0 max-md:hidden ${filesOpen ? "text-foreground" : "text-muted-foreground"}`}
                             >
                                 {filesOpen ? (
                                     <PanelRightClose size={14} />

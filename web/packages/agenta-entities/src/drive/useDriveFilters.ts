@@ -12,13 +12,18 @@ export type DriveViewMode = "grid" | "list"
 export type DriveSortKey = "name" | "modified" | "size"
 export type DriveEditorMode = "rendered" | "source"
 
-const driveViewModeAtom = atomWithStorage<DriveViewMode>("agenta:drive:view", "grid")
-const driveSortKeyAtom = atomWithStorage<DriveSortKey>("agenta:drive:sort", "name")
-const driveEditorModeAtom = atomWithStorage<DriveEditorMode>("agenta:drive:editor-mode", "rendered")
-const driveShowHiddenPrefAtom = atomWithStorage<boolean>("agenta:drive:show-hidden", false)
-const driveShowGitignoredPrefAtom = atomWithStorage<boolean>("agenta:drive:show-gitignored", false)
+// Read from storage on init: the session copies below seed from these on first render, and the
+// pane is client-only.
+const pref = <T>(key: string, initial: T) =>
+    atomWithStorage<T>(`agenta:drive:${key}`, initial, undefined, {getOnInit: true})
+
+const driveViewModeAtom = pref<DriveViewMode>("view", "grid")
+const driveSortKeyAtom = pref<DriveSortKey>("sort", "name")
+const driveEditorModeAtom = pref<DriveEditorMode>("editor-mode", "rendered")
+const driveShowHiddenPrefAtom = pref("show-hidden", false)
+const driveShowGitignoredPrefAtom = pref("show-gitignored", false)
 // On by default; the toggle narrows to the persistent files.
-const driveShowTemporaryAtom = atomWithStorage<boolean>("agenta:drive:show-temporary", true)
+const driveShowTemporaryAtom = pref("show-temporary", true)
 
 export function useDriveFilters() {
     const [search, setSearch] = useState("")

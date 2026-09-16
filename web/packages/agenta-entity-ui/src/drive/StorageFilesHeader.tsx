@@ -14,6 +14,7 @@ import {useSetAtom} from "jotai"
 
 import {DriveWarningBadge, FOCUS_RING} from "./DriveFileRow"
 import {driveQuickLookAtomFamily} from "./quickLook"
+import {sessionFilesPaneOpenAtomFamily} from "./SessionFilesPane"
 
 // `-mr-1` bleeds the hit area's right padding outward so the folder glyph, not the padding, lands
 // on the panel's affordance axis.
@@ -22,15 +23,22 @@ const BROWSE_BUTTON = `-mr-1 flex cursor-pointer items-center rounded border-0 b
 export default function StorageFilesHeader({
     revisionId,
     sessionId,
+    scope,
 }: {
     revisionId?: string | null
     /** The conversation whose drive this is. The host resolves it; empty = no conversation. */
     sessionId?: string | null
+    /** The pane's scope key, for a host whose session id can be empty (a fresh tab). */
+    scope?: string | null
 }) {
     const {drive} = useConfigDrive(revisionId, sessionId)
-    // A root quick look opens the docked pane without a panel scope key reaching here.
+    // A root quick look on the session opens the docked pane; without a session, the scope flag.
     const setQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
-    const openPane = () => setQuickLook({path: ""})
+    const setScopeOpen = useSetAtom(sessionFilesPaneOpenAtomFamily(scope ?? ""))
+    const openPane = () => {
+        if (sessionId) setQuickLook({path: ""})
+        else if (scope) setScopeOpen(true)
+    }
 
     if (drive.isLoading) {
         return (

@@ -3,6 +3,7 @@ import {useMemo} from "react"
 import {
     AGENT_FILES_DIR,
     agentMountQueryFamily,
+    cleanPath,
     humanSize,
     itemCountLabel,
     nameOf,
@@ -82,7 +83,7 @@ export const AgentDriveCard = ({agentId, base}: {agentId: string; base: string})
                                 <DriveTypeMark path={file.path} size="mini" />
                             )
                         }
-                        label={nameOf(file.path.replace(/\/+$/, "")) || file.path}
+                        label={nameOf(cleanPath(file.path)) || file.path}
                         detail={fileDetail(file)}
                         title={file.path}
                         onClick={() => openDrive(`${AGENT_FILES_DIR}/${file.path}`)}
