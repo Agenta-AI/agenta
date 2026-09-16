@@ -6,10 +6,6 @@ description: "Connect a project to an HTTP MCP server and give your agents the t
 
 An MCP server gives your agent tools it can call. You connect the server once to a project, and any agent in that project can use it. To learn how MCP compares with built-in integrations, see [Tools and integrations](/concepts/tools-and-integrations).
 
-:::info Pending release verification
-This page describes the MCP connection flow in PR #6049. The steps have not yet been verified against a released build.
-:::
-
 ## Before you start
 
 Have these ready:
@@ -27,7 +23,7 @@ Start from `Settings` in the sidebar, then `MCPs`, and click `Connect MCP`. You 
 
    **The server uses OAuth.** The dialog reads "This server uses OAuth. Continuing opens its authorization page." `Continue` lists the permissions the server offers, one checkbox each, under "Choose which permissions to grant". Clear any you do not want to grant, then click `Authorize`. The provider's consent page opens in a new window. Complete it there, and the dialog carries on by itself.
 
-   If your browser blocks the new window, consent opens in the tab you were already on. That is common on phones and inside apps that embed a browser. Agenta shows "Taking you back to Agenta..." when consent finishes and returns you to the connections list, whether you granted access or refused it. You lose whatever you had open in the app, so reopen the agent you were configuring afterwards.
+   If your browser blocks the new window, consent opens in the tab you were already on. That is common on phones and inside apps that embed a browser. The connection is still created. You may land somewhere other than where you started, so go to `Settings > MCPs` to check that it is there, and reopen the agent you were configuring.
 
    **The server needs no authentication.** The dialog reads "This server needs no authentication." Click `Continue`.
 
