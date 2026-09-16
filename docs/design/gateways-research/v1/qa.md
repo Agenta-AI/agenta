@@ -109,6 +109,65 @@ API-only request: those prove the proxy, not the product path.
    deployment where the API, the mocks and the test runner share one address space, so none of
    the above applies there.
 
+## Real providers: Linear and Axiom
+
+Status: **read-only evidence captured. The write cell is not run, and the reason is a product
+decision, not a test failure.** Everything below was taken against two real MCP servers on the
+gateways dev stack, in a disposable project, after a person completed both consent flows in a
+browser.
+
+Until now every MCP cell in this document ran against the compose mock. A mock cannot prove that
+a real server's registration, consent and discovery work, which is exactly what the release gate
+asks for, so this section records the first evidence that they do.
+
+### Discovery through the gateway
+
+`initialize` then `tools/list`, relayed through `POST /gateways/mcps/custom/{slug}`, with the
+project's own API key. No `tools/call`.
+
+| Server | initialize | serverInfo | Tools |
+| --- | --- | --- | --- |
+| Linear | 200 | `Linear MCP` 1.0.0 | **79** |
+| Axiom | 200 | `Axiom MCP Server` 0.1.3 | **28** |
+
+Linear's list includes `list_teams`, `get_team`, `list_issues`, `get_issue`, `save_issue`,
+`share_issue` and the label and attachment families. Axiom's includes `listDatasets`,
+`queryDataset`, `listMonitors`-style monitor tools, and the dashboard and notifier families. Both
+lists are the provider's own, not ours.
+
+A read tool was then called once against Linear, `list_teams`, and returned the workspace's teams.
+That is the first `tools/call` this project has made to a real MCP server through the gateway, and
+it proves the relay carries a stored OAuth grant to a real upstream and gets real data back.
+
+### Two things worth knowing for anyone repeating this
+
+The data plane does not read `Authorization`. `/gateways/{plane}/{namespace}/...` is matched as the
+data plane and the middleware reads `X-AG-Credentials` there, ignoring `Authorization` entirely
+(`api/oss/src/middlewares/auth.py`, `_GATEWAY_DATA_PLANE` and `_credentials_header`). A client that
+sends only `Authorization` gets a bare 401 that reads exactly like an unconsented connection, which
+is a misleading way to lose an hour. Send `X-AG-Credentials`, and send `Accept` with both
+`application/json` and `text/event-stream` or the server answers 406.
+
+Replies are SSE-framed. A real server's `tools/list` comes back as an `event: message` frame, not a
+JSON body, so a client that calls `.json()` on it sees no tools and reports zero rather than
+failing. Parse the `data:` line.
+
+### Why the write cell did not run
+
+A single throwaway write was authorised, in a scratch team. Reading the workspace first, with
+`list_teams`, shows five teams and **none of them is a scratch team**: they are the organisation's
+real, active teams, the oldest created in 2023 and the most recently updated the day before this
+run. An issue created in any of them is visible to the people who work there.
+
+The authorisation was for a scratch team, so its precondition is not met and the write is left for
+a person to direct. The rest of the cell is ready: a driver exists that runs allow, ask-approve,
+ask-deny and read-only against any MCP connection, and it has been proved against the mock, where
+ask-approve shows the `tools/call` POST landing between the two model calls and ask-deny shows the
+two model calls back to back with no POST between them. Point it at the team a person names.
+
+Do not substitute a quiet-looking real team for a scratch one. "Least recently updated" is not the
+same as "nobody will see it".
+
 ## Dashboard procedure
 
 Use the dashboard's managed-agent creation and run flow. For each harness available in the
