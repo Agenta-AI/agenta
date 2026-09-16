@@ -32,6 +32,7 @@ import {getSessionTurnId} from "@agenta/chat/state"
 import {cancelSessionExecution} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
+import {AgentSetupCard} from "@agenta/entity-ui/onboarding"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {
@@ -66,6 +67,7 @@ import {TurnRow} from "./TurnRow"
 import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
+import {useSessionSetupStep} from "./useSessionSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
@@ -192,6 +194,10 @@ export const LiveConversation = ({
     const sendPendingTask = useSetAtom(sendPendingTaskAtom)
     const failPendingTask = useSetAtom(failPendingTaskAtom)
     const pendingTaskError = pendingTask?.delivery === "failed"
+    // A template create asks for its accounts here, on arrival, instead of on a create surface of
+    // its own. Holds the first message while it does; declines silently when there is nothing to
+    // ask, which is every other way into this screen.
+    const setup = useSessionSetupStep(sessionId)
     const {isHydrating, revalidate, send, stop, voidPendingResume} = conversation
     useEffect(() => {
         if (!pendingTask || pendingTask.delivery) return
@@ -202,6 +208,7 @@ export const LiveConversation = ({
             modelKeyLoading,
             modelKeyWaitedMs,
             modelBlocked,
+            setupBlocking: setup.blocking,
         })
         if (decision === "hold") return
         if (decision === "abandon") {
@@ -218,6 +225,7 @@ export const LiveConversation = ({
         modelKeyLoading,
         modelKeyWaitedMs,
         modelBlocked,
+        setup.blocking,
         send,
         sessionId,
         sendPendingTask,
@@ -725,6 +733,23 @@ export const LiveConversation = ({
                                         connects={connects}
                                         onOutput={conversation.sendToolOutput}
                                         touch
+                                    />
+                                </ContentRail>
+                            </div>
+                        ) : null}
+                        {/* The template's accounts, asked for once on arrival. Above the model
+                        strip because it is what the user came here holding: the first message is
+                        parked behind it, and "Continue" is what releases it. */}
+                        {setup.open ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <AgentSetupCard
+                                        accounts={setup.accounts}
+                                        suggestions={setup.suggestions}
+                                        onAddAccount={setup.addAccount}
+                                        onCreate={setup.resolve}
+                                        onDismiss={setup.resolve}
+                                        createLabel="Continue"
                                     />
                                 </ContentRail>
                             </div>
