@@ -1,7 +1,13 @@
 /** Manage gateway-target connection requests from the agent chat tool. */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {toolCatalogDrawerOpenAtom} from "@agenta/entities/gatewayTool"
+import {
+    isConnectionActive,
+    isConnectionValid,
+    queryToolConnections,
+    toolCatalogDrawerOpenAtom,
+    type ToolConnection,
+} from "@agenta/entities/gatewayTool"
 import {mcpEndpointsQueryAtom, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import type {ClientToolMeta, SettleClientTool} from "@agenta/shared/clientTools"
 import {useAtom, useAtomValue} from "jotai"
@@ -44,6 +50,17 @@ export const gatewayCancelledOutput = (target: GatewayTarget): Record<string, un
     reason: "cancelled",
 })
 
+/**
+ * The person finished with the surface, but we could not read back whether the target is
+ * connected. Distinct from "cancelled" on purpose: an agent told the person declined should
+ * stop and ask, whereas one told the answer is unknown should look again before either.
+ */
+export const gatewayUnverifiedOutput = (target: GatewayTarget): Record<string, unknown> => ({
+    connected: false,
+    target,
+    reason: "unverified",
+})
+
 export type GatewayConnectPhase = "idle" | "connecting"
 
 /** Return the custom MCP endpoint named by a target, if any. */
@@ -54,6 +71,12 @@ export const resolveCustomMcpEndpoint = (
     if (target.plane !== "mcp") return null
     return endpoints?.find((e) => e.namespace === "custom" && e.slug === target.name) ?? null
 }
+
+/** Whether a connections list holds one that is usable right now. */
+export const hasLiveConnection = (connections: ToolConnection[] | undefined): boolean =>
+    (connections ?? []).some(
+        (connection) => isConnectionActive(connection) && isConnectionValid(connection),
+    )
 
 export const useGatewayConnectFlow = (
     target: GatewayTarget,
@@ -89,13 +112,29 @@ export const useGatewayConnectFlow = (
         [settle],
     )
 
-    // Built-in MCP targets use the shared catalog drawer and settle when their opener closes it.
+    // Built-in MCP targets use the shared catalog drawer, which knows nothing about this tool
+    // call: it closes the same way whether the person connected the target, connected something
+    // else, or browsed and left. So its close only ends the wait. What the agent is told comes
+    // from the connections list, read back for this target once the drawer is gone (CR12).
     useEffect(() => {
         if (target.plane !== "mcp") return
         if (!openedCatalogRef.current) return
         if (catalogOpen) return
         openedCatalogRef.current = false
-        finish(gatewayConnectedOutput(target))
+        // No cleanup cancels this: another widget sharing the drawer atom can reopen it while
+        // the read is in flight, and dropping the answer there would leave the tool unsettled
+        // for good. `finish` is already single-shot.
+        void queryToolConnections({integration_key: target.name})
+            .then((response) => {
+                finish(
+                    hasLiveConnection(response.connections)
+                        ? gatewayConnectedOutput(target)
+                        : gatewayCancelledOutput(target),
+                )
+            })
+            .catch(() => {
+                finish(gatewayUnverifiedOutput(target))
+            })
     }, [catalogOpen, target, finish])
 
     const runConnect = useCallback(() => {
