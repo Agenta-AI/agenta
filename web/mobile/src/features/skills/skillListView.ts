@@ -114,8 +114,7 @@ const matchesSource = (row: SkillListRow, source: SkillSourceFilter): boolean =>
     return row.repository === source
 }
 
-const matchesArchived = (row: SkillListRow, archived: boolean): boolean =>
-    row.archived === archived
+const matchesArchived = (row: SkillListRow, archived: boolean): boolean => row.archived === archived
 
 const matchesUsedBy = (row: SkillListRow, usedBy: SkillUsedByFilter): boolean => {
     if (usedBy === "used") return row.usedByCount > 0
