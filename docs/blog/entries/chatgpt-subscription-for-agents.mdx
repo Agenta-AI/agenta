@@ -1,29 +1,39 @@
 ---
-title: "Run an Agenta agent with your ChatGPT subscription"
+title: "Connect your ChatGPT subscription in Agenta"
 slug: chatgpt-subscription-for-agents
 date: 2026-09-16
 tags: [v0.117.0]
-description: "Connect a supported ChatGPT subscription, select the Codex runtime for an agent, and start a run from Agenta."
+description: "Sign in to ChatGPT from AI providers and choose the subscription when selecting an agent's model."
 ---
 
 <Summary>
 
-Use your ChatGPT subscription to run an Agenta agent.
+Connect a supported ChatGPT subscription from Agenta's AI providers page. Sign in with a device code, then choose ChatGPT · Subscription in an agent's model picker.
 
-Connect a supported ChatGPT subscription, select the Codex runtime for an agent, and start a run from Agenta.
+You no longer need to mount a login file on a self-hosted runner for this connection. The new sign-in flow uses Pi and supports local and Daytona runs.
 
 </Summary>
 
 {/* truncate */}
 
-## What you can do
+Using a ChatGPT subscription previously required an operator to mount a login folder on a self-hosted runner. You can now connect the subscription from the app and choose it when configuring an agent.
 
-Connect a supported ChatGPT subscription, select the Codex runtime for an agent, and start a run from Agenta.
+## Connect your account
 
-## How it works
+1. Open Settings, then AI providers, and choose Connect ChatGPT.
+2. Copy the device code, open ChatGPT from the provided link, and approve the sign-in there.
+3. Return to Agenta and wait for the provider card to show Connected.
 
-Connect a supported ChatGPT subscription in Agenta, select Codex as the runtime, and choose the connection for the agent.
+Your sign-in credentials do not appear in the provider card.
 
-## Good to know
+## Choose it for an agent
 
-Subscription eligibility, supported plans and production rollout require confirmation.
+Open the agent's Model section and select ChatGPT · Subscription. Pick one of the models listed for that connection and use the Pi runtime. You can use the connection for more than one agent, including agents running in a Daytona sandbox.
+
+This device-code connection does not support the Codex runtime. A separately mounted Codex login is a different setup.
+
+## If the login expires
+
+Agenta refreshes the login during use. If ChatGPT rejects it, the connection shows Sign in needed and offers a new sign-in.
+
+Your subscription's eligibility and usage limits still apply. Connecting it does not turn it into an unlimited model API plan.

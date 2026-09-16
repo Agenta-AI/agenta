@@ -1,29 +1,39 @@
 ---
-title: "Save, review and restore agent configuration"
+title: "See what changed and restore an earlier agent version"
 slug: agent-configuration-history
 date: 2026-09-16
 tags: [v0.114.8]
-description: "Edits save automatically as revisions. Review the diff, see what changed, and restore an earlier configuration when needed."
+description: "Compare an earlier agent configuration with the current one and restore it as a new version without deleting history."
 ---
 
 <Summary>
 
-Agent configuration changes now come with a way back.
+An agent's version number now opens its history. Read the change messages, compare an older configuration with the one on screen, and review what a restore would change before confirming.
 
-Edits save automatically as revisions. Review the diff, see what changed, and restore an earlier configuration when needed.
+Restoring creates a new version. The earlier versions remain in the history.
 
 </Summary>
 
 {/* truncate */}
 
-## What you can do
+A list of version numbers tells you little when an agent starts behaving differently. You need to see what changed before deciding whether to keep it.
 
-Edits save automatically as revisions. Review the diff, see what changed, and restore an earlier configuration when needed.
+Version history shows the configuration behind each version and the differences from the one you are viewing.
 
-## How it works
+## Review a previous configuration
 
-Edit the agent normally. Agenta coalesces nearby changes into a revision after a short pause and waits for an active run before saving. Open revision history to inspect a diff or restore an earlier revision.
+Click the version chip beside the agent, such as v12, to open its history. Versions appear newest first with their change messages.
 
-## Good to know
+Select an older version to see what restoring it would change. The comparison uses names from the configuration, including the names of tools, rather than internal storage fields.
 
-Auto-save waits for an active run to finish. Confirm the exact restore behavior before calling it a destructive rollback.
+## Restore without erasing history
+
+Choose the version you want to return to, review the differences, then confirm the restore. Agenta saves that configuration as a new version at the top of the history. It does not delete the versions in between.
+
+This restores the agent's configuration, not files it edited or actions it took in connected apps.
+
+## Saving in the new app
+
+In the new app on desktop and mobile, changes to the latest configuration save automatically after a short pause. Saving waits while a run is active or waiting for approval. Check the save status before you leave: a failed save or an edit to an older version may need the Save button.
+
+The classic app keeps its separate commit flow. Version history is available in both apps.

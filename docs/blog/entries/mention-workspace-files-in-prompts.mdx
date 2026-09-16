@@ -1,29 +1,31 @@
 ---
-title: "Mention a workspace file directly in a prompt"
+title: "Point your agent to a file with @"
 slug: mention-workspace-files-in-prompts
 date: 2026-09-16
 tags: [v0.115.4]
-description: "Type @ in the composer, choose a workspace file, and place its reference directly in the instruction you send to the agent."
+description: "Search the session's files from the message box and insert the exact file reference into your instructions."
 ---
 
 <Summary>
 
-Bring a workspace file into the conversation with @.
+Reference a file your agent already has instead of uploading another copy or typing its path by hand. Type @ in the new app's message box, search for the file, and select it.
 
-Type @ in the composer, choose a workspace file, and place its reference directly in the instruction you send to the agent.
+The reference becomes part of the instruction you send.
 
 </Summary>
 
 {/* truncate */}
 
-## What you can do
+After an agent writes a report, your next request often concerns that same file. You can now point to it from the message box instead of describing where it is or uploading it again.
 
-Type @ in the composer, choose a workspace file, and place its reference directly in the instruction you send to the agent.
+## Pick a file from the message box
 
-## How it works
+In an existing session in the new app, type @ at the start of a word. The file picker shows recent files and the session's drive. Continue typing part of a filename to search.
 
-Type @ in the composer, search for a workspace file, select it, and finish the instruction.
+Select a file to insert its path into your message, then explain what you want the agent to do. For example: select report.md and ask, "Shorten the introduction and keep the recommendations."
 
-## Good to know
+## Browse folders
 
-The agent still needs access to the referenced workspace path.
+Use Tab or a folder's chevron to enter it. Escape steps back a level, then closes the picker. You can reference a folder too, although folder references remain text rather than clickable file chips.
+
+File mentions work in the new app on desktop and mobile. They use files already available to the session; they do not upload a copy or grant access to a new location. The picker needs an existing session with a drive, so it is not part of the home task box before a session exists.

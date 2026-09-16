@@ -1,29 +1,40 @@
 ---
-title: "Choose a clear permission policy for each agent"
+title: "Choose when an agent needs your approval"
 slug: agent-permission-policies
 date: 2026-09-16
 tags: [v0.115.3]
-description: "Choose the agent’s general permission level while keeping explicit tool rules and approval prompts visible."
+description: "Set a default permission policy for an agent and review the tool-specific rules that can override it."
 ---
 
 <Summary>
 
-Set one clear permission policy for each agent.
+Decide how much an agent can do without stopping to ask. The Permissions selector is now a top-level setting, with choices to allow tool calls, ask for approval, or block them.
 
-Choose the agent’s general permission level while keeping explicit tool rules and approval prompts visible.
+A tool's own permission can override the default. Review those exceptions when changing the agent's policy.
 
 </Summary>
 
 {/* truncate */}
 
-## What you can do
+A research agent may need to read connected data on its own while asking before changing anything. Another agent may need approval before every tool call. You can choose a different default for each agent without digging through Advanced settings.
 
-Choose the agent’s general permission level while keeping explicit tool rules and approval prompts visible.
+## Set the default
 
-## How it works
+Open the agent's configuration and select Permissions. The choices describe what happens to tool calls that follow the general policy:
 
-Open the agent configuration and choose the general policy. Review explicit tool rules because they can override the default.
+- Allow reads runs tools marked as read-only and asks before other calls.
+- Allow all lets tool calls run without approval.
+- Ask requests approval for each tool call.
+- Deny all refuses tool calls.
 
-## Good to know
+Agents created from the standard template start on Allow all. To have one ask before writes, change it to Allow reads. Existing agents keep their saved policies.
 
-Explicit tool policies can override the general default. Existing advanced restrictions remain stored.
+## Check individual tools
+
+The general policy is a default, not an absolute limit. An explicit permission on a tool takes precedence. A tool set to Allow can still run under a general Ask policy; a tool set to Deny stays blocked.
+
+If you want an agent to read records but never delete them, review the permissions on those individual actions as well as the general policy. See the [agent configuration reference](/reference/agents/agent-configuration#runnerpermissions) for the stored policy and tool overrides.
+
+## Make ongoing approval explicit
+
+On supported approval cards, Always auto-approve means that tool will run without asking again. Leave it unchecked when you mean to approve only the current call. Denying a call does not grant ongoing permission.

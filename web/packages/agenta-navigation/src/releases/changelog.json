@@ -1,56 +1,56 @@
 [
     {
         "id": "changelog-2026-09-16-recognize-agents-at-a-glance",
-        "title": "Recognize agents at a glance",
-        "description": "Give every agent its own icon and color, then spot it quickly across navigation, chat, and automation pickers.",
+        "title": "Agent icons and colors",
+        "description": "Choose an icon and color for each agent so you can tell them apart in the sidebar and chat.",
         "link": "https://agenta.ai/docs/changelog/recognize-agents-at-a-glance"
     },
     {
         "id": "changelog-2026-09-16-voice-input-for-agent-chat",
-        "title": "Talk through a task instead of typing it",
-        "description": "Dictate directly into the composer, or use hold-to-talk on supported desktop browsers, then review the transcript before sending.",
+        "title": "Dictate in agent chat",
+        "description": "Speak your instructions into the message box, edit the transcript, and send when you are ready.",
         "link": "https://agenta.ai/docs/changelog/voice-input-for-agent-chat"
     },
     {
         "id": "changelog-2026-09-16-shareable-agent-sessions",
-        "title": "Shareable sessions",
-        "description": "Copy a deep link to an agent session so an authorized teammate opens the same working record and context.",
+        "title": "Share a session link",
+        "description": "Copy a link to a specific session so a teammate with access can open the conversation you mean.",
         "link": "https://agenta.ai/docs/changelog/shareable-agent-sessions"
     },
     {
         "id": "changelog-2026-09-16-agent-configuration-history",
-        "title": "Save, review and restore agent configuration",
-        "description": "Edits save automatically as revisions. Review the diff, see what changed, and restore an earlier configuration when needed.",
+        "title": "Agent version history",
+        "description": "Compare an earlier agent configuration with the current one and restore it as a new version without deleting history.",
         "link": "https://agenta.ai/docs/changelog/agent-configuration-history"
     },
     {
         "id": "changelog-2026-09-16-chatgpt-subscription-for-agents",
-        "title": "Run an Agenta agent with your ChatGPT subscription",
-        "description": "Connect a supported ChatGPT subscription, select the Codex runtime for an agent, and start a run from Agenta.",
+        "title": "Connect ChatGPT",
+        "description": "Sign in to ChatGPT from AI providers and choose the subscription when selecting an agent's model.",
         "link": "https://agenta.ai/docs/changelog/chatgpt-subscription-for-agents"
     },
     {
         "id": "changelog-2026-09-16-session-control-and-queued-work",
-        "title": "Control active work across sessions",
-        "description": "Queue and edit the next instruction, stop or steer active work, switch sessions, and return without losing the working record.",
+        "title": "Edit queued instructions",
+        "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
         "link": "https://agenta.ai/docs/changelog/session-control-and-queued-work"
     },
     {
         "id": "changelog-2026-09-16-custom-secrets-for-agent-runs",
-        "title": "Give agents custom secrets without exposing their values",
-        "description": "Create a write-only project secret, attach it to an agent revision, and inject only the selected secret into its run.",
+        "title": "Custom secrets for agents",
+        "description": "Store a credential as a project secret and attach it to an agent as a named environment variable instead of pasting it into chat.",
         "link": "https://agenta.ai/docs/changelog/custom-secrets-for-agent-runs"
     },
     {
         "id": "changelog-2026-09-16-mention-workspace-files-in-prompts",
-        "title": "Mention a workspace file directly in a prompt",
-        "description": "Type @ in the composer, choose a workspace file, and place its reference directly in the instruction you send to the agent.",
+        "title": "Mention files with @",
+        "description": "Search the session's files from the message box and insert the exact file reference into your instructions.",
         "link": "https://agenta.ai/docs/changelog/mention-workspace-files-in-prompts"
     },
     {
         "id": "changelog-2026-09-16-agent-permission-policies",
-        "title": "Choose a clear permission policy for each agent",
-        "description": "Choose the agent\u2019s general permission level while keeping explicit tool rules and approval prompts visible.",
+        "title": "Choose when agents ask",
+        "description": "Set a default permission policy for an agent and review the tool-specific rules that can override it.",
         "link": "https://agenta.ai/docs/changelog/agent-permission-policies"
     },
     {

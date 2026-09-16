@@ -1,29 +1,33 @@
 ---
-title: "Control active work across sessions"
+title: "Queue the next instruction while an agent works"
 slug: session-control-and-queued-work
 date: 2026-09-16
 tags: [v0.115.2]
-description: "Queue and edit the next instruction, stop or steer active work, switch sessions, and return without losing the working record."
+description: "Add follow-up instructions during a run and correct a queued message without losing its place or attachments."
 ---
 
 <Summary>
 
-Keep work moving while an agent is already running.
+Write the next instruction while your agent is still working. You can edit a queued message before it starts, without removing it and adding it again. Its place in the queue and existing attachments stay intact.
 
-Queue and edit the next instruction, stop or steer active work, switch sessions, and return without losing the working record.
+Switch sessions to work elsewhere, then return to follow the active run.
 
 </Summary>
 
 {/* truncate */}
 
-## What you can do
+You do not have to wait for an agent to finish before planning the next step. Add a follow-up message during a run and leave it in the queue.
 
-Queue and edit the next instruction, stop or steer active work, switch sessions, and return without losing the working record.
+For example, while an agent drafts a report, queue a request to shorten the introduction. If you change your mind about the wording, edit that queued request instead of deleting it and starting over.
 
-## How it works
+## Correct a queued message
 
-While an agent runs, add or edit the next instruction. You can switch sessions, return to the active run, stop it, or continue when an approval needs your input.
+Choose Edit on a message that has not started. Change the text and save it. The message keeps its position and its existing attachments.
 
-## Good to know
+Once a message has started, or has been selected for Send Now, it can no longer be edited in the queue. A failed save keeps your draft available so you can retry.
 
-Queue, stop, follow and reconnect behavior landed in several milestones and behind flags; verify the currently enabled production path before publishing.
+## Work in another session
+
+Switch to another conversation while the agent continues its current work. Return to the session to follow progress or respond if it needs approval. A queued instruction does not answer an approval request for you.
+
+If you need to stop the current run, use Stop. You can continue the conversation afterward. Stopping does not undo tool calls that have already completed, such as a file edit or an email that was sent.
