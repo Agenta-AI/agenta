@@ -83,9 +83,9 @@ const RollingLabel = ({text, shimmer}: {text: string; shimmer: boolean}) => {
     )
 }
 
-/** Three dots bouncing in the node slot: the run is working. */
+/** Three dots bouncing after the line: the run is working. */
 const LiveDots = () => (
-    <span aria-hidden className="flex size-6 shrink-0 items-center justify-center gap-[3px]">
+    <span aria-hidden className="ml-1 inline-flex shrink-0 items-end gap-[3px] self-end pb-[5px]">
         {[0, 1, 2].map((i) => (
             <span
                 key={i}
@@ -260,6 +260,7 @@ export const ActivityTimeline = ({
                 <span className="min-w-0 overflow-hidden text-ellipsis whitespace-pre text-colorTextTertiary">
                     {clock}
                 </span>
+                {awaiting ? null : <LiveDots />}
             </>
         )
     } else {
@@ -274,7 +275,7 @@ export const ActivityTimeline = ({
                 aria-expanded={open}
                 className="-ml-1.5 flex w-fit max-w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row"
             >
-                {awaiting ? <WaitingGlyph kind={waitingKind(steps)} /> : live ? <LiveDots /> : null}
+                {awaiting ? <WaitingGlyph kind={waitingKind(steps)} /> : null}
                 <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-colorText">
                     {title}
                 </span>
