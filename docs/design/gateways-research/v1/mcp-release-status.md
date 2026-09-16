@@ -123,8 +123,22 @@ CodeRabbit feedback loops.
 
 Name suggestions and authentication discovery use fallbacks because arbitrary server metadata is
 not guaranteed. Runtime proof now covers the target UX on the paths listed above, driven through
-the API and the runner against a live deployment. What it does not yet cover is a person using the
-product in a browser, which is the UI QA round the gate is waiting on.
+the API and the runner against a live deployment, and three rounds of UI QA cover a person using
+the product in a browser.
+
+## Open decisions
+
+One, and it ships as it is unless someone says otherwise.
+
+**Where the tool list is shown after connecting.** The connect journey has two endings, decided by
+the host that opened it. From settings the dialog stays open, discovers the server's tools and
+shows them. From an agent's configuration it closes the moment the connection exists, so the form
+can take the connection and the person can carry on; tool discovery never renders there, and the
+tools are seen afterwards from the connection's entry in settings. Deliberate for now: someone
+adding a server mid-configuration is in the middle of another task, and a tool list they did not
+ask for is an interruption. The counter-argument is that the tools are what the connection is for,
+and the agent path is exactly where its permissions are about to be set. Written up with the
+mechanism in `mcp-connection-ux.md`, to be decided on evidence from both paths rather than now.
 
 ## Getting this pull request reviewed by CodeRabbit
 
