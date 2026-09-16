@@ -428,9 +428,74 @@ async def test_a_tool_that_merely_mentions_echo_is_not_the_echo_tool(decoy):
     )
 
     payload = json.loads((await _drain(result.body))[0])
-    # No catalog entry is the echo tool and Responses has no measured fallback, so the mock has
-    # no tool to call and answers as text instead of inventing a name.
-    assert "name" not in payload["output"][0]
+    # The property under test is that a decoy is never mistaken for the echo tool. What happens
+    # instead is the measured fallback, not the decoy's name — a catalog that names no echo tool
+    # is the same "nothing to read here" as a request that carries no catalog at all.
+    call = payload["output"][0]
+    assert call.get("name") != decoy
+    assert (call.get("namespace"), call.get("name")) == ("mcp__mock_mcp", "echo")
+
+
+@pytest.mark.asyncio
+async def test_codex_keeps_its_measured_fallback_when_no_catalog_is_sent():
+    """A Responses request with no tool catalog still gets a callable reference.
+
+    Removing this fallback is what turned the nine Codex cells of
+    `services/oss/tests/pytest/acceptance/test_agent_gateway_route.py` red: with no catalog to read
+    and no fallback, the mock had no tool to call, so it answered with the turn's own text and the
+    suite saw the session preamble instead of the echo result.
+
+    The pair is MEASURED — Codex renders the server as a namespace `mcp__mock_mcp` holding a tool
+    named `echo` — and the two halves stay apart because that is how `ResponseItem::FunctionCall`
+    carries them.
+    """
+    marker = "MCP-ACCEPTANCE-codex-fb"
+    body = json.dumps(
+        {
+            "model": "gpt-5.5",
+            "input": [{"role": "user", "content": f"Use echo {marker}"}],
+        }
+    ).encode()
+    result = await MockLLMAdapter().relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo", protocol=LLMProtocol.RESPONSES),
+        body=body,
+        headers={},
+    )
+
+    call = json.loads((await _drain(result.body))[0])["output"][0]
+    assert call["name"] == "echo"
+    assert call["namespace"] == "mcp__mock_mcp"
+
+
+@pytest.mark.asyncio
+async def test_a_catalog_still_wins_over_the_fallback():
+    """The fallback is for a request that carries nothing; a catalog is always the better source."""
+    marker = "MCP-ACCEPTANCE-codex-cat"
+    body = json.dumps(
+        {
+            "model": "gpt-5.5",
+            "input": [{"role": "user", "content": f"Use echo {marker}"}],
+            "tools": [
+                {
+                    "type": "namespace",
+                    "name": "mcp__renamed_server",
+                    "tools": [{"type": "function", "name": "echo"}],
+                }
+            ],
+        }
+    ).encode()
+    result = await MockLLMAdapter().relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(model="mock/echo", protocol=LLMProtocol.RESPONSES),
+        body=body,
+        headers={},
+    )
+
+    call = json.loads((await _drain(result.body))[0])["output"][0]
+    assert call["namespace"] == "mcp__renamed_server"
 
 
 @pytest.mark.asyncio
