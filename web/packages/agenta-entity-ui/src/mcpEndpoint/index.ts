@@ -18,8 +18,3 @@ export {McpConnectSheet} from "./McpConnectJourney"
 export type {McpConnectJourneyProps, McpConnectSheetProps} from "./McpConnectJourney"
 export {default as McpPermissionDrawer} from "./McpPermissionDrawer"
 export type {McpPermissionDrawerProps} from "./McpPermissionDrawer"
-export {McpEndpointConnectStatus, McpServerConnectAction} from "./McpServerConnectAction"
-export type {
-    McpEndpointConnectStatusProps,
-    McpServerConnectActionProps,
-} from "./McpServerConnectAction"
