@@ -63,8 +63,9 @@ const repositoryIds = (group: SkillListGroup): string[] =>
  * frame the agents and automations lists use.
  *
  * Every row answers what it is, where it came from and when it last changed, and the whole row
- * opens the drawer because there is nothing else on a row to click. A repository's heading
- * carries the one action that belongs to the group rather than to a skill: checking upstream.
+ * opens the drawer; its only controls are the kebab and, once a check found one, an Update
+ * mark. A repository's heading carries the one action that belongs to the group rather than
+ * to a skill: checking upstream.
  */
 export const SkillListTable = ({
     groups,
