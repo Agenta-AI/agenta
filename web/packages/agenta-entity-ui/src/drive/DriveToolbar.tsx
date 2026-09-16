@@ -64,8 +64,6 @@ const SORT_ICONS: Record<DriveSortKey, ReactNode> = {
 interface ToolbarModeOption {
     value: string
     label: string
-    /** Muted word on the right ("rendered", "source"). */
-    hint?: string
     icon: ReactNode
 }
 interface ToolbarMode {
@@ -92,36 +90,6 @@ const IconPill = ({value, options, onChange}: ToolbarMode) => (
         </TabsList>
     </Tabs>
 )
-
-/** The mode dropdown: the current label as its trigger, a check on the chosen item. */
-const ModeMenu = ({value, options, onChange}: ToolbarMode) => {
-    const current = options.find((o) => o.value === value) ?? options[0]
-    return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" aria-label="View mode" className={ROW_TEXT_BTN}>
-                    {current.label}
-                    <CaretDown weight="bold" className="size-3 opacity-70" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[200px]">
-                {options.map((o) => (
-                    <DropdownMenuItem key={o.value} onSelect={() => onChange(o.value)}>
-                        {o.icon}
-                        {o.label}
-                        {o.hint ? (
-                            <span className="ml-auto text-xs text-colorTextTertiary">{o.hint}</span>
-                        ) : null}
-                        <SelectedMark
-                            on={o.value === value}
-                            className={o.hint ? "ml-2" : "ml-auto"}
-                        />
-                    </DropdownMenuItem>
-                ))}
-            </DropdownMenuContent>
-        </DropdownMenu>
-    )
-}
 
 /** A file's write actions; absent on a read-only mount. */
 export interface DriveFileActions {
@@ -375,12 +343,20 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 )}
                 <span className="flex-1" />
                 <DraftStatus status={status} onRetry={onRetry} />
-                <ModeMenu
+                <IconPill
                     value={mode}
                     onChange={(v) => setMode(v as DriveEditorMode)}
                     options={[
-                        {value: "rendered", label: "Markdown", hint: "rendered", icon: <TextAa />},
-                        {value: "source", label: "Plain text", hint: "source", icon: <TextT />},
+                        {
+                            value: "rendered",
+                            label: "Markdown",
+                            icon: <TextAa className="size-3.5" />,
+                        },
+                        {
+                            value: "source",
+                            label: "Plain text",
+                            icon: <TextT className="size-3.5" />,
+                        },
                     ]}
                 />
                 <FileActionsMenu
