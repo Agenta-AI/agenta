@@ -6,8 +6,18 @@
  * them green. These two render the real dialog and touch nothing but the controls a person
  * touches, so each fails if its driver is removed.
  *
+ * Two things about testing this component cost a lot of time and are worth knowing before you
+ * add to it.
+ *
  * The dialog renders through a portal, so every query here goes to the document rather than to
- * the host node.
+ * the host node. A query scoped to the host finds nothing, and the symptom looks like a
+ * component that rendered nothing at all.
+ *
+ * And a stub that resolves immediately decides races the product has not decided yet. The
+ * duplicate-discovery case below could not observe its own defect until the stub was made to
+ * stay in flight: with an instant answer the first call finished before React re-rendered, so
+ * the effect never saw the state that would have made the second one. A test that mocks away
+ * the timing cannot see a defect that only exists in the timing.
  */
 import {act, createElement, useState} from "react"
 

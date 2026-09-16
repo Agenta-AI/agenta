@@ -73,13 +73,42 @@ const createTags = (license: TestLicenseType) =>
 /** A name no other run shares, so a duplicate refusal is this test's own doing. */
 const uniqueName = (prefix: string) => `${prefix} ${Date.now()}${Math.floor(Math.random() * 1000)}`
 
+/** How long the settings route may take the first time a worker asks for it. */
+const ROUTE_WARMUP_MS = 90_000
+/** How long a probe of a server the API has to dial may take. */
+const PROBE_MS = 45_000
+
+/** Whether this worker has already paid for the settings route to compile. */
+let settingsWarmed = false
+
+/**
+ * Go to a page, tolerating the abort a browser reports when a navigation is superseded.
+ *
+ * A `goto` issued while an earlier one is still settling cancels that one, and Playwright
+ * surfaces the cancellation as an error on the call that caused it rather than on the
+ * navigation that lost. Nothing is wrong when that happens, and the assertion that follows is
+ * what decides whether the page arrived (D49).
+ */
+const navigate = async (page: Page, url: string) => {
+    try {
+        await page.goto(url, {waitUntil: "domcontentloaded"})
+    } catch (error) {
+        if (!String(error).includes("ERR_ABORTED")) throw error
+    }
+}
+
 const openSettings = async (page: Page, basePath: string) => {
-    await page.goto(`${basePath}/settings?tab=mcpEndpoints`, {waitUntil: "domcontentloaded"})
+    await navigate(page, `${basePath}/settings?tab=mcpEndpoints`)
     // The tab falls back when the deployment serves no MCP gateway, so assert we are on it
     // rather than discovering it three steps later.
+    //
+    // The first visit in a worker also pays for a development server to compile the route,
+    // which is why it gets its own budget rather than borrowing the one meant for a round
+    // trip to an MCP server.
     await expect(page.getByRole("button", {name: "Connect MCP"}).first()).toBeVisible({
-        timeout: 20000,
+        timeout: settingsWarmed ? 30000 : ROUTE_WARMUP_MS,
     })
+    settingsWarmed = true
 }
 
 const connectionRow = (page: Page, name: string) =>
@@ -118,8 +147,11 @@ const startJourney = async (page: Page, url: string, name: string) => {
     await dialog.getByLabel("MCP server URL").fill(url)
     await dialog.getByRole("button", {name: "Continue"}).click()
 
+    // The step between these two is a probe: the API dials the server and reads what it
+    // answers. That is a round trip to a third party, so it gets its own budget rather than
+    // the default one meant for a render.
     const nameField = dialog.getByLabel("Connection name")
-    await expect(nameField).toBeVisible({timeout: 30000})
+    await expect(nameField).toBeVisible({timeout: PROBE_MS})
     await nameField.fill(name)
     return dialog
 }
