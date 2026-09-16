@@ -125,6 +125,10 @@ const themeAwareColors = {
     // while its border and title (both listed above) resolved correctly dark.
     colorErrorBg: v("colorErrorBg"),
     colorSuccessBg: v("colorSuccessBg"),
+    // `border-colorSuccessBorder` fell through to the light-only hex dump and painted antd's
+    // light green (#b7eb8f) in dark mode. Found by compiling the config and reading the emitted
+    // rule rather than the intent.
+    colorSuccessBorder: v("colorSuccessBorder"),
     // Any name NOT listed here falls through to antd-tailwind.json, a LIGHT-ONLY hex dump,
     // and is frozen at its light value in dark. That is how the slider's dark track broke.
     colorInfo: v("colorInfo"),
