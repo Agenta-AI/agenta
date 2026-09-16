@@ -347,6 +347,20 @@ export class PiMcpRequestError extends Error {
   }
 }
 
+/**
+ * One answer, read whole while the request is still bounded (D67).
+ *
+ * `post` hands back the decoded body rather than a `Response`, so there is no way to read a body
+ * outside the region where the timeout and the caller's cancellation still apply. Only the three
+ * pieces the caller uses are carried, which is also what keeps that invariant hard to break.
+ */
+interface PiMcpAnswer {
+  ok: boolean;
+  status: number;
+  sessionId: string | null;
+  text: string;
+}
+
 class PiHttpMcpClient {
   private nextId = 1;
   private sessionId: string | undefined;
@@ -366,7 +380,7 @@ class PiHttpMcpClient {
     message: Record<string, unknown>,
     signal?: AbortSignal,
     timeoutMs: number = PI_MCP_REQUEST_TIMEOUT_MS,
-  ): Promise<Response> {
+  ): Promise<PiMcpAnswer> {
     // The protocol version is NEGOTIATED, so it cannot be asserted before `initialize` answers.
     // The transport spec says the client sends `MCP-Protocol-Version` on requests AFTER
     // initialization, carrying the version the server returned; on `initialize` itself there is
@@ -398,7 +412,7 @@ class PiHttpMcpClient {
     else signal?.addEventListener("abort", abort, { once: true });
     const timer = setTimeout(abort, timeoutMs);
     try {
-      return await fetch(this.server.url, {
+      const response = await fetch(this.server.url, {
         method: "POST",
         // CR9, on this path as on the handshake probe. Every request here carries the gateway
         // credential, so a 302 would hand it to a host nothing validated. `manual` surfaces the
@@ -408,6 +422,18 @@ class PiHttpMcpClient {
         body: JSON.stringify(message),
         signal: controller.signal,
       });
+      // D67. The body is read INSIDE the guarded region, because the headers are not the answer.
+      // Reading it after this block cleared the timer and dropped the caller's listener left the
+      // stream watched by nothing: a server that answered and then stalled held the call forever,
+      // and a cancelled turn could not end it. CR10's own defect, half closed. Both the bound and
+      // the caller's signal abort the same controller, and aborting it after the headers have
+      // arrived tears down the body stream too, so `text()` rejects rather than hanging.
+      return {
+        ok: response.ok,
+        status: response.status,
+        sessionId: response.headers.get("mcp-session-id"),
+        text: await response.text(),
+      };
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener("abort", abort);
@@ -451,11 +477,10 @@ class PiHttpMcpClient {
     if (!response.ok) {
       throw new PiMcpRequestError(`MCP ${method} failed (${response.status})`, response.status);
     }
-    const sessionId = response.headers.get("mcp-session-id");
-    if (sessionId) this.sessionId = sessionId;
+    if (response.sessionId) this.sessionId = response.sessionId;
     // The id is handed to the reader so a stream carrying notifications, or another request's
     // answer, resolves to THIS request's frame rather than to whatever arrived last.
-    const payload = readJsonResponse(await response.text(), id);
+    const payload = readJsonResponse(response.text, id);
     if (payload.error) {
       throw new PiMcpRequestError(payload.error.message ?? `MCP ${method} failed`, response.status);
     }

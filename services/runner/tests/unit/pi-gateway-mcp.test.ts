@@ -1495,3 +1495,102 @@ describe("a tool call is bounded by the gateway's budget, not the handshake's (D
     assert.equal(aborts[0].aborted, true, "but the call is still bounded");
   });
 });
+
+// D67. Found independently by both reviewers. `post()` cleared its timer and dropped the caller's
+// abort listener as soon as `fetch` resolved, and the body was then read with nothing watching:
+// a server that answered its headers and then stalled held the call forever, and a cancelled turn
+// could not end it. CR10's own defect, half closed.
+
+describe("the bound and the cancellation cover the body, not just the headers (D67)", () => {
+  /** A response whose headers arrive at once and whose body never finishes. */
+  function stallingBody(signal: AbortSignal | undefined, onAbort: () => void): Response {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"jsonrpc":"2.0",'));
+        signal?.addEventListener("abort", () => {
+          onAbort();
+          controller.error(Object.assign(new Error("aborted"), { name: "AbortError" }));
+        });
+        // and then nothing, ever.
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  it("abandons a handshake whose body never finishes", async () => {
+    let bodyAborted = false;
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      return stallingBody(init?.signal as AbortSignal, () => {
+        bodyAborted = true;
+      });
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    const logs: string[] = [];
+    vi.useFakeTimers();
+    const registration = registerPiGatewayMcpTools(
+      pi,
+      oneServerConfig(),
+      (message) => logs.push(message),
+      allowAll,
+    );
+    await vi.advanceTimersByTimeAsync(PI_MCP_REQUEST_TIMEOUT_MS + 1);
+    vi.useRealTimers();
+
+    assert.equal(
+      await raceSettled(registration),
+      "settled",
+      "a stalled body must not outlive the client's own bound",
+    );
+    assert.equal(bodyAborted, true, "and the body stream is torn down, not merely abandoned");
+    assert.deepEqual(pi.tools, []);
+    assert.ok(logs.some((line) => line.includes("failed its handshake")));
+  });
+
+  // Measured, not assumed: this case still passes with the abort listener removed before the body
+  // is read, because `fetch` ties the body stream to the signal it was GIVEN and our bridge from
+  // the caller's signal is not what ends it. So it pins the end-to-end property and not our own
+  // guard — the case above is the one that fails when the body escapes the bounded region, and it
+  // is the guard for D67. Recorded here so nobody reads this as coverage it does not provide.
+  it("ends a call stalled in its body when the turn is cancelled (platform-enforced)", async () => {
+    let bodyAborted = false;
+    let bodyOpen: () => void = () => {};
+    const reading = new Promise<void>((resolve) => {
+      bodyOpen = resolve;
+    });
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body));
+      if (payload.method === "tools/call") {
+        const response = stallingBody(init?.signal as AbortSignal, () => {
+          bodyAborted = true;
+        });
+        bodyOpen();
+        return response;
+      }
+      const result =
+        payload.method === "tools/list"
+          ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
+          : { protocolVersion: BUILTIN_NEGOTIATED_VERSION, capabilities: { tools: {} } };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+
+    const controller = new AbortController();
+    const call = pi.tools[0]
+      .execute("call-1", { marker: "X" }, controller.signal)
+      .then((value: unknown) => value, (error: unknown) => error);
+    // The turn is cancelled while the body is still open. Without D67 nothing was listening.
+    await reading;
+    controller.abort();
+    assert.equal(await raceSettled(Promise.resolve(call)), "settled");
+    assert.equal(bodyAborted, true, "the caller's cancellation must reach the body stream");
+  });
+});
