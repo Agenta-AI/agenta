@@ -278,7 +278,11 @@ export const AgentPickerPanel = ({
                 />
             </label>
 
-            <div className="flex max-h-[280px] flex-col gap-px overflow-y-auto p-1">
+            <div
+                role="listbox"
+                aria-label={searchPlaceholder}
+                className="flex max-h-[280px] flex-col gap-px overflow-y-auto p-1"
+            >
                 {agentsQuery.isPending ? (
                     // Row geometry, not a spinner — the list replaces this without shifting.
                     <>
