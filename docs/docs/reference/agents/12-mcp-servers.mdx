@@ -132,5 +132,6 @@ A tool you denied may therefore still appear in a model's tool list on some harn
 - An authorization failure on a header-authenticated server means the referenced project secret is absent, expired, or mapped to the wrong header.
 - An authorization failure on an OAuth server means the grant was revoked or has expired. The connection then reads `Needs authorization` in `Settings > MCPs`, and one `Connect` restores it.
 - A missing tool is either excluded by `policy.tools`, absent from server discovery, or resolved to `deny`.
+- An empty tool list in the connection view means the server answered with no tools. A server that refuses the tool listing, or answers it in a way Agenta cannot read, reports the server's own wording instead of an empty list.
 
 See [Add an MCP server](/guides/add-an-mcp-server) for the connection workflow.
