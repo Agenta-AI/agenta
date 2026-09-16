@@ -2,7 +2,13 @@ import {SkillAvatar} from "@agenta/skills-ui"
 
 import {SkillActionsMenu} from "./SkillActionsMenu"
 import {SkillArchivedTag} from "./SkillArchivedTag"
-import {lastUpdatedLabel, NO_DESCRIPTION, type SkillListRow} from "./skillListView"
+import {
+    lastUpdatedLabel,
+    NO_DESCRIPTION,
+    provenanceLabel,
+    type SkillGrouping,
+    type SkillListRow,
+} from "./skillListView"
 import {SkillUpdateCell} from "./SkillUpdateCell"
 
 /**
@@ -13,9 +19,11 @@ import {SkillUpdateCell} from "./SkillUpdateCell"
  */
 export const SkillCardBody = ({
     row,
+    group,
     onOpen,
 }: {
     row: SkillListRow
+    group: SkillGrouping
     onOpen: (row: SkillListRow) => void
 }) => (
     <>
@@ -43,7 +51,7 @@ export const SkillCardBody = ({
         {/* Source on the left, date on the right — the card's two corners, the way the row's
             columns read. */}
         <span className="mt-auto flex min-w-0 items-center gap-2 pt-1 text-[11.5px] text-placeholder">
-            <span className="min-w-0 truncate">{row.sourceLabel}</span>
+            <span className="min-w-0 truncate">{provenanceLabel(row, group)}</span>
             {row.archived ? <SkillArchivedTag /> : null}
             <span className="ml-auto shrink-0">{lastUpdatedLabel(row.age)}</span>
         </span>

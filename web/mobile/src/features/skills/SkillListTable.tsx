@@ -5,7 +5,7 @@ import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableView} from "@agenta/ui/list-table"
 
 import {SkillCardBody} from "./SkillCardBody"
-import type {SkillListGroup, SkillListRow} from "./skillListView"
+import type {SkillGrouping, SkillListGroup, SkillListRow} from "./skillListView"
 import {SkillRowCells} from "./SkillRowCells"
 import {SkillSourceUpdateAction} from "./SkillSourceUpdateAction"
 
@@ -19,11 +19,12 @@ import {SkillSourceUpdateAction} from "./SkillSourceUpdateAction"
  * names it, and Group by → Source puts it back for a reader who turned grouping off.
  */
 const NAME_COLUMN: ListTableColumn = {key: "name", label: "Name", width: "minmax(160px,2fr)"}
-const SOURCE_COLUMN: ListTableColumn = {
-    key: "source",
-    label: "Source",
+/** Grouped by source, the heading already names it, so the column names the author instead. */
+const provenanceColumn = (group: SkillGrouping): ListTableColumn => ({
+    key: "provenance",
+    label: group === "source" ? "Created by" : "Source",
     width: "minmax(120px,1fr)",
-}
+})
 const updatedColumn = (width: string): ListTableColumn => ({
     key: "updated",
     label: "Last updated",
@@ -38,9 +39,9 @@ const ACTIONS_COLUMN: ListTableColumn = {
     width: "52px",
 }
 
-const WIDE_COLUMNS: ListTableColumn[] = [
+const wideColumns = (group: SkillGrouping): ListTableColumn[] => [
     NAME_COLUMN,
-    SOURCE_COLUMN,
+    provenanceColumn(group),
     updatedColumn("96px"),
     ACTIONS_COLUMN,
 ]
@@ -66,12 +67,15 @@ const repositoryIds = (group: SkillListGroup): string[] =>
 export const SkillListTable = ({
     groups,
     view,
+    group,
     isLoading,
     onOpen,
     empty,
 }: {
     groups: SkillListGroup[]
     view: ListTableView
+    /** How the rows are cut — decides what the provenance column and a card's footer read. */
+    group: SkillGrouping
     isLoading: boolean
     onOpen: (row: SkillListRow) => void
     empty: ReactNode
@@ -99,7 +103,7 @@ export const SkillListTable = ({
 
     return (
         <ListTable
-            columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
+            columns={narrow ? NARROW_COLUMNS : wideColumns(group)}
             minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
             view={view}
             // A card holds three lines of description; narrower than this they wrap to four
@@ -115,8 +119,10 @@ export const SkillListTable = ({
             onToggleGroup={toggleGroup}
             groupActions={groupActions}
             empty={empty}
-            renderRow={(row) => <SkillRowCells row={row} narrow={narrow} onOpen={onOpen} />}
-            renderCard={(row) => <SkillCardBody row={row} onOpen={onOpen} />}
+            renderRow={(row) => (
+                <SkillRowCells row={row} narrow={narrow} group={group} onOpen={onOpen} />
+            )}
+            renderCard={(row) => <SkillCardBody row={row} group={group} onOpen={onOpen} />}
         />
     )
 }

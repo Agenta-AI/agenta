@@ -57,6 +57,8 @@ export interface SkillListRow {
     sourceLabel: string
     /** Already humanized by the shared mapping ("3d ago"); empty when the item carries no date. */
     age: string | null
+    /** The author's display name, resolved once by the screen; empty when unknown. */
+    creatorName: string
     usedByCount: number
     archived: boolean
     /** The list item the shared drawers take — the same mapping the desktop registry uses. */
@@ -71,6 +73,13 @@ export const PROJECT_LABEL = "This project"
 /** What a row and a card both say where a skill has never been described. */
 export const NO_DESCRIPTION = "No description"
 
+/**
+ * What the row's second column and the card's footer read. Grouped by source the heading
+ * already says where a skill came from, so the row answers the next question — who made it.
+ */
+export const provenanceLabel = (row: SkillListRow, group: SkillGrouping): string =>
+    group === "source" ? row.creatorName || "—" : row.sourceLabel
+
 /** The "Last updated" cell. Empty rows read as an em dash, not as "just now". */
 export const lastUpdatedLabel = (age: string | null): string => age || "—"
 
@@ -79,7 +88,7 @@ export const lastUpdatedLabel = (age: string | null): string => age || "—"
  * resolved — the same mapping the desktop registry reads — so a detached import is
  * project-owned here for exactly the reason it is there, and the drawer gets the item it knows.
  */
-export const toSkillListRow = (item: SkillListItem): SkillListRow => {
+export const toSkillListRow = (item: SkillListItem, creatorName = ""): SkillListRow => {
     const repository = item.origin === "imported" ? (item.source?.label ?? "") : ""
     return {
         id: item.id,
@@ -89,6 +98,7 @@ export const toSkillListRow = (item: SkillListItem): SkillListRow => {
         repository,
         sourceLabel: repository || PROJECT_LABEL,
         age: item.age ?? null,
+        creatorName,
         usedByCount: item.usedByCount ?? 0,
         archived: Boolean(item.archived),
         item,
