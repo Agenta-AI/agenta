@@ -122,6 +122,20 @@ class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
         self._by_id[endpoint.id] = updated
         return updated
 
+    async def cache_endpoint_discovery(
+        self, *, project_id, user_id, endpoint_id, oauth
+    ) -> Optional[MCPEndpoint]:
+        self.calls.append("cache_endpoint_discovery")
+        existing = self._by_id.get(endpoint_id)
+        if existing is None:
+            return None
+        # One key of the stored data, like the real DAO (D31).
+        updated = existing.model_copy(
+            update={"data": existing.data.model_copy(update={"oauth": oauth})}
+        )
+        self._by_id[endpoint_id] = updated
+        return updated
+
     async def bind_endpoint_secret(
         self, *, project_id, user_id, endpoint_id, secret_id
     ) -> Optional[MCPEndpoint]:

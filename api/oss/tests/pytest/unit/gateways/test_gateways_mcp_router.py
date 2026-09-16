@@ -120,6 +120,14 @@ class MockMCPGatewayService:
         self.calls.append("edit_endpoint")
         return self.edit_return
 
+    async def cache_endpoint_discovery(
+        self, *, project_id, user_id, endpoint_id, oauth
+    ):
+        # Discovery metadata only: the route no longer replays the row it read (D31).
+        self.calls.append("cache_endpoint_discovery")
+        self.cached_oauth = oauth
+        return self.edit_return
+
     async def bind_endpoint_secret(
         self, *, project_id, user_id, endpoint_id, secret_id
     ):
@@ -486,7 +494,8 @@ def test_connect_discover_step_caches_scopes_and_returns_the_checklist(
     assert body.get("redirect_url") is None
     assert body["scopes_offered"] == ["read", "write"]
     assert oauth_service.calls == [("discover", _SERVER_URL)]
-    assert service.calls == ["fetch_endpoint", "edit_endpoint"]
+    assert service.calls == ["fetch_endpoint", "cache_endpoint_discovery"]
+    assert service.cached_oauth.scopes_offered == ["read", "write"]
 
 
 def test_connect_begin_step_returns_the_redirect_url(
