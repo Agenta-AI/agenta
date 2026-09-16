@@ -63,11 +63,11 @@ const meta = {
                     "something else.",
             },
         },
-        agentaData: {queries: connectionQueries},
+        agenta: {queries: connectionQueries},
     },
     decorators: [
         (Story) => (
-            <div className="w-[560px] max-w-[calc(100vw-32px)]">
+            <div className="w-[560px] max-w-full">
                 <Story />
             </div>
         ),
