@@ -17,6 +17,7 @@ import {
 import {useHeldFor} from "@agenta/chat/hooks"
 import {endsOnClosedText, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
 import {messageBodyKey} from "@agenta/chat/state"
+import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground/agent-chat"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
@@ -119,6 +120,16 @@ const TurnRowInner = ({
     }
     // Live while this client streams it, or while a poll says the run goes on elsewhere.
     const live = !turn.isUser && (turn.isStreamingTurn || (turn.isLast && remoteRunning))
+    // A failure the records never carried lives on the trace: a model call that died with no
+    // answer. Read only for an answer-less settled turn, as the desktop does.
+    const answerless = !turn.isUser && turn.status.noResponse && !live && !turn.status.showError
+    const traceSummary = useAtomValue(
+        traceDataSummaryAtomFamily(answerless && traceId ? traceId : ""),
+    )
+    const traceError = answerless ? (traceSummary.error ?? null) : null
+    const errorText = turn.status.showError
+        ? (turn.status.errorText ?? "Something went wrong.")
+        : traceError
     // A just-closed text becomes the answer after a beat: a following call lands a commit later.
     const trailingClosed = useMemo(() => endsOnClosedText(turn.items), [turn.items])
     // Hold while the run is open anywhere. A turn this client streamed is over the moment its
@@ -184,9 +195,9 @@ const TurnRowInner = ({
                     />
                 </AnswerReveal>
             ) : null}
-            {turn.status.showError ? (
+            {errorText ? (
                 <RunErrorCallout
-                    text={turn.status.errorText ?? "Something went wrong."}
+                    text={errorText}
                     // Failed before any step: nothing to hang a node on, so it is its own card.
                     variant={activity.steps.length ? "step" : "card"}
                     onRetry={continuationRetryAction(
@@ -194,6 +205,10 @@ const TurnRowInner = ({
                         onRewind ? () => onRewind(turn) : undefined,
                     )}
                 />
+            ) : answerless && !traceSummary.isPending ? (
+                <span className="text-xs italic text-colorTextSecondary">
+                    No response — the agent ended its turn without answering.
+                </span>
             ) : null}
             {/* The turn's meta line sits under the answer, revealed on hover or focus like the
                 desktop's; the row keeps its height so nothing shifts when it appears. Not while
