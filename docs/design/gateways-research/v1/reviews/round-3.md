@@ -475,11 +475,12 @@ exactly what it defends.
 Both are stale assertions left by correct changes, and both are the same failure mode: an author who
 could not run the suite that covers the file they edited.
 
-**The runner unit suite** fails one case: `services/runner/tests/unit/ssrf-guard.test.ts:47` still
-lists `100.64.0.1` under "allows routable public addresses", and P10 (`ae9911c08c`) added carrier-grade
-NAT `100.64.0.0/10` to the blocked set. The predicate is right and the fixture is stale — that address
-is exactly what the new range is for. 3423 of 3424 pass. A whole-repository sweep found no other
-place still calling a 100.64 address routable.
+**The runner unit suite** failed one case: the SSRF guard fixture still listed `100.64.0.1` under
+"allows routable public addresses", and P10 (`ae9911c08c`) had added carrier-grade NAT to the blocked
+set. The predicate was right and the fixture stale. **Fixed at `1a7e044fef`** as P10's residual — the
+commit message names D91 by mistake, which is the Codex pagination limitation and unrelated — and the
+fixture now blocks both boundaries of the range and allows its neighbours, which is more than it
+asserted before. **The runner suite is green: 194 files, 3424 passed.**
 
 **The chat package** failed one case, recorded above under D86, and is **green again** at
 `85bc6697d7`: 91 files, 1064 passed.
@@ -519,6 +520,14 @@ variable, three meanings, in a document written to be followed literally by some
 pressure. Splitting the name is cheaper than the first hour it costs. Raised by verification, not by
 a fix.
 
+**Fixed at `387685a113`**, verified. The runbook now gives each address one meaning in a table that
+says, for each, who sets it and what it is for: the container address the API dials, whose port is
+fixed because the published one is remapped onto it; the host-published port the allocator assigns
+per worktree; the explicit host-side override; and the address the issuer publishes itself as for
+the browser. It names the helper each half reads, so the two sides are traceable rather than
+folklore, and it says plainly which layer must not override which. That is the shape that stops the
+seventeen-failure shell from being reconstructed by the next person following the document.
+
 ### D93. The API-side plane gate still skips where the services side now fails
 
 `api/oss/tests/pytest/acceptance/gateways/conftest.py:68` skips when the LLM plane is off, and no API
@@ -532,6 +541,12 @@ and the same default. The two copies are deliberate — separate packages, and a
 does not belong in the one library both import — and they are held together by a case that loads the
 services helper and compares both the resolved answer and the variable's own name, so a change to one
 that is not made to the other fails rather than drifts. Twenty-eight cases pass.
+
+**Its second half is accepted too:** the mirror gate now fails when the run declares the plane off
+and finds it on. A declared expectation that does not match the deployment fails in both directions,
+which is the right symmetry — the point of saying it out loud is that the run and the stack agree,
+not that one of them wins. With nothing declared, the acceptance layer is unchanged at 48 passed and
+4 skipped.
 
 ## The web batch's second half
 
@@ -589,6 +604,12 @@ stale chunk id, not to a session teardown — so it is a reload allowance rather
 wait-for-session-URL it was described as. The substance holds and the specifics do not: a broad
 "try again" in a test is the shape that hides a defect whose symptom is a panel vanishing, whatever
 reason the comment gives for it.
+
+**The comment is rewritten at `876d80f771`**, and it is now the right kind of comment. It states the
+invariant — a drawer may be opened only once the session route has landed — says why, says that the
+wait is a workaround standing in for the mobile case that would assert the product holds the
+invariant itself, names the issue tracking that case, and says to keep it until that case exists. A
+reader who meets it now learns what it is defending instead of being told a chunk id was stale.
 
 ## The fixes that hold
 
