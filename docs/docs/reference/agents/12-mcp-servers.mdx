@@ -32,7 +32,7 @@ Each entry in `parameters.agent.mcps` names one MCP server inside the agent, poi
 | `connection` | object | Yes | | Which connection this server uses. |
 | `policy` | object | No | `{"tools": {"mode": "all", "names": []}}` | The tool filter and the permissions. |
 
-`name` is a label, not an identity. A harness renders this server's tools as `mcp__<name>__<tool>`, and the model chooses a tool by that string, so the name has to stay stable for the life of the configuration and be distinct from every other server on the same agent. It is frozen when the connection is chosen. Renaming the connection in settings changes the settings row and the connection picker, and deliberately does not reach an agent that is already saved.
+`name` is a label, not an identity. A harness renders this server's tools as `mcp__<name>__<tool>`, and the model chooses a tool by that string, so the name has to stay stable for the life of the configuration and be distinct from every other server on the same agent. It is frozen when the connection is chosen. Renaming the connection in settings changes the settings row and its row in the `Add MCP server` drawer, and deliberately does not reach an agent that is already saved.
 
 ## Connection
 
@@ -74,7 +74,7 @@ A header name may not appear in both `headers` and `credentials.headers`. The co
 
 ## Tool filter
 
-`policy.tools` decides which of the server's tools are advertised to the model at all. A tool the filter hides is never offered and never called, so it needs no permission. This is not the box that filters a long tool list in the connection view, which only narrows what you are looking at and stores nothing.
+`policy.tools` decides which of the server's tools are advertised to the model at all. A tool the filter hides is never offered and never called, so it needs no permission. This is not the `Search N tools` box in the permission drawer, which only narrows what you are looking at and stores nothing.
 
 | Field | Type | Default | Description |
 |---|---|---|---|
@@ -97,7 +97,7 @@ With both fields absent, the entry carries no per-tool policy and `permission` g
 
 `tool_permissions` may not name a tool that `tools.mode: "include"` hides. That configuration is rejected rather than silently dropped.
 
-MCP tool calls are not covered by the `Always auto-approve` checkbox on an approval card. A tool resolved to `ask` asks on every call.
+MCP tool calls are not covered by the `Always auto-approve` checkbox on an approval card. A tool resolved to `ask` asks on every call. The permission drawer calls that value `Always ask`, and calls `null` `Follow agent policy`.
 
 ### What these permissions are, and are not
 
@@ -126,8 +126,8 @@ A tool you denied may therefore still appear in a model's tool list on some harn
 
 - A connection failure usually means DNS, TLS, network policy, or server availability.
 - An authorization failure on a header-authenticated server means the referenced project secret is absent, expired, or mapped to the wrong header.
-- An authorization failure on an OAuth server means the grant was revoked or has expired. The connection then reads `Needs authorization` in `Settings > MCPs`, and one `Connect` restores it.
+- An authorization failure on an OAuth server means the grant was revoked or has expired. The connection then reads `Login expired` in `Settings > MCPs`, and `Reconnect` on its row menu restores it.
 - A missing tool is either excluded by `policy.tools`, absent from server discovery, or resolved to `deny`.
-- An empty tool list in the connection view means the server answered with no tools. A server that refuses the tool listing, or answers it in a way Agenta cannot read, reports the server's own wording instead of an empty list.
+- An empty tool list under `View tools` means the server answered with no tools. A server that refuses the tool listing, or answers it in a way Agenta cannot read, reports the server's own wording instead of an empty list.
 
 See [Add an MCP server](/guides/add-an-mcp-server) for the connection workflow.
