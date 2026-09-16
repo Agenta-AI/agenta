@@ -187,11 +187,13 @@ export function SkillCreateDrawer({
                 <div className="flex items-center gap-2">
                     <div className="flex min-w-0 flex-col gap-0.5">
                         <span className="text-sm font-medium">New skill</span>
-                        <span className="text-xs font-normal text-[var(--ag-colorTextSecondary)]">
-                            {uploading
-                                ? "Upload a skill folder, .zip or .skill — review before anything is created."
-                                : "Write it here, or drop a folder, .zip or .skill into the file rail."}
-                        </span>
+                        {/* The editor explains itself; only the dropzone needs a line. */}
+                        {uploading ? (
+                            <span className="text-xs font-normal text-[var(--ag-colorTextSecondary)]">
+                                Upload a skill folder, .zip or .skill — review before anything is
+                                created.
+                            </span>
+                        ) : null}
                     </div>
                     {parsedCount != null ? (
                         <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] tabular-nums text-[var(--ag-colorTextTertiary)]">
