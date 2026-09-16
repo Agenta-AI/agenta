@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import {
   MCP_DISCOVERY_METHOD,
   MCP_PROTOCOL_VERSION,
+  GATEWAY_MCP_BUDGET_MS,
+  PI_MCP_CALL_TIMEOUT_MS,
   PI_MCP_REQUEST_TIMEOUT_MS,
   parsePiGatewayMcpConfig,
   piGatewayMcpServersFromWire,
@@ -1383,5 +1385,113 @@ describe("the revision this client offers (D64)", () => {
       headers.slice(1).every((value) => value === BUILTIN_NEGOTIATED_VERSION),
       `later requests must carry the negotiated revision, got ${headers.slice(1).join(", ")}`,
     );
+  });
+});
+
+
+// D65. CR10 applied one ten-second bound to every request this client makes. `tools/call`'s peer
+// is the Agenta gateway, which allows its own upstream thirty seconds, so an ordinary tool taking
+// between ten and thirty seconds was cancelled by the client while the gateway was still waiting.
+// A reviewer proved it against a real registration: rejected at 10001 ms.
+
+describe("a tool call is bounded by the gateway's budget, not the handshake's (D65)", () => {
+  it("never gives up before the gateway it is talking to", () => {
+    assert.ok(
+      PI_MCP_CALL_TIMEOUT_MS > GATEWAY_MCP_BUDGET_MS,
+      "the client must outlast the gateway's own budget, or it cancels work still in progress",
+    );
+    // The handshake keeps its short liveness bound: a server slow to say hello should not delay
+    // the turn's first token. The two bounds being different is the fix.
+    assert.ok(PI_MCP_REQUEST_TIMEOUT_MS < GATEWAY_MCP_BUDGET_MS);
+  });
+
+  it("lets a call that answers inside the gateway's budget succeed", async () => {
+    // The exact case the reviewer drove: an upstream answering at twenty-five seconds, well
+    // inside the gateway's thirty, which the old bound cancelled at ten.
+    const answerAt = 25_000;
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body));
+      const signal = init?.signal as AbortSignal | undefined;
+      const result =
+        payload.method === "tools/list"
+          ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
+          : payload.method === "tools/call"
+            ? { content: [{ type: "text", text: "slow but fine" }] }
+            : { protocolVersion: BUILTIN_NEGOTIATED_VERSION, capabilities: { tools: {} } };
+      const respond = () =>
+        new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      if (payload.method !== "tools/call") return respond();
+      return new Promise<Response>((resolve, reject) => {
+        const timer = setTimeout(() => resolve(respond()), answerAt);
+        signal?.addEventListener("abort", () => {
+          clearTimeout(timer);
+          reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+        });
+      });
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+
+    vi.useFakeTimers();
+    const call = pi.tools[0].execute("call-1", { marker: "X" });
+    await vi.advanceTimersByTimeAsync(answerAt);
+    vi.useRealTimers();
+
+    const out = await call;
+    assert.ok(
+      JSON.stringify(out).includes("slow but fine"),
+      `a call inside the gateway's budget must return its result, got ${JSON.stringify(out)}`,
+    );
+  });
+
+  it("still abandons a call that outlasts the gateway's budget and the return trip", async () => {
+    const aborts: AbortSignal[] = [];
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body));
+      const signal = init?.signal as AbortSignal;
+      const result =
+        payload.method === "tools/list"
+          ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
+          : { protocolVersion: BUILTIN_NEGOTIATED_VERSION, capabilities: { tools: {} } };
+      if (payload.method !== "tools/call") {
+        return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      aborts.push(signal);
+      const pending = new Promise<Response>((_resolve, reject) => {
+        signal.addEventListener("abort", () =>
+          reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+        );
+      });
+      // The client's own error path is what this case asserts. Marking the rejection handled
+      // here keeps a real abort from being reported as an unhandled one by the runner.
+      pending.catch(() => {});
+      return pending;
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+
+    vi.useFakeTimers();
+    // Settled either way: whether the client surfaces the abort as a value or a rejection is not
+    // what this case is about, and leaving it unattached makes a real abort read as an unhandled
+    // rejection in the runner.
+    const call = pi.tools[0]
+      .execute("call-1", { marker: "X" })
+      .then((value: unknown) => value, (error: unknown) => error);
+    // Not yet: the client must still be waiting where the old bound had already given up.
+    await vi.advanceTimersByTimeAsync(PI_MCP_REQUEST_TIMEOUT_MS + 1);
+    assert.equal(aborts[0]?.aborted, false, "the handshake bound must not end a tool call");
+    await vi.advanceTimersByTimeAsync(PI_MCP_CALL_TIMEOUT_MS);
+    vi.useRealTimers();
+
+    await call;
+    assert.equal(aborts[0].aborted, true, "but the call is still bounded");
   });
 });

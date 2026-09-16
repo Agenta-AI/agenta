@@ -24,6 +24,13 @@ from oss.src.core.gateways.mcps.echo import (
 from oss.src.core.gateways.mcps.interfaces import MCPRelayResult, MCPUpstreamInterface
 from oss.src.core.gateways.mcps.types import MCPUpstreamError
 
+#: The gateway's upstream budget for one MCP relay, when the endpoint names none of its own.
+#:
+#: The Pi MCP client mirrors this as `GATEWAY_MCP_BUDGET_MS` in
+#: `services/runner/src/extensions/pi-mcp.ts` and bounds its tool calls at this plus a return-trip
+#: margin, because that client's only peer is this gateway. Raising this without raising that one
+#: gives back a defect D65 already cost us: the client cancels at its own bound while the gateway
+#: is still waiting, and the turn fails on work that was going to succeed.
 _DEFAULT_TIMEOUT_SECONDS = 30.0
 
 # Where an API-key endpoint's credential goes when its route names no header of its own.

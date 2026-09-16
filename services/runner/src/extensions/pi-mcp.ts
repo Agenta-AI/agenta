@@ -55,7 +55,7 @@ export type PiMcpToolGate = (
 export const MCP_PROTOCOL_VERSION = "2025-06-18";
 
 /**
- * How long any one request from this client may take (CR10).
+ * How long a HANDSHAKE request from this client may take (CR10).
  *
  * `fetch` has no timeout of its own, so without this a server that accepts the connection and
  * then says nothing hangs the call forever. `discover()` runs inside `before_agent_start`, whose
@@ -63,8 +63,47 @@ export const MCP_PROTOCOL_VERSION = "2025-06-18";
  * whole turn before its first token. Matched to the runner's own handshake probe
  * (`MCP_HANDSHAKE_PROBE_TIMEOUT_MS`), which already had a bound, so the two agree on how long a
  * server gets to answer.
+ *
+ * This is a LIVENESS bound and deliberately short: the handshake asks a server to say that it is
+ * there and to list what it has, and a server that cannot do that promptly should not delay the
+ * turn's first token. It is not, and must not be, the bound on a tool call (D65).
  */
 export const PI_MCP_REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * The gateway's own upstream budget for one MCP relay, in milliseconds.
+ *
+ * Mirrors `_DEFAULT_TIMEOUT_SECONDS` in `api/oss/src/core/gateways/mcps/providers/http/adapter.py`,
+ * which is the peer this client always talks to: `piGatewayMcpServersFromWire` refuses any URL
+ * that is not a gateway route on this deployment, so there is no other peer to budget for. Raise
+ * the two together or this client starts cancelling work the gateway is still willing to wait for.
+ */
+export const GATEWAY_MCP_BUDGET_MS = 30_000;
+
+/** Time for the gateway's own refusal to travel back once its upstream budget has expired. */
+export const PI_MCP_TIMEOUT_MARGIN_MS = 5_000;
+
+/**
+ * How long a TOOL CALL from this client may take (D65).
+ *
+ * CR10 applied the handshake's ten-second liveness bound to every request, `tools/call` included.
+ * The gateway allows its upstream thirty seconds, so every tool that took between ten and thirty
+ * seconds — an ordinary search against a real provider — was cancelled by the client while the
+ * gateway was still waiting, and the turn failed. A reviewer proved it by driving a real
+ * registration against a server answering inside the gateway's budget: rejected at 10001 ms.
+ *
+ * The invariant is that this client must never be the first to give up on its own gateway: the
+ * bound is the gateway's budget plus enough margin for the gateway's refusal to come back, so a
+ * slow upstream produces the gateway's own error rather than this client's cancellation. An
+ * operator who raises the gateway's budget must raise this with it; the margin is not slack for
+ * that, it is only the return trip.
+ *
+ * Known residual: a per-ENDPOINT `timeout_seconds` above the gateway default is still capped here,
+ * because nothing delivers that stored setting to the runner. Closing it means carrying the
+ * resolved endpoint's budget on the run's MCP wire, which is a change to the contract between the
+ * API, the SDK and this client rather than a constant.
+ */
+export const PI_MCP_CALL_TIMEOUT_MS = GATEWAY_MCP_BUDGET_MS + PI_MCP_TIMEOUT_MARGIN_MS;
 
 /**
  * Headers this client owns, lowercased for case-insensitive comparison (M19).
@@ -326,6 +365,7 @@ class PiHttpMcpClient {
   private async post(
     message: Record<string, unknown>,
     signal?: AbortSignal,
+    timeoutMs: number = PI_MCP_REQUEST_TIMEOUT_MS,
   ): Promise<Response> {
     // The protocol version is NEGOTIATED, so it cannot be asserted before `initialize` answers.
     // The transport spec says the client sends `MCP-Protocol-Version` on requests AFTER
@@ -356,7 +396,7 @@ class PiHttpMcpClient {
     const abort = (): void => controller.abort();
     if (signal?.aborted) controller.abort();
     else signal?.addEventListener("abort", abort, { once: true });
-    const timer = setTimeout(abort, PI_MCP_REQUEST_TIMEOUT_MS);
+    const timer = setTimeout(abort, timeoutMs);
     try {
       return await fetch(this.server.url, {
         method: "POST",
@@ -391,6 +431,7 @@ class PiHttpMcpClient {
     method: string,
     params?: unknown,
     signal?: AbortSignal,
+    timeoutMs?: number,
   ): Promise<unknown> {
     // No `_meta` envelope. `_meta` is OPTIONAL in every MCP revision and nothing on either side
     // of this client reads one back, but a server that receives one validates it in full against
@@ -406,7 +447,7 @@ class PiHttpMcpClient {
       id,
       method,
       params: isRecord(params) ? params : {},
-    }, signal);
+    }, signal, timeoutMs);
     if (!response.ok) {
       throw new PiMcpRequestError(`MCP ${method} failed (${response.status})`, response.status);
     }
@@ -449,7 +490,14 @@ class PiHttpMcpClient {
   }
 
   call(name: string, args: unknown, signal?: AbortSignal): Promise<unknown> {
-    return this.request("tools/call", { name, arguments: args ?? {} }, signal);
+    // The gateway's budget plus the return trip, not the handshake's liveness bound (D65): this
+    // call's peer is the gateway, which is willing to wait thirty seconds for its upstream.
+    return this.request(
+      "tools/call",
+      { name, arguments: args ?? {} },
+      signal,
+      PI_MCP_CALL_TIMEOUT_MS,
+    );
   }
 }
 
