@@ -49,15 +49,12 @@ export default function SkillsPage() {
     const [importOpen, setImportOpen] = useState(false)
     const openImport = useCallback(() => setImportOpen(true), [])
     const closeImport = useCallback(() => setImportOpen(false), [])
-    // Write and Upload share the create drawer; the MODE decides its opening state —
-    // Upload starts as the full-drawer dropzone and morphs into the editor (1c → 1d).
-    const [createMode, setCreateMode] = useState<"write" | "upload" | null>(null)
-    const openWrite = useCallback(() => setCreateMode("write"), [])
-    const openUpload = useCallback(() => setCreateMode("upload"), [])
-    const closeCreate = useCallback(() => setCreateMode(null), [])
+    const [createOpen, setCreateOpen] = useState(false)
+    const openWrite = useCallback(() => setCreateOpen(true), [])
+    const closeCreate = useCallback(() => setCreateOpen(false), [])
     const createActions = useMemo(
-        () => ({onWrite: openWrite, onUpload: openUpload, onImport: openImport}),
-        [openWrite, openUpload, openImport],
+        () => ({onWrite: openWrite, onImport: openImport}),
+        [openWrite, openImport],
     )
 
     const gallery = (
@@ -99,12 +96,7 @@ export default function SkillsPage() {
                 onClose={closeImport}
                 projectId={projectId ?? ""}
             />
-            <SkillCreateDrawer
-                open={createMode !== null}
-                onClose={closeCreate}
-                projectId={projectId ?? ""}
-                mode={createMode ?? "write"}
-            />
+            <SkillCreateDrawer open={createOpen} onClose={closeCreate} projectId={projectId ?? ""} />
         </>
     )
 }

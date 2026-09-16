@@ -1,35 +1,22 @@
 /**
- * Create-a-skill flow, one drawer with two entry modes (the design's 1b–1e states):
- *
- * - "write" opens the editor shell (SkillFormView) empty.
- * - "upload" opens as a FULL-DRAWER dropzone (1c — nothing is created until you review).
- *   One valid skill morphs the drawer into the editor prefilled (1d, with an
- *   "N files parsed" tag); invalid or multi-skill uploads keep their errors and the
- *   recovery list IN the upload view (1e), never in the editor.
+ * Create-a-skill flow: the editor shell (SkillFormView), empty. Files arrive through the
+ * editor's own rail — there is no separate upload mode.
  *
  * Connected on purpose: create + invalidation live here once; hosts pass `projectId`.
  */
 import {useCallback, useState} from "react"
 
-import {
-    SkillFormView,
-    type SkillScanCandidate,
-    type SkillUploadScan,
-} from "@agenta/entity-ui/drill-in"
+import {SkillFormView} from "@agenta/entity-ui/drill-in"
 import {createSkillWorkflow, skillContentSchema} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 
-import {SkillUploadPanel} from "./SkillUploadPanel"
-
 export interface SkillCreateDrawerProps {
     open: boolean
     onClose: () => void
     projectId: string
-    /** "write" opens the editor; "upload" opens the full-drawer dropzone (1c). */
-    mode?: "write" | "upload"
     /** Fires once per created skill — e.g. to also add it to the agent being edited. */
     onCreated?: (created: {
         slug: string
@@ -37,9 +24,7 @@ export interface SkillCreateDrawerProps {
         name: string
         description?: string
     }) => void
-    /** Editor-stage width; the upload stage stays at `uploadWidth` and the resize animates. */
     width?: number
-    uploadWidth?: number
 }
 
 const EMPTY_SKILL: Record<string, unknown> = {name: "", description: "", body: "", files: []}
@@ -53,72 +38,34 @@ const firstIssue = (error: {issues: {path: PropertyKey[]; message: string}[]}): 
     return path ? `${path} ${message}` : message
 }
 
-const toFormValue = (candidate: SkillScanCandidate): Record<string, unknown> => ({
-    name: candidate.skill.name ?? "",
-    description: candidate.skill.description ?? "",
-    body: candidate.skill.body,
-    files: candidate.skill.files,
-})
-
 export function SkillCreateDrawer({
     open,
     onClose,
     projectId,
-    mode = "write",
     onCreated,
     width = 960,
-    uploadWidth = 520,
 }: SkillCreateDrawerProps) {
     const [value, setValue] = useState<Record<string, unknown>>(EMPTY_SKILL)
-    // Upload mode sits in the dropzone stage until a parse succeeds; write mode never does.
-    const [stage, setStage] = useState<"upload" | "editor">(mode === "upload" ? "upload" : "editor")
-    const [parsedCount, setParsedCount] = useState<number | null>(null)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    // Closing only closes: the host may clear its mode state immediately, and any reset
-    // here would restage (and resize) the drawer while its exit animation still shows it.
+    // Closing only closes: a reset here would blank the drawer while its exit animation
+    // still shows it.
     const close = useCallback(() => {
         onClose()
         setBusy(false)
     }, [onClose])
 
-    // All state reset happens on the OPEN transition, when the incoming mode is the real
-    // one — a fresh drawer per entry, and a stable frame throughout the exit animation.
+    // All state reset happens on the OPEN transition — a fresh drawer per entry, and a
+    // stable frame throughout the exit animation.
     const [wasOpen, setWasOpen] = useState(false)
     if (open !== wasOpen) {
         setWasOpen(open)
         if (open) {
             setValue(EMPTY_SKILL)
-            setStage(mode === "upload" ? "upload" : "editor")
-            setParsedCount(null)
             setError(null)
         }
     }
-
-    const handleSingleSkill = useCallback(
-        (candidate: SkillScanCandidate, scan: SkillUploadScan) => {
-            setValue(toFormValue(candidate))
-            setParsedCount(scan.fileCount)
-            setStage("editor")
-        },
-        [],
-    )
-
-    const createOne = useCallback(
-        async (skill: Record<string, unknown>) => {
-            const parsed = skillContentSchema.safeParse(skill)
-            if (!parsed.success) throw new Error(firstIssue(parsed.error))
-            const created = await createSkillWorkflow({projectId, skill: parsed.data})
-            onCreated?.({
-                slug: created.slug,
-                workflowId: created.workflowId,
-                name: parsed.data.name,
-                description: parsed.data.description,
-            })
-        },
-        [onCreated, projectId],
-    )
 
     const create = useCallback(async () => {
         const parsed = skillContentSchema.safeParse(value)
@@ -149,61 +96,16 @@ export function SkillCreateDrawer({
         }
     }, [close, onCreated, projectId, value])
 
-    // The recovery list's batch import: each selected candidate becomes its own skill.
-    const importMany = useCallback(
-        async (candidates: SkillScanCandidate[]) => {
-            setError(null)
-            let createdAny = false
-            try {
-                for (const candidate of candidates) {
-                    await createOne(toFormValue(candidate))
-                    createdAny = true
-                }
-                close()
-            } catch (err) {
-                // The panel owns the view; the footer carries the failure line.
-                setError(err instanceof Error && err.message ? err.message : "Import failed.")
-            } finally {
-                // A partial batch still created skills — the list must show them.
-                if (createdAny) invalidateSkillsListCache()
-            }
-        },
-        [close, createOne],
-    )
-
-    const uploading = stage === "upload"
-
     return (
         <EnhancedDrawer
             rootClassName="ag-drawer-elevated"
             open={open}
             onClose={close}
             placement="right"
-            // The drawer sizes to its stage: the dropzone/recovery view stays compact, the
-            // editor takes the wide frame, and the resize animates between them.
-            width={uploading ? uploadWidth : width}
+            width={width}
             destroyOnClose
-            title={
-                <div className="flex items-center gap-2">
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="text-sm font-medium">New skill</span>
-                        {/* The editor explains itself; only the dropzone needs a line. */}
-                        {uploading ? (
-                            <span className="text-xs font-normal text-[var(--ag-colorTextSecondary)]">
-                                Upload a skill folder, .zip or .skill — review before anything is
-                                created.
-                            </span>
-                        ) : null}
-                    </div>
-                    {parsedCount != null ? (
-                        <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] tabular-nums text-[var(--ag-colorTextTertiary)]">
-                            {parsedCount} {parsedCount === 1 ? "file" : "files"} parsed
-                        </span>
-                    ) : null}
-                </div>
-            }
+            title={<span className="text-sm font-medium">New skill</span>}
             styles={{
-                content: {transition: "width 0.25s ease"},
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
             footer={
@@ -220,29 +122,17 @@ export function SkillCreateDrawer({
                         <Button variant="outline" onClick={close} disabled={busy}>
                             Cancel
                         </Button>
-                        {/* The upload stage's actions live in its own view (Import N skills);
-                            Create belongs to the editor alone. */}
-                        {!uploading ? (
-                            <Button onClick={create} disabled={busy}>
-                                {busy ? <Spinner size="small" /> : null}
-                                Create skill
-                            </Button>
-                        ) : null}
+                        <Button onClick={create} disabled={busy}>
+                            {busy ? <Spinner size="small" /> : null}
+                            Create skill
+                        </Button>
                     </span>
                 </div>
             }
         >
-            {uploading ? (
-                <SkillUploadPanel
-                    onSingleSkill={handleSingleSkill}
-                    onImportMany={importMany}
-                    disabled={busy}
-                />
-            ) : (
-                <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                    <SkillFormView value={value} onChange={setValue} disabled={busy} />
-                </div>
-            )}
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                <SkillFormView value={value} onChange={setValue} disabled={busy} />
+            </div>
         </EnhancedDrawer>
     )
 }

@@ -33,7 +33,7 @@ export interface SkillPickerDrawerProps {
     onAdd: (choices: SkillAddChoice[]) => void | Promise<void>
     onRemove: (skills: SkillListItem[]) => void | Promise<void>
     /** The `+ New skill ▾` paths; created skills land in the registry AND on this agent. */
-    createActions: Pick<NewSkillMenuButtonProps, "onWrite" | "onUpload" | "onImport">
+    createActions: Pick<NewSkillMenuButtonProps, "onWrite" | "onImport">
     width?: number
 }
 

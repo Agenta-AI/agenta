@@ -98,12 +98,11 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
     )
 
     // The `+ New skill ▾` paths: created/imported skills also land on this agent.
-    const [createMode, setCreateMode] = useState<"write" | "upload" | null>(null)
+    const [createOpen, setCreateOpen] = useState(false)
     const [importOpen, setImportOpen] = useState(false)
     const createActions = useMemo(
         () => ({
-            onWrite: () => setCreateMode("write"),
-            onUpload: () => setCreateMode("upload"),
+            onWrite: () => setCreateOpen(true),
             onImport: () => setImportOpen(true),
         }),
         [],
@@ -154,10 +153,9 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
                 createActions={createActions}
             />
             <SkillCreateDrawer
-                open={createMode !== null}
-                onClose={() => setCreateMode(null)}
+                open={createOpen}
+                onClose={() => setCreateOpen(false)}
                 projectId={projectId}
-                mode={createMode ?? "write"}
                 onCreated={addCreated}
             />
             <SkillImportDrawer
