@@ -16,6 +16,7 @@ import {unwrapToolUseError} from "../../../src/assets/toolFormat"
 import {
     isExplainedByMcpNotice,
     mcpServerNotices,
+    mcpServerNoticeCopy,
     mcpServerNoticeSentence,
     mcpToolServerName,
     readMcpServerNotice,
@@ -100,26 +101,43 @@ describe("readMcpServerNotice", () => {
     })
 })
 
-describe("mcpServerNoticeSentence", () => {
-    it("says what is wrong and names the connection", () => {
+describe("mcpServerNoticeCopy", () => {
+    it("says what is wrong and names the connection, in the drawer banner's words", () => {
         const notice = readMcpServerNotice(AUTH_NOTICE)!
-        expect(mcpServerNoticeSentence(notice)).toBe(
-            "mock-mcp needs authorization before its tools can run",
-        )
+        expect(mcpServerNoticeCopy(notice)).toEqual({
+            lead: "mock-mcp needs a new sign-in.",
+            detail: "Its tools fail until someone in the project reconnects.",
+        })
     })
 
     it("prefers the connection's own display name once the row is resolved", () => {
         const notice = readMcpServerNotice(AUTH_NOTICE)!
-        expect(mcpServerNoticeSentence(notice, "Acme Notion")).toBe(
-            "Acme Notion needs authorization before its tools can run",
+        expect(mcpServerNoticeCopy(notice, "Acme Notion").lead).toBe(
+            "Acme Notion needs a new sign-in.",
         )
         // An absent or blank name falls back rather than rendering an empty subject.
-        expect(mcpServerNoticeSentence(notice, "  ")).toBe(
-            "mock-mcp needs authorization before its tools can run",
+        expect(mcpServerNoticeCopy(notice, "  ").lead).toBe("mock-mcp needs a new sign-in.")
+    })
+
+    it("keeps the run's own sentence, and only it, for a failure it has not classified", () => {
+        const notice = readMcpServerNotice(UNREACHABLE_NOTICE)!
+        expect(mcpServerNoticeCopy(notice)).toEqual({
+            lead: "MCP server acme failed to connect: handshake_unreachable",
+            // The sign-in sentence would be a guess: nothing says a login is what this needs.
+            detail: null,
+        })
+    })
+})
+
+describe("mcpServerNoticeSentence", () => {
+    it("joins the two halves for a caller with one slot to fill", () => {
+        const notice = readMcpServerNotice(AUTH_NOTICE)!
+        expect(mcpServerNoticeSentence(notice)).toBe(
+            "mock-mcp needs a new sign-in. Its tools fail until someone in the project reconnects.",
         )
     })
 
-    it("keeps the run's own sentence for a failure it has not classified", () => {
+    it("adds no trailing space when there is no second half", () => {
         const notice = readMcpServerNotice(UNREACHABLE_NOTICE)!
         expect(mcpServerNoticeSentence(notice)).toBe(
             "MCP server acme failed to connect: handshake_unreachable",

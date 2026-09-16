@@ -4,10 +4,13 @@
 //
 // The notice is projected into the durable transcript so a reload still explains why a server did
 // not join. That is only worth having if the way back survives with it: the card resolves the
-// connection from the notice's slug and offers Connect against it. D86 removed an endpoint id the
-// notice carried and nothing read — the affordance never depended on it — and the case that stood
-// over this asserted that removed field, so it pinned the wire rather than the thing a person can
-// do. This drives the whole path instead: transcript record in, Connect button out.
+// connection from the notice's slug and offers Reconnect against it. D86 removed an endpoint id
+// the notice carried and nothing read — the affordance never depended on it — and the case that
+// stood over this asserted that removed field, so it pinned the wire rather than the thing a
+// person can do. This drives the whole path instead: transcript record in, Reconnect button out.
+//
+// One case per state the spec draws for this banner, which are also its three stories:
+// NeedsAuthorization, OtherFailure, UnresolvedConnection.
 import {findCustomMcpEndpoint, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {cleanup, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
@@ -58,20 +61,42 @@ const REPLAYED_NOTICE = {
     },
 }
 
+/** A server that failed for a reason nothing has classified as an authorization problem. */
+const OTHER_FAILURE = {
+    serverName: "mock-mcp",
+    reasonCode: "handshake_unreachable",
+    message: "MCP server mock-mcp failed to connect: handshake_unreachable",
+    detail: null,
+}
+
 afterEach(cleanup)
 
 describe("a replayed MCP reconnect notice", () => {
-    it("resolves the connection from its slug and offers Connect against it", () => {
+    it("resolves the connection from its slug and offers Reconnect against it", () => {
         const notice = readMcpServerNotice(REPLAYED_NOTICE)
         expect(notice).not.toBeNull()
 
         render(<McpServerNoticeCard notice={notice!} />)
 
         // Named by the connection's own display name, which only a resolved row can supply.
-        expect(screen.getByRole("button", {name: "Connect Mock MCP"})).toBeTruthy()
-        expect(screen.getByText(/needs authorization before its tools can run/)).toBeTruthy()
+        expect(screen.getByRole("button", {name: "Reconnect Mock MCP"})).toBeTruthy()
+        // The drawer banner's sentence, so a lapsed login reads the same in both places.
+        expect(screen.getByText("Mock MCP needs a new sign-in.")).toBeTruthy()
+        expect(
+            screen.getByText("Its tools fail until someone in the project reconnects."),
+        ).toBeTruthy()
         // The marker is addressed to the runner and never reaches a screen.
         expect(document.body.textContent).not.toContain("agenta_code")
+    })
+
+    it("announces itself after the reader's own work, not over it", () => {
+        const notice = readMcpServerNotice(REPLAYED_NOTICE)
+
+        render(<McpServerNoticeCard notice={notice!} />)
+
+        // A whole transcript of replayed notices would otherwise interrupt on every reload.
+        expect(screen.getByRole("status")).toBeTruthy()
+        expect(screen.queryByRole("alert")).toBeNull()
     })
 
     it("resolves it through the same lookup the card uses", () => {
@@ -85,9 +110,22 @@ describe("a replayed MCP reconnect notice", () => {
         ).toBe("endpoint-1")
     })
 
+    it("keeps the run's own account of a failure it has not classified, with no remedy", () => {
+        const notice = readMcpServerNotice(OTHER_FAILURE)
+
+        render(<McpServerNoticeCard notice={notice!} />)
+
+        expect(
+            screen.getByText("MCP server mock-mcp failed to connect: handshake_unreachable"),
+        ).toBeTruthy()
+        // Signing in again is a guess here, and a Reconnect button would be that guess on screen.
+        expect(screen.queryByRole("button", {name: /^Reconnect/})).toBeNull()
+        expect(document.body.textContent).not.toContain("needs a new sign-in")
+    })
+
     it("states the problem but offers no dead button for a connection this project cannot see", () => {
         // The row is gone, or belongs to another project. The sentence is still worth showing;
-        // a Connect that cannot resolve a row is not.
+        // a Reconnect that cannot resolve a row is not.
         const notice = readMcpServerNotice({
             ...REPLAYED_NOTICE,
             detail: {
@@ -104,7 +142,8 @@ describe("a replayed MCP reconnect notice", () => {
 
         render(<McpServerNoticeCard notice={notice!} />)
 
-        expect(screen.getByText(/needs authorization before its tools can run/)).toBeTruthy()
-        expect(screen.queryByRole("button", {name: /^Connect/})).toBeNull()
+        // Without a row there is no display name, so the notice names the server as the agent does.
+        expect(screen.getByText("mock-mcp needs a new sign-in.")).toBeTruthy()
+        expect(screen.queryByRole("button", {name: /^Reconnect/})).toBeNull()
     })
 })
