@@ -6,10 +6,12 @@
 import {type ReactNode} from "react"
 
 import {humanSize, isHiddenPath, itemCountLabel, type DriveTreeNode} from "@agenta/entities/drive"
+import {type Mount} from "@agenta/entities/session"
 import {Button} from "@agenta/ui/ui"
 
 import {DriveNameField, type DriveNameEdit} from "./DriveNameField"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
+import {DriveTileThumb} from "./FileThumb"
 
 const TILE =
     "flex h-auto w-full min-w-0 flex-col items-center gap-1 whitespace-normal rounded-lg px-1.5 pb-2 pt-1.5 text-center font-normal"
@@ -74,19 +76,38 @@ export const FileTile = ({
     node,
     selected = false,
     onOpen,
+    mount,
+    mountPath,
 }: {
     node: DriveTreeNode
     selected?: boolean
     onOpen: () => void
-}) => (
-    <Tile
-        node={node}
-        selected={selected}
-        onOpen={onOpen}
-        glyph={<DriveTypeMark path={node.path} size="tile" />}
-        meta={node.size != null ? humanSize(node.size) : "—"}
-    />
-)
+    /** The file's mount + mount-relative path: with them, a media file draws a real thumbnail. */
+    mount?: Mount | null
+    mountPath?: string
+}) => {
+    const mark = <DriveTypeMark path={node.path} size="tile" />
+    return (
+        <Tile
+            node={node}
+            selected={selected}
+            onOpen={onOpen}
+            glyph={
+                mount && mountPath ? (
+                    <DriveTileThumb
+                        mount={mount}
+                        path={mountPath}
+                        size={node.size ?? 0}
+                        fallback={mark}
+                    />
+                ) : (
+                    mark
+                )
+            }
+            meta={node.size != null ? humanSize(node.size) : "—"}
+        />
+    )
+}
 
 /** The tile being renamed in place: the glyph over the name field. */
 export const DraftTile = ({edit, path}: {edit: DriveNameEdit; path: string}) => (
