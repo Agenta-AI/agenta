@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **1** | **7** | **6** | **22 closed, 4 part fixed, 14 open** |
+| **As this file is written** | **0** | **1** | **8** | **6** | **23 closed, 4 part fixed, 15 open** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -109,6 +109,8 @@ whether that fix was read against the finding and its test.
 | D49 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:77`, `:122` | Fix landed; the flake it names is gone on two identical runs | `3fe16196a3` | **partly**, six of seven twice; see D53 |
 | D53 | verification | P2 | the deployment's mock gateway configuration | The OAuth case cannot run on this stack | | mechanism, both mock addresses probed |
 | D54 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:273`, `engines/sandbox_agent/mcp-handshake.ts:142` | Fix, blocking | `d1055842db` | **yes**, code, tests, incl. pre-fix run |
+| QA-D6 | sanity QA | P2 | `web/packages/agenta-chat/src/model/error.ts` | Fix | `f84a90747b` | **yes**, code and its suite |
+| D55 | verification | P2 | `sdks/python/agenta/sdk/middlewares/running/normalizer.py:240-250` | **Pre-existing.** Record and route; not this release's to fix | | mechanism, code read |
 | D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix: QA-D3's better wording cannot fire in production | | mechanism, both sites read |
 | D51 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:293` | Fix the assertion | | mechanism, both message strings compared |
 | D52 | verification | P3 | `hooks/useMcpConnectJourney.ts:179`, `McpConnectJourney.tsx:96` | Record the invariant or apply the check | | mechanism, seven await sites counted |
@@ -920,6 +922,32 @@ refused every turn. The lesson is not that these fixes were careless — both we
 quickly — but that a suite built entirely on obliging mocks measures the client against itself. The
 real-server probe case added for QA-D1 and the real-model matrix are the two places that now break
 that circularity, and they are worth defending as such.
+
+**QA-D6. A refused chat send said only "Message wasn't sent" — fixed by `f84a90747b`, verified.**
+The send path cancelled the 422 body unread and threw the status number, so a project with no model
+provider got no reason and no next step. The body carries a typed refusal in one of three envelope
+shapes, and the fix reads it through the same refusal reader the connect dialog and the permission
+editor already use, carrying the stated sentence and the failure class onto the thrown error so the
+composer chip, the classic recovery and the mobile hand-off can each state it. A refusal that states
+nothing keeps the standing wording, which is the right default. Eleven cases pass, two of them
+render assertions, and one asserts that the stacktrace beside the message is never passed on.
+
+Reusing the gateway refusal reader here is the third surface to adopt it, which is what makes it
+worth having.
+
+**D55. That 422 body carries a Python traceback to the browser.** The service normalizer formats the
+exception's full traceback into the response envelope and answers with it
+(`normalizer.py:240-250`), alongside `str(exc)` as the message. Both halves are exactly what
+CodeQL's `py/stack-trace-exposure` named and what `73befe23f0` closed on the two gateway planes; this
+path still has them. QA-D6's fix means no Agenta surface displays it, which is the right frontend
+behaviour and is not a mitigation: the bytes still reach any browser, extension or proxy on the
+request.
+
+**Not this release's to fix, and recorded so it is not lost.** The file is untouched by this pull
+request and was last changed a week before this work began, so it is pre-existing rather than a
+regression here. It is worth a separate issue at the same severity the CodeQL finding carried, and
+the fix is the same shape: a typed error with an authored sentence, the traceback logged rather than
+returned.
 
 ## Quality findings
 
