@@ -34,6 +34,12 @@ class MemoryStorage {
 
 const REVISION = "rev-agent-1"
 
+// The store's module graph costs seconds of Vite transform the first time it is evaluated. Left to
+// the first case, that cost is charged to a 5-second case timeout the loaded machine blew through.
+// Vitest's transform cache survives `vi.resetModules()`, so paying it here, at module scope where
+// nothing is on the clock, leaves every case only the re-evaluation: about a tenth of a second.
+await import("../../src/workflow/state/store")
+
 type StoreModule = typeof import("../../src/workflow/state/store")
 
 /** Fresh module evaluation against the shared storage — a stand-in for a page load/reload. */
