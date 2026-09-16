@@ -14,6 +14,7 @@ import {ChatComposer} from "../../../src/components/ChatComposer"
 import QueuedMessagesDock from "../../../src/components/QueuedMessagesDock"
 import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
 import type {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
+import {describeRefusedSend} from "../../../src/model/error"
 import {
     useServerSessionInputs,
     type ServerSessionInputs,
@@ -177,9 +178,13 @@ const RunningElsewhereAdmissionHarness = ({
         try {
             if (policy === "steer") await queue.steer({text})
             else await queue.submit({text})
-        } catch {
+        } catch (error) {
             inputRef.current?.setMarkdown(text)
-            setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+            // The same reader both apps put on this line (AgentConversation, mobile Composer):
+            // the refusal's own sentence when it stated one, the standing wording when it did
+            // not. Hardcoding the standing wording here would hide whether the send path read
+            // the refusal body at all.
+            setRejections([{name: "Message", reason: describeRefusedSend(error)}])
         } finally {
             sending.current = false
         }
@@ -234,7 +239,16 @@ const RunningElsewhereAdmissionHarness = ({
     )
 }
 
-const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolean} = {}) => {
+/** How the stack answers the admission request: accepted, or refused with this status and body. */
+interface AdmissionRefusal {
+    status: number
+    body: string
+}
+
+const setupRunningElsewhereAdmission = async ({
+    refuse = false,
+    refusal,
+}: {refuse?: boolean; refusal?: AdmissionRefusal} = {}) => {
     const pending: PendingInput[] = []
     let requestCount = 0
     let closeFreshResponse = () => {}
@@ -267,6 +281,7 @@ const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolea
             })
             return new Response(body, {status: 200})
         }
+        if (refusal) return new Response(refusal.body, {status: refusal.status})
         if (refuse) return new Response(null, {status: 409})
 
         const request = JSON.parse(String(init?.body)) as {
@@ -726,6 +741,39 @@ describe("useServerSessionInputs", () => {
         await screen.findByTitle("Message wasn't sent — try again.")
         expect(inputRef.current?.getMarkdown()).toBe("keep this draft")
         expect(screen.queryByText("1 queued message")).toBeNull()
+        closeFreshResponse()
+    })
+
+    /**
+     * QA-D6's only visible line, driven end to end.
+     *
+     * The model-level cases pin `readSendRefusal` and the chip's wording, but they call the
+     * reader directly. This drives the send path itself against a refusing stack, so the
+     * assertion fails if that path ever goes back to cancelling the 422 body and throwing the
+     * status number — the defect QA-D6 named, which the reader alone cannot catch.
+     */
+    it("puts the refusal's own sentence on the composer, not just a status", async () => {
+        const {closeFreshResponse, inputRef} = await setupRunningElsewhereAdmission({
+            refusal: {
+                status: 422,
+                body: JSON.stringify({
+                    session_id: "c0432835345f4ef6b1350ba5a807c5e5",
+                    status: {
+                        code: 422,
+                        message: "No model provider is configured.",
+                        type: "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error",
+                        stacktrace: ["Traceback (most recent call last):\n"],
+                    },
+                }),
+            },
+        })
+        act(() => inputRef.current?.setMarkdown("keep this draft"))
+        fireEvent.click(await screen.findByRole("button", {name: "Queue"}))
+
+        await screen.findByTitle("Message wasn't sent — No model provider is configured.")
+        // The traceback beside the sentence is for an operator's log, never for this chip.
+        expect(screen.queryByText(/Traceback/)).toBeNull()
+        expect(inputRef.current?.getMarkdown()).toBe("keep this draft")
         closeFreshResponse()
     })
 })
