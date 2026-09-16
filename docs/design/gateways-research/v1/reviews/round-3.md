@@ -597,13 +597,24 @@ now uses the same stable expression the split view had already been given for th
 makes this a branch left behind by an earlier fix rather than a new mistake. `web/oss` passes 529
 with 1 skipped.
 
-**A corroboration worth recording, with one correction.** The acceptance suite does carry an
-allowance that would have masked this: `openNewMcpItem` reloads once and re-waits if the
-configuration panel never appears. Its comment attributes that to a development server serving a
-stale chunk id, not to a session teardown — so it is a reload allowance rather than the
-wait-for-session-URL it was described as. The substance holds and the specifics do not: a broad
-"try again" in a test is the shape that hides a defect whose symptom is a panel vanishing, whatever
-reason the comment gives for it.
+**A corroboration worth recording, and the discrepancy behind it, settled.** `openNewMcpItem`
+carries **two** allowances a few lines apart, which is why two readers described it differently and
+both were right about the line they had read.
+
+The first is a **reload once and re-wait** if the configuration panel never appears, whose comment
+attributes it to a development server serving a chunk id the last rebuild replaced. The second is a
+**wait for the session route to land**, tolerated with its failure swallowed, which pre-existed the
+comment rewrite and is the one that would have masked D94.
+
+So `876d80f771` describes its own line correctly and needs no correction: it rewrote the session
+wait's comment into the invariant, said the wait is a workaround standing in for the mobile case
+that would assert the product holds it, and named the issue tracking that case.
+
+**The one still worth an eye is the other allowance.** A reload-and-retry after an empty page is the
+broad shape: it absorbs any defect whose symptom is a panel that does not appear, and its comment
+names a single cause. That is not a finding against this candidate — the allowance predates it and
+its stated cause is real — but it is the pattern that let D59 and D94 survive green suites, and it is
+why the retry-on-empty-page sweep is in the round-4 brief.
 
 **The comment is rewritten at `876d80f771`**, and it is now the right kind of comment. It states the
 invariant — a drawer may be opened only once the session route has landed — says why, says that the
