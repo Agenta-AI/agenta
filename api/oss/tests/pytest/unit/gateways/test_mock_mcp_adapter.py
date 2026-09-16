@@ -343,3 +343,107 @@ async def test_a_notification_is_held_to_the_same_rule():
     )
 
     assert result.status_code == 400
+
+
+# The same lesson, one protocol field along: `_meta` is optional everywhere in MCP, so a client
+# can stamp one and no mock will mind — while a real upstream validates the whole envelope and
+# refuses the request. OR91.
+
+
+@pytest.mark.asyncio
+async def test_a_reserved_meta_envelope_is_refused():
+    """Exactly what a real upstream answered `tools/list` with, and the reason this rule exists."""
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="tools/list"),
+        body=_rpc(
+            "tools/list",
+            params={"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"}},
+        ),
+        headers=dict(NEGOTIATED),
+    )
+
+    assert result.status_code == 400
+    payload = _body(result)
+    assert payload["error"]["code"] == -32602
+    assert "Invalid _meta envelope for protocol revision" in payload["error"]["message"]
+    assert payload["error"]["data"]["key"] == "io.modelcontextprotocol/protocolVersion"
+
+
+@pytest.mark.asyncio
+async def test_a_notification_is_held_to_the_meta_rule_too():
+    """`notifications/initialized` is the handshake's second call, so a client that stamps the
+    envelope gets told there rather than passing until the first real server sees it."""
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="notifications/initialized"),
+        body=json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized",
+                "params": {
+                    "_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"}
+                },
+            }
+        ).encode(),
+        headers=dict(NEGOTIATED),
+    )
+
+    assert result.status_code == 400
+    assert _body(result)["error"]["code"] == -32602
+
+
+@pytest.mark.asyncio
+async def test_initialize_may_carry_a_meta_envelope():
+    """Before `initialize` answers there is no revision in force to validate an envelope against,
+    so the handshake's opening call is the one request this rule cannot apply to."""
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="initialize"),
+        body=_rpc(
+            "initialize",
+            params={
+                "protocolVersion": "2026-07-28",
+                "_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"},
+            },
+        ),
+        headers={},
+    )
+
+    assert result.status_code == 200
+    assert _body(result)["result"]["protocolVersion"] == "2026-07-28"
+
+
+@pytest.mark.asyncio
+async def test_a_client_owned_meta_key_passes_through():
+    """Scoped to the `io.modelcontextprotocol/` namespace, which is the server's to set. The
+    spec's own client-side keys — a `progressToken`, say — are none of this fixture's business,
+    and refusing them would booby-trap the next feature that legitimately needs one."""
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="tools/call"),
+        body=_rpc(
+            "tools/call",
+            params={
+                "name": "echo",
+                "arguments": {"hello": "world"},
+                "_meta": {"progressToken": "abc123"},
+            },
+        ),
+        headers=dict(NEGOTIATED),
+    )
+
+    assert result.status_code == 200
+    assert _body(result)["result"]["isError"] is False

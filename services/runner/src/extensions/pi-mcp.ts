@@ -328,22 +328,19 @@ class PiHttpMcpClient {
     params?: unknown,
     signal?: AbortSignal,
   ): Promise<unknown> {
+    // No `_meta` envelope. `_meta` is OPTIONAL in every MCP revision and nothing on either side
+    // of this client reads one back, but a server that receives one validates it in full against
+    // the revision in force — so an envelope sent for politeness is a refusal waiting to happen.
+    // A real upstream (Linear) answers any `_meta` on a post-initialize request with
+    // `-32602 Invalid _meta envelope for protocol revision <rev>: <key>: missing`, naming a key
+    // this client has no reason to send; the same requests without `_meta` succeed. Send the
+    // caller's params and nothing else. The mock upstream enforces this rule too, so the cell
+    // matrix fails rather than the next real server.
     const response = await this.post({
       jsonrpc: "2.0",
       id: this.nextId++,
       method,
-      params: {
-        ...(isRecord(params) ? params : {}),
-        // The revision this envelope is shaped for, and it must be the NEGOTIATED one. A server
-        // that agreed an older revision validates `_meta` against that revision and refuses a
-        // newer one (`-32602 Invalid _meta envelope for protocol revision ...`), so stamping the
-        // client's own constant broke every request after a downgrade — including `tools/list`,
-        // which is the first one.
-        _meta: {
-          "io.modelcontextprotocol/protocolVersion":
-            this.negotiatedVersion ?? MCP_PROTOCOL_VERSION,
-        },
-      },
+      params: isRecord(params) ? params : {},
     }, signal);
     if (!response.ok) {
       throw new PiMcpRequestError(`MCP ${method} failed (${response.status})`, response.status);

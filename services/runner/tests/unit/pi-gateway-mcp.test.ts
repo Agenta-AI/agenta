@@ -1098,13 +1098,19 @@ describe("a real upstream's answers, as they actually arrive", () => {
    * Both are ordinary, conforming server behaviour, and both used to break the client on its
    * first request.
    */
-  function sseServer(options: { version?: string; metaVersions?: string[] } = {}) {
+  function sseServer(
+    options: {
+      version?: string;
+      seen?: { method: string; meta: unknown }[];
+    } = {},
+  ) {
     const version = options.version ?? "2025-11-25";
     return (async (_url: string | URL | Request, init?: RequestInit) => {
       const payload = JSON.parse(String(init?.body));
-      options.metaVersions?.push(
-        payload.params?._meta?.["io.modelcontextprotocol/protocolVersion"],
-      );
+      options.seen?.push({
+        method: payload.method,
+        meta: payload.params?._meta,
+      });
       if (payload.id === undefined) return new Response("", { status: 202 });
       const result =
         payload.method === "tools/list"
@@ -1147,24 +1153,51 @@ describe("a real upstream's answers, as they actually arrive", () => {
     );
   });
 
-  it("stamps _meta with the revision the server agreed, not the one it asked for", async () => {
-    // A server validates `_meta` against the revision IT negotiated and refuses a newer one
-    // (-32602 "Invalid _meta envelope for protocol revision ..."), so the client's own constant
-    // failed every request after a downgrade — tools/list first.
-    const metaVersions: (string | undefined)[] = [];
-    globalThis.fetch = sseServer({ version: "2025-11-25", metaVersions });
+  it("sends no _meta envelope on any request (OR91)", async () => {
+    // `_meta` is optional in every MCP revision and nothing on either side of this client reads
+    // one back, but a server that receives one validates the whole envelope against the revision
+    // in force. A real upstream answered every post-initialize request carrying
+    // `_meta: {"io.modelcontextprotocol/protocolVersion": ...}` with -32602, naming a key this
+    // client had never sent; the identical requests without `_meta` succeeded. Stamping the
+    // NEGOTIATED revision rather than the client's own constant was still stamping an envelope,
+    // so it only moved the refusal — the envelope itself had to go.
+    const seen: { method: string; meta: unknown }[] = [];
+    globalThis.fetch = sseServer({ version: "2025-11-25", seen });
 
     const pi = fakePi();
     await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
     await pi.tools[0].execute("call-1", { marker: "X" });
 
-    // The opening `initialize` has nothing negotiated yet, so it carries the client's own.
-    assert.equal(metaVersions[0], MCP_PROTOCOL_VERSION);
-    const afterHandshake = metaVersions.slice(1).filter((v) => v !== undefined);
-    assert.ok(afterHandshake.length > 0, "there are later requests to check");
     assert.ok(
-      afterHandshake.every((version) => version === "2025-11-25"),
-      `every later _meta must carry the agreed revision, got ${afterHandshake.join(", ")}`,
+      seen.some((request) => request.method === "tools/list"),
+      "the handshake must have run, or this asserts nothing",
     );
+    const stamped = seen.filter((request) => request.meta !== undefined);
+    assert.deepEqual(
+      stamped,
+      [],
+      `no request may carry _meta, got ${stamped.map((r) => r.method).join(", ")}`,
+    );
+  });
+
+  it("still sends the caller's own params, having dropped the envelope", async () => {
+    // The envelope was spread in alongside the caller's params, so removing it is exactly the
+    // kind of edit that takes the arguments with it and leaves every tool call empty.
+    const seen: { method: string; meta: unknown }[] = [];
+    const bodies: any[] = [];
+    const inner = sseServer({ seen });
+    globalThis.fetch = (async (url: any, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return inner(url, init);
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+    await pi.tools[0].execute("call-1", { marker: "X" });
+
+    const call = bodies.find((body) => body.method === "tools/call");
+    assert.ok(call, "the tool call must reach the upstream");
+    assert.equal(call.params.name, "echo");
+    assert.deepEqual(call.params.arguments, { marker: "X" });
   });
 });

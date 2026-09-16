@@ -50,6 +50,9 @@ _METHOD_NOT_FOUND = -32601  # JSON-RPC 2.0
 _INVALID_REQUEST = (
     -32020
 )  # what a strict upstream answers a header/body disagreement with
+_INVALID_PARAMS = (
+    -32602
+)  # JSON-RPC 2.0; what a strict upstream refuses a bad `_meta` with
 _VERSION_HEADER = "mcp-protocol-version"
 _CACHE_TTL_MS = 300_000
 _SERVER_INFO = {"name": "agenta-mock-mcp", "version": "0.1.0"}
@@ -213,6 +216,61 @@ def _check_version_header(
     return None
 
 
+def _meta_envelope_refusal(request_id: Any, key: str) -> MCPRelayResult:
+    """A strict upstream's `-32602`, in the shape a real one answers with.
+
+    Copied from Linear's refusal, message and all, for the reason `_version_header_refusal`
+    gives: a client debugged against this mock has to be trustworthy against a real server.
+    """
+    return MCPRelayResult(
+        status_code=400,
+        headers={"content-type": "application/json"},
+        body=json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": _INVALID_PARAMS,
+                    "message": (
+                        f"Invalid _meta envelope for protocol revision "
+                        f"{_PROTOCOL_VERSION}: {key}: unexpected"
+                    ),
+                    "data": {"key": key},
+                },
+            }
+        ).encode(),
+    )
+
+
+def _check_meta_envelope(
+    *, method: str, request_id: Any, params: Any
+) -> MCPRelayResult | None:
+    """Refuse a client that stamps the protocol's own reserved `_meta` keys.
+
+    `_meta` is optional everywhere in MCP, but a server that receives one validates the whole
+    envelope against the revision in force — so an envelope a client sends for politeness is a
+    refusal waiting to happen. A real upstream answered every post-initialize request carrying
+    `_meta: {"io.modelcontextprotocol/protocolVersion": ...}` with `-32602`, naming a key the
+    client had never sent, while the identical requests without `_meta` succeeded. A permissive
+    mock let that client pass every cell and a real server then refused every turn.
+
+    Scoped to the `io.modelcontextprotocol/` namespace on purpose: those keys are the server's
+    to set, not the client's. Application keys and the spec's own client-side ones (a
+    `progressToken`, say) are none of this fixture's business and pass through untouched.
+    """
+    if method == "initialize" or not isinstance(params, dict):
+        return None
+    meta = params.get("_meta")
+    if not isinstance(meta, dict):
+        return None
+    reserved = next(
+        (key for key in meta if str(key).startswith("io.modelcontextprotocol/")), None
+    )
+    if reserved is None:
+        return None
+    return _meta_envelope_refusal(request_id, reserved)
+
+
 def _tools_list_result() -> Dict[str, Any]:
     return {
         "resultType": "complete",
@@ -247,6 +305,17 @@ class MockMCPAdapter(MCPUpstreamInterface):
         # skip is one a client could get wrong and never be told about.
         refusal = _check_version_header(
             method=method, request_id=request_id, headers=headers
+        )
+        if refusal is not None:
+            return refusal
+
+        # Same placement and the same reason as the header check above: a notification carries an
+        # `_meta` envelope like any other request, and a rule it could skip is one a client could
+        # get wrong on the handshake's second call and never be told about.
+        refusal = _check_meta_envelope(
+            method=method,
+            request_id=request_id,
+            params=payload.get("params") or {},
         )
         if refusal is not None:
             return refusal
