@@ -30,6 +30,7 @@ import json
 from typing import List, Optional
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 from mcp.shared.auth import OAuthToken
 
@@ -1134,3 +1135,106 @@ async def test_a_renewal_that_lands_in_flight_is_not_condemned_either(
     )
 
     assert (await _reload(project, connection)).flags.is_valid is True
+
+
+# --- the same race, driven by the relay rather than by its seam --------------- #
+
+
+def _relay_over(transport, *, provider, connect_service) -> MCPGatewayService:
+    """The relay as the fixture builds it, with the socket replaced.
+
+    The cases above call `_invalidate_endpoint` directly, which proves the guard but not
+    that the relay reaches it with the token it actually sent. That is a second claim,
+    and it lives in a different function (D82).
+    """
+    resolver = SecretsResolver(vault_service=VaultService(secrets_dao=SecretsDAO()))
+    return MCPGatewayService(
+        mcp_endpoints_dao=MCPEndpointsDAO(engine=get_transactions_engine()),
+        policy=GatewayPolicyService(resolver=resolver),
+        resolver=resolver,
+        connections_service=ConnectionsService(
+            connections_dao=None,  # type: ignore[arg-type]
+            adapter_registry=None,  # type: ignore[arg-type]
+        ),
+        upstream_registry=MCPUpstreamRegistry(
+            adapters={"http": HttpMCPAdapter(transport=transport)}
+        ),
+        oauth_refresher=connect_service,
+    )
+
+
+async def test_the_relay_itself_does_not_condemn_a_reconnect_that_landed_mid_call(
+    project,
+    connect_service,
+    local_mcp_oauth_provider,
+    _allow_every_caller,
+    _public_dns_for_the_oauth_provider,
+):
+    """The whole path, end to end: a call goes out with a credential the provider has
+    quietly retired, the person reconnects while it is still out, and the 401 it earns
+    comes back to a connection that now holds a different credential.
+
+    Everything before this asserted the guard by calling it. This asserts that the relay
+    reaches it at all, and reaches it with the token this call presented rather than with
+    whatever the connection holds by the time the answer arrives.
+    """
+    connection = await _connected(
+        project=project,
+        connect_service=connect_service,
+        provider=local_mcp_oauth_provider,
+        slug="reconnect-mid-relay",
+        name="Acme",
+    )
+    storage = _storage(
+        project=project, provider=local_mcp_oauth_provider, endpoint_id=connection.id
+    )
+    failing = await storage.get_grant()
+    assert failing is not None
+
+    # The provider retires this one token and says nothing. The stored grant still looks
+    # live, which is what makes the relay send it.
+    local_mcp_oauth_provider.revoke_access_token(failing.access_token)
+
+    reconnected: List[str] = []
+
+    async def _reconnect_while_the_call_is_out(request):
+        """The person presses Reconnect while this request is in flight.
+
+        Run from inside the transport so the ordering is the real one: the relay has
+        already resolved and sent the old credential, and the new one is stored before
+        the refusal comes back.
+        """
+        if (
+            request.method == "POST"
+            and not reconnected
+            and request.url.path == "/"  # the MCP surface, not a discovery document
+        ):
+            reconnected.append("yes")
+            await _consent(
+                service=connect_service,
+                provider=local_mcp_oauth_provider,
+                project=project,
+                endpoint=await _reload(project, connection),
+            )
+        return local_mcp_oauth_provider._handle(request)  # noqa: SLF001 - the fixture
+
+    relay = _relay_over(
+        httpx.MockTransport(_reconnect_while_the_call_is_out),
+        provider=local_mcp_oauth_provider,
+        connect_service=connect_service,
+    )
+
+    with pytest.raises(MCPAuthRequiredError):
+        await _call(relay, project, await _reload(project, connection))
+
+    assert reconnected, "the reconnect never ran, so this proves nothing"
+    repaired = await storage.get_grant()
+    assert repaired is not None and repaired.access_token != failing.access_token
+
+    # The connection the person just repaired is still usable, and the relay says so.
+    stored = await _reload(project, connection)
+    assert stored.flags.is_valid is True
+    assert (
+        await _connection_state(relay, project, stored) == GatewayConnectionState.READY
+    )
+    assert (await _call(relay, project, stored)).status_code == 200
