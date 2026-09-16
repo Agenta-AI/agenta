@@ -60,3 +60,18 @@ export const AssistantMarkdown = ({
         />
     )
 }
+
+/**
+ * The user's own turn, through the same pipeline — no typewriter, nothing streams. The composer
+ * serialises a draft as markdown, escapes and all, so a literal render showed `hi\_name` for a
+ * typed `hi_name`; the desktop bubble has always rendered markdown, and this matches it.
+ */
+export const UserMarkdown = ({text}: {text: string}) => (
+    <ChatMarkdown
+        baseClassName={proseClassName}
+        content={text}
+        streaming={false}
+        useLinkResolver={useDriveLinkResolver}
+        icons={markdownIcons}
+    />
+)

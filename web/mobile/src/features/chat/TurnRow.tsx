@@ -34,7 +34,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {cn} from "@/lib/utils"
 
 import {AnswerReveal} from "./AnswerReveal"
-import {AssistantMarkdown} from "./AssistantMarkdown"
+import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {continuationRetryAction} from "./continuationRetry"
 import {isLiveTextItem} from "./markdownStream"
 import {RunErrorCallout} from "./RunErrorCallout"
@@ -165,12 +165,8 @@ const TurnRowInner = ({
             {turn.items.map((item) => {
                 if (item.kind !== "part" || item.part.type !== "text") return null
                 if (!(item.part.text ?? "").trim()) return null
-                // What the user typed renders literally (desktop parity).
-                return (
-                    <p key={item.index} className="m-0 whitespace-pre-wrap break-words text-xs">
-                        {item.part.text}
-                    </p>
-                )
+                // Markdown, as the desktop bubble renders it: the composer's export is markdown.
+                return <UserMarkdown key={item.index} text={item.part.text ?? ""} />
             })}
         </div>
     ) : (
