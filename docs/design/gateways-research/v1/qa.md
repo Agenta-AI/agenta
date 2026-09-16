@@ -249,7 +249,7 @@ once, and the off-mode run has to come first.
 
 ## Rollback and disable
 
-Rehearsed on the development stack with a project's real data in place throughout: three consented
+Rehearsed on the development stack, on a web image built from the candidate, with a project's real data in place throughout: three consented
 OAuth connections, their stored grants, and the endpoints that reference them. Nothing was lost and
 nothing was reconnected.
 
@@ -268,12 +268,30 @@ So the switch refuses the plane it names and leaves the rest alone, and it refus
 envelope a client can branch on rather than a bare error. The refusal message names the deployment
 rather than the request, which is the right shape: nothing the caller sends can make it succeed.
 
-**One thing this rehearsal could not verify.** The settings tab stayed visible with the plane off.
-That is not the product's answer, though: the web entrypoint does publish the flag to the browser,
-and the running image simply predates that work, so its entrypoint does not contain the key at all
-and no recreate can introduce it. A rebuild is needed to test the UI half, and on a stack whose
-local override pins the web image there is nothing for `--rebuild` to build. Verify the tab on a
-deployment whose web image was built from the candidate.
+**The settings tab hides too**, on an image built from the candidate:
+
+| Flag | Settings navigation |
+| --- | --- |
+| `true` | `… Webhooks · MCPs · Organization …` |
+| `false` | `… Webhooks · Organization …` |
+
+That took a rebuild to test, and the first attempt at this rehearsal wrongly recorded the tab as
+staying visible. The reason is worth knowing before anyone repeats it: the web container's
+`entrypoint.sh` is baked into the image, not bind-mounted, and it is the entrypoint that publishes
+`NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED` into `__env.js` for the browser to read. An image built
+before that line simply does not contain it, and no amount of recreating introduces it. Check the
+image, not the source, when a flag seems not to reach the frontend:
+
+```bash
+docker exec <web-container> grep -c NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED /app/entrypoint.sh
+curl -s <stack>/__env.js   | grep MCP_GATEWAY_ENABLED
+curl -s <stack>/m/__env.js | grep MCP_GATEWAY_ENABLED
+```
+
+One practical note: after recreating the web containers the mobile app needs a request or two to
+warm up, and a settings page read before it hydrates returns Next's raw page JSON rather than the
+rendered navigation. That reads as an empty navigation and looks like the tab is missing. Warm the
+app first, then assert.
 
 ### Re-enabling
 
