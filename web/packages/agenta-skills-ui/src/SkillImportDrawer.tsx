@@ -13,8 +13,8 @@ import {
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Checkbox, Input, Spinner} from "@agenta/ui/ui"
-import {ArrowLeft, CheckCircle, GitBranch, WarningCircle} from "@phosphor-icons/react"
+import {Button, Checkbox, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
+import {CheckCircle, GitBranch, WarningCircle} from "@phosphor-icons/react"
 
 export interface SkillImportDrawerProps {
     open: boolean
@@ -180,10 +180,9 @@ export function SkillImportDrawer({
                         </Button>
                     </div>
                 ) : step === "select" ? (
-                    <div className="flex items-center justify-between gap-2">
-                        <Button variant="outline" onClick={() => setStep("url")} disabled={busy}>
-                            <ArrowLeft size={14} />
-                            Back
+                    <div className="flex items-center justify-end gap-2">
+                        <Button variant="outline" onClick={close} disabled={busy}>
+                            Cancel
                         </Button>
                         <Button onClick={runImport} disabled={busy || selected.size === 0}>
                             {busy ? <Spinner size="small" /> : null}
@@ -198,13 +197,18 @@ export function SkillImportDrawer({
             }
         >
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-                {step === "url" ? (
+                {/* The field stays on top once the repo is scanned: what was found sits under
+                    it, and editing the URL is how you scan another. */}
+                {step !== "done" ? (
                     <label className="flex flex-col gap-1.5 text-xs">
                         <span className="font-medium">Repository URL</span>
                         <Input
                             ref={urlInput}
                             value={repoUrl}
-                            onChange={(e) => setRepoUrl(e.target.value)}
+                            onChange={(e) => {
+                                setRepoUrl(e.target.value)
+                                if (step === "select") setStep("url")
+                            }}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" && repoUrl.trim() && !busy) void scan()
                             }}
@@ -217,13 +221,33 @@ export function SkillImportDrawer({
                     </label>
                 ) : null}
 
+                {/* The scan's rows arrive into the slots the skeleton was already holding. */}
+                {step === "url" && busy ? (
+                    <div aria-hidden className="flex flex-col gap-1.5 text-xs">
+                        <SkeletonBlock active className="h-4 w-24 rounded" />
+                        <div className="flex flex-col gap-1">
+                            {[0, 1, 2].map((row) => (
+                                <div
+                                    key={row}
+                                    className="box-border flex items-start gap-2.5 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] p-2.5"
+                                >
+                                    <SkeletonBlock active className="mt-0.5 size-4 rounded-full" />
+                                    <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                                        <SkeletonBlock active className="h-3.5 w-2/5 rounded" />
+                                        <SkeletonBlock active className="h-3.5 w-4/5 rounded" />
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
+
                 {step === "select" ? (
                     <>
-                        <div className="flex items-center gap-2 text-xs text-[var(--ag-colorTextSecondary)]">
-                            <span className="min-w-0 flex-1 truncate font-mono">{repoUrl}</span>
-                        </div>
-
-                        <div className="flex flex-col gap-1">
+                        {/* Labelled the way the field above is, so the two read as one form. */}
+                        <div className="flex flex-col gap-1.5 text-xs">
+                            <span className="font-medium">Skills found · {candidates.length}</span>
+                            <div className="flex flex-col gap-1">
                             {candidates.map((candidate) => {
                                 const path = candidate.path_in_repo
                                 const name = candidate.skill?.name ?? path
@@ -266,6 +290,7 @@ export function SkillImportDrawer({
                                     </label>
                                 )
                             })}
+                            </div>
                         </div>
 
                         {validCandidates.length === 0 ? (
