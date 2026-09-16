@@ -164,6 +164,33 @@ export const UrlNotAnMcpServer: Story = sheet(
     }),
 )
 
+/**
+ * C2 with a response behind it — the only place "Show response" appears.
+ *
+ * Nothing in the product reaches this yet: the probe returns a cause and a sentence and
+ * drops the body, so `readMcpProbeResponse` answers null everywhere (issue #6908). This
+ * story carries one, which is what the panel looks like the day the probe does.
+ */
+export const UrlUnreachableWithResponse: Story = sheet(
+    state({
+        status: "check_failed",
+        url: "https://acme.dev/mcp",
+        error: "The address answered, but not with an MCP handshake (HTTP 502).",
+        probe: {
+            reachable: true,
+            auth: {mode: "unknown", scopes_offered: []},
+            problem: {
+                cause: "not_an_mcp_server",
+                message: "The address answered, but not with an MCP handshake (HTTP 502).",
+                response: {
+                    status: "502 Bad Gateway",
+                    body: "<html><head><title>502 Bad Gateway</title></head><body><center><h1>502 Bad Gateway</h1></center><hr><center>nginx</center></body></html>",
+                },
+            },
+        } as NonNullable<McpJourneyState["probe"]>,
+    }),
+)
+
 /** C3 — an OAuth server, named, with the prefix its tools will carry. */
 export const OAuthDetected: Story = sheet(
     state({
