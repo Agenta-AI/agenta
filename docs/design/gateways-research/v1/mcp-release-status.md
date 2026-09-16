@@ -136,7 +136,7 @@ the product in a browser.
 
 Two, both understood, both filed, both shipping as they are.
 
-**Codex agents see only the first page of a paginated tool list (#6892).** A server that lists its
+**Codex agents see only the first page of a paginated tool list (D91, #6892).** A server that lists its
 catalogue across several pages is only partly visible to an agent on Codex: the model is never told
 the rest of the tools exist, so the turn reads as a model that chose not to use one. Pi and Claude
 Code both follow the pagination cursor, and so does the tool list in the UI. This one is not ours:
@@ -144,7 +144,8 @@ the gap is in Codex's own MCP client. It was measured while fixing the same defe
 client (D69), by moving the marker tool to the last page so the harness matrix had to follow the
 cursor to find it. Nine Pi cells and nine Claude Code cells pass, and all nine Codex cells fail.
 The marker went back on the first page rather than holding the matrix red on a limitation we cannot
-fix, because a permanently red suite hides every other regression.
+fix, because a permanently red suite hides every other regression. It carries a finding number so
+that it is not rediscovered later as a gateway bug; the entry is in `reviews/round-3.md`.
 
 **A raised per-endpoint `timeout_seconds` is ignored during a run (#6893).** Setting an endpoint's
 timeout above the gateway default looks like it applies and does not: a tool call is still bounded
