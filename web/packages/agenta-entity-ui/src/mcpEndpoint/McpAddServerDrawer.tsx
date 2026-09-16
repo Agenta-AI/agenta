@@ -133,9 +133,10 @@ export function McpAddServerDrawer({
                 <div className="flex flex-1 items-center justify-center p-6">
                     <EmptyState
                         className="max-w-[320px] text-center"
+                        // Bare glyph: the tile sets its own size and colour.
                         image={
                             <IconTile size={44} tone="muted">
-                                <Plugs size={22} />
+                                <Plugs />
                             </IconTile>
                         }
                         title="No MCP servers in this project yet"
