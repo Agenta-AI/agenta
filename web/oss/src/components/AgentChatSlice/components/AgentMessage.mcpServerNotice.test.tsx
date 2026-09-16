@@ -50,12 +50,13 @@ const failedToolPart = (wireName: string) => ({
 const assistantTurn = (parts: unknown[]): UIMessage =>
     ({id: "turn-1", role: "assistant", parts}) as unknown as UIMessage
 
-const render = (parts: unknown[]): string =>
+const render = (parts: unknown[], precededByEmptyAssistant = false): string =>
     renderToStaticMarkup(
         <Provider store={createStore()}>
             <AgentMessage
                 message={assistantTurn(parts)}
                 sessionId="session-1"
+                precededByEmptyAssistant={precededByEmptyAssistant}
                 onRewind={() => undefined}
                 onClientToolOutput={() => undefined}
             />
@@ -91,6 +92,14 @@ describe("AgentMessage: an MCP server that did not join the run", () => {
 
         expect(html).toContain('data-mcp-server-notice="mock-mcp"')
         expect(textOf(html)).not.toContain("No such tool available")
+    })
+
+    it("is not collapsed as an empty turn when it follows one", () => {
+        // A turn whose only part is the notice has no text and no tool call. Read as empty it
+        // is dropped after another empty turn, which loses the sentence and the way back.
+        const html = render([noticePart()], true)
+
+        expect(html).toContain('data-mcp-server-notice="mock-mcp"')
     })
 
     it("keeps a failure from a server the turn says nothing about", () => {

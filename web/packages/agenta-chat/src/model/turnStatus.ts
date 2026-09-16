@@ -1,6 +1,6 @@
 import type {UIMessage} from "ai"
 
-import {isToolPart} from "./parts"
+import {isToolPart, MCP_SERVER_NOTICE_PART} from "./parts"
 
 export interface TurnStatusContext {
     isUser: boolean
@@ -35,14 +35,16 @@ export const deriveTurnStatus = (
     message: UIMessage,
     {isUser, isStreaming, traceError, runError, errorCode}: TurnStatusContext,
 ): TurnStatus => {
-    // "Answer" = anything the user is meant to read as a reply (text / tool / file / source).
-    // Reasoning alone is NOT an answer — a turn that only thought hasn't responded.
+    // "Answer" = anything the user is meant to read as a reply (text / tool / file / source, and
+    // the notice for a server that did not join). Reasoning alone is NOT an answer — a turn that
+    // only thought hasn't responded.
     const hasAnswer = message.parts.some(
         (p) =>
             (p.type === "text" && (p as {text?: string}).text) ||
             isToolPart(p.type) ||
             p.type === "file" ||
-            p.type === "source-url",
+            p.type === "source-url" ||
+            p.type === MCP_SERVER_NOTICE_PART,
     )
     const hasReasoning = message.parts.some(
         (p) => p.type === "reasoning" && (p as {text?: string}).text,

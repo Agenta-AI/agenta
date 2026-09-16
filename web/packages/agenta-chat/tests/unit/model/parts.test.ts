@@ -5,6 +5,7 @@ import {
     isEmptyAssistantTurn,
     isToolPart,
     isVisiblePart,
+    MCP_SERVER_NOTICE_PART,
     partToolName,
     toolIdentity,
 } from "../../../src/model/parts"
@@ -40,12 +41,35 @@ describe("isVisiblePart", () => {
             } as UIMessage["parts"][number]),
         ).toBe(true)
     })
+
+    it("is true for an MCP server notice", () => {
+        // The turn's only content can be the notice: the model asked for a tool on a server
+        // that never joined, so there is no text and no tool part, and the sentence saying
+        // why — plus the Connect action beside it — is the whole answer.
+        expect(
+            isVisiblePart({
+                type: MCP_SERVER_NOTICE_PART,
+                data: {serverName: "mock-mcp"},
+            } as unknown as UIMessage["parts"][number]),
+        ).toBe(true)
+    })
 })
 
 describe("isEmptyAssistantTurn", () => {
     it("matches the real predicate over the fixture turns", () => {
         const messages = emptyTurnsFixture as UIMessage[]
         expect(messages.map(isEmptyAssistantTurn)).toEqual([false, true, true, false])
+    })
+
+    it("does not call a turn carrying only a server notice empty", () => {
+        // An empty turn is collapsed when it follows another, and a "no response" turn with
+        // nothing else to show renders as a failure. Either would lose the notice.
+        const turn = {
+            id: "turn-1",
+            role: "assistant",
+            parts: [{type: MCP_SERVER_NOTICE_PART, data: {serverName: "mock-mcp"}}],
+        } as unknown as UIMessage
+        expect(isEmptyAssistantTurn(turn)).toBe(false)
     })
 })
 

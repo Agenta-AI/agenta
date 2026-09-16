@@ -30,6 +30,7 @@ import {
 import {
     isExplainedByMcpNotice,
     isToolPart,
+    MCP_SERVER_NOTICE_PART,
     mcpServerNotices,
     partToolName,
     readMcpServerNotice,
@@ -430,14 +431,16 @@ const AgentMessage = ({
         title?: string
     }[]
 
-    // "Answer" = anything the user is meant to read as a reply (text / tool / file / source).
-    // Reasoning alone is NOT an answer — a turn that only thought hasn't responded.
+    // "Answer" = anything the user is meant to read as a reply (text / tool / file / source, and
+    // the notice for a server that did not join). Reasoning alone is NOT an answer — a turn that
+    // only thought hasn't responded.
     const hasAnswer = message.parts.some(
         (p) =>
             (p.type === "text" && (p as {text?: string}).text) ||
             isToolPart(p.type) ||
             p.type === "file" ||
-            p.type === "source-url",
+            p.type === "source-url" ||
+            p.type === MCP_SERVER_NOTICE_PART,
     )
     const hasReasoning = message.parts.some(
         (p) => p.type === "reasoning" && (p as {text?: string}).text,
@@ -538,7 +541,7 @@ const AgentMessage = ({
     // explains, so the decision below cannot be made from the parts seen so far.
     const serverNotices = mcpServerNotices(message.parts)
     message.parts.forEach((part, i) => {
-        if (part.type === "data-mcp-server-failed") {
+        if (part.type === MCP_SERVER_NOTICE_PART) {
             const notice = readMcpServerNotice((part as {data?: unknown}).data)
             if (notice) renderItems.push({kind: "mcpNotice", notice, index: i})
             return

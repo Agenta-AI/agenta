@@ -21,6 +21,8 @@
 import {gatewayRefusalCode, gatewayRefusalMessage} from "@agenta/entities/mcpEndpoint/refusal"
 import type {UIMessage} from "ai"
 
+import {MCP_SERVER_NOTICE_PART} from "./parts"
+
 /** The failure class a disconnected connection refuses its handshake with. */
 export const MCP_AUTH_REQUIRED_CODE = "auth_required"
 
@@ -102,7 +104,7 @@ export const readMcpServerNotice = (data: unknown): McpServerNotice | null => {
 export const mcpServerNotices = (parts: UIMessage["parts"]): McpServerNotice[] => {
     const notices: McpServerNotice[] = []
     for (const part of parts) {
-        if (part.type !== "data-mcp-server-failed") continue
+        if (part.type !== MCP_SERVER_NOTICE_PART) continue
         const notice = readMcpServerNotice((part as {data?: unknown}).data)
         if (notice) notices.push(notice)
     }

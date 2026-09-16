@@ -6,7 +6,7 @@ import {
     readMcpServerNotice,
     type McpServerNotice,
 } from "./mcpServerNotice"
-import {isToolPart, partToolName, toolIdentity} from "./parts"
+import {isToolPart, MCP_SERVER_NOTICE_PART, partToolName, toolIdentity} from "./parts"
 
 // Copied verbatim from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx
 // (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
@@ -74,7 +74,7 @@ export const buildTurnRenderItems = (
     // explains, so the decision below cannot be made from the parts seen so far.
     const notices = mcpServerNotices(parts)
     parts.forEach((part, i) => {
-        if (part.type === "data-mcp-server-failed") {
+        if (part.type === MCP_SERVER_NOTICE_PART) {
             const notice = readMcpServerNotice((part as {data?: unknown}).data)
             if (notice) renderItems.push({kind: "mcpNotice", notice, index: i})
             return

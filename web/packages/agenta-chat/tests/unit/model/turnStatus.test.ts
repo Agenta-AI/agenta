@@ -14,6 +14,21 @@ describe("deriveTurnStatus", () => {
         expect(status.noResponse).toBe(true)
     })
 
+    it("counts a server notice as the turn's answer", () => {
+        // Without this the turn is answer-less, which makes it a "no response" turn: the
+        // desktop then renders the bubble as a failure and, after another empty turn, drops
+        // the row entirely — losing the one sentence that says what to do.
+        const message = {
+            id: "a1",
+            role: "assistant",
+            parts: [{type: "data-mcp-server-failed", data: {serverName: "mock-mcp"}}],
+        } as unknown as UIMessage
+        const status = deriveTurnStatus(message, {isUser: false, isStreaming: false})
+        expect(status.hasAnswer).toBe(true)
+        expect(status.hasContent).toBe(true)
+        expect(status.noResponse).toBe(false)
+    })
+
     it("trusts traceError on an answer-less turn", () => {
         const message = {id: "a1", role: "assistant", parts: []} as unknown as UIMessage
         const status = deriveTurnStatus(message, {
