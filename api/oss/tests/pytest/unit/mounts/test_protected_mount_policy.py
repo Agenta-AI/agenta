@@ -212,14 +212,24 @@ class _ObjectStore:
             if key.startswith(prefix)
         ]
 
+    async def list_objects_page(
+        self, *, bucket, prefix, start_after=None, max_keys=500
+    ):
+        assert bucket == _BUCKET
+        keys = sorted(key for key in self.objects if key.startswith(prefix))
+        if start_after is not None:
+            keys = [key for key in keys if key > start_after]
+        page = [
+            SimpleNamespace(key=key, size=len(self.objects[key]), mtime=1)
+            for key in keys[:max_keys]
+        ]
+        return page, len(keys) > max_keys
+
     async def delete_keys(self, *, bucket, keys):
         assert bucket == _BUCKET
-        deleted = 0
         for key in keys:
-            if key in self.objects:
-                del self.objects[key]
-                deleted += 1
-        return deleted
+            self.objects.pop(key, None)
+        return []
 
     async def delete_prefix(self, *, bucket, prefix):
         assert bucket == _BUCKET

@@ -1534,11 +1534,8 @@ class MountsService:
         if not keys:
             raise MountFileNotFound()
 
-        count = await self.mounts_store.delete_keys(
-            bucket=bucket,
-            keys=keys,
-        )
-        return MountFileDeleted(deleted=path, count=count)
+        failed = await self.mounts_store.delete_keys(bucket=bucket, keys=keys)
+        return MountFileDeleted(deleted=path, count=len(keys) - len(failed))
 
     async def _path_keys(
         self,
@@ -1564,6 +1561,15 @@ class MountsService:
             bucket=bucket, prefix=key, max_keys=1
         )
         return bool(objects) and objects[0].key == key
+
+    async def _discard_keys(self, *, bucket: str, keys: List[str]) -> None:
+        # Best effort: a rollback must not mask the failure that caused it.
+        try:
+            left = await self.mounts_store.delete_keys(bucket=bucket, keys=keys)
+        except Exception:
+            left = keys
+        if left:
+            log.warning("mounts.move: partial destination left behind", count=len(left))
 
     async def _path_exists(self, *, bucket: str, exact_key: str) -> bool:
         if await self._key_exists(bucket=bucket, key=exact_key):
@@ -1605,9 +1611,9 @@ class MountsService:
 
         # Copy everything first, delete last: a failed copy leaves the source intact.
         semaphore = asyncio.Semaphore(_LIST_CONCURRENCY)
+        targets = [dest_key + key[len(source_key) :] for key in source_keys]
 
-        async def _copy(key: str) -> None:
-            target = dest_key + key[len(source_key) :]
+        async def _copy(key: str, target: str) -> None:
             async with semaphore:
                 # A folder marker is an empty trailing-slash key; SeaweedFS refuses it as a
                 # copy source, and re-creating it is the same write `create_folder` does.
@@ -1620,7 +1626,10 @@ class MountsService:
                         bucket=bucket, source_key=key, dest_key=target
                     )
 
-        copies = [asyncio.create_task(_copy(key)) for key in source_keys]
+        copies = [
+            asyncio.create_task(_copy(key, target))
+            for key, target in zip(source_keys, targets)
+        ]
         try:
             await asyncio.gather(*copies)
         except BaseException:
@@ -1628,12 +1637,16 @@ class MountsService:
             for task in copies:
                 task.cancel()
             await asyncio.gather(*copies, return_exceptions=True)
+            await self._discard_keys(bucket=bucket, keys=targets)
             raise
 
-        deleted = await self.mounts_store.delete_keys(bucket=bucket, keys=source_keys)
-        if deleted != len(source_keys):
+        failed = await self.mounts_store.delete_keys(bucket=bucket, keys=source_keys)
+        if failed:
+            failed = await self.mounts_store.delete_keys(bucket=bucket, keys=failed)
+        if failed:
+            # The destination is complete; only stale source keys remain, so never roll back.
             raise MountError(
-                f"Copied, but {len(source_keys) - deleted} source key(s) could not be removed."
+                f"Moved, but {len(failed)} stale source key(s) remain under '{source}'."
             )
         return MountFileMoved(
             source=source, destination=destination, count=len(source_keys)

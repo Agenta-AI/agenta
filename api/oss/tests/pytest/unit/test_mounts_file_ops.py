@@ -271,15 +271,12 @@ class FakeMountStorage:
             raise MountFileNotFound()
         b[dest_key] = b[source_key]
 
-    async def delete_keys(self, *, bucket: str, keys: List[str]) -> int:
+    async def delete_keys(self, *, bucket: str, keys: List[str]) -> List[str]:
         b = self._store.get(bucket, {})
-        n = 0
         for k in keys:
-            if k in b:
-                del b[k]
-                self._mtimes.get(bucket, {}).pop(k, None)
-                n += 1
-        return n
+            b.pop(k, None)
+            self._mtimes.get(bucket, {}).pop(k, None)
+        return []
 
     async def delete_prefix(self, *, bucket: str, prefix: str) -> int:
         objects = await self.list_objects_v2(bucket=bucket, prefix=prefix)
@@ -1088,11 +1085,41 @@ class TestMountFileOpsRoundtrip:
         )
         store = service.mounts_store
 
-        async def _keep_everything(*, bucket: str, keys: List[str]) -> int:
-            return 0
+        async def _keep_everything(*, bucket: str, keys: List[str]) -> List[str]:
+            return keys
 
         store.delete_keys = _keep_everything
         with pytest.raises(MountError):
             await service.move_path(
                 project_id=pid, mount_id=mid, path="a.md", to="b.md"
             )
+        # The copy is complete, so it stays; only the stale source is reported.
+        listing = await service.list_files(project_id=pid, mount_id=mid)
+        assert {f.path for f in listing.files} == {"a.md", "b.md"}
+
+    async def test_move_rolls_back_a_partial_copy(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for name in ("a", "b", "c"):
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=f"src/{name}.py", content=b"x"
+            )
+        store = service.mounts_store
+        real_copy = store.copy_object
+
+        async def _fail_on_b(*, bucket: str, source_key: str, dest_key: str) -> None:
+            if source_key.endswith("/b.py"):
+                raise RuntimeError("store hiccup")
+            await real_copy(bucket=bucket, source_key=source_key, dest_key=dest_key)
+
+        store.copy_object = _fail_on_b
+        with pytest.raises(RuntimeError):
+            await service.move_path(project_id=pid, mount_id=mid, path="src", to="app")
+
+        listing = await service.list_files(project_id=pid, mount_id=mid)
+        assert {f.path for f in listing.files if not f.is_folder} == {
+            "src/a.py",
+            "src/b.py",
+            "src/c.py",
+        }
+        assert not any(f.path.startswith("app") for f in listing.files)

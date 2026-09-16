@@ -568,9 +568,10 @@ class ObjectStore:
         *,
         bucket: str,
         keys: List[str],
-    ) -> int:
+    ) -> List[str]:
+        """Delete `keys`; returns the ones the store refused."""
         if not keys:
-            return 0
+            return []
         client = self._client()
         # remove_objects is a coroutine returning an async iterator of FAILED deletes (1.21);
         # await it, then drain so the deletes commit.
@@ -578,10 +579,7 @@ class ObjectStore:
             bucket,
             [DeleteObject(key) for key in keys],
         )
-        failed = 0
-        async for _ in errors:
-            failed += 1
-        return len(keys) - failed
+        return [err.name or "" async for err in errors]
 
     async def delete_prefix(
         self,
@@ -592,4 +590,5 @@ class ObjectStore:
         """Delete every key under `prefix` (cascades a folder). Returns count."""
         objects = await self.list_objects_v2(bucket=bucket, prefix=prefix)
         keys = [obj.key for obj in objects]
-        return await self.delete_keys(bucket=bucket, keys=keys)
+        failed = await self.delete_keys(bucket=bucket, keys=keys)
+        return len(keys) - len(failed)
