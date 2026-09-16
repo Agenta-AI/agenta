@@ -162,7 +162,8 @@ export const SessionTabs = ({
                                 aria-pressed={filesOpen}
                                 aria-keyshortcuts={shortcutAria("panel.files")}
                                 onClick={toggleFiles}
-                                className={`h-7 w-7 shrink-0 p-0 max-md:hidden ${filesOpen ? "text-foreground" : "text-muted-foreground"}`}
+                                // The glyph's weight carries the state; no colour shift on top.
+                                className="h-7 w-7 shrink-0 p-0 max-md:hidden"
                             >
                                 {/* Phosphor draws the panel on the left; the files pane is on the right. */}
                                 <SidebarSimple
