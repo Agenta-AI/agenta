@@ -226,12 +226,11 @@ export function useMcpConnectJourney({
                 endpointRef.current = {id: endpointId, slug}
             }
 
+            // This transition already moves an OAuth connection to `discovering_scopes`, and
+            // the component's effect owns that state. Awaiting discovery here as well ran it
+            // twice per connect: two outbound round trips, and two full-row writes on a route
+            // that writes back the snapshot it read (D31).
             dispatch({type: "endpoint_created", endpointId, slug: slug as string})
-
-            if (probe?.auth.mode === "oauth") {
-                await discoverScopes(endpointId)
-                return
-            }
 
             if (probe?.auth.mode === "none") {
                 dispatch({type: "verify_started"})
@@ -247,7 +246,7 @@ export function useMcpConnectJourney({
                     : {type: "create_failed", error: refusal},
             )
         }
-    }, [discoverScopes, projectId, state.name, state.probe, state.url])
+    }, [projectId, state.name, state.probe, state.url])
 
     const toggleScope = useCallback((scope: string) => dispatch({type: "scope_toggled", scope}), [])
 

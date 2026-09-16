@@ -14,10 +14,11 @@ import {act, createElement, useState} from "react"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {probeMcpUrl, createMcpEndpoint, listMcpTools} = vi.hoisted(() => ({
+const {probeMcpUrl, createMcpEndpoint, listMcpTools, discoverMcpConnect} = vi.hoisted(() => ({
     probeMcpUrl: vi.fn(),
     createMcpEndpoint: vi.fn(),
     listMcpTools: vi.fn(),
+    discoverMcpConnect: vi.fn(),
 }))
 
 vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
@@ -25,6 +26,7 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     probeMcpUrl,
     createMcpEndpoint,
     listMcpTools,
+    discoverMcpConnect,
 }))
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
@@ -57,6 +59,17 @@ const field = (name: string): HTMLInputElement | null => {
 
 const button = (label: string) =>
     [...document.querySelectorAll("button")].find((candidate) => candidate.textContent === label)
+
+/** Flush until a condition holds, so a count is taken after the work has settled. */
+const waitFor = async (condition: () => boolean, label: string) => {
+    for (let i = 0; i < 50; i++) {
+        if (condition()) return
+        await act(async () => {
+            await Promise.resolve()
+        })
+    }
+    throw new Error(`timed out waiting for ${label}`)
+}
 
 /** Let the dialog mount its portal and any awaited work behind a click resolve. */
 const settle = async () => {
@@ -116,6 +129,7 @@ beforeEach(() => {
         endpoint: {id: "mcp-1", slug: "acme-7mx", name: "Acme", auth_mode: "none"},
     })
     listMcpTools.mockResolvedValue([{name: "echo", description: "Echo it back"}])
+    discoverMcpConnect.mockResolvedValue({count: 1, scopes_offered: ["tools:list"]})
     host = document.createElement("div")
     document.body.appendChild(host)
     root = createRoot(host)
@@ -160,5 +174,55 @@ describe("the rendered journey", () => {
         expect(field("MCP server URL")).not.toBeNull()
         expect(field("MCP server URL")!.value).toBe("")
         expect(field("Connection name")).toBeNull()
+    })
+})
+
+describe("connecting a server that uses OAuth", () => {
+    it("reads the offered scopes once", async () => {
+        // Deferred on purpose. With an instantly-resolving stub the direct call finished
+        // before React re-rendered, so the effect never saw `discovering_scopes` and the
+        // duplicate could not be observed — the shape of the real bug needs a discovery that
+        // is still in flight while the component renders.
+        let release: (value: unknown) => void = () => undefined
+        discoverMcpConnect.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    release = resolve
+                }),
+        )
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                server_name: "Acme",
+                auth: {mode: "oauth", scopes_offered: ["tools:list"]},
+            },
+        })
+
+        await openJourney()
+        await typeInto(field("MCP server URL")!, "https://mcp.acme.test/")
+        await press(button("Continue"))
+        await typeInto(field("Connection name")!, "Acme")
+        await press(button("Continue"))
+
+        // Counted only once discovery has finished, so a second in-flight call cannot hide
+        // behind the flush window. Two callers used to race here: `submitName` awaited
+        // discovery itself while the transition it had already dispatched fired the effect
+        // that does the same. Each call is an outbound round trip and a full-row write on the
+        // server (D31).
+        // Counted while the first call is still in flight, which is when a second caller
+        // would fire. Two callers used to race here: `submitName` awaited discovery itself
+        // while the transition it had already dispatched fired the effect that does the same.
+        // Each call is an outbound round trip and a full-row write on the server (D31).
+        await settle()
+        expect(discoverMcpConnect).toHaveBeenCalledTimes(1)
+
+        release({count: 1, scopes_offered: ["tools:list"]})
+        await waitFor(
+            () =>
+                document.body.textContent?.includes("Choose which permissions to grant.") ?? false,
+            "the scope checklist",
+        )
+        expect(discoverMcpConnect).toHaveBeenCalledTimes(1)
     })
 })
