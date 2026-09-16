@@ -145,9 +145,17 @@ function McpConnectJourneyBody({
             : null
 
     const handleClose = useCallback(() => {
+        // Belt and braces with the modal props above: whatever route a close arrives by, it
+        // must not cancel an attempt whose credential the provider has already issued.
+        if (state.status === "saving") return
         void journey.cancel()
         onClose()
-    }, [journey, onClose])
+    }, [journey, onClose, state.status])
+
+    const selectedSecretId = useCallback(
+        () => namedSecrets.find((secret) => secret.slug === secretSlug)?.id ?? "",
+        [namedSecrets, secretSlug],
+    )
 
     const handleConfirm = useCallback(() => {
         switch (state.status) {
@@ -176,17 +184,25 @@ function McpConnectJourneyBody({
                 // Nothing is cancelled by closing a connection that succeeded.
                 onClose()
                 return
+            // Retried by calling the operation again, because the state a retry would move to
+            // is busy and nothing else re-invokes it.
             case "create_failed":
+                void journey.submitName()
+                return
+            case "verify_failed":
+                void journey.submitManualCredential({headerName, secretId: selectedSecretId()})
+                return
             case "scopes_failed":
             case "consent_cancelled":
             case "consent_failed":
-            case "verify_failed":
                 journey.retry()
                 return
             default:
         }
-    }, [journey, nameProblem, state.status, state.url])
+    }, [headerName, journey, nameProblem, selectedSecretId, state.status, state.url])
 
+    // The window in which the connection is real but this dialog has not caught up.
+    const sealed = state.status === "saving"
     const confirmLabel = CONFIRM_LABEL[state.status]
     const canConfirm = !!confirmLabel && !isBusy(state) && !nameProblem
 
@@ -194,6 +210,13 @@ function McpConnectJourneyBody({
         <EnhancedModal
             open={open}
             onCancel={handleClose}
+            // Escape and a mask click reach `onCancel` even while the footer's buttons are
+            // disabled. Between consent and the refetch the grant already exists server-side,
+            // so a close here would delete a row whose credential the provider is still
+            // holding (D29). The journey moves on by itself; there is nothing to abandon.
+            maskClosable={!sealed}
+            keyboard={!sealed}
+            closable={!sealed}
             title={TITLE[state.status] ?? (reconnect ? "Reconnect MCP server" : "Connect MCP")}
             footer={null}
             width={460}
@@ -288,12 +311,9 @@ function McpConnectJourneyBody({
                             }}
                             onSkip={journey.skipAuthentication}
                             onSubmit={() => {
-                                const secret = namedSecrets.find((row) => row.slug === secretSlug)
-                                if (!secret?.id) return
-                                void journey.submitManualCredential({
-                                    headerName,
-                                    secretId: secret.id,
-                                })
+                                const secretId = selectedSecretId()
+                                if (!secretId) return
+                                void journey.submitManualCredential({headerName, secretId})
                             }}
                         />
                     ) : null}
