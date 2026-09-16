@@ -17,6 +17,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthRegistrationUnresolvablePinError,
 )
 from oss.src.core.gateways.mcps.oauth.storage import (
+    registration_slug,
     SecretsTokenStorage,
     _issuer_slug as issuer_slug_for_test,
     grant_slug,
@@ -673,3 +674,69 @@ async def test_a_registration_written_before_the_marker_is_still_used():
     client_info = await _storage_over(vault).get_client_info()
 
     assert client_info is not None and client_info.client_id == "client-1"
+
+
+_REDIRECT_URI = "https://api.example.com/gateways/mcps/connect/callback"
+
+
+def _storage_at_an_address(vault) -> SecretsTokenStorage:
+    """A storage that knows its callback, so the address slug is a candidate at all.
+
+    Every other case here builds one without a redirect URI, which is why the address
+    slug never appeared in them: `_registration_slugs` only offers it when the caller
+    knows the address it would register under.
+    """
+    return SecretsTokenStorage(
+        vault_service=vault,
+        project_id=uuid4(),
+        server_url="https://mcp.example.com/",
+        authorization_server=_ISSUER,
+        redirect_uri=_REDIRECT_URI,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_crafted_row_at_the_address_slug_loses_to_a_genuine_registration():
+    """The path this finding was actually reproduced on.
+
+    The address slug is the first candidate a deployment that knows its callback tries,
+    so a row placed there is reached before anything else and used to be returned
+    outright. It is also the slug an attacker can compute: it is derived from the issuer
+    and the deployment's own public callback, both of which are discoverable.
+    """
+    address_slug = registration_slug(issuer_url=_ISSUER, redirect_uri=_REDIRECT_URI)
+    crafted = _crafted_registration(issuer=_ISSUER, slug=address_slug)
+    genuine = _provider_secret(issuer=_ISSUER, slug=issuer_slug_for_test(_ISSUER))
+    vault = _CountingVault(
+        by_slug={crafted.slug: crafted, genuine.slug: genuine},
+        listed=[crafted, genuine],
+    )
+
+    client_info = await _storage_at_an_address(vault).get_client_info()
+
+    assert client_info is not None
+    assert client_info.client_id == "client-1", "the crafted row was preferred"
+    # Reached by the address slug first, so the preference had to look past it.
+    assert address_slug in vault.slug_reads
+
+
+@pytest.mark.asyncio
+async def test_the_address_slug_still_wins_when_the_row_there_is_ours():
+    """The preference must not invert the ordering it sits inside: a registration this
+    module wrote at the current address is the one to present, not an older one at the
+    issuer."""
+    address_slug = registration_slug(issuer_url=_ISSUER, redirect_uri=_REDIRECT_URI)
+    at_address = _provider_secret(issuer=_ISSUER, slug=address_slug)
+    at_address.data.provider.extra["client_info"]["client_id"] = "current-address"
+    at_address.data.provider.client_id = "current-address"
+    older = _provider_secret(issuer=_ISSUER, slug=issuer_slug_for_test(_ISSUER))
+    vault = _CountingVault(
+        by_slug={at_address.slug: at_address, older.slug: older},
+        listed=[older, at_address],
+    )
+
+    client_info = await _storage_at_an_address(vault).get_client_info()
+
+    assert client_info is not None and client_info.client_id == "current-address"
+    # And it answered from the address, without decrypting the project (D14).
+    assert vault.listings == 0
