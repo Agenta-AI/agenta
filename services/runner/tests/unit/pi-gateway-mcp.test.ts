@@ -735,3 +735,60 @@ describe("the Pi MCP client bounds its own requests (CR10)", () => {
     assert.ok(!completed.includes("tools/call"));
   });
 });
+
+describe("a configured header cannot replace a protocol header (M19)", () => {
+  it("keeps Accept, Content-Type and MCP-Protocol-Version whatever the config says", async () => {
+    // `validateUserMcpServers` reserves none of the three, so a config is free to name them.
+    // Spread after the protocol headers they replaced them, and `initialize` then failed in a way
+    // that reads as a gateway bug rather than as the configuration it is.
+    const seen: Record<string, string>[] = [];
+    globalThis.fetch = (async (_url: string, init: any) => {
+      seen.push(Object.fromEntries(Object.entries(init?.headers ?? {})));
+      const payload = JSON.parse(String(init?.body));
+      if (payload.id === undefined) return new Response("", { status: 202 });
+      const result =
+        payload.method === "tools/list"
+          ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
+          : { protocolVersion: "2026-07-28", capabilities: { tools: {} } };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+
+    const raw = serializePiGatewayMcpConfig([
+      {
+        name: "mock",
+        url: "https://api.example.test/gateways/mcps/custom/mock",
+        headers: {
+          "X-AG-Credentials": "short-lived-gateway-token",
+          // Exact-case attempts at all three.
+          Accept: "text/plain",
+          "Content-Type": "text/plain",
+          "MCP-Protocol-Version": "1999-01-01",
+          // And the lowercase duplicates `fetch` would otherwise fold into one value.
+          accept: "text/plain",
+          "mcp-protocol-version": "1999-01-01",
+          // The session the client itself opens is not the config's to set either.
+          "Mcp-Session-Id": "forged",
+        },
+        policy: { tools: { mode: "all" } },
+      },
+    ]);
+
+    await registerPiGatewayMcpTools(fakePi(), raw, () => {}, allowAll);
+
+    assert.ok(seen.length > 0);
+    for (const headers of seen) {
+      assert.equal(headers.Accept, "application/json, text/event-stream");
+      assert.equal(headers["Content-Type"], "application/json");
+      assert.equal(headers["MCP-Protocol-Version"], "2026-07-28");
+      // No lowercase twin survives to be folded in beside the real one.
+      assert.equal(headers.accept, undefined);
+      assert.equal(headers["mcp-protocol-version"], undefined);
+      assert.equal(headers["Mcp-Session-Id"], undefined);
+      // The credential the runner supplied is untouched.
+      assert.equal(headers["X-AG-Credentials"], "short-lived-gateway-token");
+    }
+  });
+});
