@@ -41,6 +41,10 @@ from oss.src.core.gateways.mcps.oauth.registration import (
     client_metadata_url,
     is_publicly_resolvable,
 )
+from oss.tests.pytest.acceptance.gateways.mcp_session import (
+    assert_ok as _mcp_assert_ok,
+    session_headers,
+)
 from oss.tests.pytest.utils.mock_gateways import (
     mock_mcp_container_url,
     mock_mcp_published_url,
@@ -237,12 +241,30 @@ class _Browser:
             **kwargs,
         )
 
-    def relay(self, path: str, payload: Dict[str, Any]) -> requests.Response:
+    def relay(
+        self,
+        path: str,
+        payload: Dict[str, Any],
+        *,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> requests.Response:
         return self.session.post(
             f"{self.api_url}{path}",
-            headers={"X-AG-Credentials": self.credentials},
+            headers={"X-AG-Credentials": self.credentials, **(headers or {})},
             json=payload,
             timeout=BASE_TIMEOUT,
+        )
+
+    def mcp_call(self, path: str, payload: Dict[str, Any]) -> requests.Response:
+        """One call inside a session, so the server's own session rules are honoured.
+
+        A conforming server requires the negotiated protocol version on everything after
+        the handshake, and these cases sent none (D54).
+        """
+        return self.relay(
+            path,
+            payload,
+            headers=session_headers(lambda first: self.relay(path, first)),
         )
 
 
@@ -325,10 +347,17 @@ def test_the_mock_mcp_server_challenges_a_caller_with_no_bearer(browser: _Browse
     assert document["scopes_supported"]
 
     # The unauthenticated mock every other suite speaks to is untouched.
-    unauthenticated = requests.post(
-        f"{_PUBLISHED_MOCK_URL}/",
-        json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
-        timeout=BASE_TIMEOUT,
+    def _post(payload, *, headers=None):
+        return requests.post(
+            f"{_PUBLISHED_MOCK_URL}/",
+            json=payload,
+            headers=headers or {},
+            timeout=BASE_TIMEOUT,
+        )
+
+    unauthenticated = _post(
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+        headers=session_headers(lambda payload: _post(payload)),
     )
     assert unauthenticated.status_code == 200, unauthenticated.text
 
@@ -390,8 +419,8 @@ def test_the_consent_flow_issues_a_grant_the_relay_presents_to_the_mock_server(
 
     # And the relay now reaches a surface that refuses every caller without a bearer the
     # issuer minted, so a `200` here is that bearer arriving.
-    called = _assert_ok(
-        browser.relay(
+    called = _mcp_assert_ok(
+        browser.mcp_call(
             f"/gateways/mcps/custom/{slug}",
             {
                 "jsonrpc": "2.0",

@@ -17,6 +17,11 @@ from typing import Any
 import pytest
 
 from oss.tests.pytest.acceptance.gateways.conftest import skip_without_llm_gateway
+from oss.tests.pytest.acceptance.gateways.mcp_session import (
+    assert_ok,
+    listed_tools,
+    session_headers,
+)
 from oss.tests.pytest.utils.mock_gateways import mock_mcp_container_url
 from oss.tests.pytest.acceptance.gateways.mock_matrix import (
     CredentialOwner,
@@ -50,8 +55,7 @@ pytestmark = [
 
 
 def _assert_ok(response) -> dict[str, Any]:
-    assert response.status_code == 200, response.text
-    return response.json()
+    return assert_ok(response)
 
 
 def _provider_secret(authed_api) -> str:
@@ -223,8 +227,17 @@ def _llm_payload(*, stream: bool = False, model: str = "mock/echo") -> dict[str,
     }
 
 
+def _mcp_post(gateway_api, route: str):
+    def _post(payload, *, headers=None):
+        return gateway_api("POST", route, json=payload, headers=headers or {})
+
+    return _post
+
+
 def _mcp_call(gateway_api, route: str, payload: dict[str, Any]):
-    return gateway_api("POST", route, json=payload)
+    """One call in a session, so the server's own session rules are honoured (D54)."""
+    post = _mcp_post(gateway_api, route)
+    return post(payload, headers=session_headers(lambda p: post(p)))
 
 
 @pytest.mark.parametrize("gateway_mock_case", GATEWAY_MOCK_CASES, indirect=True)
@@ -243,8 +256,8 @@ def test_every_dev_mock_case_reaches_its_selected_profile(
             route,
             {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
         )
-        body = _assert_ok(response)
-        assert {tool["name"] for tool in body["result"]["tools"]} >= {"echo"}
+        _assert_ok(response)
+        assert listed_tools(_mcp_post(gateway_api, route)) >= {"echo"}
 
     if case.requires_custom_endpoint:
         _assert_profile(response, case=case)

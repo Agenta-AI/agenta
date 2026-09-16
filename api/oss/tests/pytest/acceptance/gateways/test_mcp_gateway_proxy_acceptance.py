@@ -13,6 +13,11 @@ from uuid import uuid4
 
 import pytest
 
+from oss.tests.pytest.acceptance.gateways.mcp_session import (
+    assert_ok,
+    listed_tools,
+    session_headers,
+)
 from oss.tests.pytest.utils.mock_gateways import mock_mcp_container_url
 
 
@@ -38,85 +43,19 @@ _MOCK_BASE_URL = f"{mock_mcp_container_url()}/"
 
 
 def _assert_ok(response):
-    assert response.status_code == 200, response.text
-    return _jsonrpc(response)
-
-
-def _jsonrpc(response) -> dict:
-    """The JSON-RPC envelope, whichever framing came back.
-
-    A Streamable HTTP server may answer one request as an event stream and may send
-    notifications before the response, and the mock now does both, as a conforming server
-    is entitled to. Reading `response.json()` saw a body that was not JSON and this suite
-    could not run at all.
-    """
-    body = response.text
-    if "data:" not in body:
-        return response.json()
-    payloads = [
-        json.loads(line[len("data:") :].strip())
-        for line in body.splitlines()
-        if line.startswith("data:")
-    ]
-    answers = [p for p in payloads if "result" in p or "error" in p]
-    assert answers, body
-    return answers[-1]
+    return assert_ok(response)
 
 
 def _session_headers(gateway_api, slug) -> dict:
-    """Initialize through the gateway and return the headers a session must then send.
-
-    A conforming server requires `MCP-Protocol-Version` on every request after the
-    handshake, and it must be the version the server negotiated. This suite sent none, so
-    it was only ever exercising an obliging upstream. The header is in the relay's
-    forwardable allowlist, so what a real client sends is what the upstream receives.
-    """
-    handshake = _call(
-        gateway_api,
-        slug,
-        {
-            "jsonrpc": "2.0",
-            "id": 0,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2025-06-18",
-                "capabilities": {},
-                "clientInfo": {"name": "agenta-acceptance", "version": "0"},
-            },
-        },
-    )
-    negotiated = _assert_ok(handshake)["result"]["protocolVersion"]
-    return {"MCP-Protocol-Version": negotiated}
+    return session_headers(lambda payload: _call(gateway_api, slug, payload))
 
 
 def _listed_tools(gateway_api, slug) -> set:
-    """Every tool the connection offers, following the upstream's pagination.
-
-    The mock pages one tool at a time. A caller that reads only the first page sees one
-    tool and calls it the catalogue.
-    """
-    headers = _session_headers(gateway_api, slug)
-    names: set = set()
-    cursor = None
-    for request_id in range(1, 20):
-        params = {"cursor": cursor} if cursor else {}
-        response = _call(
-            gateway_api,
-            slug,
-            {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "method": "tools/list",
-                "params": params,
-            },
-            headers=headers,
+    return listed_tools(
+        lambda payload, *, headers=None: _call(
+            gateway_api, slug, payload, headers=headers
         )
-        result = _assert_ok(response)["result"]
-        names.update(tool["name"] for tool in result.get("tools", []))
-        cursor = result.get("nextCursor")
-        if not cursor:
-            return names
-    raise AssertionError("the upstream paginated further than any real catalogue would")
+    )
 
 
 def _create_custom_endpoint(authed_api, *, tools=None):

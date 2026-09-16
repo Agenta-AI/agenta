@@ -13,6 +13,10 @@ from typing import Any
 import pytest
 
 from oss.tests.pytest.acceptance.gateways.mock_matrix import unique_slug
+from oss.tests.pytest.acceptance.gateways.mcp_session import (
+    assert_ok as _mcp_assert_ok,
+    session_headers,
+)
 from oss.tests.pytest.utils.mock_gateways import mock_mcp_container_url
 
 
@@ -88,17 +92,21 @@ def test_oauth_grant_handle_relays_through_the_real_mcp_gateway(
         assert "refresh_token" not in endpoint
         assert endpoint["secret_id"] == secret_id
 
-        response = gateway_api(
-            "POST",
-            f"/gateways/mcps/custom/{endpoint['slug']}",
-            json={
+        route = f"/gateways/mcps/custom/{endpoint['slug']}"
+
+        def _post(payload, *, headers=None):
+            return gateway_api("POST", route, json=payload, headers=headers or {})
+
+        response = _post(
+            {
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "tools/call",
                 "params": {"name": "echo", "arguments": {"text": "oauth"}},
             },
+            headers=session_headers(lambda payload: _post(payload)),
         )
-        body = _assert_ok(response)
+        body = _mcp_assert_ok(response)
         assert "oauth" in str(body["result"])
     finally:
         if endpoint_id:
