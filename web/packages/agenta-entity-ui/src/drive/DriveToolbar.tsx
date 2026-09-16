@@ -125,6 +125,7 @@ type DriveToolbarProps =
       }
     | {
           variant: "markdown"
+          path: string
           /** Where the editor portals its formatting bar. */
           toolbarRef: (el: HTMLDivElement | null) => void
           mode: DriveEditorMode
@@ -321,7 +322,8 @@ export function DriveToolbar(props: DriveToolbarProps) {
     }
 
     if (props.variant === "markdown") {
-        const {toolbarRef, mode, setMode, status, onRetry, actions, onCopyPath, onDownload} = props
+        const {path, toolbarRef, mode, setMode, status, onRetry, actions, onCopyPath, onDownload} =
+            props
         const rendered = mode === "rendered"
         return (
             <Row>
@@ -331,9 +333,11 @@ export function DriveToolbar(props: DriveToolbarProps) {
                     className={`flex min-w-0 shrink items-center overflow-hidden ${rendered ? "" : "hidden"}`}
                 />
                 {rendered ? null : (
-                    <span className="pl-1 text-xs text-colorTextTertiary">
-                        Plain text · formatting off
-                    </span>
+                    <DriveInlineName
+                        path={path}
+                        validate={actions?.validateName}
+                        onRename={actions?.renameTo}
+                    />
                 )}
                 <span className="flex-1" />
                 <DraftStatus status={status} onRetry={onRetry} />
