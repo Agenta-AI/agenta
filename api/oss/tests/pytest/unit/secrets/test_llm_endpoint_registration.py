@@ -70,7 +70,11 @@ class _FakeSecretsDAO:
         record = SecretResponseDTO(
             id=stored.id,
             slug=stored.slug,
-            kind=stored.kind,
+            # The resolved kind, not the stored one. The merge permits an update to
+            # change a secret's kind, and pinning it here meant this double could not
+            # represent the case the endpoint bookkeeping actually gets wrong (CR4) —
+            # and validated the new payload against the old kind besides.
+            kind=update_secret_dto.secret.kind or stored.kind,
             data=update_secret_dto.secret.data.model_dump(),
             header=update_secret_dto.header or stored.header,
         )
@@ -422,3 +426,110 @@ def test_the_protocol_is_not_redacted_out_of_the_public_response():
     assert public.data.protocol == LLMEndpointProtocol.ANTHROPIC
     assert public.data.provider.key is None
     assert public.value_status.configured is True
+
+
+# ---------------------------------------------------------------------------
+# CR4: an update that changes the kind must take the endpoint with it
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_updating_a_custom_provider_into_another_kind_deregisters_its_endpoint(
+    vault, registrar
+):
+    """The update merge permits the kind to change, and registration returns early for
+    every kind but this one, so the endpoint registered for the old row was left behind
+    naming a secret that is no longer a custom provider, with no later write reaching
+    it."""
+    secret = await vault.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_custom_provider_payload(),
+        user_id=USER_ID,
+    )
+    assert len(registrar.registered) == 1
+
+    await vault.update_secret(
+        secret_id=secret.id,
+        update_secret_dto=UpdateSecretDTO.model_validate(
+            {
+                "header": {"name": "Now a plain key"},
+                "secret": {
+                    "kind": "provider_key",
+                    "data": {"kind": "openai", "provider": {"key": "sk-test"}},
+                },
+            }
+        ),
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+    )
+
+    assert len(registrar.deregistered) == 1
+    project_id, deregistered = registrar.deregistered[0]
+    assert project_id == PROJECT_ID
+    assert deregistered.slug == secret.slug
+    assert deregistered.kind == SecretKind.CUSTOM_PROVIDER
+    # And nothing was registered for the row it became.
+    assert len(registrar.registered) == 1
+
+
+@pytest.mark.asyncio
+async def test_updating_a_custom_provider_in_place_deregisters_nothing(
+    vault, registrar
+):
+    """The ordinary edit must not churn the endpoint it is keeping up to date."""
+    secret = await vault.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_custom_provider_payload(),
+        user_id=USER_ID,
+    )
+
+    await vault.update_secret(
+        secret_id=secret.id,
+        update_secret_dto=_custom_provider_update(protocol="anthropic"),
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+    )
+
+    assert registrar.deregistered == []
+    assert len(registrar.registered) == 2
+
+
+@pytest.mark.asyncio
+async def test_updating_a_plain_key_into_a_custom_provider_registers_and_drops_nothing(
+    vault, registrar
+):
+    """The other direction: there was no endpoint to take away."""
+    secret = await vault.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_provider_key_payload(),
+        user_id=USER_ID,
+    )
+    assert registrar.registered == []
+
+    await vault.update_secret(
+        secret_id=secret.id,
+        # Carrying a credential, because changing a secret's identity requires one: the
+        # stored value is never carried across kinds.
+        update_secret_dto=UpdateSecretDTO.model_validate(
+            {
+                "header": {"name": "Now a gateway"},
+                "secret": {
+                    "kind": "custom_provider",
+                    "data": {
+                        "kind": "custom",
+                        "provider": {
+                            "url": BASE_URL,
+                            "version": "2025-01-01",
+                            "key": "sk-gw",
+                        },
+                        "models": [{"slug": "my-model"}],
+                    },
+                },
+            }
+        ),
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+    )
+
+    assert registrar.deregistered == []
+    assert len(registrar.registered) == 1

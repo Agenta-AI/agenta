@@ -711,6 +711,19 @@ class VaultService:
     ):
         reject_server_owned_fields(secret=update_secret_dto.secret)
 
+        # The row as it was, captured under the DAO's write lock the way `delete_secret`
+        # captures it: an update may change a secret's kind, and only the previous kind
+        # says whether an endpoint was registered for it.
+        replaced: list[SecretResponseDTO] = []
+
+        def resolve_update(
+            stored_secret_dto: SecretResponseDTO,
+            requested_update: UpdateSecretDTO,
+        ) -> UpdateSecretDTO:
+            resolved = _resolve_update(stored_secret_dto, requested_update)
+            replaced.append(stored_secret_dto)
+            return resolved
+
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
@@ -720,11 +733,27 @@ class VaultService:
                 project_id=project_id,
                 organization_id=organization_id,
                 user_id=user_id,
-                resolve_update=_resolve_update,
+                resolve_update=resolve_update,
             )
 
         if project_id is not None:
             await invalidate_cache(project_id=str(project_id))
+
+        # An update that moves a row off `custom_provider` leaves the endpoint registered
+        # for it behind, because registration returns early for every other kind and
+        # nothing deregistered the old one. The endpoint then names a secret that is no
+        # longer a custom provider, and no later write reaches it (CR4).
+        #
+        # Deregistered before the new registration runs, so a row that arrives at the same
+        # slug is the one that survives.
+        for previous in replaced:
+            if previous.kind == SecretKind.CUSTOM_PROVIDER and (
+                secret_dto is None or secret_dto.kind != SecretKind.CUSTOM_PROVIDER
+            ):
+                await self._deregister_llm_endpoint(
+                    project_id=project_id,
+                    secret_dto=previous,
+                )
 
         # The row the DAO returns already carries the slug and id the endpoint is keyed on,
         # so registration needs no second read.
