@@ -133,5 +133,3 @@ export function useDriveWrites(drive: SessionDriveData) {
         [busy, createFolder, createFile, rename, duplicate, remove, canDelete],
     )
 }
-
-export type DriveWrites = ReturnType<typeof useDriveWrites>

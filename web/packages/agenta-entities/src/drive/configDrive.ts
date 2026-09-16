@@ -8,16 +8,7 @@ import {useAtomValue} from "jotai"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 
-import {type DroppedFile} from "./dropEntries"
 import {useSessionDriveSummary, type SessionDriveData} from "./useSessionDrive"
-
-export interface ConfigFilesDrawerRequest {
-    open: boolean
-    /** Preselect this path in the tree/preview when opening; null opens at the root. */
-    initialPath: string | null
-    /** Files dropped on the Files peek, staged (unwritten) until a destination is chosen in the drawer. */
-    staged: DroppedFile[]
-}
 
 /**
  * The drive backing the config panel's Files region: the conversation's cwd mount plus the

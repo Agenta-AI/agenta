@@ -14,7 +14,7 @@ import {
     Label,
 } from "@agenta/ui/ui"
 
-export type DriveNameDialogKind = "new-folder" | "new-file" | "rename" | "duplicate"
+type DriveNameDialogKind = "new-folder" | "new-file" | "rename" | "duplicate"
 
 export interface DriveNameDialogRequest {
     kind: DriveNameDialogKind

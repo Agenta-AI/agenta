@@ -61,14 +61,14 @@ const SORT_ICONS: Record<DriveSortKey, ReactNode> = {
     size: <HardDrive />,
 }
 
-export interface ToolbarModeOption {
+interface ToolbarModeOption {
     value: string
     label: string
     /** Muted word on the right ("rendered", "source"). */
     hint?: string
     icon: ReactNode
 }
-export interface ToolbarMode {
+interface ToolbarMode {
     value: string
     options: ToolbarModeOption[]
     onChange: (value: string) => void
@@ -136,7 +136,7 @@ export interface DriveFileActions {
 }
 
 /** A folder's write actions; absent on a read-only mount. */
-export interface DriveFolderActions {
+interface DriveFolderActions {
     onNewFolder: () => void
     onNewFile: () => void
     /** Pick files, or write the staged ones here. */
@@ -144,7 +144,7 @@ export interface DriveFolderActions {
     stagedCount?: number
 }
 
-export type DriveToolbarProps =
+type DriveToolbarProps =
     | {
           variant: "folder"
           view: DriveViewMode

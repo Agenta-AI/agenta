@@ -37,7 +37,7 @@ const rethrow = (error: unknown, fallback: string): never => {
     throw new Error(errorMessage(error, fallback))
 }
 
-export interface DriveWriteTarget {
+interface DriveWriteTarget {
     mount: Mount
     /** Mount-relative path. */
     path: string
