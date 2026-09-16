@@ -1,9 +1,9 @@
 import {SkeletonBlock} from "@agenta/ui/ui"
 
-import {mobileTurnRowClass} from "../turnRowClass"
-
 import {ContentRail} from "@/components/ContentRail"
 import {cn} from "@/lib/utils"
+
+import {mobileTurnRowClass} from "../turnRowClass"
 
 /**
  * The transcript's placeholder, drawn on the real turns' geometry so the conversation lands on
@@ -81,7 +81,7 @@ const AssistantTurn = ({steps = [], paragraphs}: {steps?: string[]; paragraphs: 
 
 export const ChatLoading = () => (
     <ContentRail
-        className="flex grow flex-col justify-end gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        className="flex grow flex-col justify-end gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
         aria-busy
         aria-label="Loading conversation"
     >
