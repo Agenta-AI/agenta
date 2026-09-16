@@ -15,7 +15,7 @@ import {cn} from "./utils"
 // selectors below carry `[data-sonner-toast]` to win.
 const toastClassNames: NonNullable<NonNullable<ToasterProps["toastOptions"]>["classNames"]> = {
     toast: cn(
-        "group/toast box-border flex w-full items-center gap-3 rounded-2xl border border-solid border-border bg-popover p-4 text-sm text-popover-foreground shadow-lg outline-none select-none",
+        "group/toast box-border flex w-full items-center gap-3 rounded-2xl border border-solid border-border bg-popover px-3.5 py-3 text-sm text-popover-foreground shadow-lg outline-none select-none",
         "[&[data-sonner-toast]:focus-visible]:border-ring [&[data-sonner-toast]:focus-visible]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
         // Enter from below on shadcn's ease-out; leave quickly (Sonner unmounts 200ms in).
         "[&[data-y-position=bottom]:not([data-mounted=true])]:[--y:translateY(150%)]",
