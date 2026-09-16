@@ -388,6 +388,71 @@ numbered so it is not rediscovered as a gateway bug. The mock matrix keeps its p
 first page and says why, which is the right accommodation: measure what we can control, and document
 what we cannot.
 
+## The web batch, delta-checked
+
+Eleven commits, `5a73a056b2` to `8a73143b43`. Seven close their finding outright and were proved by
+mutation: **D73** (both apps' halves pinned independently, five and three cases failing when each is
+reverted), **D74**, **D78**, **D85** (deleting the structural branch fails exactly the new case),
+**D87**, **D89** (restoring the whitespace-stripping shell fails on `y es` and nothing else), and
+**D76**, whose code matches the port allocator though the browser suite was not run to prove it.
+
+**D74 and D78 were checked at the rendered surface**, not only in the changed file, because that is
+the distinction the reopened D88 turned on.
+
+D74 settles correctly: its case drives the flow with a live but unrelated connection in the list and
+asserts the **settled output the agent receives** is `connected: false`, which is the exact shape the
+old code got wrong. Both key spaces and the invalid-connection case are covered, and the read-back no
+longer passes a server slug as an integration key. Seven cases pass.
+
+D78's fix is correct and its assertion stops one level short. The two predicates are pinned — a
+notice-only turn is not an empty turn, and a notice counts as the turn's answer — and the rendered
+turn's `hidden` flag and the pending-turn gate both derive from those predicates, so the surface
+behaviour follows. What is not asserted is the surface itself: no case builds the view models and
+checks that a notice-only turn following an answerless one survives. That is the level the finding
+was measured at.
+
+### Three that close only part of what they claim
+
+- **D72.** The harness no longer reproduces the pre-fix wording, which was half the finding. The
+  line the finding actually names, the refusal sentence at its three product call sites in both
+  apps, is still untested; neither app has a case importing those components. The gap moved from
+  "the harness lies" to "the harness is honest and still is not the app" — which is the gap D73
+  exists to close, left open beside it.
+- **D75.** The component gained a test file and eight cases, covering the late-result guard and the
+  readable failure. The tool filter, the second fix the finding names, has no case in that file; it
+  is covered in the sibling reader and in the pure function, so it is unguarded in the component
+  rather than in the system.
+- **D84.** The three sealing props are pinned. The handler's own guard is not: removing it alone
+  leaves all four cases green.
+
+### D86 leaves the chat package red, and the disposition needs one correction
+
+`8a73143b43` removed `endpointId` from the notice as an orphan. It is not orphaned in the tests: a
+case in the transcript replay suite still asserts it, and **the package is red on the branch** —
+confirmed at head `397c45079b`, one failure, `keeps the reconnect endpoint, which is the only thing
+the reader can act on`.
+
+The removal itself is right: the card resolves its endpoint from the notice's slug, not from that
+field. So the fix is the stale assertion, not the field. Worth deciding rather than deleting on
+sight, because the case's own title argues the field was the reader's affordance.
+
+**On keeping `registerChatSkin`: the carve-out is right and its stated reason is not.** The
+resolvers that read the store are live product code, five of them. The writer has no product caller
+at all, so the store is empty at runtime and every reader falls through to its default. Deleting the
+writer alone would leave five resolvers consulting a store nothing can fill, which is worse than
+today, and the override route is real and documented — so keep it. But "three live readers" should
+read as "the socket is wired and documented, the plug is not in use", or the record claims a
+capability is in service when what exists is the extension point.
+
+**On dropping D84's mask-click case: the reasoning does not hold, and it was measured.** The comment
+says jsdom's dismissable layer ignores a synthesized pointer event. It does not: dispatching one on
+the overlay calls the close handler once while unsealed and not at all while sealed, and with **both**
+seal halves removed it calls it again. The case passes with the prop deleted because the handler's
+own guard catches it — the right symptom, the wrong mechanism. And the browser suite does not cover
+that route: there is no mask or overlay click anywhere in the acceptance suites. The omission is
+worth reversing, because the handler guard is the one half of the seal nothing pins and the mask is
+exactly what it defends.
+
 ## The fixes that hold
 
 Codex's disposition table judged twenty-two earlier fixes at the code level and found the great
