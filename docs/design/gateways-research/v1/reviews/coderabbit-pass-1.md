@@ -100,18 +100,18 @@ unsatisfiable once the client is regenerated.
 | CR1 | `api/oss/src/apis/fastapi/gateways/mcps/oauth_router.py:30` | Maintainability | Deferred | — | The handler does lack `@intercept_exceptions()`, but it is pure string formatting over constants and reads no project, secret or request state. `connect_callback` is undecorated too, deliberately. |
 | CR2 | `api/oss/src/core/gateways/egress.py:220` | Stability | Not applicable | — | The httpx premise is right, the trigger does not exist: all eight call sites resolve a default timeout before calling. A defensive default in the factory would be free, but there is no live defect. |
 | CR3 | `api/oss/src/core/gateways/mcps/providers/composio/adapter.py:135` | Correctness | Not applicable | — | The `Content-Type` cited belongs to the session-creation request, which is never scanned. The scanner sees the session's MCP headers, the capability grant. Residual worth noting: that map is upstream-controlled, so a non-secret header of eight or more characters would falsely refuse a relay. |
-| CR4 | `api/oss/src/core/secrets/services.py:735` | Data integrity | Real | `23dc332d94` | A kind-changing secret update registers but never deregisters, orphaning the old endpoint row. Inert while the LLM plane is off; fix before it ships. |
+| CR4 | `api/oss/src/core/secrets/services.py:735` | Data integrity | Real | `a4e9aac88f` | A kind-changing secret update registers but never deregisters, orphaning the old endpoint row. Inert while the LLM plane is off; fix before it ships. Verified: deregisters on a kind change, keyed on the old slug. One of its three new cases discriminates; the other two guard against over-deregistering, which the old code also satisfied. |
 | CR5 | `api/oss/src/crons/gateways.sh:22` | Security, CWE-319 | Deferred | — | Accurate but pre-existing: the identical credentialed-cleartext-to-`/admin` pattern already ships in six cron scripts on main. This adds a seventh instance of a platform decision. Track separately. |
 | CR6 | `api/oss/src/crons/gateways.txt:1` | Security, CWE-319 | Deferred | — | Duplicate of CR5 counted against the schedule. The file is one crontab line holding no credential and no URL. |
 | CR7 | `api/oss/src/dbs/postgres/gateways/mcps/dbes.py:46` | Data integrity | Deferred | — | The missing foreign key is real, but no reachable path creates a mismatch: the only caller validates the endpoint under the caller's project and raises before the transaction begins, and completion pins the grant to the attempt's project and endpoint. Defence in depth, costs a migration. |
 | CR8 | `hosting/docker-compose/ee/docker-compose.dev.yml:932,981` | Stability | Real | `610715a0e2` | The only literal host ports in the file; every other published port is templated and allocated per worktree, so a second dev stack failed to bind them. Fixed in both editions, since the OSS dev compose carried the same two literals. |
-| CR9 | `services/runner/src/engines/sandbox_agent/mcp-handshake.ts:204` | Security, CWE-918 | Real | `23dc332d94` | See release blockers. |
-| CR10 | `services/runner/src/extensions/pi-mcp.ts:196` | Stability | Real | `23dc332d94` | `post` sets no timeout and no signal, `execute` ignores the signal it is given, and discovery runs where a hang is not caught. Bounded, because the route shape forces the target to be the Agenta gateway, whose own upstream call is capped. The sibling probe already does this correctly. |
-| CR11 | `services/runner/src/gateway-error.ts:167` | Data integrity | Real | `23dc332d94` | Only the bare candidate is gated on the provenance marker, so a genuine provider error body is parsed as an Agenta refusal and stamped non-retryable. Metadata-only today: nothing in the runner or web reads those fields. |
+| CR9 | `services/runner/src/engines/sandbox_agent/mcp-handshake.ts:204` | Security, CWE-918 | Real | `ba60feaeae` | See release blockers. Verified: `redirect: "manual"` on both fetch sites, and the runtime premise checked rather than assumed. Its test asserts the option, and fails without it. |
+| CR10 | `services/runner/src/extensions/pi-mcp.ts:196` | Stability | Real | `466054f7fd` | `post` sets no timeout and no signal, `execute` ignores the signal it is given, and discovery runs where a hang is not caught. Bounded, because the route shape forces the target to be the Agenta gateway, whose own upstream call is capped. The sibling probe already does this correctly. Verified in code, all three limbs. **Its two most important halves are untested**: removing the request timeout, or the mid-flight abort link, leaves the suite green. |
+| CR11 | `services/runner/src/gateway-error.ts:167` | Data integrity | Real | `14b4b6e7bc` | Only the bare candidate is gated on the provenance marker, so a genuine provider error body is parsed as an Agenta refusal and stamped non-retryable. Metadata-only today: nothing in the runner or web reads those fields. Verified: the marker is required on both shapes. Residual: the MCP plane renders `upstream_error` unmarked, so its `target` detail is now dropped from the operator notice; the commit reasons only about the LLM plane. |
 | CR12 | `web/oss/src/components/AgentChatSlice/components/clientTools/useGatewayConnectFlow.ts:98` | Correctness | Real | `23dc332d94` | Closing the tool catalog settles the client tool as connected with no check that anything connected, so the model then calls a tool that does not exist. Desktop-only: mobile registers no gateway-connect widget, so agent-initiated connect is itself unported. |
 | CR13 | `web/oss/src/components/pages/settings/Tools/ComposioProjectKey.tsx:111` | Data integrity | Deferred | — | Accurate but minor. The button library swallows clicks while loading, so only the cross-button sequence races, and both orders end in a toast and a refetch rather than data loss. |
-| CR14 | `web/packages/agenta-entities/src/mcpEndpoint/api/api.ts:175` | Correctness | Real | `23dc332d94` | See release blockers. |
-| CR15 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectJourney.ts:182` | Data integrity | Real | `23dc332d94` | See release blockers. |
+| CR14 | `web/packages/agenta-entities/src/mcpEndpoint/api/api.ts:175` | Correctness | Real | `8079441042` | See release blockers. Verified with D32 in round 2. |
+| CR15 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectJourney.ts:182` | Data integrity | Real | `133f17c110` | See release blockers. Verified with D29 in round 2: `saving` counts as connected and the dialog is sealed across that window. |
 | CR16 | `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/McpServerFormView.tsx:108` | Stability | Not applicable | — | The list comes from the query route, which returns stored rows only, and the slug column is not nullable and carries a unique suffix at creation. The optional typing exists for synthesised builtin rows the list route emits. The select throws on an empty string, not on undefined, and the item is already disabled. |
 | CR17 | `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/itemKinds.tsx:132` | Correctness | Deferred | — | The inconsistency is real and such an item is refused by the SDK every run, but this form cannot mint the state: the prefix helper returns null for both reserved spellings and the fallback slug always carries a unique suffix. Only a legacy or hand-authored item reaches it. |
 | CR18 | `web/packages/agenta-entity-ui/src/mcpEndpoint/McpToolPermissions.tsx:270` | Correctness | Real | `23dc332d94` | See release blockers. |
@@ -125,22 +125,22 @@ unsatisfiable once the client is regenerated.
 | M2 | `hosting/docker-compose/env.sh:334` | Real | `24af031a8f` | The printed start command omitted the prepared env file, so a custom output was silently ignored and the stack came up on the wrong ports. |
 | M3 | `hosting/docker-compose/env.sh:13` | Real | `47e2b884f5` | Path resolution aborted under `set -e` when the parent directory did not exist yet, before the `mkdir -p` that would have created it. |
 | M4 | `web/packages/agenta-entity-ui/src/mcpEndpoint/McpToolPermissions.tsx:77-93` | Real | `23dc332d94` | Neither call site captures the slug before awaiting the tool list, so switching connections mid-flight can render another server's tools. Mis-renders, does not mis-save. |
-| M5 | `api/oss/src/core/gateways/llms/providers/mock/adapter.py:789-795` | Real | `23dc332d94` | The text branch's content-block delta omits the index the tool-use branch carries. Mock adapter, registered only behind the mocks flag. |
-| M6 | `clients/scripts/generate.sh:350` | Real | `23dc332d94` | Generated-client Python floor raised above what the SDK and API declare, making an install on the older supported version unsatisfiable after regeneration. |
+| M5 | `api/oss/src/core/gateways/llms/providers/mock/adapter.py:789-795` | Real | `b5382e95c6` | The text branch's content-block delta omits the index the tool-use branch carries. Mock adapter, registered only behind the mocks flag. Verified; its test fails without the fix. |
+| M6 | `clients/scripts/generate.sh:350` | Real | `ca6e7dbab0` | Generated-client Python floor raised above what the SDK and API declare, making an install on the older supported version unsatisfiable after regeneration. Verified: floor restored, client not regenerated, three packages agree. **Nothing runs the guard** — no workflow executes `clients/python/tests`. |
 | M7 | `api/oss/src/core/workflows/static_catalog.py:175-184` | Deferred | — | The schema shape would break strict function calling, but nothing in-tree feeds these schemas to a strict consumer. |
-| M8 | `api/oss/src/core/gateways/mcps/oauth/storage.py:344-355` | Real | `23dc332d94` | A missing key raises where a row came from another writer, and the provider lookup matches any OAuth-provider secret at the same issuer, so a user-created one turns re-registration into a server error. |
+| M8 | `api/oss/src/core/gateways/mcps/oauth/storage.py:344-355` | Real | `fa7b1fcc7e` | A missing key raises where a row came from another writer, and the provider lookup matches any OAuth-provider secret at the same issuer, so a user-created one turns re-registration into a server error. **Partly.** The raise is gone and a foreign row reads as unregistered, but the issuer-only fallback scan still matches any provider row at that issuer. |
 | M9 | `services/runner/src/engines/sandbox_agent/mount.ts:548` | Deferred | — | Default ports are not normalised when comparing authorities. The store endpoint is always port-qualified in practice and the failure is a loudly surfaced skipped mount. |
-| M10 | `sdks/python/agenta/sdk/middlewares/running/vault.py:494-496` | Real | `23dc332d94` | An agent request is inferred from the shape of a parameter named `agent`, so a non-agent workflow carrying that key runs with an empty vault. Needs a user-chosen parameter name to collide. |
-| M11 | `services/runner/src/tools/relay-watch.ts:130-142` | Real | `23dc332d94` | The local relay source declares an abort signal and ignores it, so an abort is honoured only if the source is also closed. Bounded delay. |
+| M10 | `sdks/python/agenta/sdk/middlewares/running/vault.py:494-496` | Real | `facf5097da` | An agent request is inferred from the shape of a parameter named `agent`, so a non-agent workflow carrying that key runs with an empty vault. Needs a user-chosen parameter name to collide. **Partly**, as the commit concedes: a name-shaped heuristic narrowed, not a declared kind recorded. `{"agent": {}}` is now sent to the vault, and the key list duplicates the schema with no sync check. |
+| M11 | `services/runner/src/tools/relay-watch.ts:130-142` | Real | `9e848417de` | The local relay source declares an abort signal and ignores it, so an abort is honoured only if the source is also closed. Bounded delay. **Not closed in effect.** The source now honours a signal, but the only caller passes none (`services/runner/src/tools/relay.ts:976`), so an abort still reaches neither source. The test supplies the signal the product never supplies. |
 | M12 | `services/runner/src/engines/sandbox_agent/pi-model-config.ts:300` | Deferred | — | The check accepts two credential modes while the error text still names one. Operator-facing string only, worth the two-line fix since it names the gateway path. |
 | M13 | `services/runner/src/engines/sandbox_agent/run-plan.ts:422-431` | Deferred | — | The Docker host alias counts as loopback, so a provider secret crosses plain HTTP over the bridge without the insecure-HTTP opt-in. Deliberate, documented, mirrored in the SDK, and host-local. Post-release hardening. |
 | M14 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectWatch.ts:95-103` | Real | `23dc332d94` | A trusted completion that omits the endpoint id settles whichever watcher is live. Origin is still checked, so not an auth bypass; it can show a spurious failure. |
-| M15 | `api/oss/src/apis/fastapi/gateways/mcps/utils.py:20-27` | Real | `23dc332d94` | See release blockers. |
-| M16 | `api/pyproject.toml:14-16` | Real | `23dc332d94` | A version range guarded by a test asserting an exact version. A lock refresh turns CI red. |
+| M15 | `api/oss/src/apis/fastapi/gateways/mcps/utils.py:20-27` | Real | `c9e65158f4` | See release blockers. Verified: both identifiers refuse rather than trim, and the refusal renders as an invalid request. Four cases fail without it. |
+| M16 | `api/pyproject.toml:14-16` | Real | `b3c8c57b69` | A version range guarded by a test asserting an exact version. A lock refresh turns CI red. Verified: pinned exactly and the lock is consistent (`uv lock --check` clean). Nothing guards the pin against being re-widened. |
 | M17 | `api/oss/src/core/gateways/mcps/providers/mock/adapter.py:103-106` | Deferred | — | An unvalidated sleep duration, in a provider that registers only behind the mocks flag and cannot be resolved with it off. |
-| M18 | `api/oss/src/core/gateways/mcps/oauth/registration.py:15-16` | Real | `23dc332d94` | Blocking name resolution with no timeout, called synchronously from two async paths. Stalls the worker's event loop, not just the request. |
-| M19 | `services/runner/src/extensions/pi-mcp.ts:184-189` | Real | `23dc332d94` | Configured headers are spread after the protocol headers, so a server config can clobber them or add a case variant that gets folded. Validation reserves none of the three. Breaks initialization in a way that reads as a gateway bug. |
-| M20 | `services/runner/src/extensions/model-provider-override.ts:68-73` | Real | `23dc332d94` | The reserved-name check is applied only to sandbox credentials, not to the model connection's environment or bindings, so a caller-supplied override can reach the extension on a local run. Requires control of the runner request. |
+| M18 | `api/oss/src/core/gateways/mcps/oauth/registration.py:15-16` | Real | `ec5b82d8b9` | Blocking name resolution with no timeout, called synchronously from two async paths. Stalls the worker's event loop, not just the request. Verified, both call sites converted, and discrimination proven by reverting only the wrapper body. See the note on the shared executor in round 2. |
+| M19 | `services/runner/src/extensions/pi-mcp.ts:184-189` | Real | `606616c997` | Configured headers are spread after the protocol headers, so a server config can clobber them or add a case variant that gets folded. Validation reserves none of the three. Breaks initialization in a way that reads as a gateway bug. Verified: case-insensitive screen, protocol headers written last, session id reserved. |
+| M20 | `services/runner/src/extensions/model-provider-override.ts:68-73` | Real | `d8e2da9163` | The reserved-name check is applied only to sandbox credentials, not to the model connection's environment or bindings, so a caller-supplied override can reach the extension on a local run. Requires control of the runner request. Verified: one shared rule, both materializers screened, and the case is data-driven off the reserved set. |
 
 ## The four not-applicable findings: all four withdrawn
 
@@ -158,6 +158,52 @@ CodeRabbit reviewed again on the next push. It confirmed fixes and raised six ne
 CR9, CR10, CR11, CR14, CR15 and the probe deadline. The remaining real findings are recorded as
 fixed at the same revision on the strength of that push rather than a separate confirmation from
 CodeRabbit, which only re-checks threads where it detects a change. **Nothing was re-raised.**
+
+## Verification of the fixes
+
+The `Fix revision` column above carried the range endpoint `23dc332d94` for every finding in that
+push, which is what CodeRabbit's "Addressed in commits 8079441 to 23dc332" supports. Fourteen of
+them have since been verified one at a time, and the column now names the exact commit for each:
+the code read against the finding, the test read to judge whether it would fail without the fix,
+the suite run, and a run pinned to the revision before the fix wherever an existing suite already
+covered the behaviour. CR12, CR18, M4 and M14 keep the range shorthand, because this verification
+did not cover them.
+
+**Three are not closed as the column would otherwise suggest**, and each row says so: **M11** fixes a
+seam no caller uses, **M8** leaves the lax lookup it names, and **M10** narrows a heuristic rather
+than recording a declared kind, which its own commit message concedes.
+
+Suites at the verified revisions, with the exact commands in the run log: the runner unit project
+**3386 passed**; the API gateways and secrets unit suites **1279 passed** from a clean tree at the
+committed revision; the gateways integration directory **94 passed** against the dev stack.
+
+### Residuals found while verifying
+
+These came out of checking the fourteen fixes. None is a re-raise of a dispositioned finding.
+
+- **The Pi MCP client still has CR9's gap.** `services/runner/src/extensions/pi-mcp.ts:241` POSTs
+  with `X-AG-Credentials` and no `redirect` option, so it follows. The wire validator checks the
+  path shape, not the origin, so "the route forces the target to be the Agenta gateway" holds for
+  the path only. Lower severity than CR9, since this runs inside the sandbox bundle and the
+  credential is supplied by the same request that names the URL, but it is a one-line inconsistency
+  with the posture CR9 just set.
+- **CR10's two important halves are untested.** Removing the request timeout, or the listener that
+  links a caller's abort to an in-flight call, each leaves the suite green. The covered case is a
+  signal already aborted before the call.
+- **CR11 drops the MCP plane's `upstream_error` detail.** That refusal is rendered unmarked, so the
+  `target` the handshake notice used to carry is now `undefined`. The commit reasons about the LLM
+  plane only.
+- **M6's guard is not executed by anything.** No workflow runs `clients/python/tests`, so the floor
+  can drift again and turn nothing red.
+- **M16's pin is unguarded.** The only check asserts the installed version, which passed before the
+  fix too. One assertion that the manifest declares the pin would make it self-guarding.
+- **M18's safety argument overstates the isolation.** A timed-out resolution abandons a worker in the
+  loop's shared default thread pool rather than a detached thread, so enough concurrent stuck
+  resolutions make the bound fire on queueing and answer "not resolvable" for a deployment that
+  resolves. Separately, `api/oss/src/core/gateways/egress.py:170` runs the same blocking resolution
+  with no bound at all, on the relay path every gateway call takes.
+- **M10 regressed the other direction.** Every field of the agent template schema has a default, so
+  `{"agent": {}}` is a valid agent and is now sent to the vault. No case pins it.
 
 | Id | File:line | Severity | Disposition | Note |
 | --- | --- | --- | --- | --- |
