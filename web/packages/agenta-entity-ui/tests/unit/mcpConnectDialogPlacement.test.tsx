@@ -138,8 +138,10 @@ describe("McpAddServerDrawer", () => {
             }),
         )
 
-        // Copy from the journey's own screens, which would be on the page if it were here.
-        expect(document.body.textContent).not.toContain("Choose which permissions to grant.")
+        // The journey's own dialog title, which would be on the page if it were here. The
+        // string this used to name was retired with the scope checklist, so the assertion
+        // passed whatever the drawer mounted.
+        expect(document.body.textContent).not.toContain("Connect MCP server")
         expect(document.querySelectorAll("[role='dialog']")).toHaveLength(1)
     })
 })

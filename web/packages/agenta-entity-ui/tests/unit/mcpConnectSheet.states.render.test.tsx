@@ -297,10 +297,23 @@ describe("C3, the server signs in with OAuth", () => {
 
     it("asks nobody to choose scopes", async () => {
         // They are the server's business, and the checklist this replaces asked a question
-        // whose answer nobody outside the provider's documentation could know.
-        await open(naming)
+        // whose answer nobody outside the provider's documentation could know. The status
+        // outlived the checklist, so the guarantee is that it renders the wait, and the
+        // scopes the server offered reach the provider without reaching the person. Opened
+        // on `naming` against the retired headline, this asserted nothing either way.
+        await open(
+            state({
+                status: "choosing_scopes",
+                url: "https://mcp.linear.app/mcp",
+                name: "Linear",
+                probe: OAUTH_PROBE,
+                scopesOffered: ["read", "write"],
+                endpointId: "mcp-1",
+            }),
+        )
 
-        expect(text()).not.toContain("Choose which permissions to grant")
+        expect(text()).toContain("Waiting for Linear…")
+        expect(document.querySelectorAll("input[type='checkbox']")).toHaveLength(0)
     })
 })
 

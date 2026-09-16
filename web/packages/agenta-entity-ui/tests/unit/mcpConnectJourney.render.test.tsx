@@ -289,7 +289,10 @@ describe("connecting a server that uses OAuth", () => {
             "the consent wait",
         )
         expect(discoverMcpConnect).toHaveBeenCalledTimes(1)
-        expect(document.body.textContent).not.toContain("Choose which permissions to grant")
+        // No chooser came with the wait. Pinned on the controls rather than on the retired
+        // headline, which no longer exists anywhere and so could not fail, and rather than
+        // on the offered scope, which this screen never holds.
+        expect(document.querySelectorAll("input[type='checkbox']")).toHaveLength(0)
     })
 
     it("opens the consent window inside the tap, before anything is awaited", async () => {
