@@ -5,6 +5,7 @@ from typing import List, Optional, Tuple
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
+from pydantic import ValidationError
 
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
@@ -21,6 +22,9 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.types import SecretSlugConflict
 from oss.src.core.shared.dtos import Header
 from oss.src.utils.helpers import get_slug_from_name_and_id
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 # A grant this close to its expiry counts as expired. Long enough that a token cannot die
@@ -342,17 +346,48 @@ class SecretsTokenStorage:
         return (found.slug, found) if found is not None else None
 
     @staticmethod
-    def _as_client_info(provider: SecretResponseDTO) -> OAuthClientInformationFull:
+    def _as_client_info(
+        provider: SecretResponseDTO,
+    ) -> Optional[OAuthClientInformationFull]:
+        """A stored registration as the OAuth client wants it, or None if it is not one.
+
+        Every field here is read back out of a row this class did not necessarily write.
+        A registration is matched by issuer, and nothing stops a person creating an
+        OAuth-provider secret of their own at the same issuer through the vault's public
+        surface, so `extra` may hold anything or nothing. Reading the registration
+        metadata as a required key turned that row into a 500 on the connect path (M8).
+
+        Absent or unusable metadata reads as no registration, which is the answer every
+        caller here already handles: it registers a fresh client rather than presenting
+        one the authorization server never issued.
+        """
         settings = provider.data.provider
+        client_info = (settings.extra or {}).get("client_info")
+        if not isinstance(client_info, dict):
+            log.warning(
+                "[gateways] an OAuth provider secret carries no usable client "
+                "registration; treating it as unregistered",
+                secret_id=str(provider.id),
+            )
+            return None
+
         # The secret lives in the settings field the vault knows how to redact, never in
         # the registration metadata beside it; put it back only here, where the caller is
         # the OAuth client itself.
-        return OAuthClientInformationFull.model_validate(
-            {
-                **settings.extra["client_info"],
-                "client_secret": settings.client_secret or None,
-            }
-        )
+        try:
+            return OAuthClientInformationFull.model_validate(
+                {
+                    **client_info,
+                    "client_secret": settings.client_secret or None,
+                }
+            )
+        except ValidationError:
+            log.warning(
+                "[gateways] an OAuth provider secret's client registration did not "
+                "validate; treating it as unregistered",
+                secret_id=str(provider.id),
+            )
+            return None
 
     async def get_client_info(self) -> Optional[OAuthClientInformationFull]:
         """The registration this deployment would present at its current address."""
