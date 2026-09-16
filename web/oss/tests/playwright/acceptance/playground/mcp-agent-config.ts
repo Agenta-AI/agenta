@@ -216,6 +216,15 @@ const openNewMcpItem = async (page: Page) => {
         await sectionHeader.first().click()
     }
     await expect(addLink).toBeVisible({timeout: 15000})
+
+    // An agent's playground opens a session for the conversation and navigates to it. A drawer
+    // opened before that lands is torn down mid-click: one run spent ten minutes on "element was
+    // detached from the DOM, retrying" against a page that kept navigating. Waiting for the URL
+    // to name a session lets the page finish arriving first. Tolerated rather than required:
+    // a session that is already open never navigates again, and the assertions that follow are
+    // what decide whether the drawer is there.
+    await page.waitForURL(/session_id=/, {timeout: PLAYGROUND_WARMUP_MS}).catch(() => undefined)
+
     await addLink.click()
     const drawer = itemDrawer(page)
     await expect(drawer).toBeVisible({timeout: 15000})
