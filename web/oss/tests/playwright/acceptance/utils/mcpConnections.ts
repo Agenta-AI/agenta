@@ -268,16 +268,16 @@ export const journeyDialog = (page: Page) =>
 /**
  * Drive an already-open journey as far as the name step, which every path shares.
  *
- * The step between the two Continues is a probe: the API dials the server and reads what it
+ * The step between Continue and Connect is a probe: the API dials the server and reads what it
  * answers. That is a round trip to a third party, so it gets its own budget rather than the
  * default one meant for a render.
  */
 export const fillJourneyUrlAndName = async (page: Page, url: string, name: string) => {
     const dialog = journeyDialog(page)
-    await dialog.getByLabel("MCP server URL").fill(url)
+    await dialog.getByLabel("Server URL").fill(url)
     await dialog.getByRole("button", {name: "Continue"}).click()
 
-    const nameField = dialog.getByLabel("Connection name")
+    const nameField = dialog.getByLabel("Name", {exact: true})
     await expect(nameField).toBeVisible({timeout: PROBE_MS})
     await nameField.fill(name)
     return dialog
