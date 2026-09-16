@@ -118,11 +118,13 @@ export function useMountUpload(onUploaded?: (path: string) => void): MountUpload
                     pumpRef.current()
                     if (controller.signal.aborted) return
                     controllers.current.delete(id)
-                    // On success the real file arrives via the listing refetch, so drop the optimistic
-                    // item — removing its file from the list also lets useImagePreviews revoke the URL.
+                    // The tile stays ("Uploaded") until the listing carries the real file, so the
+                    // grid never shows a gap between the two.
+                    patch(id, {percent: 100})
                     sources.current.delete(id)
-                    setItems((prev) => prev.filter((it) => it.id !== id))
-                    refreshListing()
+                    void refreshListing().then(() =>
+                        setItems((prev) => prev.filter((it) => it.id !== id)),
+                    )
                     const {presentedFolder} = src.target
                     onUploadedRef.current?.(
                         presentedFolder
