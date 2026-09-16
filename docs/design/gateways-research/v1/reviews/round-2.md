@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **1** | **7** | **6** | **21 closed, 4 part fixed, 14 open** |
+| **As this file is written** | **0** | **1** | **7** | **6** | **22 closed, 4 part fixed, 14 open** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -108,6 +108,7 @@ whether that fix was read against the finding and its test.
 | D48 | verification | P2 | `mcpConnectJourney.tools.test.tsx:79`, `mcpConnectJourney.reconnect.test.tsx:66` | Fix: cover the wiring, not only the hook | `bc96498688` | **yes**, code and suites run |
 | D49 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:77`, `:122` | Fix landed; the flake it names is gone on two identical runs | `3fe16196a3` | **partly**, six of seven twice; see D53 |
 | D53 | verification | P2 | the deployment's mock gateway configuration | The OAuth case cannot run on this stack | | mechanism, both mock addresses probed |
+| D54 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:273`, `engines/sandbox_agent/mcp-handshake.ts:142` | Fix, blocking | `d1055842db` | **yes**, code, tests, incl. pre-fix run |
 | D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix: QA-D3's better wording cannot fire in production | | mechanism, both sites read |
 | D51 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:293` | Fix the assertion | | mechanism, both message strings compared |
 | D52 | verification | P3 | `hooks/useMcpConnectJourney.ts:179`, `McpConnectJourney.tsx:96` | Record the invariant or apply the check | | mechanism, seven await sites counted |
@@ -152,6 +153,7 @@ revision before the fix, so the predicted failure is watched rather than assumed
 | QA-D5 | `461b8d150c` | 8 passed | 6 failed, 2 passed |
 | CodeRabbit N3 | `99b270da8d` | see coderabbit-pass-1.md | — |
 | D29, D30, D31 in a browser | — | 6 of 7 over the tunnel, twice | the seventh is D53, not a defect |
+| D54 | `d1055842db` | 42 passed | 3 failed, 39 passed |
 
 The pre-fix failures are the predicted ones in every case. D24's headline case comes back with the
 grant's `client_registration_slug` set to nothing after the first renewal, where the pinned slug
@@ -895,6 +897,29 @@ whole set is **132 passed** at the fix.
 **The real-model matrix is complete**, recorded at `72368cd612`: nine of nine, with Codex's row now
 run against a real model and the recipes for both routes written down. That is the evidence the
 release gate wanted and this review never had: every case I ran against a model ran against a mock.
+
+**D54. Both runner MCP clients asserted a protocol version on the request that negotiates it.**
+`MCP-Protocol-Version` is what `initialize` agrees on, so a client cannot know it yet, and the
+transport specification has the header ride only the requests that follow initialization, naming the
+version the server returned. Both clients sent it on `initialize` itself. A server that enforces
+this answers 400, the handshake never completes, and the model reports the tools missing — which is
+what a real provider did.
+
+**Fixed** by `d1055842db`, verified. The Pi client records the version `initialize` answered with
+and sends that on later requests, echoing what the server chose rather than what was asked for,
+because a server may answer an older version it supports. The handshake probe sends no version
+header at all, since that request is the initialize. Pinned before the fix, three cases fail: the two
+new ones and an existing case that had encoded the defect. The browser client got this right
+already — it sets the header after the handshake from the negotiated value — so the divergence was
+runner-side only.
+
+**This is the second release blocker in a row that only a real server could find, and the reason is
+the same both times.** QA-D1 was invisible because no mock compresses; this was invisible because no
+mock enforces the version. Every mock cell and every real-model cell passed while a real upstream
+refused every turn. The lesson is not that these fixes were careless — both were found and closed
+quickly — but that a suite built entirely on obliging mocks measures the client against itself. The
+real-server probe case added for QA-D1 and the real-model matrix are the two places that now break
+that circularity, and they are worth defending as such.
 
 ## Quality findings
 
