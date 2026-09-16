@@ -1125,3 +1125,106 @@ The key is read from `~/.agenta-qa-secrets.env` (OpenRouter) or `~/.agenta-qa-op
 on the QA box into the process environment, stored as an ordinary project secret, and deleted with
 the endpoint when the run finishes. It appears in no committed file, no log line and no assertion.
 
+
+## OR91: the `_meta` envelope the client sent and the upstream then validated
+
+The Pi MCP client stamped every request it sent with an `_meta` envelope carrying
+`io.modelcontextprotocol/protocolVersion`. Against the mock that was invisible, because no mock
+looked at it. Against Linear it cost the whole server.
+
+### What the wire showed
+
+Replaying the client's exact sequence from inside the runner container, with the envelope still
+in place:
+
+```
+initialize                -> 200   negotiated 2025-11-25
+notifications/initialized -> 400   -32022 "Unsupported protocol version: 2025-11-25"
+                                    data.supported: ["2026-07-28"]
+tools/list                -> 400   -32602 "Invalid _meta envelope for protocol revision
+                                    2026-07-28: io.modelcontextprotocol/clientCapabilities: missing"
+```
+
+Neither `-32022` nor `clientCapabilities` appears anywhere in this repository, so both refusals are
+Linear's own. The same sequence with no `_meta` at all succeeded at every step: `initialize` 200,
+`notifications/initialized` 202, `tools/list` 200 with 79 tools, `tools/call` 200 with real data.
+The envelope was the only difference between the two runs.
+
+Two things are worth separating here. `_meta` is optional in every MCP revision, and nothing on
+either side of this client ever read one back, so the envelope bought nothing. But a server that
+*receives* one validates it in full against the revision in force, and Linear's validation demands
+a key this client had no reason to send. An envelope sent for politeness is a refusal waiting to
+happen.
+
+That also explains why the earlier fix was not enough. Stamping the NEGOTIATED revision rather than
+the client's own constant was still stamping an envelope; it moved the refusal without removing it.
+
+### The fix, and why the mock now enforces it
+
+`services/runner/src/extensions/pi-mcp.ts` sends the caller's params and nothing else.
+
+The mock MCP upstream learned the same rule, because a fixture that accepts more than a real server
+accepts certifies nothing. This is the second time that lesson has been paid for on this route: the
+protocol-version header rule above has the identical history. A post-initialize request carrying an
+`io.modelcontextprotocol/` key in `_meta` now gets Linear's own refusal shape back:
+
+```
+400  {"error": {"code": -32602,
+      "message": "Invalid _meta envelope for protocol revision 2026-07-28: <key>: unexpected"}}
+```
+
+The guard is scoped to the `io.modelcontextprotocol/` namespace on purpose. Those keys are the
+server's to set. A client-owned key such as a `progressToken` passes through untouched, so this
+does not booby-trap a later feature that legitimately needs one.
+
+### Proof
+
+The unit tests were checked against the unfixed code before being trusted. Restoring the stamp
+fails `sends no _meta envelope on any request (OR91)`; removing the mock guard fails both refusal
+cells. A test that cannot fail proves nothing, and on this route nine cells once passed for a year
+without testing anything.
+
+**Live, Pi against Linear, `list_teams`, read-only by construction.** The tool filter is `include`
+over three read tools, so no write tool was ever advertised.
+
+```
+=== ask-approve turn 1
+  finish=other   tool_call mcp__linear__list_teams   APPROVAL toolu_bdrk_01Xgxccu...
+  GATEWAY LOG: llm=1 discovery=5 tools/call=0
+    10:10:42  mcps/custom/linear-... -> 200
+    10:10:46  mcps/custom/linear-... -> 200
+    10:10:50  mcps/custom/linear-... -> 200
+    10:10:50  mcps/custom/linear-... -> 202     notifications/initialized
+    10:10:50  mcps/custom/linear-... -> 200
+    10:10:51  llms/custom/.../v1/chat/completions -> 200
+
+=== ask-approve turn 2 (approve)
+  finish=stop    tool-output-available: {"content":[{"type":"text","text":"{\"teams\":[...]}"}]}
+  GATEWAY LOG: llm=2 discovery=4 tools/call=1
+```
+
+Read it the way this document asks every row here to be read, off the gateway's own access log
+rather than off the prose. Turn 1 raises the gate and reaches the server for discovery only, with
+no `tools/call`. Turn 2 answers approved, the `tools/call` lands after the model call, and the tool
+output carries five real team names from the live workspace.
+
+The status codes are the part that matters for OR91. Every MCP POST in both windows is a 200 or a
+202. Before the fix the same route answered 400 on `notifications/initialized` and 400 on
+`tools/list`, so the server was dropped as a failed handshake and none of its 79 tools were ever
+offered to the model.
+
+**The 27-cell harness matrix**, three harnesses by three LLM namespaces by three MCP namespaces,
+with the mock now enforcing the envelope rule, so a client that reintroduced the stamp would fail
+the nine Pi cells here rather than the next real server:
+
+```
+$ cd services && AGENTA_API_URL=... AGENTA_AUTH_KEY=... AGENTA_GATEWAYS_MOCKS_ENABLED=true \
+    AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN=... \
+    uv run --no-sync python -m pytest oss/tests/pytest/acceptance/test_agent_gateway_route.py -q
+...........................                                              [100%]
+27 passed in 124.58s (0:02:04)
+```
+
+The runner container runs the extension from a bundle baked into its image, not from the mounted
+source, so a source-only change proves nothing here. Rebuild it with `pnpm run build:extension` and
+place it before running any of the above, or every cell will still exercise the old client.
