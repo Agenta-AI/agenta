@@ -18,7 +18,6 @@ import {useCallback, useMemo, useRef, useState} from "react"
 
 import {AgentChip, AgentPickerPanel} from "@agenta/entity-ui/agent"
 import {SkillFormView} from "@agenta/entity-ui/drill-in"
-import {cn} from "@agenta/ui/styles"
 import {
     addSkillToAgents,
     archiveSkill,
@@ -32,6 +31,7 @@ import {
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {cn} from "@agenta/ui/styles"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -326,8 +326,9 @@ export function SkillDetailDrawer({
         setAgentsOpen(false)
         setMenuOpen(false)
     }, [])
+    // An archived skill has no menu: its one verb, Restore, is the footer's button.
     const actions =
-        !isBuiltin && skill ? (
+        !isBuiltin && skill && !skill.archived ? (
             <Popover
                 open={menuOpen}
                 onOpenChange={(next) => {
@@ -349,74 +350,56 @@ export function SkillDetailDrawer({
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" sideOffset={6} className="flex w-[200px] flex-col p-1">
-                    {skill.archived ? (
+                    <>
+                        {/* Opens on hover, as the filter menu's rows do: the row is an
+                                anchor, not a trigger, so a click on a row the pointer already
+                                opened does not shut it again. */}
+                        <Popover open={agentsOpen} onOpenChange={setAgentsOpen}>
+                            <PopoverAnchor asChild>
+                                <button
+                                    type="button"
+                                    aria-haspopup="listbox"
+                                    aria-expanded={agentsOpen}
+                                    disabled={!head}
+                                    onClick={openAgents}
+                                    onMouseEnter={openAgents}
+                                    onMouseLeave={scheduleCloseAgents}
+                                    className={cn(ACTION_ROW, agentsOpen && "bg-accent")}
+                                >
+                                    <Plus aria-hidden size={14} className="text-muted-foreground" />
+                                    <span className="flex-1">Add to agent</span>
+                                </button>
+                            </PopoverAnchor>
+                            <PopoverContent
+                                side="left"
+                                align="start"
+                                sideOffset={6}
+                                aria-label="Add to agent"
+                                className="flex w-[280px] flex-col gap-0 p-0"
+                                onOpenAutoFocus={(event) => event.preventDefault()}
+                                onMouseEnter={openAgents}
+                                onMouseLeave={scheduleCloseAgents}
+                            >
+                                <AgentPickerPanel
+                                    selectedIds={usedByIdList}
+                                    selectedInert
+                                    pendingId={addingTo}
+                                    onSelect={(id) => void addToAgent(id)}
+                                />
+                            </PopoverContent>
+                        </Popover>
                         <button
                             type="button"
                             onClick={() => {
                                 closeMenu()
-                                void runUnarchive()
+                                setArchiveOpen(true)
                             }}
-                            className={ACTION_ROW}
+                            className={cn(ACTION_ROW, "text-[var(--ag-colorError)]")}
                         >
-                            <ArrowUUpLeft aria-hidden size={14} className="text-muted-foreground" />
-                            Restore
+                            <Archive aria-hidden size={14} />
+                            Archive
                         </button>
-                    ) : (
-                        <>
-                            {/* Opens on hover, as the filter menu's rows do: the row is an
-                                anchor, not a trigger, so a click on a row the pointer already
-                                opened does not shut it again. */}
-                            <Popover open={agentsOpen} onOpenChange={setAgentsOpen}>
-                                <PopoverAnchor asChild>
-                                    <button
-                                        type="button"
-                                        aria-haspopup="listbox"
-                                        aria-expanded={agentsOpen}
-                                        disabled={!head}
-                                        onClick={openAgents}
-                                        onMouseEnter={openAgents}
-                                        onMouseLeave={scheduleCloseAgents}
-                                        className={cn(ACTION_ROW, agentsOpen && "bg-accent")}
-                                    >
-                                        <Plus
-                                            aria-hidden
-                                            size={14}
-                                            className="text-muted-foreground"
-                                        />
-                                        <span className="flex-1">Add to agent</span>
-                                    </button>
-                                </PopoverAnchor>
-                                <PopoverContent
-                                    side="left"
-                                    align="start"
-                                    sideOffset={6}
-                                    aria-label="Add to agent"
-                                    className="flex w-[280px] flex-col gap-0 p-0"
-                                    onOpenAutoFocus={(event) => event.preventDefault()}
-                                    onMouseEnter={openAgents}
-                                    onMouseLeave={scheduleCloseAgents}
-                                >
-                                    <AgentPickerPanel
-                                        selectedIds={usedByIdList}
-                                        selectedInert
-                                        pendingId={addingTo}
-                                        onSelect={(id) => void addToAgent(id)}
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    closeMenu()
-                                    setArchiveOpen(true)
-                                }}
-                                className={cn(ACTION_ROW, "text-[var(--ag-colorError)]")}
-                            >
-                                <Archive aria-hidden size={14} />
-                                Archive
-                            </button>
-                        </>
-                    )}
+                    </>
                 </PopoverContent>
             </Popover>
         ) : null
@@ -573,6 +556,18 @@ export function SkillDetailDrawer({
                                 <span className="text-xs text-[var(--ag-colorError)]">
                                     {archiveError}
                                 </span>
+                            ) : null}
+                            {/* An archived skill's one verb takes the footer's action slot;
+                                the editor above it is read-only until it is back. */}
+                            {skill?.archived && !isBuiltin ? (
+                                <Button onClick={() => void runUnarchive()} disabled={archiveBusy}>
+                                    {archiveBusy ? (
+                                        <Spinner size="small" />
+                                    ) : (
+                                        <ArrowUUpLeft aria-hidden size={14} />
+                                    )}
+                                    Restore
+                                </Button>
                             ) : null}
                             {/* Always present, so the footer never changes shape under
                                     the reader; inert until the draft differs from the head. */}
