@@ -1,163 +1,102 @@
 import * as React from "react"
 
-import {CheckCircle, Info, WarningCircle, XCircle} from "@phosphor-icons/react"
+import {CircleCheck, Info, LoaderCircle, OctagonX, TriangleAlert, X} from "lucide-react"
+import {Toaster as Sonner, type ToasterProps} from "sonner"
 
-import {Spinner} from "./spinner"
+import {buttonVariants} from "./button"
 import {cn} from "./utils"
 
 /**
- * Toast — an @agenta/ui re-skin of one antd `message` notice (the top-centred pill), plus
- * `ToastViewport`, the fixed stack it lives in. Presentational only (plain divs, no Radix,
- * no antd): the imperative `message.*` service that drives it lives in
- * `utils/appMessage/*` and renders these two.
- *
- * Geometry mirrors antd's `Message` tokens MEASURED against the app theme
- * (`controlHeightLG`=34, base `fontSize`=12, `lineHeight`=1.667 → 20px):
- *   viewport  `position:fixed; top:marginXS(8); width:100%` + `pointer-events:none`
- *   wrapper   `padding: paddingXS(8); text-align:center`
- *   content   `padding: (controlHeightLG - fontSize*lineHeight)/2 = 7px` vertical /
- *             `paddingSM(12)` horizontal, `borderRadius: borderRadiusLG(10)`
- *             (`rounded-control-lg`), `background: colorBgElevated`, antd `boxShadow`
- *             (`shadow-dialog`), `pointer-events:all`
- *   icon      `marginInlineEnd: marginXS(8)`, `fontSize: fontSizeLG(16)` → `size-4`,
- *             coloured per type (success/error/warning = the semantic colour,
- *             info + loading = `colorInfo`, matching antd exactly)
- * `box-border` is required app-wide (preflight is OFF); `font-portal` because the stack is
- * portalled to `document.body`, outside the app's `font-sans` wrapper.
- *
- * Motion: antd animates `MessageMoveIn/Out` keyframes (translateY + opacity + padding
- * collapse) over `motionDurationSlow`. Reproduced as a CSS *transition* on
- * opacity/transform driven by `data-state`, so no new Tailwind keyframes are needed; the
- * `max-height`/padding collapse on leave is deliberately dropped (see AppMessage notes).
- *
- * A11y (an addition — antd's message notice has no live region at all): each toast is a
- * live region, `role="alert"`/`aria-live="assertive"` for errors and
- * `role="status"`/`aria-live="polite"` otherwise.
+ * Toaster — Sonner drawn as shadcn's toast (bottom-right stack, expand on hover, swipe to
+ * dismiss); `message.*` drives it. Sonner's own skin is off; the classes below are the look.
  */
-export type ToastType = "info" | "success" | "error" | "warning" | "loading"
 
-// antd message icon colour per type: `colorSuccess` / `colorError` / `colorWarning`, and
-// `colorInfo` for BOTH info and loading (`text-info` is the token bridge's `colorInfo`).
-const toastIconColor: Record<ToastType, string> = {
-    success: "text-colorSuccess",
-    error: "text-colorError",
-    warning: "text-colorWarning",
-    info: "text-info",
-    loading: "text-info",
+// Sonner's stylesheet is injected at runtime, so ties on specificity go to it: the state
+// selectors below carry `[data-sonner-toast]` to win.
+const toastClassNames: NonNullable<NonNullable<ToasterProps["toastOptions"]>["classNames"]> = {
+    toast: cn(
+        "group/toast box-border flex w-full items-center gap-3 rounded-2xl border border-solid border-border bg-popover px-3.5 py-3 text-sm text-popover-foreground shadow-lg outline-none select-none",
+        "[&[data-sonner-toast]:focus-visible]:border-ring [&[data-sonner-toast]:focus-visible]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
+        // Enter from the stack's edge on shadcn's ease-out; leave quickly (Sonner unmounts 200ms in).
+        "[&[data-y-position=bottom]:not([data-mounted=true])]:[--y:translateY(150%)]",
+        "[&[data-y-position=top]:not([data-mounted=true])]:[--y:translateY(-150%)]",
+        "[&[data-sonner-toast]:not([data-swiping=true])]:[transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms]",
+        "[&[data-sonner-toast][data-removed=true][data-swiping=false]]:[transition:transform_200ms_ease-in,opacity_200ms]",
+        // Toasts behind the front one show only their edge.
+        "[&[data-sonner-toast]>*]:[transition:opacity_250ms_cubic-bezier(0.22,1,0.36,1)]",
+        "[&[data-expanded=false][data-front=false]>*]:opacity-0",
+    ),
+    // `relative size-4`: Sonner centers the loading icon absolutely inside this box.
+    icon: "relative flex size-4 shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:size-4",
+    // Sonner's loader wrapper is inline; `flex` drops the line-box slack that pushes the spinner up.
+    loader: "flex items-center justify-center",
+    // `min-h-7` keeps a close-less (loading) toast as tall as the others.
+    content: "flex min-h-7 min-w-0 flex-1 flex-col justify-center gap-1",
+    title: "text-sm font-normal",
+    description: "text-sm text-muted-foreground",
+    actionButton: cn(buttonVariants({variant: "outline", size: "sm"}), "shrink-0"),
+    cancelButton: cn(buttonVariants({variant: "outline", size: "sm"}), "shrink-0"),
+    // Sonner renders the close button first; `order-last` seats it after the actions.
+    closeButton: cn(
+        buttonVariants({variant: "ghost", size: "icon-sm"}),
+        "relative order-last shrink-0 text-muted-foreground after:absolute after:-inset-2 after:content-[''] hover:text-foreground",
+    ),
 }
 
-// antd's filled status icons (CheckCircleFilled / CloseCircleFilled / ExclamationCircleFilled /
-// InfoCircleFilled) and the spinning LoadingOutlined — the latter reuses our own `Spinner`.
-const toastDefaultIcon: Record<ToastType, React.ReactNode> = {
-    success: <CheckCircle weight="fill" className="size-4" />,
-    error: <XCircle weight="fill" className="size-4" />,
-    warning: <WarningCircle weight="fill" className="size-4" />,
-    info: <Info weight="fill" className="size-4" />,
-    loading: <Spinner size="small" className="text-info" aria-label="Loading" />,
-}
-
-export interface ToastProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "content"> {
-    /** antd `type` — picks the default icon and its colour. */
-    type?: ToastType
-    /** antd `icon` — replaces the default status icon. Pass `null` to render none. */
-    icon?: React.ReactNode
-    /** Drives the enter/leave transition. `false` plays the leave transition. */
-    open?: boolean
-    /** antd `style`, applied to the pill (not the wrapper) — same as antd. */
-    style?: React.CSSProperties
-}
-
-export function Toast({
-    className,
-    type = "info",
-    icon,
-    open = true,
-    children,
+// shadcn's defaults; every one is a prop, so a host can move or resize the stack.
+function Toaster({
+    position = "bottom-right",
+    offset = 16,
+    mobileOffset = 16,
+    gap = 8,
+    visibleToasts = 3,
+    closeButton = true,
     style,
-    role,
-    "aria-live": ariaLive,
+    toastOptions,
     ...props
-}: ToastProps) {
-    // Mount in the "closed" pose, then flip on the next frame so the browser has a start
-    // value to transition FROM (a single rAF can still be batched into the same paint).
-    const [entered, setEntered] = React.useState(false)
-    React.useEffect(() => {
-        let inner = 0
-        const outer = requestAnimationFrame(() => {
-            inner = requestAnimationFrame(() => setEntered(true))
-        })
-        return () => {
-            cancelAnimationFrame(outer)
-            cancelAnimationFrame(inner)
-        }
-    }, [])
-
-    const resolvedIcon = icon === undefined ? toastDefaultIcon[type] : icon
-    const isError = type === "error"
-
+}: ToasterProps) {
     return (
-        <div
-            data-slot="toast-wrapper"
-            // antd `-notice-wrapper`: paddingXS all round, centred.
-            className="box-border p-2 text-center"
-        >
-            <div
-                data-slot="toast"
-                data-type={type}
-                data-state={open && entered ? "open" : "closed"}
-                role={role ?? (isError ? "alert" : "status")}
-                aria-live={ariaLive ?? (isError ? "assertive" : "polite")}
-                className={cn(
-                    "box-border pointer-events-auto inline-flex items-center text-start align-top",
-                    // contentPadding: (controlHeightLG 34 - 20)/2 = 7px vertical, paddingSM 12px.
-                    "py-[7px] px-3",
-                    "rounded-control-lg bg-colorBgElevated text-colorText shadow-dialog font-portal text-field-md",
-                    // antd MessageMoveIn/Out, as a transition (see docblock).
-                    "transition-[opacity,transform] duration-200 ease-out",
-                    "data-[state=closed]:opacity-0 data-[state=closed]:-translate-y-2",
-                    "data-[state=open]:opacity-100 data-[state=open]:translate-y-0",
-                    className,
-                )}
-                style={style}
-                {...props}
-            >
-                {resolvedIcon != null ? (
-                    <span
-                        data-slot="toast-icon"
-                        // marginInlineEnd = marginXS (8px); fontSizeLG (16px) box.
-                        className={cn(
-                            "mr-2 flex shrink-0 items-center text-base leading-none",
-                            toastIconColor[type],
-                        )}
-                    >
-                        {resolvedIcon}
-                    </span>
-                ) : null}
-                <span data-slot="toast-content">{children}</span>
-            </div>
-        </div>
-    )
-}
-
-export interface ToastViewportProps extends React.HTMLAttributes<HTMLDivElement> {}
-
-/**
- * The fixed, top-centred stack antd calls `.ant-message`. `pointer-events-none` so the page
- * stays clickable behind it; each pill re-enables its own pointer events.
- *
- * z-index = antd's `zIndexPopup` for Message (`zIndexPopupBase 1000 + 100 + 10`), which puts
- * toasts above Radix overlays (`z-50`) — a toast fired from inside a dialog stays visible.
- */
-export function ToastViewport({className, ...props}: ToastViewportProps) {
-    return (
-        <div
-            data-slot="toast-viewport"
-            // antd holder: fixed, top marginXS (8px), full width, no pointer events.
-            className={cn(
-                "box-border fixed top-2 left-0 z-[1110] w-full pointer-events-none font-portal",
-                className,
-            )}
+        <Sonner
+            // Colors come from the tokens, so Sonner's dark skin (and its description color) stays off.
+            theme="light"
+            position={position}
+            offset={offset}
+            mobileOffset={mobileOffset}
+            gap={gap}
+            visibleToasts={visibleToasts}
+            closeButton={closeButton}
+            className="toaster group"
+            icons={{
+                success: <CircleCheck />,
+                info: <Info />,
+                warning: <TriangleAlert />,
+                error: <OctagonX className="text-error" />,
+                loading: <LoaderCircle className="animate-spin" />,
+                close: <X />,
+            }}
+            toastOptions={{
+                unstyled: true,
+                ...toastOptions,
+                classNames: {...toastClassNames, ...toastOptions?.classNames},
+                // Sonner's stack rule reads this token raw: it becomes `1 - index * 0.1`, shadcn's scale.
+                style: {
+                    "--scale": "var(--toasts-before) * 0.1 + 1",
+                    ...toastOptions?.style,
+                } as React.CSSProperties,
+            }}
+            style={
+                {
+                    // shadcn's `max-w-sm` viewport; the font is stated because the stack mounts
+                    // outside the app's font wrapper.
+                    "--width": "24rem",
+                    fontFamily:
+                        "var(--font-inter, var(--font-sans, var(--ant-font-family, system-ui, sans-serif)))",
+                    ...style,
+                } as React.CSSProperties
+            }
             {...props}
         />
     )
 }
+
+export {Toaster}

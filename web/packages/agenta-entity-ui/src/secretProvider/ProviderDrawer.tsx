@@ -28,7 +28,7 @@ import {
 } from "@agenta/entities/secret"
 import {providerTitleForKind} from "@agenta/entities/secret"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {ArrowLeft, ArrowSquareOut, WarningCircle, X} from "@phosphor-icons/react"
+import {ArrowLeft, ArrowSquareOut, WarningCircle} from "@phosphor-icons/react"
 
 import {DrawerFooter} from "../drawers/shared/DrawerFooter"
 import {harnessMetaFor} from "../DrillInView/SchemaControls/harnessMeta"
@@ -185,30 +185,13 @@ const ProviderDrawer = ({
      * What the title may occupy before it has to truncate.
      *
      * `SheetTitle` is `flex-1` but carries no `min-w-0`, so its automatic minimum size would let a
-     * long connection name grow the header and shove the close button off the edge. Bounding the
-     * title here is what makes its `truncate` actually engage: the header's 24px padding either
-     * side, its 8px gap, and the 22px close button.
+     * long connection name grow the header and shove the header's edge. Bounding the title here
+     * is what makes its `truncate` actually engage: the header's 16px padding either side, its
+     * 8px gap, and the 28px close button.
      */
-    const titleMaxWidth = width - 24 * 2 - 8 - 22
+    const titleMaxWidth = width - 16 * 2 - 8 - 28
 
-    /**
-     * The drawer's own close, on the RIGHT.
-     *
-     * `Sheet` puts its built-in X FIRST in the header row, which on a pushed level lands it on top
-     * of the back arrow. So the built-in one is switched off (`closable={false}`) and this rides
-     * the `extra` slot instead, which renders after the flex-1 title — i.e. far right. Styled to
-     * match `SheetHeader`'s own close so the two are indistinguishable.
-     */
-    const closeButton = (
-        <button
-            type="button"
-            aria-label="Close"
-            onClick={() => onClose()}
-            className="box-border flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-control-sm border-0 bg-transparent p-0 text-colorIcon transition-colors hover:bg-colorFillQuaternary hover:text-colorIconHover"
-        >
-            <X size={14} />
-        </button>
-    )
+    const showsBack = view.level === "subscription" || (view.level === "connection" && view.pushed)
 
     const title =
         view.level === "catalog" ? (
@@ -294,10 +277,9 @@ const ProviderDrawer = ({
             onClose={onClose}
             title={title}
             width={width}
-            // The X moves to the `extra` slot on every level and context, so the back arrow on a
-            // pushed level is never sitting under it.
-            closable={false}
-            extra={closeButton}
+            // The built-in X leads the header on the catalog level; a pushed level leads with its
+            // back arrow instead, so the two never sit side by side.
+            closable={!showsBack}
             footer={footer}
             styles={
                 view.level === "catalog"

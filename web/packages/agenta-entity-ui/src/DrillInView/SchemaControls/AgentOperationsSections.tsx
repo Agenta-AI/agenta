@@ -22,7 +22,11 @@ import {useSetAtom} from "jotai"
 
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
-import {TriggerManagementSection, useAgentTriggers} from "./TriggerManagementSection"
+import {
+    TriggerManagementSection,
+    useAgentTriggers,
+    type TriggerOwnerRef,
+} from "./TriggerManagementSection"
 
 const barClass = (sticky: boolean) =>
     `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-header)]`
@@ -94,6 +98,7 @@ export function AgentOperationsSections({
     storage,
     storageHeader,
     automationDrawer,
+    onOpenRunHistory,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
@@ -109,6 +114,8 @@ export function AgentOperationsSections({
     storageHeader?: ReactNode
     /** The automations create/edit drawer, passed down to the Automations section. */
     automationDrawer: ReactNode
+    /** A row's "Run history" destination; see {@link TriggerManagementSection}. */
+    onOpenRunHistory?: (owner: TriggerOwnerRef) => void
 }) {
     const {count: triggerCount, defaultReferences, defaultBoundLabel} = useAgentTriggers(revisionId)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
@@ -151,6 +158,7 @@ export function AgentOperationsSections({
                         entityId={revisionId}
                         disabled={disabled}
                         automationDrawer={automationDrawer}
+                        onOpenRunHistory={onOpenRunHistory}
                     />
                 </div>
             </section>

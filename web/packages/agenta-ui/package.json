@@ -144,6 +144,7 @@
         "prismjs": "^1.30.0",
         "react-day-picker": "^10.0.1",
         "react-resizable": "^3.0.5",
+        "sonner": "^2.0.8",
         "tailwind-merge": "^2.6.0",
         "uuid": "^11.1.1"
     },

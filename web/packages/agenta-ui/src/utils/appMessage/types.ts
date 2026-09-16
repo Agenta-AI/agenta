@@ -30,6 +30,8 @@ export interface ArgsProps {
     style?: React.CSSProperties
     className?: string
     onClick?: (e: React.MouseEvent<HTMLDivElement>) => void
+    /** Agenta extension (not antd): an outline button on the toast's right. */
+    action?: {label: React.ReactNode; onClick: () => void}
     /** Accepted for antd source compatibility; not implemented (see AppMessage notes). */
     classNames?: Record<string, string | undefined>
     /** Accepted for antd source compatibility; not implemented. */
