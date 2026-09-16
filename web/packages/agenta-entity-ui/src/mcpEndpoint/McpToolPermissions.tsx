@@ -15,7 +15,7 @@
  * - A tool the include filter hides cannot be given a permission. The API refuses such an
  *   entry, so offering one here would produce a config that fails on every run.
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     clearPerToolPolicy,
@@ -74,12 +74,21 @@ export default function McpToolPermissions({
     const projectId = useAtomValue(projectIdAtom) ?? undefined
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
 
+    // Which connection the visible list belongs to. A tool list is fetched per connection and
+    // arrives whenever it arrives, so without this, switching connections mid-flight rendered
+    // the previous one's tools under the new one's name (M4).
+    const shownFor = useRef<string | undefined>(undefined)
+
     const loadTools = useCallback(async () => {
         if (!slug) return
+        shownFor.current = slug
         setTools({status: "loading"})
         try {
-            setTools({status: "ready", tools: await listMcpTools(slug, projectId)})
+            const tools = await listMcpTools(slug, projectId)
+            if (shownFor.current !== slug) return
+            setTools({status: "ready", tools})
         } catch (error) {
+            if (shownFor.current !== slug) return
             setTools({
                 status: "failed",
                 error: (error as Error)?.message || "The tool list could not be read.",
@@ -102,6 +111,21 @@ export default function McpToolPermissions({
                 advertised.map((tool) => tool.name),
             ),
         [advertised, policy],
+    )
+
+    /**
+     * Tools that hold a permission the filter now hides.
+     *
+     * The API refuses the whole policy for these, so an agent carrying one cannot run at all.
+     * The row's own control stays disabled — a hidden tool may not be given a permission — so
+     * without somewhere to clear it there was no way to repair the agent from here (CR18).
+     */
+    const strandedByFilter = useMemo(
+        () =>
+            Object.keys(toolPermissions(policy))
+                .filter((name) => isToolHidden(policy, name))
+                .sort(),
+        [policy],
     )
 
     const setTool = useCallback(
@@ -165,6 +189,27 @@ export default function McpToolPermissions({
                         onSetTool={setTool}
                         inheritLabel={newToolPermission ?? "ask"}
                     />
+
+                    {strandedByFilter.length ? (
+                        <div className="flex flex-col gap-1">
+                            <span className="text-xs text-[var(--ag-colorError)]">
+                                Rules for tools this server&apos;s filter hides. The agent cannot
+                                run until they are removed.
+                            </span>
+                            {strandedByFilter.map((name) => (
+                                <div key={name} className="flex items-center justify-between gap-2">
+                                    <span className="truncate text-field-md">{name}</span>
+                                    <Button
+                                        variant="ghost"
+                                        disabled={disabled}
+                                        onClick={() => setTool(name, "inherit")}
+                                    >
+                                        Remove
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : null}
 
                     {stale.length ? (
                         <div className="flex flex-col gap-1">

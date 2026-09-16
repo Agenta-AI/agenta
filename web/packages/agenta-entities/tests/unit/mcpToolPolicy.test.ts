@@ -152,6 +152,20 @@ describe("a tool the filter hides", () => {
         expect(setToolPermission(filtered, "search", "allow")).toBe(filtered)
     })
 
+    it("can still have a stale permission cleared", () => {
+        // A filter narrowed after the fact strands entries for tools it now hides, and the
+        // SDK rejects the whole policy for exactly those, so an agent that cannot run had no
+        // way to be repaired from here (CR18).
+        const stranded: McpServerPolicy = {
+            tools: {mode: "include", names: ["echo"]},
+            tool_permissions: {echo: "allow", search: "deny"},
+        }
+
+        expect(setToolPermission(stranded, "search", null).tool_permissions).toEqual({
+            echo: "allow",
+        })
+    })
+
     it("does not block a permission on a tool the filter admits", () => {
         expect(setToolPermission(filtered, "echo", "deny").tool_permissions).toEqual({
             echo: "deny",

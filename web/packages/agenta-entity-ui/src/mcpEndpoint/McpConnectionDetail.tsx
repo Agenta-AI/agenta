@@ -9,7 +9,7 @@
  * Renaming changes the label and nothing else. The slug agents resolve is frozen, so a
  * rename never repoints a configured agent, and it never resets a policy.
  */
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     connectionNameProblem,
@@ -63,12 +63,22 @@ export default function McpConnectionDetail({
         setName(endpoint?.name || endpoint?.slug || "")
     }, [endpoint])
 
+    // Which connection the visible list belongs to. A tool list is fetched per connection and
+    // arrives whenever it arrives, so without this, opening another connection while one is
+    // in flight rendered the previous one's tools under the new one's name (M4).
+    const shownFor = useRef<string | undefined>(undefined)
+
     const loadTools = useCallback(async () => {
-        if (!endpoint?.slug || !isReady) return
+        const slug = endpoint?.slug
+        if (!slug || !isReady) return
+        shownFor.current = slug
         setTools({status: "loading"})
         try {
-            setTools({status: "ready", tools: await listMcpTools(endpoint.slug, projectId)})
+            const tools = await listMcpTools(slug, projectId)
+            if (shownFor.current !== slug) return
+            setTools({status: "ready", tools})
         } catch (error) {
+            if (shownFor.current !== slug) return
             setTools({
                 status: "failed",
                 error: (error as Error)?.message || "The tool list could not be read.",

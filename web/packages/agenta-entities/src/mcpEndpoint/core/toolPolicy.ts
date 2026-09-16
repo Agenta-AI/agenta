@@ -110,15 +110,20 @@ function pruned(policy: McpServerPolicy): McpServerPolicy {
 /**
  * Set or clear one tool's permission.
  *
- * A hidden tool is refused rather than written, matching the SDK: writing one would produce a
- * configuration that fails validation on every run of the agent, not once at save.
+ * Giving a hidden tool a permission is refused rather than written, matching the SDK: it would
+ * produce a configuration that fails validation on every run of the agent, not once at save.
+ *
+ * Clearing one is always allowed, and has to be. A filter narrowed after the fact leaves
+ * entries for tools it now hides, and the SDK rejects the whole policy for exactly those
+ * entries, so refusing to clear them left an agent that could not run and no way to repair it
+ * from here (CR18).
  */
 export function setToolPermission(
     policy: McpServerPolicy,
     toolName: string,
     permission: McpPermission | null,
 ): McpServerPolicy {
-    if (isToolHidden(policy, toolName)) return policy
+    if (permission && isToolHidden(policy, toolName)) return policy
     const table = toolPermissions(policy)
     return pruned({
         ...policy,

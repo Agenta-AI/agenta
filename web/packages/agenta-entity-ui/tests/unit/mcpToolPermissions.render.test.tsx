@@ -141,6 +141,64 @@ describe("a tool the include filter hides", () => {
     })
 })
 
+describe("switching connection while a tool list is in flight", () => {
+    it("never shows one connection's tools under another's name", async () => {
+        // The lists arrive whenever they arrive. Before this the slower answer overwrote the
+        // faster one regardless of which connection had been asked for (M4).
+        let releaseFirst: (tools: unknown) => void = () => undefined
+        listMcpTools.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    releaseFirst = resolve
+                }),
+        )
+        listMcpTools.mockResolvedValueOnce([{name: "beta-only-tool"}])
+
+        const onChange = vi.fn()
+        await render({tool_permissions: {echo: "allow"}}, onChange, "alpha")
+        await render({tool_permissions: {echo: "allow"}}, onChange, "beta")
+
+        releaseFirst([{name: "alpha-only-tool"}])
+        await act(async () => {
+            await Promise.resolve()
+        })
+
+        expect(text()).toContain("beta-only-tool")
+        expect(text()).not.toContain("alpha-only-tool")
+    })
+})
+
+describe("a tool the filter hides that still holds a permission", () => {
+    it("offers a way to remove it, because the API refuses the whole policy", async () => {
+        await render({
+            tools: {mode: "include", names: ["echo"]},
+            tool_permissions: {echo: "allow", wipe: "deny"},
+        })
+
+        expect(text()).toContain("filter hides")
+        expect(text()).toContain("cannot run until they are removed")
+    })
+
+    it("clears it when asked", async () => {
+        const onChange = await render({
+            tools: {mode: "include", names: ["echo"]},
+            tool_permissions: {echo: "allow", wipe: "deny"},
+        })
+
+        const remove = [...host.querySelectorAll("button")].find(
+            (button) => button.textContent === "Remove",
+        )
+        await act(async () => {
+            remove!.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+
+        expect(onChange).toHaveBeenCalledWith({
+            tools: {mode: "include", names: ["echo"]},
+            tool_permissions: {echo: "allow"},
+        })
+    })
+})
+
 describe("rules for tools that are no longer advertised", () => {
     it("are shown rather than dropped, so a decision survives a server blip", async () => {
         await render({tool_permissions: {echo: "allow", gone: "deny"}})
