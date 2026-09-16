@@ -417,19 +417,33 @@ async def test_a_server_that_trickles_forever_does_not_hold_the_worker(monkeypat
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_a_metadata_document_larger_than_a_document_is_not_read():
-    """Discovery's URLs are attacker-influenced too: the protected-resource location
-    arrives in the server's own challenge. A candidate that answers with megabytes is
-    skipped like any other unusable one."""
+def _padded_prm(*, scopes: int) -> bytes:
+    """A protected-resource document that is valid however large it is.
+
+    The padding is more `scopes_supported` entries, which the model accepts and keeps, so
+    the only thing standing between this document and a successful discovery is its size.
+    Padding with bytes that are not JSON would have been refused by the parser whether
+    the cap existed or not, which is no test of the cap at all.
+    """
+    return json.dumps(
+        {
+            **_PRM,
+            "scopes_supported": [*_PRM["scopes_supported"]]
+            + [f"pad:{index}" for index in range(scopes)],
+        }
+    ).encode()
+
+
+def _serving_prm(document: bytes):
+    """A 401 server whose protected-resource document is exactly these bytes."""
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.startswith("/.well-known/"):
+        if request.url.path == "/.well-known/oauth-protected-resource":
             return httpx.Response(
-                200,
-                headers={"content-type": "application/json"},
-                content=b"x" * (512 * 1024),
+                200, headers={"content-type": "application/json"}, content=document
             )
+        if request.url.path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(200, json=_AS_METADATA)
         return httpx.Response(
             401,
             json={"error": "invalid_token"},
@@ -441,15 +455,43 @@ async def test_a_metadata_document_larger_than_a_document_is_not_read():
             },
         )
 
-    result = await _probe(handler).probe(server_url=_SERVER_URL)
+    return handler
+
+
+@pytest.mark.asyncio
+async def test_a_valid_metadata_document_past_the_cap_is_not_read():
+    """Discovery's URLs are attacker-influenced too: the protected-resource location
+    arrives in the server's own challenge. A candidate that answers with half a megabyte
+    is skipped like any other unusable one — and this document is perfectly valid, so
+    the only reason it is skipped is its size."""
+    document = _padded_prm(scopes=40_000)
+    assert len(document) > 256 * 1024
+
+    result = await _probe(_serving_prm(document)).probe(server_url=_SERVER_URL)
 
     assert result.reachable is True
     assert result.problem is not None
     assert result.problem.cause == "auth_undiscoverable"
+    assert result.auth is None or result.auth.mode is not MCPProbeAuthMode.OAUTH
 
 
 @pytest.mark.asyncio
-async def test_a_metadata_document_within_the_cap_is_still_read():
+async def test_a_valid_metadata_document_under_the_cap_is_read():
+    """The same document, padded to just under the cap. The bound has to be generous
+    enough that a real document with a long scope list still gets through, or the cap
+    would be refusing servers rather than protecting the process."""
+    document = _padded_prm(scopes=10_000)
+    assert 100 * 1024 < len(document) < 256 * 1024
+
+    result = await _probe(_serving_prm(document)).probe(server_url=_SERVER_URL)
+
+    assert result.problem is None
+    assert result.auth is not None
+    assert result.auth.mode is MCPProbeAuthMode.OAUTH
+
+
+@pytest.mark.asyncio
+async def test_an_ordinary_metadata_document_is_still_read():
     result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
 
     assert result.reachable is True
