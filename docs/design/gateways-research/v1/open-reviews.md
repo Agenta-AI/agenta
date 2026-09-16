@@ -399,6 +399,20 @@ first, second and fourth fail against the previous behaviour.
 
 ### OR90. A hosted subscription connection is sent to the gateway, which has no route for it — CLOSED, by keeping every self-managed connection off the gateway resolver
 
+**Verified by this review at `47aeaed0ad`.** Seventy-two cases pass. The fix is right at the seam:
+a self-managed connection never reaches the gateway in either shape, because the harness
+authenticates itself, so there is no provider key to hold and no route to build. The unnamed case
+still resolves to "inject nothing" with no read, and the named one reads the vault, which is what it
+always did — what moved was the fetch, and this branch was not repointed with it.
+
+**Why every test stayed green while it was broken is the part to carry forward.** The
+hosted-subscription cases fed the list payload only the vault read returns, so they passed against an
+endpoint that no longer answers with one. That is the same failure this review has now recorded five
+times, in D39, D48, D50 and twice more: a test supplying a shape or a step the product no longer
+produces. Here it hid a defect that discarded a subscription login mid-run. The new case feeds the
+dictionary payload a live API actually answers, which is the correction, and the general rule is the
+one D50 states: when a fetch moves, the fixtures that stood in for it are the first thing to check.
+
 **Found on 2026-09-16 while answering whether a ChatGPT/Codex subscription is metered by the LLM
 gateway.** It is not, and the unnamed sidecar case is correct. The NAMED case is not. Severity P2:
 it is the only way to use a subscription the platform stores, it is Pi-only today, and the LLM
