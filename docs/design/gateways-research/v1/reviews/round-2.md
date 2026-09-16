@@ -1010,6 +1010,38 @@ between a mock that reproduces a bug and a mock that tests a client.
 Every one of the four defects in this family would now be caught by the mock cells that missed them.
 This is the finding I would most want kept if the suite is ever trimmed for speed.
 
+**QA r3-D2. A turn against a disconnected server showed the harness's own tool error — fixed by
+`caed53e8b3`, verified.** The runner already emitted the failure with the remedy attached, and the
+SDK already projected it to the browser; the chat read that part nowhere. What a person saw was a
+red card wrapping `No such tool available`, with nothing about authorization and nothing to click,
+while the configuration rail on the same page read "Needs authorization · Connect". The turn now
+states that the connection needs authorization before its tools can run and offers Connect against
+the endpoint the requirement names, on both apps, and the errored tool call for a server the turn
+already explains is dropped so there is one answer on screen instead of two.
+
+Nineteen cases, and the branches are separated rather than bundled: a notice carrying no remedy
+offers none, a payload that is not a notice is ignored, the failure is dropped whichever order the
+two parts arrive in, and the runner's own marker never reaches the message. It reads the refusal
+through the same helper the connect dialog uses, which is the fourth surface to adopt it. One small
+awkwardness worth naming rather than filing: to reuse that helper the code builds a fake transport
+error around the detail, because the helper's contract is an axios error rather than a refusal body.
+It works and it is tested; a reader would be better served by a seam that takes the body.
+
+**The playground spec (`2b59e67cb6`) is verified by reading and could not be run here.** Its
+assertions are the right shape: the committed configuration is read back through the workflow
+revisions API rather than from the screen, so it pins what was persisted — the connection reference
+stored as the slug rather than the display name, the tool prefix frozen at save, and both
+`tool_permissions` and `new_tool_permission` reaching the saved policy. The comment explaining why
+the slug is the reference, that renaming later must not repoint a saved agent, is the finding from
+D36 and OR88 written into a test.
+
+Two attempts on this stack produced no verdict. The first failed all three cases at the same setup
+step, waiting ninety seconds for the playground to paint, and the web container shows that route
+compiling at that moment while serving its shells in about 150 milliseconds — the D49 class one
+route over, where a dev-mode client bundle plus tunnel latency exceeds a budget written for a warm
+route. The second executed nothing: the tunnel dropped the sign-up request. So the spec is unproven
+here, and **D53** now covers two suites rather than one.
+
 ## Quality findings
 
 **Q1 — asynchronous work in the journey has two owners. P2, altitude.** Some transitions are driven
