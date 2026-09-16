@@ -33,7 +33,7 @@ import {
     fillJourneyUrlAndName,
     finishJourney,
     journeyDialog,
-    mockMcpBaseUrl,
+    mockMcpBase,
     navigate,
     PROBE_MS,
     projectIdFrom,
@@ -298,10 +298,10 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
                 // Where it points, and whether it can be used right now. A connection needing
                 // authorization is a different answer from one that is ready, and the form says
                 // which rather than leaving it to run time.
-                await expect(drawer.getByText("Ready", {exact: true})).toBeVisible({
+                await expect(drawer.getByText("Connected", {exact: true})).toBeVisible({
                     timeout: 30000,
                 })
-                await expect(drawer.getByText(`${mockMcpBaseUrl}/`)).toBeVisible()
+                await expect(drawer.getByText(`${mockMcpBase()}/`)).toBeVisible()
                 // The prefix the model will see, taken from the display name once and kept.
                 await expect(drawer.getByText("Tool prefix", {exact: true})).toBeVisible()
                 await expect(
@@ -352,7 +352,7 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
                     await page.getByRole("button", {name: "Connect MCP"}).click()
                     const dialog = await fillJourneyUrlAndName(
                         page,
-                        `${mockMcpBaseUrl}/`,
+                        `${mockMcpBase()}/`,
                         connectionName,
                     )
                     await dialog.getByRole("button", {name: "Continue"}).click()

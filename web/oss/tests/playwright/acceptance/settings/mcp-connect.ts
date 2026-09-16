@@ -35,7 +35,8 @@ import {
     finishJourney,
     journeyDialog,
     mcpOauthPath,
-    mockMcpBaseUrl,
+    mockMcpBase,
+    mockNeedsHostMapping,
     navigate,
     PROBE_MS,
     requireMockMcpUpstream,
@@ -114,7 +115,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             })
 
             await scenarios.when("the user connects a server by URL", async () => {
-                const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, name)
+                const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
                 // The probe reached the server and read what it needs, so the journey says
                 // so before asking for anything else.
                 await expect(dialog.getByText("needs no authentication")).toBeVisible()
@@ -125,7 +126,9 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             await scenarios.then("the connection is listed as ready", async () => {
                 const row = connectionRow(page, name)
                 await expect(row).toBeVisible({timeout: 30000})
-                await expect(row.getByText("Ready", {exact: true})).toBeVisible({timeout: 30000})
+                await expect(row.getByText("Connected", {exact: true})).toBeVisible({
+                    timeout: 30000,
+                })
             })
         },
     )
@@ -143,7 +146,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 async () => {
                     await page.getByRole("button", {name: "Connect MCP"}).first().click()
                     const dialog = journeyDialog(page)
-                    await dialog.getByLabel("MCP server URL").fill(`${mockMcpBaseUrl}/`)
+                    await dialog.getByLabel("MCP server URL").fill(`${mockMcpBase()}/`)
                     await dialog.getByRole("button", {name: "Continue"}).click()
 
                     const nameField = dialog.getByLabel("Connection name")
@@ -173,7 +176,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             })
 
             await scenarios.when("the user submits that name", async () => {
-                const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, name)
+                const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
                 await dialog.getByRole("button", {name: "Continue"}).click()
 
                 // The SERVER's refusal, which is the one this case exists to exercise. The
@@ -210,7 +213,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
 
         await scenarios.when("the user connects the same URL twice", async () => {
             for (const name of [first, second]) {
-                const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, name)
+                const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
                 await dialog.getByRole("button", {name: "Continue"}).click()
                 await finishJourney(page)
                 await expect(connectionRow(page, name)).toBeVisible({timeout: 30000})
@@ -231,10 +234,12 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
 
         await scenarios.given("a connected server", async () => {
             await openSettings(page, basePath)
-            const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, name)
+            const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
             await dialog.getByRole("button", {name: "Continue"}).click()
             await finishJourney(page)
-            await expect(connectionRow(page, name).getByText("Ready", {exact: true})).toBeVisible({
+            await expect(
+                connectionRow(page, name).getByText("Connected", {exact: true}),
+            ).toBeVisible({
                 timeout: 30000,
             })
         })
@@ -258,11 +263,11 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             // It holds no grant, and the route refuses a non-OAuth endpoint, so offering the
             // action would produce a 400 on a row that reads as connected.
             const other = uniqueName("No auth MCP")
-            const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, other)
+            const dialog = await startJourney(page, `${mockMcpBase()}/`, other)
             await dialog.getByRole("button", {name: "Continue"}).click()
             await finishJourney(page)
             const row = connectionRow(page, other)
-            await expect(row.getByText("Ready", {exact: true})).toBeVisible({timeout: 30000})
+            await expect(row.getByText("Connected", {exact: true})).toBeVisible({timeout: 30000})
             await row.getByRole("button").last().click()
             await expect(page.getByRole("menuitem", {name: "Disconnect"})).toHaveCount(0)
             await page.keyboard.press("Escape")
@@ -275,10 +280,12 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
 
         await scenarios.given("a connected server", async () => {
             await openSettings(page, basePath)
-            const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, name)
+            const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
             await dialog.getByRole("button", {name: "Continue"}).click()
             await finishJourney(page)
-            await expect(connectionRow(page, name).getByText("Ready", {exact: true})).toBeVisible({
+            await expect(
+                connectionRow(page, name).getByText("Connected", {exact: true}),
+            ).toBeVisible({
                 timeout: 30000,
             })
         })
@@ -302,11 +309,16 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
     test("authorizes a server that uses OAuth", {tag: tags}, async ({page, apiHelpers}) => {
         // Not a skip: the consent page is the half of this flow only a browser can prove, and
         // a run that quietly drops it is the failure mode D25 is about.
-        if (!process.env.PLAYWRIGHT_HOST_RESOLVER_RULES) {
+        //
+        // The mapping is asked for only when the mock is reachable by a compose name alone. A
+        // stack that publishes it on a public address needs nothing, and demanding the mapping
+        // there refused a run that was going to work (D53).
+        if (mockNeedsHostMapping() && !process.env.PLAYWRIGHT_HOST_RESOLVER_RULES) {
             throw new Error(
                 "The authorization server publishes itself under the address the API dials, so " +
-                    "the browser has to resolve that name too. Re-run with " +
-                    `PLAYWRIGHT_HOST_RESOLVER_RULES="MAP ${new URL(mockMcpBaseUrl).hostname} 127.0.0.1".`,
+                    "the browser has to resolve that name too. Either publish the mock on an " +
+                    "address a browser can reach, or re-run with " +
+                    `PLAYWRIGHT_HOST_RESOLVER_RULES="MAP ${new URL(mockMcpBase()).hostname} 127.0.0.1".`,
             )
         }
         const name = uniqueName("OAuth MCP")
@@ -317,7 +329,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         })
 
         await scenarios.when("the user connects the protected surface", async () => {
-            const dialog = await startJourney(page, `${mockMcpBaseUrl}${mcpOauthPath}`, name)
+            const dialog = await startJourney(page, `${mockMcpBase()}${mcpOauthPath}`, name)
             // Discovery read the challenge, so the journey knows it is OAuth before the
             // person commits to anything.
             await expect(dialog.getByText("uses OAuth")).toBeVisible()
@@ -341,7 +353,9 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         })
 
         await scenarios.then("the connection is listed as ready", async () => {
-            await expect(connectionRow(page, name).getByText("Ready", {exact: true})).toBeVisible({
+            await expect(
+                connectionRow(page, name).getByText("Connected", {exact: true}),
+            ).toBeVisible({
                 timeout: 30000,
             })
         })

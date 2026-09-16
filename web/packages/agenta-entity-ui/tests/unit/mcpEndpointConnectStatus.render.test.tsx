@@ -31,9 +31,11 @@ describe("McpEndpointConnectStatus", () => {
         expect(html).toContain("Connect")
     })
 
-    it("reports an authorized server instead of asking again", () => {
+    it("reports a connected server instead of asking again", () => {
         const html = markup(endpoint({secret_id: "grant-1"}))
-        expect(html).toContain("Authorized")
+        // The same word the settings list uses for the same state: this surface said
+        // Authorized while that one said Ready, which reads as two states.
+        expect(html).toContain("Connected")
         expect(html).not.toContain("Needs authorization")
     })
 

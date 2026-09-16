@@ -66,6 +66,13 @@ describe("getMcpConnectionStateLabel", () => {
         expect(getMcpConnectionStateLabel("needs_auth")).toBe("Needs authorization")
         expect(getMcpConnectionStateLabel("needs_input")).toBe("Needs input")
     })
+
+    it("calls a working connection what the connect journey calls it", () => {
+        // One word per state on every surface: the settings list said Ready and the agent
+        // configuration said Authorized for this one, which reads as two different states to
+        // anyone moving between them.
+        expect(getMcpConnectionStateLabel("ready")).toBe("Connected")
+    })
 })
 
 describe("findCustomMcpEndpoint", () => {

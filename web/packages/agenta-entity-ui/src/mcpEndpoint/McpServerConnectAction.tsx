@@ -46,9 +46,11 @@ export function McpEndpointConnectStatus({
 
     const state = getMcpConnectionState(endpoint)
     if (state === "ready") {
+        // The shared label, not a word of this surface's own: the settings list called the
+        // same state Ready while this one called it Authorized.
         return (
             <Tag tone="green" className={TAG_CLS}>
-                Authorized
+                {getMcpConnectionStateLabel(state)}
             </Tag>
         )
     }

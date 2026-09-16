@@ -16,16 +16,42 @@ import {expect} from "@agenta/web-tests/utils"
 import type {Page} from "@playwright/test"
 
 /**
- * The unauthenticated mock MCP server, as the API dials it.
+ * The mock as it is reachable inside the compose network, which is the last resort.
  *
  * Defaulted rather than gated. These suites used to skip whenever the variable was unset, and it
  * was set nowhere in the repository, so the only end-to-end coverage this feature has never ran
  * and every run reported green (D25). They run by default now and say what is missing when they
  * cannot run, because a skipped suite that reads as a passing one is worse than a red one.
  */
-export const mockMcpBaseUrl = (
-    process.env.AGENTA_MOCK_MCP_GATEWAY_URL || "http://mock-mcp-gateway:9092"
-).replace(/\/$/, "")
+const composeMockBase = "http://mock-mcp-gateway:9092"
+
+/** Discovered once per worker by `requireMockMcpUpstream`. */
+let publishedBase: string | null = null
+
+/**
+ * The address to register connections at, and the one a browser has to reach.
+ *
+ * A stack that means to be driven by a browser publishes the mock under an address a browser can
+ * resolve, and the issuer then advertises itself there. Discovery refuses a server whose origin
+ * differs from the resource its own metadata names, so a connection registered at the container
+ * name is refused on exactly the stack that can run the consent flow (D53). Asking the mock which
+ * address it publishes keeps the two in step without this process being told anything, and is the
+ * same question `api/oss/tests/pytest/acceptance/gateways` asks.
+ */
+export const mockMcpBase = (): string =>
+    (process.env.AGENTA_MOCK_MCP_GATEWAY_URL || publishedBase || composeMockBase).replace(/\/$/, "")
+
+/**
+ * Whether the browser needs a host mapping to reach the mock.
+ *
+ * A compose service name is a single label with no dot in it, and nothing outside that network
+ * resolves it. Anything else — a public domain, an address — the browser reaches on its own, and
+ * asking for a mapping there would refuse a run that was going to work.
+ */
+export const mockNeedsHostMapping = (): boolean => {
+    const {hostname} = new URL(mockMcpBase())
+    return !hostname.includes(".") && hostname !== "localhost"
+}
 
 /** The same container as the test process sees it, which is where the reachability check goes. */
 export const publishedMockMcpUrl = (
@@ -71,6 +97,31 @@ export const requireMockMcpUpstream = async (): Promise<void> => {
                 "and set AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL if it is published somewhere else.",
         )
     }
+    publishedBase = await readPublishedBase()
+}
+
+/**
+ * The address the mock publishes ITSELF under, asked of the mock.
+ *
+ * Its protected-resource document names the resource in full, so the base is that minus the
+ * protected path. Null whenever the document cannot be read or does not name what was asked for,
+ * which leaves the compose address in place: a stack with no published address can still run
+ * every case that does not need a browser to reach the server.
+ */
+const readPublishedBase = async (): Promise<string | null> => {
+    try {
+        const response = await fetch(
+            `${publishedMockMcpUrl}/.well-known/oauth-protected-resource${mcpOauthPath}`,
+            {signal: AbortSignal.timeout(10000)},
+        )
+        if (!response.ok) return null
+        const document = (await response.json()) as {resource?: unknown}
+        const resource = typeof document.resource === "string" ? document.resource : ""
+        if (!resource.endsWith(mcpOauthPath)) return null
+        return resource.slice(0, -mcpOauthPath.length)
+    } catch {
+        return null
+    }
 }
 
 /**
@@ -98,6 +149,7 @@ export const navigate = async (page: Page, url: string): Promise<void> => {
     for (let attempt = 0; ; attempt++) {
         try {
             await page.goto(url, {waitUntil: "domcontentloaded"})
+            await hideDevOverlay(page)
             return
         } catch (error) {
             const text = String(error)
@@ -107,6 +159,21 @@ export const navigate = async (page: Page, url: string): Promise<void> => {
             await page.waitForTimeout(2000)
         }
     }
+}
+
+/**
+ * Take the development server's error overlay out of the way of the pointer.
+ *
+ * `nextjs-portal` is a full-viewport element the dev server mounts for its own warnings, and it
+ * swallows clicks meant for the dialog underneath: a run failed on a Continue button that was
+ * visible, enabled and stable, with the overlay named as the thing that intercepted it. It does
+ * not exist in a production build, so this is a no-op everywhere else. Anything it was reporting
+ * is still in the console log the run captures.
+ */
+const hideDevOverlay = async (page: Page): Promise<void> => {
+    await page
+        .addStyleTag({content: "nextjs-portal{display:none!important}"})
+        .catch(() => undefined)
 }
 
 export const apiBaseUrl = (): string =>
@@ -134,7 +201,7 @@ export const createMcpConnectionViaApi = async (
                 endpoint: {
                     name,
                     auth_mode: "none",
-                    data: {route: {base_url: `${mockMcpBaseUrl}/`}},
+                    data: {route: {base_url: `${mockMcpBase()}/`}},
                 },
             },
         },

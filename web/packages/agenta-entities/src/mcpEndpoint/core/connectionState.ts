@@ -32,10 +32,18 @@ export const findCustomMcpEndpoint = (
     )
 }
 
+/**
+ * What each state is called, everywhere it is shown.
+ *
+ * One word per state, on every surface. The settings list said Ready and the agent
+ * configuration said Authorized for the same connection, which reads as two different states
+ * to anyone moving between them. "Connected" is the word the connection UX document uses, and
+ * the one the journey's own success line already says.
+ */
 export const getMcpConnectionStateLabel = (state: McpConnectionState): string => {
     switch (state) {
         case "ready":
-            return "Ready"
+            return "Connected"
         case "needs_auth":
             return "Needs authorization"
         case "needs_input":
