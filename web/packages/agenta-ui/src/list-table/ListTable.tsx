@@ -316,7 +316,7 @@ export const ListTable = <Row,>({
                                                             onOpenRow && FOCUS_RING,
                                                         )}
                                                     >
-                                                        {renderCard ? renderCard(row) : renderRow(row)}
+                                                        {renderCard?.(row)}
                                                     </div>
                                                 )
                                                 // A wrapper has to be `display: contents` (as the
