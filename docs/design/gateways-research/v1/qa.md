@@ -862,17 +862,18 @@ parametrized script. Nine rather than twenty-seven is the complete equivalent se
 chosen for time: the mock matrix's third axis is the LLM namespace, and `builtin`/`standard` are
 the mock LLM provider specifically, so a real model can only arrive through a `custom` endpoint.
 
-**Tally: 6 of 9. Cost: $0.19 on OpenRouter** (usage $36.2212 before, $36.4138 after, including
-every model-selection probe below), plus a few cents of OpenAI spend on the direct-key Codex
-attempts described further down.
+**Tally: 9 of 9. Cost: $0.19 on OpenRouter** (usage $36.2212 before, $36.4138 after, including
+every model-selection probe below) plus a few cents on OpenAI for the Codex row. The OpenAI key is
+project-scoped and cannot read organisation usage, so that half has no exact figure; it is seven
+short two-turn runs on a mini-tier model.
 
-| Harness | Protocol | Model | builtin | standard | custom |
-| --- | --- | --- | --- | --- | --- |
-| Pi | Chat Completions | `~deepseek/deepseek-v4-flash-latest` | PASS | PASS | PASS |
-| Claude Code | Messages | `anthropic/claude-haiku-4.5` | PASS | PASS | PASS |
-| Codex | Responses | see below | FAIL | FAIL | FAIL |
+| Harness | Protocol | Route | Model | builtin | standard | custom |
+| --- | --- | --- | --- | --- | --- | --- |
+| Pi | Chat Completions | OpenRouter | `~deepseek/deepseek-v4-flash-latest` | PASS | PASS | PASS |
+| Claude Code | Messages | OpenRouter | `anthropic/claude-haiku-4.5` | PASS | PASS | PASS |
+| Codex | Responses | OpenAI direct | `gpt-5.4-mini` | PASS | PASS | PASS |
 
-Pi and Claude Code pass in every MCP namespace, and the closing sentence is the model's own each
+Every harness passes in every MCP namespace, and the closing sentence is the model's own each
 time — `The echo tool ran with the marker and returned {"marker": "MCP-ACCEPTANCE-R"}`,
 `Done. The echo tool returned the marker MCP-ACCEPTANCE-R as expected.` — rather than the mock's
 fixed `mock MCP echo:` string. Every cell raised the approval gate, parked, resumed on approval,
@@ -895,59 +896,58 @@ The cheapest model on the list would have produced a flaky matrix and the second
 outright, so the fourth was chosen. This is the same class of mistake as a guessed tool name: a
 declared capability is not an observed one.
 
-### Codex: no real-model row, and the reason is not what it first looked like
+### Codex: the row exists, and the model has to come from Codex's own selectable set
 
-All three Codex cells fail, in every MCP namespace, on every model tried. The gate and the MCP path
-are not the problem — `gate=true` on the runs that call the tool at all, the approval resumes, and
-the tool returns a `tool-output-available`. What comes back is empty:
+Codex validates the model id against a list compiled into its binary before it makes the request.
+Give it an id that is not on that list and it takes a fallback-metadata path, and on that path the
+models tried either called `echo` with no arguments at all or did not call it. Every OpenRouter id
+is off the list, and so are the `gpt-5-*` ids tried next, which is why this section previously said
+Codex had no real-model row.
 
-```
-codex x mcp:builtin   gate=True  outcome=available
-  text='... Echo tool executed and returned `{}`.'
-codex x mcp:standard
-  text='... Done. Called `mcp.mock-mcp.echo({})` — echo'
-```
-
-The model called `echo` with no arguments, so the mock echoed `{}` instead of the marker. On the
-other models it more often did not call the tool at all (`gate=false`).
-
-**A correction, because the first reading of this was wrong.** Every Codex run logs
-`Model metadata for <id> not found. Defaulting to fallback metadata`, and an earlier revision of
-this section named that as the cause. It is not. The same line appears in the Codex cells that
-PASS against the mock LLM:
+The list is readable straight out of the pinned binary:
 
 ```
-text='Warning: Model metadata for `mock/echo` not found. Defaulting to fallback metadata; ...
-      mock MCP echo: MCP-ACCEPTANCE-A'
+$ strings .../node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex \
+    | grep -oE "gpt-5\.[0-9]+(-(nano|mini|codex|codex-mini|codex-max|pro))?" | sort -u
+gpt-5.1  gpt-5.1-codex  gpt-5.1-codex-max  gpt-5.1-codex-mini
+gpt-5.2  gpt-5.2-codex  gpt-5.3-codex
+gpt-5.4  gpt-5.4-mini  gpt-5.4-nano  gpt-5.5  gpt-5.6  gpt-5.6-pro
 ```
 
-The warning is constant at the pinned `@openai/codex 0.145.0` and benign. It was a plausible story
-that happened to sit next to the failure, and it survived one write-up before the passing-cell
-evidence contradicted it.
-
-Five models across two providers, which is what rules out both cost and the provider:
+Working up that list from the cheapest end:
 
 | model | route | result |
 | --- | --- | --- |
-| `~deepseek/deepseek-v4-flash-latest` | OpenRouter | 0/3 — tool called with empty arguments |
-| `gpt-5-nano` | OpenRouter | 1/3 — two cells never called the tool |
-| `deepseek/deepseek-v3.2` | OpenRouter, 7x the price | 0/3 — same empty arguments |
-| `gpt-5-nano` | OpenAI direct | 0/3 — no cell called the tool |
-| `gpt-5-codex` | OpenAI direct | 0/1 — no tool call |
+| `~deepseek/deepseek-v4-flash-latest` | OpenRouter, off-list | 0/3 — tool called with empty arguments |
+| `gpt-5-nano` | OpenRouter, off-list | 1/3 — two cells never called the tool |
+| `deepseek/deepseek-v3.2` | OpenRouter, off-list, 7x the price | 0/3 — same empty arguments |
+| `gpt-5-nano` | OpenAI direct, off-list | 0/3 — no cell called the tool |
+| `gpt-5-codex` | OpenAI direct, off-list | 0/1 — no tool call |
+| `gpt-5.4-nano` | OpenAI direct, on-list | rejected by the API: `Tool 'tool_search' is not supported with gpt-5.4-nano` |
+| `gpt-5.1-codex-mini` | OpenAI direct, on-list | 0/1 — still logs the fallback warning, no tool call |
+| **`gpt-5.4-mini`** | **OpenAI direct, on-list** | **3/3** |
 
-Going direct to OpenAI with an OpenAI key changes nothing, so this is not an OpenRouter artifact,
-and a model seven times the price changes nothing, so it is not simply "too cheap".
+So the cheapest selectable model is not usable at all: `gpt-5.4-nano` refuses the `tool_search`
+tool Codex sends on every request, and the API rejects the call before the model sees it. The
+cheapest that works is the next one up, `gpt-5.4-mini`, and it passes all three namespaces on the
+first attempt — gate raised, run parked, resumed on approval, marker back inside the tool result:
 
-**What localises it:** Pi drives the same MCP tool correctly on the same cheap deepseek model, 3/3,
-against the same mock MCP server. Same model, same tool, same server, different harness. So what
-these models handle badly is Codex's own tool surface — its remote MCP tools are wrapped in a
-`type: "namespace"` entry on the Responses protocol and called as a `name` plus a separate
-`namespace` field (see the Codex section above) — rather than tool calling in general.
+```
+codex x mcp:builtin   PASS gate=True  outcome=available  22.7s
+codex x mcp:standard  PASS gate=True  outcome=available  24.0s
+codex x mcp:custom    PASS gate=True  outcome=available  20.8s
+```
 
-That is a model-behaviour result at the prices tried, not a gateway or harness defect, and it is
-not a release blocker: Codex's gate behaviour is covered deterministically by the mock matrix and
-by the per-tool permission cells above. A real-model Codex row would need a model that drives the
-namespaced surface reliably, and finding one is a cost question for whoever wants that row.
+**A correction, twice over.** An earlier revision of this section blamed the
+`Model metadata for <id> not found. Defaulting to fallback metadata` warning for the failures. That
+was wrong as stated: the identical line appears in Codex cells that PASS against the mock LLM, and
+it appears again under `gpt-5.4-mini`, which passes. The warning is not the failure. What the
+off-list ids share is the degraded tool-argument fidelity on the fallback path, and a warning that
+happens to sit next to it. A second revision then concluded Codex had no real-model row at all;
+that was premature, and only true of the ids tried before the selectable set was read.
+
+Reproduce with `CODEX_MODEL=gpt-5.4-mini USE_OPENAI_DIRECT=1` and an `OPENAI_API_KEY`, which
+points the `openai` provider row at `https://api.openai.com/v1` instead of OpenRouter.
 
 ### The provider-row recipe, to reproduce any of this
 
@@ -977,7 +977,12 @@ otherwise — which is exactly what OpenRouter accepts on each of its three endp
 sets `llm` to `{model: "<model>", provider: "<openai|anthropic>", connection: {mode: "agenta",
 slug: "<slug>"}}`.
 
-The key is read from `~/.agenta-qa-secrets.env` on the QA box into the process environment, stored
-as an ordinary project secret, and deleted with the endpoint when the run finishes. It appears in
-no committed file, no log line and no assertion.
+For the Codex row the same two calls with `"provider": {"url": "https://api.openai.com/v1", ...}`
+and `"route": {"base_url": "https://api.openai.com/v1"}`. Nothing else changes: `openai` is already
+the provider key, and Codex needs an id from its own selectable set (above), which only OpenAI
+serves.
+
+The key is read from `~/.agenta-qa-secrets.env` (OpenRouter) or `~/.agenta-qa-openai.env` (OpenAI)
+on the QA box into the process environment, stored as an ordinary project secret, and deleted with
+the endpoint when the run finishes. It appears in no committed file, no log line and no assertion.
 
