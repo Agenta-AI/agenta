@@ -30,12 +30,6 @@ export const uniqueDriveName = (base: string, siblings: string[]): string => {
     }
 }
 
-/** "article.md" → "article copy.md" (then "article copy 2.md"…). */
-export const copyDriveName = (name: string, siblings: string[]): string => {
-    const [stem, ext] = splitExt(name)
-    return uniqueDriveName(`${stem} copy${ext}`, siblings)
-}
-
 /** The default name for a new entry, unique among `siblings`. */
 export const newDriveName = (kind: "folder" | "file", siblings: string[]): string =>
     uniqueDriveName(kind === "folder" ? "untitled folder" : "untitled.md", siblings)

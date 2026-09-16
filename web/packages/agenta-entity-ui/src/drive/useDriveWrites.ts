@@ -3,7 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {
     AGENT_FILES_DIR,
-    copyMountFile,
+    moveMountFile,
     createMountFolder,
     deleteMountPath,
     itemCountLabel,
@@ -72,20 +72,15 @@ export function useDriveWrites(
             ),
         [run, projectId],
     )
-    // Rename / duplicate: a copy into the same folder, with or without the source removed.
-    const copyAs = useCallback(
-        (presentedPath: string, newName: string, removeSource: boolean) => {
+    const rename = useCallback(
+        (presentedPath: string, newName: string) => {
             const sibling = joinPath(parentOf(presentedPath), newName)
             const toPath = drive.resolveMount(sibling)?.path ?? sibling
             return run(presentedPath, ({mount, path}) =>
-                copyMountFile({mount, path, projectId, toPath, removeSource}),
+                moveMountFile({mount, path, projectId, toPath}),
             )
         },
         [drive, run, projectId],
-    )
-    const rename = useCallback(
-        (presentedPath: string, newName: string) => copyAs(presentedPath, newName, true),
-        [copyAs],
     )
     // A just-created (empty) folder is renamed by creating the new one and dropping the old.
     const renameEmptyFolder = useCallback(
@@ -98,10 +93,6 @@ export function useDriveWrites(
             })
         },
         [drive, run, projectId],
-    )
-    const duplicate = useCallback(
-        (presentedPath: string, newName: string) => copyAs(presentedPath, newName, false),
-        [copyAs],
     )
     const remove = useCallback(
         (presentedPath: string, isFolder: boolean, itemCount?: number | null) =>
@@ -144,10 +135,9 @@ export function useDriveWrites(
             createFile,
             rename,
             renameEmptyFolder,
-            duplicate,
             remove,
             canDelete,
         }),
-        [busy, createFolder, createFile, rename, renameEmptyFolder, duplicate, remove, canDelete],
+        [busy, createFolder, createFile, rename, renameEmptyFolder, remove, canDelete],
     )
 }
