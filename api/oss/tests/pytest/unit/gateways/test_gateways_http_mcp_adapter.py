@@ -57,11 +57,23 @@ def _secure_egress(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _empty_host_allowlist(monkeypatch):
+def _no_exempt_hosts(monkeypatch):
+    """No address is exempt from the guard while these cases run.
+
+    `exempt_hosts` has two sources and both are operator environment: the MCP host
+    allowlist, and — while the mocks flag is on — the hosts of the two mock gateway URLs.
+    A developer who exports the documented host-side values, which point at loopback,
+    turned every loopback-refusal case here green for the wrong reason, because the
+    address under test had become exempt (D47).
+
+    Cleared rather than asserted, so these cases mean the same thing whatever the shell
+    they are run from holds. The exemption itself is covered where it belongs, beside
+    `exempt_hosts`.
+    """
     monkeypatch.setattr(
-        "oss.src.core.gateways.egress.env.mcp_gateway.host_allowlist",
-        [],
+        "oss.src.core.gateways.egress.env.mcp_gateway.host_allowlist", []
     )
+    monkeypatch.setattr("oss.src.core.gateways.egress.env.mock_gateways.enabled", False)
 
 
 # ---------------------------------------------------------------------------
