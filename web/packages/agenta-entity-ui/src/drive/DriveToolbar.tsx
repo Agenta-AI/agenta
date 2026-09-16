@@ -126,6 +126,7 @@ const ModeMenu = ({value, options, onChange}: ToolbarMode) => {
 
 /** A file's write actions; absent on a read-only mount. */
 export interface DriveFileActions {
+    /** Rename from the menu: the tile / row field in the file's folder. */
     onRename: () => void
     /** The in-place rename; resolves true once it landed. */
     renameTo: (name: string) => Promise<boolean>
@@ -226,7 +227,12 @@ const FileActionsMenu = ({
                 <DotsThreeVertical size={16} weight="bold" />
             </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-[180px]">
+        <DropdownMenuContent
+            align="end"
+            className="min-w-[180px]"
+            // New / Rename open a name field; the menu must not pull focus back to its trigger.
+            onCloseAutoFocus={(e) => e.preventDefault()}
+        >
             <DropdownMenuItem disabled={!onDownload} onSelect={onDownload}>
                 <DownloadSimple />
                 Download
@@ -314,7 +320,12 @@ export function DriveToolbar(props: DriveToolbarProps) {
                             <DotsThreeVertical size={16} weight="bold" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-[180px]">
+                    <DropdownMenuContent
+                        align="end"
+                        className="min-w-[180px]"
+                        // New / Rename open a name field; the menu must not pull focus back to its trigger.
+                        onCloseAutoFocus={(e) => e.preventDefault()}
+                    >
                         <DropdownMenuItem disabled={!actions} onSelect={actions?.onNewFolder}>
                             <FolderPlus />
                             New folder
