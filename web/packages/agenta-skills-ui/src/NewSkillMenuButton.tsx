@@ -1,6 +1,6 @@
 // The `+ New skill ▾` menu, shared by every creation entry point; no default-click action.
 // Its rows read like the New agent menu's: a tinted tile, a name, a one-line description.
-import {useRef} from "react"
+import {useRef, type ReactNode} from "react"
 
 import {scanSkillFromFileList, type SkillUploadScan} from "@agenta/entity-ui/drill-in"
 import {AGENT_ICON_CHIP_CLASS, agentIconChipStyle} from "@agenta/ui/agent-icon"
@@ -22,6 +22,39 @@ const UPLOAD_COLOR = "#0F766E"
 const IMPORT_COLOR = "#1668DC"
 
 const TILE = "flex size-7 shrink-0 items-center justify-center rounded-md"
+
+/** One row: a tinted tile, a name, a one-line hint. */
+function MenuRow({
+    color,
+    icon,
+    title,
+    hint,
+    onSelect,
+    disabled,
+}: {
+    color: string
+    icon: ReactNode
+    title: string
+    hint: string
+    onSelect: () => void
+    disabled?: boolean
+}) {
+    return (
+        <DropdownMenuItem onSelect={onSelect} disabled={disabled}>
+            <span
+                aria-hidden
+                className={cn(TILE, AGENT_ICON_CHIP_CLASS)}
+                style={agentIconChipStyle(color)}
+            >
+                {icon}
+            </span>
+            <span className="flex min-w-0 flex-col py-0.5">
+                <span className="truncate text-sm text-colorText">{title}</span>
+                <span className="truncate text-xs text-colorTextTertiary">{hint}</span>
+            </span>
+        </DropdownMenuItem>
+    )
+}
 
 export interface NewSkillMenuButtonProps {
     onWrite: () => void
@@ -59,60 +92,36 @@ export function NewSkillMenuButton({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-w-[320px]">
-                <DropdownMenuItem onSelect={onWrite} disabled={availability?.write === false}>
-                    <span
-                        aria-hidden
-                        className={cn(TILE, AGENT_ICON_CHIP_CLASS)}
-                        style={agentIconChipStyle(WRITE_COLOR)}
-                    >
-                        <PencilSimple size={15} />
-                    </span>
-                    <span className="flex min-w-0 flex-col py-0.5">
-                        <span className="truncate text-sm text-colorText">Write from scratch</span>
-                        <span className="truncate text-xs text-colorTextTertiary">
-                            Start with an empty SKILL.md and write it here
-                        </span>
-                    </span>
-                </DropdownMenuItem>
+                <MenuRow
+                    color={WRITE_COLOR}
+                    icon={<PencilSimple size={15} />}
+                    title="Write from scratch"
+                    hint="Start with an empty SKILL.md and write it here"
+                    onSelect={onWrite}
+                    disabled={availability?.write === false}
+                />
                 {/* Writing is one thing; bringing a skill in from elsewhere is another. */}
                 <DropdownMenuSeparator />
                 {onUpload ? (
-                    <DropdownMenuItem
+                    <MenuRow
+                        color={UPLOAD_COLOR}
+                        icon={<UploadSimple size={15} />}
+                        title="Upload"
+                        hint="A .zip, .skill or SKILL.md, opened in the editor"
                         // The picker has to open inside the click that chose the row; a menu
                         // that closes first would leave no gesture for the browser to honour.
                         onSelect={() => fileInput.current?.click()}
                         disabled={availability?.upload === false}
-                    >
-                        <span
-                            aria-hidden
-                            className={cn(TILE, AGENT_ICON_CHIP_CLASS)}
-                            style={agentIconChipStyle(UPLOAD_COLOR)}
-                        >
-                            <UploadSimple size={15} />
-                        </span>
-                        <span className="flex min-w-0 flex-col py-0.5">
-                            <span className="truncate text-sm text-colorText">Upload</span>
-                            <span className="truncate text-xs text-colorTextTertiary">
-                                A .zip, .skill or SKILL.md, opened in the editor
-                            </span>
-                        </span>
-                    </DropdownMenuItem>
+                    />
                 ) : null}
-                <DropdownMenuItem onSelect={onImport} disabled={availability?.import === false}>
-                    <span
-                        aria-hidden
-                        className={cn(TILE, AGENT_ICON_CHIP_CLASS)}
-                        style={agentIconChipStyle(IMPORT_COLOR)}
-                    >
-                        <GitBranch size={15} />
-                    </span>
-                    <span className="flex min-w-0 flex-col py-0.5">
-                        <span className="truncate text-sm text-colorText">Import from a repo</span>
-                        <span className="truncate text-xs text-colorTextTertiary">
-                            Scan a public GitHub repository for SKILL.md folders
-                        </span>
-                    </span>
-                </DropdownMenuItem>
+                <MenuRow
+                    color={IMPORT_COLOR}
+                    icon={<GitBranch size={15} />}
+                    title="Import from a repo"
+                    hint="Scan a public GitHub repository for SKILL.md folders"
+                    onSelect={onImport}
+                    disabled={availability?.import === false}
+                />
             </DropdownMenuContent>
             {onUpload ? (
                 <input
