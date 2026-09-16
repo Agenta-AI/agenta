@@ -8,9 +8,10 @@ import {
 } from "./mcpServerNotice"
 import {isToolPart, MCP_SERVER_NOTICE_PART, partToolName, toolIdentity} from "./parts"
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
+// The one fold both apps render from: the desktop turn (AgentMessage.tsx) and the mobile turn
+// (TurnRow, through buildTurnViewModels) call into this file. It began as a hand-copied twin of
+// the desktop original, which meant a change to when the reconnect notice appears could land on
+// one app and not the other; the copy is gone.
 // Tools can be interleaved with text / reasoning, so fold only *consecutive* tool parts
 // into one ToolActivity group (a run of calls reads as a single "Used N tools" line).
 export type RenderItem =
@@ -22,10 +23,6 @@ export type RenderItem =
     // remedy (reconnecting the connection) is an action, not a line of text.
     | {kind: "mcpNotice"; notice: McpServerNotice; index: number}
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes. Adapted only to take `parts` as a
-// parameter instead of reading them off `useMemo`'s closure.
 // Dedup set of executed tool calls (by input identity), memoized on a cheap tool-parts signature
 // (id + state) that stays STABLE while text streams — so the tool-input JSON.stringify doesn't
 // re-run on every streamed token of a tool-heavy turn. Hoisted above the early returns below to
@@ -42,10 +39,6 @@ export const executedToolIdentities = (parts: UIMessage["parts"]): Set<string> =
             .map((p) => toolIdentity(p as ToolUIPart)),
     )
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes. Adapted only to take the executed set
-// as a parameter instead of closing over it.
 // A HITL-approved tool's part LINGERS in `approval-responded` (a perpetual spinner, no output):
 // the cold-replay runner re-issues the approved call under a FRESH id, so its execution output
 // lands on a SEPARATE sibling part. Drop the answered gate once its executed sibling exists (same
@@ -61,10 +54,8 @@ export interface BuildTurnRenderItemsOptions {
     isClientToolPart: (part: ToolUIPart) => boolean
 }
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes. Adapted to take `parts` and the
-// registry-backed client-tool predicate as parameters, so this layer stays registry-free.
+// Takes `parts` and the registry-backed client-tool predicate as parameters, so this layer stays
+// registry-free and each app supplies its own registry.
 export const buildTurnRenderItems = (
     parts: UIMessage["parts"],
     {executed, isClientToolPart}: BuildTurnRenderItemsOptions,

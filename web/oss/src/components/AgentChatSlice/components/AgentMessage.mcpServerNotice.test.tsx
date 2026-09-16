@@ -75,7 +75,9 @@ describe("AgentMessage: an MCP server that did not join the run", () => {
         const html = render([noticePart()])
 
         expect(html).toContain('data-mcp-server-notice="mock-mcp"')
-        expect(textOf(html)).toContain("mock-mcp needs authorization before its tools can run")
+        // The two halves are separate elements in the banner, so they are matched separately.
+        expect(textOf(html)).toContain("mock-mcp needs a new sign-in.")
+        expect(textOf(html)).toContain("Its tools fail until someone in the project reconnects.")
         // The marker is addressed to the runner; it has no business on a screen.
         expect(textOf(html)).not.toContain("agenta_code")
     })

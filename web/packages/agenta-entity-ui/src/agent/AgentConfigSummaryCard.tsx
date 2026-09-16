@@ -18,7 +18,12 @@ import {useAtomValue} from "jotai"
 
 import {InstructionsFileRow} from "../DrillInView/SchemaControls/agentTemplate/ItemRow"
 
-import {agentConfigSummary, mcpSummaryDetail} from "./agentConfigSummary"
+import {
+    AGENT_CONFIG_ROW_TITLES,
+    agentConfigSummary,
+    mcpSummaryDetail,
+    permissionsSummaryDetail,
+} from "./agentConfigSummary"
 import {SectionLoadError} from "./SectionLoadError"
 import {agentLatestRevisionAtomFamily} from "./state"
 
@@ -50,7 +55,7 @@ export interface AgentConfigSummaryCopy {
 }
 
 const DEFAULT_COPY: AgentConfigSummaryCopy = {
-    toolsTitle: "Tools",
+    toolsTitle: AGENT_CONFIG_ROW_TITLES.tools,
     toolsCount: (count) => `${count} enabled`,
     toolsAdd: "Add tools",
     toolsNone: "None enabled",
@@ -96,7 +101,7 @@ export const AgentConfigSummaryCard = ({
             icon: <CpuIcon size={16} />,
             // "Model", not "Model & harness": the harness no longer shows in the summary, and the
             // playground's own section is labelled "Model" too.
-            title: "Model",
+            title: AGENT_CONFIG_ROW_TITLES.model,
             // A model is the one required setting, so its absence is a warning rather than a gap.
             ...(summary.model
                 ? stated(model)
@@ -105,7 +110,7 @@ export const AgentConfigSummaryCard = ({
         {
             key: "instructions",
             icon: <FileTextIcon size={16} />,
-            title: "Instructions",
+            title: AGENT_CONFIG_ROW_TITLES.instructions,
             ...(summary.instructions
                 ? stated(`${INSTRUCTIONS_FILE} · ${summary.instructionWords} words`)
                 : emptyAction(onEdit ? "Add instructions" : "No instructions")),
@@ -124,7 +129,7 @@ export const AgentConfigSummaryCard = ({
         {
             key: "mcps",
             icon: <PlugsIcon size={16} />,
-            title: "MCP servers",
+            title: AGENT_CONFIG_ROW_TITLES.mcps,
             ...(summary.mcps
                 ? stated(mcpSummaryDetail(summary.mcps))
                 : emptyAction(mcpSummaryDetail(0, {canEdit: Boolean(onEdit)}))),
@@ -132,7 +137,7 @@ export const AgentConfigSummaryCard = ({
         {
             key: "skills",
             icon: <GraduationCapIcon size={16} />,
-            title: "Skills",
+            title: AGENT_CONFIG_ROW_TITLES.skills,
             ...(summary.skills
                 ? stated(`${summary.skills} ${summary.skills === 1 ? "skill" : "skills"}`)
                 : emptyAction(onEdit ? "Add skills" : "None available")),
@@ -142,8 +147,8 @@ export const AgentConfigSummaryCard = ({
         {
             key: "permissions",
             icon: <ShieldCheckIcon size={16} />,
-            title: "Permissions",
-            ...stated(summary.permissions || "Not set"),
+            title: AGENT_CONFIG_ROW_TITLES.permissions,
+            ...stated(permissionsSummaryDetail(summary.permissions)),
         },
     ]
 

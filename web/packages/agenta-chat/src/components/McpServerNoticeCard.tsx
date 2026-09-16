@@ -1,14 +1,13 @@
 /**
  * The turn's account of an MCP server that did not join the run, with the way back.
  *
- * Shared by both apps deliberately. The agent's configuration rail already reads
- * "Needs authorization · Connect" for the same connection on the same page, so the chat has to say
- * the same thing and open the same journey — a second wording, or a second dialog, would be two
- * answers to one question (UI QA round 3, D2).
+ * Shared by both apps deliberately, and drawn as the spec's D4 banner: the same sentence and the
+ * same action the permission drawer shows for the same connection, so a lapsed login reads as one
+ * message with one remedy wherever the reader meets it (spec D4; UI QA round 3, D2).
  *
- * The Connect action is offered only once the endpoint row is resolved, because reconnecting needs
- * the row's id, slug and base URL. When the notice names a connection this project cannot see, the
- * sentence still renders and no dead button does.
+ * The Reconnect action is offered only once the endpoint row is resolved, because reconnecting
+ * needs the row's id, slug and base URL. When the notice names a connection this project cannot
+ * see, the sentence still renders and no dead button does.
  */
 import {useState} from "react"
 
@@ -18,11 +17,11 @@ import {
     refreshMcpEndpointsAtom,
 } from "@agenta/entities/mcpEndpoint"
 import {McpConnectJourney} from "@agenta/entity-ui/mcpEndpoint"
-import {cn} from "@agenta/ui/ui"
-import {Plugs} from "@phosphor-icons/react"
+import {Alert, Button, cn} from "@agenta/ui/ui"
+import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {mcpServerNoticeSentence, type McpServerNotice} from "../model/mcpServerNotice"
+import {mcpServerNoticeCopy, type McpServerNotice} from "../model/mcpServerNotice"
 
 export interface McpServerNoticeCardProps {
     notice: McpServerNotice
@@ -36,32 +35,41 @@ export const McpServerNoticeCard = ({notice, className}: McpServerNoticeCardProp
 
     const endpoint = findCustomMcpEndpoint(endpointsQuery.data, notice.slug ?? undefined)
     const canConnect = notice.needsAuthorization && !!endpoint?.id && !!endpoint.slug
-    const sentence = mcpServerNoticeSentence(notice, endpoint?.name)
+    const connectionName = endpoint?.name || endpoint?.slug || notice.serverName
+    const {lead, detail} = mcpServerNoticeCopy(notice, endpoint?.name)
 
     return (
-        <div
-            className={cn(
-                "box-border flex items-start gap-2 rounded-lg border border-solid px-3 py-2",
-                "border-colorWarningBorder bg-colorWarningBg",
-                className,
-            )}
-            role="status"
-            data-mcp-server-notice={notice.serverName}
-        >
-            <Plugs aria-hidden className="text-colorWarning mt-0.5 shrink-0" size={16} />
-            <div className="flex min-w-0 flex-col items-start gap-1">
-                <span className="text-colorText text-xs">{sentence}</span>
-                {canConnect && (
-                    <button
-                        type="button"
-                        onClick={() => setConnecting(true)}
-                        aria-label={`Connect ${endpoint?.name || endpoint?.slug}`}
-                        className="text-colorWarning cursor-pointer rounded border-0 bg-transparent px-0 py-0.5 text-xs font-medium underline"
-                    >
-                        Connect
-                    </button>
-                )}
-            </div>
+        <>
+            <Alert
+                type="warning"
+                showIcon
+                icon={<WarningCircle />}
+                // A replayed notice is history, not news: `status` reads it after the reader's own
+                // work, where `alert` would interrupt on every reload of the transcript.
+                role="status"
+                data-mcp-server-notice={notice.serverName}
+                className={cn("border-colorWarningBorder bg-colorWarningBg", className)}
+                message={<span className="text-xs text-colorText">{lead}</span>}
+                description={
+                    detail ? (
+                        <span className="text-xs leading-normal text-colorTextSecondary">
+                            {detail}
+                        </span>
+                    ) : undefined
+                }
+                action={
+                    canConnect ? (
+                        <Button
+                            size="sm"
+                            onClick={() => setConnecting(true)}
+                            aria-label={`Reconnect ${connectionName}`}
+                        >
+                            <ArrowClockwise />
+                            Reconnect
+                        </Button>
+                    ) : undefined
+                }
+            />
             {canConnect && connecting && endpoint?.id && endpoint.slug && (
                 <McpConnectJourney
                     open
@@ -79,7 +87,7 @@ export const McpServerNoticeCard = ({notice, className}: McpServerNoticeCardProp
                     }}
                 />
             )}
-        </div>
+        </>
     )
 }
 

@@ -234,6 +234,9 @@ export default function McpServersSection({
                 key: "name",
                 title: "Name",
                 width: 220,
+                // Flexible, unlike the usual first column: on a phone it and Status are the only
+                // two left, and a pinned 220 there would push the table into a sideways scroll.
+                flexible: true,
                 render: (record) => (
                     <span className="flex min-w-0 items-center gap-2.5">
                         {/* One generic glyph for every server: the registry holds arbitrary
@@ -252,6 +255,11 @@ export default function McpServersSection({
                 title: "Server URL",
                 width: 320,
                 flexible: true,
+                // The details are a wider screen's: below `md` the row keeps what identifies it
+                // and what acts on it, and the URL is one tap away in the connection itself.
+                // Without this the registry was a 986px table scrolling sideways inside a 348px
+                // phone, which the plan's acceptance rules out.
+                responsive: "md",
                 mono: true,
                 render: (record) => (
                     <span
@@ -266,6 +274,9 @@ export default function McpServersSection({
                 key: "auth",
                 title: "Auth",
                 width: 200,
+                // The last column to earn its place: even at `lg` the other three plus the
+                // actions gutter fill the page.
+                responsive: "xl",
                 render: (record) => {
                     if (record.auth_mode === "oauth") return "OAuth"
                     if (record.auth_mode === "none") return "None"
@@ -306,7 +317,9 @@ export default function McpServersSection({
                                 <Button
                                     variant="link"
                                     size="xs"
-                                    className="h-auto p-0 text-xs"
+                                    // No `h-auto`: the size's own height is the app's control
+                                    // scale, and overriding it left a 20px tap target on a phone.
+                                    className="p-0 text-xs"
                                     onClick={(event) => {
                                         // The row opens the connection on click; this is a
                                         // different intent and must not also do that.

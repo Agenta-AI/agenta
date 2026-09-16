@@ -88,22 +88,49 @@ export const mcpServerNotices = (parts: UIMessage["parts"]): McpServerNotice[] =
     return notices
 }
 
+export interface McpServerNoticeCopy {
+    /** The first sentence, which the banner sets in the foreground weight. */
+    lead: string
+    /** The rest, or null when the notice is one sentence. */
+    detail: string | null
+}
+
 /**
- * What the turn says about a server that did not join it.
+ * What the turn says about a server that did not join it, split the way the banner sets it.
+ *
+ * The expired-login wording is the spec's D4 banner copy, so the sentence a run shows is the
+ * sentence the permission drawer shows for the same connection. D4's third sentence, "Permissions
+ * below are kept", is dropped here: it points at controls that exist in the drawer and at nothing
+ * in a transcript.
  *
  * `displayName` is the connection's own name once a caller has resolved the endpoint row; without
  * one the server name from the agent's configuration is the closest thing the notice itself holds.
  * A server that failed for any other reason keeps the sentence the run already wrote, because
  * inventing a second wording for a cause we have not classified would say less, not more.
  */
+export const mcpServerNoticeCopy = (
+    notice: McpServerNotice,
+    displayName?: string | null,
+): McpServerNoticeCopy => {
+    const name = readString(displayName) ?? notice.serverName
+    if (notice.needsAuthorization)
+        return {
+            lead: `${name} needs a new sign-in.`,
+            detail: "Its tools fail until someone in the project reconnects.",
+        }
+    return {
+        lead: notice.statedMessage ?? `${name} did not connect, so its tools were unavailable`,
+        detail: null,
+    }
+}
+
+/** The same account of the server as one string, for a caller with one slot to put it in. */
 export const mcpServerNoticeSentence = (
     notice: McpServerNotice,
     displayName?: string | null,
 ): string => {
-    const name = readString(displayName) ?? notice.serverName
-    return notice.needsAuthorization
-        ? `${name} needs authorization before its tools can run`
-        : (notice.statedMessage ?? `${name} did not connect, so its tools were unavailable`)
+    const {lead, detail} = mcpServerNoticeCopy(notice, displayName)
+    return detail ? `${lead} ${detail}` : lead
 }
 
 /**
