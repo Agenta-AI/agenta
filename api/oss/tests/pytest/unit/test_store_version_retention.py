@@ -38,6 +38,7 @@ class FakeBucketClient:
         self.lifecycle = lifecycle
         self.versioning_writes: List[str] = []
         self.lifecycle_writes: List[LifecycleConfig] = []
+        self.lifecycle_deletes = 0
 
     async def get_bucket_versioning(self, bucket_name: str) -> VersioningConfig:
         return self.versioning
@@ -52,6 +53,10 @@ class FakeBucketClient:
     async def set_bucket_lifecycle(self, bucket_name: str, config: LifecycleConfig):
         self.lifecycle = config
         self.lifecycle_writes.append(config)
+
+    async def delete_bucket_lifecycle(self, bucket_name: str):
+        self.lifecycle = None
+        self.lifecycle_deletes += 1
 
 
 def _store(
@@ -180,6 +185,47 @@ class TestEnsureVersionRetention:
         assert applied is False
         assert client.versioning_writes == []
         assert client.lifecycle_writes == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("operator_rule_present", [False, True])
+    async def test_zero_removes_owned_rule_and_preserves_versioning(
+        self, monkeypatch, operator_rule_present
+    ):
+        operator_rule = Rule(
+            ENABLED,
+            rule_id="operator-owned",
+            rule_filter=Filter(prefix="scratch/"),
+            noncurrent_version_expiration=NoncurrentVersionExpiration(
+                noncurrent_days=7
+            ),
+        )
+        rules = [_retention_rule(30)]
+        if operator_rule_present:
+            rules.append(operator_rule)
+        client = FakeBucketClient(
+            versioning_status=ENABLED, lifecycle=LifecycleConfig(rules)
+        )
+        store = _store(monkeypatch, client)
+
+        assert (
+            await store.ensure_version_retention(
+                bucket="agenta-store", retention_days=0
+            )
+            is False
+        )
+        assert client.versioning.status == ENABLED
+        assert client.versioning_writes == []
+        if operator_rule_present:
+            assert client.lifecycle.rules == [operator_rule]
+            assert client.lifecycle_deletes == 0
+        else:
+            assert client.lifecycle is None
+            assert client.lifecycle_deletes == 1
+        writes = len(client.lifecycle_writes)
+        deletes = client.lifecycle_deletes
+        await store.ensure_version_retention(bucket="agenta-store", retention_days=0)
+        assert len(client.lifecycle_writes) == writes
+        assert client.lifecycle_deletes == deletes
 
     @pytest.mark.asyncio
     async def test_store_without_credentials_is_a_no_op(self, monkeypatch):

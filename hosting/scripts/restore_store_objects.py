@@ -40,10 +40,14 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from contextlib import closing
+from ipaddress import ip_address
+from urllib.parse import urlsplit
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import boto3
+from boto3.s3.transfer import TransferConfig
 from botocore.client import Config
 from botocore.exceptions import ClientError
 
@@ -82,9 +86,16 @@ class KeyHistory:
     def current_at(self, moment: datetime) -> Entry | None:
         """The entry that was current at `moment`, delete marker included, or None if the
         key did not exist yet."""
-        for entry in self.newest_first():
-            if entry.last_modified <= moment:
-                return entry
+        candidates = [e for e in self.newest_first() if e.last_modified <= moment]
+        if candidates:
+            newest = candidates[0]
+            tied = [e for e in candidates if e.last_modified == newest.last_modified]
+            if not newest.is_latest and len({e.is_delete_marker for e in tied}) > 1:
+                raise ValueError(
+                    f"Ambiguous version/delete-marker order for {self.key!r} at "
+                    f"{stamp(newest.last_modified)}; cannot restore safely."
+                )
+            return newest
         return None
 
 
@@ -99,7 +110,25 @@ def parse_moment(raw: str) -> datetime:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
+def validate_endpoint(endpoint_url: str | None, allow_insecure: bool) -> None:
+    if endpoint_url is None:
+        return
+    endpoint = urlsplit(endpoint_url)
+    if endpoint.scheme not in {"http", "https"} or not endpoint.hostname:
+        raise ValueError("--endpoint-url must be an HTTP or HTTPS URL")
+    if endpoint.scheme == "https" or allow_insecure:
+        return
+    host = endpoint.hostname.lower()
+    try:
+        loopback = ip_address(host).is_loopback
+    except ValueError:
+        loopback = host == "localhost"
+    if not loopback:
+        raise ValueError("Remote HTTP endpoints require --allow-insecure; prefer HTTPS")
+
+
 def build_client(args: argparse.Namespace):
+    validate_endpoint(args.endpoint_url, args.allow_insecure)
     return boto3.client(
         "s3",
         endpoint_url=args.endpoint_url,
@@ -194,10 +223,10 @@ def restore_as_of(
     client, bucket: str, histories: dict[str, KeyHistory], moment: datetime, apply: bool
 ) -> int:
     """Copy the version that was current at `moment` back as a new current version."""
+    # Validate the whole selection before making the first write.
+    selected = {key: histories[key].current_at(moment) for key in sorted(histories)}
     restored = 0
-    for key in sorted(histories):
-        history = histories[key]
-        wanted = history.current_at(moment)
+    for key, wanted in selected.items():
         if wanted is None:
             print(f"skip (did not exist yet)        {key}")
             continue
@@ -231,10 +260,18 @@ def copy_version_to_current(client, bucket: str, key: str, version_id: str) -> N
         print(
             f"  server-side copy unavailable ({exc.response['Error'].get('Code')}); streaming instead"
         )
-    body = client.get_object(Bucket=bucket, Key=key, VersionId=version_id)[
-        "Body"
-    ].read()
-    client.put_object(Bucket=bucket, Key=key, Body=body)
+    response = client.get_object(Bucket=bucket, Key=key, VersionId=version_id)
+    with closing(response["Body"]) as body:
+        client.upload_fileobj(
+            body,
+            bucket,
+            key,
+            Config=TransferConfig(
+                multipart_threshold=8 * 1024 * 1024,
+                multipart_chunksize=8 * 1024 * 1024,
+                use_threads=False,
+            ),
+        )
 
 
 def main() -> int:
@@ -244,6 +281,11 @@ def main() -> int:
         epilog=__doc__,
     )
     parser.add_argument("--endpoint-url", help="S3 endpoint; omit for AWS S3")
+    parser.add_argument(
+        "--allow-insecure",
+        action="store_true",
+        help="allow remote HTTP endpoints without transport encryption",
+    )
     parser.add_argument("--bucket", required=True)
     parser.add_argument(
         "--prefix",
@@ -276,7 +318,10 @@ def main() -> int:
     if args.undelete and not args.since:
         parser.error("--undelete needs --since")
 
-    client = build_client(args)
+    try:
+        client = build_client(args)
+    except ValueError as exc:
+        parser.error(str(exc))
     try:
         versioning = client.get_bucket_versioning(Bucket=args.bucket).get("Status")
     except ClientError as exc:
@@ -289,6 +334,13 @@ def main() -> int:
             file=sys.stderr,
         )
 
+        if args.apply and (args.undelete or args.restore_as_of):
+            print(
+                "Refusing recovery writes: bucket versioning must be Enabled.",
+                file=sys.stderr,
+            )
+            return 1
+
     histories = collect(client, args.bucket, args.prefix)
 
     if args.undelete:
@@ -296,9 +348,13 @@ def main() -> int:
         verb = "Removed" if args.apply else "Would remove"
         print(f"\n{verb} {count} delete marker(s).")
     elif args.restore_as_of:
-        count = restore_as_of(
-            client, args.bucket, histories, args.restore_as_of, args.apply
-        )
+        try:
+            count = restore_as_of(
+                client, args.bucket, histories, args.restore_as_of, args.apply
+            )
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
         verb = "Restored" if args.apply else "Would restore"
         print(f"\n{verb} {count} object(s).")
     else:

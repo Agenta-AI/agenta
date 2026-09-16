@@ -1392,7 +1392,7 @@ class StoreConfig(BaseModel):
     # overwritten body and every deleted object. Without it a DeleteObject is final, so a
     # runaway delete (an agent running `rm -rf` over a FUSE mount) is unrecoverable. Applies
     # to the bundled store only; a remote S3 bucket's versioning and lifecycle stay under the
-    # operator's control. 0 turns the whole thing off, at the cost of that safety net.
+    # operator's control. 0 removes Agenta's expiration rule and leaves existing versioning enabled.
     version_retention_days: int = Field(
         default_factory=_store_version_retention_days_default
     )

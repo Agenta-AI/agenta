@@ -166,13 +166,25 @@ class ObjectStore:
         do it from application startup.
 
         Idempotent and best-effort by design — it reads the current state first and only
-        writes what differs, so it can run on every boot. `retention_days <= 0` disables it.
+        writes what differs, so it can run on every boot. `retention_days <= 0` removes
+        our expiration rule but leaves versioning unchanged.
         Returns True when the bucket ends up versioned with our rule applied.
         """
-        if not self.enabled or not self.is_seaweedfs or retention_days <= 0:
+        if not self.enabled or not self.is_seaweedfs:
             return False
 
         client = self._client()
+
+        if retention_days <= 0:
+            config = await client.get_bucket_lifecycle(bucket)
+            existing = getattr(config, "rules", None) or []
+            rules = [rule for rule in existing if rule.rule_id != _RETENTION_RULE_ID]
+            if len(rules) != len(existing):
+                if rules:
+                    await client.set_bucket_lifecycle(bucket, LifecycleConfig(rules))
+                else:
+                    await client.delete_bucket_lifecycle(bucket)
+            return False
 
         versioning = await client.get_bucket_versioning(bucket)
         if getattr(versioning, "status", None) != ENABLED:
