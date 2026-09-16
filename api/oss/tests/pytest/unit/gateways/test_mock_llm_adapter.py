@@ -587,3 +587,38 @@ async def test_the_marker_must_be_inside_the_tool_result_not_merely_in_the_body(
 
     payload = json.loads((await _drain(result.body))[0])
     assert payload["output"][0]["content"][0]["text"] == f"mock MCP echo: {marker}"
+
+
+@pytest.mark.asyncio
+async def test_every_content_block_frame_says_which_block_it_belongs_to():
+    """Anthropic's stream carries `index` on every content-block event. The text
+    branch's delta omitted it while its own start and stop events carried it, so a
+    client indexing deltas by block saw a frame it could not place (M5)."""
+    adapter = MockLLMAdapter()
+
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=LLMCallContext(
+            model="mock/echo", stream=True, protocol=LLMProtocol.MESSAGES
+        ),
+        body=_body("hi"),
+        headers={},
+    )
+
+    chunks = await _drain(result.body)
+    block_frames = [
+        json.loads(chunk.split(b"data: ", 1)[1])
+        for chunk in chunks
+        if chunk.startswith(b"event: content_block_")
+    ]
+
+    assert block_frames, "the stream carried no content-block frames"
+    for frame in block_frames:
+        assert frame.get("index") == 0, frame["type"]
+    # Start, delta and stop, so the delta is genuinely among them.
+    assert {frame["type"] for frame in block_frames} == {
+        "content_block_start",
+        "content_block_delta",
+        "content_block_stop",
+    }

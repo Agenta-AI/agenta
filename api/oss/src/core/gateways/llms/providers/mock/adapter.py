@@ -797,6 +797,12 @@ class MockLLMAdapter(LLMUpstreamInterface):
                         "content_block_delta",
                         {
                             "type": "content_block_delta",
+                            # The block this delta belongs to. Anthropic's stream carries
+                            # it on every content-block event, and the start and stop
+                            # events either side of this one already did; only the text
+                            # branch omitted it, so a client that indexes deltas by block
+                            # saw a frame it could not place (M5).
+                            "index": 0,
                             "delta": {"type": "text_delta", "text": content},
                         },
                     )
