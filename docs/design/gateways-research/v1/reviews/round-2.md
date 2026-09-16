@@ -110,7 +110,7 @@ whether that fix was read against the finding and its test.
 | D53 | verification | P2 | the deployment's mock gateway configuration | The OAuth case cannot run on this stack | | mechanism, both mock addresses probed |
 | D54 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:273`, `engines/sandbox_agent/mcp-handshake.ts:142` | Fix, blocking | `d1055842db` | **yes**, code, tests, incl. pre-fix run |
 | QA-D6 | sanity QA | P2 | `web/packages/agenta-chat/src/model/error.ts` | Fix | `f84a90747b` | **yes**, code and its suite |
-| D55 | verification | P2 | `sdks/python/agenta/sdk/middlewares/running/normalizer.py:240-250` | **Fixed here, pre-existing on main** | pending | mechanism, code read |
+| D55 | verification | P2 | `sdks/python/agenta/sdk/middlewares/running/normalizer.py:240-250` | **Fixed here, pre-existing on main.** Also OR89 | `abeb966b88` | **yes**, code, tests, incl. pre-fix run |
 | D56 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:204` at HEAD | Fix, blocking a real upstream | pending | mechanism, code read |
 | D57 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:326` at HEAD | Fix, blocking after a downgrade | pending | mechanism, code read |
 | D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix: QA-D3's better wording cannot fire in production | | mechanism, both sites read |
@@ -949,9 +949,21 @@ request.
 and was last changed a week before this work began, so it is not a regression from this work. It is
 being closed in this pull request regardless, which is the right call while the same class is fresh
 and the shape of the fix is already established one directory over: a typed error with an authored
-sentence, and the traceback logged rather than returned. The record will carry its revision when it
-lands, marked as fixed here rather than introduced here, so a later reader does not read this
-release as the cause.
+sentence, and the traceback logged rather than returned. **Fixed** by `abeb966b88`, verified, and recorded as **OR89** in the findings log. The traceback now
+goes onto the failure line the normalizer already writes, so an operator reads one record and loses
+nothing, and it no longer goes onto the response. The status code, message, type and failure class
+are untouched, which is what keeps QA-D6's composer chip saying the same sentence it says now.
+
+Two details checked rather than assumed. The new switch that restores the traceback for local
+debugging defaults off and is read from the environment **per call**, not captured at import, which
+is the mistake D16 corrected in the plane flags earlier in this round. And the pre-existing claim
+holds on a three-dot diff: the file is untouched by this pull request up to the fix itself, so this
+release is not the cause.
+
+Fourteen cases pass at the fix; pinned before it, three fail — the refusal body carrying no
+traceback, the SDK-authored refusal carrying none either, and the withheld traceback still being
+logged. That third one is the one worth having: it is what stops a later reader deciding the
+traceback was simply dropped and restoring it to the response.
 
 **D56. The Pi client strips event-stream framing only when the body opens with a data line.** At
 `pi-mcp.ts:204` the whole text is tested with `startsWith("data:")`, and only then are the data lines
