@@ -47,6 +47,10 @@ from oss.src.utils.env import env
 
 _PROTOCOL_VERSION = "2026-07-28"  # pinned per MCPCallContext's own docstring
 _METHOD_NOT_FOUND = -32601  # JSON-RPC 2.0
+_INVALID_REQUEST = (
+    -32020
+)  # what a strict upstream answers a header/body disagreement with
+_VERSION_HEADER = "mcp-protocol-version"
 _CACHE_TTL_MS = 300_000
 _SERVER_INFO = {"name": "agenta-mock-mcp", "version": "0.1.0"}
 
@@ -72,8 +76,23 @@ _TOOLS = [
 ]
 
 
-def _relay_result(response: Dict[str, Any]) -> MCPRelayResult:
+#: Methods the mock answers as a Streamable HTTP SSE event rather than plain JSON, with the
+#: `event:` line FIRST. Real servers do this (Linear frames every reply this way), and a client
+#: that tested only whether the body started with `data:` read such an answer as invalid JSON and
+#: dropped the server. One method is enough to catch that, and keeping the rest plain JSON keeps
+#: both framings in the matrix instead of trading one blind spot for the other.
+_SSE_FRAMED_METHODS = frozenset({"tools/list"})
+
+
+def _relay_result(response: Dict[str, Any], *, method: str = "") -> MCPRelayResult:
     """One JSON-RPC response out, so both mock tiers emit byte-identical bodies."""
+    if method in _SSE_FRAMED_METHODS:
+        frame = f"event: message\ndata: {json.dumps(response)}\n\n"
+        return MCPRelayResult(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            body=frame.encode(),
+        )
     return MCPRelayResult(
         status_code=200,
         headers={"content-type": "application/json"},
@@ -135,6 +154,65 @@ def _discovery_result() -> Dict[str, Any]:
     }
 
 
+def _version_header_refusal(
+    request_id: Any, message: str, header: Any
+) -> MCPRelayResult:
+    """A strict upstream's 400, reproduced byte-shape and all.
+
+    Copied from what a real server (Linear) answers, because the point of this mock is that a
+    client debugged against it can be trusted against a real one. See `_check_version_header`.
+    """
+    return MCPRelayResult(
+        status_code=400,
+        headers={"content-type": "application/json"},
+        body=json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": _INVALID_REQUEST,
+                    "message": f"Bad Request: the request headers and body disagree: {message}",
+                    "data": {"mismatch": {"header": header, "body": message}},
+                },
+            }
+        ).encode(),
+    )
+
+
+def _check_version_header(
+    *, method: str, request_id: Any, headers: Dict[str, str]
+) -> MCPRelayResult | None:
+    """Enforce the transport's protocol-version rule, the way a strict server does.
+
+    The version is NEGOTIATED by `initialize`, so a client cannot assert one before the server
+    names it: the header rides only the requests that follow initialization, carrying the version
+    the server returned. A permissive mock let a client that had this backwards pass every cell,
+    and a real upstream then refused every turn in production. So the mock is strict in both
+    directions — the header is a refusal on `initialize` and a requirement after it.
+    """
+    present = next(
+        (value for name, value in headers.items() if name.lower() == _VERSION_HEADER),
+        None,
+    )
+    if method == "initialize":
+        if present is None:
+            return None
+        return _version_header_refusal(
+            request_id,
+            "an initialize request (legacy handshake) was sent with a modern "
+            "MCP-Protocol-Version header",
+            present,
+        )
+    if present is None:
+        return _version_header_refusal(
+            request_id,
+            f"a {method} request was sent without the MCP-Protocol-Version header "
+            "negotiated by initialize",
+            None,
+        )
+    return None
+
+
 def _tools_list_result() -> Dict[str, Any]:
     return {
         "resultType": "complete",
@@ -163,6 +241,15 @@ class MockMCPAdapter(MCPUpstreamInterface):
 
         method = payload.get("method") or context.method or ""
         request_id = payload.get("id")
+
+        # Checked before anything else, including the notification branch: a notification is a
+        # post-initialization request like any other, and a header rule a notification could
+        # skip is one a client could get wrong and never be told about.
+        refusal = _check_version_header(
+            method=method, request_id=request_id, headers=headers
+        )
+        if refusal is not None:
+            return refusal
 
         # A JSON-RPC request with no id is a notification, and answering one is itself a
         # protocol violation. `notifications/initialized` is the second call of every
@@ -196,7 +283,9 @@ class MockMCPAdapter(MCPUpstreamInterface):
                 }
             )
 
-        return _relay_result({"jsonrpc": "2.0", "id": request_id, "result": result})
+        return _relay_result(
+            {"jsonrpc": "2.0", "id": request_id, "result": result}, method=method
+        )
 
 
 def _secret_key(secret: ResolvedSecret | None) -> str | None:

@@ -123,10 +123,12 @@ async def _serve(request: Request) -> Response:
     if result.status_code == 202:
         return Response(status_code=202, headers={"X-Agenta-Mock-Profile": profile})
 
+    # The adapter decides the media type (some methods answer as an SSE event), and this tier
+    # must not relabel it: a client is debugged against one tier and trusted against the other.
     return Response(
         status_code=result.status_code,
         content=result.body,
-        media_type="application/json",
+        media_type=result.headers.get("content-type", "application/json"),
         headers={"X-Agenta-Mock-Profile": profile},
     )
 

@@ -33,6 +33,14 @@ _HANDSHAKE = [
 ]
 
 
+#: Post-initialization requests carry the negotiated version; `initialize` must not.
+NEGOTIATED = {"mcp-protocol-version": "2026-07-28"}
+
+
+def _headers_for(method: str) -> dict:
+    return {} if method == "initialize" else dict(NEGOTIATED)
+
+
 def _request(method: str, params) -> dict:
     payload = {"jsonrpc": "2.0", "id": 7, "method": method}
     if params is not None:
@@ -47,7 +55,7 @@ async def _in_process(payload: dict):
         auth=MCPDirectAuth(secret=None),
         context=MCPCallContext(method=payload["method"]),
         body=body,
-        headers={},
+        headers=_headers_for(payload["method"]),
     )
 
 
@@ -58,10 +66,17 @@ async def test_both_tiers_answer_identically(method, params):
 
     direct = await _in_process(payload)
     with TestClient(app) as client:
-        over_socket = client.post("/", json=payload)
+        over_socket = client.post("/", json=payload, headers=_headers_for(method))
 
+    # Byte parity, not JSON parity: the framing is part of what a client has to read, and one
+    # tier relabelling an SSE answer as JSON is exactly the kind of divergence this file exists
+    # to catch.
     assert over_socket.status_code == direct.status_code
-    assert over_socket.json() == json.loads(direct.body)
+    assert over_socket.content == direct.body
+    assert (
+        over_socket.headers["content-type"].split(";")[0]
+        == direct.headers["content-type"]
+    )
 
 
 @pytest.mark.asyncio
@@ -70,7 +85,7 @@ async def test_both_tiers_accept_a_notification_with_no_body():
 
     direct = await _in_process(payload)
     with TestClient(app) as client:
-        over_socket = client.post("/", json=payload)
+        over_socket = client.post("/", json=payload, headers=dict(NEGOTIATED))
 
     assert direct.status_code == 202
     assert over_socket.status_code == 202
@@ -82,7 +97,9 @@ def test_the_socket_tier_speaks_json_rpc_for_an_unknown_method():
     the two tiers disagreeing about, so it is pinned on its own."""
     with TestClient(app) as client:
         response = client.post(
-            "/", json={"jsonrpc": "2.0", "id": 7, "method": "resources/list"}
+            "/",
+            json={"jsonrpc": "2.0", "id": 7, "method": "resources/list"},
+            headers=dict(NEGOTIATED),
         )
 
     assert response.status_code == 200

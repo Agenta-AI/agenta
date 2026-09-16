@@ -477,7 +477,9 @@ async def test_agenta_route_to_a_private_address_is_not_refused():
         auth=_auth(),
         context=MCPCallContext(method="tools/list"),
         body=b'{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}',
-        headers={},
+        # Post-handshake requests carry the version initialize negotiated; the mock is strict
+        # about it, the way a real server is. This case is about egress, not the handshake.
+        headers={"mcp-protocol-version": "2026-07-28"},
     )
 
     assert result.status_code == 200
