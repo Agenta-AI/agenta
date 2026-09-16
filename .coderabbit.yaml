@@ -1,20 +1,5 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 
-# PASS 2: this file is currently scoped to the tests and the configuration that runs them.
-# Pass 1 (production source) is already complete; its findings are in
-# docs/design/gateways-research/v1/reviews/coderabbit-pass-1.md.
-#
-# This list now also takes hosting/**, .github/** and the root-level configuration files,
-# which pass 1 used to carry. It is paired with coderabbit-pass1-narrow.yaml, which excludes
-# exactly those. The two must be changed together or the moved files are reviewed in neither
-# pass. If pass 1 is run from the shipped block instead, drop the four infrastructure
-# includes at the bottom of this list, or those files get reviewed twice.
-#
-# Count the pass-2 set before pushing, and keep it under 300:
-#   git diff --name-only 236619ebb768..HEAD | grep -vE '^docs/designs?/|\.lock$|\.generated\.|/generated/' | grep -E '(^|/)tests?/|/test_[^/]*\.py$|\.(test|spec)\.tsx?$|/conftest\.py$|/pytest\.ini$|/run-tests\.py$|/(vitest|playwright)\.config\.|^hosting/|^\.github/|^[^/]+$' | wc -l
-# Measured 236 at HEAD on 2026-09-16, against merge base 236619ebb768: 217 tests plus the 19
-# files moved from pass 1. Re-measure before each push, the branch is still growing.
-
 # TEMPORARY — the `reviews.path_filters` block at the bottom of this file exists only to
 # get PR #6049 reviewed, and MUST BE REMOVED BEFORE THAT PR MERGES. Leaving it in place
 # would narrow reviews for every future pull request in this repository, which is the
@@ -47,52 +32,50 @@ reviews:
   # is a platform limit, not a setting, and no plan or `@coderabbitai full review` gets past
   # it — the count is checked before the review runs.
   #
-  # Path-filtered files do not count toward it. Filters drive a sparse checkout, so an
-  # excluded file is never even cloned.
+  # Path-filtered files do not count toward it. CodeRabbit's own skip comment listed 7 files
+  # ignored by the organization's filters and then "Files selected for processing (518)"
+  # against 525 changed, so the filtered ones were already subtracted. Filters drive a
+  # sparse checkout, so an excluded file is never even cloned.
   #
   # CodeRabbit reads this file from the branch under review, so the block below scopes to
   # this PR alone and leaves every other pull request untouched.
   #
-  # `inheritance: true` does NOT merge this array with the organization's: for this field a
+  # `inheritance: true` does NOT merge this array with the organization's. Asking
+  # `@coderabbitai configuration` on #6049 returned a path_filters list sourced entirely
+  # from "Repository YAML (base)" and containing only the entries below: for this field a
   # repository list REPLACES the organization's rather than appending to it. The
   # organization's own exclusions are therefore repeated here explicitly, or its lock files
   # and generated code would be reviewed as if they were hand-written.
   #
-  # This is pass 2: the tests, which pass 1 excluded. An include pattern makes the list a
-  # whitelist, so naming the test paths here is what leaves application source out; there is
-  # no need to enumerate the source directories to exclude them. Neither pass covers the
-  # design-doc markdown under docs/design/**, which is this team's working notes rather than
-  # shipped code and is reviewed by the people writing it.
+  # This is pass 1: production source, which is what actually needs reviewing. Pass 2 swaps
+  # this list for the tests, and also takes the infrastructure and repository configuration
+  # excluded at the bottom of this list. Neither pass covers the design-doc markdown under
+  # docs/design/**, which is this team's working notes rather than shipped code and is
+  # reviewed by the people writing it.
   path_filters:
     # Repeated from the Organization UI configuration, which this list replaces rather than
     # extends. Keep them in step with the organization's settings.
     - "!**/*.lock"
     - "!**/*.generated.*"
     - "!**/generated/**"
-    # Excluded in both passes.
+    # This pull request's own scoping.
     - "!docs/design/**"
     - "!docs/designs/**"
-    # This pull request's pass-2 scoping: the tests and the configuration that runs them.
-    # Everything not matched here is out, application source included.
-    - "**/tests/**"
-    - "**/test/**"
-    - "**/test_*.py"
-    - "**/*.test.ts"
-    - "**/*.test.tsx"
-    - "**/*.spec.ts"
-    - "**/*.spec.tsx"
-    - "**/conftest.py"
-    - "**/pytest.ini"
-    - "**/run-tests.py"
-    - "**/vitest.config.*"
-    - "**/vitest.workspace.*"
-    - "**/playwright.config.*"
-    # Infrastructure and repository configuration, moved here from pass 1 so that pass stays
-    # under the cap. Pair this with coderabbit-pass1-narrow.yaml, which excludes them; drop
-    # these four if pass 1 runs from the shipped block, which still carries them. The root
-    # files are named individually rather than matched by a wildcard, and a new root-level
-    # configuration file has to be added here AND to the pass-1 exclude list.
-    - "hosting/**"
-    - ".github/**"
-    - ".coderabbit.yaml"
-    - ".gitleaksignore"
+    - "!**/tests/**"
+    - "!**/test/**"
+    - "!**/test_*.py"
+    - "!**/*.test.ts"
+    - "!**/*.test.tsx"
+    - "!**/*.spec.ts"
+    - "!**/*.spec.tsx"
+    - "!**/pytest.ini"
+    - "!**/run-tests.py"
+    # Infrastructure and repository configuration, which pass 2 takes instead so this pass
+    # stays under the 300-file cap. Without these four the set is 304 files against
+    # e5643f00f5 and the review is skipped outright; with them it is 282. Re-measure after
+    # any rebase, the count moves with the base:
+    #   git diff --name-only e5643f00f5..HEAD | grep -vE '\.lock$|\.generated\.|/generated/|^docs/designs?/|(^|/)tests?/|(^|/)test_[^/]*\.py$|\.(test|spec)\.tsx?$|(^|/)pytest\.ini$|(^|/)run-tests\.py$|^hosting/|^\.github/|^[^/]+$' | wc -l
+    - "!hosting/**"
+    - "!.github/**"
+    - "!.coderabbit.yaml"
+    - "!.gitleaksignore"
