@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **1** | **11** | **7** | **5 closed, 2 fixed pending a run, 1 part fixed, 19 open** |
+| **As this file is written** | **0** | **1** | **12** | **7** | **5 closed, 2 fixed pending a run, 2 part fixed, 20 open** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -79,8 +79,8 @@ whether that fix was read against the finding and its test.
 
 | ID | Src | Sev | Evidence | Disposition | Fix rev | Verified |
 | --- | --- | --- | --- | --- | --- | --- |
-| D22 | both | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectJourney.ts:311`, `web/packages/agenta-entity-ui/src/mcpEndpoint/McpConnectJourney.tsx:263` | Fix, blocking | `cd9e6f2c16` | **yes**, code and spec; suite run still owed |
-| D23 | both | P1 | `web/packages/agenta-settings-ui/src/mcp/McpServersSection.tsx:247`, `hooks/useMcpConnectJourney.ts:75` | Fix, blocking | `40ed49f5a1` | **yes**, code and spec; browser run owed (D25) |
+| D22 | both | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectJourney.ts:311`, `web/packages/agenta-entity-ui/src/mcpEndpoint/McpConnectJourney.tsx:263` | Fix, blocking | `cd9e6f2c16`, `277fc7d4fe` | **yes**, code, spec and hook tests; the wiring is guarded only by the acceptance suite (D48) |
+| D23 | both | P1 | `web/packages/agenta-settings-ui/src/mcp/McpServersSection.tsx:247`, `hooks/useMcpConnectJourney.ts:75` | Fix, blocking | `40ed49f5a1`, `5b11eada26` | **yes**, code, spec and hook tests; the wiring is guarded only by the acceptance suite (D48) |
 | D24 | Codex | P1 | `api/oss/src/core/gateways/mcps/oauth/storage.py:366`, `:222`, `oauth/service.py:456`, `:483` | Fix, blocking. Re-opens D6 | `98e1ddb6e4` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D25 | reviewer 2 | P1 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:106`, `:297` | Fix or record, blocking the gate | | mechanism, repo-wide grep |
 | D26 | reviewer 2 | P1 | `mcp-connect.ts:190`, `:219`, `:236` | Fix with D22 | `cd9e6f2c16` | **partly**, code read; suite run still owed |
@@ -97,7 +97,7 @@ whether that fix was read against the finding and its test.
 | D37 | Codex | P2 | `sdks/python/agenta/sdk/agents/adapters/claude_settings.py:137` | Fix | `341a9c16c6` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D38 | Codex | P2 | `api/oss/src/core/gateways/mcps/probe.py:161` | Fix | `fd278ec1ca` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D39 | reviewer 2 | P2 | `mcp-connect.ts:166`, `:270`, `mcpConnectJourney.test.ts:82`, `mcpEndpointConnectStatus.render.test.tsx:189` | Fix the assertions | | mechanism, all four |
-| D40 | reviewer 2 | P2 | `hooks/useMcpConnectJourney.ts:67`, `mcpEndpointApi.test.ts:189` | Fix the gap | | mechanism, configs and suites |
+| D40 | reviewer 2 | P2 | `hooks/useMcpConnectJourney.ts:67`, `mcpEndpointApi.test.ts:189` | **Part fixed.** The hook has tests now; most of the list is still uncovered | `277fc7d4fe`, `5b11eada26` | **yes**, both suites read and run |
 | D41 | Codex | P3 | `core/connectionName.ts:36`, `core/agentReference.ts:47`, `api/oss/src/core/gateways/mcps/service.py:207` | Fix the truncation; accept the rest | | mechanism, both implementations |
 | D42 | both | P3 | `core/toolPolicy.ts:83` | Fix | | mechanism, code |
 | D43 | reviewer 2 | P3 | `McpConnectionDetail.tsx:95-106` | Fix with D31 | | mechanism, code |
@@ -105,6 +105,7 @@ whether that fix was read against the finding and its test.
 | D45 | reviewer 2 | P3 | `core/connectionName.ts:69` | Fix | | mechanism, code |
 | D46 | D38 residual | P3 | `api/oss/src/core/gateways/mcps/oauth/client.py:273` | Fix with D38's bound | | mechanism, code |
 | D47 | verification | P3 | `api/oss/src/core/gateways/egress.py:113`, [qa.md](../qa.md) | Fix the collision or document it | | mechanism, reproduced |
+| D48 | verification | P2 | `mcpConnectJourney.tools.test.tsx:79`, `mcpConnectJourney.reconnect.test.tsx:66` | Fix: cover the wiring, not only the hook | | mechanism, imports checked, suites run |
 | Q1 | both | P2 | `McpConnectJourney.tsx:98-106`, `hooks/useMcpConnectJourney.ts:189` | Quality, altitude. The root of D22, D23, D29, D30, D31 and D34 | | mechanism, code |
 | Q2 | both | P2 | `McpConnectionDetail.tsx:66-83`, `McpToolPermissions.tsx:77-93` | Quality, reuse and efficiency | | mechanism, code |
 | Q3 | reviewer 2 | P3 | `McpConnectionDetail.tsx:74`, `McpToolPermissions.tsx:85` | Quality, reuse | | mechanism, code |
@@ -132,6 +133,7 @@ revision before the fix, so the predicted failure is watched rather than assumed
 | D37 | `341a9c16c6` | 122 passed | 28 failed, 94 passed |
 | D31, API half | `cb3a277fdc` | 165 passed | 2 failed, 163 passed |
 | D38 | `fd278ec1ca` | 17 passed | 2 failed, 15 passed |
+| D22, D23 hook tests | `277fc7d4fe`, `5b11eada26` | 13 passed | not applicable, see D48 |
 
 The pre-fix failures are the predicted ones in every case. D24's headline case comes back with the
 grant's `client_registration_slug` set to nothing after the first renewal, where the pinned slug
@@ -474,6 +476,15 @@ preventing a duplicate create, the `name_taken` join, the auth-mode mapping, `fi
 `mcpEndpointApi.test.ts:189` asserts `listMcpTools`'s method and headers but never its URL, and that
 URL is the one built by string surgery (`api/api.ts:148`).
 
+**Part fixed** by `277fc7d4fe` and `5b11eada26`, which give the hook thirteen cases and settle the
+structural half of this finding: the package can render a hook after all, so the rest of the list is
+a matter of writing the cases. Covered now: the probe and create steps, `finish` and `loadTools`,
+`retryTools`, the reconnect mount semantics, and `cancel` leaving a reconnect's row alone. Still
+uncovered: the synchronous-popup contract, the blocked-popup fallback, that `trustedOrigins` is
+wired into the watch at all, cancel actually calling the delete, `endpointRef` preventing a
+duplicate create, the `name_taken` join, the auth-mode mapping, `submitManualCredential`,
+`skipAuthentication`, unmount teardown, and `listMcpTools`'s URL.
+
 ## The P3 findings
 
 **D41. Name normalization disagrees at two edges.** `normalizeConnectionName`
@@ -527,6 +538,37 @@ shell. The cost is a person following the QA document, seeing two failures that 
 with their change, and either chasing them or learning to ignore a red suite. Either scope the
 exemption to the addresses the integration layer actually dials, or say in the QA document that
 these variables belong to an integration shell and not a unit one.
+
+**D48. The two new hook suites perform by hand the action the fix made production code perform.**
+`277fc7d4fe` and `5b11eada26` add thirteen cases between them, and both drive
+`useMcpConnectJourney` directly. Neither file imports `McpConnectJourney` or `McpServersSection` —
+checked, not assumed — so neither renders the component the two fixes changed.
+
+In the tools suite, every case that reaches tool discovery calls `journey.loadTools()` itself; the
+helper that sets them up says so in a comment, that `saving` is where the dialog calls `finish()`,
+so it does what the dialog does. Delete the effect in `McpConnectJourney.tsx` that drives
+`loadTools` on entering `discovering_tools` — the exact driver whose absence was D22 — and all seven
+still pass. In the reconnect suite, the two cases about a second attempt call `unmountJourney()`
+before remounting, which is precisely what the wrapper and the key exist to cause. Remove both and
+all six still pass, because nothing mounts the component that would have kept its state.
+
+This is the third time in this candidate that a test supplies the step the product is supposed to
+take: the reducer suite dispatched `tools_loaded` itself (D39), which is what made D22 look covered,
+and these two are the same move one level up.
+
+**What they do cover is real and was missing**, which is why this is a finding about the claim
+rather than about the work. The tools suite covers the hook's `loadTools` — the right slug, an empty
+list read as empty rather than as a failure, an unreadable list leaving the connection connected and
+retryable, and a retry that re-reads without connecting again — and it mocks the api module the hook
+imports rather than the package barrel, which is the correct seam and is called out in its own
+commit message. The reconnect suite covers the mount semantics: bound endpoint, slug, URL and name,
+no re-probe, and a cancel that cannot delete the connection it is repairing.
+
+**The cost.** D22 and D23 are the two P1 frontend fixes in this candidate, and the only thing that
+would catch either regressing is the acceptance suite D25 is about. Until D25 lands, both can be
+undone by a refactor with every unit suite green. The fix is small: render the component in one case
+per finding and assert the consequence — that a connected journey leaves `discovering_tools` without
+anyone calling `loadTools`, and that closing and reopening the section starts at URL entry.
 
 ## Quality findings
 
