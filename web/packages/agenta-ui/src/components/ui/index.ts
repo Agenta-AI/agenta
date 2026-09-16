@@ -4,7 +4,6 @@
  * the antd-based presets. Import via `@agenta/ui/ui`.
  */
 export {Badge, badgeVariants, type BadgeProps} from "./badge"
-export {IconTile, iconTileVariants, type IconTileProps} from "./icon-tile"
 export {Button, buttonVariants, type ButtonProps} from "./button"
 export {LoadingButton, type LoadingButtonProps} from "./button-composed"
 export {Input, Textarea, inputVariants, type InputProps, type TextareaProps} from "./input"
@@ -196,6 +195,15 @@ export {
     emptyMediaVariants,
 } from "./empty"
 export {EmptyState, type EmptyStateProps} from "./empty-state"
+export {
+    IconTile,
+    iconTileVariants,
+    type IconTileProps,
+    type IconTileSize,
+    type IconTileTone,
+} from "./icon-tile"
+export {InlineConfirm, type InlineConfirmProps} from "./inline-confirm"
+export {SkeletonRows, type SkeletonRowsProps} from "./skeleton-rows"
 export {Label} from "./label"
 export {Field, fieldLabelVariants, type FieldProps} from "./field"
 export {
