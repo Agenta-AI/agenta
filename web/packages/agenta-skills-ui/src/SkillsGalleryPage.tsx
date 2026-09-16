@@ -31,10 +31,10 @@ export interface SkillsGalleryPageProps {
     onSearchChange: (value: string) => void
     sections: SkillGallerySection[]
     onOpenSkill: (skill: SkillListItem) => void
-    /** The single `+ New skill ▾` action (write / upload / import). */
+    /** The single `+ New skill ▾` action (write / import). */
     createActions: Pick<
         NewSkillMenuButtonProps,
-        "onWrite" | "onUpload" | "onImport" | "availability"
+        "onWrite" | "onImport" | "availability"
     >
     loading?: boolean
     /** Archived skills stay hidden until this is on (they keep their slug reserved). */

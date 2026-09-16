@@ -7,24 +7,22 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {CaretDown, DownloadSimple, GitBranch, PencilSimple, Plus} from "@phosphor-icons/react"
+import {CaretDown, GitBranch, PencilSimple, Plus} from "@phosphor-icons/react"
 
 export interface NewSkillMenuButtonProps {
     onWrite: () => void
-    onUpload: () => void
     onImport: () => void
     disabled?: boolean
     /** "outline" for in-drawer placements; "default" for the page header. */
     variant?: "default" | "outline"
     /** Per-entry gating while flows ship incrementally; every entry defaults available. */
-    availability?: {write?: boolean; upload?: boolean; import?: boolean}
+    availability?: {write?: boolean; import?: boolean}
     /** Layout classes from the placement — e.g. the toolbar pinning it to the right edge. */
     className?: string
 }
 
 export function NewSkillMenuButton({
     onWrite,
-    onUpload,
     onImport,
     disabled,
     variant = "default",
@@ -44,10 +42,6 @@ export function NewSkillMenuButton({
                 <DropdownMenuItem onSelect={onWrite} disabled={availability?.write === false}>
                     <PencilSimple size={14} />
                     Write from scratch
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onUpload} disabled={availability?.upload === false}>
-                    <DownloadSimple size={14} />
-                    Upload a folder, .zip or .skill
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={onImport} disabled={availability?.import === false}>
                     <GitBranch size={14} />
