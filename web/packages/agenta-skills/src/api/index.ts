@@ -415,3 +415,54 @@ export async function applySkillUpdate({
     )
     return updateApplyResponseSchema.safeParse(data).data ?? null
 }
+
+/** One skill's answer from a batch check; `check_failed` stands in for a rejected request. */
+export interface SkillUpdateCheck {
+    workflowId: string
+    /** up_to_date | update_available | detached | missing_in_source | invalid_in_source | check_failed */
+    status: string
+}
+
+/** Checks each skill against its upstream; one failure leaves the others' answers intact. */
+export async function checkSkillUpdates({
+    projectId,
+    workflowIds,
+}: {
+    projectId: string
+    workflowIds: string[]
+}): Promise<SkillUpdateCheck[]> {
+    const outcomes = await Promise.allSettled(
+        workflowIds.map((workflowId) => checkSkillUpdate({projectId, workflowId})),
+    )
+    return outcomes.map((outcome, index) => ({
+        workflowId: workflowIds[index],
+        status:
+            outcome.status === "fulfilled" && outcome.value?.status
+                ? outcome.value.status
+                : "check_failed",
+    }))
+}
+
+/**
+ * Commits the upstream version of each skill. allSettled, not all: one rejection must not
+ * discard the successes, or the applied skills stay queued and a second press re-applies them.
+ */
+export async function applySkillUpdates({
+    projectId,
+    workflowIds,
+}: {
+    projectId: string
+    workflowIds: string[]
+}): Promise<{applied: string[]; failed: string[]}> {
+    const outcomes = await Promise.allSettled(
+        workflowIds.map((workflowId) => applySkillUpdate({projectId, workflowId})),
+    )
+    const applied: string[] = []
+    const failed: string[] = []
+    for (const [index, outcome] of outcomes.entries()) {
+        if (outcome.status === "fulfilled" && outcome.value?.status === "updated")
+            applied.push(workflowIds[index])
+        else failed.push(workflowIds[index])
+    }
+    return {applied, failed}
+}

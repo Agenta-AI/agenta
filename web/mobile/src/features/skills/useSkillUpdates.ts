@@ -1,7 +1,7 @@
 import {useCallback} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {applySkillUpdate, checkSkillUpdate} from "@agenta/skills"
+import {applySkillUpdates, checkSkillUpdates} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
 import {atom, useAtomValue, useSetAtom} from "jotai"
@@ -66,16 +66,10 @@ export const useSkillUpdates = () => {
         async (ids: string[]) => {
             if (!ids.length) return
             mark(ids.map((id): [string, SkillUpdateStatus] => [id, "checking"]))
-            const outcomes = await Promise.allSettled(
-                ids.map(async (id) => (await checkSkillUpdate({projectId, workflowId: id}))?.status),
-            )
-            const results = outcomes.map((outcome, index): [string, string] => [
-                ids[index],
-                outcome.status === "fulfilled" && outcome.value ? outcome.value : "check_failed",
-            ])
+            const results = await checkSkillUpdates({projectId, workflowIds: ids})
             mark(
-                results.map(([id, status]): [string, SkillUpdateStatus] => [
-                    id,
+                results.map(({workflowId, status}): [string, SkillUpdateStatus] => [
+                    workflowId,
                     status === "update_available"
                         ? "available"
                         : status === "up_to_date"
@@ -83,12 +77,12 @@ export const useSkillUpdates = () => {
                           : "failed",
                 ]),
             )
-            if (ids.length === 1) {
-                const [, status] = results[0]
+            if (results.length === 1) {
+                const {status} = results[0]
                 if (status === "update_available") message.info("An update is available")
                 else message.info(CHECK_TOAST[status] ?? CHECK_TOAST.check_failed)
             } else {
-                const available = results.filter(([, status]) => status === "update_available")
+                const available = results.filter(({status}) => status === "update_available")
                 message.info(
                     available.length
                         ? `${available.length} ${available.length === 1 ? "update" : "updates"} available`
@@ -106,18 +100,7 @@ export const useSkillUpdates = () => {
         async (ids: string[]) => {
             if (!ids.length) return
             mark(ids.map((id): [string, SkillUpdateStatus] => [id, "checking"]))
-            // allSettled, not all: one failure must not discard the successes, or the applied
-            // skills stay queued and a second press re-applies them.
-            const outcomes = await Promise.allSettled(
-                ids.map(async (id) => (await applySkillUpdate({projectId, workflowId: id}))?.status),
-            )
-            const applied: string[] = []
-            const failed: string[] = []
-            for (const [index, outcome] of outcomes.entries()) {
-                if (outcome.status === "fulfilled" && outcome.value === "updated")
-                    applied.push(ids[index])
-                else failed.push(ids[index])
-            }
+            const {applied, failed} = await applySkillUpdates({projectId, workflowIds: ids})
             mark([
                 ...applied.map((id): [string, SkillUpdateStatus] => [id, "updated"]),
                 // What did not apply stays offered, so a retry is one press away.
