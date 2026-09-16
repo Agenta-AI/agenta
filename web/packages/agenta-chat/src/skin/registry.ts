@@ -539,8 +539,14 @@ const parseShape = (raw: string, input: unknown, ours: boolean, appName?: string
 }
 
 /** The sandbox root every path in a session sits under. Machine-generated and identical on every
- * row, so it is pure noise; id-looking segments (8+ chars with a digit) go with it. */
-const SANDBOX_ROOT = /\/tmp\/agenta[\w-]*\/(?:mounts\/)?(?:(?=[\w-]*\d)[\w-]{8,}\/)*/g
+ * row, so it is pure noise; id-looking segments (8+ chars with a digit) go with it.
+ *
+ * Three parents, because the runner builds three roots: `/var/lib` is the local durable one,
+ * `/home/sandbox` the Daytona one, and `/tmp` both the local ephemeral cwd and the durable root
+ * used before the 2026-09 move — sessions recorded then keep those paths forever, so dropping it
+ * would un-shorten every historical row. */
+const SANDBOX_ROOT =
+    /(?:\/var\/lib|\/home\/sandbox|\/tmp)\/agenta[\w-]*\/(?:mounts\/)?(?:(?=[\w-]*\d)[\w-]{8,}\/)*/g
 
 /** Drop the `/bin/bash -lc "…"` wrapper Codex adds, and only then its quotes: an unwrapped
  * command may legitimately end in one (`-name '*.md'`). */

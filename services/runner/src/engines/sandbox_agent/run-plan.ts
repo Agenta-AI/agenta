@@ -324,8 +324,7 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  | { ok: true; plan: RunPlan }
-  | { ok: false; error: string };
+  { ok: true; plan: RunPlan } | { ok: false; error: string };
 
 // The five wire fields this change RETIRED. They are listed here so the runner can reject a
 // request that still sends them, rather than ignore them.
@@ -404,11 +403,67 @@ function computeBuiltinGatingActive(
   }
 }
 
+/**
+ * Root of the LOCAL provider's durable mounts: `<root>/mounts/<project_id>/<mount_id>`.
+ *
+ * Deliberately NOT under `/tmp`. Every harness treats `/tmp` as scratch it is free to clear, and
+ * on this provider a single mount namespace holds every concurrent session's geesefs mount, so one
+ * session clearing `/tmp` walks into drives it does not own (2026-09-10 data loss).
+ *
+ * `agenta` must stay its own path segment with `mounts` directly beneath it: the UI recovers a
+ * drive path from a harness tool path by scanning for exactly that pair (`sandboxRootEnd` in
+ * `@agenta/entities`), and a root that breaks the pair silently mis-resolves every file link.
+ *
+ * Sessions recorded before this move keep `/tmp/agenta/...` tool paths in the database forever, so
+ * every consumer of these paths must accept both roots.
+ */
+export const LOCAL_DURABLE_MOUNT_ROOT = "/var/lib/agenta";
+
+/** Root of the DAYTONA provider's durable mounts. Each session owns its sandbox, so it is safe. */
+export const DAYTONA_DURABLE_MOUNT_ROOT = "/home/sandbox/agenta";
+
+/**
+ * The provider a run will actually execute on.
+ *
+ * Every decision that differs by provider has to ask this one function. The durable mount root is
+ * the reason it exists: it is chosen before `buildRunPlan` runs, and when the two disagreed a run
+ * that `buildRunPlan` sent to Daytona could be handed the LOCAL root, which does not exist in a
+ * Daytona sandbox, so the mount failed. The precedence is the request first, then the caller's
+ * resolved provider, then the deployment default.
+ */
+export function resolveSandboxProviderId(
+  request: Pick<AgentRunRequest, "sandbox">,
+  sandboxProvider?: string,
+): string {
+  return (
+    request.sandbox ||
+    sandboxProvider ||
+    loadRunnerConfig().providers.default ||
+    "local"
+  );
+}
+
 function defaultLocalCwd(durableCwd?: string): string {
   // When the caller pre-computed a durable cwd from the sign prefix, use it — same prefix means
   // same mountpoint across turns, so checkMounted short-circuits and no geesefs leak accrues.
   if (durableCwd) {
-    mkdirSync(durableCwd, { recursive: true });
+    try {
+      mkdirSync(durableCwd, { recursive: true });
+    } catch (err) {
+      // The runner images pre-create the root world-writable, so this only fires for a runner run
+      // straight on a host, where the root's parent is root-owned. The bare EACCES names a path
+      // nobody recognizes, so say what to create instead of making the reader find this line.
+      const code = (err as NodeJS.ErrnoException)?.code;
+      if (code === "EACCES" || code === "EPERM") {
+        throw new Error(
+          `cannot create the durable session cwd '${durableCwd}': ${code}. The runner images ` +
+            `pre-create this root; running the runner directly on a host needs it once: ` +
+            `sudo mkdir -p ${LOCAL_DURABLE_MOUNT_ROOT}/mounts && sudo chmod 1777 ` +
+            `${LOCAL_DURABLE_MOUNT_ROOT} ${LOCAL_DURABLE_MOUNT_ROOT}/mounts`,
+        );
+      }
+      throw err;
+    }
     return durableCwd;
   }
   // Ephemeral fallback for non-session runs.
@@ -526,7 +581,6 @@ export function buildRunPlan(
   }: BuildRunPlanDeps = {},
 ): BuildRunPlanResult {
   const runnerConfig = loadRunnerConfig();
-  const defaultProvider = sandboxProvider ?? runnerConfig.providers.default;
   const enabled = enabledProviders ?? runnerConfig.providers.enabled;
   // Fail CLOSED on a non-string harness, matching `harnessKindOf`: `/stream` decodes with an
   // unchecked `JSON.parse`, so a malformed payload can put `null`, `0`, or `false` here, and a
@@ -547,7 +601,7 @@ export function buildRunPlan(
     };
   }
   const harness = request.harness || "pi_core";
-  const sandboxId = request.sandbox || defaultProvider || "local";
+  const sandboxId = resolveSandboxProviderId(request, sandboxProvider);
 
   // Deployment posture gate (interface.md section 2, rule 7): a request for a known but disabled
   // provider fails here, before any cwd/temp dir, mount, file, secret, or sandbox is created.

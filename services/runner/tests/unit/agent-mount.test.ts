@@ -35,7 +35,10 @@ const SIGNED_BODY = {
 
 describe("agent mount constants", () => {
   it("derives a sibling mount path", () => {
-    assert.equal(agentMountPath("/tmp/agenta/run-1"), "/tmp/agenta/run-1-agent");
+    assert.equal(
+      agentMountPath("/var/lib/agenta/run-1"),
+      "/var/lib/agenta/run-1-agent",
+    );
     assert.equal(AGENT_MOUNT_ENV_VAR, "AGENTA_AGENT_MOUNT_DIR");
     assert.equal(AGENT_FILES_LINK_NAME, "agent-files");
   });
