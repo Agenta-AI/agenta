@@ -7,6 +7,7 @@ on:
       - 'sdks/python/**'
       - 'api/**'
       - 'services/**'
+      - 'clients/python/**'
       - 'hosting/kubernetes/helm/**'
       - '.github/workflows/12-check-unit-tests.yml'
   workflow_dispatch:
@@ -22,6 +23,7 @@ on:
           - sdk-only
           - api-only
           - services-only
+          - clients-only
           - none
 
 permissions:
@@ -317,6 +319,67 @@ jobs:
         with:
           files: services/oss/tests/results/junit.xml
           check_name: Application services Unit Test Results
+          comment_mode: off
+
+  run-clients-unit-tests:
+    # The generated Python client (clients/python) is its own package with its own lockfile,
+    # and its tests had no runner at all: four suites sat in the tree that nothing executed,
+    # so a change that broke the generated client was caught by nobody (D81).
+    #
+    # No "has_tests" guard, matching the runner job below: pytest exits non-zero when it
+    # collects nothing, and a suite that disappears must fail rather than quietly pass.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes clients
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","clients-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","clients-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","clients-only"]'), inputs.packages)
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Cache Python dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","clients-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-clients-unit-uv-${{ hashFiles('clients/python/pyproject.toml', 'clients/python/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-application-clients-unit-uv-
+
+      - name: Install client dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","clients-only"]'), inputs.packages)
+        working-directory: clients/python
+        run: uv sync --locked --python 3.13
+
+      - name: Run client unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","clients-only"]'), inputs.packages)
+        working-directory: clients/python
+        run: uv run --no-sync python -m pytest tests --junitxml=tests/results/junit.xml
+
+      - name: Publish client unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","clients-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: clients/python/tests/results/junit.xml
+          check_name: Application Client Unit Test Results
           comment_mode: off
 
   run-runner-tests:
