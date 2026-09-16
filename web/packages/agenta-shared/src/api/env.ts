@@ -84,13 +84,28 @@ export const getAgentaWebUrl = (): string => {
     return buildRuntimeOrigin() ?? ""
 }
 
-// Mirror the API `_TRUTHY` rule: unset defaults to enabled, only truthy values enable.
-const SANDBOX_LOCAL_TRUTHY = new Set(["true", "1", "t", "y", "yes", "on", "enable", "enabled"])
+/**
+ * The spellings that mean on, mirrored from `_TRUTHY` in `api/oss/src/utils/env.py`.
+ *
+ * One vocabulary for both halves of a deployment. An operator writes a switch once, in one
+ * env file both containers read, and has no reason to expect `0` to stop the API and leave
+ * the interface running.
+ */
+const TRUTHY_ENV_VALUES = new Set(["true", "1", "t", "y", "yes", "on", "enable", "enabled"])
 
-export const isSandboxLocalEnabled = (): boolean => {
-    const raw = getEnv("NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED") || "true"
-    return SANDBOX_LOCAL_TRUTHY.has(raw.trim().toLowerCase())
+/**
+ * A boolean deployment switch, parsed exactly as the API's `_parse_bool_env` parses it:
+ * unset or blank takes the default, and anything else is on only when it is one of the
+ * accepted spellings. So `0`, `off` and `no` turn a flag off here as they do there.
+ */
+const parseBoolEnv = (key: string, fallback: boolean): boolean => {
+    const value = getEnv(key).trim()
+    if (!value) return fallback
+    return TRUTHY_ENV_VALUES.has(value.toLowerCase())
 }
+
+export const isSandboxLocalEnabled = (): boolean =>
+    parseBoolEnv("NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED", true)
 
 /**
  * Send only the trailing user message per agent turn and let the runner rebuild prior history
@@ -140,11 +155,13 @@ export const isBillingEnabled = (): boolean =>
  * `entrypoint.sh` mirrors that same variable into `__env.js`, so this is a view of the API's
  * switch and not a second one.
  *
- * ON unless set to the literal "false", matching the API default. An existing deployment sets
- * nothing and keeps the tab, which is the behavior it has today.
+ * On by default, matching the API: an existing deployment sets nothing and keeps the tab,
+ * which is the behavior it has today. Off for every spelling the API reads as off, so an
+ * operator who writes `0`, `off` or `no` is not left with a settings tab, a connect journey
+ * and an agent-config surface whose every request the API answers with a 403.
  */
 export const isMcpGatewayEnabled = (): boolean =>
-    getEnv("NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED").trim().toLowerCase() !== "false"
+    parseBoolEnv("NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED", true)
 
 export const isEmailInvitationsEnabled = (): boolean =>
     getEnv("NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED") === "true"

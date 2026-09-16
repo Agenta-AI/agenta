@@ -66,13 +66,16 @@ fi
 # Mirror AGENTA_MCP_GATEWAY_ENABLED, the API's own switch for the MCP gateway plane, so the
 # settings navigation hides the MCP endpoints tab on a deployment whose API refuses every MCP
 # gateway route. Both containers read the same env file, so this is the same value the API
-# reads and not a second source of truth. On unless set to the literal "false", matching the
-# API default; empty counts as on, because compose passes an unset variable as "".
-if [ "$(printf '%s' "${AGENTA_MCP_GATEWAY_ENABLED}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" = "false" ]; then
-  export AGENTA_MCP_GATEWAY_ENABLED="false"
-else
-  export AGENTA_MCP_GATEWAY_ENABLED="true"
-fi
+# reads and not a second source of truth. Empty counts as on, because compose passes an unset
+# variable as "", and on is the API's default.
+#
+# The accepted spellings are the API's `_TRUTHY` set (api/oss/src/utils/env.py): anything else
+# is off. Reading only the literal "false" as off would leave an operator who wrote "0" with an
+# API that refuses every MCP route and an interface that still offers all of them.
+case "$(printf '%s' "${AGENTA_MCP_GATEWAY_ENABLED}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
+  "" | true | 1 | t | y | yes | on | enable | enabled) export AGENTA_MCP_GATEWAY_ENABLED="true" ;;
+  *) export AGENTA_MCP_GATEWAY_ENABLED="false" ;;
+esac
 
 # Derive the local-sandbox picker flag from the shared provider registry
 # (AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS; unset -> "local"): enabled iff "local" is listed.
