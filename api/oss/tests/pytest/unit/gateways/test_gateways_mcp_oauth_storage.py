@@ -19,6 +19,7 @@ from oss.src.core.gateways.mcps.oauth.storage import (
     grant_slug,
 )
 from oss.src.core.secrets.dtos import (
+    OAuthGrantSettingsDTO,
     OAuthProviderDTO,
     OAuthProviderSettingsDTO,
     SecretResponseDTO,
@@ -480,3 +481,68 @@ async def test_a_row_at_the_slug_for_another_issuer_is_not_accepted():
 
     assert await _storage_over(vault).get_client_info() is None
     assert vault.listings == 1
+
+
+# ---------------------------------------------------------------------------
+# M8: a row this class did not write must not be a 500
+# ---------------------------------------------------------------------------
+
+
+def _foreign_provider_secret(*, issuer: str, extra: dict) -> SecretResponseDTO:
+    """An OAuth-provider secret at the same issuer, created through the vault's public
+    surface rather than by a registration. Nothing stops one existing, and the
+    registration lookup matches on the issuer."""
+    return SecretResponseDTO(
+        id=uuid4(),
+        slug="someone-elses-oauth-provider",
+        kind=SecretKind.OAUTH_PROVIDER,
+        header=Header(name="Hand-made"),
+        data=OAuthProviderDTO(
+            provider=OAuthProviderSettingsDTO(
+                client_id="hand-made",
+                client_secret="placeholder-client-secret",
+                issuer_url=issuer,
+                scopes=[],
+                extra=extra,
+            )
+        ),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {},
+        {"something_else": {"client_id": "x"}},
+        {"client_info": "not-an-object"},
+        {"client_info": {"redirect_uris": "not-a-list"}},
+    ],
+    ids=["absent", "other-keys", "not-an-object", "does-not-validate"],
+)
+async def test_a_provider_row_without_usable_registration_reads_as_unregistered(extra):
+    """Reading the registration metadata as a required key turned a row somebody else
+    created at the same issuer into a 500 on the connect path."""
+    vault = _CountingVault(
+        listed=[_foreign_provider_secret(issuer=_ISSUER, extra=extra)]
+    )
+
+    assert await _storage_over(vault).get_client_info() is None
+
+
+@pytest.mark.asyncio
+async def test_a_grants_registration_reads_as_unregistered_too_rather_than_raising():
+    """Same row, reached by the renewal path instead of the connect path."""
+    secret = _foreign_provider_secret(issuer=_ISSUER, extra={})
+    vault = _CountingVault(by_slug={secret.slug: secret}, listed=[secret])
+
+    resolved = await _storage_over(vault).get_client_info_for_grant(
+        OAuthGrantSettingsDTO(
+            server="https://mcp.example.com/",
+            scopes=["read"],
+            issuer=_ISSUER,
+            client_registration_slug=secret.slug,
+        )
+    )
+
+    assert resolved is None
