@@ -78,17 +78,28 @@ const connectionRow = (page: Page, name: string) =>
  * behind it, so every case that connects has to finish the journey first.
  */
 const finishJourney = async (page: Page) => {
-    const dialog = page.getByRole("dialog").last()
-    // `.first()` rather than an exact match: the footer's cancel and confirm both read
-    // "Done" on a deployment that predates the single-action footer, and either closes.
-    await dialog.getByRole("button", {name: "Done"}).first().click()
-    await expect(dialog).toBeHidden({timeout: 15000})
+    const dialog = journeyDialog(page)
+    await expect(dialog.getByText("is connected.")).toBeVisible({timeout: 60000})
+    await dialog.getByRole("button", {name: "Done"}).click()
+    await expect(dialog).toHaveCount(0, {timeout: 20000})
 }
+
+/**
+ * The connect journey's own dialog.
+ *
+ * Addressed as the dialog CONTAINING the journey's test id, not `getByRole("dialog").last()`:
+ * the settings page also mounts the connection detail drawer, which is a dialog too, so "the
+ * last one" is whichever the DOM happens to order last. This is the case a test id is for —
+ * the element has no accessible name that tells it apart. The id marks the journey's fields,
+ * while the footer buttons are its siblings, so the handle has to be the dialog around both.
+ */
+const journeyDialog = (page: Page) =>
+    page.locator('[role="dialog"]:has([data-testid="mcp-connect-journey"])')
 
 /** Drive the journey as far as the name step, which every path shares. */
 const startJourney = async (page: Page, url: string, name: string) => {
     await page.getByRole("button", {name: "Connect MCP"}).first().click()
-    const dialog = page.getByRole("dialog").last()
+    const dialog = journeyDialog(page)
 
     await dialog.getByLabel("MCP server URL").fill(url)
     await dialog.getByRole("button", {name: "Continue"}).click()
@@ -147,7 +158,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 "the name step is pre-filled from the server's own metadata",
                 async () => {
                     await page.getByRole("button", {name: "Connect MCP"}).first().click()
-                    const dialog = page.getByRole("dialog").last()
+                    const dialog = journeyDialog(page)
                     await dialog.getByLabel("MCP server URL").fill(`${mockBaseUrl}/`)
                     await dialog.getByRole("button", {name: "Continue"}).click()
 
@@ -185,7 +196,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             })
 
             await scenarios.then("the journey stays on the name step", async () => {
-                const dialog = page.getByRole("dialog").last()
+                const dialog = journeyDialog(page)
                 await expect(dialog.getByLabel("Connection name")).toBeVisible()
                 await dialog.getByRole("button", {name: "Cancel"}).click()
             })
@@ -281,7 +292,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         })
 
         await scenarios.then("its tools are listed, read-only", async () => {
-            const detail = page.getByRole("dialog").last()
+            const detail = page.getByTestId("mcp-connection-detail")
             await expect(detail.getByText("Tools", {exact: true})).toBeVisible({timeout: 30000})
             // The mock advertises `echo`; permissions are the agent's business, so this view
             // says what exists and points at the agent configuration.
@@ -313,7 +324,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         })
 
         await scenarios.and("the user grants the offered scopes", async () => {
-            const dialog = page.getByRole("dialog").last()
+            const dialog = journeyDialog(page)
             await expect(dialog.getByText("Choose which permissions to grant.")).toBeVisible({
                 timeout: 30000,
             })
@@ -325,6 +336,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             await expect(popup.getByText("The MCP server is connected.")).toBeVisible({
                 timeout: 30000,
             })
+            await finishJourney(page)
         })
 
         await scenarios.then("the connection is listed as ready", async () => {
