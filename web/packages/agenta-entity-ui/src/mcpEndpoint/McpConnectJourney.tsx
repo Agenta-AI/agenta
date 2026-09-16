@@ -79,7 +79,19 @@ const CONFIRM_LABEL: Partial<Record<McpJourneyState["status"], string>> = {
     tools_failed: "Done",
 }
 
-export default function McpConnectJourney({
+/**
+ * Mounts the journey only while it is open, so each opening starts a new one.
+ *
+ * The state lives in a hook inside the body. A host that keeps this rendered and toggles
+ * `open` would otherwise reopen onto the previous journey's final screen, with no URL field
+ * in sight — which is exactly what happened before this wrapper existed.
+ */
+export default function McpConnectJourney(props: McpConnectJourneyProps) {
+    if (!props.open) return null
+    return <McpConnectJourneyBody {...props} />
+}
+
+function McpConnectJourneyBody({
     open,
     onClose,
     existingNames = [],
