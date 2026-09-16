@@ -282,6 +282,7 @@ export {
     // Mutations
     updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
+    workflowDraftConsumedAtomFamily,
     registerWorkflowDraftCallbacks,
     clearWorkflowDraftCallbacks,
     // Cache invalidation

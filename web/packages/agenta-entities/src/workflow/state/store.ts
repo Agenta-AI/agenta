@@ -2551,6 +2551,33 @@ export const discardWorkflowDraftAtom = atom(null, (_get, set, workflowId: strin
     set(workflowDraftAtomFamily(workflowId), null)
 })
 
+/**
+ * How many times a COMMIT has consumed this revision's draft.
+ *
+ * A draft going empty means two different things, and the value alone cannot tell them apart:
+ * the person discarded their edits, or a commit turned them into a new revision. Only the first
+ * is a discard. Surfaces that reset themselves on a discard — the configuration form remounts,
+ * to clear editor state that props do not reach — must not reset on a commit, and on a host that
+ * switches to the new revision AFTER the commit rather than during it, the clearing lands while
+ * the old revision is still the one on screen. The form then remounted under whatever was open
+ * over it, seconds after an auto-commit nobody asked for (D94).
+ */
+export const workflowDraftConsumedAtomFamily = atomFamily((_workflowId: string) => atom(0))
+
+/**
+ * Clear a draft that a commit has just turned into a revision.
+ *
+ * Same write as a discard, plus the fact that distinguishes it. Use this from a commit; use
+ * `discardWorkflowDraftAtom` when the person threw the edits away.
+ */
+export const consumeWorkflowDraftAtom = atom(null, (get, set, workflowId: string) => {
+    set(workflowDraftAtomFamily(workflowId), null)
+    set(
+        workflowDraftConsumedAtomFamily(workflowId),
+        get(workflowDraftConsumedAtomFamily(workflowId)) + 1,
+    )
+})
+
 // ============================================================================
 // LOCAL DRAFTS (browser-only clones of server revisions)
 // ============================================================================
