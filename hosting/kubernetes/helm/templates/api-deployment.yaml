@@ -11,6 +11,17 @@ metadata:
     app.kubernetes.io/component: api
 spec:
   replicas: {{ include "agenta.api.replicas" . }}
+  {{- /* Graceful rollouts. A managed load balancer (GKE) keeps sending requests to a pod
+         for a few seconds after Kubernetes removes it from the endpoints, so a pod that
+         exits at once answers them with 502. Three optional keys fix that, and all three
+         are unset by default: `strategy` (spec.strategy, e.g. maxUnavailable: 0),
+         `lifecycle` (a preStop hook that delays the shutdown) and
+         `terminationGracePeriodSeconds` (room for that delay). See the README section
+         "Graceful rollouts". */}}
+  {{- with $api.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
@@ -23,6 +34,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $api "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $api.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $api.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -113,6 +127,10 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          {{- with $api.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $api.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

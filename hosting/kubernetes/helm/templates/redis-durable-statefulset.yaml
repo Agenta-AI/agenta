@@ -28,6 +28,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $redisDurable "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $redisDurable.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $redisDurable.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -91,6 +94,10 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 5
+          {{- with $redisDurable.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $redisDurable.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

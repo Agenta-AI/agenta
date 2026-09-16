@@ -13,6 +13,10 @@ metadata:
     app.kubernetes.io/component: runner
 spec:
   replicas: {{ include "agenta.agentRunner.replicas" . }}
+  {{- with $runner.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
@@ -25,6 +29,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $runner "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $runner.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $runner.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -205,6 +212,10 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          {{- with $runner.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $runner.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
