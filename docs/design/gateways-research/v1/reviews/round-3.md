@@ -201,6 +201,21 @@ Thirteen P2 and ten P3, recorded in full in the round's working file. The ones w
   and the browser suite's default mock port). That is D25's shape a fourth and fifth time: a suite
   that reports green while running nothing, or against another stack.
 
+  **D77, the services half, is fixed at `800c9d3aa2` and verified.** The helper is renamed from
+  skipping to requiring, and a deployment with the plane off now fails the suite unless the run says
+  out loud that it expected one, through `AGENTA_TESTS_EXPECT_LLM_GATEWAY`. The refusal names both
+  ways out. Making the opt-out explicit is the right shape, since the defect was a configuration
+  nobody had to say anything about. **One consequence to expect rather than discover:** that
+  variable is set nowhere in the repository yet, so until the workflow entry lands, a preview run
+  against a stack with the plane off goes red instead of green. That is the intended direction and
+  still a change in what the pipeline reports.
+
+- **D80, the real-server probe case, is fixed at `f3d52f10af` and verified.** Reachability is now
+  decided by the deployment rather than by the test runner's own network, which is the machine that
+  matters, and the probe's problem carries how the attempt failed so that a firewalled container
+  skips while a gateway that received an answer it could not read still fails — which is the
+  regression the case exists for. It passes here against the live provider through the deployment.
+
 ## The fixes that hold
 
 Codex's disposition table judged twenty-two earlier fixes at the code level and found the great
