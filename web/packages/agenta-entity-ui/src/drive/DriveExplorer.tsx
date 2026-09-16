@@ -507,6 +507,7 @@ export function DriveExplorer({
         ) : editableMarkdown ? (
             <DriveToolbar
                 variant="markdown"
+                path={selectedPath ?? ""}
                 toolbarRef={setToolbarEl}
                 mode={editorMode}
                 setMode={setEditorMode}
