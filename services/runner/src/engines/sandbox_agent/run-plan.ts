@@ -43,7 +43,10 @@ import {
   daytonaOpaqueSecretsEnabled,
   type DaytonaSecretPlan,
 } from "./daytona-secret-plan.ts";
-import { materializeSandboxCredentials } from "./sandbox-credentials.ts";
+import {
+  isReservedSandboxEnvironmentName,
+  materializeSandboxCredentials,
+} from "./sandbox-credentials.ts";
 
 type Log = (message: string) => void;
 
@@ -518,6 +521,15 @@ export function materializeModelEnvironment(
           "modelConnection environment requires non-empty names and values",
       };
     }
+    // M20. The same reserved set `sandboxCredentials` is screened against: both land in one
+    // process environment, so screening one and not the other only decides which field an
+    // override has to arrive in.
+    if (isReservedSandboxEnvironmentName(name)) {
+      return {
+        ok: false,
+        error: `modelConnection environment '${name}' is reserved by the runtime`,
+      };
+    }
     environment[name] = value;
   }
 
@@ -566,6 +578,12 @@ export function materializeModelEnvironment(
         ok: false,
         error:
           "opaque_http model credentials require an effective HTTPS endpoint",
+      };
+    }
+    if (isReservedSandboxEnvironmentName(name)) {
+      return {
+        ok: false,
+        error: `modelConnection credential binding '${name}' is reserved by the runtime`,
       };
     }
     if (Object.hasOwn(environment, name)) {
