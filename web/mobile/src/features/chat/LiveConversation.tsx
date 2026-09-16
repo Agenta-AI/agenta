@@ -30,6 +30,7 @@ import {
 } from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
 import {cancelSessionExecution} from "@agenta/entities/session"
+import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
@@ -50,6 +51,7 @@ import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
@@ -156,6 +158,20 @@ export const LiveConversation = ({
         () => getPendingSecretInteractions(conversation.messages)[0],
         [conversation.messages],
     )
+
+    // The agent committing itself: the stream carries a one-way `data-committed-revision` part.
+    // Follow it — pin the workspace and retarget the next send — and drop the latest-revision
+    // caches, or the config pane and the version chip keep showing the revision it replaced.
+    // The desktop does the same in its own host hook; the shared engine leaves it to the skin.
+    const committedSeenRef = useRef<Set<string>>(new Set())
+    useEffect(() => {
+        for (const revisionId of committedRevisionIds(conversation.messages)) {
+            if (committedSeenRef.current.has(revisionId)) continue
+            committedSeenRef.current.add(revisionId)
+            invalidateAgentCommittedRevisionCache()
+            if (revisionId !== entityId) adoptSecretRevision(revisionId)
+        }
+    }, [adoptSecretRevision, conversation.messages, entityId])
 
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
