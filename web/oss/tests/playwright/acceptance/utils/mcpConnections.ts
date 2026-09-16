@@ -155,7 +155,27 @@ const TRANSPORT_FAILURES = [
 ]
 
 export const navigate = async (page: Page, url: string): Promise<void> => {
-    const wanted = new URL(url, "http://placeholder.invalid").pathname
+    const wanted = new URL(url, "http://placeholder.invalid")
+
+    /**
+     * Whether the browser is on the address that was asked for, tab and all.
+     *
+     * The path alone is not the address here. Settings selects its tab by query string, so a
+     * path-only comparison reads `/settings?tab=secrets` as an arrival at
+     * `/settings?tab=mcpEndpoints`: the retry loop stops, and the locator that follows spends
+     * its whole budget on the wrong tab (CodeRabbit pass 2, P14).
+     *
+     * Only the parameters the caller named are compared. The app adds its own, and demanding
+     * an exact query string would turn every one of those into a failed navigation.
+     */
+    const arrived = (current: string): boolean => {
+        const here = new URL(current)
+        if (here.pathname !== wanted.pathname) return false
+        for (const [key, value] of wanted.searchParams) {
+            if (here.searchParams.get(key) !== value) return false
+        }
+        return true
+    }
 
     for (let attempt = 0; ; attempt++) {
         try {
@@ -171,7 +191,7 @@ export const navigate = async (page: Page, url: string): Promise<void> => {
                 // the address asked for never loads, and the wait that follows spends its whole
                 // budget on a page that was never going to answer it. Two of five runs failed
                 // exactly there. So: ask again unless we actually arrived.
-                if (new URL(page.url()).pathname === wanted) return
+                if (arrived(page.url())) return
                 if (attempt >= 3) throw error
                 await page.waitForTimeout(1000)
                 continue

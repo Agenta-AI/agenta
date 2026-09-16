@@ -358,9 +358,12 @@ describe("when the server has not been authorized", () => {
 
 describe("when the tool list cannot be read", () => {
     it("says so in the gateway's own words, and offers to try again", async () => {
-        listMcpTools.mockRejectedValue({
-            response: {data: {detail: {message: "The server did not answer."}}},
-        })
+        // The shape the tool-list client actually throws, for the same reason the
+        // needs-authorization stub above says: every relay failure is funnelled through
+        // `relayFailure` into an McpProtocolError carrying the server's sentence, so an
+        // axios-shaped rejection cannot reach this component and a case built on one passes
+        // without exercising the branch the real flow depends on (CodeRabbit pass 2, P15).
+        listMcpTools.mockRejectedValue(new McpProtocolError("The server did not answer."))
         const onChange = await render({tool_permissions: {echo: "allow"}})
 
         expect(text()).toContain("The server did not answer.")
