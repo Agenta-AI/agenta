@@ -245,7 +245,7 @@ export function SkillImportDrawer({
                                     key={row}
                                     className="box-border flex items-start gap-2.5 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] p-2.5"
                                 >
-                                    <SkeletonBlock active className="mt-0.5 size-4 rounded-full" />
+                                    <SkeletonBlock active className="mt-0.5 size-4 rounded" />
                                     <span className="flex min-w-0 flex-1 flex-col gap-1.5">
                                         <SkeletonBlock active className="h-3.5 w-2/5 rounded" />
                                         <SkeletonBlock active className="h-3.5 w-4/5 rounded" />

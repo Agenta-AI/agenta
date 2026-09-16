@@ -16,7 +16,8 @@ import {SkillUpdateCell} from "./SkillUpdateCell"
  * One skill's cells, in column order.
  *
  * The name is the registry identity — the mono slug, the same one the drawer and the picker
- * show — and the whole row opens the drawer, so the kebab is the only control on it.
+ * show — and the whole row opens the drawer, so the actions cell holds only the kebab and,
+ * once a check found one, the Update mark.
  */
 export const SkillRowCells = ({
     row,
