@@ -128,17 +128,17 @@ unsatisfiable once the client is regenerated.
 | M5 | `api/oss/src/core/gateways/llms/providers/mock/adapter.py:789-795` | Real | `b5382e95c6` | The text branch's content-block delta omits the index the tool-use branch carries. Mock adapter, registered only behind the mocks flag. Verified; its test fails without the fix. |
 | M6 | `clients/scripts/generate.sh:350` | Real | `ca6e7dbab0` | Generated-client Python floor raised above what the SDK and API declare, making an install on the older supported version unsatisfiable after regeneration. Verified: floor restored, client not regenerated, three packages agree. **Nothing runs the guard** — no workflow executes `clients/python/tests`. |
 | M7 | `api/oss/src/core/workflows/static_catalog.py:175-184` | Deferred | — | The schema shape would break strict function calling, but nothing in-tree feeds these schemas to a strict consumer. |
-| M8 | `api/oss/src/core/gateways/mcps/oauth/storage.py:344-355` | Real | `fa7b1fcc7e` | A missing key raises where a row came from another writer, and the provider lookup matches any OAuth-provider secret at the same issuer, so a user-created one turns re-registration into a server error. **Partly.** The raise is gone and a foreign row reads as unregistered, but the issuer-only fallback scan still matches any provider row at that issuer. |
+| M8 | `api/oss/src/core/gateways/mcps/oauth/storage.py:344-355` | Real | `fa7b1fcc7e`, `8292c86fab` | A missing key raises where a row came from another writer, and the provider lookup matches any OAuth-provider secret at the same issuer, so a user-created one turns re-registration into a server error. **Partly.** The raise is gone and a foreign row reads as unregistered, but the issuer-only fallback scan still matches any provider row at that issuer. **Partly.** The issuer scan now accepts only a row carrying a presentable registration, and its case discriminates. Two shadowing paths survive and were reproduced: the slug-addressed lookup in front of the scan is unfiltered and returns first, and the new filter tests shape rather than provenance, so a crafted free-form `extra` still wins. |
 | M9 | `services/runner/src/engines/sandbox_agent/mount.ts:548` | Deferred | — | Default ports are not normalised when comparing authorities. The store endpoint is always port-qualified in practice and the failure is a loudly surfaced skipped mount. |
-| M10 | `sdks/python/agenta/sdk/middlewares/running/vault.py:494-496` | Real | `facf5097da` | An agent request is inferred from the shape of a parameter named `agent`, so a non-agent workflow carrying that key runs with an empty vault. Needs a user-chosen parameter name to collide. **Partly**, as the commit concedes: a name-shaped heuristic narrowed, not a declared kind recorded. `{"agent": {}}` is now sent to the vault, and the key list duplicates the schema with no sync check. |
-| M11 | `services/runner/src/tools/relay-watch.ts:130-142` | Real | `9e848417de` | The local relay source declares an abort signal and ignores it, so an abort is honoured only if the source is also closed. Bounded delay. **Not closed in effect.** The source now honours a signal, but the only caller passes none (`services/runner/src/tools/relay.ts:976`), so an abort still reaches neither source. The test supplies the signal the product never supplies. |
+| M10 | `sdks/python/agenta/sdk/middlewares/running/vault.py:494-496` | Real | `facf5097da`, `7d3428c9ca` | An agent request is inferred from the shape of a parameter named `agent`, so a non-agent workflow carrying that key runs with an empty vault. Needs a user-chosen parameter name to collide. **Partly**, as the commit concedes: a name-shaped heuristic narrowed, not a declared kind recorded. `{"agent": {}}` is now sent to the vault, and the key list duplicates the schema with no sync check. **Now closed** by `7d3428c9ca`: a subset test on the agent block, empty qualifies, a mixed block is refused, and the key list is pinned by reading the schema's own fields rather than restating them. Drift in either direction fails a case. |
+| M11 | `services/runner/src/tools/relay-watch.ts:130-142` | Real | `9e848417de`, `ad52aa0777` | The local relay source declares an abort signal and ignores it, so an abort is honoured only if the source is also closed. Bounded delay. **Not closed in effect.** The source now honours a signal, but the only caller passes none (`services/runner/src/tools/relay.ts:976`), so an abort still reaches neither source. The test supplies the signal the product never supplies. **Now closed in code** by `ad52aa0777`: the signal is wired through `run-turn.ts:1238`, the only production caller, and reaches the source at `relay.ts:987`. **The wiring is unguarded**: reverting that one argument leaves the whole runner unit project green at 3393 passed, so the case pins the source seam only, not the call site the residual was about. |
 | M12 | `services/runner/src/engines/sandbox_agent/pi-model-config.ts:300` | Deferred | — | The check accepts two credential modes while the error text still names one. Operator-facing string only, worth the two-line fix since it names the gateway path. |
 | M13 | `services/runner/src/engines/sandbox_agent/run-plan.ts:422-431` | Deferred | — | The Docker host alias counts as loopback, so a provider secret crosses plain HTTP over the bridge without the insecure-HTTP opt-in. Deliberate, documented, mirrored in the SDK, and host-local. Post-release hardening. |
 | M14 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectWatch.ts:95-103` | Real | `ee8486fd61` | A trusted completion that omits the endpoint id settles whichever watcher is live. Origin is still checked, so not an auth bypass; it can show a spurious failure. Verified: a completion naming no endpoint no longer settles a live watch, and the five lax cases that would have broken under the tightened guard were corrected rather than loosened. |
 | M15 | `api/oss/src/apis/fastapi/gateways/mcps/utils.py:20-27` | Real | `c9e65158f4` | See release blockers. Verified: both identifiers refuse rather than trim, and the refusal renders as an invalid request. Four cases fail without it. |
 | M16 | `api/pyproject.toml:14-16` | Real | `b3c8c57b69` | A version range guarded by a test asserting an exact version. A lock refresh turns CI red. Verified: pinned exactly and the lock is consistent (`uv lock --check` clean). Nothing guards the pin against being re-widened. |
 | M17 | `api/oss/src/core/gateways/mcps/providers/mock/adapter.py:103-106` | Deferred | — | An unvalidated sleep duration, in a provider that registers only behind the mocks flag and cannot be resolved with it off. |
-| M18 | `api/oss/src/core/gateways/mcps/oauth/registration.py:15-16` | Real | `ec5b82d8b9` | Blocking name resolution with no timeout, called synchronously from two async paths. Stalls the worker's event loop, not just the request. Verified, both call sites converted, and discrimination proven by reverting only the wrapper body. See the note on the shared executor in round 2. |
+| M18 | `api/oss/src/core/gateways/mcps/oauth/registration.py:15-16` | Real | `ec5b82d8b9`, `938f9a088d` | Blocking name resolution with no timeout, called synchronously from two async paths. Stalls the worker's event loop, not just the request. Verified, both call sites converted, and discrimination proven by reverting only the wrapper body. See the note on the shared executor in round 2. **Now closed** by `938f9a088d`: the relay path is bounded too, and both resolutions run on the module's own eight-thread pool rather than the loop's shared default. Exhaustion was measured: twenty concurrent stuck resolutions all refuse at the bound, only eight enter the resolver, and nothing deadlocks. |
 | M19 | `services/runner/src/extensions/pi-mcp.ts:184-189` | Real | `606616c997` | Configured headers are spread after the protocol headers, so a server config can clobber them or add a case variant that gets folded. Validation reserves none of the three. Breaks initialization in a way that reads as a gateway bug. Verified: case-insensitive screen, protocol headers written last, session id reserved. |
 | M20 | `services/runner/src/extensions/model-provider-override.ts:68-73` | Real | `d8e2da9163` | The reserved-name check is applied only to sandbox credentials, not to the model connection's environment or bindings, so a caller-supplied override can reach the extension on a local run. Requires control of the runner request. Verified: one shared rule, both materializers screened, and the case is data-driven off the reserved set. |
 
@@ -192,6 +192,38 @@ no pin keeps the identity-document fallback, which is the legitimate path.
 Worth recording plainly: **this review read that code and missed it.** Verifying D24 I read the
 write path and the pinned branch, confirmed the slug was carried forward, and did not follow what
 the caller does with a `None`. CodeRabbit did.
+
+### The residuals, and what closing them showed
+
+Each residual above was routed and fixed, and each fix verified the same way. Three are now closed
+outright: **CR10**'s two untested halves have a fake-timer case and an in-flight abort case, and
+deleting either half fails its own case; **M10** is pinned to the schema; **M18** is bounded on the
+relay path with its own pool, measured under saturation. The **Pi client's CR9 gap** is closed at
+`39febe5f38`, redirect and origin both, and the origin comparison was probed against nine bypass
+shapes — a suffix host, a userinfo prefix, a port, a scheme downgrade, a trailing dot — and refused
+all of them; it is exact origin equality, not a prefix match. One caveat: the origin rule disarms
+when no API base is configured, so on this path the posture is conditional on deployment
+environment while the handshake probe's is not.
+
+Two are not closed, and each is recorded in its row: **M11**'s product wiring is unguarded, and
+**M8** still has two shadowing paths.
+
+### Residuals still open
+
+- **M8's slug-addressed lookup is unfiltered.** The new filter sits on the issuer scan, but the
+  lookup in front of it checks kind and issuer only and returns first, so a hand-made row at the
+  derived per-address slug still hides a real registration and the deployment re-registers. Both
+  slugs are deterministic derivations. Reproduced.
+- **M8's filter tests shape, not provenance.** The registration blob is a free-form dictionary on a
+  user-creatable row, so a crafted one passes the check and is presented as the client. Reproduced.
+  Closing this needs a provenance marker on the rows this code writes.
+- **M11's call site can regress silently.** Reverting the one argument that wires the signal leaves
+  the full runner suite green. The case asserts through a direct call that supplies its own signal,
+  which is the same shape the original residual named, moved one layer out.
+- **M18's saturation behaviour is unpinned.** With the pool full, an address that resolves instantly
+  is refused as unresolvable. That is bounded and disclosed, but no case holds it, so a later change
+  to the pool size or to who shares it would move the behaviour unobserved. The pool is also created
+  through an unguarded lazy global and never shut down.
 
 ### Residuals found while verifying
 
