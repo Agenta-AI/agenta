@@ -14,7 +14,7 @@
  */
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import {AgentPickerPanel} from "@agenta/entity-ui/agent"
+import {AgentChip, AgentPickerPanel} from "@agenta/entity-ui/agent"
 import {SkillFormView} from "@agenta/entity-ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {
@@ -62,10 +62,10 @@ import {
     Info,
     Lightning,
     Plus,
-    Robot,
     WarningCircle,
 } from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
+import Link from "next/link"
 
 import {SkillSaveBlastRadius} from "./SkillSaveBlastRadius"
 import type {SkillListItem, SkillUsageRef} from "./types"
@@ -76,6 +76,8 @@ export interface SkillDetailDrawerProps {
     projectId: string
     /** The clicked card. Null renders nothing (the drawer stays mounted for the exit animation). */
     skill: SkillListItem | null
+    /** Where an agent's name in the Used-by popover leads. Absent, the names are plain text. */
+    agentHref?: (agentId: string) => string
     width?: number
 }
 
@@ -110,6 +112,7 @@ export function SkillDetailDrawer({
     onClose,
     projectId,
     skill,
+    agentHref,
     width = 960,
 }: SkillDetailDrawerProps) {
     // The list item's id IS the workflow id (the hosts map workflow_id into it).
@@ -449,37 +452,72 @@ export function SkillDetailDrawer({
         </TooltipProvider>
     ) : null
 
-    // Who runs it sits behind a count beside the name, the way provenance does: the body stays
-    // the editor, and the names are one hover away.
+    // Who runs it reads as a faded count beside the name; the names wait behind a hover, each a
+    // link to its agent. A popover, not a tooltip: a tooltip's content cannot be clicked.
+    const [usageOpen, setUsageOpen] = useState(false)
+    const usageCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const openUsage = useCallback(() => {
+        if (usageCloseTimer.current) clearTimeout(usageCloseTimer.current)
+        setUsageOpen(true)
+    }, [])
+    const scheduleCloseUsage = useCallback(() => {
+        if (usageCloseTimer.current) clearTimeout(usageCloseTimer.current)
+        usageCloseTimer.current = setTimeout(() => setUsageOpen(false), 140)
+    }, [])
     const usage = usedBy.length ? (
-        <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button
-                        type="button"
-                        aria-label={`Used by ${usedBy.length} ${usedBy.length === 1 ? "agent" : "agents"}`}
-                        className="box-border inline-flex shrink-0 cursor-help items-center gap-1 border-0 bg-transparent p-0 font-[inherit] text-[11px] font-normal text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorText)]"
-                    >
-                        <Robot size={14} aria-hidden />
-                        {usedBy.length}
-                    </button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" align="start">
-                    <span className="flex flex-col gap-0.5">
-                        <span className="opacity-80">Used by</span>
-                        {usedBy.map((agent) => (
-                            <span key={agent.id}>
-                                {agent.name}
-                                <span className="opacity-80">
-                                    {" "}
-                                    · {agent.mode === "pinned" ? `pinned v${agent.pinnedVersion ?? ""}` : "latest"}
-                                </span>
+        <Popover open={usageOpen} onOpenChange={setUsageOpen}>
+            <PopoverAnchor asChild>
+                <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    aria-expanded={usageOpen}
+                    onClick={openUsage}
+                    onMouseEnter={openUsage}
+                    onMouseLeave={scheduleCloseUsage}
+                    className="box-border inline-flex shrink-0 cursor-default items-center border-0 bg-transparent p-0 font-[inherit] text-[12px] font-normal text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorTextSecondary)]"
+                >
+                    Used by {usedBy.length} {usedBy.length === 1 ? "agent" : "agents"}
+                </button>
+            </PopoverAnchor>
+            <PopoverContent
+                side="bottom"
+                align="start"
+                sideOffset={6}
+                aria-label="Agents using this skill"
+                className="flex w-[240px] flex-col gap-px p-1"
+                onOpenAutoFocus={(event) => event.preventDefault()}
+                onMouseEnter={openUsage}
+                onMouseLeave={scheduleCloseUsage}
+            >
+                {usedBy.map((agent) => {
+                    const label = (
+                        <>
+                            <AgentChip workflowId={agent.id} box="size-5" glyph={13} />
+                            <span className="min-w-0 flex-1 truncate">{agent.name}</span>
+                            <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                {agent.mode === "pinned"
+                                    ? `pinned v${agent.pinnedVersion ?? ""}`
+                                    : "latest"}
                             </span>
-                        ))}
-                    </span>
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
+                        </>
+                    )
+                    return agentHref ? (
+                        <Link
+                            key={agent.id}
+                            href={agentHref(agent.id)}
+                            onClick={onClose}
+                            className={cn(ACTION_ROW, "no-underline")}
+                        >
+                            {label}
+                        </Link>
+                    ) : (
+                        <span key={agent.id} className={cn(ACTION_ROW, "cursor-default")}>
+                            {label}
+                        </span>
+                    )
+                })}
+            </PopoverContent>
+        </Popover>
     ) : null
 
     const title = (

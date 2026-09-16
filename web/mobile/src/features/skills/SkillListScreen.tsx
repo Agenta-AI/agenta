@@ -65,6 +65,7 @@ export const SkillListScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    const base = `/w/${workspaceId}/p/${projectId}`
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)
     const [search, setSearch] = useAtom(skillsSearchAtom)
@@ -128,6 +129,8 @@ export const SkillListScreen = ({
         setDetailOpen(true)
     }, [])
     const closeDetail = useCallback(() => setDetailOpen(false), [])
+    // The drawer's Used-by names lead to the agent's own page.
+    const agentHref = useCallback((agentId: string) => `${base}/agents/${agentId}`, [base])
     const [importOpen, setImportOpen] = useState(false)
     const openImport = useCallback(() => setImportOpen(true), [])
     const closeImport = useCallback(() => setImportOpen(false), [])
@@ -223,6 +226,7 @@ export const SkillListScreen = ({
                 onClose={closeDetail}
                 projectId={projectId}
                 skill={detailSkill}
+                agentHref={agentHref}
             />
             <SkillImportDrawer open={importOpen} onClose={closeImport} projectId={projectId} />
             <SkillCreateDrawer
