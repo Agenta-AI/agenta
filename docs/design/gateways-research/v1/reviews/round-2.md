@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **1** | **7** | **6** | **27 closed, 4 part fixed, 14 open** |
+| **As this file is written** | **0** | **1** | **7** | **7** | **28 closed, 4 part fixed, 15 open** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -114,6 +114,7 @@ whether that fix was read against the finding and its test.
 | D56 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:204` at HEAD | Fix, blocking a real upstream | `a96b45c400` | **yes**, code and a mutation run |
 | D57 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:326` at HEAD | Fix, **superseded** by OR91's | `a96b45c400`, `005207efe7` | **yes**, both, each by mutation |
 | D58 | structural | P2 | `api/oss/src/core/gateways/mcps/providers/mock/` | **Closed.** The mock now enforces what a real server enforces | `14ef19e60b` | **yes**, code read, 1104 unit cases pass |
+| D59 | r3-D2 residual | P3 | `web/packages/agenta-entities/src/session/core/schema.ts` | **Deferred**, with a stated closure | n/a | mechanism, schema read |
 | D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix: QA-D3's better wording cannot fire in production | | mechanism, both sites read |
 | D51 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:293` | Fix the assertion | | mechanism, both message strings compared |
 | D52 | verification | P3 | `hooks/useMcpConnectJourney.ts:179`, `McpConnectJourney.tsx:96` | Record the invariant or apply the check | | mechanism, seven await sites counted |
@@ -1055,6 +1056,18 @@ compiling at that moment while serving its shells in about 150 milliseconds — 
 route over, where a dev-mode client bundle plus tunnel latency exceeds a budget written for a warm
 route. The second executed nothing: the tunnel dropped the sign-up request. So the spec is unproven
 here, and **D53** now covers two suites rather than one.
+
+**D59. The MCP server notice lives only in the live turn — deferred, with a closure.** r3-D2's fix
+renders the notice from the live data part. The durable session event schema has no record type for
+it: the record kinds it carries are the tool, frame and lifecycle ones, and nothing MCP-shaped. So a
+reload replays the turn without the sentence and without the Connect action, and a shared session
+drops the part at the transport, leaving the reader back at the bare tool error the fix removed.
+
+**Closure:** a backend session record type for MCP server notices, replayed the way tool records
+already are. Deferred rather than fixed here because it is a schema change on both sides for a
+surface that is correct while the turn is on screen, which is when a person acts on it. Not a
+release blocker, and recorded so that "the notice is missing after a reload" is a known gap rather
+than a new bug report.
 
 ## Quality findings
 
