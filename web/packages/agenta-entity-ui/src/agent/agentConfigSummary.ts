@@ -109,6 +109,52 @@ export const mcpSummaryDetail = (mcps: number, {canEdit = false} = {}): string =
     mcps ? `${mcps} configured` : canEdit ? "Connect a server" : "None configured"
 
 /**
+ * What the skills row says. Same shape as the MCP row's, and here for the same reason: an empty
+ * row on a card whose rows open the editor has to offer the action, not report the absence. The
+ * mobile card said "No skills" beside its own "Add instructions", which is the drift this stops.
+ */
+export const skillsSummaryDetail = (skills: number, {canEdit = false} = {}): string =>
+    skills
+        ? `${skills} ${skills === 1 ? "skill" : "skills"}`
+        : canEdit
+          ? "Add skills"
+          : "None available"
+
+/**
+ * What the instructions row says. `AGENTS.md · 28 words`, or the action when there is no brief.
+ * The mobile card abbreviated the count to `28w` for a narrow row, which is a different string
+ * for the same fact and the kind of difference nothing was watching.
+ */
+export const instructionsSummaryDetail = (words: number | null, {canEdit = false} = {}): string =>
+    words ? `AGENTS.md · ${words} words` : canEdit ? "Add instructions" : "No instructions"
+
+/**
+ * The tools row's wording. Its noun is the one thing each host names for itself: the playground
+ * calls them tools and the mobile overview calls them integrations. Everything else about the row
+ * comes from here, so an empty row cannot offer an action on one app and report a fact on the
+ * other.
+ */
+export interface AgentConfigToolsCopy {
+    toolsTitle: string
+    toolsCount: (count: number) => string
+    toolsAdd: string
+    toolsNone: string
+}
+
+export const toolsCopyFor = (noun: string, plural: string): AgentConfigToolsCopy => ({
+    toolsTitle: plural,
+    toolsCount: (count) => `${count} enabled`,
+    toolsAdd: `Add ${noun}`,
+    toolsNone: `No ${noun}`,
+})
+
+/** The playground's own nouns, and the default every host gets. */
+export const DEFAULT_TOOLS_COPY: AgentConfigToolsCopy = {
+    ...toolsCopyFor("tools", "Tools"),
+    toolsNone: "None enabled",
+}
+
+/**
  * The rows every agent summary card shows, in order, with the title each one carries.
  *
  * The two cards are not one component: the desktop one renders the playground panel's
