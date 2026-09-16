@@ -642,3 +642,76 @@ def test_route_table_matches_the_design_exactly():
         ("/standard/{provider}/v1/models", "GET"): "llm_gateway_list_models_standard",
         ("/custom/{slug}/v1/models", "GET"): "llm_gateway_list_models_custom",
     }
+
+
+# ---------------------------------------------------------------------------
+# CodeQL py/stack-trace-exposure: no exception text reaches the response body
+# ---------------------------------------------------------------------------
+
+_LEAKY = "INTERNAL-DETAIL-DO-NOT-EXPOSE"
+
+
+@pytest.mark.asyncio
+async def test_an_unrelated_value_error_does_not_reach_the_response_body(monkeypatch):
+    """The body arm catches every `ValueError`, not only the gateway's own complaints
+    about a request, and it rendered whatever the exception said."""
+    import oss.src.apis.fastapi.gateways.llms.proxy as proxy_module
+
+    def explode(*, body):
+        raise ValueError(f"connection string {_LEAKY} refused")
+
+    monkeypatch.setattr(proxy_module, "parse_llm_call_context", explode)
+
+    service = _MockLlmGatewayService()
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=json.dumps({"model": "gpt-5"}).encode()), "my-slug"
+        )
+
+    assert response.status_code == 400
+    assert _LEAKY not in response.body.decode()
+    payload = json.loads(response.body)
+    assert payload["error"]["code"] == "invalid_request"
+    assert service.relay_calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_malformed_body_is_refused_without_quoting_the_decoder():
+    """The ordinary way in. A decoder names the offset it choked on in the caller's own
+    bytes; the gateway answers in its own words."""
+    service = _MockLlmGatewayService()
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=b'{"model": "gpt-5",,,}'), "my-slug"
+        )
+
+    assert response.status_code == 400
+    rendered = response.body.decode()
+    assert "Expecting" not in rendered
+    assert "char " not in rendered
+    assert "request body is not valid JSON" in rendered
+
+
+@pytest.mark.asyncio
+async def test_an_upstream_failure_does_not_relay_its_adapters_message():
+    """The other arm the finding covers: a transport or adapter failure is a fixed
+    sentence, and the provider's own text stays server-side."""
+    service = _MockLlmGatewayService(
+        relay_exception=LLMUpstreamError(
+            provider_key="openai", status_code=None, detail=f"boom {_LEAKY}"
+        )
+    )
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=json.dumps({"model": "gpt-5"}).encode()), "my-slug"
+        )
+
+    assert _LEAKY not in response.body.decode()
+    payload = json.loads(response.body)
+    assert payload["error"]["code"] == "upstream_error"

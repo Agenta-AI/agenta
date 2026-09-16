@@ -11,6 +11,7 @@ test asserts both the HTTP status AND the stable `cause` string in the JSON-RPC 
 `data` — asserting the status alone would also pass under the old, wrong behaviour.
 """
 
+import json
 from uuid import uuid4
 
 import pytest
@@ -388,3 +389,37 @@ def test_invalid_json_rpc_request_is_a_protocol_invalid_request(client, mock_ser
     assert payload["jsonrpc"] == "2.0"
     assert payload["id"] is None
     assert payload["error"]["data"]["cause"] == "invalid_request"
+
+
+# ---------------------------------------------------------------------------
+# CodeQL py/stack-trace-exposure, the same arm one plane over
+# ---------------------------------------------------------------------------
+
+
+def test_an_unrelated_value_error_does_not_reach_the_jsonrpc_body():
+    """This arm catches every `ValueError`, not only the gateway's own complaints about
+    a request, and it rendered whatever the exception said."""
+    from oss.src.apis.fastapi.gateways.mcps.proxy import _map_gateway_exception
+
+    leaky = "INTERNAL-DETAIL-DO-NOT-EXPOSE"
+
+    rendered = _map_gateway_exception(
+        ValueError(f"connection string {leaky} refused")
+    ).body.decode()
+
+    assert leaky not in rendered
+    assert json.loads(rendered)["error"]["data"]["cause"] == "invalid_request"
+
+
+def test_the_gateways_own_body_complaint_still_says_what_is_wrong():
+    """Refusing to quote an exception must not cost a caller the feedback about their
+    own request that makes the refusal actionable."""
+    from oss.src.apis.fastapi.gateways.mcps.proxy import _map_gateway_exception
+    from oss.src.apis.fastapi.gateways.mcps.utils import parse_mcp_call_context
+
+    with pytest.raises(ValueError) as excinfo:
+        parse_mcp_call_context(headers={}, body=b"not-json")
+
+    rendered = _map_gateway_exception(excinfo.value).body.decode()
+
+    assert "must be a JSON-RPC object" in rendered

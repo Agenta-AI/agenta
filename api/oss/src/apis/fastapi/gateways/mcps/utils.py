@@ -6,6 +6,14 @@ from typing import Any, Dict, Optional, Tuple
 from oss.src.core.gateways.mcps.dtos import COMPOSIO_PROVIDER, MCPCallContext
 
 
+class MCPRequestBodyError(ValueError):
+    """A request body the gateway cannot route, said in this module's own words.
+
+    A `ValueError` so the proxy's existing arm keeps catching it, and typed so that arm
+    can tell a complaint this module authored from any other `ValueError` reaching it.
+    """
+
+
 def parse_mcp_call_context(*, headers: Dict[str, str], body: bytes) -> MCPCallContext:
     """Read policy-relevant fields from JSON-RPC without changing forwarded bytes.
 
@@ -23,16 +31,16 @@ def parse_mcp_call_context(*, headers: Dict[str, str], body: bytes) -> MCPCallCo
     try:
         payload: Any = json.loads(body)
     except (json.JSONDecodeError, UnicodeDecodeError, TypeError) as exc:
-        raise ValueError("MCP request body must be a JSON-RPC object") from exc
+        raise MCPRequestBodyError("MCP request body must be a JSON-RPC object") from exc
 
     if not isinstance(payload, dict):
-        raise ValueError("MCP request body must be a JSON-RPC object")
+        raise MCPRequestBodyError("MCP request body must be a JSON-RPC object")
 
     method = payload.get("method")
     if not isinstance(method, str) or not method:
-        raise ValueError("MCP JSON-RPC request requires a non-empty method")
+        raise MCPRequestBodyError("MCP JSON-RPC request requires a non-empty method")
     if method != method.strip():
-        raise ValueError(
+        raise MCPRequestBodyError(
             "MCP JSON-RPC method must not begin or end with whitespace: the upstream "
             "receives the body unchanged, so a trimmed value would not be the one sent"
         )
@@ -42,9 +50,11 @@ def parse_mcp_call_context(*, headers: Dict[str, str], body: bytes) -> MCPCallCo
     if isinstance(params, dict) and "name" in params:
         target = params["name"]
         if not isinstance(target, str) or not target:
-            raise ValueError("MCP JSON-RPC params.name must be a non-empty string")
+            raise MCPRequestBodyError(
+                "MCP JSON-RPC params.name must be a non-empty string"
+            )
         if target != target.strip():
-            raise ValueError(
+            raise MCPRequestBodyError(
                 "MCP JSON-RPC params.name must not begin or end with whitespace: the "
                 "upstream receives the body unchanged, so a trimmed value would not be "
                 "the one sent"

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 from fastapi import APIRouter, Request, Response, status
 
 from oss.src.apis.fastapi.gateways.mcps.utils import (
+    MCPRequestBodyError,
     parse_mcp_call_context,
     split_builtin_path,
 )
@@ -39,6 +40,9 @@ from oss.src.core.gateways.policy.types import (
 from oss.src.utils.context import get_auth_scope
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 if TYPE_CHECKING:
     from oss.src.core.gateways.mcps.service import MCPGatewayService
@@ -120,10 +124,22 @@ def _map_gateway_exception(e: BaseException) -> Response:
             cause=e.code,
         )
     if isinstance(e, ValueError):
+        # The same rule as the LLM plane's body arm, for the same reason: this catches
+        # every `ValueError`, and only the ones this gateway authored are describing the
+        # request. Anything else is logged and answered with a fixed sentence rather than
+        # quoted (OR86).
+        if isinstance(e, MCPRequestBodyError):
+            message = str(e)
+        else:
+            log.warning(
+                "[gateways] a request was refused by something that does not describe it",
+                error_class=type(e).__name__,
+            )
+            message = "the request could not be read"
         return _protocol_error(
             status_code=status.HTTP_400_BAD_REQUEST,
             code=_JSONRPC_INVALID_REQUEST,
-            message=str(e),
+            message=message,
             cause="invalid_request",
         )
     if isinstance(e, MCPEndpointNotFoundError):

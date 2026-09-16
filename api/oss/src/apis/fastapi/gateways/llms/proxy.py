@@ -5,7 +5,9 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.apis.fastapi.gateways.llms.utils import (
+    LLMRequestBodyError,
     parse_llm_call_context,
     parse_messages_call_context,
     parse_responses_call_context,
@@ -65,6 +67,9 @@ _DOMAIN_EXCEPTIONS = (
 )
 
 
+log = get_module_logger(__name__)
+
+
 def _openai_error(
     *,
     status_code: int,
@@ -78,6 +83,26 @@ def _openai_error(
     error: Dict[str, Any] = {"message": rendered, "type": error_type, "code": code}
     error.update(extra)
     return JSONResponse(status_code=status_code, content={"error": error})
+
+
+def _request_body_detail(exc: ValueError) -> str:
+    """What to tell a caller about a body the gateway could not route.
+
+    Never `str(exc)`. The parser's own complaints are authored here and are useful to
+    return, but the arm that catches them catches every `ValueError`, and a decoder's
+    message quotes the bytes or the offset it choked on while any other `ValueError`
+    reaching this point is not describing the request at all. So an exception this
+    module did not author is logged and answered with a fixed sentence, the same way a
+    transport failure is classified rather than quoted (OR86).
+    """
+    if isinstance(exc, LLMRequestBodyError):
+        return exc.detail
+
+    log.warning(
+        "[gateways] a request body was refused by something that does not describe it",
+        error_class=type(exc).__name__,
+    )
+    return "request body could not be read"
 
 
 def _map_domain_exception(exc: Exception) -> JSONResponse:
@@ -372,7 +397,7 @@ class LLMGatewayProxy:
         except ValueError as exc:
             return _openai_error(
                 status_code=400,
-                message=str(exc),
+                message=_request_body_detail(exc),
                 error_type="invalid_request_error",
                 code="invalid_request",
             )

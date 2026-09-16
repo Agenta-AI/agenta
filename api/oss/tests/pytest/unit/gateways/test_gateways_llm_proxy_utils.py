@@ -9,6 +9,7 @@ import pytest
 
 from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMProtocol
 from oss.src.apis.fastapi.gateways.llms.utils import (
+    LLMRequestBodyError,
     parse_llm_call_context,
     parse_messages_call_context,
     parse_responses_call_context,
@@ -131,3 +132,42 @@ def test_door_parser_does_not_mutate_input_bytes(parser):
 def test_door_parser_rejects_non_boolean_stream(parser, protocol, stream):
     with pytest.raises(ValueError, match="stream must be a boolean"):
         parser(body=_encode({"model": "claude-3", "stream": stream}))
+
+
+# ---------------------------------------------------------------------------
+# CodeQL py/stack-trace-exposure: an exception's text must not reach the body
+# ---------------------------------------------------------------------------
+
+
+def test_a_body_that_is_not_json_is_refused_without_quoting_the_decoder():
+    """A decoder's message carries the bytes or the offset it choked on. The gateway
+    says what is wrong in its own words instead."""
+    with pytest.raises(LLMRequestBodyError) as excinfo:
+        parse_llm_call_context(body=b'{"model": "gpt-5",,,}')
+
+    assert excinfo.value.cause == "invalid_json"
+    assert excinfo.value.detail == "request body is not valid JSON"
+    # Nothing from the decoder, which would have said "Expecting property name..." and
+    # named a column in the caller's body.
+    assert "Expecting" not in str(excinfo.value)
+    assert "column" not in str(excinfo.value)
+
+
+def test_an_undecodable_body_is_refused_without_quoting_the_bytes():
+    with pytest.raises(LLMRequestBodyError) as excinfo:
+        parse_llm_call_context(body=b"\xff\xfe\x00not json")
+
+    assert excinfo.value.cause == "invalid_json"
+    assert "\\xff" not in str(excinfo.value)
+
+
+def test_the_parsers_own_complaints_still_say_what_is_wrong():
+    """Refusing to quote an exception must not cost a caller the feedback about their
+    own request that makes the refusal actionable."""
+    with pytest.raises(LLMRequestBodyError) as no_model:
+        parse_llm_call_context(body=b"{}")
+    with pytest.raises(LLMRequestBodyError) as bad_stream:
+        parse_llm_call_context(body=b'{"model": "gpt-5", "stream": "yes"}')
+
+    assert no_model.value.detail == "request body names no model"
+    assert bad_stream.value.detail == "request body stream must be a boolean"
