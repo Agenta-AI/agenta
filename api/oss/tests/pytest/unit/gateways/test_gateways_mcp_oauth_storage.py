@@ -553,3 +553,30 @@ async def test_a_pinned_row_that_is_not_a_usable_registration_refuses_the_renewa
                 client_registration_slug=secret.slug,
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_a_real_registration_under_an_older_slug_is_still_found_by_the_scan():
+    """The fallback has to keep working, or losing track of a registration means
+    registering a fresh client at a server that may rate limit it."""
+    legacy = _provider_secret(issuer=_ISSUER, slug="legacy-oauth-provider")
+    vault = _CountingVault(listed=[legacy])
+
+    client_info = await _storage_over(vault).get_client_info()
+
+    assert client_info is not None and client_info.client_id == "client-1"
+
+
+@pytest.mark.asyncio
+async def test_a_hand_made_row_does_not_hide_the_real_registration_beside_it():
+    """Both rows name the issuer. The scan has to pick the one that is a registration."""
+    vault = _CountingVault(
+        listed=[
+            _foreign_provider_secret(issuer=_ISSUER, extra={}),
+            _provider_secret(issuer=_ISSUER, slug="legacy-oauth-provider"),
+        ]
+    )
+
+    client_info = await _storage_over(vault).get_client_info()
+
+    assert client_info is not None and client_info.client_id == "client-1"

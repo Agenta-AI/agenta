@@ -329,6 +329,14 @@ class SecretsTokenStorage:
         rate limit it. Such a row is returned with whatever slug it actually carries,
         which may be none, so a grant referencing it either addresses it or falls back to
         this same search rather than to a slug nothing is stored under.
+
+        The scan matches on more than the issuer. An OAuth-provider secret is something a
+        person can create through the vault's own surface, so "any provider row naming
+        this issuer" also describes a row this class never wrote, and picking one up made
+        a hand-made secret decide how this deployment authenticates: it was presented as
+        the client, and re-registration was skipped because a registration appeared to
+        exist (M8). A row only counts if it actually carries a registration this client
+        could present, which a hand-made one does not.
         """
         for slug in self._registration_slugs(current_address=current_address):
             provider = await self._provider_by_slug(slug)
@@ -343,6 +351,7 @@ class SecretsTokenStorage:
                 for s in secrets
                 if s.kind == SecretKind.OAUTH_PROVIDER
                 and s.data.provider.issuer_url == target
+                and self._as_client_info(s) is not None
             ),
             None,
         )
