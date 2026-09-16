@@ -2,12 +2,14 @@
  * Skill detail — the drawer a registry card opens (artboards 2/2b), one shell with the
  * editor anatomy throughout:
  *
- * - Editable as soon as the head loads, always showing the head. USED BY chips sit under
- *   the header line. Revision history is deliberately not surfaced: versioning stays under
- *   the hood.
- * - A changed draft grows Discard / Save; Save opens the blast-radius dialog (5b) — the
- *   explicit replacement for silent auto-commit — then commits.
- * - The skill's own verbs — Add to agent, Archive / Restore — live in the header's kebab.
+ * - Editable as soon as the head loads, always showing the head. Revision history is
+ *   deliberately not surfaced: versioning stays under the hood.
+ * - Discard / Save sit in the footer throughout, inert until the draft differs from the
+ *   head; Save opens the blast-radius dialog (5b) — the explicit replacement for silent
+ *   auto-commit — then commits.
+ * - Who runs it reads as a faded count in the header; the names wait behind a hover, each
+ *   a link to its agent. The skill's own verbs — Add to agent, Archive / Restore — live in
+ *   the header's kebab.
  *
  * Connected on purpose (like the create drawer): revisions/usage load and the commit live
  * here once; hosts pass `projectId` and the card's list item.
@@ -188,6 +190,8 @@ export function SkillDetailDrawer({
      * open, and committing against a base the author never saw is exactly what the check
      * exists to prevent. */
     const [editBaseId, setEditBaseId] = useState<string | null>(null)
+    // The empty-field chrome waits for a Save press, as in the create drawer.
+    const [attempted, setAttempted] = useState(false)
 
     // Fresh state per open — closing only closes, so the exit animation keeps its frame.
     const [wasOpen, setWasOpen] = useState(false)
@@ -222,8 +226,6 @@ export function SkillDetailDrawer({
         setError(null)
     }, [headValue])
 
-    // The empty-field chrome waits for a Save press, as in the create drawer.
-    const [attempted, setAttempted] = useState(false)
     const askToCommit = useCallback((content: Record<string, unknown>, defaultMessage: string) => {
         setAttempted(true)
         const parsed = skillContentSchema.safeParse(content)
@@ -266,8 +268,7 @@ export function SkillDetailDrawer({
         }
     }, [editBaseId, head, pending, projectId, revisionsQuery, saveMessage, workflowId])
 
-    const usedByIds = useMemo(() => new Set(usedBy.map((agent) => agent.id)), [usedBy])
-    const usedByIdList = useMemo(() => [...usedByIds], [usedByIds])
+    const usedByIdList = useMemo(() => usedBy.map((agent) => agent.id), [usedBy])
     // One agent at a time, from the kebab's submenu: the tick is the action, and the drawer
     // stays where it is — the header's count answers whether it landed.
     const [addingTo, setAddingTo] = useState<string | null>(null)
