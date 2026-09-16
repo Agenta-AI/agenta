@@ -53,8 +53,9 @@ watches. Neither reviewer found a P0.
 ## What blocks the release
 
 **Five findings, and two of them are the same mistake in different places: a client that reads only
-the shape it was shown. All five are now fixed and verified**, along with every P2 and P3 this round
-raised except the deferrals named below. Nothing from round 3 blocks the release.
+the shape it was shown. All five are now fixed and verified.** One finding has since been reopened:
+**D88**, whose fix reached one reader of five and left the wire unchanged. It blocks until the two
+halves in flight land.
 
 ### D62. A connection's tool filter silently does nothing against a server that frames its tool list — FIXED at `419fcafdbf`
 
@@ -305,7 +306,7 @@ origin, so the path already returns there, and the fallback lands on the connect
 anywhere wrong. Worth being precise about what stays true — on a deployment that does split them, a
 blocked popup still loses the originating surface.
 
-## D88, a coverage gap that turned out to be a live divergence
+## D88, REOPENED — the divergence was fixed in one reader of five
 
 `247bfbc9f1`, verified. The finding was that the Claude settings matrices cross every server
 decision with every per-tool decision and then ask about the one tool the table names, so the other
@@ -324,6 +325,33 @@ under Pi.
 than the adapter is the right call: the gate is the authoritative side, and the adapter's job is to
 describe it, not to decide differently. One hundred and eighty-five cases pass; pinned before the
 fix, seven fail, all of them unnamed-tool combinations.
+
+### Reopened, because that fixed the rendering and not the wire
+
+`247bfbc9f1` changed how the Claude **native rules** render. It did not change what goes on the
+wire. On the committed head, `MCPPolicy.resolved_new_tool_permission`
+(`sdks/python/agenta/sdk/agents/mcp/models.py:157`) still reads
+`new_tool_permission or permission or "ask"`, and `to_wire` sends that value as
+`newToolPermission`, which the runner honours verbatim. So a server permission of `allow` beside any
+per-tool table still puts `newToolPermission: "allow"` on the wire, and a tool the author never named
+still runs unapproved — **under every harness, not only Claude.** Verified on the committed head.
+
+A fifth reader has the same fallback: `resolvedNewToolPermission`
+(`web/packages/agenta-entities/src/mcpEndpoint/core/toolPolicy.ts:69`) drives the editor's
+"Inherits" label, so the editor also tells an author the wrong thing about an unnamed tool.
+
+**Both halves are in flight** — the SDK resolver with a cross-reader matrix, and the web reader with
+its mobile mirror — and the record stays open until they land, so it never reads closed while the
+wire is wrong.
+
+**My closure was wrong, and the reason is worth keeping.** I verified the adapter's ladder, read its
+tests, ran them, and pinned the pre-fix revision to watch seven cases fail. All of that was true and
+none of it asked the question that mattered: whether the same ladder existed upstream of the thing I
+was looking at. D88's own finding was that one policy has several readers; I then verified a fix to
+one reader and reported the finding closed. Checking a fix against the finding is not the same as
+checking it against the system, and this round has now produced that lesson three times — in D59,
+where I inferred a backend gap from one file, in D61, where a green suite sat over a script that
+never parsed, and here.
 
 This is the fourth finding in this candidate where the same policy was read differently in two
 places, after D37, D57 and D63. Three of the four resolved toward the runner.
