@@ -27,7 +27,7 @@ export interface ItemDescriptor {
     /** Custom properties the chip classes read (the light and dark tint and ink). */
     avatarStyle?: React.CSSProperties
     /** Type tags shown on the right of a row (e.g. "built-in", "definition", "gmail").
-     * An object form carries a semantic tone (e.g. green for "Latest"). */
+     * An object form carries a semantic tone (e.g. a status hue). */
     tags: (string | {label: string; tone?: "success" | "warning" | "default"})[]
     /** Type label for the drawer header badge (e.g. "definition", "MCP server"). */
     typeLabel: string
@@ -320,14 +320,14 @@ export function describeSkill(skill: unknown): ItemDescriptor {
     }
     if (isEmbedRefSkill(s)) {
         // Registry-by-default: the raw "@ag.embed" marker is plumbing, not information.
-        // The row says what the author chose: follow the head, or stay pinned.
+        // Following the head is the default and says nothing; only a pin is worth a tag.
         const pinned = embedRevisionVersion(s)
         return {
             name: staticEmbedName(s) ?? staticEmbedSlug(s) ?? "Skill reference",
             description: typeof s.description === "string" ? (s.description as string) : undefined,
             mono: "sk",
             color: "#b45309",
-            tags: pinned ? [{label: "Pinned"}] : [{label: "Latest", tone: "success"}],
+            tags: pinned ? [{label: "Pinned"}] : [],
             typeLabel: "registry skill",
             typeColor: "gold",
             subtitle: pinned
