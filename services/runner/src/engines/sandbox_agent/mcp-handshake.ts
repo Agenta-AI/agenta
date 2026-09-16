@@ -85,6 +85,8 @@ type FetchLike = (
     headers: Record<string, string>;
     body?: string;
     signal?: AbortSignal;
+    /** Declared so a caller cannot omit the redirect posture by accident. See CR9 below. */
+    redirect?: "manual" | "error" | "follow";
   },
 ) => Promise<{
   ok: boolean;
@@ -189,6 +191,13 @@ export async function probeMcpServerHandshake(
   try {
     const response = await fetchImpl(server.connection.url, {
       method: "POST",
+      // CR9. Never follow a redirect on this request. The URL was declared by a user and checked
+      // once, by `validateUserMcpUrl`; a 302 re-points the SAME request — credential headers
+      // included — at a host nothing checked, private and metadata addresses among them. `manual`
+      // surfaces the 3xx as an ordinary response, which `response.ok` then reports as a handshake
+      // failure. The API plane already takes this position for the same reason
+      // (`api/oss/src/core/gateways/egress.py`, `follow_redirects=False`).
+      redirect: "manual",
       headers: handshakeHeaders(server),
       body: JSON.stringify({
         jsonrpc: "2.0",
@@ -225,6 +234,9 @@ export async function probeMcpServerHandshake(
       try {
         await fetchImpl(server.connection.url, {
           method: "DELETE",
+          // Same rule as the handshake above: this request carries the same credentials, so a
+          // redirect on the way out would hand them to an unchecked host just as readily (CR9).
+          redirect: "manual",
           headers: {
             ...handshakeHeaders(server),
             "mcp-session-id": sessionId,
