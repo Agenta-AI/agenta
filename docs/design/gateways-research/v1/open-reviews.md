@@ -354,6 +354,25 @@ a future reader who reaches for that shortcut should read the OR49 record first.
 
 ### OR88. A custom connection that names Anthropic is registered as an OpenAI one — CLOSED, by reading the family the connection states instead of defaulting past it
 
+**Verified by this review at `31f9b87a75`.** Fifty-seven cases pass at the fix. The pre-fix suite
+cannot be run as a comparison, because the new cases import a helper that did not exist, so
+discrimination was proven by mutation instead: reverting only the derivation's body to "OpenAI
+whenever no protocol is stated", keeping the symbol, fails exactly two cases — the end-to-end
+registered row and the connection that states no protocol. Both are behavioural, not import
+artefacts.
+
+The reasoning behind the fix is the part worth keeping. The protocol field's note, that a record
+written before it existed reads as OpenAI-compatible, is correct for a record that says nothing, and
+was being applied to a record that says `anthropic` in the field beside it. The enum has two values
+because everything that is not Anthropic's shape is OpenAI's, so the family answers the question
+whenever the protocol does not. An unknown kind still falls to OpenAI, which keeps the old behaviour
+for anything the map does not name.
+
+This is the same family as **D36** in [round-2.md](reviews/round-2.md): a default written down as
+though it were a declaration. D36 was the form where saving an undeclared record declared the
+default; this is the form where a record that declares something in one field is read past to the
+default of another. Both narrow a connection to a harness it cannot drive.
+
 Found on 2026-09-16 from a row in the QA project, reproduced from the vault write that made it.
 Severity P2.
 
