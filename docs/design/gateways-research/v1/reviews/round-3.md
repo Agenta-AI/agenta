@@ -216,6 +216,36 @@ Thirteen P2 and ten P3, recorded in full in the round's working file. The ones w
   skips while a gateway that received an answer it could not read still fails — which is the
   regression the case exists for. It passes here against the live provider through the deployment.
 
+## The testing-infrastructure findings, closed
+
+Four of the round's smaller findings were about how this work is measured rather than what it does.
+All four are fixed and verified, and two of them changed behaviour rather than only coverage.
+
+**D70 — the handshake probe screened its configured headers too** (`8748f4d730`). M19 protected the
+Pi client from a configured header displacing a protocol one; the probe still spread configured
+headers over its own, and did so by exact key, so `Accept` and `accept` would both survive and the
+request would carry a folded value. A server configuration that set any of the three broke the probe
+in a way that reads as an unreachable server rather than as the configuration it is, and reported
+that server as failed before the client this probe exists to protect ever ran. The screen is now the
+same exported list rather than a copy, which is the fix that keeps the two from drifting again.
+Sixty-eight cases pass; pinned before it, three fail.
+
+**D83 — the resolver queue is no longer charged to the resolution** (`035e84dc3c`). One bound
+covering both waits meant that with every thread busy, an address that resolves in a millisecond was
+told it could not be resolved in time: a sentence about the address, when the operator's problem was
+a saturated gateway. There are now two bounds, a caller that gives up queueing frees its slot, and
+the probe reports the two causes separately. Eighty-four cases pass across the egress and probe
+suites; pinned before it, three fail, including the one that asserts a busy gateway says so.
+
+**D82 — D33's guard is driven from the relay** (`d3ef9e3743`). The guard was held only by cases that
+called it directly with a token computed by hand, so nothing proved the relay reaches it, or reaches
+it with the token that call actually presented. It does now, and twenty-four integration cases pass
+against a real database.
+
+**D81 — the generated client's tests run in CI** (`9414adfe02`). The guard added for CodeRabbit's M6
+sat in a directory no workflow executed. It runs now, and the commit adds a case asserting that CI
+still names it, so the guard cannot quietly lose its runner a second time.
+
 ## The fixes that hold
 
 Codex's disposition table judged twenty-two earlier fixes at the code level and found the great
