@@ -96,3 +96,4 @@ export {
 } from "./toolPolicy"
 export type {McpPermission, McpServerPolicy, McpToolFilterPolicy} from "./toolPolicy"
 export {isSafeReturnPath, MCP_RETURN_PATH_KEY, rememberMcpReturnPath} from "./returnPath"
+export {filterMcpTools, TOOL_FILTER_THRESHOLD} from "./toolSearch"

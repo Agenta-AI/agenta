@@ -14,6 +14,7 @@ import {useCallback, useEffect, useRef, useState} from "react"
 import {
     connectionNameProblem,
     editMcpEndpoint,
+    filterMcpTools,
     getMcpConnectionState,
     getMcpConnectionStateLabel,
     listMcpTools,
@@ -26,6 +27,8 @@ import {Tag} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, Field, Input} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
+
+import {ToolFilterInput} from "./ToolFilterInput"
 
 export interface McpConnectionDetailProps {
     endpoint: MCPEndpoint | null
@@ -55,6 +58,7 @@ export default function McpConnectionDetail({
     const [name, setName] = useState("")
     const [saving, setSaving] = useState(false)
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
+    const [filter, setFilter] = useState("")
 
     const connectionState = endpoint ? getMcpConnectionState(endpoint) : null
     const isReady = connectionState === "ready"
@@ -171,7 +175,17 @@ export default function McpConnectionDetail({
 
                     <section className="flex flex-col gap-2">
                         <h4 className="m-0 text-sm font-medium text-colorText">Tools</h4>
-                        <ToolList state={tools} isReady={isReady} onRetry={loadTools} />
+                        <ToolFilterInput
+                            total={tools.status === "ready" ? tools.tools.length : 0}
+                            value={filter}
+                            onChange={setFilter}
+                        />
+                        <ToolList
+                            state={tools}
+                            isReady={isReady}
+                            onRetry={loadTools}
+                            filter={filter}
+                        />
                         <p className="m-0 text-xs text-colorTextDescription">
                             Choose what this server may do in an agent&apos;s configuration.
                         </p>
@@ -199,10 +213,12 @@ const ToolList = ({
     state,
     isReady,
     onRetry,
+    filter,
 }: {
     state: ToolsState
     isReady: boolean
     onRetry: () => void
+    filter: string
 }) => {
     if (!isReady) {
         return (
@@ -239,9 +255,16 @@ const ToolList = ({
     }
     if (state.status !== "ready") return null
 
+    const shown = filterMcpTools(state.tools, filter)
+    if (shown.length === 0) {
+        // The server has tools; this query does not name any of them. Said as such, so nobody
+        // reads a filter's own emptiness as a server that stopped advertising.
+        return <p className="m-0 text-sm text-colorTextDescription">No tool here matches that.</p>
+    }
+
     return (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {state.tools.map((tool) => (
+            {shown.map((tool) => (
                 <li key={tool.name} data-testid="mcp-tool" className="flex flex-col gap-0.5">
                     <span className="text-sm text-colorText">{tool.name}</span>
                     {tool.description ? (

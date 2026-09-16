@@ -19,6 +19,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     clearPerToolPolicy,
+    filterMcpTools,
     gatewayRefusalCode,
     gatewayRefusalMessage,
     isPerTool,
@@ -38,6 +39,8 @@ import {Button} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {PermissionPolicySelect} from "../DrillInView/SchemaControls/agentTemplate/PermissionPolicySelect"
+
+import {ToolFilterInput} from "./ToolFilterInput"
 
 export interface McpToolPermissionsProps {
     /** The connection whose tools these are. */
@@ -81,6 +84,7 @@ export default function McpToolPermissions({
 }: McpToolPermissionsProps) {
     const projectId = useAtomValue(projectIdAtom) ?? undefined
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
+    const [filter, setFilter] = useState("")
 
     // Which connection the visible list belongs to. A tool list is fetched per connection and
     // arrives whenever it arrives, so without this, switching connections mid-flight rendered
@@ -197,6 +201,12 @@ export default function McpToolPermissions({
                         />
                     </div>
 
+                    <ToolFilterInput
+                        total={tools.status === "ready" ? tools.tools.length : 0}
+                        value={filter}
+                        onChange={setFilter}
+                    />
+
                     <ToolRows
                         state={tools}
                         policy={policy}
@@ -205,6 +215,7 @@ export default function McpToolPermissions({
                         onConnect={onConnect}
                         onSetTool={setTool}
                         inheritLabel={newToolPermission ?? "ask"}
+                        filter={filter}
                     />
 
                     {strandedByFilter.length ? (
@@ -274,6 +285,8 @@ interface ToolRowsProps {
     onConnect?: () => void
     onSetTool: (name: string, value: string) => void
     inheritLabel: McpPermission
+    /** What the person typed into the filter box, or "" when they typed nothing. */
+    filter: string
 }
 
 const ToolRows = ({
@@ -284,6 +297,7 @@ const ToolRows = ({
     onConnect,
     onSetTool,
     inheritLabel,
+    filter,
 }: ToolRowsProps) => {
     if (state.status === "loading") {
         return (
@@ -319,9 +333,20 @@ const ToolRows = ({
         )
     }
 
+    const shown = filterMcpTools(state.tools, filter)
+    if (shown.length === 0) {
+        // The server has tools; this query names none of them. A rule already set on a tool the
+        // filter hides is still in the policy and still shown below, under its own heading.
+        return (
+            <p className="m-0 text-xs text-[var(--ag-colorTextSecondary)]">
+                No tool here matches that.
+            </p>
+        )
+    }
+
     return (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {state.tools.map((tool) => {
+            {shown.map((tool) => {
                 const hidden = isToolHidden(policy, tool.name)
                 const explicit = toolPermissions(policy)[tool.name]
                 return (

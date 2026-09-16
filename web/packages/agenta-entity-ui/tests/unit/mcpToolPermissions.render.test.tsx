@@ -204,6 +204,66 @@ describe("a tool the filter hides that still holds a permission", () => {
     })
 })
 
+describe("a catalogue too long to scroll", () => {
+    const many = Array.from({length: 40}, (_, index) => ({
+        name: `tool_${index}`,
+        description: index === 7 ? "File a new issue in a team" : "Does a thing",
+    }))
+
+    it("offers a filter once there are enough tools to hunt through", async () => {
+        listMcpTools.mockResolvedValue(many)
+
+        await render({new_tool_permission: "ask"})
+
+        // Linear advertises seventy-nine of these and every row rendered, so choosing what one
+        // tool may do meant scrolling for it (UI QA round 3, scenario G).
+        expect(host.querySelector('[aria-label="Filter tools"]')).not.toBeNull()
+    })
+
+    it("does not put a filter above a handful", async () => {
+        await render({new_tool_permission: "ask"})
+
+        // The default stub advertises two.
+        expect(host.querySelector('[aria-label="Filter tools"]')).toBeNull()
+    })
+
+    it("narrows the rows to what was typed, by name or by what the tool does", async () => {
+        listMcpTools.mockResolvedValue(many)
+        await render({new_tool_permission: "ask"})
+
+        const box = host.querySelector<HTMLInputElement>('[aria-label="Filter tools"]')!
+        await act(async () => {
+            const setter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype,
+                "value",
+            )!.set!
+            setter.call(box, "issue")
+            box.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+
+        expect(selectFor("Permission for tool_7")).not.toBeNull()
+        expect(selectFor("Permission for tool_1")).toBeNull()
+    })
+
+    it("says the query matched nothing rather than looking like a server with no tools", async () => {
+        listMcpTools.mockResolvedValue(many)
+        await render({new_tool_permission: "ask"})
+
+        const box = host.querySelector<HTMLInputElement>('[aria-label="Filter tools"]')!
+        await act(async () => {
+            const setter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype,
+                "value",
+            )!.set!
+            setter.call(box, "nothing-matches-this")
+            box.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+
+        expect(text()).toContain("No tool here matches that")
+        expect(text()).not.toContain("exposes no tools yet")
+    })
+})
+
 describe("rules for tools that are no longer advertised", () => {
     it("are shown rather than dropped, so a decision survives a server blip", async () => {
         await render({tool_permissions: {echo: "allow", gone: "deny"}})
