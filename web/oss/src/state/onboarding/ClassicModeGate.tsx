@@ -8,8 +8,8 @@ import {authFlowAtom} from "@/oss/state/session"
 
 /**
  * Null-rendering: mirrors Classic mode to a cookie, and hops to `/m` on the first visit.
- * Waits for a settled session — mid sign-in the id is known but post-auth routing has not run —
- * and re-checks on every route change, so the hop fires once sign-in has pushed off `/auth`.
+ * Waits for a settled session — mid sign-in the id is known but post-auth routing has not run.
+ * Re-checks on every route: sign-in and post-signup leave by client-side push, not a page load.
  */
 const ClassicModeGate = () => {
     const authFlow = useAtomValue(authFlowAtom)
