@@ -15,7 +15,7 @@
  * The same sequence is spoken by `services/runner/src/extensions/pi-mcp.ts` and, for the
  * handshake alone, by the backend probe in `api/oss/src/core/gateways/mcps/probe.py`.
  */
-import type {McpToolSummary} from "./connectJourney"
+import type {McpToolAnnotations, McpToolSummary} from "./connectJourney"
 
 /** The protocol version this client offers. A server that speaks another still answers. */
 export const MCP_PROTOCOL_VERSION = "2025-06-18"
@@ -171,7 +171,26 @@ export interface McpToolPage {
  * A missing or non-array `tools` is a protocol failure rather than an empty server: the
  * member is required, and reading it as "no tools" is how a broken conversation ends up
  * presented as a server worth connecting to and then editing permissions for.
+ *
+ * Every member the surfaces above can use is carried through, not just the two they used to
+ * read. `title` and `annotations.readOnlyHint` arrive on the wire and the permission drawer
+ * needs both — one to label a row, one to decide which group it belongs to — and a projection
+ * that drops them cannot be undone anywhere downstream. A member of the wrong type is dropped
+ * rather than coerced, because a boolean-shaped hint that is actually a string is not advice.
  */
+const readAnnotations = (value: unknown): McpToolAnnotations | undefined => {
+    if (!isRecord(value)) return undefined
+    const annotations: McpToolAnnotations = {}
+    if (typeof value.title === "string") annotations.title = value.title
+    if (typeof value.readOnlyHint === "boolean") annotations.readOnlyHint = value.readOnlyHint
+    if (typeof value.destructiveHint === "boolean") {
+        annotations.destructiveHint = value.destructiveHint
+    }
+    // An annotations object carrying nothing this reader understands is not an annotation. A
+    // `{}` here would read as "the server annotated this tool" to anything checking presence.
+    return Object.keys(annotations).length ? annotations : undefined
+}
+
 export const readToolPage = (result: Record<string, unknown>): McpToolPage => {
     const tools = result.tools
     if (!Array.isArray(tools)) {
@@ -182,12 +201,16 @@ export const readToolPage = (result: Record<string, unknown>): McpToolPage => {
     return {
         tools: tools.flatMap((tool): McpToolSummary[] => {
             if (!isRecord(tool) || typeof tool.name !== "string" || !tool.name) return []
+            const annotations = readAnnotations(tool.annotations)
             return [
                 {
                     name: tool.name,
+                    ...(typeof tool.title === "string" ? {title: tool.title} : {}),
                     ...(typeof tool.description === "string"
                         ? {description: tool.description}
                         : {}),
+                    ...(annotations ? {annotations} : {}),
+                    ...(tool.inputSchema !== undefined ? {inputSchema: tool.inputSchema} : {}),
                 },
             ]
         }),

@@ -97,6 +97,14 @@ export type MCPProbeRegistration = "dynamic" | "metadata" | "unavailable"
 export interface MCPProbeProblem {
     cause: string
     message: string
+    /**
+     * How the outbound attempt failed, when it failed rather than answered. A cause from the
+     * backend's closed transport vocabulary, or `unresolvable` for a name that never resolved.
+     * `cause` is deliberately coarse: a connection that was refused and an answer that could
+     * not be read are both "unreachable" to the person connecting, and are not the same thing
+     * to anything deciding whether this deployment has outbound access at all.
+     */
+    transport?: string | null
 }
 
 export interface MCPProbeAuth {

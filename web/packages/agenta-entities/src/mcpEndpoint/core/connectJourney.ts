@@ -89,10 +89,49 @@ export type McpJourneyStatus =
     | "no_tools"
     | "tools_failed"
 
+/**
+ * What a server said about one of its tools, as `tools/list` returned it.
+ *
+ * The name is the tool's identity and the only spelling every harness and every saved policy
+ * agrees on, so it is the key a permission is stored under and it is never replaced by a
+ * prettier string. Everything else here is presentation or advice, kept because the server
+ * offered it and because a reader that drops it forces the surfaces above to guess.
+ *
+ * `annotations` is the server's own advice about a tool, not a guarantee. `readOnlyHint` is
+ * how the permission drawer separates reads from writes, and a tool that omits it is treated
+ * as a write: the unknown case has to fall on the cautious side of that split.
+ */
+export interface McpToolAnnotations {
+    /** The older spelling of the display title, from servers predating the top-level field. */
+    title?: string
+    /** The server's claim that the tool does not modify anything. Advice, not a guarantee. */
+    readOnlyHint?: boolean
+    /** The server's warning that the tool can destroy something it touches. */
+    destructiveHint?: boolean
+}
+
 export interface McpToolSummary {
     name: string
+    /** A human title the server prefers over `name`. Display only; never a key. */
+    title?: string
     description?: string
+    annotations?: McpToolAnnotations
+    /**
+     * The tool's argument schema, verbatim. Carried rather than parsed: nothing in this package
+     * reads it, and a surface that wants to show a tool's inputs cannot recover it once dropped.
+     */
+    inputSchema?: unknown
 }
+
+/**
+ * The string a surface shows for a tool.
+ *
+ * The precedence is the protocol's own: the top-level `title` added in 2025-06-18, then the
+ * `annotations.title` older servers wrote, then the name. A tool with neither shows its name,
+ * which is what every MCP surface showed before titles existed.
+ */
+export const mcpToolDisplayName = (tool: McpToolSummary): string =>
+    tool.title?.trim() || tool.annotations?.title?.trim() || tool.name
 
 export interface McpJourneyState {
     status: McpJourneyStatus
