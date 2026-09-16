@@ -16,9 +16,14 @@ import {useCallback, useMemo, useState} from "react"
 
 import {
     deleteMcpEndpointAtom,
+    disconnectMcpEndpointAtom,
+    // The drawer's own health prop still speaks the connect journey's vocabulary.
     getMcpConnectionState,
+    getMcpConnectionStatus,
+    getMcpConnectionStatusLabel,
     mcpEndpointsQueryAtom,
     refreshMcpEndpointsAtom,
+    type McpConnectionStatus,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
@@ -50,23 +55,30 @@ const DEFAULT_COPY: McpServersSectionCopy = {
 }
 
 /**
- * The two statuses this page can tell apart.
+ * How a row's status colours its dot. The words and the derivation are the entity layer's, so
+ * this page and the permission drawer cannot drift into two names for one state.
  *
- * The spec draws a third, "Unreachable", for a server whose last health check failed. Nothing
- * on the connection record says that — `flags.is_valid` reports the credential, not the host —
- * so deriving it here would mean labelling every unauthorized row unreachable. The missing
- * field is issue #6909; the third status arrives with it.
- *
- * Both failure modes collapse to "Login expired": an OAuth grant that was revoked or aged out,
- * and an API key that the server has stopped accepting. They differ in which sheet Reconnect
- * opens, not in what the reader has to do about them.
+ * "Unreachable" is in the vocabulary and never rendered today: nothing on the connection record
+ * reports whether the host answered (issue #6907). `getMcpConnectionStatus` carries the seam and
+ * the tone is declared here so the row is right the day the field arrives.
  */
-const STATUS = {
-    connected: {label: "Connected", tone: "success"} as const,
-    expired: {label: "Login expired", tone: "warning"} as const,
+const STATUS_TONE: Record<McpConnectionStatus, "success" | "warning" | "error"> = {
+    connected: "success",
+    login_expired: "warning",
+    unreachable: "error",
 }
 
-const isConnected = (endpoint: MCPEndpoint) => getMcpConnectionState(endpoint) === "ready"
+/**
+ * Whether there is a stored grant this row could give back.
+ *
+ * Only an OAuth connection: the revoke route refuses anything else outright with "endpoint is
+ * not a custom OAuth target" (`gateways/mcps/router.py`), so offering the action on a key row
+ * would produce a 400 on a row that reads as connected. A grant the server has stopped honouring
+ * still counts — the handle is dropped whether or not the far side still knows about it, which
+ * is the state that made a connection report itself ready and then fail every call.
+ */
+const hasGrantToRevoke = (endpoint: MCPEndpoint) =>
+    endpoint.auth_mode === "oauth" && Boolean(endpoint.secret_id)
 
 export interface McpServersSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
@@ -88,6 +100,7 @@ export default function McpServersSection({
 
     const {data: endpoints, isPending} = useAtomValue(mcpEndpointsQueryAtom)
     const refresh = useSetAtom(refreshMcpEndpointsAtom)
+    const disconnect = useSetAtom(disconnectMcpEndpointAtom)
     const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
 
@@ -156,12 +169,11 @@ export default function McpServersSection({
     }, [])
 
     /**
-     * Disconnecting ends the connection: the row leaves the project.
+     * Disconnecting gives back the login. The connection stays.
      *
-     * The confirm sentence is the spec's and it describes exactly this — agents lose the
-     * server's tools, because the server is gone, not because a token was revoked. Per
-     * decision 33 there is no second destructive verb on the row; renewing a login is
-     * Reconnect, which is a different item.
+     * The row remains, reporting Login expired, and Reconnect renews it — which is why the two
+     * are separate items rather than one. The confirm sentence is the spec's: agents lose the
+     * server's tools because its calls start failing, not because the server went away.
      */
     const handleDisconnect = useCallback(
         (endpoint: MCPEndpoint) => {
@@ -169,8 +181,7 @@ export default function McpServersSection({
             const label = endpoint.name || endpoint.slug || "this server"
             const run = async () => {
                 try {
-                    await deleteEndpoint(endpoint.id as string)
-                    setViewing(null)
+                    await disconnect(endpoint.id as string)
                 } catch (error) {
                     message.error(
                         (error as Error)?.message || "Failed to disconnect the MCP server.",
@@ -183,6 +194,35 @@ export default function McpServersSection({
                 message: "Agents using this server lose its tools",
                 okText: "Disconnect",
                 danger: true,
+                onOk: run,
+            })
+        },
+        [confirm, disconnect],
+    )
+
+    /**
+     * Removing takes the identity with it, which disconnecting does not.
+     *
+     * The spec draws no deletion at all, and a spec that does not draw an action does not
+     * remove it: without this there is no way to take a server out of a project.
+     */
+    const handleRemove = useCallback(
+        (endpoint: MCPEndpoint) => {
+            if (!endpoint.id) return
+            const label = endpoint.name || endpoint.slug || "this server"
+            const run = async () => {
+                try {
+                    await deleteEndpoint(endpoint.id as string)
+                    setViewing(null)
+                    setToolsKey(null)
+                } catch (error) {
+                    message.error((error as Error)?.message || "Failed to remove the MCP server.")
+                }
+            }
+            if (!confirm) return void run()
+            confirm({
+                title: "Remove server",
+                message: `${label} is removed from this project. Agents configured to use it stop working, and reconnecting later creates a new connection.`,
                 onOk: run,
             })
         },
@@ -249,16 +289,16 @@ export default function McpServersSection({
                 title: "Status",
                 width: 190,
                 render: (record) => {
-                    const connected = isConnected(record)
-                    const status = connected ? STATUS.connected : STATUS.expired
+                    const status = getMcpConnectionStatus(record)
+                    const connected = status === "connected"
                     return (
                         <span
                             data-testid="mcp-connection-status"
                             className="flex min-w-0 items-center gap-2"
                         >
                             <StatusIndicator
-                                tone={status.tone}
-                                label={status.label}
+                                tone={STATUS_TONE[status]}
+                                label={getMcpConnectionStatusLabel(status)}
                                 className="text-[13px]"
                             />
                             {/* The repair is offered where the problem is reported, so a row
@@ -348,7 +388,16 @@ export default function McpServersSection({
                                       key: "disconnect",
                                       label: "Disconnect",
                                       danger: true,
+                                      // Hidden where there is no grant to give back, which
+                                      // would be a 400 on a row that reads as connected.
+                                      hidden: !hasGrantToRevoke(record),
                                       onClick: () => handleDisconnect(record),
+                                  },
+                                  {
+                                      key: "remove",
+                                      label: "Remove",
+                                      danger: true,
+                                      onClick: () => handleRemove(record),
                                   },
                               ]
                     }
@@ -402,8 +451,6 @@ export default function McpServersSection({
                 onClose={() => setViewing(null)}
                 existingNames={names}
                 onReconnect={openReconnect}
-                // One meaning per word: the drawer's Disconnect ends the connection, exactly as
-                // the row menu's does.
                 onDisconnect={handleDisconnect}
                 onChanged={() => void refresh()}
             />

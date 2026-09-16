@@ -116,9 +116,30 @@ export const AllStatuses: Story = {
     parameters: {agenta: fixture([LINEAR, AXIOM, MEMORY, OCTOLENS, STALE_KEY])},
 }
 
-/** E1's row menu: the spec's four verbs, with Disconnect below a divider. */
+/**
+ * The row menu on a connection that holds an OAuth grant: both destructive verbs below the
+ * divider. Disconnect gives the login back and the row stays; Remove takes the connection.
+ */
 export const RowMenuOpen: Story = {
     parameters: {agenta: fixture([LINEAR, AXIOM, MEMORY])},
+    decorators: [
+        (Story) => (
+            <OpenFirstRowMenu>
+                <Story />
+            </OpenFirstRowMenu>
+        ),
+    ],
+}
+
+/**
+ * The same menu on a server that needs no credential: Disconnect is absent.
+ *
+ * There is no grant to give back, and the revoke route refuses anything that is not a custom
+ * OAuth target, so the action would be a 400 on a row that reads as connected. Remove is still
+ * offered, so the row is not a dead end.
+ */
+export const RowMenuNoGrant: Story = {
+    parameters: {agenta: fixture([MEMORY, LINEAR])},
     decorators: [
         (Story) => (
             <OpenFirstRowMenu>
@@ -133,7 +154,7 @@ export const Empty: Story = {
     parameters: {agenta: fixture([])},
 }
 
-/** Three skeleton rows, per decision 25, rather than a collapsed page. */
+/** Three skeleton rows rather than a collapsed page. */
 export const Loading: Story = {
     parameters: {agenta: loadingFixture},
 }

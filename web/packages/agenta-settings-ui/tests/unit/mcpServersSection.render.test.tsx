@@ -8,23 +8,30 @@
  * value, a dead login shown as connected, a destructive verb that does not say what it ends,
  * and an open drawer reporting a state the list has already moved past.
  */
+import {getSettingsTabDescription} from "@agenta/settings"
 import {act, cleanup, fireEvent, render, screen, within} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import McpServersSection from "../../src/mcp/McpServersSection"
+
+// `vi.hoisted` and `vi.mock` are lifted above every import by the transform, so the mocks
+// below are installed before the component under test is evaluated despite reading later.
 const atoms = vi.hoisted(() => ({
     endpoints: {toString: () => "endpointsAtom"},
     refresh: {toString: () => "refreshAtom"},
     remove: {toString: () => "deleteAtom"},
+    disconnect: {toString: () => "disconnectAtom"},
     secrets: {toString: () => "secretsAtom"},
 }))
 
 vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => ({
-    // `getMcpConnectionState` is the code under test for the status cell; only the atoms are
+    // `getMcpConnectionStatus` is the code under test for the status cell; only the atoms are
     // swapped for sentinels the jotai stub below can recognise.
     ...(await importOriginal<typeof import("@agenta/entities/mcpEndpoint")>()),
     mcpEndpointsQueryAtom: atoms.endpoints,
     refreshMcpEndpointsAtom: atoms.refresh,
     deleteMcpEndpointAtom: atoms.remove,
+    disconnectMcpEndpointAtom: atoms.disconnect,
 }))
 
 vi.mock("@agenta/entities/secret", () => ({customNamedSecretsAtom: atoms.secrets}))
@@ -65,7 +72,7 @@ vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
         ) : null,
 }))
 
-const setters = vi.hoisted(() => ({remove: vi.fn(), refresh: vi.fn()}))
+const setters = vi.hoisted(() => ({remove: vi.fn(), refresh: vi.fn(), disconnect: vi.fn()}))
 
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
@@ -76,14 +83,11 @@ vi.mock("jotai", async (importOriginal) => ({
     },
     useSetAtom: (atom: unknown) => {
         if (atom === atoms.remove) return setters.remove
+        if (atom === atoms.disconnect) return setters.disconnect
         if (atom === atoms.refresh) return setters.refresh
         return vi.fn()
     },
 }))
-
-import {getSettingsTabDescription} from "@agenta/settings"
-
-import McpServersSection from "../../src/mcp/McpServersSection"
 
 interface Endpoint {
     id: string
@@ -161,9 +165,14 @@ const openRowMenu = (name: string) => {
 
 const menuItems = () => screen.getAllByRole("menuitem").map((item) => item.textContent?.trim())
 
+/** The colour the dot and its label carry, which `StatusIndicator` puts on its wrapper. */
+const statusTone = (cell: HTMLElement) =>
+    (cell.firstElementChild as HTMLElement | null)?.className ?? ""
+
 beforeEach(() => {
     confirmSpy = vi.fn()
     setters.remove.mockReset()
+    setters.disconnect.mockReset()
     setters.refresh.mockReset()
 })
 
@@ -224,6 +233,7 @@ describe("the status cell", () => {
         show([LINEAR])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Connected")).toBeTruthy()
+        expect(statusTone(cell)).toContain("text-colorSuccess")
         expect(within(cell).queryByRole("button", {name: "Reconnect"})).toBeNull()
     })
 
@@ -231,6 +241,10 @@ describe("the status cell", () => {
         show([OCTOLENS])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Login expired")).toBeTruthy()
+        // The dot has to agree with the word. A row saying "Login expired" in the healthy
+        // colour is read as healthy, because the colour is what a scan picks up first.
+        expect(statusTone(cell)).toContain("text-colorWarning")
+        expect(statusTone(cell)).not.toContain("text-colorSuccess")
         expect(within(cell).getByRole("button", {name: "Reconnect"})).toBeTruthy()
     })
 
@@ -265,26 +279,45 @@ describe("the status cell", () => {
 })
 
 describe("the row menu", () => {
-    it("holds the spec's four verbs, with Disconnect last and destructive", () => {
+    it("puts both destructive verbs below the divider, on a row that has a grant", () => {
         show([LINEAR])
         openRowMenu("Linear")
-        expect(menuItems()).toEqual(["Reconnect", "View tools", "Rename", "Disconnect"])
-        const disconnect = screen.getByRole("menuitem", {name: "Disconnect"})
-        expect(disconnect.className).toContain("text-colorError")
+        expect(menuItems()).toEqual(["Reconnect", "View tools", "Rename", "Disconnect", "Remove"])
+        for (const verb of ["Disconnect", "Remove"]) {
+            expect(screen.getByRole("menuitem", {name: verb}).className).toContain(
+                "text-colorError",
+            )
+        }
     })
 
-    it("offers no separate Remove, because Disconnect is what ends a connection", () => {
-        show([LINEAR])
-        openRowMenu("Linear")
-        expect(screen.queryByRole("menuitem", {name: "Remove"})).toBeNull()
-    })
-
-    it("offers Disconnect on a connection that holds no grant to revoke", () => {
-        // The old menu hid Disconnect unless the row was OAuth and ready, because it revoked a
-        // token. It ends the connection now, which every row can do (decision 33).
+    it("hides Disconnect where there is no grant to give back", () => {
+        // The revoke route refuses anything that is not a custom OAuth target, so offering the
+        // action here would be a 400 on a row that reads as connected.
         show([MEMORY])
         openRowMenu("Memory")
+        expect(screen.queryByRole("menuitem", {name: "Disconnect"})).toBeNull()
+        // Removing still works: a server that needs no credential is not a dead end.
+        expect(screen.getByRole("menuitem", {name: "Remove"})).toBeTruthy()
+    })
+
+    it("hides Disconnect on a key connection, which the revoke route also refuses", () => {
+        show([AXIOM])
+        openRowMenu("Axiom")
+        expect(screen.queryByRole("menuitem", {name: "Disconnect"})).toBeNull()
+    })
+
+    it("offers Disconnect on an OAuth grant the server has stopped honouring", () => {
+        // The handle is dropped whether or not the far side still knows about it, which is the
+        // state that made a connection report itself ready and then fail every call.
+        show([{...LINEAR, flags: {is_valid: false}}])
+        openRowMenu("Linear")
         expect(screen.getByRole("menuitem", {name: "Disconnect"})).toBeTruthy()
+    })
+
+    it("hides Disconnect once the grant is already gone", () => {
+        show([OCTOLENS])
+        openRowMenu("Octolens")
+        expect(screen.queryByRole("menuitem", {name: "Disconnect"})).toBeNull()
     })
 })
 
@@ -350,10 +383,10 @@ describe("disconnecting", () => {
         expect(request.okText).toBe("Disconnect")
         expect(request.danger).toBe(true)
         // Nothing happens until the dialog is answered.
-        expect(setters.remove).not.toHaveBeenCalled()
+        expect(setters.disconnect).not.toHaveBeenCalled()
     })
 
-    it("removes the connection from the project once confirmed", async () => {
+    it("gives the login back once confirmed, and keeps the connection", async () => {
         show([LINEAR])
         openRowMenu("Linear")
         act(() => {
@@ -362,7 +395,36 @@ describe("disconnecting", () => {
         await act(async () => {
             await confirmSpy.mock.calls[0][0].onOk()
         })
+        expect(setters.disconnect).toHaveBeenCalledWith("linear")
+        // The row stays and Reconnect renews it, so this must not delete anything.
+        expect(setters.remove).not.toHaveBeenCalled()
+    })
+})
+
+describe("removing", () => {
+    it("says what removing costs that disconnecting does not", () => {
+        show([LINEAR])
+        openRowMenu("Linear")
+        act(() => {
+            fireEvent.click(screen.getByRole("menuitem", {name: "Remove"}))
+        })
+        const request = confirmSpy.mock.calls[0][0]
+        expect(request.title).toBe("Remove server")
+        expect(request.message).toContain("reconnecting later creates a new connection")
+        expect(setters.remove).not.toHaveBeenCalled()
+    })
+
+    it("takes the connection out of the project once confirmed", async () => {
+        show([LINEAR])
+        openRowMenu("Linear")
+        act(() => {
+            fireEvent.click(screen.getByRole("menuitem", {name: "Remove"}))
+        })
+        await act(async () => {
+            await confirmSpy.mock.calls[0][0].onOk()
+        })
         expect(setters.remove).toHaveBeenCalledWith("linear")
+        expect(setters.disconnect).not.toHaveBeenCalled()
     })
 })
 

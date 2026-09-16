@@ -228,8 +228,8 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         })
     })
 
-    test("disconnects a connection, identity and all", {tag: tags}, async ({page, apiHelpers}) => {
-        const name = uniqueName("Disconnect MCP")
+    test("removes a connection, identity and all", {tag: tags}, async ({page, apiHelpers}) => {
+        const name = uniqueName("Remove MCP")
         const basePath = apiHelpers.getProjectScopedBasePath()
 
         await scenarios.given("a connected server", async () => {
@@ -244,55 +244,33 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             })
         })
 
-        await scenarios.when("the user disconnects it", async () => {
+        await scenarios.when("the user removes it", async () => {
             const row = connectionRow(page, name)
             await row.getByRole("button").last().click()
-            await page.getByRole("menuitem", {name: "Disconnect"}).click()
-            // The button names the act rather than answering "Yes", because the dialog has
-            // covered the menu the verb was chosen from.
-            await page.getByRole("button", {name: "Disconnect"}).last().click()
+            await page.getByRole("menuitem", {name: "Remove"}).click()
+            // Removing takes the identity with it, which is why it confirms.
+            await page
+                .getByRole("button", {name: /Yes|Remove|Confirm/})
+                .last()
+                .click()
         })
 
         await scenarios.then("the connection is gone from the list", async () => {
             await expect(connectionRow(page, name)).toHaveCount(0, {timeout: 30000})
         })
 
-        await scenarios.and(
-            "a server needing no authentication can be disconnected too",
-            async () => {
-                // This row holds no grant to revoke. Disconnect used to be hidden on it for that
-                // reason; it ends the connection now rather than revoking a token, so every row
-                // offers it and a no-auth server is no longer a dead end.
-                const other = uniqueName("No auth MCP")
-                const dialog = await startJourney(page, `${mockMcpBase()}/`, other)
-                await dialog.getByRole("button", {name: "Continue"}).click()
-                await finishJourney(page)
-                const row = connectionRow(page, other)
-                await expect(row.getByText("Connected", {exact: true})).toBeVisible({
-                    timeout: 30000,
-                })
-                await row.getByRole("button").last().click()
-                await page.getByRole("menuitem", {name: "Disconnect"}).click()
-                await page.getByRole("button", {name: "Disconnect"}).last().click()
-                await expect(connectionRow(page, other)).toHaveCount(0, {timeout: 30000})
-            },
-        )
-
-        await scenarios.and("the row menu offers no second destructive verb", async () => {
-            // One way to end a connection, not two. "Remove" was the other one and its
-            // difference from Disconnect was never legible on the row.
-            const third = uniqueName("One verb MCP")
-            const dialog = await startJourney(page, `${mockMcpBase()}/`, third)
+        await scenarios.and("a server needing no authentication offers no Disconnect", async () => {
+            // It holds no grant, and the route refuses a non-OAuth endpoint, so offering the
+            // action would produce a 400 on a row that reads as connected.
+            const other = uniqueName("No auth MCP")
+            const dialog = await startJourney(page, `${mockMcpBase()}/`, other)
             await dialog.getByRole("button", {name: "Continue"}).click()
             await finishJourney(page)
-            const row = connectionRow(page, third)
+            const row = connectionRow(page, other)
             await expect(row.getByText("Connected", {exact: true})).toBeVisible({timeout: 30000})
             await row.getByRole("button").last().click()
-            await expect(page.getByRole("menuitem", {name: "Remove"})).toHaveCount(0)
-            await expect(page.getByRole("menuitem", {name: "Disconnect"})).toHaveCount(1)
+            await expect(page.getByRole("menuitem", {name: "Disconnect"})).toHaveCount(0)
             await page.keyboard.press("Escape")
-            // Left connected on purpose: the suite's own cleanup removes it, and a row that
-            // survives this case proves Escape dismissed the menu without acting.
         })
     })
 
@@ -386,14 +364,24 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             const row = connectionRow(page, name)
             await row.getByRole("button").last().click()
             await page.getByRole("menuitem", {name: "Disconnect"}).click()
-            await page.getByRole("button", {name: "Disconnect"}).last().click()
+            await page
+                .getByRole("button", {name: /Yes|Disconnect|Confirm/})
+                .last()
+                .click()
         })
 
-        await scenarios.then("the connection is gone from the project", async () => {
-            // Disconnect ends the connection; it does not strip the credential and keep the
-            // row. The revoke route still exists on the API and no surface calls it, which is
-            // recorded against the redesign rather than asserted here.
-            await expect(connectionRow(page, name)).toHaveCount(0, {timeout: 30000})
+        await scenarios.then("the connection survives, asking to be authorized again", async () => {
+            // Disconnecting takes the credential and leaves the connection, so one
+            // Connect brings it back rather than making a new one.
+            //
+            // "Login expired", not the record's own "Needs authorization": a list says whether
+            // a connection works, and a revoked grant and a refused key are the same sentence
+            // to whoever is scanning the table.
+            const row = connectionRow(page, name)
+            await expect(row).toBeVisible()
+            await expect(row.getByText("Login expired")).toBeVisible({
+                timeout: 30000,
+            })
         })
     })
 }
