@@ -29,7 +29,7 @@ const toastClassNames: NonNullable<NonNullable<ToasterProps["toastOptions"]>["cl
     icon: "relative flex size-4 shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:size-4",
     // `min-h-7` keeps a close-less (loading) toast as tall as the others.
     content: "flex min-h-7 min-w-0 flex-1 flex-col justify-center gap-1",
-    title: "text-sm font-medium",
+    title: "text-sm font-normal",
     description: "text-sm text-muted-foreground",
     actionButton: cn(buttonVariants({variant: "outline", size: "sm"}), "shrink-0"),
     cancelButton: cn(buttonVariants({variant: "outline", size: "sm"}), "shrink-0"),
