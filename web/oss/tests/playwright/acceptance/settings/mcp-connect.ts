@@ -345,10 +345,12 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
 
         await scenarios.and("the provider's window completes the sign-in", async () => {
             // Nobody is asked which scopes to grant: everything the server offered is asked
-            // for, because which of them to grant is the server's business.
-            await expect(
-                journeyDialog(page).getByText("Choose which permissions to grant."),
-            ).toHaveCount(0)
+            // for, because which of them to grant is the server's business. Pinned by the
+            // wait the sheet goes to instead, because the checklist's headline was retired
+            // with it and counting a string that exists nowhere passes either way.
+            await expect(journeyDialog(page).getByText(`Waiting for ${name}…`)).toBeVisible({
+                timeout: 30000,
+            })
 
             const popup = await popupPromise
             await expect(popup.getByText("The MCP server is connected.")).toBeVisible({
