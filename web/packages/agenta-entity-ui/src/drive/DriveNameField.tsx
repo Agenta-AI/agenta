@@ -7,13 +7,9 @@ import {type KeyboardEvent, useEffect, useRef, useState} from "react"
 import {message} from "@agenta/ui/app-message"
 import {Input} from "@agenta/ui/ui"
 
-/** The grid / list slot of an entry that does not exist yet. */
-export const NEW_ENTRY_PATH = "__new__"
-
-/** An entry being named in place in a folder view: a new one (`path` null, shown first) or an
- * existing one. */
+/** An entry being renamed in place in a folder view. */
 export interface DriveNameEdit extends Omit<DriveNameFieldProps, "className"> {
-    path: string | null
+    path: string
     kind: "folder" | "file"
 }
 

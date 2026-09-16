@@ -14,7 +14,7 @@ import {Button} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
 
 import {DriveItemContextMenu, type DriveItemWriteActions} from "./DriveItemContextMenu"
-import {DriveNameField, type DriveNameEdit, NEW_ENTRY_PATH} from "./DriveNameField"
+import {DriveNameField, type DriveNameEdit} from "./DriveNameField"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 
 const COLUMNS: ListTableColumn[] = [
@@ -46,8 +46,7 @@ export const FolderList = ({
     const renderRow = useCallback(
         (n: DriveTreeNode) => {
             const hidden = isHiddenPath(n.path)
-            const edit =
-                editing && (n.path === editing.path || n.path === NEW_ENTRY_PATH) ? editing : null
+            const edit = editing && n.path === editing.path ? editing : null
             return (
                 <>
                     <span className="flex min-w-0 items-center gap-2">
