@@ -9,7 +9,6 @@
  */
 import {useCallback, useMemo, useState} from "react"
 
-import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
 import {projectIdAtom} from "@agenta/shared/state"
 import {
     buildSkillEmbedEntry as buildEntry,
@@ -29,6 +28,7 @@ import {SkillCreateDrawer} from "./SkillCreateDrawer"
 import {SkillImportDrawer} from "./SkillImportDrawer"
 import {SkillPickerDrawer, type SkillAddChoice} from "./SkillPickerDrawer"
 import type {SkillListItem} from "./types"
+import {useSkillCreateEntry} from "./useSkillCreateEntry"
 
 /** Embed identity is the WORKFLOW slug (builtins: `__ag__…`); display is the skill name. */
 const toPickerItem = (
@@ -99,22 +99,11 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
     )
 
     // The `+ New skill ▾` paths: created/imported skills also land on this agent.
-    const [createOpen, setCreateOpen] = useState(false)
-    const [upload, setUpload] = useState<Promise<SkillUploadScan> | null>(null)
+    const {createOpen, upload, onWrite, onUpload, closeCreate} = useSkillCreateEntry()
     const [importOpen, setImportOpen] = useState(false)
     const createActions = useMemo(
-        () => ({
-            onWrite: () => {
-                setUpload(null)
-                setCreateOpen(true)
-            },
-            onUpload: (scan: Promise<SkillUploadScan>) => {
-                setUpload(scan)
-                setCreateOpen(true)
-            },
-            onImport: () => setImportOpen(true),
-        }),
-        [],
+        () => ({onWrite, onUpload, onImport: () => setImportOpen(true)}),
+        [onWrite, onUpload],
     )
 
     const addCreated = useCallback(
@@ -163,7 +152,7 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
             />
             <SkillCreateDrawer
                 open={createOpen}
-                onClose={() => setCreateOpen(false)}
+                onClose={closeCreate}
                 projectId={projectId}
                 upload={upload}
                 onCreated={addCreated}

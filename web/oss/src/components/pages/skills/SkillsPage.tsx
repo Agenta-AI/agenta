@@ -1,6 +1,5 @@
 import {useCallback, useMemo, useState} from "react"
 
-import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
 import {projectIdAtom} from "@agenta/shared/state"
 import {
     skillsListDataAtom,
@@ -14,6 +13,7 @@ import {
     SkillDetailDrawer,
     SkillImportDrawer,
     SkillsGalleryPage,
+    useSkillCreateEntry,
     type SkillListItem,
 } from "@agenta/skills-ui"
 import {PageLayout} from "@agenta/ui"
@@ -50,21 +50,10 @@ export default function SkillsPage() {
     const [importOpen, setImportOpen] = useState(false)
     const openImport = useCallback(() => setImportOpen(true), [])
     const closeImport = useCallback(() => setImportOpen(false), [])
-    // Write and Upload share the create drawer; Upload hands it the scan of what was picked.
-    const [createOpen, setCreateOpen] = useState(false)
-    const [upload, setUpload] = useState<Promise<SkillUploadScan> | null>(null)
-    const openWrite = useCallback(() => {
-        setUpload(null)
-        setCreateOpen(true)
-    }, [])
-    const openUpload = useCallback((scan: Promise<SkillUploadScan>) => {
-        setUpload(scan)
-        setCreateOpen(true)
-    }, [])
-    const closeCreate = useCallback(() => setCreateOpen(false), [])
+    const {createOpen, upload, onWrite, onUpload, closeCreate} = useSkillCreateEntry()
     const createActions = useMemo(
-        () => ({onWrite: openWrite, onUpload: openUpload, onImport: openImport}),
-        [openWrite, openUpload, openImport],
+        () => ({onWrite, onUpload, onImport: openImport}),
+        [onWrite, onUpload, openImport],
     )
 
     const gallery = (
