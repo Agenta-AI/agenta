@@ -174,16 +174,21 @@ export function buildDriveTree(files: MountFile[] | null | undefined): DriveTree
             if (typeof file.item_count === "number") node.itemCount = file.item_count
             continue
         }
+        // A path listed twice (two listings overlapping, an upload beside its landed file) is one
+        // node; the first wins.
+        if (byPath.has(path)) continue
         const idx = path.lastIndexOf("/")
         const parent = ensureFolder(idx === -1 ? "" : path.slice(0, idx))
-        parent.children.push({
+        const node: DriveTreeNode = {
             name: path.slice(idx + 1),
             path,
             isFolder: false,
             size: file.size ?? 0,
             modifiedAt: typeof file.mtime === "number" ? file.mtime : undefined,
             children: [],
-        })
+        }
+        parent.children.push(node)
+        byPath.set(path, node)
     }
 
     const sortLevel = (nodes: DriveTreeNode[]) => {
