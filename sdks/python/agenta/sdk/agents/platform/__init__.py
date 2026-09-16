@@ -2,8 +2,8 @@
 
 This package holds the implementations that reach the Agenta backend over HTTP: the
 :class:`PlatformConnection` (base URL + per-call auth), the gateway tool resolver, the
-named-secret provider, and the provider-key fetch, plus the three resolution entrypoints
-(:func:`resolve_tools`, :func:`resolve_mcp`, :func:`resolve_secrets`). The pure resolution
+named-secret provider, and the connection resolver, plus the resolution entrypoints
+(:func:`resolve_tools`, :func:`resolve_mcp`, :func:`resolve_connection`). The pure resolution
 framework and the neutral models stay in ``agenta.sdk.agents.tools``; only the platform-bound
 code lives here.
 
@@ -17,7 +17,7 @@ from .connections import VaultConnectionResolver
 from .gateway import AgentaGatewayToolResolver
 from .op_catalog import PLATFORM_OPS, PlatformOp, get_platform_op
 from .platform_tools import AgentaPlatformToolResolver
-from .resolve import resolve_connection, resolve_mcp, resolve_secrets, resolve_tools
+from .resolve import resolve_connection, resolve_mcp, resolve_tools
 from .session_context import (
     read_session_context,
     resolve_session_context,
@@ -46,7 +46,6 @@ __all__ = [
     "resolve_provider_keys",
     "resolve_tools",
     "resolve_mcp",
-    "resolve_secrets",
     "resolve_connection",
     "read_session_context",
     "resolve_session_context",

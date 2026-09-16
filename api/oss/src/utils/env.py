@@ -902,6 +902,109 @@ class ComposioConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Gateway mocks
+# ---------------------------------------------------------------------------
+
+
+class MockGatewaysConfig(BaseModel):
+    """Development-only gateway mock configuration.
+
+    The URLs have safe defaults so the compose services can share one image, but generated
+    gateway entries are opt-in.  A production process must therefore not accidentally expose
+    an endpoint merely because a Docker DNS name happens to resolve.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_GATEWAYS_MOCKS_ENABLED", default=False)
+
+    llm_url: str = os.getenv(
+        "AGENTA_MOCK_LLM_GATEWAY_URL", "http://mock-llm-gateway:9091"
+    )
+    mcp_url: str = os.getenv(
+        "AGENTA_MOCK_MCP_GATEWAY_URL", "http://mock-mcp-gateway:9092"
+    )
+    # The address the mock OAuth issuer publishes itself under, for the case where that has
+    # to differ from the Docker address above: a browser completing the consent flow cannot
+    # resolve a container name, so a tunnelled stack points this at its public HTTPS address.
+    # Empty means "the address the gateway dials", which is every stack with no browser leg.
+    mcp_public_url: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_PUBLIC_URL", "")
+    upstream_token: str = os.getenv(
+        "AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN", "agenta-gateway-mock-token"
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# MCP adapter
+# ---------------------------------------------------------------------------
+
+
+class GatewayEgressConfig(BaseModel):
+    """Whether the gateway's outbound boundary (`core/gateways/egress.py`) enforces.
+
+    Separate from `AGENTA_INSECURE_EGRESS_ALLOWED`, which governs webhook delivery, OIDC
+    issuer probes and provider-endpoint checks and defaults to permissive so a zero-config
+    self-host works. The gateway cannot inherit that default: its targets are tenant data
+    and upstream-supplied URLs reached with a provider credential attached, so the range
+    check and the https requirement are on unless an operator turns them off deliberately.
+
+    Also distinct from `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED`, which is read only by the
+    SDK and the runner (`sdks/python/agenta/sdk/agents/connections/models.py`,
+    `services/runner/src/engines/sandbox_agent/run-plan.ts`) and governs the hop *into*
+    Agenta rather than egress out of it.
+
+    Turning this on does not open every internal address by accident on a dev stack: the
+    narrower escape hatches are `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` and the mock upstreams
+    admitted while `AGENTA_GATEWAYS_MOCKS_ENABLED` is on.
+    """
+
+    insecure_allowed: bool = _parse_bool_env(
+        "AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED", default=False
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class LLMGatewayConfig(BaseModel):
+    """Whether this deployment serves the LLM gateway plane at all.
+
+    The product switch, not a security or mock escape hatch: with it off the API refuses
+    every LLM gateway route and the agent SDK resolves a model the way it did before the
+    gateway existed, by reading the project's vault key and injecting it into the sandbox.
+    Default off, because that legacy path is what every existing deployment runs today and
+    a routing change is not something an upgrade should make on an operator's behalf.
+
+    The API is the authority. The SDK carries no matching flag of its own: it learns the
+    plane is off from the refusal this flag produces (`llm_gateway_disabled`), so one
+    deployment cannot end up with a runtime routing through a gateway the API has closed.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_LLM_GATEWAY_ENABLED", default=False)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class MCPGatewayConfig(BaseModel):
+    """The MCP gateway plane: whether it serves, and its outbound-guard escape hatch.
+
+    `enabled` is the operator's kill switch, default on, because the MCP gateway is the
+    feature this release ships. Off, the API refuses every MCP gateway route, the settings
+    navigation hides the MCP endpoints tab, and an agent run dials its declared MCP servers
+    directly with the named secrets the runtime already injects — the pre-gateway behavior.
+
+    `host_allowlist` mirrors the runner's `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`: a `custom` MCP
+    server whose host is listed here skips the SSRF guard (`core/webhooks/utils.py`)
+    entirely, so a self-hoster can reach one known internal server without disabling the
+    guard globally via AGENTA_INSECURE_EGRESS_ALLOWED."""
+
+    enabled: bool = _parse_bool_env("AGENTA_MCP_GATEWAY_ENABLED", default=True)
+
+    host_allowlist: list[str] = _load_csv_env_list("AGENTA_MCP_GATEWAY_HOST_ALLOWLIST")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # crisp
 # ---------------------------------------------------------------------------
 
@@ -1956,9 +2059,13 @@ class EnvironSettings(BaseModel):
     crisp: CrispConfig = CrispConfig()
     daytona: DaytonaConfig = DaytonaConfig()
     docker: DockerConfig = DockerConfig()
+    gateway_egress: GatewayEgressConfig = GatewayEgressConfig()
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
+    llm_gateway: LLMGatewayConfig = LLMGatewayConfig()
     loops: LoopsConfig = LoopsConfig()
+    mcp_gateway: MCPGatewayConfig = MCPGatewayConfig()
+    mock_gateways: MockGatewaysConfig = MockGatewaysConfig()
     mounts: MountsConfig = MountsConfig()
     newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()

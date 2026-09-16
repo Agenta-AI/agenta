@@ -1,4 +1,5 @@
 from typing import List, Optional
+from re import compile as re_compile
 from uuid import UUID
 from datetime import datetime, timezone
 import asyncio
@@ -49,6 +50,30 @@ _ALLOWED_TOKENS = (
     _SECRET_TOKEN_PREFIX,
 )
 
+# Gateway credentials use this header. Gateway data-plane Authorization belongs upstream.
+_CREDENTIALS_HEADER = "X-AG-Credentials"
+
+# `/gateways/{plane}/{namespace}/...` is the data plane; `/gateways/{plane}/endpoints/...`
+# is ordinary CRUD. No namespace can spell `endpoints`, which is what keeps the two apart
+# under one mount prefix.
+_GATEWAY_DATA_PLANE = re_compile(
+    r"^(?:/api)?/gateways/(?:llms|mcps)/(?:builtin|standard|custom)(?:/|$)"
+)
+
+
+def _credentials_header(request: Request) -> Optional[str]:
+    ours = request.headers.get(_CREDENTIALS_HEADER) or request.headers.get(
+        _CREDENTIALS_HEADER.lower()
+    )
+    if ours or _GATEWAY_DATA_PLANE.match(request.url.path):
+        return ours
+    return (
+        request.headers.get("Authorization")
+        or request.headers.get("authorization")
+        or None
+    )
+
+
 _PUBLIC_ENDPOINTS = (
     # AGENTA
     "/health",
@@ -82,6 +107,20 @@ _PUBLIC_ENDPOINTS = (
     "/api/triggers/composio/events/",
     "/preview/triggers/composio/events/",
     "/api/preview/triggers/composio/events/",
+    # MCP OAuth client identity document, fetched without an Agenta auth token.
+    "/gateways/mcps/oauth/client-metadata.json",
+    "/api/gateways/mcps/oauth/client-metadata.json",
+    # MCP OAuth callback — the browser arrives straight from the authorization server,
+    # a top-level navigation that carries no `Authorization` header and no project or
+    # workspace query parameter, so the middleware could only ever resolve the user's
+    # default scope, which has nothing to do with the attempt. The handler resolves the
+    # session itself (`resolve_session_user_id`) and refuses when there is none, so the
+    # exemption widens no tenant boundary; what it buys is that the refusal reaches the
+    # user as the connect card the opener listens for, instead of a bare JSON 401 in a
+    # popup. Everything the handler acts on comes from the server-side authorization
+    # attempt record the opaque `state` names.
+    "/gateways/mcps/connect/callback",
+    "/api/gateways/mcps/connect/callback",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
@@ -130,6 +169,42 @@ def request_has_grant(request: Request, grant: str) -> bool:
     carry any, so this is False for them by construction.
     """
     return grant in getattr(request.state, "token_grants", ())
+
+
+# An audience CONFINES a token to one set of routes, which is the opposite axis from a
+# grant: a grant widens a general-purpose credential, an audience narrows a purpose-built
+# one. The agent sandbox holds the only audience-bound credential today. It reaches the
+# gateway data plane and nothing else, so code running inside the sandbox cannot spend it
+# on the vault — which is the whole reason the gateway holds the provider key instead of
+# the sandbox.
+GATEWAY_TOKEN_AUDIENCE = "gateway"
+ALLOWED_SECRET_TOKEN_AUDIENCES = frozenset({GATEWAY_TOKEN_AUDIENCE})
+
+# Where each audience may be spent. A general-purpose token (no audience) is unaffected;
+# an audience-bound one is refused everywhere its entry is silent about.
+_AUDIENCE_PATHS = {
+    GATEWAY_TOKEN_AUDIENCE: _GATEWAY_DATA_PLANE,
+}
+
+
+def _validate_secret_token_audience(audience: object) -> Optional[str]:
+    """Return the token's audience and reject every unrecognized claim shape or value."""
+    if audience is None:
+        return None
+
+    if not isinstance(audience, str) or audience not in ALLOWED_SECRET_TOKEN_AUDIENCES:
+        raise ValueError("Secret token contains an unsupported audience.")
+
+    return audience
+
+
+def request_audience(request: Request) -> Optional[str]:
+    """The audience the request's verified credential is confined to, if any.
+
+    ``None`` for every general-purpose principal: session, ApiKey, and an unconfined
+    Secret token alike.
+    """
+    return getattr(request.state, "token_audience", None)
 
 
 _ZERO_UUID = "00000000-0000-0000-0000-000000000000"
@@ -323,11 +398,7 @@ async def _check_authentication_token(request: Request):
             return
 
         if _ADMIN_ENDPOINT_IDENTIFIER in request.url.path:
-            auth_header = (
-                request.headers.get("Authorization")
-                or request.headers.get("authorization")
-                or None
-            )
+            auth_header = _credentials_header(request)
 
             if not auth_header:
                 raise UnauthorizedException()
@@ -342,11 +413,7 @@ async def _check_authentication_token(request: Request):
                 access_token=access_token,
             )
 
-        auth_header = (
-            request.headers.get("Authorization")
-            or request.headers.get("authorization")
-            or None
-        )
+        auth_header = _credentials_header(request)
         supertokens_access_token = request.cookies.get("sAccessToken")
 
         query_project_id = request.query_params.get("project_id")
@@ -436,6 +503,57 @@ async def verify_access_token(
 
     except Exception as exc:  # pylint: disable=bare-except
         raise UnauthorizedException() from exc
+
+
+async def resolve_session_user_id(request: Request) -> Optional[UUID]:
+    """The Agenta user behind this request's SuperTokens session cookie, or `None`.
+
+    For routes exempt from `auth_middleware` that still have to name their caller. An
+    exempt route builds no `AuthContext`, so `get_auth_scope()` is empty there, and a
+    browser arriving from a third party carries no `Authorization` header either — the
+    session cookie is all there is. SuperTokens runs in cookie mode here and its
+    SameSite resolves to `lax` (api and web on one site) or `none` (split domains),
+    never `strict`, so a top-level GET navigation back from a third party does present
+    `sAccessToken`.
+
+    Every failure — no cookie, an access token that expired during the round trip, a
+    user the database does not know — returns `None`. The caller decides what to say;
+    none of them may treat `None` as permission.
+    """
+    try:
+        session = await get_session(request, session_required=False)  # type: ignore
+    except Exception:  # pylint: disable=broad-except
+        # TryRefreshTokenError and friends: no principal, and this route cannot
+        # refresh one (the refresh cookie is scoped to /auth/session/refresh).
+        return None
+
+    if session is None:
+        return None
+
+    session_user_id = session.get_user_id()
+    if not session_user_id:
+        return None
+
+    try:
+        user_info = await asyncio.wait_for(
+            get_supertokens_user_by_id(user_id=session_user_id),
+            timeout=_SUPERTOKENS_TIMEOUT,
+        )
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+    user_email = user_info.emails[0] if user_info and user_info.emails else None
+    if not user_email:
+        return None
+
+    user = await db_manager.get_user_with_email(email=user_email)
+    if not user:
+        return None
+
+    try:
+        return UUID(str(user.id))
+    except ValueError:
+        return None
 
 
 async def is_interactive_session(request: Request) -> bool:
@@ -954,6 +1072,10 @@ async def verify_secret_token(
             key=_SECRET_KEY,
             algorithms=["HS256"],
             leeway=_SECRET_LEEWAY,
+            # The audience decides which routes accept the token, so this middleware
+            # checks it against the request path below. PyJWT's own check only knows one
+            # expected value per call and would reject every audience-bound token here.
+            options={"verify_aud": False},
         )
 
         try:
@@ -963,6 +1085,35 @@ async def verify_secret_token(
         except ValueError as exc:
             raise DecodeError("Secret token contains invalid grants.") from exc
 
+        try:
+            audience = _validate_secret_token_audience(auth_context.get("aud"))
+        except ValueError as exc:
+            raise DecodeError("Secret token contains an invalid audience.") from exc
+
+        # Reject rather than downgrade. A token that claims an audience AND a grant was
+        # not minted by `sign_secret_token`, so it is forged or corrupt either way.
+        if audience and request.state.token_grants:
+            raise DecodeError("Secret token carries both an audience and grants.")
+
+        request.state.token_audience = audience
+
+        if audience:
+            allowed_paths = _AUDIENCE_PATHS[audience]
+
+            if not allowed_paths.match(request.url.path):
+                log.debug(
+                    "[auth] secret token unauthorized",
+                    path=request.url.path,
+                    method=request.method,
+                    reason="audience_mismatch",
+                    audience=audience,
+                )
+
+                # Raised, never returned as "no principal": an audience-bound credential
+                # presented off its routes is a caller doing something it must be told
+                # about, not an anonymous request that some later check might wave through.
+                raise UnauthorizedException(reason="audience_mismatch")
+
         request.state.user_id = auth_context.get("user_id")
         request.state.user_email = auth_context.get("user_email")
         request.state.project_id = auth_context.get("project_id")
@@ -970,6 +1121,13 @@ async def verify_secret_token(
         request.state.organization_id = auth_context.get("organization_id")
         request.state.organization_name = auth_context.get("organization_name")
         request.state.credentials = f"{_SECRET_TOKEN_PREFIX}{secret_token}"
+        # A workflow invocation receives a nonce before it is forwarded to the
+        # agent service.  A derived gateway credential is restricted to that
+        # nonce and to the callback tools resolved for the invocation.  Keep
+        # these claims separate from the ordinary tenant scope: they are not
+        # general-purpose authorization attributes.
+        request.state.gateway_run_id = auth_context.get("gateway_run_id")
+        request.state.gateway_tools = auth_context.get("gateway_tools")
 
     except ExpiredSignatureError as exc:
         # The signature verified, so this is our own token presented past `_SECRET_EXP` — a
@@ -1047,9 +1205,19 @@ async def sign_secret_token(
     workspace_id: Optional[str] = None,
     organization_id: Optional[str] = None,
     organization_name: Optional[str] = None,
+    gateway_run_id: Optional[str] = None,
+    gateway_tools: Optional[list[dict]] = None,
     grants: Optional[List[str]] = None,
+    audience: Optional[str] = None,
 ):
     validated_grants = _validate_secret_token_grants(grants)
+    validated_audience = _validate_secret_token_audience(audience)
+
+    # Grants and audiences pull in opposite directions, so a token never carries both.
+    # Without this, "mint a gateway credential" could quietly hand the sandbox the
+    # plaintext-vault capability again the day someone copies a grant-bearing mint call.
+    if validated_audience and validated_grants:
+        raise ValueError("An audience-bound secret token cannot carry grants.")
 
     try:
         if not _SECRET_KEY:
@@ -1065,6 +1233,8 @@ async def sign_secret_token(
             "workspace_id": workspace_id,
             "organization_id": organization_id,
             "organization_name": organization_name,
+            "gateway_run_id": gateway_run_id,
+            "gateway_tools": gateway_tools,
             "iat": _issued_at,
             "exp": _exp,
         }
@@ -1073,6 +1243,11 @@ async def sign_secret_token(
         # empty one, so its payload stays the shape every existing holder was issued.
         if validated_grants:
             auth_context["grants"] = list(validated_grants)
+
+        # Same reasoning for `aud`, and it is also what keeps PyJWT's own audience check
+        # out of the way for every token minted before this claim existed.
+        if validated_audience:
+            auth_context["aud"] = validated_audience
 
         secret_token = encode(
             payload=auth_context,

@@ -1,48 +1,137 @@
 ---
 title: "MCP servers"
 sidebar_label: "MCP servers"
-description: "Connect an agent to an HTTP MCP server with tool filters and secret-backed headers."
+description: "Configuration fields for an agent's MCP servers: the connection reference, the tool filter, and permissions."
 sidebar_position: 13
 ---
 
-Add MCP servers to `parameters.agent.mcps`. Each entry has a unique name, an HTTP connection, and an optional tool policy.
+:::info Pending release verification
+This page describes the MCP configuration in PR #6049. The fields have not yet been verified against a released build.
+:::
+
+Each entry in `parameters.agent.mcps` names one MCP server inside the agent, points at the project connection it uses, and states what the agent may call on it.
 
 ```json
 {
   "name": "internal-search",
   "connection": {
-    "type": "http",
-    "url": "https://mcp.example.com/mcp",
-    "headers": { "X-Tenant": "acme" },
-    "credentials": {
-      "type": "header_secret_refs",
-      "headers": { "Authorization": "internal-mcp-token" }
-    }
+    "type": "gateway",
+    "namespace": "custom",
+    "slug": "internal-search"
   },
   "policy": {
-    "tools": { "mode": "include", "names": ["search_docs"] },
-    "permission": "allow"
+    "tools": {"mode": "include", "names": ["search_docs", "fetch_doc"]},
+    "permission": "ask",
+    "tool_permissions": {"search_docs": "allow"},
+    "new_tool_permission": "ask"
   }
 }
 ```
 
-## Connection fields
+## Fields
 
-- `type` is `http`; local stdio servers are not part of this configuration surface.
-- `url` is required.
-- `headers` stores non-secret static values.
-- `header_secret_refs.headers` maps HTTP header names to project secret slugs. Secret values resolve at run time and are not stored in the template.
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `name` | string | Yes | | 1 to 128 characters matching `^[A-Za-z0-9._-]+$`. `agenta-tools` is reserved and rejected. |
+| `connection` | object | Yes | | Which connection this server uses. |
+| `policy` | object | No | `{"tools": {"mode": "all", "names": []}}` | The tool filter and the permissions. |
 
-## Tool policy
+`name` is a label, not an identity. A harness renders this server's tools as `mcp__<name>__<tool>`, and the model chooses a tool by that string, so the name has to stay stable for the life of the configuration and be distinct from every other server on the same agent. It is frozen when the connection is chosen. Renaming the connection in settings changes the settings row and the connection picker, and deliberately does not reach an agent that is already saved.
 
-`tools.mode: "all"` exposes every advertised tool and requires an empty names list. `tools.mode: "include"` exposes only `tools.names`. `permission` is `allow`, `ask`, `deny`, or `null`; `null` inherits the runner policy.
+## Connection
 
-The name must match `^[A-Za-z0-9._-]+$`, be no longer than 128 characters, and must not be `agenta-tools`, which is reserved.
+The connect flow writes a gateway connection. The upstream URL and the credentials belong to the connection, so neither enters the agent configuration.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `"gateway"` | Yes | |
+| `namespace` | `"custom"` \| `"standard"` \| `"builtin"` | Yes | `custom` is a server connected in this project. |
+| `slug` | string | With `custom` | The connection's platform slug, derived once and never changed. Required with `custom`, rejected with the other namespaces. |
+| `provider` | string | With `standard` and `builtin` | The provider key. Required with those namespaces, rejected with `custom`. |
+
+An entry that carries no `connection` is matched to a connection by `name` instead. That fallback is deprecated and kept only for agent revisions committed before connections had an identity of their own.
+
+### Direct HTTP connection
+
+Where no gateway is configured, such as an SDK run outside the platform, an entry can name the server's address itself.
+
+```json
+{
+  "type": "http",
+  "url": "https://mcp.example.com/mcp",
+  "headers": {"X-Tenant": "acme"},
+  "credentials": {
+    "type": "header_secret_refs",
+    "headers": {"Authorization": "internal-mcp-token"}
+  }
+}
+```
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `"http"` | Yes | | |
+| `url` | string | Yes | | The server URL. |
+| `headers` | object of string | No | `{}` | Public request headers. Values are stored as written. |
+| `credentials` | object | No | `{"type": "none"}` | Either `{"type": "none"}` or `{"type": "header_secret_refs", "headers": {"<header>": "<secret-slug>"}}`. Secret values resolve when the agent runs and are never stored in the configuration. |
+
+A header name may not appear in both `headers` and `credentials.headers`. The comparison ignores case.
+
+## Tool filter
+
+`policy.tools` decides which of the server's tools are advertised to the model at all. A tool the filter hides is never offered and never called, so it needs no permission.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `mode` | `"all"` \| `"include"` | `"all"` | `all` advertises every tool the server offers, and requires an empty `names`. `include` advertises only `names`, which must not be empty. |
+| `names` | array of string | `[]` | Tool names as the server advertises them. |
+
+## Permissions
+
+Three optional fields, answering three different questions.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `permission` | `"allow"` \| `"ask"` \| `"deny"` \| `null` | `null` | The decision for every advertised tool on this server. `null` inherits `runner.permissions.default`. |
+| `tool_permissions` | object | `{}` | Per-tool decisions, keyed by the name the server advertises (`echo`), never the harness-rendered name (`mcp__acme__echo`). |
+| `new_tool_permission` | `"allow"` \| `"ask"` \| `"deny"` | unset | The decision for an advertised tool that `tool_permissions` does not name. |
+
+Setting either `tool_permissions` or `new_tool_permission` opts this server into per-tool policy. An advertised tool then resolves to its `tool_permissions` entry, and otherwise to `new_tool_permission`. When `new_tool_permission` is absent, it falls back to `permission`, and to `ask` when `permission` is absent too. The agent's default permission is not consulted for a server that opted in, so a run default cannot widen the table.
+
+With both fields absent, the entry carries no per-tool policy and `permission` governs the server, or `runner.permissions.default` when `permission` is `null`.
+
+`tool_permissions` may not name a tool that `tools.mode: "include"` hides. That configuration is rejected rather than silently dropped.
+
+MCP tool calls are not covered by the `Always auto-approve` checkbox on an approval card. A tool resolved to `ask` asks on every call.
+
+### What these permissions are, and are not
+
+They decide what the **agent** may do on its own. They are a control over the agent's behaviour, not a boundary around the tool.
+
+`deny` stops the agent from calling a tool, and on the harnesses that support it the tool is not offered to the model at all. It does not make the tool unreachable. The permission lives in the agent's configuration and is enforced while the agent runs; the MCP server itself is reached through your connection, whose own access is governed by the credentials you connected it with and by the endpoint's tool allowlist. An agent with shell access inside its sandbox holds those connection details, so treat `deny` as "do not do this" rather than "cannot do this".
+
+Two consequences worth stating plainly:
+
+- Use `deny` to keep an agent away from a tool it should not be using. Do not use it to protect data the agent must not reach. For that, do not connect the credential, or narrow what the connection can see on the server's side.
+- A connection's reach is the right place to set a hard limit. Connect an account whose own permissions match what the agent is allowed to do.
+
+### Where the decision is enforced
+
+Agenta's own gate is the authority. It sees every MCP tool call, on every harness, and applies the resolution described above.
+
+Some harnesses can also be told the same rules in their own configuration, which is what keeps a denied tool out of the list the model is shown rather than letting it be offered and then refused. That translation is a convenience, and it is not always complete:
+
+- **Claude Code** is given native rules. It resolves all matching rules together and takes the most restrictive, rather than preferring the most specific. A tool set looser than the server's own default, such as `permission: "deny"` with `tool_permissions: {"echo": "allow"}`, therefore cannot be written as a server rule plus an exception. In that case Agenta writes the per-tool rules alone and leaves the tools you did not name to the gate. They are still governed; they are simply offered to the model first and refused on use.
+- **Codex** is given none. Its configuration cannot carry a tool table without a transport entry it will not accept, so every tool is offered and the gate decides.
+- **Pi** never registers a denied tool in the first place.
+
+A tool you denied may therefore still appear in a model's tool list on some harnesses. It will not run.
 
 ## Troubleshooting
 
 - A connection failure usually means DNS, TLS, network policy, or server availability.
-- An authorization failure means the referenced project secret is absent, expired, or mapped to the wrong header.
-- A missing tool can be excluded by `policy.tools`, absent from server discovery, or unsupported by the selected harness.
+- An authorization failure on a header-authenticated server means the referenced project secret is absent, expired, or mapped to the wrong header.
+- An authorization failure on an OAuth server means the grant was revoked or has expired. The connection then reads `Needs authorization` in `Settings > MCPs`, and one `Connect` restores it.
+- A missing tool is either excluded by `policy.tools`, absent from server discovery, or resolved to `deny`.
+- An empty tool list in the connection view means the server answered with no tools. A server that refuses the tool listing, or answers it in a way Agenta cannot read, reports the server's own wording instead of an empty list.
 
-See [Add an MCP server](/guides/add-an-mcp-server) for the configuration workflow.
+See [Add an MCP server](/guides/add-an-mcp-server) for the connection workflow.

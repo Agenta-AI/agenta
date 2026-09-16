@@ -287,7 +287,11 @@ export async function prepareEnvironmentSetup(
   // classified as a dead sign-in — telling the user to re-authenticate a connection that is fine.
   let localSubscriptionError: Error | undefined;
   const subscriptionForRun = plan.credentials.subscription;
-  if (subscriptionForRun && plan.credentials.subscriptionHome && !plan.isDaytona) {
+  if (
+    subscriptionForRun &&
+    plan.credentials.subscriptionHome &&
+    !plan.isDaytona
+  ) {
     try {
       await materializeSubscriptionLoginForRun({
         home: plan.credentials.subscriptionHome,
@@ -427,6 +431,7 @@ export async function prepareEnvironmentSetup(
     clientToolRelayRef,
     executableToolGateRef,
     mcpAbort,
+    mcpHandshakeFailures: [],
     runAgentDir,
     piPromptDir: localPiAssets.promptDir,
     codexSqliteHome,

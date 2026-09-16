@@ -24,6 +24,11 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
+import {
+    readMcpConnectionSlug,
+    refreshMcpEndpointsAtom,
+    type MCPEndpoint,
+} from "@agenta/entities/mcpEndpoint"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     agentCreationPrefsAtom,
@@ -50,9 +55,10 @@ import {
     UploadSimple,
 } from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
-import {useAtom, useAtomValue, useStore} from "jotai"
+import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ChangedPathsProvider} from "../../drawers/shared"
+import {McpConnectJourney, McpServerConnectAction} from "../../mcpEndpoint"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
@@ -193,7 +199,20 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const openIntegration = useCallback(() => setIntegrationDrawerOpen(true), [])
     // The integration whose permission drawer is open, addressed by provider and integration.
     const [permissionTarget, setPermissionTarget] = useState<GatewayConnectionTarget | null>(null)
+    // The MCP endpoint being authorized. Held here, not on the row: `extra` renders inside the
+    // row's own click target, and React events propagate through the React tree, so a dialog
+    // mounted there reopens the edit drawer on every click inside it — including the one that
+    // opens the consent popup, which then surfaces behind it.
+    const [connectingMcpEndpoint, setConnectingMcpEndpoint] = useState<MCPEndpoint | null>(null)
+    const refreshMcpEndpoints = useSetAtom(refreshMcpEndpointsAtom)
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
+    // Nothing is registered at save any more. An MCP item names a connection that already
+    // exists, created by the connect journey, so committing one writes the reference and
+    // nothing else.
+    const prepareItemCommit = useCallback(
+        async (_kind: ItemKind, item: Record<string, unknown>) => item,
+        [],
+    )
     const {
         editing,
         draft,
@@ -204,10 +223,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         openEdit,
         closeEditor,
         commitDraft,
+        commitError,
+        committing,
         removeItem,
         draftInvalid,
         draftUnchanged,
-    } = useConfigItemDrawer({config, onChange})
+    } = useConfigItemDrawer({config, onChange, prepareCommit: prepareItemCommit})
 
     // Instructions file editor (a file list — one AGENTS.md today). Draft + Save like the item drawer.
     const [editingInstruction, setEditingInstruction] = useState<{filename: string} | null>(null)
@@ -857,6 +878,24 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         }
     }, [statusForKind, toolResolutionStatus])
     const mcpStatusFor = useMemo(() => statusForKind("mcp"), [statusForKind])
+    // An OAuth server is registered but unusable until someone completes the consent flow, so the
+    // row carries that state and runs the flow here rather than sending the author to Settings.
+    const mcpExtraFor = useCallback(
+        (item: unknown) => {
+            // The slug the item points at, never one re-derived from its name: deriving
+            // one is how a renamed item silently repointed at a different connection.
+            const slug = readMcpConnectionSlug((item ?? {}) as Record<string, unknown>)
+            if (!slug) return undefined
+            return (
+                <McpServerConnectAction
+                    slug={slug}
+                    disabled={disabled}
+                    onConnect={setConnectingMcpEndpoint}
+                />
+            )
+        },
+        [disabled],
+    )
     // Registry head versions for the pinned-row nudge. The bridge's presence is host-stable,
     // so the conditional hook resolution keeps a stable hook order in practice.
     const useHeadVersions = skillsBridge?.useHeadVersions ?? useNoHeadVersions
@@ -1197,6 +1236,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     closeEditor={closeEditor}
                     disabled={disabled}
                     statusFor={mcpStatusFor}
+                    extraFor={mcpExtraFor}
                     emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
                 />
             ),
@@ -1338,6 +1378,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                       ? undefined
                                       : "Changes apply to this agent configuration"
                               }
+                              error={commitError}
+                              saving={committing}
                               width={def.drawerWidth?.(draft)}
                               contentFlush={Boolean(def.formFlush?.(draft))}
                               onCancel={closeEditor}
@@ -1503,6 +1545,24 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     }
                     agentPolicy={agentPermissionPolicy}
                     disabled={disabled}
+                />
+            )}
+
+            {/* One dialog for the whole section, outside the rows, so no click inside it reaches
+                a row's onClick. Rendered only while an endpoint is selected, so a list of servers
+                still carries no modal and no scope discovery request per row. */}
+            {connectingMcpEndpoint?.id && connectingMcpEndpoint.slug && (
+                <McpConnectJourney
+                    open
+                    onClose={() => setConnectingMcpEndpoint(null)}
+                    reconnect={{
+                        id: connectingMcpEndpoint.id,
+                        slug: connectingMcpEndpoint.slug,
+                        name: connectingMcpEndpoint.name || connectingMcpEndpoint.slug,
+                        url: connectingMcpEndpoint.data.route.base_url || "",
+                        authMode: connectingMcpEndpoint.auth_mode,
+                    }}
+                    onConnected={() => void refreshMcpEndpoints()}
                 />
             )}
         </div>

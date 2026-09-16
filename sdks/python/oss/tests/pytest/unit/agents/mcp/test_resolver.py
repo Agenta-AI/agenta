@@ -7,6 +7,8 @@ from pydantic import ValidationError
 
 from agenta.sdk.agents.mcp import (
     MCPConnection,
+    MCPGatewayConnection,
+    MCPGatewayUnavailableError,
     MCPHeaderSecretRefs,
     MCPPolicy,
     MCPResolver,
@@ -175,6 +177,79 @@ def test_tool_policy_rejects_ambiguous_combinations():
         MCPToolPolicy(mode="include")
 
 
+async def test_per_tool_permissions_ride_the_wire_in_camel_case():
+    """The runner protocol is camelCase; the fields that shipped first were single words."""
+    resolved = await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+        [
+            server(
+                policy=MCPPolicy(
+                    permission="ask",
+                    tool_permissions={"search": "allow", "purge": "deny"},
+                )
+            )
+        ]
+    )
+    assert resolved[0].to_wire()["policy"] == {
+        "tools": {"mode": "all"},
+        "permission": "ask",
+        "toolPermissions": {"search": "allow", "purge": "deny"},
+        # Unset, so it falls to the server permission rather than to the run default: an author
+        # who wrote a per-tool table gets a table that a run default cannot widen.
+        "newToolPermission": "ask",
+    }
+
+
+async def test_new_tool_permission_floor_is_ask_when_nothing_else_says():
+    """A tool nobody has looked at yet reaches a human, even on an otherwise silent policy."""
+    resolved = await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+        [server(policy=MCPPolicy(tool_permissions={"search": "allow"}))]
+    )
+    assert resolved[0].to_wire()["policy"]["newToolPermission"] == "ask"
+
+
+async def test_new_tool_permission_alone_is_a_valid_opt_in():
+    """Declaring only the new-tool default is how an author says 'gate everything I have not seen'."""
+    resolved = await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+        [server(policy=MCPPolicy(permission="allow", new_tool_permission="deny"))]
+    )
+    assert resolved[0].to_wire()["policy"] == {
+        "tools": {"mode": "all"},
+        "permission": "allow",
+        "toolPermissions": {},
+        "newToolPermission": "deny",
+    }
+
+
+async def test_a_policy_without_per_tool_intent_emits_nothing_new():
+    """The compatibility pin: an existing configuration must produce an unchanged wire."""
+    resolved = await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+        [server(policy=MCPPolicy(permission="ask"))]
+    )
+    policy = resolved[0].to_wire()["policy"]
+    assert policy == {"tools": {"mode": "all"}, "permission": "ask"}
+    assert "toolPermissions" not in policy
+    assert "newToolPermission" not in policy
+
+
+def test_per_tool_permissions_are_refused_for_tools_the_filter_hides():
+    """Dead permission configuration is the OR79 class; refuse it rather than drop it."""
+    with pytest.raises(ValidationError, match="the include filter hides: purge"):
+        MCPPolicy(
+            tools=MCPToolPolicy(mode="include", names=["search"]),
+            tool_permissions={"search": "allow", "purge": "deny"},
+        )
+
+
+def test_per_tool_permissions_reject_a_blank_tool_name():
+    with pytest.raises(ValidationError, match="non-empty tool names"):
+        MCPPolicy(tool_permissions={"  ": "allow"})
+
+
+def test_per_tool_permissions_reject_an_unknown_verdict():
+    with pytest.raises(ValidationError):
+        MCPPolicy.model_validate({"tool_permissions": {"search": "maybe"}})
+
+
 async def test_http_server_url_blocked_by_ssrf_guard():
     with pytest.raises(MCPServerURLBlockedError):
         await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
@@ -187,6 +262,229 @@ async def test_http_server_url_blocked_by_ssrf_guard():
                 )
             ]
         )
+
+
+_GATEWAY_BASE = "https://api.x/api"
+
+
+def _gateway_route(name: str) -> str:
+    return f"{_GATEWAY_BASE}/gateways/mcps/custom/{name}"
+
+
+async def test_gateway_routes_through_custom_namespace_with_our_credentials():
+    # Every author-declared server is a custom target: the resolved URL is the
+    # gateway route, and the sole credential is OUR own (X-AG-Credentials), never the
+    # upstream secret the author's `credentials` refs named.
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({"memory_token": "upstream-secret"}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve(
+        [
+            server(
+                connection=MCPConnection(
+                    type="http",
+                    url=PUBLIC_MCP_URL,
+                    headers={"X-Workspace": "demo"},
+                    credentials=MCPHeaderSecretRefs(
+                        headers={"Authorization": "memory_token"}
+                    ),
+                )
+            )
+        ]
+    )
+    assert resolved[0].to_wire()["connection"] == {
+        "type": "http",
+        "url": _gateway_route("memory"),
+        "headers": {"X-Workspace": "demo"},
+        "credentials": [
+            {
+                "binding": {"kind": "header", "name": "X-AG-Credentials"},
+                "value": "Access tok",
+                "usage": "opaque_http",
+            }
+        ],
+    }
+    assert "upstream-secret" not in repr(resolved[0])
+    assert "upstream-secret" not in resolved[0].model_dump_json()
+    assert "Access tok" not in resolved[0].model_dump_json()
+
+
+@pytest.mark.parametrize(
+    ("connection", "expected_route"),
+    [
+        (
+            MCPGatewayConnection(namespace="builtin", provider="mock"),
+            f"{_GATEWAY_BASE}/gateways/mcps/builtin/mock/mock",
+        ),
+        (
+            MCPGatewayConnection(namespace="builtin", provider="agenta"),
+            f"{_GATEWAY_BASE}/gateways/mcps/builtin/agenta/run",
+        ),
+        (
+            MCPGatewayConnection(namespace="standard", provider="mock"),
+            f"{_GATEWAY_BASE}/gateways/mcps/standard/mock",
+        ),
+        (
+            MCPGatewayConnection(namespace="custom", slug="mock-custom"),
+            f"{_GATEWAY_BASE}/gateways/mcps/custom/mock-custom",
+        ),
+    ],
+)
+async def test_gateway_connection_selects_each_public_mcp_namespace(
+    connection, expected_route
+):
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve([server(name="mock-mcp", connection=connection)])
+
+    assert resolved[0].url == expected_route
+    assert resolved[0].headers == {}
+    assert [credential.binding.name for credential in resolved[0].credentials] == [
+        "X-AG-Credentials"
+    ]
+
+
+@pytest.mark.parametrize(
+    "connection",
+    [
+        {"type": "gateway", "namespace": "builtin"},
+        {"type": "gateway", "namespace": "standard", "provider": "mock", "slug": "x"},
+        {"type": "gateway", "namespace": "custom", "provider": "mock"},
+    ],
+)
+def test_gateway_connection_requires_one_unambiguous_route_identity(connection):
+    with pytest.raises(ValidationError):
+        server(connection=connection)
+
+
+async def test_gateway_connection_requires_platform_connection():
+    with pytest.raises(MCPGatewayUnavailableError, match="gateway connection"):
+        await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
+            [
+                server(
+                    connection=MCPGatewayConnection(
+                        namespace="builtin", provider="mock"
+                    )
+                )
+            ]
+        )
+
+
+async def test_gateway_collapses_every_servers_array_to_one_credential_each():
+    # CU6: N servers, each with its own author-declared secret refs, still resolve to
+    # exactly one gateway credential PER server -- the per-server array shrinks to one
+    # entry everywhere, not just when there is a single server to resolve.
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve(
+        [
+            server(
+                name="memory",
+                connection=MCPConnection(
+                    type="http",
+                    url=PUBLIC_MCP_URL,
+                    credentials=MCPHeaderSecretRefs(
+                        headers={"Authorization": "memory_token"}
+                    ),
+                ),
+            ),
+            server(
+                name="notion",
+                connection=MCPConnection(
+                    type="http",
+                    url=PUBLIC_MCP_URL,
+                    credentials=MCPHeaderSecretRefs(
+                        headers={
+                            "Authorization": "notion_token",
+                            "X-Api-Key": "notion_key",
+                        }
+                    ),
+                ),
+            ),
+        ]
+    )
+    assert [server_.name for server_ in resolved] == ["memory", "notion"]
+    for server_, name in zip(resolved, ["memory", "notion"]):
+        assert server_.url == _gateway_route(name)
+        assert [c.binding.name for c in server_.credentials] == ["X-AG-Credentials"]
+        assert [c.value for c in server_.credentials] == ["Access tok"]
+
+
+async def test_gateway_route_ignores_the_authors_url_and_needs_no_secret_lookup():
+    # The upstream secret is the gateway's problem now (its own stored endpoint holds it),
+    # so a missing named secret never blocks resolution once a gateway is configured.
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve(
+        [
+            server(
+                name="notion",
+                connection=MCPConnection(
+                    type="http",
+                    url="http://169.254.169.254/latest/meta-data/",  # would fail the SSRF guard
+                    credentials=MCPHeaderSecretRefs(
+                        headers={"Authorization": "missing-secret"}
+                    ),
+                ),
+            )
+        ]
+    )
+    assert resolved[0].url == _gateway_route("notion")
+
+
+async def test_gateway_route_passes_policy_through_unchanged():
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve(
+        [
+            server(
+                policy=MCPPolicy(
+                    tools=MCPToolPolicy(mode="include", names=["search"]),
+                    permission="ask",
+                )
+            )
+        ]
+    )
+    assert resolved[0].to_wire()["policy"] == {
+        "tools": {"mode": "include", "names": ["search"]},
+        "permission": "ask",
+    }
+
+
+async def test_no_gateway_configured_falls_back_to_direct_dial():
+    # Backward compatible: the offline/standalone case (no gateway args) is untouched.
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({"memory_token": "secret-value"})
+    ).resolve(
+        [
+            server(
+                connection=MCPConnection(
+                    type="http",
+                    url=PUBLIC_MCP_URL,
+                    credentials=MCPHeaderSecretRefs(
+                        headers={"Authorization": "memory_token"}
+                    ),
+                )
+            )
+        ]
+    )
+    assert resolved[0].url == PUBLIC_MCP_URL
+    assert resolved[0].to_wire()["connection"]["credentials"] == [
+        {
+            "binding": {"kind": "header", "name": "Authorization"},
+            "value": "secret-value",
+            "usage": "opaque_http",
+        }
+    ]
 
 
 async def test_omit_missing_secret_keeps_public_headers_only():
@@ -209,3 +507,76 @@ async def test_omit_missing_secret_keeps_public_headers_only():
     )
     assert resolved[0].to_wire()["connection"]["headers"] == {"X-Workspace": "demo"}
     assert "credentials" not in resolved[0].to_wire()["connection"]
+
+
+async def test_a_connection_slug_routes_independently_of_the_display_name():
+    """The shape agent configuration writes now: the label and the identity are two
+    fields, and only the identity picks the route.
+
+    Under the previous shape the label WAS the route, so two accounts at one server
+    could not both be named from an agent, and renaming a server moved it to a different
+    connection or to none.
+    """
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve(
+        [
+            server(
+                name="Acme_work",
+                connection=MCPGatewayConnection(
+                    namespace="custom", slug="acme-work-9f2c1a0b7e44"
+                ),
+            )
+        ]
+    )
+
+    wire = resolved[0].to_wire()
+    assert wire["connection"]["url"] == _gateway_route("acme-work-9f2c1a0b7e44")
+    # The label still rides the wire, because it is what a harness renders in front of
+    # this server's tools.
+    assert wire["name"] == "Acme_work"
+
+
+async def test_two_connections_at_one_server_are_separately_addressable():
+    """Two accounts, one upstream, one agent. Distinguishable only because each names
+    its own connection."""
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve(
+        [
+            server(
+                name="Acme_work",
+                connection=MCPGatewayConnection(namespace="custom", slug="acme-work-1"),
+            ),
+            server(
+                name="Acme_personal",
+                connection=MCPGatewayConnection(
+                    namespace="custom", slug="acme-personal-2"
+                ),
+            ),
+        ]
+    )
+
+    routes = [entry.to_wire()["connection"]["url"] for entry in resolved]
+    assert routes == [
+        _gateway_route("acme-work-1"),
+        _gateway_route("acme-personal-2"),
+    ]
+
+
+async def test_a_configuration_with_no_connection_reference_still_resolves():
+    """Deprecated, and kept because committed agent revisions are immutable. Removing it
+    would strand every server declared before the connection reference existed."""
+    resolved = await MCPResolver(
+        secret_provider=DictSecretProvider({}),
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value="Access tok",
+    ).resolve([server(name="legacy-by-name")])
+
+    assert resolved[0].to_wire()["connection"]["url"] == _gateway_route(
+        "legacy-by-name"
+    )

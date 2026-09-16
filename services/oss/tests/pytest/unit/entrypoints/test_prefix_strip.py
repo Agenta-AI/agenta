@@ -66,3 +66,39 @@ def test_raw_path_keeps_the_wire_encoding():
     r = _app().get("/services/raw/caf%C3%A9")
     assert r.status_code == 200
     assert r.json()["raw_path"] == "/raw/caf%C3%A9"
+
+
+def _mounted_app(root_path: str) -> TestClient:
+    """A sub-app mounted under a path, served with uvicorn's `--root-path` shape.
+
+    Uvicorn keeps `root_path` at the front of `path` even when the proxy stripped it
+    from the wire, so the client requests the prefixed path here too.
+    """
+    sub = FastAPI()
+
+    @sub.get("/invoke")
+    async def invoke():
+        return {"mounted": True}
+
+    app = FastAPI()
+    app.mount("/agent/v0", sub)
+    app.add_middleware(ServicesPrefixStripMiddleware)
+    return TestClient(app, root_path=root_path)
+
+
+def test_mounted_sub_app_routes_under_root_path():
+    # Stripping the prefix out of `path` while `root_path` still carries it leaves
+    # `path` no longer starting with `root_path`, and every Mount answers 404.
+    r = _mounted_app("/services").get("/services/agent/v0/invoke")
+    assert r.status_code == 200, r.text
+    assert r.json() == {"mounted": True}
+
+
+def test_mounted_sub_app_routes_when_the_ingress_repeats_the_prefix():
+    r = _mounted_app("/services").get("/services/services/agent/v0/invoke")
+    assert r.status_code == 200, r.text
+
+
+def test_mounted_sub_app_routes_without_a_root_path():
+    r = _mounted_app("").get("/services/agent/v0/invoke")
+    assert r.status_code == 200, r.text
