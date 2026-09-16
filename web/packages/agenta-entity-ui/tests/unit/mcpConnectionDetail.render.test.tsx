@@ -151,6 +151,72 @@ describe("McpConnectionDetail: whose tools are on screen", () => {
     })
 })
 
+describe("McpConnectionDetail: finding one tool among many", () => {
+    /** Enough tools that the filter appears at all, with one worth hunting for. */
+    const many = Array.from({length: 40}, (_, index) => ({
+        name: `tool_${index}`,
+        description: index === 7 ? "File a new issue in a team" : "Does a thing",
+    }))
+
+    /** Type into the filter box the way a person does, through the real input event. */
+    const typeFilter = async (value: string) => {
+        const box = document.querySelector<HTMLInputElement>('[aria-label="Filter tools"]')!
+        await act(async () => {
+            const setter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype,
+                "value",
+            )!.set!
+            setter.call(box, value)
+            box.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        await settle()
+    }
+
+    it("offers a filter once there are enough tools to hunt through", async () => {
+        listMcpTools.mockResolvedValue(many)
+        await open(connected())
+
+        expect(document.querySelector('[aria-label="Filter tools"]')).not.toBeNull()
+    })
+
+    it("does not put a filter above a handful", async () => {
+        listMcpTools.mockResolvedValue([{name: "search"}, {name: "deploy"}])
+        await open(connected())
+
+        expect(document.querySelector('[aria-label="Filter tools"]')).toBeNull()
+    })
+
+    it("narrows the rows to what was typed, by name or by what the tool does", async () => {
+        listMcpTools.mockResolvedValue(many)
+        await open(connected())
+
+        await typeFilter("issue")
+
+        // tool_7 matches on its description, which this drawer renders, so the result reads.
+        expect(toolNames()).toEqual(["tool_7"])
+    })
+
+    it("says the query matched nothing rather than looking like a server with no tools", async () => {
+        listMcpTools.mockResolvedValue(many)
+        await open(connected())
+
+        await typeFilter("nothing-matches-this")
+
+        expect(text()).toContain("No tool here matches that")
+        expect(text()).not.toContain("This server exposes no tools yet")
+    })
+
+    it("restores the whole list when the query is cleared", async () => {
+        listMcpTools.mockResolvedValue(many)
+        await open(connected())
+
+        await typeFilter("issue")
+        await typeFilter("")
+
+        expect(toolNames()).toHaveLength(40)
+    })
+})
+
 describe("McpConnectionDetail: a tool list that could not be read", () => {
     it("states the failure and offers to try the listing again", async () => {
         listMcpTools.mockRejectedValueOnce(new Error("The gateway timed out."))
