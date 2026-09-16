@@ -54,12 +54,12 @@ const DEFAULT_COPY: McpServersSectionCopy = {
  *
  * The spec draws a third, "Unreachable", for a server whose last health check failed. Nothing
  * on the connection record says that — `flags.is_valid` reports the credential, not the host —
- * so deriving it here would mean labelling every unauthorized row unreachable. Shipped without
- * it per decision 30, and the gap is filed rather than guessed at.
+ * so deriving it here would mean labelling every unauthorized row unreachable. The missing
+ * field is issue #6909; the third status arrives with it.
  *
  * Both failure modes collapse to "Login expired": an OAuth grant that was revoked or aged out,
  * and an API key that the server has stopped accepting. They differ in which sheet Reconnect
- * opens, not in what the reader has to do about them (decision 34).
+ * opens, not in what the reader has to do about them.
  */
 const STATUS = {
     connected: {label: "Connected", tone: "success"} as const,
