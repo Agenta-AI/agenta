@@ -1560,6 +1560,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         slug: connectingMcpEndpoint.slug,
                         name: connectingMcpEndpoint.name || connectingMcpEndpoint.slug,
                         url: connectingMcpEndpoint.data.route.base_url || "",
+                        authMode: connectingMcpEndpoint.auth_mode,
                     }}
                     onConnected={() => void refreshMcpEndpoints()}
                 />

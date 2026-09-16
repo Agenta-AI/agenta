@@ -315,6 +315,7 @@ describe("choosing scopes", () => {
             slug: "acme",
             name: "Acme",
             url: URL,
+            authMode: "oauth",
         })
         const offered = journeyReducer(reconnecting, {
             type: "scopes_discovered",
@@ -341,6 +342,7 @@ describe("cancelling", () => {
             slug: "acme",
             name: "Acme",
             url: URL,
+            authMode: "oauth",
         })
 
         expect(state.status).toBe("discovering_scopes")
@@ -371,6 +373,7 @@ describe("repeated submission", () => {
             slug: "acme",
             name: "Acme",
             url: URL,
+            authMode: "oauth",
         })
         const after = journeyReducer(reconnecting, {
             type: "endpoint_created",
@@ -446,6 +449,7 @@ describe("token revoked", () => {
             slug: "acme",
             name: "Acme (main)",
             url: URL,
+            authMode: "oauth",
         })
 
         expect(state.endpointId).toBe("mcp-9")
@@ -453,6 +457,35 @@ describe("token revoked", () => {
         expect(state.name).toBe("Acme (main)")
         // The name is the person's, so discovery must not touch it on the way back.
         expect(state.nameTouched).toBe(true)
+    })
+})
+
+describe("reconnecting a connection that authorizes with a key", () => {
+    it("goes to the credential step, not to scope discovery", () => {
+        // A key-authenticated connection has no scopes to re-read, and the connect route
+        // refuses it outright, so scope discovery is a dead end on the only repair offered.
+        const state = startReconnect({
+            id: "mcp-9",
+            slug: "acme",
+            name: "Acme",
+            url: URL,
+            authMode: "api_key",
+        })
+
+        expect(state.status).toBe("manual_auth")
+        expect(state.endpointId).toBe("mcp-9")
+    })
+
+    it("treats a connection needing nothing the same way", () => {
+        const state = startReconnect({
+            id: "mcp-9",
+            slug: "acme",
+            name: "Acme",
+            url: URL,
+            authMode: "none",
+        })
+
+        expect(state.status).toBe("manual_auth")
     })
 })
 

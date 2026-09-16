@@ -73,6 +73,7 @@ const GatewayConnectToolWidget = ({
                                       slug: connectingEndpoint.slug,
                                       name: connectingEndpoint.name || connectingEndpoint.slug,
                                       url: connectingEndpoint.data.route.base_url || "",
+                                      authMode: connectingEndpoint.auth_mode,
                                   }
                                 : null
                         }

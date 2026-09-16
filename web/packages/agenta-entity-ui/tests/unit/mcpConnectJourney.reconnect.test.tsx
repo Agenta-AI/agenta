@@ -17,15 +17,19 @@ import {useMcpConnectJourney} from "@agenta/entities/mcpEndpoint"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {probeMcpUrl, discoverMcpConnect} = vi.hoisted(() => ({
+const {probeMcpUrl, discoverMcpConnect, editMcpEndpoint, listMcpTools} = vi.hoisted(() => ({
     probeMcpUrl: vi.fn(),
     discoverMcpConnect: vi.fn(),
+    editMcpEndpoint: vi.fn(),
+    listMcpTools: vi.fn(),
 }))
 
 vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
     ...(await importOriginal<typeof import("../../../agenta-entities/src/mcpEndpoint/api/api")>()),
     probeMcpUrl,
     discoverMcpConnect,
+    editMcpEndpoint,
+    listMcpTools,
 }))
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
@@ -44,7 +48,10 @@ const EXISTING = {
     slug: "acme-prod",
     name: "Acme (prod)",
     url: "https://mcp.acme.test/",
+    authMode: "oauth" as const,
 }
+
+const KEY_AUTHENTICATED = {...EXISTING, authMode: "api_key" as const}
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -76,6 +83,8 @@ beforeEach(() => {
         probe: {reachable: true, server_name: "Acme", auth: {mode: "none", scopes_offered: []}},
     })
     discoverMcpConnect.mockResolvedValue({count: 1, scopes_offered: ["tools:list"]})
+    editMcpEndpoint.mockResolvedValue({count: 1, endpoint: {id: "mcp-9", slug: "acme-prod"}})
+    listMcpTools.mockResolvedValue([{name: "echo"}])
     host = document.createElement("div")
     document.body.appendChild(host)
     root = createRoot(host)
@@ -149,5 +158,40 @@ describe("a new attempt after one has run", () => {
 
         expect(journey.state.endpointId).toBe("mcp-10")
         expect(journey.state.slug).toBe("acme-staging")
+    })
+})
+
+describe("repairing a key-authenticated connection", () => {
+    it("asks for the credential rather than for scopes it has none of", async () => {
+        await mountJourney(KEY_AUTHENTICATED)
+
+        // Sending this one to scope discovery earns the route's refusal that it is not an
+        // OAuth target, which is a dead end on the only action offered to repair it.
+        expect(journey.state.status).toBe("manual_auth")
+        expect(discoverMcpConnect).not.toHaveBeenCalled()
+    })
+
+    it("asks the server whether the credential works before saying it connected", async () => {
+        await mountJourney(KEY_AUTHENTICATED)
+        await act(async () => {
+            await journey.submitManualCredential({headerName: "x-api-key", secretId: "sec-1"})
+        })
+
+        // Saving a reference to a secret proves nothing about the secret.
+        expect(editMcpEndpoint).toHaveBeenCalled()
+        expect(listMcpTools).toHaveBeenCalledWith("acme-prod", "project-1")
+        expect(journey.state.status).toBe("saving")
+    })
+
+    it("reports the server's refusal instead of reading as connected", async () => {
+        listMcpTools.mockRejectedValue(new Error("Unauthorized"))
+        await mountJourney(KEY_AUTHENTICATED)
+        await act(async () => {
+            await journey.submitManualCredential({headerName: "x-api-key", secretId: "wrong"})
+        })
+
+        // Before this the journey said connected and the run failed much later.
+        expect(journey.state.status).toBe("verify_failed")
+        expect(journey.state.error).toBeTruthy()
     })
 })

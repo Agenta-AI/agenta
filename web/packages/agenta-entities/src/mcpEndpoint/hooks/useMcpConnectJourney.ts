@@ -52,7 +52,13 @@ export interface McpConnectJourneyOptions {
     /** Existing connections, for the name suggestion and the uniqueness check. */
     existingNames?: (string | null | undefined)[]
     /** Set when reconnecting an endpoint that already exists. */
-    reconnect?: {id: string; slug: string; name: string; url: string} | null
+    reconnect?: {
+        id: string
+        slug: string
+        name: string
+        url: string
+        authMode?: "oauth" | "api_key" | "none"
+    } | null
     /** Called once the connection is real, with the slug agents reference it by. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
 }
@@ -297,11 +303,22 @@ export function useMcpConnectJourney({
                     },
                     projectId,
                 )
+
+                // Saving a reference to a secret proves nothing about the secret. The step is
+                // called Verify and the person is told "Verifying…", so it has to ask the
+                // server: one authenticated handshake through the gateway, which injects the
+                // credential and surfaces the upstream's refusal if it is the wrong one.
+                // Without this a wrong header name or secret reads as connected until an
+                // agent run fails, which is a long way from here.
+                await listMcpTools(endpoint.slug, projectId)
+
                 dispatch({type: "verify_succeeded"})
             } catch (error) {
                 dispatch({
                     type: "verify_failed",
-                    error: gatewayRefusalMessage(error) || "The credential could not be saved.",
+                    error:
+                        gatewayRefusalMessage(error) ||
+                        "The server did not accept that credential.",
                 })
             }
         },

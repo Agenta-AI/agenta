@@ -43,7 +43,14 @@ export interface McpConnectJourneyProps {
     /** Existing display names in the project, for the suggestion and the collision check. */
     existingNames?: (string | null | undefined)[]
     /** Reconnect an endpoint that already exists instead of adding one. */
-    reconnect?: {id: string; slug: string; name: string; url: string} | null
+    reconnect?: {
+        id: string
+        slug: string
+        name: string
+        url: string
+        /** How the connection authorizes, so a reconnect repairs the right thing. */
+        authMode?: "oauth" | "api_key" | "none"
+    } | null
     /** The connection, once it is real. Agents reference it by `slug`. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
 }
