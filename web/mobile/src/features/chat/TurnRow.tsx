@@ -11,6 +11,7 @@ import {
     AttachmentCard,
     AttachmentCardGrid,
     CollapsibleMessageBody,
+    McpServerNoticeCard,
     StartupActivity,
     TurnFooter,
 } from "@agenta/chat/components"
@@ -278,6 +279,9 @@ const TurnRowInner = ({
                 }
                 if (item.kind === "tools") {
                     return <ToolLines key={item.index} item={item} />
+                }
+                if (item.kind === "mcpNotice") {
+                    return <McpServerNoticeCard key={`mcp-${item.index}`} notice={item.notice} />
                 }
                 if (item.kind === "clientTool" && onClientToolOutput) {
                     return (

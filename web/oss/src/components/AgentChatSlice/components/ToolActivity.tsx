@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {formatToolValue, stripFence} from "@agenta/chat/assets"
+import {formatToolValue, unwrapToolUseError} from "@agenta/chat/assets"
 import {partToolName} from "@agenta/chat/model"
 import {
     expandedValueAtomFamily,
@@ -245,7 +245,7 @@ const ToolRowView = memo(
                             {hasError ? (
                                 <IOBlock
                                     label={nonFinalError ? "note" : "error"}
-                                    value={stripFence(errorText)}
+                                    value={unwrapToolUseError(errorText)}
                                     danger={!nonFinalError}
                                 />
                             ) : hasOutput ? (

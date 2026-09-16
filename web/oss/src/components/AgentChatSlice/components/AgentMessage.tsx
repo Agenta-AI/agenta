@@ -23,10 +23,20 @@ import {
     AttachmentCard,
     AttachmentCardGrid,
     CollapsibleMessageBody,
+    McpServerNoticeCard,
     StartupActivity,
     TurnFooter,
 } from "@agenta/chat/components"
-import {isToolPart, SESSION_TURN_IN_USE_CODE, toolIdentity} from "@agenta/chat/model"
+import {
+    isExplainedByMcpNotice,
+    isToolPart,
+    mcpServerNotices,
+    partToolName,
+    readMcpServerNotice,
+    SESSION_TURN_IN_USE_CODE,
+    toolIdentity,
+    type McpServerNotice,
+} from "@agenta/chat/model"
 import {
     errorKey,
     expandedValueAtomFamily,
@@ -506,6 +516,9 @@ const AgentMessage = ({
         | {kind: "tools"; parts: ToolUIPart[]; index: number}
         | {kind: "clientTool"; part: ToolUIPart; index: number}
         | {kind: "files"; parts: FileUIPart[]; index: number}
+        // A configured MCP server that did not join the run. It renders as its own card because
+        // the remedy (reconnecting the connection) is an action, not a line of text.
+        | {kind: "mcpNotice"; notice: McpServerNotice; index: number}
     // A HITL-approved tool's part LINGERS in `approval-responded` (a perpetual spinner, no output):
     // the cold-replay runner re-issues the approved call under a FRESH id, so its execution output
     // lands on a SEPARATE sibling part. Drop the answered gate once its executed sibling exists (same
@@ -521,11 +534,27 @@ const AgentMessage = ({
     )
 
     const renderItems: RenderItem[] = []
+    // Read once for the whole turn: a notice can be emitted before or after the tool call it
+    // explains, so the decision below cannot be made from the parts seen so far.
+    const serverNotices = mcpServerNotices(message.parts)
     message.parts.forEach((part, i) => {
+        if (part.type === "data-mcp-server-failed") {
+            const notice = readMcpServerNotice((part as {data?: unknown}).data)
+            if (notice) renderItems.push({kind: "mcpNotice", notice, index: i})
+            return
+        }
         if (isToolPart(part.type)) {
             // The answered gate whose execution already landed on a sibling part — drop it so the
             // turn doesn't show a stuck approval spinner beside the real, completed call.
             if (isSupersededGate(part as ToolUIPart)) return
+            // A call to a server the turn already says needs authorizing. It could not have run —
+            // the server never joined — and its harness error says so in the harness's own words,
+            // which contradict the notice and are louder than it (UI QA round 3, D2).
+            if (
+                (part as ToolUIPart).state === "output-error" &&
+                isExplainedByMcpNotice(partToolName(part as ToolUIPart), serverNotices)
+            )
+                return
             // A browser-fulfilled client tool (#4920) renders as its own widget/chip, NOT folded
             // into the "Used N tools" group — so it breaks any current tool run.
             if (isClientToolPart(part as ToolUIPart, {isStreaming, isLastMessage}, renderMap)) {
@@ -591,6 +620,14 @@ const AgentMessage = ({
         <div className="flex min-w-0 max-w-full flex-col gap-2">
             {renderItems.map((item) => {
                 if (item.kind === "files") return null
+                if (item.kind === "mcpNotice") {
+                    return (
+                        <McpServerNoticeCard
+                            key={`${message.id}-mcp-${item.index}`}
+                            notice={item.notice}
+                        />
+                    )
+                }
                 if (item.kind === "tools") {
                     return (
                         <ToolActivity

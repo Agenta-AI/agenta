@@ -1,5 +1,6 @@
 import {useEffect, useId, useState} from "react"
 
+import {unwrapToolUseError} from "@agenta/chat/assets"
 import {RevealCollapse, ToolIOBlock} from "@agenta/chat/components"
 import {
     approvalVerdictText,
@@ -149,7 +150,7 @@ export const ToolLine = ({part}: {part: ToolUIPart}) => {
                             {hasError ? (
                                 <ToolIOBlock
                                     label={deferred ? "note" : "error"}
-                                    value={errorText}
+                                    value={unwrapToolUseError(errorText)}
                                     danger={!deferred}
                                 />
                             ) : hasOutput ? (
