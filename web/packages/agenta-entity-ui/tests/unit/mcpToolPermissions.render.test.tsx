@@ -97,6 +97,20 @@ describe("once the table is on", () => {
         expect(selectFor("Permission for a tool with no rule")).not.toBeNull()
     })
 
+    it("says Ask for an unnamed tool even when the server permission is allow", async () => {
+        // The discriminating shape, which every other label case here misses: a per-tool table
+        // BESIDE a server permission. With no server permission both the old expression
+        // (`new_tool_permission ?? permission ?? "ask"`) and the corrected one answer "ask", so
+        // the label cases passed either way. The runner's gate never consults the whole-server
+        // permission once a table is declared — a human decides for anything the table does not
+        // name — so a server set to allow must still read Ask here, or the label promises a tool
+        // will run unapproved when the run will stop and ask (D88).
+        await render({tool_permissions: {echo: "allow"}, permission: "allow"})
+
+        expect(text()).toContain("Inherits ask")
+        expect(text()).not.toContain("Inherits allow")
+    })
+
     it("offers a control for every advertised tool", async () => {
         await render(policy)
 
