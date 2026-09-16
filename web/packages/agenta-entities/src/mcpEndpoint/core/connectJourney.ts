@@ -135,10 +135,15 @@ export function startReconnect(endpoint: {
     slug: string
     name: string
     url: string
+    /** How the connection authorizes. A reconnect repairs whichever it is. */
+    authMode?: "oauth" | "api_key" | "none"
 }): McpJourneyState {
     return {
         ...startJourney(),
-        status: "discovering_scopes",
+        // Only an OAuth connection has scopes to re-read. A key-authenticated one is repaired
+        // by supplying the credential again, and sending it to scope discovery instead just
+        // earns the route's refusal that it is not an OAuth target.
+        status: endpoint.authMode === "oauth" ? "discovering_scopes" : "manual_auth",
         url: endpoint.url,
         name: endpoint.name,
         nameTouched: true,
