@@ -1615,11 +1615,12 @@ class MountsService:
 
         async def _copy(key: str, target: str) -> None:
             async with semaphore:
-                # A folder marker is an empty trailing-slash key; SeaweedFS refuses it as a
-                # copy source, and re-creating it is the same write `create_folder` does.
+                # SeaweedFS refuses a trailing-slash key (a folder marker) as a copy source;
+                # re-write its bytes instead, since `write_file` can put content under one.
                 if key.endswith("/"):
+                    body = await self.mounts_store.get_object(bucket=bucket, key=key)
                     await self.mounts_store.put_object(
-                        bucket=bucket, key=target, body=b""
+                        bucket=bucket, key=target, body=body
                     )
                 else:
                     await self.mounts_store.copy_object(
