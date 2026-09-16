@@ -173,15 +173,16 @@ same as "nobody will see it".
 Fixed and evidenced. An earlier revision of this section recorded the opposite, because the Pi
 extension's MCP client could not read a reply that leads with an `event:` line and dropped the
 server as a failed handshake. The parse now goes through a shared helper that reads any `data:`
-line, and the client sends the protocol revision `initialize` negotiated. Both cells below are real
+line, and the client sends the protocol revision `initialize` negotiated. All three cells below are real
 provider runs, read from the gateway's request log rather than from what the model said.
 
 | Cell | Permission | Answer | `tools/call` per turn | Verdict |
 | --- | --- | --- | --- | --- |
+| read-only | `deny` | n/a | `[0]` | PASS |
 | ask, approved | `ask` | approve | `[0, 1]` | PASS |
 | ask, denied | `ask` | deny | `[0, 0]` | PASS |
 
-Both runs open the same way, and that opening is the fix working: `initialize` 200, a second
+All three runs open the same way, and that opening is the fix working: `initialize` 200, a second
 `initialize` 200 from the client behind the probe, `notifications/initialized` 202, then `tools/list`
 200. Four discovery requests where there used to be one followed by silence. The model is offered
 the server's tools and calls one by its gateway-qualified name rather than guessing.
@@ -200,8 +201,15 @@ That pair is what this section could not show before: per-tool permission enforc
 against a real provider, with the difference between approve and deny visible as one line in the
 log rather than as a claim about the model's behaviour.
 
-Both cells used a read tool. The authorised write is still not run, for the reason in the previous
-subsection: the workspace has no scratch team.
+The read-only cell discovers and stops: `initialize` and `tools/list` and nothing else, with the
+tool denied by policy and never offered. Judging it needs one distinction that cost a false failure
+first time round. The harness raises its own approval gate for its shell tool whenever the model
+inspects its environment, and counting that as the tool's gate makes a correct run look broken. A
+cell that asserts on gates has to resolve each gate's call id to a tool name and ignore the ones
+that are not the server's.
+
+All three cells used a read tool. The authorised write is still not run, for the reason in the
+previous subsection: the workspace has no scratch team.
 
 One thing that looks like a defect and is not: a sandbox-origin line in the API access log carries
 the `/api` prefix twice. That is the access log printing the application's root path in front of the
