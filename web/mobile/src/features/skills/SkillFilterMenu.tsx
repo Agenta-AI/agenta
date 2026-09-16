@@ -10,7 +10,6 @@ import {
     Rows,
     SquaresFour,
     Stack,
-    Waveform,
 } from "@phosphor-icons/react"
 
 import {
@@ -21,19 +20,14 @@ import {
     PROJECT_SOURCE,
     type SkillGrouping,
     type SkillListView,
-    type SkillStatusFilter,
     type SkillUsedByFilter,
 } from "./skillListView"
 
 const ICON = 14
 
 /**
- * The skills registry's single view control: where a skill came from, whether it is in use or
- * put away, whether an agent runs it, then how the rows are cut.
- *
- * Status is three options, not the agents menu's "Only archived" switch: the registry's archived
- * view has always been inline — Archived tags in the same list — so "All" is a state this page
- * already had, and a switch cannot say it.
+ * The skills registry's single view control: where a skill came from, whether an agent runs
+ * it, the agents menu's "Only archived" switch, then how the rows are cut.
  *
  * Everything the shared `FilterMenu` knows about this screen arrives as props, so the package
  * never learns what a skill is and this file never re-implements a row or a check mark.
@@ -68,18 +62,6 @@ export const SkillFilterMenu = ({
                 onChange: (value) => onChange({...view, source: value}),
             },
             {
-                key: "status",
-                label: "Status",
-                icon: <Waveform size={ICON} />,
-                value: view.status,
-                options: [
-                    {value: "active", label: "Active", icon: <Waveform size={ICON} />},
-                    {value: "archived", label: "Archived", icon: <Archive size={ICON} />},
-                    {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
-                ],
-                onChange: (value) => onChange({...view, status: value as SkillStatusFilter}),
-            },
-            {
                 key: "usedBy",
                 label: "Used by",
                 icon: <Robot size={ICON} />,
@@ -92,14 +74,22 @@ export const SkillFilterMenu = ({
                 onChange: (value) => onChange({...view, usedBy: value as SkillUsedByFilter}),
             },
             {
+                kind: "toggle",
+                key: "archived",
+                label: "Only archived",
+                icon: <Archive size={ICON} />,
+                checked: view.archived,
+                onChange: (checked) => onChange({...view, archived: checked}),
+            },
+            {
                 key: "group",
                 label: "Group by",
                 icon: <Rows size={ICON} />,
                 block: "sort",
                 value: view.group,
                 options: [
-                    {value: "source", label: "Source", icon: <Stack size={ICON} />},
                     {value: "none", label: "None", icon: <Minus size={ICON} />},
+                    {value: "source", label: "Source", icon: <Stack size={ICON} />},
                 ],
                 onChange: (value) => onChange({...view, group: value as SkillGrouping}),
             },

@@ -82,11 +82,11 @@ export const SkillListScreen = ({
         persist: ["group", "mode"],
     })
 
-    // Status is half a query: only "active" leaves archived skills out of the fetch, and the
-    // predicate in `deriveSkillList` then narrows "archived" to the ones that are.
+    // The switch is half a query: off leaves archived skills out of the fetch, on brings them
+    // in, and the predicate in `deriveSkillList` then keeps only the ones that are.
     useEffect(() => {
-        setShowArchived(view.status !== "active")
-    }, [setShowArchived, view.status])
+        setShowArchived(view.archived)
+    }, [setShowArchived, view.archived])
 
     // The registry query already took the search, so every row here matches it. The shared
     // sections do the item mapping — provenance, age, origin — so a row and the desktop's card
