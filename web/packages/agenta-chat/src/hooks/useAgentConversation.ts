@@ -52,6 +52,7 @@ import {filesToParts} from "../assets/files"
 import {
     isSessionTranscript,
     loadSessionMessages,
+    reloadSessionMessages,
     type SessionTranscript,
 } from "../assets/loadSession"
 import {mergePendingSendEchoRows} from "../assets/pendingSendEchoes"
@@ -741,12 +742,14 @@ export const useAgentConversation = ({
         locallyBusy: busy,
         isSharedReaderReady: () => sharedSenderReadyRef.current,
         onExecuted: () => {
-            // The run stream that calls this outlives its mount, and both continuations below run
-            // past an await, so both carry the generation of the mount that started the read.
+            // The run stream that calls this outlives its mount, and the delivery below runs past
+            // an await, so it carries the generation of the mount that started the read. A FRESH
+            // read, not the cached one: the rows this turn just saved are what settlement waits
+            // for, and the cache answers unchanged inside its stale window.
             const generation = mount.capture()
-            void loadSessionMessages(sessionId, (transcript) =>
+            return reloadSessionMessages(sessionId, (transcript) =>
                 adoptServerTranscript(transcript, generation),
-            ).then((transcript) => adoptServerTranscript(transcript, generation))
+            )
         },
     })
 
