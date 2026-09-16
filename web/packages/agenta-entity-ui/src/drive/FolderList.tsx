@@ -14,6 +14,7 @@ import {Button} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
 
 import {DriveItemContextMenu, type DriveItemWriteActions} from "./DriveItemContextMenu"
+import {DriveNameField, type DriveNameEdit, NEW_ENTRY_PATH} from "./DriveNameField"
 import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 
 const COLUMNS: ListTableColumn[] = [
@@ -31,6 +32,7 @@ export const FolderList = ({
     onCopyPath,
     onDownload,
     writes,
+    editing,
 }: {
     nodes: DriveTreeNode[]
     selectedPath: string | null
@@ -38,11 +40,14 @@ export const FolderList = ({
     onCopyPath: (path: string) => void
     onDownload: (path: string, isFolder: boolean) => void
     writes?: DriveItemWriteActions
+    editing?: DriveNameEdit | null
 }) => {
     const groups = useMemo(() => [{key: "all", label: null, rows: nodes}], [nodes])
     const renderRow = useCallback(
         (n: DriveTreeNode) => {
             const hidden = isHiddenPath(n.path)
+            const edit =
+                editing && (n.path === editing.path || n.path === NEW_ENTRY_PATH) ? editing : null
             return (
                 <>
                     <span className="flex min-w-0 items-center gap-2">
@@ -53,12 +58,22 @@ export const FolderList = ({
                                 <DriveTypeMark path={n.path} size="mini" />
                             )}
                         </span>
-                        <span
-                            className={`truncate text-[13px] ${n.path === selectedPath ? "font-medium" : ""} ${hidden ? "opacity-60" : ""}`}
-                            title={n.path}
-                        >
-                            {n.name}
-                        </span>
+                        {edit ? (
+                            <DriveNameField
+                                initial={edit.initial}
+                                validate={edit.validate}
+                                onCommit={edit.onCommit}
+                                onCancel={edit.onCancel}
+                                className="h-6 min-w-0 flex-1 px-1.5 text-[13px]"
+                            />
+                        ) : (
+                            <span
+                                className={`truncate text-[13px] ${n.path === selectedPath ? "font-medium" : ""} ${hidden ? "opacity-60" : ""}`}
+                                title={n.path}
+                            >
+                                {n.name}
+                            </span>
+                        )}
                     </span>
                     <span className="truncate text-xs text-colorTextSecondary">
                         {n.isFolder ? "Folder" : fileTypeLabel(n.path)}
@@ -86,7 +101,7 @@ export const FolderList = ({
                 </>
             )
         },
-        [onDownload, selectedPath],
+        [onDownload, selectedPath, editing],
     )
     // ↑ / ↓ / Home / End move focus between the rows; Enter / Space open (the row's own handler).
     const onKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {

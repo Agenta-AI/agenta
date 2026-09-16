@@ -29,9 +29,10 @@ import {
     useCopyDrivePath,
     useDriveItemDownload,
 } from "./DriveItemContextMenu"
+import {type DriveNameEdit, NEW_ENTRY_PATH} from "./DriveNameField"
 import {StagedTile, UploadTile, type StagedTileItem} from "./DrivePendingTiles"
 import {FolderList} from "./FolderList"
-import {FileTile, FolderTile} from "./FolderTile"
+import {DraftTile, FileTile, FolderTile} from "./FolderTile"
 import {DriveRepoMetaList} from "./repoMeta"
 import {VirtualTileGrid} from "./VirtualTileGrid"
 
@@ -49,6 +50,7 @@ export const FolderView = ({
     sort = "name",
     selectedPath = null,
     writes,
+    editing,
     autoFocus,
     anticipateShift,
     onSelect,
@@ -70,6 +72,8 @@ export const FolderView = ({
     selectedPath?: string | null
     /** Item context-menu writes; omit on a read-only mount. */
     writes?: DriveItemWriteActions
+    /** An entry being named in place (see {@link DriveNameEdit}). */
+    editing?: DriveNameEdit | null
     /** Drag-and-drop upload behaviour (folder highlight, spring-load, drop) — absent = disabled. */
     drop?: DriveDrop
     /** In-flight uploads keyed by their real tree path — the matching node (injected into the tree) is
@@ -101,7 +105,21 @@ export const FolderView = ({
     const repo = useRepoInfo(resolvedFolder?.mount ?? null, resolvedFolder?.path ?? "", !hideHeader)
     const [repoExpanded, setRepoExpanded] = useState(false)
     // One combined list, folders first, so the grid windows uniformly.
-    const sorted = useMemo(() => sortDriveEntries(nodes, sort), [nodes, sort])
+    const sorted = useMemo(() => {
+        const list = sortDriveEntries(nodes, sort)
+        // A new entry sits first while it is being named.
+        return editing?.path === null
+            ? [
+                  {
+                      name: editing.initial,
+                      path: NEW_ENTRY_PATH,
+                      isFolder: editing.kind === "folder",
+                      children: [],
+                  },
+                  ...list,
+              ]
+            : list
+    }, [nodes, sort, editing])
     // Staged drops are ghost tiles in the grid only (the list shows real rows; row 2's ⋯ uploads them).
     const stagedByPath = useMemo(
         () =>
@@ -226,6 +244,7 @@ export const FolderView = ({
                             {view === "list" ? (
                                 <FolderList
                                     nodes={sorted}
+                                    editing={editing}
                                     selectedPath={selectedPath}
                                     onOpen={onSelect}
                                     onCopyPath={copyPath}
@@ -298,6 +317,16 @@ export const FolderView = ({
                                                 </motion.div>
                                             )
                                         }
+                                        if (
+                                            editing &&
+                                            (n.path === editing.path || n.path === NEW_ENTRY_PATH)
+                                        )
+                                            return (
+                                                <DraftTile
+                                                    edit={editing}
+                                                    path={editing.path ?? editing.initial}
+                                                />
+                                            )
                                         const open = () => onSelect(n.path)
                                         const content = (
                                             <DriveItemContextMenu

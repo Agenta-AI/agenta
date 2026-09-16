@@ -9,14 +9,18 @@ import {looksLikeFilePath} from "@agenta/entities/drive"
 import {type DriveId, type DriveScope} from "@agenta/entities/drive"
 import {type DroppedFile} from "@agenta/entities/drive"
 import {
+    copyDriveName,
     type DriveFileKind,
     driveNavAction,
     filterDriveTree,
     isEditableTarget,
     isMarkdownPath,
     joinPath,
+    nameOf,
+    newDriveName,
     parentOf,
     resolveDriveFileKind,
+    validateDriveName,
 } from "@agenta/entities/drive"
 import {
     DRIVE_CODE_EDIT_CAP,
@@ -51,7 +55,7 @@ import {
     useCopyText,
     useDriveItemDownload,
 } from "./DriveItemContextMenu"
-import {DriveNameDialog, type DriveNameDialogRequest, validateDriveName} from "./DriveNameDialog"
+import {type DriveNameEdit} from "./DriveNameField"
 import {type DriveFileActions, DriveToolbar} from "./DriveToolbar"
 import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
@@ -263,20 +267,24 @@ export function DriveExplorer({
     // Writes share the upload gate: a writable, real mount.
     const canWrite = canUpload
     const writes = useDriveWrites(drive)
-    const [nameRequest, setNameRequest] = useState<DriveNameDialogRequest | null>(null)
     const siblingsOf = useCallback(
         (folder: string) =>
             (folder === "" ? tree : (nodeByPath.get(folder)?.children ?? [])).map((n) => n.name),
         [tree, nodeByPath],
     )
-    const requestName = useCallback(
-        (kind: DriveNameDialogRequest["kind"], path: string) =>
-            setNameRequest({
-                kind,
-                path,
-                siblings: siblingsOf(kind.startsWith("new") ? path : parentOf(path)),
-            }),
-        [siblingsOf],
+    // The entry being named in place: a new one in `folder`, or `path` renamed. The folder view
+    // that shows it is selected first, so the field is on screen.
+    const [nameEdit, setNameEdit] = useState<{
+        path: string | null
+        kind: "folder" | "file"
+        folder: string
+    } | null>(null)
+    const startNew = useCallback(
+        (kind: "folder" | "file", folder: string) => {
+            if (selectedPath !== folder) select(folder)
+            setNameEdit({path: null, kind, folder})
+        },
+        [selectedPath, select],
     )
 
     const editableFile = chrome && canWrite && !selectedIsFolder && !!selectedPath
@@ -302,39 +310,55 @@ export function DriveExplorer({
     const onSave = useCallback(() => void saveDraft(), [saveDraft])
 
     // On the open file a copy (rename / duplicate) flushes the draft first; a delete forgets it.
-    const onNameSubmit = useCallback(
-        async (req: DriveNameDialogRequest, value: string) => {
-            const onOpenFile = editing && req.path === selectedPath
-            let ok = false
-            let landed: string
-            switch (req.kind) {
-                case "new-folder":
-                    ok = await writes.createFolder(req.path, value)
-                    landed = joinPath(req.path, value)
-                    break
-                case "new-file":
-                    ok = await writes.createFile(req.path, value)
-                    landed = joinPath(req.path, value)
-                    break
-                case "rename":
-                    if (onOpenFile) await saveDraft()
-                    ok = await writes.rename(req.path, value)
-                    landed = joinPath(parentOf(req.path), value)
-                    break
-                case "duplicate":
-                    if (onOpenFile) await saveDraft()
-                    ok = await writes.duplicate(req.path, value)
-                    landed = joinPath(parentOf(req.path), value)
-                    break
+    const commitName = useCallback(
+        async (name: string): Promise<boolean> => {
+            if (!nameEdit) return false
+            const {path, kind, folder} = nameEdit
+            let ok: boolean
+            if (path === null) {
+                ok = await (kind === "folder"
+                    ? writes.createFolder(folder, name)
+                    : writes.createFile(folder, name))
+                if (ok) select(joinPath(folder, name))
+            } else {
+                if (editing && path === selectedPath) await saveDraft()
+                ok = await writes.rename(path, name)
+                if (ok && path === selectedPath) replaceSelection(joinPath(folder, name))
             }
-            if (!ok) return
-            setNameRequest(null)
-            // A rename keeps its place in history.
-            if (req.kind === "rename" && req.path === selectedPath) replaceSelection(landed)
-            else select(landed)
+            if (ok) setNameEdit(null)
+            return ok
         },
-        [writes, editing, selectedPath, saveDraft, replaceSelection, select],
+        [nameEdit, writes, editing, selectedPath, saveDraft, select, replaceSelection],
     )
+    const startRename = useCallback(
+        (path: string) => {
+            const folder = parentOf(path)
+            if (selectedPath !== folder) select(folder)
+            setNameEdit({path, kind: nodeByPath.get(path)?.isFolder ? "folder" : "file", folder})
+        },
+        [selectedPath, select, nodeByPath],
+    )
+    const duplicate = useCallback(
+        async (path: string) => {
+            if (editing && path === selectedPath) await saveDraft()
+            const folder = parentOf(path)
+            await writes.duplicate(path, copyDriveName(nameOf(path), siblingsOf(folder)))
+        },
+        [editing, selectedPath, saveDraft, writes, siblingsOf],
+    )
+    const nameEditView = useMemo<DriveNameEdit | null>(() => {
+        if (!nameEdit) return null
+        const siblings = siblingsOf(nameEdit.folder)
+        const current = nameEdit.path === null ? undefined : nameOf(nameEdit.path)
+        return {
+            path: nameEdit.path,
+            kind: nameEdit.kind,
+            initial: current ?? newDriveName(nameEdit.kind, siblings),
+            validate: (name) => validateDriveName(name, siblings, current),
+            onCommit: commitName,
+            onCancel: () => setNameEdit(null),
+        }
+    }, [nameEdit, siblingsOf, commitName])
     const onDelete = useCallback(
         async (path: string, isFolder: boolean) => {
             if (!writes.canDelete(path)) return
@@ -354,18 +378,18 @@ export function DriveExplorer({
         () =>
             canWrite
                 ? {
-                      onRename: (path) => requestName("rename", path),
-                      onDuplicate: (path) => requestName("duplicate", path),
+                      onRename: startRename,
+                      onDuplicate: (path) => void duplicate(path),
                       onDelete: (path, isFolder) => void onDelete(path, isFolder),
                   }
                 : undefined,
-        [canWrite, requestName, onDelete],
+        [canWrite, startRename, duplicate, onDelete],
     )
     const fileActions = useMemo<DriveFileActions | undefined>(
         () =>
             canWrite && selectedPath && !selectedIsFolder
                 ? {
-                      onRename: () => requestName("rename", selectedPath),
+                      onRename: () => startRename(selectedPath),
                       renameTo: async (name) => {
                           if (editing) await saveDraft()
                           const ok = await writes.rename(selectedPath, name)
@@ -373,12 +397,12 @@ export function DriveExplorer({
                           return ok
                       },
                       validateName: (name) =>
-                          validateDriveName(name, {
-                              kind: "rename",
-                              path: selectedPath,
-                              siblings: siblingsOf(parentOf(selectedPath)),
-                          }),
-                      onDuplicate: () => requestName("duplicate", selectedPath),
+                          validateDriveName(
+                              name,
+                              siblingsOf(parentOf(selectedPath)),
+                              nameOf(selectedPath),
+                          ),
+                      onDuplicate: () => void duplicate(selectedPath),
                       onDelete: () => void onDelete(selectedPath, false),
                   }
                 : undefined,
@@ -386,7 +410,8 @@ export function DriveExplorer({
             canWrite,
             selectedPath,
             selectedIsFolder,
-            requestName,
+            startRename,
+            duplicate,
             onDelete,
             writes,
             editing,
@@ -477,8 +502,8 @@ export function DriveExplorer({
                 actions={
                     canWrite
                         ? {
-                              onNewFolder: () => requestName("new-folder", selectedPath ?? ""),
-                              onNewFile: () => requestName("new-file", selectedPath ?? ""),
+                              onNewFolder: () => startNew("folder", selectedPath ?? ""),
+                              onNewFile: () => startNew("file", selectedPath ?? ""),
                               onUpload: staged.length ? commitStaged : openUploadPicker,
                               stagedCount: staged.length,
                           }
@@ -557,6 +582,7 @@ export function DriveExplorer({
                     sort={sort}
                     selectedPath={selectedPath}
                     writes={itemWrites}
+                    editing={nameEditView}
                     loading={
                         selectedPath !== "" &&
                         !searchActive &&
@@ -744,12 +770,6 @@ export function DriveExplorer({
                     <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onNavKeyDown}>
                         {body}
                     </div>
-                    <DriveNameDialog
-                        request={nameRequest}
-                        busy={writes.busy}
-                        onSubmit={(req, value) => void onNameSubmit(req, value)}
-                        onClose={() => setNameRequest(null)}
-                    />
                 </div>
             ) : (
                 body
