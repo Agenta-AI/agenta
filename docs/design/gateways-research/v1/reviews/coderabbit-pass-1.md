@@ -108,7 +108,7 @@ unsatisfiable once the client is regenerated.
 | CR9 | `services/runner/src/engines/sandbox_agent/mcp-handshake.ts:204` | Security, CWE-918 | Real | `ba60feaeae` | See release blockers. Verified: `redirect: "manual"` on both fetch sites, and the runtime premise checked rather than assumed. Its test asserts the option, and fails without it. |
 | CR10 | `services/runner/src/extensions/pi-mcp.ts:196` | Stability | Real | `466054f7fd` | `post` sets no timeout and no signal, `execute` ignores the signal it is given, and discovery runs where a hang is not caught. Bounded, because the route shape forces the target to be the Agenta gateway, whose own upstream call is capped. The sibling probe already does this correctly. Verified in code, all three limbs. **Its two most important halves are untested**: removing the request timeout, or the mid-flight abort link, leaves the suite green. |
 | CR11 | `services/runner/src/gateway-error.ts:167` | Data integrity | Real | `14b4b6e7bc` | Only the bare candidate is gated on the provenance marker, so a genuine provider error body is parsed as an Agenta refusal and stamped non-retryable. Metadata-only today: nothing in the runner or web reads those fields. Verified: the marker is required on both shapes. Residual: the MCP plane renders `upstream_error` unmarked, so its `target` detail is now dropped from the operator notice; the commit reasons only about the LLM plane. |
-| CR12 | `web/oss/src/components/AgentChatSlice/components/clientTools/useGatewayConnectFlow.ts:98` | Correctness | Real | `23dc332d94` | Closing the tool catalog settles the client tool as connected with no check that anything connected, so the model then calls a tool that does not exist. Desktop-only: mobile registers no gateway-connect widget, so agent-initiated connect is itself unported. |
+| CR12 | `web/oss/src/components/AgentChatSlice/components/clientTools/useGatewayConnectFlow.ts:98` | Correctness | Real | `91d2649301`, `1f6af85113` | Closing the tool catalog settles the client tool as connected with no check that anything connected, so the model then calls a tool that does not exist. Desktop-only: mobile registers no gateway-connect widget, so agent-initiated connect is itself unported. Verified: the widget reads the connections list back for its own target before settling, and the desktop-only half is closed by moving the widget into the shared package so `/m` gets it too. |
 | CR13 | `web/oss/src/components/pages/settings/Tools/ComposioProjectKey.tsx:111` | Data integrity | Deferred | — | Accurate but minor. The button library swallows clicks while loading, so only the cross-button sequence races, and both orders end in a toast and a refetch rather than data loss. |
 | CR14 | `web/packages/agenta-entities/src/mcpEndpoint/api/api.ts:175` | Correctness | Real | `8079441042` | See release blockers. Verified with D32 in round 2. |
 | CR15 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectJourney.ts:182` | Data integrity | Real | `133f17c110` | See release blockers. Verified with D29 in round 2: `saving` counts as connected and the dialog is sealed across that window. |
@@ -245,6 +245,28 @@ row regardless. It is a non-regression guard rather than a discriminator, which 
 to have here and worth naming as what it is. On the substance I agree with it: the address slug is
 this deployment's current callback, and a grant bound to an older registration addresses that one
 directly through its own pin rather than through this search.
+
+### CR12, both halves
+
+`91d2649301` closes the verification half. Closing the catalog no longer settles the tool as
+connected on the strength of the surface having been open: the flow reads the connections list back
+for the target it asked about, and settles connected only when one is active and valid. The
+three-way answer is the part worth keeping — connected, cancelled, and a distinct **unverified**
+when the list cannot be read at all — because an agent told the person declined should stop and ask,
+while one told the answer is unknown should look again first. Collapsing those two would have been
+the easy version and the wrong one.
+
+`1f6af85113` closes the half the finding called desktop-only. The widget and its hook move into
+`@agenta/entity-ui`, one `ConnectRequestWidget` answers both dispatch axes, the desktop-only registry
+is deleted rather than duplicated, and mobile mounts the catalog drawer at the workspace — with the
+reason written down, that the drawer opens through an atom and the agent's own widget opens it from
+the transcript, where the config pane it used to live in never mounts in chat mode. That matters
+beyond this finding: `/m` is the production default, so an agent-initiated connect that exists only
+on classic is a feature most people never see.
+
+**Verified:** 26 cases across the three files. The catalog suite asserts each branch separately,
+including the invalid-connection case and the unreadable-list case, so a regression to settling
+connected unconditionally fails more than one of them.
 
 ### Residuals still open
 
