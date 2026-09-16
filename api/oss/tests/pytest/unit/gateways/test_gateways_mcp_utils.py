@@ -50,3 +50,36 @@ def test_unrelated_headers_do_not_affect_json_rpc_context():
 def test_invalid_json_rpc_context_is_rejected(body):
     with pytest.raises(ValueError):
         parse_mcp_call_context(headers={}, body=body)
+
+
+# ---------------------------------------------------------------------------
+# M15: what policy evaluates is what the upstream receives
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b'{"method": "  tools/call  ", "params": {"name": "echo"}}',
+        b'{"method": "tools/call\\n"}',
+        b'{"method": "tools/call", "params": {"name": " echo "}}',
+        b'{"method": "tools/call", "params": {"name": "echo\\t"}}',
+    ],
+)
+def test_a_padded_identifier_is_refused_rather_than_trimmed(body):
+    """These two values decide which permission is checked and which tool the audit
+    record names, and the body reaches the upstream byte for byte. Trimming them made
+    policy evaluate `echo` while the server received `" echo "`."""
+    with pytest.raises(ValueError):
+        parse_mcp_call_context(headers={}, body=body)
+
+
+def test_an_identifier_with_interior_spacing_is_left_exactly_as_sent():
+    """Only the ends are refused. Whatever is inside is the caller's string, and it is
+    the string the upstream will be given."""
+    context = parse_mcp_call_context(
+        headers={},
+        body=_request(method="tools/call", params={"name": "search web"}),
+    )
+
+    assert context.target == "search web"
