@@ -196,14 +196,19 @@ function RemoveFromAgent({
 
     return (
         <>
-            <button
-                type="button"
+            {/* The kit's button rather than a bare anchor-styled one: it is the only thing here
+                that carries the app's focus ring, and this is the destructive control. */}
+            <Button
+                variant="ghost"
+                size="sm"
                 disabled={disabled}
                 onClick={() => setConfirming(true)}
-                className="cursor-pointer border-0 bg-transparent p-0 text-left text-[13px] text-[var(--ag-colorError)] disabled:cursor-not-allowed disabled:opacity-50"
+                // colorError, not colorErrorTextHover: the hover token is not generated for the
+                // mobile app, where it would resolve to nothing and take the colour with it.
+                className="px-0 text-[13px] font-normal text-[var(--ag-colorError)] hover:bg-transparent hover:opacity-80"
             >
                 Remove from agent
-            </button>
+            </Button>
             {confirming ? (
                 <div className="flex flex-col items-start gap-2">
                     <span className="text-xs text-[var(--ag-colorTextSecondary)]">
