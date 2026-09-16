@@ -1,7 +1,7 @@
 /**
  * The transport behind the Files pane's writes. Create / delete use the Fern mounts client; a
- * text save is an upload (`write_file` overwrites); rename / duplicate are read → upload → delete
- * because the backend has no move endpoint (so folders can't be renamed here).
+ * text save is an upload (`write_file` overwrites); a rename is read → upload → delete because the
+ * backend has no move endpoint (so folders can't be renamed here).
  */
 import {getMountsClient} from "@agenta/sdk/resources"
 import {type QueryClient} from "@tanstack/react-query"
@@ -88,14 +88,13 @@ export async function saveMountText({
     }
 }
 
-/** Copy one FILE's bytes to a new mount-relative path; `removeSource` turns it into a move. */
-export async function copyMountFile({
+/** Move one FILE's bytes to a new mount-relative path. */
+export async function moveMountFile({
     mount,
     path,
     projectId,
     toPath,
-    removeSource,
-}: DriveWriteTarget & {toPath: string; removeSource: boolean}) {
+}: DriveWriteTarget & {toPath: string}) {
     const blob = await fetchMountFileBlob({mountId: mount.id, projectId, path})
     if (!blob) throw new Error("Couldn't read the file")
     const name = nameOf(toPath)
@@ -110,5 +109,5 @@ export async function copyMountFile({
     } catch (error) {
         rethrow(error, "Couldn't write the file")
     }
-    if (removeSource) await deleteMountPath({mount, path, projectId})
+    await deleteMountPath({mount, path, projectId})
 }

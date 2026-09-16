@@ -26,7 +26,6 @@ import {
     CaretDown,
     CircleNotch,
     Clock,
-    CopySimple,
     DotsThreeVertical,
     DownloadSimple,
     FilePlus,
@@ -99,7 +98,6 @@ export interface DriveFileActions {
     renameTo: (name: string) => Promise<boolean>
     /** A reason a name can't be used, or null. */
     validateName: (name: string) => string | null
-    onDuplicate: () => void
     onDelete: () => void
 }
 
@@ -212,10 +210,6 @@ const FileActionsMenu = ({
             <DropdownMenuItem disabled={!actions} onSelect={actions?.onRename}>
                 <PencilSimple />
                 Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={!actions} onSelect={actions?.onDuplicate}>
-                <CopySimple />
-                Duplicate
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

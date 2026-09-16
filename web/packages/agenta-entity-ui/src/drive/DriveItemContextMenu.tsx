@@ -25,7 +25,6 @@ import {
 import {
     ArrowSquareOut,
     Copy,
-    CopySimple,
     DownloadSimple,
     FolderOpen,
     PencilSimple,
@@ -35,10 +34,9 @@ import {useAtomValue} from "jotai"
 
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
-/** An item's write verbs; rename / duplicate are file-only (no backend move endpoint). */
+/** An item's write verbs; rename is file-only (no backend move endpoint). */
 export interface DriveItemWriteActions {
     onRename: (path: string) => void
-    onDuplicate: (path: string) => void
     onDelete: (path: string, isFolder: boolean) => void
 }
 
@@ -121,7 +119,7 @@ export const DriveItemContextMenu = ({
     onCopyPath: (path: string) => void
     /** Download this item (a file's bytes, or a folder as a zip). Omit → no Download entry. */
     onDownload?: (path: string, isFolder: boolean) => void
-    /** Rename / duplicate / delete — omit on a read-only mount. */
+    /** Rename / delete — omit on a read-only mount. */
     writes?: DriveItemWriteActions
     /** Wrapper class — defaults to `min-w-0` so grid-cell truncation still wins; pass `w-full`
      * variants where the cell needs to stretch. */
@@ -164,12 +162,6 @@ export const DriveItemContextMenu = ({
                                 </span>
                             ) : null}
                         </ContextMenuItem>
-                        {isFolder ? null : (
-                            <ContextMenuItem onSelect={() => writes.onDuplicate(path)}>
-                                <CopySimple size={14} />
-                                Duplicate
-                            </ContextMenuItem>
-                        )}
                         <ContextMenuSeparator />
                         <ContextMenuItem
                             onSelect={() => writes.onDelete(path, isFolder)}

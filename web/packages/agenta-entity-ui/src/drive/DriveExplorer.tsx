@@ -9,7 +9,6 @@ import {looksLikeFilePath} from "@agenta/entities/drive"
 import {type DriveId, type DriveScope} from "@agenta/entities/drive"
 import {type DroppedFile} from "@agenta/entities/drive"
 import {
-    copyDriveName,
     type DriveFileKind,
     driveNavAction,
     filterDriveTree,
@@ -318,7 +317,7 @@ export function DriveExplorer({
     const {save: saveDraft, discard: discardDraft} = editor
     const onSave = useCallback(() => void saveDraft(), [saveDraft])
 
-    // On the open file a copy (rename / duplicate) flushes the draft first; a delete forgets it.
+    // On the open file a rename flushes the draft first; a delete forgets it.
     const commitName = useCallback(
         async (name: string): Promise<boolean> => {
             if (!nameEdit) return false
@@ -340,14 +339,6 @@ export function DriveExplorer({
             setNameEdit({path, kind: nodeByPath.get(path)?.isFolder ? "folder" : "file"})
         },
         [selectedPath, select, nodeByPath],
-    )
-    const duplicate = useCallback(
-        async (path: string) => {
-            if (editing && path === selectedPath) await saveDraft()
-            const folder = parentOf(path)
-            await writes.duplicate(path, copyDriveName(nameOf(path), siblingsOf(folder)))
-        },
-        [editing, selectedPath, saveDraft, writes, siblingsOf],
     )
     const nameEditView = useMemo<DriveNameEdit | null>(() => {
         if (!nameEdit) return null
@@ -382,11 +373,10 @@ export function DriveExplorer({
             canWrite
                 ? {
                       onRename: startRename,
-                      onDuplicate: (path) => void duplicate(path),
                       onDelete: (path, isFolder) => void onDelete(path, isFolder),
                   }
                 : undefined,
-        [canWrite, startRename, duplicate, onDelete],
+        [canWrite, startRename, onDelete],
     )
     const fileActions = useMemo<DriveFileActions | undefined>(
         () =>
@@ -405,7 +395,6 @@ export function DriveExplorer({
                               siblingsOf(parentOf(selectedPath)),
                               nameOf(selectedPath),
                           ),
-                      onDuplicate: () => void duplicate(selectedPath),
                       onDelete: () => void onDelete(selectedPath, false),
                   }
                 : undefined,
@@ -414,7 +403,6 @@ export function DriveExplorer({
             selectedPath,
             selectedIsFolder,
             startRename,
-            duplicate,
             onDelete,
             writes,
             editing,
