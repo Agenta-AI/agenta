@@ -166,6 +166,29 @@ describe("D1 — the drawer at its default", () => {
         expect(text()).toContain("Connected")
     })
 
+    it("leads the header with the generic server tile, since an MCP endpoint has no branding", async () => {
+        // One plugs glyph on the info tile for every server (decision 3). A per-server logo would
+        // have to be guessed from a URL, and a header with nothing in that slot reads as a row
+        // that failed to load an icon.
+        await render()
+
+        const tile = document.querySelector('[data-slot="icon-tile"]')
+        expect(tile?.getAttribute("data-tone")).toBe("info")
+        expect(tile?.getAttribute("data-size")).toBe("24")
+        expect(tile?.querySelector("svg")).not.toBeNull()
+    })
+
+    it("is a bottom sheet on a phone and a right-edge drawer above the breakpoint", async () => {
+        // The one prop that makes a configuration panel correct in both apps. A desktop drawer
+        // squeezed onto a phone is the failure this replaces; the geometry itself is measured in a
+        // browser, so what this pins is that the drawer asks for the responsive side at all.
+        await render()
+
+        const panel = document.querySelector('[role="dialog"]')
+        expect(panel?.className).toContain("bottom-0")
+        expect(panel?.className).toContain("lg:right-0")
+    })
+
     it("names the default permission and reads the saved one back as its preset", async () => {
         await render()
 
