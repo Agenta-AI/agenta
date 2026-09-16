@@ -205,7 +205,7 @@ const ReplayScreen = ({
         body = <ChatEmpty />
     } else {
         body = (
-            <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 <TranscriptTurns
                     turns={visibleTurns}
                     sessionId={sessionId}
