@@ -159,14 +159,7 @@ export function SkillImportDrawer({
             placement="right"
             width={width}
             destroyOnClose
-            title={
-                <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium">Import skills from a repo</span>
-                    <span className="text-xs font-normal text-[var(--ag-colorTextSecondary)]">
-                        Scan a public GitHub repository for SKILL.md folders.
-                    </span>
-                </div>
-            }
+            title={<span className="text-sm font-medium">Import skills from a repo</span>}
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
@@ -214,8 +207,7 @@ export function SkillImportDrawer({
                             disabled={busy}
                         />
                         <span className="text-[var(--ag-colorTextTertiary)]">
-                            Marketplace, single-skill and multi-skill layouts are detected
-                            automatically.
+                            Scan a public GitHub repository for SKILL.md folders.
                         </span>
                     </label>
                 ) : null}
