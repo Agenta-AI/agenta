@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **0** | **7** | **5** | **16 closed, 2 part fixed, 12 open. No P1 remains** |
+| **As this file is written** | **0** | **0** | **4** | **5** | **19 closed, 1 part fixed, 9 open. No P1 remains** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -86,9 +86,9 @@ whether that fix was read against the finding and its test.
 | D26 | reviewer 2 | P1 | `mcp-connect.ts:190`, `:219`, `:236` | Fix with D22 | `cd9e6f2c16`, `8b7b1c6cd1` | **yes**, 7 of 7 green on a run by this review |
 | D27 | both | P2 | `hooks/useMcpConnectJourney.ts:160`, `api/oss/src/apis/fastapi/gateways/mcps/router.py:889` | Fix | `9aa07f51a5` | **yes**, code, tests, incl. pre-fix run and the return route checked |
 | D28 | both | P2 | `hooks/useMcpConnectJourney.ts:274-295` | Fix | `2019858a58` | **yes**, code and tests, suites run |
-| D29 | reviewer 2 | P2 | `core/connectJourney.ts:181`, `hooks/useMcpConnectJourney.ts:331`, `McpConnectJourney.tsx:117` | Fix | | mechanism, code |
-| D30 | reviewer 2 | P2 | `core/connectJourney.ts:185` | Fix | | mechanism, code |
-| D31 | both | P2 | `hooks/useMcpConnectJourney.ts:220`, `McpConnectJourney.tsx:104`, `router.py:541-554` | **Part fixed.** API half done; the duplicate call is the web half | `cb3a277fdc` | **yes** for the API half, code and tests |
+| D29 | reviewer 2 | P2 | `core/connectJourney.ts:181`, `hooks/useMcpConnectJourney.ts:331`, `McpConnectJourney.tsx:117` | Fix. Also CodeRabbit's CR15 | `133f17c110` | **yes**, code and suites; browser re-run blocked, see D49 |
+| D30 | reviewer 2 | P2 | `core/connectJourney.ts:185` | Fix | `133f17c110` | **yes**, code and suites |
+| D31 | both | P2 | `hooks/useMcpConnectJourney.ts:220`, `McpConnectJourney.tsx:104`, `router.py:541-554` | Fix, both halves | `cb3a277fdc`, `23dc332d94` | **yes**, code and tests |
 | D32 | both | P2 | `web/packages/agenta-entities/src/mcpEndpoint/api/api.ts:142-181` | Fix | `8079441042` | **yes**, code and tests, suites run |
 | D33 | Codex | P2 | `api/oss/src/dbs/postgres/gateways/mcps/dao.py:265`, `oauth/storage.py:229` | Fix. Re-opens D21 | `dd8f6066e3` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D34 | Codex | P2 | `hooks/useMcpConnectJourney.ts:156-169`, `McpConnectJourney.tsx:96` | Fix with D23 | | mechanism, code |
@@ -139,6 +139,8 @@ revision before the fix, so the predicted failure is watched rather than assumed
 | D47 | `b92db4946a` | 1061 passed with the preconditions exported | 2 failed, 74 passed |
 | D27 | `9aa07f51a5` | 7 passed | 6 failed, 1 passed |
 | D28, D48 | `2019858a58`, `bc96498688` | 802 passed in the entity UI package | structurally discriminating, see D48 |
+| D29, D30 | `133f17c110` | 816 + 44 passed | — |
+| D31 web half | `23dc332d94` | 816 passed in the entity UI package | the duplicate is observable only while discovery is in flight |
 
 The pre-fix failures are the predicted ones in every case. D24's headline case comes back with the
 grant's `client_registration_slug` set to nothing after the first renewal, where the pinned slug
