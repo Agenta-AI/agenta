@@ -1,5 +1,59 @@
 [
     {
+        "id": "changelog-2026-09-16-recognize-agents-at-a-glance",
+        "title": "Recognize agents at a glance",
+        "description": "Give every agent its own icon and color, then spot it quickly across navigation, chat, and automation pickers.",
+        "link": "https://agenta.ai/docs/changelog/recognize-agents-at-a-glance"
+    },
+    {
+        "id": "changelog-2026-09-16-voice-input-for-agent-chat",
+        "title": "Talk through a task instead of typing it",
+        "description": "Dictate directly into the composer, or use hold-to-talk on supported desktop browsers, then review the transcript before sending.",
+        "link": "https://agenta.ai/docs/changelog/voice-input-for-agent-chat"
+    },
+    {
+        "id": "changelog-2026-09-16-shareable-agent-sessions",
+        "title": "Shareable sessions",
+        "description": "Copy a deep link to an agent session so an authorized teammate opens the same working record and context.",
+        "link": "https://agenta.ai/docs/changelog/shareable-agent-sessions"
+    },
+    {
+        "id": "changelog-2026-09-16-agent-configuration-history",
+        "title": "Save, review and restore agent configuration",
+        "description": "Edits save automatically as revisions. Review the diff, see what changed, and restore an earlier configuration when needed.",
+        "link": "https://agenta.ai/docs/changelog/agent-configuration-history"
+    },
+    {
+        "id": "changelog-2026-09-16-chatgpt-subscription-for-agents",
+        "title": "Run an Agenta agent with your ChatGPT subscription",
+        "description": "Connect a supported ChatGPT subscription, select the Codex runtime for an agent, and start a run from Agenta.",
+        "link": "https://agenta.ai/docs/changelog/chatgpt-subscription-for-agents"
+    },
+    {
+        "id": "changelog-2026-09-16-session-control-and-queued-work",
+        "title": "Control active work across sessions",
+        "description": "Queue and edit the next instruction, stop or steer active work, switch sessions, and return without losing the working record.",
+        "link": "https://agenta.ai/docs/changelog/session-control-and-queued-work"
+    },
+    {
+        "id": "changelog-2026-09-16-custom-secrets-for-agent-runs",
+        "title": "Give agents custom secrets without exposing their values",
+        "description": "Create a write-only project secret, attach it to an agent revision, and inject only the selected secret into its run.",
+        "link": "https://agenta.ai/docs/changelog/custom-secrets-for-agent-runs"
+    },
+    {
+        "id": "changelog-2026-09-16-mention-workspace-files-in-prompts",
+        "title": "Mention a workspace file directly in a prompt",
+        "description": "Type @ in the composer, choose a workspace file, and place its reference directly in the instruction you send to the agent.",
+        "link": "https://agenta.ai/docs/changelog/mention-workspace-files-in-prompts"
+    },
+    {
+        "id": "changelog-2026-09-16-agent-permission-policies",
+        "title": "Choose a clear permission policy for each agent",
+        "description": "Choose the agent\u2019s general permission level while keeping explicit tool rules and approval prompts visible.",
+        "link": "https://agenta.ai/docs/changelog/agent-permission-policies"
+    },
+    {
         "id": "changelog-2026-08-22-agenta-on-mobile",
         "title": "Agenta on Mobile",
         "description": "Chat with agents, follow live runs, and approve tool calls from your phone.",
