@@ -175,6 +175,7 @@ if ! rsync -aH --stats "${link_dest[@]}" "$SOURCE"/ "$snapshot"/ >>"$LOG" 2>&1; 
   fail "rsync failed, removed incomplete snapshot $snapshot"
 fi
 log "snapshot complete: $snapshot ($(du -sh "$snapshot" | cut -f1))"
+touch "$snapshot"
 
 find "$DEST_ROOT" -mindepth 1 -maxdepth 1 -type d \
   -regextype posix-extended -regex "$SNAPSHOT_GLOB" \
