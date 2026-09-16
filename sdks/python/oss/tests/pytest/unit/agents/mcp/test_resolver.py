@@ -193,8 +193,10 @@ async def test_per_tool_permissions_ride_the_wire_in_camel_case():
         "tools": {"mode": "all"},
         "permission": "ask",
         "toolPermissions": {"search": "allow", "purge": "deny"},
-        # Unset, so it falls to the server permission rather than to the run default: an author
-        # who wrote a per-tool table gets a table that a run default cannot widen.
+        # Unset, so it is `ask`: neither the run default NOR the whole-server permission is the
+        # floor for a tool the table does not name (D88). This case happens to read the same
+        # either way because `permission` is already `ask`, which is why the wrong ladder lived
+        # here undetected; the matrix in `test_claude_settings.py` is what covers the rest.
         "newToolPermission": "ask",
     }
 

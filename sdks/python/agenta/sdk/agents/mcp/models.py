@@ -150,11 +150,27 @@ class MCPPolicy(BaseModel):
         looked at yet must reach a human, and a run default of ``allow`` must not silently widen a
         server whose author took the trouble to write a per-tool table. Returns ``None`` when the
         author opted out entirely, which is what keeps an existing configuration unchanged.
+
+        The whole-server ``permission`` is NOT the floor either, and reading it here was D88 on
+        the shipped path. This value becomes ``newToolPermission`` on the wire and the runner
+        honours it verbatim, so ``permission="allow"`` beside any per-tool table sent
+        ``newToolPermission: "allow"`` and a tool the author had never named ran unapproved under
+        every harness. The runner's own intake is explicit that this must not happen: an omitted
+        ``newToolPermission`` beside a readable table gets ``ask``, "so a human decides rather
+        than a parser", and ``mcpToolPermission`` "deliberately does NOT fall through to the
+        whole-server permission" once a table exists
+        (``services/runner/src/mcp-permission.ts``).
+
+        The docstring above this one already said so; only the expression disagreed, and the one
+        test that covered the fallback used ``permission="ask"``, where both ladders give the same
+        answer. That is why it survived.
         """
-        # Either field set is the opt-in; neither set leaves this server on the ladder.
+        # Either field set is the opt-in; neither set leaves this server on the ladder, which is
+        # the no-table case the runner reads identically: it emits neither key, so the runner
+        # never opts in and `mcpToolPermission` returns the whole-server permission as before.
         if not self.tool_permissions and self.new_tool_permission is None:
             return None
-        return self.new_tool_permission or self.permission or "ask"
+        return self.new_tool_permission or "ask"
 
     @model_validator(mode="after")
     def _validate_tool_permissions(self) -> "MCPPolicy":
