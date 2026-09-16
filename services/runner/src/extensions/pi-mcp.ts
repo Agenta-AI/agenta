@@ -139,6 +139,15 @@ export function piGatewayMcpServersFromWire(
         `Pi MCP server '${server.name}' must be a registered Agenta gateway route`,
       );
     }
+    // The path shape says the URL LOOKS like a gateway route; it does not say whose. Any host
+    // serving `/gateways/mcps/custom/...` satisfied it, and this client attaches the gateway
+    // credential to every request it makes — so the origin has to be ours too (CR9).
+    const allowed = allowedGatewayOrigins();
+    if (allowed.length > 0 && !allowed.includes(parsed.origin)) {
+      throw new Error(
+        `Pi MCP server '${server.name}' must be a route on this deployment's API`,
+      );
+    }
     const credentials = server.connection.credentials ?? [];
     if (
       credentials.length !== 1 ||
@@ -157,6 +166,31 @@ export function piGatewayMcpServersFromWire(
     };
     return { name: server.name, url: server.connection.url, headers, policy: server.policy };
   });
+}
+
+/**
+ * The origins a gateway MCP route may have: this deployment's own API, internal hop and public
+ * base both.
+ *
+ * Read at call time rather than at module load, because this function runs runner-side (from
+ * `pi-assets.ts`, building the extension's config) and the runner's env is what defines them.
+ * An empty list means the operator configured neither, which is a real self-hosted shape; the
+ * path check then stands alone rather than refusing every MCP server on such a deployment.
+ */
+function allowedGatewayOrigins(): string[] {
+  const origins: string[] = [];
+  for (const base of [
+    process.env.AGENTA_API_INTERNAL_URL,
+    process.env.AGENTA_API_URL,
+  ]) {
+    if (!base) continue;
+    try {
+      origins.push(new URL(base).origin);
+    } catch {
+      // A malformed base configures nothing; it must not widen the check either.
+    }
+  }
+  return origins;
 }
 
 interface JsonRpcResponse {
@@ -239,6 +273,10 @@ class PiHttpMcpClient {
     try {
       return await fetch(this.server.url, {
         method: "POST",
+        // CR9, on this path as on the handshake probe. Every request here carries the gateway
+        // credential, so a 302 would hand it to a host nothing validated. `manual` surfaces the
+        // 3xx as an ordinary response, which `request()` then reports as a failed MCP call.
+        redirect: "manual",
         headers,
         body: JSON.stringify(message),
         signal: controller.signal,

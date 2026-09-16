@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   MCP_DISCOVERY_METHOD,
   parsePiGatewayMcpConfig,
+  piGatewayMcpServersFromWire,
   piMcpToolName,
   registerPiGatewayMcpTools,
   serializePiGatewayMcpConfig,
@@ -790,5 +791,116 @@ describe("a configured header cannot replace a protocol header (M19)", () => {
       // The credential the runner supplied is untouched.
       assert.equal(headers["X-AG-Credentials"], "short-lived-gateway-token");
     }
+  });
+});
+
+describe("the Pi MCP client's own SSRF posture (CR9)", () => {
+  const savedEnv = { ...process.env };
+  afterEach(() => {
+    process.env = { ...savedEnv };
+  });
+
+  it("never follows a redirect on a credentialed request", async () => {
+    // Every request this client makes carries the gateway credential, so a 302 would hand it to
+    // a host nothing validated — the same gap the handshake probe closed.
+    const inits: any[] = [];
+    globalThis.fetch = (async (_url: string, init: any) => {
+      inits.push(init);
+      return new Response("", {
+        status: 302,
+        headers: { location: "http://169.254.169.254/latest/meta-data/" },
+      });
+    }) as unknown as typeof fetch;
+
+    const logs: string[] = [];
+    await registerPiGatewayMcpTools(fakePi(), oneServerConfig(), (m) => logs.push(m), allowAll);
+
+    assert.ok(inits.length > 0);
+    assert.ok(inits.every((init) => init.redirect === "manual"));
+    // And the redirect is reported as a failed handshake rather than chased.
+    assert.ok(logs.some((line) => line.includes("failed its handshake")));
+  });
+
+  it("refuses a gateway-shaped URL on someone else's origin", () => {
+    // The path check says the URL LOOKS like a gateway route; it does not say whose.
+    process.env.AGENTA_API_URL = "https://agenta.example.test/api";
+    process.env.AGENTA_API_INTERNAL_URL = "http://api:8000";
+
+    assert.throws(
+      () =>
+        piGatewayMcpServersFromWire([
+          {
+            name: "evil",
+            connection: {
+              type: "http",
+              url: "https://attacker.example.net/gateways/mcps/custom/evil",
+              credentials: [
+                {
+                  binding: { kind: "header", name: "X-AG-Credentials" },
+                  value: "short-lived-gateway-token",
+                  usage: "opaque_http",
+                },
+              ],
+            },
+            policy: { tools: { mode: "all" } },
+          },
+        ]),
+      /must be a route on this deployment's API/,
+    );
+  });
+
+  it("accepts both the internal hop and the public base", () => {
+    process.env.AGENTA_API_URL = "https://agenta.example.test/api";
+    process.env.AGENTA_API_INTERNAL_URL = "http://api:8000";
+
+    for (const url of [
+      "http://api:8000/gateways/mcps/custom/ok",
+      "https://agenta.example.test/api/gateways/mcps/custom/ok",
+    ]) {
+      const servers = piGatewayMcpServersFromWire([
+        {
+          name: "ok",
+          connection: {
+            type: "http",
+            url,
+            credentials: [
+              {
+                binding: { kind: "header", name: "X-AG-Credentials" },
+                value: "short-lived-gateway-token",
+                usage: "opaque_http",
+              },
+            ],
+          },
+          policy: { tools: { mode: "all" } },
+        },
+      ]);
+      assert.equal(servers[0].url, url);
+    }
+  });
+
+  it("keeps the path check alone when no API base is configured", () => {
+    // A real self-hosted shape. Refusing every MCP server there would be a worse failure than
+    // the narrower check, so the origin rule arms itself only when it can be decided.
+    delete process.env.AGENTA_API_URL;
+    delete process.env.AGENTA_API_INTERNAL_URL;
+
+    const servers = piGatewayMcpServersFromWire([
+      {
+        name: "ok",
+        connection: {
+          type: "http",
+          url: "https://anywhere.example.test/gateways/mcps/custom/ok",
+          credentials: [
+            {
+              binding: { kind: "header", name: "X-AG-Credentials" },
+              value: "short-lived-gateway-token",
+              usage: "opaque_http",
+            },
+          ],
+        },
+        policy: { tools: { mode: "all" } },
+      },
+    ]);
+    assert.equal(servers.length, 1);
   });
 });
