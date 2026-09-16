@@ -3,16 +3,32 @@
  * MotionValues the panes actually animate on, and the anticipated-shift announcement the tile grid
  * needs the moment visibility flips.
  */
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {atom, useAtom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {animate, useMotionValue} from "motion/react"
 
 import {TREE_MAX, TREE_MIN, TREE_TRANSITION, TREE_WIDTH} from "./driveTreeView"
+
+interface TreeRest {
+    show: boolean
+    width: number
+}
+
+// A host that names itself keeps the tree's rest state across closes and reloads.
+const treeRestPrefFamily = atomFamily((key: string) =>
+    atomWithStorage<TreeRest | null>(`agenta:drive:tree:${key}`, null, undefined, {
+        getOnInit: true,
+    }),
+)
 
 export function useDriveTreePane({
     mirrored = false,
     initialWidth = TREE_WIDTH,
     initialShow = true,
+    persistKey,
 }: {
     /** Tree pane docked on the RIGHT (content left) — inverts the resize-drag direction. */
     mirrored?: boolean
@@ -20,10 +36,21 @@ export function useDriveTreePane({
     initialWidth?: number
     /** Open with the tree collapsed (a single-file quick look); the toolbar toggle reveals it. */
     initialShow?: boolean
+    /** Remember shown/hidden and the rest width under this key; the initial* props are the defaults. */
+    persistKey?: string
 }) {
+    const restAtom = useMemo(
+        () => (persistKey ? treeRestPrefFamily(persistKey) : atom<TreeRest | null>(null)),
+        [persistKey],
+    )
+    const [rest, setRest] = useAtom(restAtom)
     // The file TREE pane can be hidden to give the content pane the full width.
-    const [showTree, setShowTree] = useState(initialShow)
-    const toggleTree = useCallback(() => setShowTree((v) => !v), [])
+    const showTree = rest?.show ?? initialShow
+    const treeWidth = rest?.width ?? initialWidth
+    const toggleTree = useCallback(
+        () => setRest((r) => ({show: !(r?.show ?? initialShow), width: r?.width ?? initialWidth})),
+        [setRest, initialShow, initialWidth],
+    )
     // Draggable tree-pane width. The REST width is React state (persists across a hide/show and feeds
     // the toggle's anticipated-shift math), committed ONCE at drag end. The LIVE width is a
     // MotionValue pair driven straight from the pointer — motion writes the DOM directly, so a drag
@@ -31,11 +58,10 @@ export function useDriveTreePane({
     // which is exactly the jank a splitter drag can't afford). `paneW` is the clipping pane (0 when
     // hidden); `innerW` is the tree content, which follows a DRAG (content reflows to the new width)
     // but holds its rest width through a COLLAPSE (content clips, never reflows).
-    const [treeWidth, setTreeWidth] = useState(initialWidth)
     const [treeDragging, setTreeDragging] = useState(false)
     // Start the clip pane at 0 when the tree opens hidden, so mount doesn't flash-animate it shut.
-    const paneW = useMotionValue(initialShow ? initialWidth : 0)
-    const innerW = useMotionValue(initialWidth)
+    const paneW = useMotionValue(showTree ? treeWidth : 0)
+    const innerW = useMotionValue(treeWidth)
     const treeDrag = useRef<{startX: number; startW: number} | null>(null)
     const onTreeHandleDown = useCallback(
         (e: React.PointerEvent<HTMLDivElement>) => {
@@ -63,10 +89,11 @@ export function useDriveTreePane({
             if (!treeDrag.current) return
             treeDrag.current = null
             setTreeDragging(false)
-            setTreeWidth(Math.round(paneW.get()))
+            const width = Math.round(paneW.get())
+            setRest((r) => ({show: r?.show ?? initialShow, width}))
             e.currentTarget.releasePointerCapture?.(e.pointerId)
         },
-        [paneW],
+        [paneW, setRest, initialShow],
     )
 
     const treeVisible = showTree

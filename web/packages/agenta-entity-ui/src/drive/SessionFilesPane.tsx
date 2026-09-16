@@ -123,8 +123,9 @@ export function SessionFilesPane({
                 closeVariant="collapse"
                 mirrored
                 // The rail starts closed: the grid + breadcrumb browse on their own, and the row-1
-                // toggle (or a search, which needs the rows) brings it in.
+                // toggle (or a search, which needs the rows) brings it in; the choice then sticks.
                 initialShowTree={false}
+                treePersistKey="session"
                 driveIds={driveIds}
                 stagedFiles={staged}
                 onStagedChange={setStaged}

@@ -104,6 +104,7 @@ export function DriveExplorer({
     onStagedChange,
     mirrored = false,
     initialShowTree = true,
+    treePersistKey,
     closeVariant = "close",
 }: {
     drive: SessionDriveData
@@ -130,6 +131,8 @@ export function DriveExplorer({
     mirrored?: boolean
     /** Open with the tree collapsed. */
     initialShowTree?: boolean
+    /** Remember the tree's shown/hidden state and width across opens under this key. */
+    treePersistKey?: string
     closeVariant?: "close" | "collapse"
 }) {
     const chrome = chromeProp ?? onClose != null
@@ -175,6 +178,7 @@ export function DriveExplorer({
         mirrored,
         initialWidth: mirrored ? TREE_WIDTH_COMPACT : undefined,
         initialShow: initialShowTree,
+        persistKey: treePersistKey,
     })
     const {treeVisible, treeShift} = pane
     // The search box lives in the rail: hiding the rail also clears the search it holds.
