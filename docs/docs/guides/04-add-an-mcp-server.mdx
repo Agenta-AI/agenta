@@ -47,7 +47,7 @@ If your browser blocks the new window, consent opens in the tab you were already
 
 The prefix is frozen when you pick the connection. Renaming the connection later does not rename the tools in an agent that is already saved.
 
-To reopen the drawer afterwards, click the server's row in the **MCP servers** section, then click `Set permissions`.
+To reopen the drawer afterwards, click the server's row in the **MCP servers** section.
 
 Connecting a new server from the drawer ends in the same place as adding an existing one. The sheet closes, the connection is added to this agent, and its permission drawer opens.
 
@@ -99,7 +99,7 @@ Open `Settings > MCPs`. The table lists each connection with its `Server URL`, i
 - **Reconnect.** Repairs whichever way the connection authenticates. On an OAuth connection it takes you back through the provider's authorization page. On a key-authenticated one it reopens the sheet with the URL and the name locked, so you can supply the header and the secret again.
 - **View tools.** Opens the same drawer an agent uses, with the tools grouped and described but nothing to set. What an agent may call is set in that agent's configuration.
 - **Rename.** Opens the connection, where you edit `Name` and click `Save name`. Agents keep using the connection under the prefix they were saved with, so a rename changes nothing about what they run.
-- **Disconnect.** Gives back the stored login. The connection, its name, and its URL stay, and the row reads `Login expired`. Agents using it stop working until it is authorized again, and one `Reconnect` restores it. The menu offers this only where there is a login to give back, so a server that needs no authentication does not show it.
+- **Disconnect.** Gives back the stored login. The connection, its name, and its URL stay, and the row reads `Login expired`. Agents using it stop working until it is authorized again, and one `Reconnect` restores it. Only an OAuth connection holding a stored login offers this. A connection that authenticates with a header key, or one that needs no authentication, shows `Reconnect` and `Remove` only.
 - **Remove.** Deletes the connection. Agents configured to use it stop working, and connecting the same server again later creates a new connection that those agents do not reference.
 
 ## Troubleshooting
