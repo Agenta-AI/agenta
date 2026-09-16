@@ -83,6 +83,7 @@ export type ActivityIcon =
     | "web-search"
     | "web-fetch"
     | "subtask"
+    | "agent"
     | "task-list"
     | "commit"
     | "config"

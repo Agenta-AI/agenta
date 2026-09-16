@@ -330,6 +330,15 @@ describe("referenceToolSkin", () => {
         expect(display.activity.done).toBe("Checked devto articles")
     })
 
+    it("wears the agent glyph on a subagent called by its slug", () => {
+        registerChatSkin(
+            referenceToolSkin({
+                agent: {tools: [{type: "reference", slug: "agent-4ish", ref_by: "variant"}]},
+            }),
+        )
+        expect(resolveToolDisplay("mcp__agenta-tools__agent-4ish").icon).toBe("agent")
+    })
+
     it("reads a bare name that carries a connected app's slug as that app's tool", () => {
         registerChatSkin({appHints: ["hackernews"]})
         const display = resolveToolDisplay("get_hackernews_latest_posts")

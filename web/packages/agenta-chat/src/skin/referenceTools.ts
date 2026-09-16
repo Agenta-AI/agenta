@@ -21,6 +21,11 @@ export const referenceToolSkin = (parameters: unknown): ChatSkinRegistration => 
             toolDisplay[name] = {kind: "gateway", app: () => ({slug})}
             appHints.add(slug)
         }
+        // A subagent: another agent called by its slug, worn as an agent on the timeline.
+        if (tool.type === "reference") {
+            const name = str(tool.name) || str(tool.slug)
+            if (name) toolDisplay[name] = {icon: "agent"}
+        }
         // A whole-app connection: a tool named after the app is read as its own.
         if (tool.type === "gateway_connection") {
             const slug = str(isRecord(tool.connection) ? tool.connection.integration : undefined)
