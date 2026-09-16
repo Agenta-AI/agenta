@@ -5,9 +5,37 @@ import {
     restoreRefusedDraft,
     restoreHeldRefusedSend,
     restoreRefusedSend,
-} from "./refusedMessageRecovery"
+} from "../../src/assets/refusedMessageRecovery"
 
 describe("restoreRefusedDraft", () => {
+    it("waits for the editor's own acknowledgement before reading the text back", async () => {
+        // The real editor commits a write later and resolves `setMarkdown` when it has. A read in
+        // the calling tick still sees the old document — the "both places" failure (#6697).
+        let committed = ""
+        let commit: (() => void) | undefined
+        const setMarkdown = vi.fn(
+            (next: string) =>
+                new Promise<void>((resolve) => {
+                    commit = () => {
+                        committed = next
+                        resolve()
+                    }
+                }),
+        )
+        const editor = {getMarkdown: () => committed, setMarkdown} as never
+
+        const restored = restoreRefusedDraft(editor, "try again")
+        // Not settled while the editor has not committed — no premature "no".
+        let settled = false
+        void restored.then(() => {
+            settled = true
+        })
+        for (let i = 0; i < 20; i += 1) await Promise.resolve()
+        expect(settled).toBe(false)
+        commit!()
+        expect(await restored).toBe(true)
+    })
+
     it("restores a refused message only into an empty composer", async () => {
         // The stub STORES what it is given, because success is now confirmed by reading it back
         // rather than by the call returning.
