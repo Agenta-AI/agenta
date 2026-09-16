@@ -247,7 +247,12 @@ export function McpServersSectionBody({
                             ? () => setConnectingEndpoint(permissionEndpoint)
                             : undefined
                     }
-                    expired={itemExpired(permissionItem)}
+                    status={
+                        permissionEndpoint ? getMcpConnectionStatus(permissionEndpoint) : undefined
+                    }
+                    cachedToolCount={
+                        permissionEndpoint ? readMcpToolCount(permissionEndpoint) : null
+                    }
                     disabled={disabled}
                 />
             ) : null}

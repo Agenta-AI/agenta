@@ -17,10 +17,12 @@ import {
     buildMcpConnectionRef,
     getMcpConnectionState,
     getMcpConnectionStateLabel,
+    getMcpConnectionStatus,
     isLegacyMcpItem,
     mcpEndpointsQueryAtom,
     readMcpPolicy,
     readMcpConnectionSlug,
+    readMcpToolCount,
     RESERVED_TOOL_PREFIX,
     toolPrefixFromName,
     type MCPEndpoint,
@@ -199,6 +201,8 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     policy={readMcpPolicy(value)}
                     onChange={(policy) => onChange({...value, policy})}
                     onReconnect={() => setConnecting(true)}
+                    status={selected ? getMcpConnectionStatus(selected) : undefined}
+                    cachedToolCount={selected ? readMcpToolCount(selected) : null}
                     disabled={disabled}
                 />
             ) : null}

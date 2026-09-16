@@ -6,12 +6,17 @@
  * is now the destination a rail row and the add drawer both lead to, which is what makes
  * "one navigation per configuration intent" true of this surface.
  *
- * STUB. The props are the contract WP4 fills in against; the body is today's editor moved
- * into the drawer chrome, so the surface is reachable and its writes land on the agent
- * draft while the D1 to D4 screens are built. `expired`, `readOnly` and `onReconnect` are
- * accepted and not yet drawn.
+ * STUB. The props are WP4's contract, confirmed against wip/design-wp4 at 4a5b31c045; the
+ * body is today's editor moved into the drawer chrome, so the surface is reachable and its
+ * writes land on the agent draft while the D1 to D4 screens are built. `status`,
+ * `cachedToolCount`, `readOnly` and `onReconnect` are accepted and not yet drawn.
+ *
+ * DROP THIS FILE WHOLE at integration rather than merging it: WP4's branch owns the same
+ * path and also deletes the editor this body renders, so a textual merge would keep an
+ * import of a file that no longer exists. The call sites are written against these props
+ * and need no change.
  */
-import type {McpServerPolicy} from "@agenta/entities/mcpEndpoint"
+import type {McpConnectionStatus, McpServerPolicy} from "@agenta/entities/mcpEndpoint"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button} from "@agenta/ui/ui"
 
@@ -35,8 +40,18 @@ export interface McpPermissionDrawerProps {
     onRemove?: () => void
     /** Renews the login. Absent hides the D4 action. */
     onReconnect?: () => void
-    /** The login is expired, so the tools cannot be listed and the policy is only kept. */
-    expired?: boolean
+    /**
+     * What the connection's health is, in the data layer's own words. A status rather than an
+     * expired flag because a key-authenticated connection whose credential stopped working
+     * also reads "Login expired" (decision 34), and because `unreachable` becomes derivable
+     * the day a health field exists without widening anything here.
+     */
+    status?: McpConnectionStatus
+    /**
+     * Tools on the server as the record last cached them, for the header and the search
+     * placeholder when the live list cannot be read. Null on every row today.
+     */
+    cachedToolCount?: number | null
     /** Decision 23: the header, groups and rows, with no selects and no footer. */
     readOnly?: boolean
     disabled?: boolean
