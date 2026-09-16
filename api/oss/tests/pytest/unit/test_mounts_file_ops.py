@@ -33,6 +33,7 @@ from oss.src.core.mounts.service import (
 )
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.mounts.types import (
+    MountFileConflict,
     MountFileNotFound,
     MountNotFound,
     MountPathInvalid,
@@ -262,6 +263,12 @@ class FakeMountStorage:
     async def put_object(self, *, bucket: str, key: str, body: bytes) -> int:
         self._store.setdefault(bucket, {})[key] = body
         return len(body)
+
+    async def copy_object(self, *, bucket: str, source_key: str, dest_key: str) -> None:
+        b = self._store.get(bucket, {})
+        if source_key not in b:
+            raise MountFileNotFound()
+        b[dest_key] = b[source_key]
 
     async def delete_keys(self, *, bucket: str, keys: List[str]) -> int:
         b = self._store.get(bucket, {})
@@ -959,3 +966,89 @@ class TestMountFileOpsRoundtrip:
             )
         with pytest.raises(MountPathInvalid):
             await service.delete_path(project_id=pid, mount_id=mid, path="/abs")
+        with pytest.raises(MountPathInvalid):
+            await service.move_path(
+                project_id=pid, mount_id=mid, path="a.txt", to="../escape"
+            )
+
+    async def test_move_renames_file(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="notes.md", content=b"hello"
+        )
+
+        moved = await service.move_path(
+            project_id=pid, mount_id=mid, path="notes.md", to="docs/notes.md"
+        )
+        assert (moved.source, moved.destination, moved.count) == (
+            "notes.md",
+            "docs/notes.md",
+            1,
+        )
+        content = await service.read_file(
+            project_id=pid, mount_id=mid, path="docs/notes.md"
+        )
+        assert content.content == "hello"
+        with pytest.raises(MountFileNotFound):
+            await service.read_file(project_id=pid, mount_id=mid, path="notes.md")
+
+    async def test_move_folder_carries_marker_and_descendants(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.create_folder(project_id=pid, mount_id=mid, path="src")
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="src/a.py", content=b"a"
+        )
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="src/lib/b.py", content=b"b"
+        )
+        # A sibling sharing the prefix must stay put.
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="srcs/c.py", content=b"c"
+        )
+
+        moved = await service.move_path(
+            project_id=pid, mount_id=mid, path="src", to="app"
+        )
+        assert moved.count == 3
+
+        listing = await service.list_files(project_id=pid, mount_id=mid)
+        assert {f.path for f in listing.files if not f.is_folder} == {
+            "app/a.py",
+            "app/lib/b.py",
+            "srcs/c.py",
+        }
+        assert any(f.path == "app" and f.is_folder for f in listing.files)
+        assert not any(f.path.startswith("src/") for f in listing.files)
+
+    async def test_move_refuses_missing_occupied_and_self(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="a.md", content=b"a"
+        )
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="b.md", content=b"b"
+        )
+        await service.create_folder(project_id=pid, mount_id=mid, path="dir")
+
+        with pytest.raises(MountFileNotFound):
+            await service.move_path(
+                project_id=pid, mount_id=mid, path="nope.md", to="c.md"
+            )
+        with pytest.raises(MountFileConflict):
+            await service.move_path(
+                project_id=pid, mount_id=mid, path="a.md", to="b.md"
+            )
+        with pytest.raises(MountPathInvalid):
+            await service.move_path(
+                project_id=pid, mount_id=mid, path="a.md", to="a.md"
+            )
+        with pytest.raises(MountPathInvalid):
+            await service.move_path(
+                project_id=pid, mount_id=mid, path="dir", to="dir/inner"
+            )
+        # Nothing moved on any refusal.
+        listing = await service.list_files(project_id=pid, mount_id=mid)
+        assert {f.path for f in listing.files if not f.is_folder} == {"a.md", "b.md"}

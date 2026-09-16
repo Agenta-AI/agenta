@@ -115,6 +115,12 @@ class MountFileDeleted(BaseModel):
     count: int = 0
 
 
+class MountFileMoved(BaseModel):
+    source: str
+    destination: str
+    count: int = 0
+
+
 # --- Signed credentials (sandbox injection) --------------------------------- #
 
 

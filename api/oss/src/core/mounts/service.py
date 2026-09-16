@@ -21,6 +21,7 @@ from oss.src.core.mounts.dtos import (
     MountFileContent,
     MountFileDeleted,
     MountFileList,
+    MountFileMoved,
     MountFileWritten,
     MountFolderCreated,
     MountQuery,
@@ -35,6 +36,7 @@ from oss.src.core.mounts.types import (
     SESSION_SLUG_PREFIX,
     MountArtifactIdInvalid,
     MountArtifactNotFound,
+    MountFileConflict,
     MountFileNotFound,
     MountImmutableField,
     MountNameInvalid,
@@ -1523,21 +1525,35 @@ class MountsService:
         validate_file_path(path)
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
-        # A file matches one exact key; a folder matches keys under "<path>/".
-        # List the folder prefix to avoid `foo` falsely matching `foobar`.
         exact_key = self._storage_key(
             project_id=project_id, mount=mount, path=path.rstrip("/")
         )
-        folder_prefix = exact_key + "/"
         bucket = self._bucket()
+        keys = await self._path_keys(bucket=bucket, exact_key=exact_key)
+        if not keys:
+            raise MountFileNotFound()
 
+        count = await self.mounts_store.delete_keys(
+            bucket=bucket,
+            keys=keys,
+        )
+        return MountFileDeleted(deleted=path, count=count)
+
+    async def _path_keys(
+        self,
+        *,
+        bucket: str,
+        exact_key: str,
+    ) -> List[str]:
+        """Every key a path stands for: a file is its exact key, a folder is the keys under
+        "<path>/" plus its marker. The folder prefix is listed with the slash so `foo` never
+        drags `foobar` along."""
         objects = await self.mounts_store.list_objects_v2(
             bucket=bucket,
-            prefix=folder_prefix,
+            prefix=exact_key + "/",
         )
         keys = [obj.key for obj in objects]
 
-        # The exact file (or the folder marker) may also exist alongside contents.
         single = await self.mounts_store.list_objects_v2(
             bucket=bucket,
             prefix=exact_key,
@@ -1545,12 +1561,57 @@ class MountsService:
         if any(obj.key == exact_key for obj in single):
             keys.append(exact_key)
 
-        unique_keys = list(dict.fromkeys(keys))
-        if not unique_keys:
-            raise MountFileNotFound()
+        return list(dict.fromkeys(keys))
 
-        count = await self.mounts_store.delete_keys(
-            bucket=bucket,
-            keys=unique_keys,
+    async def move_path(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+        to: str,
+    ) -> MountFileMoved:
+        validate_file_path(path)
+        validate_file_path(to)
+        source = path.strip("/")
+        destination = to.strip("/")
+        if source == destination:
+            raise MountPathInvalid("Destination is the same path.")
+        if destination.startswith(source + "/"):
+            raise MountPathInvalid("A folder cannot be moved into itself.")
+
+        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+        bucket = self._bucket()
+        source_key = self._storage_key(project_id=project_id, mount=mount, path=source)
+        dest_key = self._storage_key(
+            project_id=project_id, mount=mount, path=destination
         )
-        return MountFileDeleted(deleted=path, count=count)
+
+        source_keys = await self._path_keys(bucket=bucket, exact_key=source_key)
+        if not source_keys:
+            raise MountFileNotFound()
+        if await self._path_keys(bucket=bucket, exact_key=dest_key):
+            raise MountFileConflict()
+
+        # Copy everything first, delete last: a failed copy leaves the source intact.
+        semaphore = asyncio.Semaphore(_LIST_CONCURRENCY)
+
+        async def _copy(key: str) -> None:
+            target = dest_key + key[len(source_key) :]
+            async with semaphore:
+                # A folder marker is an empty trailing-slash key; SeaweedFS refuses it as a
+                # copy source, and re-creating it is the same write `create_folder` does.
+                if key.endswith("/"):
+                    await self.mounts_store.put_object(
+                        bucket=bucket, key=target, body=b""
+                    )
+                else:
+                    await self.mounts_store.copy_object(
+                        bucket=bucket, source_key=key, dest_key=target
+                    )
+
+        await asyncio.gather(*(_copy(key) for key in source_keys))
+        await self.mounts_store.delete_keys(bucket=bucket, keys=source_keys)
+        return MountFileMoved(
+            source=source, destination=destination, count=len(source_keys)
+        )

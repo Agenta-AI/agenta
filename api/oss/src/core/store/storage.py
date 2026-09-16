@@ -8,7 +8,7 @@ from xml.etree import ElementTree
 
 import aiohttp
 from miniopy_async import Minio
-from miniopy_async.commonconfig import ENABLED, Filter
+from miniopy_async.commonconfig import ENABLED, CopySource, Filter
 from miniopy_async.credentials import Credentials
 from miniopy_async.lifecycleconfig import (
     LifecycleConfig,
@@ -546,6 +546,22 @@ class ObjectStore:
         client = self._client()
         await client.put_object(bucket, key, BytesIO(body), length=len(body))
         return len(body)
+
+    async def copy_object(
+        self,
+        *,
+        bucket: str,
+        source_key: str,
+        dest_key: str,
+    ) -> None:
+        # Server-side: the bytes never leave the store (≤ 5 GiB per object for S3 CopyObject).
+        client = self._client()
+        try:
+            await client.copy_object(bucket, dest_key, CopySource(bucket, source_key))
+        except S3Error as e:
+            if e.code in ("NoSuchKey", "NoSuchObject", "NoSuchBucket"):
+                raise MountFileNotFound() from e
+            raise
 
     async def delete_keys(
         self,
