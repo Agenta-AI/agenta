@@ -823,8 +823,9 @@ parametrized script. Nine rather than twenty-seven is the complete equivalent se
 chosen for time: the mock matrix's third axis is the LLM namespace, and `builtin`/`standard` are
 the mock LLM provider specifically, so a real model can only arrive through a `custom` endpoint.
 
-**Tally: 6 of 9. Cost: $0.19** (OpenRouter usage $36.2212 before, $36.4138 after, including every
-model-selection probe below).
+**Tally: 6 of 9. Cost: $0.19 on OpenRouter** (usage $36.2212 before, $36.4138 after, including
+every model-selection probe below), plus a few cents of OpenAI spend on the direct-key Codex
+attempts described further down.
 
 | Harness | Protocol | Model | builtin | standard | custom |
 | --- | --- | --- | --- | --- | --- |
@@ -855,43 +856,59 @@ The cheapest model on the list would have produced a flaky matrix and the second
 outright, so the fourth was chosen. This is the same class of mistake as a guessed tool name: a
 declared capability is not an observed one.
 
-### Codex: excluded, and the reason is the harness rather than the model
+### Codex: no real-model row, and the reason is not what it first looked like
 
-All three Codex cells fail, in every MCP namespace, on every model tried. The failure is not the
-gate and not the MCP path — `gate=true` throughout, the approval resumes, and the tool returns a
-`tool-output-available`. What comes back is empty:
+All three Codex cells fail, in every MCP namespace, on every model tried. The gate and the MCP path
+are not the problem — `gate=true` on the runs that call the tool at all, the approval resumes, and
+the tool returns a `tool-output-available`. What comes back is empty:
 
 ```
 codex x mcp:builtin   gate=True  outcome=available
-  text='Warning: Model metadata for `~deepseek/deepseek-v4-flash-latest` not found.
-        Defaulting to fallback metadata; this can degrade performance and cause issues.
-        Echo tool executed and returned `{}`.'
+  text='... Echo tool executed and returned `{}`.'
 codex x mcp:standard
   text='... Done. Called `mcp.mock-mcp.echo({})` — echo'
 ```
 
-The model called `echo` with no arguments, so the mock echoed `{}` back instead of the marker.
+The model called `echo` with no arguments, so the mock echoed `{}` instead of the marker. On the
+other models it more often did not call the tool at all (`gate=false`).
 
-Three models were tried, which is what separates a harness finding from a cost one:
+**A correction, because the first reading of this was wrong.** Every Codex run logs
+`Model metadata for <id> not found. Defaulting to fallback metadata`, and an earlier revision of
+this section named that as the cause. It is not. The same line appears in the Codex cells that
+PASS against the mock LLM:
 
-| model | $/Mtok | result |
+```
+text='Warning: Model metadata for `mock/echo` not found. Defaulting to fallback metadata; ...
+      mock MCP echo: MCP-ACCEPTANCE-A'
+```
+
+The warning is constant at the pinned `@openai/codex 0.145.0` and benign. It was a plausible story
+that happened to sit next to the failure, and it survived one write-up before the passing-cell
+evidence contradicted it.
+
+Five models across two providers, which is what rules out both cost and the provider:
+
+| model | route | result |
 | --- | --- | --- |
-| `~deepseek/deepseek-v4-flash-latest` | 0.040 / 0.100 | 0/3 — tool called with empty arguments |
-| `gpt-5-nano` (bare id, accepted by OpenRouter) | 0.050 / 0.400 | 1/3 — two cells did not call the tool at all |
-| `deepseek/deepseek-v3.2` | 0.269 / 0.400 | 0/3 — same empty arguments, at 7x the price |
+| `~deepseek/deepseek-v4-flash-latest` | OpenRouter | 0/3 — tool called with empty arguments |
+| `gpt-5-nano` | OpenRouter | 1/3 — two cells never called the tool |
+| `deepseek/deepseek-v3.2` | OpenRouter, 7x the price | 0/3 — same empty arguments |
+| `gpt-5-nano` | OpenAI direct | 0/3 — no cell called the tool |
+| `gpt-5-codex` | OpenAI direct | 0/1 — no tool call |
 
-A stronger model fails the same way, so this is not model capability. Every one of them logs
-`Model metadata for <id> not found. Defaulting to fallback metadata`, which is Codex validating a
-model against its own built-in selectable set before it makes the request — the same behaviour the
-mock matrix already accommodates by giving Codex the id `gpt-5.5`. No OpenRouter id is in that set,
-including the bare `gpt-5-nano`, so every real-model Codex run takes the fallback path and its
-tool-argument fidelity degrades.
+Going direct to OpenAI with an OpenAI key changes nothing, so this is not an OpenRouter artifact,
+and a model seven times the price changes nothing, so it is not simply "too cheap".
 
-**So Codex has no real-model row, and will not until it is given a model in its own selectable
-set** — which means an OpenAI-direct key rather than an OpenRouter one. This costs the gate nothing
-it already had: Codex's gate behaviour is covered deterministically by the mock matrix and by the
-per-tool permission cells above. What is missing is only the real-model confirmation Pi and Claude
-Code now have.
+**What localises it:** Pi drives the same MCP tool correctly on the same cheap deepseek model, 3/3,
+against the same mock MCP server. Same model, same tool, same server, different harness. So what
+these models handle badly is Codex's own tool surface — its remote MCP tools are wrapped in a
+`type: "namespace"` entry on the Responses protocol and called as a `name` plus a separate
+`namespace` field (see the Codex section above) — rather than tool calling in general.
+
+That is a model-behaviour result at the prices tried, not a gateway or harness defect, and it is
+not a release blocker: Codex's gate behaviour is covered deterministically by the mock matrix and
+by the per-tool permission cells above. A real-model Codex row would need a model that drives the
+namespaced surface reliably, and finding one is a cost question for whoever wants that row.
 
 ### The provider-row recipe, to reproduce any of this
 
