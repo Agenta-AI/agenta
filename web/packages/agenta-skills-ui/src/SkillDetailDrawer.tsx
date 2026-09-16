@@ -190,6 +190,7 @@ export function SkillDetailDrawer({
     const [editBaseId, setEditBaseId] = useState<string | null>(null)
     // The empty-field chrome waits for a Save press, as in the create drawer.
     const [attempted, setAttempted] = useState(false)
+    const [discardOpen, setDiscardOpen] = useState(false)
 
     // Fresh state per open — closing only closes, so the exit animation keeps its frame.
     const [wasOpen, setWasOpen] = useState(false)
@@ -203,6 +204,7 @@ export function SkillDetailDrawer({
             setPending(null)
             setError(null)
             setArchiveOpen(false)
+            setDiscardOpen(false)
         }
     }
 
@@ -223,6 +225,18 @@ export function SkillDetailDrawer({
         setDraft(headValue)
         setError(null)
     }, [headValue])
+
+    // Every way out — the X, the mask, Escape, a Used-by link — asks first when the draft has
+    // edits, because reopening reseeds from the head and would drop them without a word.
+    const requestClose = useCallback(() => {
+        if (dirty && !busy) setDiscardOpen(true)
+        else onClose()
+    }, [busy, dirty, onClose])
+    const discardAndClose = useCallback(() => {
+        setDiscardOpen(false)
+        discard()
+        onClose()
+    }, [discard, onClose])
 
     const askToCommit = useCallback((content: Record<string, unknown>, defaultMessage: string) => {
         setAttempted(true)
@@ -452,7 +466,11 @@ export function SkillDetailDrawer({
                         <Link
                             key={agent.id}
                             href={agentHref(agent.id)}
-                            onClick={onClose}
+                            onClick={(event) => {
+                                if (!dirty) return onClose()
+                                event.preventDefault()
+                                requestClose()
+                            }}
                             className={cn(ACTION_ROW, "no-underline")}
                         >
                             {label}
@@ -494,7 +512,7 @@ export function SkillDetailDrawer({
                 rootClassName="ag-drawer-elevated"
                 panelRef={setPanel}
                 open={open}
-                onClose={onClose}
+                onClose={requestClose}
                 placement="right"
                 width={width}
                 destroyOnClose
@@ -574,6 +592,19 @@ export function SkillDetailDrawer({
                         <div className="flex flex-1 items-center justify-center">
                             <Spinner size="small" />
                         </div>
+                    ) : revisionsQuery.isError ? (
+                        // A failed load must not read as an empty skill with a dead Save.
+                        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+                            <WarningCircle size={20} className="text-[var(--ag-colorError)]" />
+                            <span className="text-sm">Couldn't load this skill.</span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void revisionsQuery.refetch()}
+                            >
+                                Try again
+                            </Button>
+                        </div>
                     ) : (
                         // No overflow of its own: the rail bleeds 16px past this box to meet
                         // the header and footer rules, and a clipping box here cut it short.
@@ -650,6 +681,34 @@ export function SkillDetailDrawer({
                             >
                                 {archiveBusy ? <Spinner size="small" /> : null}
                                 Archive skill
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog
+                open={discardOpen}
+                onOpenChange={(next) => {
+                    if (!next) setDiscardOpen(false)
+                }}
+            >
+                <AlertDialogContent container={panel} className="sm:max-w-[400px]">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This skill has edits that were not saved. Closing throws them away.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline" onClick={() => setDiscardOpen(false)}>
+                                Keep editing
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button variant="destructive" onClick={discardAndClose}>
+                                Discard
                             </Button>
                         </AlertDialogAction>
                     </AlertDialogFooter>
