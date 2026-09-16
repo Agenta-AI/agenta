@@ -198,16 +198,27 @@ interface JsonRpcResponse {
   error?: { code?: number; message?: string };
 }
 
-function readJsonResponse(raw: string): JsonRpcResponse {
+/**
+ * The JSON body of a Streamable HTTP answer, which may arrive as plain JSON or as an SSE event.
+ *
+ * Exported so the handshake probe reads a server's answer exactly as the client that follows it
+ * will; two parsers meant a server could pass the probe and be unreadable to the client.
+ *
+ * ANY `data:` line means SSE, not just a leading one. A conforming event may open with `event:`
+ * or an id — a real upstream (Linear) opens with `event: message` — and testing only the first
+ * character called such a server's every answer invalid JSON.
+ */
+export function readMcpResponseJson(raw: string): string {
   const text = raw.trim();
-  // Streamable HTTP may return either JSON or a single SSE data event.
-  const json = text.startsWith("data:")
-    ? text
-        .split(/\r?\n/)
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trim())
-        .join("\n")
-    : text;
+  const dataLines = text
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice(5).trim());
+  return dataLines.length > 0 ? dataLines.join("\n") : text;
+}
+
+function readJsonResponse(raw: string): JsonRpcResponse {
+  const json = readMcpResponseJson(raw);
   try {
     const parsed = JSON.parse(json);
     if (!isRecord(parsed)) throw new Error("response is not an object");
@@ -323,7 +334,15 @@ class PiHttpMcpClient {
       method,
       params: {
         ...(isRecord(params) ? params : {}),
-        _meta: { "io.modelcontextprotocol/protocolVersion": MCP_PROTOCOL_VERSION },
+        // The revision this envelope is shaped for, and it must be the NEGOTIATED one. A server
+        // that agreed an older revision validates `_meta` against that revision and refuses a
+        // newer one (`-32602 Invalid _meta envelope for protocol revision ...`), so stamping the
+        // client's own constant broke every request after a downgrade — including `tools/list`,
+        // which is the first one.
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion":
+            this.negotiatedVersion ?? MCP_PROTOCOL_VERSION,
+        },
       },
     }, signal);
     if (!response.ok) {

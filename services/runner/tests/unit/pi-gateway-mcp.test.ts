@@ -1090,3 +1090,81 @@ describe("the protocol version is negotiated, not asserted", () => {
     assert.equal(toolsList?.version, MCP_PROTOCOL_VERSION);
   });
 });
+
+describe("a real upstream's answers, as they actually arrive", () => {
+  /**
+   * Linear frames every reply as SSE and opens the event with `event: message`, then the data
+   * line. It also negotiates DOWN, answering 2025-11-25 to a client that asked for 2026-07-28.
+   * Both are ordinary, conforming server behaviour, and both used to break the client on its
+   * first request.
+   */
+  function sseServer(options: { version?: string; metaVersions?: string[] } = {}) {
+    const version = options.version ?? "2025-11-25";
+    return (async (_url: string | URL | Request, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body));
+      options.metaVersions?.push(
+        payload.params?._meta?.["io.modelcontextprotocol/protocolVersion"],
+      );
+      if (payload.id === undefined) return new Response("", { status: 202 });
+      const result =
+        payload.method === "tools/list"
+          ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
+          : payload.method === "tools/call"
+            ? { content: [{ type: "text", text: "ok" }] }
+            : { protocolVersion: version, capabilities: { tools: {} } };
+      // The event line first, exactly as it comes off the wire.
+      const frame = `event: message\ndata: ${JSON.stringify({
+        jsonrpc: "2.0",
+        id: payload.id,
+        result,
+      })}\n\n`;
+      return new Response(frame, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }) as unknown as typeof fetch;
+  }
+
+  it("reads an SSE frame whose first line is the event, not the data", async () => {
+    // Testing only the first character called every one of this server's answers invalid JSON,
+    // so `discover()` threw on its first request and the server was dropped as a failed
+    // handshake: no tool from it was ever registered.
+    globalThis.fetch = sseServer();
+
+    const pi = fakePi();
+    const logs: string[] = [];
+    await registerPiGatewayMcpTools(
+      pi,
+      oneServerConfig(),
+      (message) => logs.push(message),
+      allowAll,
+    );
+
+    assert.deepEqual(
+      pi.tools.map((tool: any) => tool.name),
+      ["mcp__mock__echo"],
+      `the server's tools must register; log: ${logs.join(" | ")}`,
+    );
+  });
+
+  it("stamps _meta with the revision the server agreed, not the one it asked for", async () => {
+    // A server validates `_meta` against the revision IT negotiated and refuses a newer one
+    // (-32602 "Invalid _meta envelope for protocol revision ..."), so the client's own constant
+    // failed every request after a downgrade — tools/list first.
+    const metaVersions: (string | undefined)[] = [];
+    globalThis.fetch = sseServer({ version: "2025-11-25", metaVersions });
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+    await pi.tools[0].execute("call-1", { marker: "X" });
+
+    // The opening `initialize` has nothing negotiated yet, so it carries the client's own.
+    assert.equal(metaVersions[0], MCP_PROTOCOL_VERSION);
+    const afterHandshake = metaVersions.slice(1).filter((v) => v !== undefined);
+    assert.ok(afterHandshake.length > 0, "there are later requests to check");
+    assert.ok(
+      afterHandshake.every((version) => version === "2025-11-25"),
+      `every later _meta must carry the agreed revision, got ${afterHandshake.join(", ")}`,
+    );
+  });
+});

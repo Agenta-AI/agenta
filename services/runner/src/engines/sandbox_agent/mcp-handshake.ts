@@ -29,6 +29,7 @@ import { parseGatewayErrorDetail } from "../../gateway-error.ts";
 import {
   MCP_DISCOVERY_METHOD,
   MCP_PROTOCOL_VERSION,
+  readMcpResponseJson,
 } from "../../extensions/pi-mcp.ts";
 
 /** Why a server's handshake did not succeed. Stable string codes, never display strings. */
@@ -117,21 +118,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Read a Streamable HTTP MCP answer, which may arrive as plain JSON or as a single SSE event.
- * Mirrors `readJsonResponse` in `extensions/pi-mcp.ts`; kept separate because that module is
- * bundled into the Pi extension and must not import runner internals.
+ * Read a Streamable HTTP MCP answer, which may arrive as plain JSON or as an SSE event.
+ *
+ * The framing is read by the client's own `readMcpResponseJson` rather than a copy of it. The
+ * copy is how this diverged: the probe accepted an event that opened with `event: message` and
+ * the client did not, so a server passed the probe and was then unreadable to the client that
+ * followed it. `pi-mcp.ts` is a leaf module, so importing from it pulls nothing else in.
  */
 function readJsonRpc(raw: string): Record<string, unknown> | undefined {
-  const text = raw.trim();
-  // Any `data:` line means SSE, not just a first one: a conforming event may lead with `event:`
-  // or an id, and reading only the first line would call a healthy server unreadable.
-  const dataLines = text
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trim());
-  const json = dataLines.length > 0 ? dataLines.join("\n") : text;
   try {
-    const parsed: unknown = JSON.parse(json);
+    const parsed: unknown = JSON.parse(readMcpResponseJson(raw));
     return isRecord(parsed) ? parsed : undefined;
   } catch {
     return undefined;
