@@ -168,6 +168,47 @@ two model calls back to back with no POST between them. Point it at the team a p
 Do not substitute a quiet-looking real team for a scratch one. "Least recently updated" is not the
 same as "nobody will see it".
 
+### The agent path does not reach these tools yet
+
+Everything above is the relay answering a client written for this document. An agent run is a
+different client, and it does not get there. A turn configured with the current shape, a `name`, a
+`connection` of `{"type": "gateway", "namespace": "custom", "slug": ...}` and a `policy`, on a Pi
+harness with a real model, never offers the server's tools to the model. Asked to name every tool it
+has, the agent lists the seven Pi builtins and nothing else. Asked to list teams, it answers that no
+tool for that provider is available, which is true.
+
+Neither the gateway nor the configuration shape is the problem. In the API access log for the turn's
+own window, the sandbox makes exactly one POST to the relay route and it answers 200. Nothing
+follows it: no `notifications/initialized`, no `tools/list`, no `tools/call`. The same route answers
+a hand-written `initialize` and `tools/list` with 200 in the same minute.
+
+Two defects, in the order a fix meets them.
+
+The Pi extension's MCP client cannot read an SSE reply that leads with `event:`. `readJsonResponse`
+in `services/runner/src/extensions/pi-mcp.ts` strips SSE framing only when the body starts with
+`data:`. A real server's reply starts with `event: message`, so the whole frame goes to `JSON.parse`
+and throws. `discover()` fails on its first request, the server is dropped as a failed handshake,
+and no tool is registered. The compose mock answers plain JSON, which is why every mock cell in this
+document passes and this one does not. The runner's own handshake probe in
+`services/runner/src/engines/sandbox_agent/mcp-handshake.ts` already reads any `data:` line, so the
+probe reports the server connected while the client that follows it cannot read a word of the reply.
+
+Behind that one, the same client stamps every request's `_meta` with the protocol version it was
+built against rather than the version `initialize` negotiated. Replaying the client's exact sequence
+by hand gets `initialize` 200 and `notifications/initialized` 202, then `tools/list` 400: the server
+applies the newer revision's rules because the envelope claims that revision, and refuses the request
+for a companion capability field the client never sends. Fixing the parse alone moves the failure
+here.
+
+Permissions could not be exercised, so treat both cells as unrun. At `ask`, no MCP approval gate was
+raised, because no MCP tool was offered; the only gate in the run belonged to the harness's own shell
+tool. At `deny`, no `tools/call` reached the route, which is true and proves nothing, because there
+was nothing to deny.
+
+One thing that looks like a defect and is not: a sandbox-origin line in the API access log carries
+the `/api` prefix twice. That is the access log printing the application's root path in front of the
+request path. The sandbox dials the single-prefix URL, and both spellings answer 200.
+
 ## Dashboard procedure
 
 Use the dashboard's managed-agent creation and run flow. For each harness available in the
