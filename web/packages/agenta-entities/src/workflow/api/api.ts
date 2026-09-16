@@ -818,7 +818,7 @@ export interface CreateWorkflowPayload {
     name: string
     description?: string | null
     flags?: WorkflowRoleFlags
-    tags?: string[] | null
+    tags?: Workflow["tags"]
     meta?: Record<string, unknown> | null
     /** Commit message for the initial revision */
     message?: string | null
@@ -1036,7 +1036,7 @@ export interface UpdateWorkflowPayload {
     name?: string | null
     description?: string | null
     flags?: WorkflowRoleFlags
-    tags?: string[] | null
+    tags?: Workflow["tags"]
     meta?: Record<string, unknown> | null
     /** Commit message for the new revision */
     message?: string | null
@@ -1057,10 +1057,13 @@ export async function updateWorkflow(
     projectId: string,
     payload: UpdateWorkflowPayload,
 ): Promise<Workflow> {
-    // Update workflow metadata if non-data fields changed. Description is checked for presence,
-    // not truth: an empty string is how a description is cleared.
+    // Update workflow metadata if non-data fields changed. Description and tags are checked for
+    // presence, not truth: an empty string clears a description, `null` clears the tags.
     const hasMetadataChanges =
-        payload.name || payload.description !== undefined || payload.flags || payload.tags
+        payload.name ||
+        payload.description !== undefined ||
+        payload.flags ||
+        payload.tags !== undefined
     if (hasMetadataChanges) {
         await axios.put(
             `${getAgentaApiUrl()}/workflows/${payload.id}`,
