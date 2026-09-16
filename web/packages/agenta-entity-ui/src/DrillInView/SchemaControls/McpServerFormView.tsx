@@ -35,12 +35,15 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
-import {Plus} from "@phosphor-icons/react"
+import {CaretRight, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 import McpConnectJourney from "../../mcpEndpoint/McpConnectJourney"
-import McpToolPermissions from "../../mcpEndpoint/McpToolPermissions"
+import {toGatewayPermissions} from "../../mcpEndpoint/mcpPermissionAdapter"
+import McpPermissionDrawer from "../../mcpEndpoint/McpPermissionDrawer"
+
+import {integrationPermissionSummary} from "./integrationPolicy"
 
 export interface McpServerFormViewProps {
     value: Record<string, unknown>
@@ -51,6 +54,7 @@ export interface McpServerFormViewProps {
 export function McpServerFormView({value, onChange, disabled}: McpServerFormViewProps) {
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
     const [connecting, setConnecting] = useState(false)
+    const [editingPermissions, setEditingPermissions] = useState(false)
 
     const endpoints = useMemo(() => endpointsQuery.data ?? [], [endpointsQuery.data])
     const selectedSlug = readMcpConnectionSlug(value)
@@ -73,6 +77,12 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
     )
 
     const prefix = typeof value.name === "string" ? value.name : ""
+
+    // The same short label a connected integration's row carries, so the two read alike.
+    const permissionSummary = useMemo(
+        () => integrationPermissionSummary(toGatewayPermissions(readMcpPolicy(value))).label,
+        [value],
+    )
 
     return (
         <div className="flex flex-col gap-3">
@@ -158,15 +168,24 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                 </RailField>
             ) : null}
 
-            <RailField label="Permissions" align="top">
-                <McpToolPermissions
-                    slug={selected?.slug ?? undefined}
-                    connectionName={selected?.name || selected?.slug || undefined}
-                    onConnect={() => setConnecting(true)}
-                    policy={readMcpPolicy(value)}
-                    onChange={(policy) => onChange({...value, policy})}
-                    disabled={disabled}
-                />
+            <RailField label="Permissions" align="center">
+                {selected ? (
+                    // One navigation per configuration intent: the rail says what the policy is and
+                    // the drawer is where it is set, rather than a second editor inline.
+                    <Button
+                        variant="outline"
+                        disabled={disabled}
+                        onClick={() => setEditingPermissions(true)}
+                        className="w-full justify-between"
+                    >
+                        {permissionSummary}
+                        <CaretRight size={12} className="shrink-0" />
+                    </Button>
+                ) : (
+                    <p className="m-0 text-xs text-[var(--ag-colorTextSecondary)]">
+                        Select a connection to choose what this agent may do with it.
+                    </p>
+                )}
             </RailField>
 
             {legacy ? (
@@ -182,6 +201,24 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                 <p className="m-0 text-xs text-[var(--ag-colorError)]">
                     That prefix is reserved. Rename the connection and select it again.
                 </p>
+            ) : null}
+
+            {selected ? (
+                <McpPermissionDrawer
+                    open={editingPermissions}
+                    onClose={() => setEditingPermissions(false)}
+                    slug={selected.slug ?? undefined}
+                    connectionName={selected.name || selected.slug || undefined}
+                    toolPrefix={prefix || undefined}
+                    connectionState={getMcpConnectionState(selected)}
+                    policy={readMcpPolicy(value)}
+                    onChange={(policy) => onChange({...value, policy})}
+                    onReconnect={() => {
+                        setEditingPermissions(false)
+                        setConnecting(true)
+                    }}
+                    disabled={disabled}
+                />
             ) : null}
 
             {connecting ? (
