@@ -73,14 +73,43 @@ describe("what an unlisted advertised tool gets", () => {
         ).toBe("deny")
     })
 
-    it("falls back to the server permission", () => {
-        expect(
-            resolvedNewToolPermission({tool_permissions: {echo: "allow"}, permission: "deny"}),
-        ).toBe("deny")
-    })
-
     it("floors at ask, so a tool nobody has looked at reaches a human", () => {
         expect(resolvedNewToolPermission({tool_permissions: {echo: "allow"}})).toBe("ask")
+    })
+
+    it("never falls back to the whole-server permission once a table is declared", () => {
+        // The runner's gate gives a declared table with no floor beside it `ask` and never
+        // consults the server permission: a human decides for anything the table does not
+        // name. Reading `permission` here made the editor's "Inherits" label promise that an
+        // `allow` server would run an unnamed tool unapproved, which is the unsafe direction
+        // and not what the run does (D88).
+        expect(
+            resolvedNewToolPermission({tool_permissions: {echo: "allow"}, permission: "allow"}),
+        ).toBe("ask")
+        expect(
+            resolvedNewToolPermission({tool_permissions: {echo: "allow"}, permission: "deny"}),
+        ).toBe("ask")
+    })
+
+    it("still lets the author name the floor themselves", () => {
+        expect(
+            resolvedNewToolPermission({
+                tool_permissions: {echo: "ask"},
+                permission: "allow",
+                new_tool_permission: "allow",
+            }),
+        ).toBe("allow")
+    })
+
+    it("hands the server permission back its authority when no table is declared", () => {
+        // The other half, and the one that keeps a configuration written before per-tool
+        // policy behaving exactly as it did: with no table, nothing per-tool is resolved and
+        // the whole-server decision governs.
+        expect(resolvedNewToolPermission({permission: "allow"})).toBeNull()
+        expect(effectiveToolPermission({permission: "allow"}, "search")).toEqual({
+            permission: "allow",
+            source: "server",
+        })
     })
 
     it("does not let a run default widen a server that has a table", () => {
@@ -113,13 +142,13 @@ describe("effectiveToolPermission", () => {
         })
     })
 
-    it("names the server permission when that is what an unlisted tool inherits", () => {
+    it("inherits the new-tool floor rather than the server permission", () => {
         expect(
             effectiveToolPermission(
                 {permission: "deny", tool_permissions: {echo: "allow"}},
                 "search",
             ),
-        ).toEqual({permission: "deny", source: "server"})
+        ).toEqual({permission: "ask", source: "new"})
     })
 
     it("reports the whole-server decision while the author has opted out", () => {

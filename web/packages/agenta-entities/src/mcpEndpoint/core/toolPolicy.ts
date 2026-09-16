@@ -8,8 +8,10 @@
  * - `tools` is a FILTER. A tool it hides is never advertised, so it needs no permission and
  *   may not be given one: the SDK refuses such an entry rather than dropping it, because the
  *   author either meant to list the tool or meant to permit a different one.
- * - `permission` is the whole-server decision, and stays the fallback so a configuration
- *   written before per-tool policy behaves exactly as it did.
+ * - `permission` is the whole-server decision. It governs every tool while no per-tool table
+ *   is declared, which is what leaves a configuration written before per-tool policy behaving
+ *   exactly as it did. Once a table IS declared it decides nothing on its own: see
+ *   `resolvedNewToolPermission`.
  * - `tool_permissions` is the per-tool decision, keyed by the name the SERVER advertises
  *   (`echo`), never the harness-rendered one (`mcp__acme_prod__echo`). The upstream name is
  *   the only spelling every harness agrees on.
@@ -63,10 +65,16 @@ export function isToolHidden(policy: McpServerPolicy, toolName: string): boolean
  * `ask` is the floor rather than "fall through to the run default": a tool nobody has looked
  * at yet must reach a human. Null means the author opted out entirely, which is what leaves
  * an existing configuration unchanged.
+ *
+ * The whole-server permission is deliberately NOT consulted here, which is what the runner's
+ * own gate does: a declared table with no floor beside it resolves to `ask`, because a human
+ * decides for anything the table does not name. Reading `permission` as the floor made this
+ * label promise that a `permission: allow` server would run an unnamed tool unapproved, which
+ * is both the unsafe direction and not what the run does (D88).
  */
 export function resolvedNewToolPermission(policy: McpServerPolicy): McpPermission | null {
     if (!isPerTool(policy)) return null
-    return policy.new_tool_permission ?? policy.permission ?? "ask"
+    return policy.new_tool_permission ?? "ask"
 }
 
 /**
@@ -83,13 +91,10 @@ export function effectiveToolPermission(
     const entry = toolPermissions(policy)[toolName]
     if (entry) return {permission: entry, source: "tool"}
 
+    // A declared table answers for every tool it does not name, from `new_tool_permission` or
+    // the `ask` floor. Never from the server permission, so the provenance is always "new".
     const resolved = resolvedNewToolPermission(policy)
-    if (resolved) {
-        return {
-            permission: resolved,
-            source: policy.new_tool_permission ? "new" : policy.permission ? "server" : "new",
-        }
-    }
+    if (resolved) return {permission: resolved, source: "new"}
     return {permission: policy.permission ?? null, source: policy.permission ? "server" : "default"}
 }
 
