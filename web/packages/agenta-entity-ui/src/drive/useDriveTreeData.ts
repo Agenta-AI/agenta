@@ -9,6 +9,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     buildDriveTree,
+    cleanPath,
     filterDriveTree,
     isHiddenPath,
     type DriveTreeNode,
@@ -108,13 +109,14 @@ export function useDriveTreeData({
         if (!showHidden) files = files.filter((f) => !isHiddenPath(f.path))
         return files
     }, [explicitFiles, lazyTree.files, originFilter, showHidden])
-    const tree = useMemo(
-        () =>
-            buildDriveTree(
-                uploadFiles.length ? [...originFiltered, ...uploadFiles] : originFiltered,
-            ),
-        [originFiltered, uploadFiles],
-    )
+    // An upload whose file the listing already carries yields to the real entry (same path, so
+    // the tile keeps its slot).
+    const tree = useMemo(() => {
+        if (!uploadFiles.length) return buildDriveTree(originFiltered)
+        const listed = new Set(originFiltered.map((f) => cleanPath(f.path)))
+        const pending = uploadFiles.filter((f) => !listed.has(cleanPath(f.path)))
+        return buildDriveTree(pending.length ? [...originFiltered, ...pending] : originFiltered)
+    }, [originFiltered, uploadFiles])
     const shownTree = useMemo(() => filterDriveTree(tree, deferredSearch), [tree, deferredSearch])
     // While searching, show every surviving branch expanded so matches are visible.
     const shownExpanded = useMemo(

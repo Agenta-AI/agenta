@@ -11,17 +11,18 @@ import {type Mount, projectScopedRequest} from "@agenta/entities/session"
 import {fetchMountFileBlob, uploadMountFile} from "./driveMedia"
 import {nameOf, parentOf} from "./driveTreeView"
 
-/** Invalidate the project's mount listings (and, unless `contents` is off, the file bodies). */
+/** Invalidate the project's mount listings (and, unless `contents` is off, the file bodies).
+ * Resolves once the open listings have refetched. */
 export const refreshMountListing = (
     queryClient: QueryClient,
     projectId: string,
     {contents = true}: {contents?: boolean} = {},
-): void => {
+): Promise<void> => {
     const roots = ["files", "files-latest", "files-root", "files-dir"]
     if (contents) roots.push("file")
-    for (const root of roots) {
-        void queryClient.invalidateQueries({queryKey: ["mounts", root, projectId]})
-    }
+    return Promise.all(
+        roots.map((root) => queryClient.invalidateQueries({queryKey: ["mounts", root, projectId]})),
+    ).then(() => undefined)
 }
 
 const errorMessage = (error: unknown, fallback: string): string => {

@@ -53,10 +53,16 @@ export function useDriveUploads({
             it.presentedFolder ? `${it.presentedFolder}/${it.relativePath}` : it.relativePath,
         [],
     )
+    // `mtime` now: under the "modified" sort the tile sits where the file will land.
     const uploadFiles = useMemo<MountFile[]>(
         () =>
             mountUpload.items.map(
-                (it) => ({path: uploadPath(it), size: it.size}) as unknown as MountFile,
+                (it) =>
+                    ({
+                        path: uploadPath(it),
+                        size: it.size,
+                        mtime: Date.now(),
+                    }) as unknown as MountFile,
             ),
         [mountUpload.items, uploadPath],
     )
