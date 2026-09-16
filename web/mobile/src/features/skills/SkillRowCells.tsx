@@ -62,11 +62,11 @@ export const SkillRowCells = ({
         {/* The menu's own clicks are not the row's: without this every menu press would also
             open the drawer. */}
         <span
-            className="flex items-center justify-end gap-1.5"
+            className="flex items-center justify-end gap-1"
             onClick={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
         >
-            <SkillUpdateCell workflowId={row.id} />
+            <SkillUpdateCell workflowId={row.id} compact />
             <SkillActionsMenu row={row} onOpen={onOpen} />
         </span>
     </>
