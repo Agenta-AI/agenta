@@ -17,11 +17,10 @@ import {useCallback, useMemo, useState} from "react"
 import {
     deleteMcpEndpointAtom,
     disconnectMcpEndpointAtom,
-    // The drawer's own health prop still speaks the connect journey's vocabulary.
-    getMcpConnectionState,
     getMcpConnectionStatus,
     getMcpConnectionStatusLabel,
     mcpEndpointsQueryAtom,
+    readMcpToolCount,
     refreshMcpEndpointsAtom,
     type McpConnectionStatus,
     type MCPEndpoint,
@@ -439,7 +438,14 @@ export default function McpServersSection({
                 onClose={() => setToolsKey(null)}
                 slug={viewingTools?.slug ?? undefined}
                 connectionName={viewingTools?.name || viewingTools?.slug || undefined}
-                connectionState={viewingTools ? getMcpConnectionState(viewingTools) : undefined}
+                // Passed rather than defaulted: the drawer assumes "connected" when given
+                // nothing, which would claim a healthy server for a lapsed one.
+                status={viewingTools ? getMcpConnectionStatus(viewingTools) : undefined}
+                // Null for every row until the query response carries a count, so the header
+                // shows none. Wired now so it starts working with no change here.
+                cachedToolCount={
+                    viewingTools ? (readMcpToolCount(viewingTools) ?? undefined) : undefined
+                }
                 policy={{}}
                 onChange={() => undefined}
                 onReconnect={viewingTools ? () => openReconnect(viewingTools) : undefined}

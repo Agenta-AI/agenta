@@ -54,11 +54,13 @@ vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
     McpPermissionDrawer: ({
         open,
         slug,
+        status,
         readOnly,
         onRemove,
     }: {
         open: boolean
         slug?: string
+        status?: string
         readOnly?: boolean
         onRemove?: () => void
     }) =>
@@ -66,6 +68,7 @@ vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
             <div
                 data-testid="mcp-permission-drawer"
                 data-slug={slug}
+                data-status={status ?? "unset"}
                 data-readonly={String(Boolean(readOnly))}
                 data-has-remove={String(onRemove !== undefined)}
             />
@@ -334,6 +337,19 @@ describe("viewing a connection's tools", () => {
         // A Settings row belongs to no agent, so there is nothing to detach it from and the
         // footer's "Remove from agent" link must not be offered.
         expect(drawer.getAttribute("data-has-remove")).toBe("false")
+    })
+
+    it("tells the drawer the connection's health rather than letting it assume", () => {
+        // The drawer defaults its health to connected, so a lapsed row would open a header
+        // claiming the server works.
+        show([OCTOLENS])
+        openRowMenu("Octolens")
+        act(() => {
+            fireEvent.click(screen.getByRole("menuitem", {name: "View tools"}))
+        })
+        expect(screen.getByTestId("mcp-permission-drawer").getAttribute("data-status")).toBe(
+            "login_expired",
+        )
     })
 
     it("is a different surface from Rename, not the same drawer twice", () => {
