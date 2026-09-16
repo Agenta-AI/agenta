@@ -153,6 +153,47 @@ afterEach(async () => {
     vi.clearAllMocks()
 })
 
+describe("the duplicate-name refusal reaches assistive technology", () => {
+    it("marks the name field invalid and points it at the reason", async () => {
+        // Behaviour was correct for a sighted mouse user and announced nothing: Continue goes
+        // dead and a screen-reader user is told why by nothing at all (round 4, D4).
+        createMcpEndpoint.mockRejectedValue({
+            response: {
+                data: {
+                    detail: {
+                        code: "mcp_connection_name_taken",
+                        message:
+                            "Another connection in this project already uses this name; pick a different one.",
+                    },
+                },
+            },
+        })
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                server_name: "Acme",
+                auth: {mode: "none", scopes_offered: []},
+            },
+        })
+
+        await openJourney()
+        await typeInto(field("MCP server URL")!, "https://mcp.acme.test/")
+        await press(button("Continue"))
+        await press(button("Continue"))
+
+        const name = field("Name")
+        expect(name).toBeTruthy()
+        expect(name!.getAttribute("aria-invalid")).toBe("true")
+        const described = (name!.getAttribute("aria-describedby") ?? "")
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((id) => document.getElementById(id)?.textContent ?? "")
+            .join(" ")
+        expect(described).toContain("already uses this name")
+    })
+})
+
 describe("the rendered journey", () => {
     it("lists the tools after connecting, with nobody asking it to", async () => {
         await openJourney()
