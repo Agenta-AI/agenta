@@ -139,4 +139,37 @@ describe("the harness code marker", () => {
         expect(gatewayRefusalCode(refusal("plain refusal"))).toBeNull()
         expect(gatewayRefusalCode(new Error("network"))).toBeNull()
     })
+
+    it("reads a hostile message in a moment, not in an afternoon", () => {
+        // The body is written by whatever server the person pointed us at, so it is input from
+        // outside. The pattern this parser used to hold began with `\s*` and then looked for a
+        // marker: given a long run of whitespace and a marker that never closes, the engine
+        // retried from every position in that run, and the cost grew with the square of the
+        // length. Measured on this input, it took 2.9 seconds at fifty thousand and 45 seconds
+        // at two hundred thousand, on a body a server chooses the length of (CodeQL
+        // js/polynomial-redos). Reading each character once, it is immeasurable.
+        const hostile = `${"\t".repeat(50_000)}⟦agenta_code:${"x".repeat(50_000)}`
+        const started = Date.now()
+
+        // No closing delimiter, so there is no code to read and nothing to strip.
+        expect(gatewayRefusalCode(refusal(hostile))).toBeNull()
+        expect(gatewayRefusalMessage(refusal(hostile))).toBe(hostile.trim())
+
+        expect(Date.now() - started).toBeLessThan(500)
+    })
+
+    it("leaves one space behind when the marker sat mid-sentence", () => {
+        expect(
+            gatewayRefusalMessage(
+                refusal("Authorization required ⟦agenta_code:auth_required⟧ for custom/acme"),
+            ),
+        ).toBe("Authorization required for custom/acme")
+    })
+
+    it("leaves a marker carrying no code alone rather than eating the sentence", () => {
+        expect(gatewayRefusalMessage(refusal("Refused ⟦agenta_code:⟧"))).toBe(
+            "Refused ⟦agenta_code:⟧",
+        )
+        expect(gatewayRefusalCode(refusal("Refused ⟦agenta_code:⟧"))).toBeNull()
+    })
 })

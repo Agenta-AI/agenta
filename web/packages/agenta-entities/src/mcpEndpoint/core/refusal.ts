@@ -23,7 +23,28 @@ interface Envelope {
  * `⟦agenta_code:auth_required⟧`. It is addressed to the runner, not to a person, and it
  * reached the screen verbatim beside a raw `custom/<slug>` (QA-D3).
  */
-const CODE_MARKER = /\s*⟦agenta_code:([^⟧]+)⟧\s*/
+const MARKER_OPEN = "⟦agenta_code:"
+const MARKER_CLOSE = "⟧"
+
+/**
+ * Where the marker sits in a string, and what it says.
+ *
+ * Found by scanning for two literals rather than by matching a pattern. The pattern this
+ * replaces began with `\s*`, which a regex engine retries from every position in a run of
+ * whitespace: the time it took grew with the square of the length, and the length is that of a
+ * message body written by whatever server the person pointed us at. Two `indexOf` calls read
+ * each character once (CodeQL js/polynomial-redos).
+ */
+const findCodeMarker = (value: string): {start: number; end: number; code: string} | null => {
+    const open = value.indexOf(MARKER_OPEN)
+    if (open === -1) return null
+    const codeStart = open + MARKER_OPEN.length
+    const close = value.indexOf(MARKER_CLOSE, codeStart)
+    // An empty code is no code: the old pattern required at least one character between the
+    // delimiters, and a marker it could not read stayed in the text rather than eating it.
+    if (close === -1 || close === codeStart) return null
+    return {start: open, end: close + MARKER_CLOSE.length, code: value.slice(codeStart, close)}
+}
 
 /** The refusal's code, from the envelope or from the marker in its message. */
 export const gatewayRefusalCode = (error: unknown): string | null => {
@@ -36,12 +57,19 @@ export const gatewayRefusalCode = (error: unknown): string | null => {
         typeof detail === "string"
             ? detail
             : ((detail as {message?: unknown} | undefined)?.message as string | undefined)
-    return typeof message === "string" ? (message.match(CODE_MARKER)?.[1] ?? null) : null
+    return typeof message === "string" ? (findCodeMarker(message)?.code ?? null) : null
 }
 
 const asText = (value: unknown): string | null => {
     if (typeof value !== "string") return null
-    const withoutMarker = value.replace(CODE_MARKER, " ").trim()
+    const marker = findCodeMarker(value)
+    // The marker takes the whitespace on either side of it with it, so removing one from the
+    // middle of a sentence leaves one space behind rather than three.
+    const withoutMarker = marker
+        ? [value.slice(0, marker.start).trimEnd(), value.slice(marker.end).trimStart()]
+              .filter(Boolean)
+              .join(" ")
+        : value.trim()
     return withoutMarker ? withoutMarker : null
 }
 
