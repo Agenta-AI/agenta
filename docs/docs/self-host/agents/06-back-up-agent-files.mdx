@@ -35,6 +35,15 @@ rule named `agenta-noncurrent-version-expiration` that expires noncurrent versio
 `AGENTA_STORE_VERSION_RETENTION_DAYS` days. The default is 30. Set it to `0` to turn the whole
 thing off, and recreate the `api` service after changing it.
 
+:::warning The bundled store must run SeaweedFS 4.42 or later
+This applies if you pin the SeaweedFS image yourself. The compose files ship
+`chrislusf/seaweedfs:4.47`.
+
+Versioned deletes need SeaweedFS 4.42 or later. On an older build the delete marker does not hide
+the object, so a deleted file keeps showing up in the drive and cannot be opened. Upgrade the store
+to 4.42 or later before you upgrade the API.
+:::
+
 Compose publishes the store on loopback at port 8333 (`AGENTA_STORE_PORT`). Check the bucket with
 the admin key from your env file:
 
