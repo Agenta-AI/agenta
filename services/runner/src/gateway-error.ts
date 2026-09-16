@@ -141,22 +141,27 @@ function jsonRpcCause(
 function parseFromBody(raw: string): AgentErrorDetail | undefined {
   const parsed = firstJsonObject(raw);
   if (!parsed || typeof parsed !== "object") return undefined;
+  // Two shapes reach this scan. Most SDKs fold the gateway's OpenAI-shaped `{"error": {...}}` in
+  // verbatim. Pi unwraps it first (`utils/error-body.js`), so its text carries the BARE body —
+  // which the wrapper-only scan missed, costing Pi the `next_step` and `details` its message still
+  // held (OR28).
+  //
+  // BOTH are gated on the marker (CR11). The marker is the only thing that says a refusal is ours:
+  // `{"error": {"message", "code"}}` is the shape every OpenAI-compatible provider uses for its
+  // OWN errors, so accepting the wrapped form on shape alone parsed a provider's rate-limit or
+  // content-filter body into an Agenta refusal and stamped it `retryable: false` — a claim about
+  // our policy made over someone else's error. Consequences are contained today, because the one
+  // caller that acts on this pre-gates on the marker itself (`run-turn.ts`), but the function is
+  // exported and the next caller will not know to.
   const wrapped = (parsed as { error?: GatewayErrorBody }).error;
-  // Two shapes reach this scan. Most SDKs fold the gateway's OpenAI-shaped `{"error": {...}}`
-  // in verbatim. Pi unwraps it first (`utils/error-body.js`), so its text carries the BARE body
-  // — which the wrapper-only scan missed, costing Pi the `next_step` and `details` its message
-  // still held (OR28). A bare object is only accepted when its `message` carries the gateway's
-  // own marker, so an unrelated JSON blob with `code` and `message` keys is not mistaken for a
-  // refusal we authored.
-  const bareCandidate = parsed as GatewayErrorBody;
-  const bare =
-    !wrapped &&
-    (typeof bareCandidate.code === "string" || !!jsonRpcCause(bareCandidate)) &&
-    typeof bareCandidate.message === "string" &&
-    CODE_MARKER_RE.test(String(bareCandidate.message))
-      ? bareCandidate
-      : undefined;
-  const body = wrapped ?? bare;
+  const candidate = wrapped ?? (parsed as GatewayErrorBody);
+  const identifiable =
+    typeof candidate === "object" &&
+    candidate !== null &&
+    typeof candidate.message === "string" &&
+    CODE_MARKER_RE.test(candidate.message) &&
+    (typeof candidate.code === "string" || !!jsonRpcCause(candidate));
+  const body = identifiable ? candidate : undefined;
   if (!body || typeof body !== "object") return undefined;
   // The LLM plane's string `code` wins where it exists; otherwise this is the MCP plane's
   // JSON-RPC shape and the cause comes from `error.data`. Checked in that order so a body
