@@ -1,8 +1,9 @@
-import { afterEach, describe, it } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
 import {
   MCP_DISCOVERY_METHOD,
+  PI_MCP_REQUEST_TIMEOUT_MS,
   parsePiGatewayMcpConfig,
   piGatewayMcpServersFromWire,
   piMcpToolName,
@@ -15,6 +16,9 @@ const originalFetch = globalThis.fetch;
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  // One case drives the clock; restore it here so a failed assertion cannot leak fake timers
+  // into the next test.
+  vi.useRealTimers();
 });
 
 /**
@@ -93,6 +97,30 @@ function fakePi() {
  * rather than about policy. The policy cases below pass their own.
  */
 const allowAll = async () => ({ allowed: true, reason: "" });
+
+/**
+ * A promise that settles either way, plus a bounded wait for it. A request the client should have
+ * abandoned never settles on its own here, so without the bound the test would hang instead of
+ * failing; `raceSettled` turns "never abandoned" into a fast, readable failure.
+ */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+async function raceSettled(work: Promise<unknown>): Promise<"settled" | "hung"> {
+  const outcome = await Promise.race([
+    work.then(
+      () => "settled" as const,
+      () => "settled" as const,
+    ),
+    new Promise<"hung">((resolve) => setTimeout(() => resolve("hung"), 250)),
+  ]);
+  return outcome;
+}
 
 describe("Pi gateway MCP extension", () => {
   it("discovers and calls a gateway-backed HTTP MCP tool without naming an upstream", async () => {
@@ -637,40 +665,6 @@ describe("Pi MCP permissions", () => {
 });
 
 describe("the Pi MCP client bounds its own requests (CR10)", () => {
-  it("aborts a server that accepts the connection and never answers", async () => {
-    // `fetch` has no timeout of its own, and `discover()` runs inside `before_agent_start`, whose
-    // failure branch catches rejections and not hangs. So an unbounded handshake stalls the whole
-    // turn before its first token rather than costing one server's tools.
-    let seen: AbortSignal | undefined;
-    globalThis.fetch = (async (_url: string, init: any) => {
-      seen = init?.signal;
-      return new Promise((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () =>
-          reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
-        );
-      });
-    }) as unknown as typeof fetch;
-
-    const pi = fakePi();
-    const logs: string[] = [];
-    const registration = registerPiGatewayMcpTools(
-      pi,
-      oneServerConfig(),
-      (message) => logs.push(message),
-      allowAll,
-    );
-    // Do not wait out the real bound; prove the request carries one that can fire.
-    assert.ok(seen === undefined || seen instanceof AbortSignal);
-    seen?.dispatchEvent?.(new Event("abort"));
-    await registration;
-
-    assert.deepEqual(pi.tools, [], "a server that never answers registers no tools");
-    assert.ok(
-      logs.some((line) => line.includes("failed its handshake")),
-      "and the operator is told which server it was",
-    );
-  });
-
   it("passes the turn's abort signal through to the upstream tool call", async () => {
     // Pi hands the signal in the third positional slot; it used to be ignored, so a cancelled
     // turn still sat waiting on the upstream.
@@ -734,6 +728,105 @@ describe("the Pi MCP client bounds its own requests (CR10)", () => {
     // Registration completed its handshake earlier; the cancelled call never reached the server.
     assert.ok(completed.includes("tools/list"));
     assert.ok(!completed.includes("tools/call"));
+  });
+
+  it("abandons a server that never answers, with no signal from the caller", async () => {
+    // The client's own timeout is the only thing that can end this wait: no caller signal is
+    // supplied, and the server never replies. Discovery runs before the turn's first token, so an
+    // unbounded request here stalls the turn rather than failing it.
+    const aborts: AbortSignal[] = [];
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const signal = init?.signal as AbortSignal;
+      aborts.push(signal);
+      return new Promise<Response>((_resolve, reject) => {
+        signal.addEventListener("abort", () =>
+          reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+        );
+      });
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    const logs: string[] = [];
+    vi.useFakeTimers();
+    const registration = registerPiGatewayMcpTools(
+      pi,
+      oneServerConfig(),
+      (message) => logs.push(message),
+      allowAll,
+    );
+    // Flushes the microtasks that issue the request, then moves the clock to the bound.
+    await vi.advanceTimersByTimeAsync(PI_MCP_REQUEST_TIMEOUT_MS);
+    vi.useRealTimers();
+
+    assert.equal(
+      await raceSettled(registration),
+      "settled",
+      "the request outlived the client's own timeout",
+    );
+    assert.equal(aborts.length, 1);
+    assert.equal(aborts[0].aborted, true);
+    assert.deepEqual(pi.tools, []);
+    assert.ok(
+      logs.some((line) => line.includes("failed its handshake")),
+      "and the operator is told which server it was",
+    );
+  });
+
+  it("aborts a call already in flight when the caller's signal fires", async () => {
+    // The signal is NOT aborted when the call starts. An already-aborted signal is served by the
+    // cheap `signal.aborted` check, so only a mid-flight abort exercises the listener.
+    const inFlight = deferred<AbortSignal>();
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      const payload = JSON.parse(String(init?.body));
+      const signal = init?.signal as AbortSignal;
+      if (payload.method === "tools/call") {
+        inFlight.resolve(signal);
+        return new Promise<Response>((_resolve, reject) => {
+          signal.addEventListener("abort", () =>
+            reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+          );
+        });
+      }
+      if (payload.id === undefined) return new Response("", { status: 202 });
+      const result =
+        payload.method === "tools/list"
+          ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
+          : { protocolVersion: "2026-07-28", capabilities: { tools: {} } };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+
+    const controller = new AbortController();
+    const call = pi.tools[0].execute("call-1", { marker: "X" }, controller.signal);
+    // Swallowed here; the assertion below is on how the call ends, not on the rejection reaching
+    // an unhandled-rejection handler first.
+    const settled = call.then(
+      () => "resolved",
+      () => "rejected",
+    );
+    const upstream = await inFlight.promise;
+    assert.equal(upstream.aborted, false, "still running when the turn is cancelled");
+
+    controller.abort();
+
+    assert.equal(
+      await raceSettled(settled),
+      "settled",
+      "the caller's abort never reached the in-flight request",
+    );
+    assert.equal(await settled, "rejected");
+    assert.equal(upstream.aborted, true);
   });
 });
 
