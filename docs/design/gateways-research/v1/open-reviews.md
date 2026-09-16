@@ -2,7 +2,7 @@
 
 ## Active review findings
 
-The record runs OR36 to OR88, fifty-three findings: forty-six closed, six open and one withdrawn.
+The record runs OR36 to OR89, fifty-four findings: forty-seven closed, six open and one withdrawn.
 Every number in that range is present. Entries numbered below OR36 predate the record and are
 all closed. Recounted from the headings on 2026-09-16, after several findings closed on that day
 and the one before it.
@@ -351,6 +351,51 @@ The relay stays out of it. Nothing in `providers/passthrough/adapter.py` should 
 a future reader who reaches for that shortcut should read the OR49 record first.
 
 ## Closed review record
+
+### OR89. An invoke refusal returns its Python traceback to the browser — CLOSED, by logging it instead of answering with it
+
+Found on 2026-09-16 from a refusal body observed in the playground. Severity P2.
+
+`POST /services/agent/v0/invoke` answers a failed invocation with
+`{status: {code, message, type, failure_code, stacktrace}}`, and the playground calls that route
+from a browser. The `stacktrace` is the formatted Python traceback, around two kilobytes of it:
+absolute module paths, the service's own directory layout, the frames between the route and the
+handler, and the source line each frame sits on.
+
+**Pre-existing, not introduced here.** `sdks/python/agenta/sdk/middlewares/running/normalizer.py`
+carries the field on `main`, and this branch's only change to that method was adding
+`failure_code`. It is recorded now because the release reviewed the body it appears in.
+
+The SDK already holds the opposite position where it says so explicitly: a configuration mistake
+"carries a 4xx and no stacktrace"
+(`sdks/python/agenta/sdk/engines/running/errors.py::UnknownConnectionV0Error`). The normalizer
+applied no such rule, so a 422 a person caused by mistyping a model carried the same traceback a
+500 did.
+
+**Closed 2026-09-16.** The traceback is withheld from the response and attached to the failure
+line this path already logs, so an operator reads one record containing what they were going to
+read anyway and the browser gets none of it. `code`, `message`, `type` and `failure_code` are
+untouched, which is everything a client branches on.
+
+`AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE` puts it back, for a developer running the service against
+their own browser. Read per call rather than captured at import, so it needs no restart and a case
+can pin it (D16's lesson).
+
+**A deviation from the brief, stated because it is a judgement call.** The request was to gate this
+on a debug flag the SDK already has. There is none that can serve: the only candidates are
+`AGENTA_LOG_CONSOLE_ENABLED` and `AGENTA_LOG_CONSOLE_LEVEL`, and the latter defaults to `TRACE`, so
+gating on it would have left the default behaviour exactly as it was. The new variable is narrow,
+names precisely what it does, and defaults off.
+
+Nothing consumes the field. The only frontend occurrence is a generated SDK type; the API's
+`stacktrace` hits are OTEL span attributes, which are a different path and an operator-facing one.
+
+Proven by four cases in `sdks/python/oss/tests/pytest/unit/agents/test_invoke_failure_status.py`:
+a handler's exception returns no traceback and keeps its status fields, an `ErrorStatus` the SDK
+raised returns none either, the flag puts it back, and a withheld traceback reaches the log. The
+first, second and fourth fail against the previous behaviour.
+
+---
 
 ### OR88. A custom connection that names Anthropic is registered as an OpenAI one — CLOSED, by reading the family the connection states instead of defaulting past it
 

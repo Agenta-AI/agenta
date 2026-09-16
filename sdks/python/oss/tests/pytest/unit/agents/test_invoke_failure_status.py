@@ -21,6 +21,7 @@ from agenta.sdk.agents.connections import (
     UnsupportedProviderError,
 )
 from agenta.sdk.decorators.routing import handle_invoke_failure
+from agenta.sdk.middlewares.running import normalizer
 from agenta.sdk.middlewares.running.normalizer import NormalizerMiddleware
 
 
@@ -135,3 +136,82 @@ async def test_both_error_sites_agree_on_one_exception():
     assert routed["status"]["failure_code"] == normalized["failure_code"]
     assert routed["status"]["code"] == normalized["code"]
     assert routed["status"]["message"] == normalized["message"]
+
+
+# ------------------------------------------------------ what the refusal body carries
+
+
+_TRACEBACK_MARKERS = ("Traceback (most recent call last)", 'File "', ", line ")
+
+
+def _looks_like_a_traceback(body: str) -> bool:
+    return any(marker in body for marker in _TRACEBACK_MARKERS)
+
+
+async def test_a_refusal_body_carries_no_traceback(monkeypatch):
+    """This body answers `POST /services/agent/v0/invoke`, which the playground calls from
+    a browser, so it was shipping module paths and the service's own layout to a page."""
+    monkeypatch.delenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", raising=False)
+
+    def raise_deep():
+        raise RuntimeError("the handler blew up")
+
+    try:
+        raise_deep()
+    except RuntimeError as exception:
+        status = await _normalized_status(exception)
+
+    assert "stacktrace" not in status
+    assert not _looks_like_a_traceback(json.dumps(status))
+    # And the parts a client branches on are all still there.
+    assert status["code"] == 500
+    assert status["message"] == "the handler blew up"
+    assert status["type"]
+
+
+async def test_a_refusal_the_sdk_authored_carries_no_traceback_either(monkeypatch):
+    """The other branch: an `ErrorStatus` the SDK raised with a stacktrace of its own."""
+    monkeypatch.delenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", raising=False)
+
+    status = await _normalized_status(
+        SubscriptionLoginRequiredError(slug="chatgpt", provider="chatgpt")
+    )
+
+    assert "stacktrace" not in status
+    assert status["failure_code"] == "subscription_login_required"
+
+
+async def test_the_traceback_is_returned_when_a_developer_asks_for_it(monkeypatch):
+    """Local development keeps the old body, deliberately and explicitly."""
+    monkeypatch.setenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", "true")
+
+    def raise_deep():
+        raise RuntimeError("the handler blew up")
+
+    try:
+        raise_deep()
+    except RuntimeError as exception:
+        status = await _normalized_status(exception)
+
+    assert _looks_like_a_traceback(json.dumps(status["stacktrace"]))
+
+
+async def test_a_withheld_traceback_is_logged_rather_than_dropped(monkeypatch):
+    """Turning the switch off must cost an operator nothing: the same text lands on the
+    failure line this path already writes, so they read one record rather than two."""
+    monkeypatch.delenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", raising=False)
+    recorded: list = []
+    monkeypatch.setattr(
+        normalizer.log,
+        "warning",
+        lambda *args, **kwargs: recorded.append(kwargs),
+    )
+
+    try:
+        raise RuntimeError("the handler blew up")
+    except RuntimeError as exception:
+        await _normalized_status(exception)
+
+    assert recorded, "the traceback was withheld and not logged"
+    assert _looks_like_a_traceback(json.dumps(recorded[-1]["stacktrace"]))
+    assert recorded[-1]["status_code"] == 500

@@ -2,6 +2,7 @@
 import inspect
 from typing import Any, Dict, Callable, Optional, Union
 from inspect import isawaitable, isasyncgen, isgenerator
+from os import environ
 from traceback import format_exception
 from uuid import UUID
 
@@ -25,6 +26,27 @@ from agenta.sdk.utils.logging import get_module_logger
 
 
 log = get_module_logger(__name__)
+
+
+# Whether a refusal returns its Python traceback to whoever made the request.
+#
+# Off. This body is the response to `POST /services/agent/v0/invoke`, which the playground
+# calls from a browser, so the traceback was shipped to a page: module paths, the service's
+# own layout, the local variables a frame's line quotes, and roughly two kilobytes of it per
+# refusal. None of that is the caller's to see, and the SDK already says so where it is
+# explicit — a configuration mistake "carries a 4xx and no stacktrace"
+# (`engines/running/errors.py::UnknownConnectionV0Error`).
+#
+# Nothing is lost operationally: the traceback is logged either way, which is where an
+# operator was going to read it. The switch exists for a developer running the service
+# locally against their own browser, and is read per call so setting it needs no restart
+# and a test can pin it.
+_INCLUDE_STACKTRACE_ENV_VAR = "AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE"
+_TRUTHY = frozenset({"1", "true", "yes", "on"})
+
+
+def _returns_stacktrace() -> bool:
+    return (environ.get(_INCLUDE_STACKTRACE_ENV_VAR) or "").strip().lower() in _TRUTHY
 
 
 class NormalizerMiddleware:
@@ -208,6 +230,11 @@ class NormalizerMiddleware:
 
         return iterator
 
+    @staticmethod
+    def _returned_stacktrace(stacktrace: Optional[Any]) -> Optional[Any]:
+        """The traceback to put on the response, which is normally none of it."""
+        return stacktrace if _returns_stacktrace() else None
+
     async def _normalize_exception(
         self,
         exc: Exception,
@@ -220,11 +247,12 @@ class NormalizerMiddleware:
         failure_code = failure_code_of(exc)
 
         if isinstance(exc, ErrorStatus):
+            raised_stacktrace = exc.stacktrace
             error_status = WorkflowServiceStatus(
                 type=exc.type,
                 code=exc.code,
                 message=exc.message,
-                stacktrace=exc.stacktrace,
+                stacktrace=self._returned_stacktrace(exc.stacktrace),
                 failure_code=failure_code,
             )
         else:
@@ -242,12 +270,13 @@ class NormalizerMiddleware:
                 value=exc,
                 tb=exc.__traceback__,
             )
+            raised_stacktrace = stacktrace
 
             error_status = WorkflowServiceStatus(
                 type=type,
                 code=code,
                 message=message,
-                stacktrace=stacktrace,
+                stacktrace=self._returned_stacktrace(stacktrace),
                 failure_code=failure_code,
             )
 
@@ -260,11 +289,15 @@ class NormalizerMiddleware:
             session_id=session_id,
         )
 
+        # The traceback goes here rather than onto the response. This line already
+        # existed and already carries the rest of the failure, so an operator reads one
+        # record, and withholding the traceback from the caller costs them nothing.
         log.warning(
             "Workflow handler invocation failed",
             status_code=error_status.code if error_status else None,
             status_type=error_status.type if error_status else None,
             message=error_status.message if error_status else None,
+            stacktrace=raised_stacktrace,
             trace_id=trace_id,
             span_id=span_id,
         )
