@@ -102,6 +102,38 @@ def custom_provider_route_extras(data: SecretDataDTO) -> Optional[Dict[str, Any]
     return {ROUTE_VERTEX_PROJECT_KEY: project} if project else None
 
 
+# The provider families whose wire shape is not OpenAI's. Everything else on
+# `LLMCustomProviderKind` — groq, mistral, deepinfra, openrouter and the rest — is
+# OpenAI-compatible, which is what `LLMEndpointProtocol` means by having only two values.
+_PROTOCOL_BY_PROVIDER_KIND = {
+    LLMCustomProviderKind.ANTHROPIC: LLMEndpointProtocol.ANTHROPIC,
+}
+
+
+def custom_provider_protocol(data: SecretDataDTO) -> LLMEndpointProtocol:
+    """The wire shape a custom connection speaks.
+
+    The stored protocol when the connection states one. When it does not, the provider
+    family it does state, because a connection saved as `anthropic` speaks Anthropic's
+    shape whether or not anyone filled the newer field in.
+
+    Defaulting straight to OpenAI instead is what registered an Anthropic connection as
+    an OpenAI one (OR88). The protocol field's own note — a record written before it
+    existed is read as OpenAI-compatible — is about records that say nothing at all, and
+    was being applied to records that say `anthropic` in the field beside it.
+    """
+    stated = getattr(data, "protocol", None)
+    if stated is not None:
+        return LLMEndpointProtocol(stated)
+
+    kind = getattr(data, "kind", None)
+    try:
+        family = LLMCustomProviderKind(kind)
+    except ValueError:
+        return LLMEndpointProtocol.OPENAI
+    return _PROTOCOL_BY_PROVIDER_KIND.get(family, LLMEndpointProtocol.OPENAI)
+
+
 def custom_provider_model_allowlist(data: SecretDataDTO) -> List[str]:
     """Every spelling of the models the operator listed, and nothing else.
 
@@ -140,7 +172,7 @@ def map_custom_provider_secret_to_endpoint(
 
     data = secret.data
     provider = getattr(data, "provider", None)
-    protocol = getattr(data, "protocol", None) or LLMEndpointProtocol.OPENAI
+    protocol = custom_provider_protocol(data)
     header = secret.header
 
     return LLMEndpointCreate(

@@ -2,7 +2,7 @@
 
 ## Active review findings
 
-The record runs OR36 to OR87, fifty-two findings: forty-five closed, six open and one withdrawn.
+The record runs OR36 to OR88, fifty-three findings: forty-six closed, six open and one withdrawn.
 Every number in that range is present. Entries numbered below OR36 predate the record and are
 all closed. Recounted from the headings on 2026-09-16, after several findings closed on that day
 and the one before it.
@@ -351,6 +351,61 @@ The relay stays out of it. Nothing in `providers/passthrough/adapter.py` should 
 a future reader who reaches for that shortcut should read the OR49 record first.
 
 ## Closed review record
+
+### OR88. A custom connection that names Anthropic is registered as an OpenAI one — CLOSED, by reading the family the connection states instead of defaulting past it
+
+Found on 2026-09-16 from a row in the QA project, reproduced from the vault write that made it.
+Severity P2.
+
+Posting a `custom_provider` secret auto-registers the LLM endpoint row it stands for
+(`api/oss/src/core/gateways/llms/registrar.py::map_custom_provider_secret_to_endpoint`). That
+mapping read `data.protocol` and, finding none, used OpenAI. A connection saved as
+`{"kind": "anthropic", ...}` with no protocol field therefore produced a row declaring
+`provider_key = "openai"`.
+
+Reproduced with the provider-row recipe in `qa.md`, which is the write the QA run used:
+
+```
+kind "anthropic", no protocol  ->  provider_key: openai
+```
+
+The protocol field's own note says a record written before it existed is read as
+OpenAI-compatible, and that is right for a record that says nothing. This record says
+`anthropic` in the field beside it. `LLMEndpointProtocol` has exactly two values because
+everything that is not Anthropic's shape is OpenAI's, so the family answers the question
+whenever the protocol does not.
+
+**Why it matters beyond the row.** `provider_key` is inert for the relay's own auth on a custom
+endpoint — `_custom_auth` sends a bearer token whatever it says — but it is not inert. It is what
+`LLMGatewayService.resolve_agent_connection` returns to the SDK, which puts it on
+`ResolvedConnection.provider`, which is what a harness reads to decide how to speak to the model.
+So an Anthropic model reached an agent described as an OpenAI one.
+
+**Closed 2026-09-16.** `custom_provider_protocol` believes a stated protocol, and otherwise maps
+the provider family: Anthropic to Anthropic's shape, everything else to OpenAI's. A family this
+release does not recognise reads as OpenAI-shaped, the same as a record that states nothing.
+
+Proven by cases in `api/oss/tests/pytest/unit/gateways/test_gateways_llm_endpoint_registrar.py`:
+the posted connection registers as `anthropic`, six OpenAI-shaped families stay `openai`, a stated
+protocol still wins over the family, and an unrecognised family falls back. The first and last of
+those fail against the previous derivation.
+
+**Not fixed, and not a defect.** Two other oddities were visible on the same row and are recorded
+here so the next reader does not re-raise them.
+
+The qualified model key doubles a vendor prefix — `qa-openrouter-anthropic/anthropic/anthropic/claude-sonnet-4`
+— because it is built as `{provider_slug}/{kind}/{model slug}` and an OpenRouter model slug already
+carries its own vendor segment. It is ugly and it is not wrong: the allowlist also carries the bare
+slug, `GatewayEndpointFilter.allows` is exact membership, and the qualified key is an internal
+address that agent configurations may already hold. Changing its shape is a migration, not a
+repair.
+
+The row sits beside the endpoint the QA recipe created explicitly, because the registrar keys its
+row on the secret's slug while the recipe chose its own. That is the recipe creating a second
+endpoint for one secret rather than the registrar misbehaving; the recipe does not need its second
+call.
+
+---
 
 ### OR87. An endpoint saved with no key, because it needs none, is never offered to an agent — CLOSED, by asking whether the connection needs a credential rather than whether it has one
 

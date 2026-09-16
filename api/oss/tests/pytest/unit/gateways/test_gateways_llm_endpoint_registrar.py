@@ -26,6 +26,7 @@ from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
 from oss.src.core.gateways.llms.registrar import (
     LLMEndpointRegistrar,
     custom_provider_deployment_kind,
+    custom_provider_protocol,
     endpoint_edit_from_create,
     map_custom_provider_secret_to_endpoint,
 )
@@ -41,7 +42,11 @@ from oss.src.core.gateways.policy.dtos import (
     SecretOwnerKind,
 )
 from oss.src.core.secrets.dtos import SecretResponseDTO
-from oss.src.core.secrets.enums import LLMCustomProviderKind, SecretKind
+from oss.src.core.secrets.enums import (
+    LLMCustomProviderKind,
+    LLMEndpointProtocol,
+    SecretKind,
+)
 
 
 PROJECT_ID = uuid4()
@@ -186,7 +191,10 @@ def test_every_custom_provider_kind_maps_onto_a_deployment_kind(kind):
     assert endpoint.deployment_kind == expected
 
 
-def test_a_missing_protocol_maps_to_the_openai_provider_key():
+def test_a_missing_protocol_on_an_unshaped_connection_maps_to_openai():
+    """`kind="custom"` names no family, so there is nothing to infer from and the
+    protocol field's own reading applies: a record that says nothing is read as
+    OpenAI-compatible."""
     endpoint = map_custom_provider_secret_to_endpoint(_custom_provider_secret())
 
     assert endpoint.provider_key == "openai"
@@ -720,3 +728,71 @@ def test_a_connection_with_no_cloud_routing_configuration_carries_none():
 
     assert endpoint.data.route.region is None
     assert endpoint.data.route.extras is None
+
+
+# ---------------------------------------------------------------------------
+# OR88: a connection's own provider family decides its wire shape
+# ---------------------------------------------------------------------------
+
+
+def test_an_anthropic_connection_that_states_no_protocol_is_still_anthropic():
+    """The defect, as posted. A connection saved as `anthropic` with no protocol field
+    was registered as OpenAI, and that provider reaches the harness through connection
+    resolution, so an Anthropic model was handed to an agent as an OpenAI one."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        _custom_provider_secret(kind="anthropic")
+    )
+
+    assert endpoint.provider_key == "anthropic"
+
+
+@pytest.mark.parametrize(
+    "kind",
+    ["openai", "openrouter", "groq", "mistral", "deepinfra", "together_ai"],
+)
+def test_an_openai_shaped_connection_stays_openai(kind):
+    """`LLMEndpointProtocol` has two values because everything that is not Anthropic's
+    shape is OpenAI's. Inferring from the family must not start inventing others."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        _custom_provider_secret(kind=kind)
+    )
+
+    assert endpoint.provider_key == "openai"
+
+
+def test_a_stated_protocol_still_wins_over_the_family():
+    """The field exists to be believed where a connection sets it: a connection whose
+    family is Anthropic but which declares the OpenAI shape is an OpenAI-compatible
+    front end for it, which is what OpenRouter's own openai path is."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        _custom_provider_secret(kind="anthropic", protocol="openai")
+    )
+
+    assert endpoint.provider_key == "openai"
+
+
+def test_an_unrecognised_family_reads_as_openai_shaped():
+    """A family this release has never heard of — a record written by a newer one —
+    says nothing about its shape, so it gets the same reading as a record that says
+    nothing at all.
+
+    Asserted on the derivation rather than through the mapping, because the mapping also
+    turns the family into a deployment kind and that lookup refuses an unknown one
+    outright. Whether it should is a different question from this finding's.
+    """
+    secret = _custom_provider_secret()
+    secret.data.kind = "something-this-release-has-never-heard-of"
+
+    assert custom_provider_protocol(secret.data) is LLMEndpointProtocol.OPENAI
+
+
+def test_the_registered_row_for_an_anthropic_connection_is_anthropic_end_to_end():
+    """Through the registrar rather than the mapping, because the row that reached the
+    QA project was written by this path."""
+    secret = _custom_provider_secret(kind="anthropic", slug="qa-openrouter-anthropic")
+
+    endpoint = map_custom_provider_secret_to_endpoint(secret)
+
+    assert endpoint.slug == "qa-openrouter-anthropic"
+    assert endpoint.provider_key == "anthropic"
+    assert endpoint.deployment_kind == LLMDeploymentKind.CUSTOM
