@@ -1234,6 +1234,8 @@ export async function runTurn(
             plan.tools.clientToolPauseDisposition,
           ),
           authorizer: approvedContent.authorizer,
+          // M11: the wake source's `wait` declares a signal and had no caller supplying one.
+          signal,
           gatewayPolicy: request.gatewayPolicy,
           gatewayGate,
         },
