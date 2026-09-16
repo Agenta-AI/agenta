@@ -84,7 +84,7 @@ class AgentaSingleton:
 
         log.info("Agenta -     SDK ver: %s", version("agenta"))
 
-        _host = host or getenv("AGENTA_HOST") or "https://cloud.agenta.ai"
+        _host = host or getenv("AGENTA_HOST") or None
 
         _api_url = (
             api_url
@@ -96,10 +96,22 @@ class AgentaSingleton:
 
         if _api_url:
             _api_url = parse_url(url=_api_url)
-            _host = _api_url.rsplit("/api", 1)[0]
+            if not _host:
+                from urllib.parse import urlsplit
+
+                parsed = urlsplit(_api_url)
+                path = parsed.path.rstrip("/")
+                if path.endswith("/api"):
+                    new_path = path[:-4]
+                    _host = parsed._replace(path=new_path, query="", fragment="").geturl().rstrip("/")
+                else:
+                    _host = _api_url
         elif _host:
             _host = parse_url(url=_host)
             _api_url = _host + "/api"
+        else:
+            _host = "https://cloud.agenta.ai"
+            _api_url = "https://cloud.agenta.ai/api"
 
         try:
             assert _api_url and isinstance(_api_url, str), (
