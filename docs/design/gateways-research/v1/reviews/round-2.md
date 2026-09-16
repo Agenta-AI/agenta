@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **0** | **4** | **6** | **32 closed, 5 part fixed, 10 open. No P1 remains** |
+| **As this file is written** | **0** | **0** | **5** | **6** | **32 closed, 5 part fixed, 11 open. No P1 remains** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -115,6 +115,7 @@ whether that fix was read against the finding and its test.
 | D57 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:326` at HEAD | Fix, **superseded** by OR91's | `a96b45c400`, `005207efe7` | **yes**, both, each by mutation |
 | D58 | structural | P2 | `api/oss/src/core/gateways/mcps/providers/mock/` | **Closed.** The mock now enforces what a real server enforces | `14ef19e60b` | **yes**, code read, 1104 unit cases pass |
 | D59 | r3-D2 residual | P3 | `web/packages/agenta-entities/src/session/core/schema.ts` | **Deferred**, with a stated closure | n/a | mechanism, schema read |
+| D60 | verification | P2 | `web/oss/tests/playwright/acceptance/playground/mcp-agent-config.ts:359` | Investigate: connect-from-agent does not reach connected | | two runs, same assertion, same duration |
 | D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix | `4ee17eab78` | **yes**, both mechanisms, code and cases |
 | D51 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:293` | Fix the assertion | `1dfece1e66` | **yes**, code; the suite could not run |
 | D52 | verification | P3 | `hooks/useMcpConnectJourney.ts:179`, `McpConnectJourney.tsx:96` | Fix: the check is applied, not the invariant recorded | `1dfece1e66` | **yes**, code and 33 cases |
@@ -1105,9 +1106,22 @@ was that filtering the view cannot change the policy. It does not: the filter na
 listed, and the stale-entry section and the write path are untouched.
 
 **D53 is part closed.** The spec now dials the mock at its published address, and the playground
-suite ran for the first time on this stack: two of three cases passed. The third is discussed below.
-The connect suite still could not start, on the tunnel's sign-up request rather than anything in the
-suite.
+suite ran for the first time on this stack. The connect suite still could not start, on the tunnel's
+sign-up request rather than anything in the suite.
+
+**D60. One playground case fails the same way on both runs.** "Connecting from an agent selects the
+new connection for that agent" waits sixty seconds for the journey to say it is connected and never
+sees it, taking about seventy-one seconds to fail on each of two runs. Repeating to the second at the
+same assertion is what separates this from the timing failures that came before it: those moved
+between cases and durations. The other two cases passed on one run each and the tool-list one failed
+on the other, so it remains intermittent, but this one does not look intermittent at all.
+
+I cannot say from here whether the spec expects the wrong thing for this entry point or whether the
+journey genuinely does not complete when it is started from the agent configuration rather than from
+settings. Both runs are recorded, and it belongs with the web agent who owns that flow. It is the
+last thing in this round I would want resolved before the release, because the entry point it covers
+is the one the connection experience document puts first: connecting from inside the agent, without
+going to settings.
 
 ## Quality findings
 
