@@ -24,6 +24,18 @@ describe("filterMcpTools", () => {
         expect(filterMcpTools(tools, "workspace").map((tool) => tool.name)).toEqual(["list_teams"])
     })
 
+    it("matches the title, which is the string the row actually shows", () => {
+        // A row survives the filter only if it contains the typed text somewhere a person can read
+        // it. Matching the name alone hid rows whose title was the only place the word appeared.
+        const titled = [
+            {name: "issue_create", title: "File a bug"},
+            {name: "team_list", annotations: {title: "Every squad"}},
+        ]
+
+        expect(filterMcpTools(titled, "bug").map((tool) => tool.name)).toEqual(["issue_create"])
+        expect(filterMcpTools(titled, "squad").map((tool) => tool.name)).toEqual(["team_list"])
+    })
+
     it("is not a filter when nothing was typed", () => {
         expect(filterMcpTools(tools, "")).toHaveLength(3)
         expect(filterMcpTools(tools, "   ")).toHaveLength(3)
