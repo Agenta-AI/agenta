@@ -125,9 +125,13 @@ export const AgentConfigSummaryCard = ({
             key: "mcps",
             icon: <PlugsIcon size={16} />,
             title: "MCP servers",
+            // "configured", not "connected": this counts the servers on the agent, and whether
+            // each one is authorized is a live fact this card does not have. Saying "connected"
+            // claimed the authorized state for a disconnected server, in the one word the rest
+            // of the product now reserves for it (round 4, D5).
             ...(summary.mcps
-                ? stated(`${summary.mcps} connected`)
-                : emptyAction(onEdit ? "Connect a server" : "None connected")),
+                ? stated(`${summary.mcps} configured`)
+                : emptyAction(onEdit ? "Connect a server" : "None configured")),
         },
         {
             key: "skills",
