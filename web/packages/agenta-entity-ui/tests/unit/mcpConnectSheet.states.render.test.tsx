@@ -248,6 +248,26 @@ describe("C3, the server signs in with OAuth", () => {
         expect(asked.setUrl).toHaveBeenCalledWith("https://mcp.linear.app/mcp")
     })
 
+    it("opens a new window when the first attempt is retried", async () => {
+        // The window opened for the first press was closed when the failure replaced the
+        // wait. A retry that reuses the closed handle points a provider at nothing, and a
+        // browser refuses a window opened after the create has resolved.
+        const opened = vi.fn(() => ({closed: false, close: vi.fn(), focus: vi.fn()}))
+        vi.stubGlobal("open", opened)
+        await open(
+            state({
+                status: "create_failed",
+                url: "https://mcp.linear.app/mcp",
+                name: "Linear",
+                probe: OAUTH_PROBE,
+                error: "The connection could not be saved.",
+            }),
+        )
+        await press(button("Try again"))
+
+        expect(opened).toHaveBeenCalledOnce()
+    })
+
     it("asks nobody to choose scopes", async () => {
         // They are the server's business, and the checklist this replaces asked a question
         // whose answer nobody outside the provider's documentation could know.

@@ -466,6 +466,9 @@ export function McpConnectSheet({
                 void journey.submitName()
                 return
             case "create_failed":
+                // The window opened for the first attempt was closed when this screen
+                // replaced the wait, so the retry needs one of its own, opened in this tap.
+                if (path === "oauth") requestConsent()
                 void journey.submitName()
                 return
             case "scopes_failed":
@@ -479,7 +482,10 @@ export function McpConnectSheet({
                 return
             case "manual_auth":
             case "verify_failed":
-                submitCredential()
+                // A connection that authorizes with nothing is repaired by saying so; there
+                // is no credential on this screen to submit.
+                if (path === "none") journey.skipAuthentication()
+                else submitCredential()
                 return
             default:
                 // A finished journey has nothing left to confirm but its own closing.
