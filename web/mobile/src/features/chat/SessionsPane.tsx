@@ -1,5 +1,6 @@
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList} from "@agenta/sessions-ui"
+import {Button} from "@agenta/ui/ui"
 import {Plus} from "lucide-react"
 import {useRouter} from "next/router"
 
@@ -40,14 +41,17 @@ export const SessionsPane = ({
                 <span className="text-colorText text-[13px] font-semibold">Sessions</span>
                 {/* Starting a session needs an agent to start it with. */}
                 {agentId ? (
-                    <button
+                    <Button
                         type="button"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label="New session"
                         onClick={() => startBlank(agentId)}
-                        className="text-colorTextSecondary hover:text-colorText focus-visible:text-colorText -m-2 cursor-pointer rounded-md border-0 bg-transparent p-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        // Negative margin keeps the 48px header's rhythm as the bare glyph did.
+                        className="text-colorTextSecondary hover:text-colorText -m-1.5"
                     >
-                        <Plus size={16} />
-                    </button>
+                        <Plus />
+                    </Button>
                 ) : null}
             </div>
             <div className="ag-scroll-quiet min-h-0 flex-1 overflow-y-auto px-2">

@@ -1,6 +1,6 @@
 import {forwardRef, useEffect, useImperativeHandle, useRef} from "react"
 
-import {getTurnstileSiteKey} from "@/oss/lib/helpers/auth/turnstile"
+import {getTurnstileSiteKey} from "@agenta/auth"
 
 const TURNSTILE_SCRIPT_ID = "agenta-turnstile-script"
 const TURNSTILE_SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
@@ -217,4 +217,4 @@ const TurnstileWidget = forwardRef<TurnstileWidgetHandle, TurnstileWidgetProps>(
 
 TurnstileWidget.displayName = "TurnstileWidget"
 
-export default TurnstileWidget
+export {TurnstileWidget}

@@ -815,26 +815,35 @@ export const resetScopeAtomFamily = atomFamily((key: string) =>
 )
 
 export const renameSessionAtomFamily = atomFamily((key: string) =>
-    atom(null, (get, set, {id, title}: {id: string; title: string}) => {
+    atom(null, async (get, set, {id, title}: {id: string; title: string}) => {
         const all = get(sessionsByAppAtom)
+        const previous = (all[key] ?? []).find((s) => s.id === id)?.title
         const list = (all[key] ?? []).map((s) =>
             s.id === id ? {...s, title: title.trim() || undefined} : s,
         )
         set(sessionsByAppAtom, {...all, [key]: list})
 
         // Persist the title to the durable stream header so it syncs across devices and survives a
-        // localStorage wipe. Best-effort/optimistic — the local update above already shows it. Send
-        // the trimmed string (empty clears the server name too, since the header merge is partial).
-        // Returned so a caller that revalidates a list next can await the header write first.
+        // localStorage wipe. Optimistic — the local update above already shows it. Send the
+        // trimmed string (empty clears the server name too, since the header merge is partial).
+        // Resolves whether the header took it: a caller reports a refused write, and the local
+        // title goes back to what the server still holds, so the tab and the list cannot disagree
+        // until the next read silently settles it (#6695).
         const projectId = get(projectIdAtom)
-        return projectId
-            ? setSessionHeader({
-                  sessionId: id,
-                  projectId,
-                  name: title.trim(),
-                  nameSource: "manual",
-              }).catch(() => {})
-            : undefined
+        if (!projectId) return
+        const ok = await setSessionHeader({
+            sessionId: id,
+            projectId,
+            name: title.trim(),
+            nameSource: "manual",
+        }).catch(() => false)
+        if (ok) return true
+        const current = get(sessionsByAppAtom)
+        set(sessionsByAppAtom, {
+            ...current,
+            [key]: (current[key] ?? []).map((s) => (s.id === id ? {...s, title: previous} : s)),
+        })
+        return false
     }),
 )
 

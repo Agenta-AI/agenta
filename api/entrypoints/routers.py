@@ -541,7 +541,10 @@ app.add_middleware(
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["Content-Type"] + get_all_supertokens_cors_headers(),
+    # `Idempotency-Key` rides on durable session writes (interaction answers, queued inputs);
+    # without it every cross-origin client fails the preflight for those routes.
+    allow_headers=["Content-Type", "Idempotency-Key"]
+    + get_all_supertokens_cors_headers(),
 )
 
 

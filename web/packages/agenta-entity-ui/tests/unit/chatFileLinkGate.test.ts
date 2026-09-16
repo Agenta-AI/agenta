@@ -7,6 +7,7 @@ import {
     isExternalHref,
     isProtocolRelativeHref,
     rehypeExplicitRelativeLinks,
+    rehypeRefuseHostImages,
     withExplicitRelativeLinks,
 } from "../../src/drive/chatFileLinkGate"
 import {fileCandidate} from "../../src/drive/chatFileRefs"
@@ -226,12 +227,13 @@ describe("decodeDriveHref", () => {
 })
 
 describe("withExplicitRelativeLinks", () => {
-    it("keeps every default and puts the respelling immediately before harden", () => {
+    it("keeps every default and puts the chat's gates immediately before harden", () => {
         const defaults = {raw: "raw", sanitize: "sanitize", harden: "harden"}
         expect(withExplicitRelativeLinks(defaults)).toEqual([
             "raw",
             "sanitize",
             rehypeExplicitRelativeLinks,
+            rehypeRefuseHostImages,
             "harden",
         ])
     })
@@ -240,5 +242,59 @@ describe("withExplicitRelativeLinks", () => {
         // Hand-listing the keys dropped any plugin Streamdown adds later.
         const defaults = {raw: "raw", sanitize: "sanitize", harden: "harden", future: "future"}
         expect(withExplicitRelativeLinks(defaults)).toContain("future")
+    })
+})
+
+describe("rehypeRefuseHostImages", () => {
+    const image = (src: string, alt = "diagram") => ({
+        type: "element",
+        tagName: "img",
+        properties: {src, alt},
+        children: [] as unknown[],
+    })
+    const tree = (...children: object[]) => ({type: "root", children})
+
+    it("turns an image whose target climbs to a host into harden's blocked span (#6680)", () => {
+        const img = image("..//evil.com/x.png")
+        rehypeRefuseHostImages()(tree(img) as never)
+        expect(img).toMatchObject({
+            tagName: "span",
+            properties: {title: "Blocked URL: ..//evil.com/x.png", className: ["text-gray-500"]},
+            children: [{type: "text", value: "diagram [blocked]"}],
+        })
+    })
+
+    it("refuses the spellings the anchor gate refuses", () => {
+        for (const src of ["//evil.com/x.png", "/\\evil.com/x.png", "a/%2e%2e//evil.com/x.png"]) {
+            const img = image(src, "")
+            rehypeRefuseHostImages()(tree(img) as never)
+            expect(img.tagName).toBe("span")
+            expect(img.children[0]).toMatchObject({value: "image [blocked]"})
+        }
+    })
+
+    it("leaves a session path and an explicit web image alone", () => {
+        for (const src of [
+            "agent-files/chart.png",
+            "./chart.png",
+            "https://example.com/chart.png",
+        ]) {
+            const img = image(src)
+            rehypeRefuseHostImages()(tree(img) as never)
+            expect(img.tagName).toBe("img")
+            expect(img.properties.src).toBe(src)
+        }
+    })
+
+    it("runs before harden, next to the anchor respelling", () => {
+        const names = withExplicitRelativeLinks({raw: "raw", harden: "harden"}).map((plugin) =>
+            typeof plugin === "function" ? plugin.name : plugin,
+        )
+        expect(names).toEqual([
+            "raw",
+            "rehypeExplicitRelativeLinks",
+            "rehypeRefuseHostImages",
+            "harden",
+        ])
     })
 })

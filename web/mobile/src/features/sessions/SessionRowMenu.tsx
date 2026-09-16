@@ -5,6 +5,7 @@ import {
     type SessionMenuEntry,
 } from "@agenta/sessions-ui"
 import {
+    Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -12,8 +13,6 @@ import {
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
 import {DotsThreeVertical} from "@phosphor-icons/react"
-
-import {Button} from "@/components/ui/button"
 
 /**
  * A session row's kebab — the shared verbs (rename, pin, archive, delete, and an automation

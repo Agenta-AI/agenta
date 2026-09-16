@@ -2,17 +2,25 @@ import {useEffect, useState} from "react"
 
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {ProjectsPage} from "@agenta/settings-ui"
-
-import {Button} from "@/components/ui/button"
-import {Input} from "@/components/ui/input"
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet"
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/ui/ui"
+
+import {Input} from "@/components/ui/input"
 
 interface Props {
     projects: ProjectsResponse[]
@@ -21,7 +29,7 @@ interface Props {
 }
 
 /**
- * Mobile binding: the shared projects table, with create / rename / delete as bottom sheets
+ * Mobile binding: the shared projects table, with create / rename / delete as modals
  * (the desktop uses antd modals — same verbs, each app's own idiom). The mutations live in
  * ProjectsPage; this only supplies the surfaces that collect the input.
  */
@@ -54,30 +62,41 @@ export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
                 />
             )}
             renderDeleteDialog={({open, onClose, onSubmit, pending, project}) => (
-                <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-                    <SheetContent side="responsive">
-                        <SheetHeader>
-                            <SheetTitle>Delete project</SheetTitle>
-                            <SheetDescription>This cannot be undone.</SheetDescription>
-                        </SheetHeader>
-                        <p className="px-4 text-sm">
+                <AlertDialog
+                    open={open}
+                    onOpenChange={(next) => (next || pending ? undefined : onClose())}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Delete project</AlertDialogTitle>
+                            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <p className="m-0 text-sm">
                             Permanently deletes {project?.project_name}, including all of its
                             agents, datasets and deployments.
                         </p>
-                        <SheetFooter>
-                            <Button
-                                variant="destructive"
-                                disabled={pending}
-                                onClick={() => onSubmit()}
-                            >
-                                Delete project
-                            </Button>
-                            <Button variant="outline" onClick={onClose} disabled={pending}>
-                                Cancel
-                            </Button>
-                        </SheetFooter>
-                    </SheetContent>
-                </Sheet>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel asChild>
+                                <Button variant="outline" onClick={onClose} disabled={pending}>
+                                    Cancel
+                                </Button>
+                            </AlertDialogCancel>
+                            {/* The page closes it once the delete lands. */}
+                            <AlertDialogAction asChild>
+                                <Button
+                                    variant="destructive"
+                                    disabled={pending}
+                                    onClick={(event) => {
+                                        event.preventDefault()
+                                        onSubmit()
+                                    }}
+                                >
+                                    {pending ? "Deleting…" : "Delete project"}
+                                </Button>
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             )}
         />
     )
@@ -114,13 +133,13 @@ const NameSheet = ({
     }, [open, initialValue])
 
     return (
-        <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-            <SheetContent side="responsive">
-                <SheetHeader>
-                    <SheetTitle>{title}</SheetTitle>
-                    {description ? <SheetDescription>{description}</SheetDescription> : null}
-                </SheetHeader>
-                <div className="px-4">
+        <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{title}</DialogTitle>
+                    {description ? <DialogDescription>{description}</DialogDescription> : null}
+                </DialogHeader>
+                <div>
                     <Input
                         autoFocus
                         value={value}
@@ -128,18 +147,18 @@ const NameSheet = ({
                         placeholder="Project name"
                     />
                 </div>
-                <SheetFooter>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose} disabled={pending}>
+                        Cancel
+                    </Button>
                     <Button
                         disabled={pending || !value.trim()}
                         onClick={() => onSubmit(value.trim())}
                     >
                         {submitLabel}
                     </Button>
-                    <Button variant="outline" onClick={onClose} disabled={pending}>
-                        Cancel
-                    </Button>
-                </SheetFooter>
-            </SheetContent>
-        </Sheet>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }

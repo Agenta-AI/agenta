@@ -824,6 +824,17 @@ async def test_create_trigger_ops_bind_self_target_and_hide_destination(connecti
     inputs_fields_description = schedule_data_props["inputs_fields"]["description"]
     assert "JSON Path" in inputs_fields_description
     assert "JSON Pointer" in inputs_fields_description
+    assert "Put only the task in `messages`" in inputs_fields_description
+    assert "not schedule/trigger metadata, timing checks, or skip-run guards" in (
+        inputs_fields_description
+    )
+    assert "Configure when to run in the schedule or trigger settings" in (
+        inputs_fields_description
+    )
+    assert "For subscriptions, map event data under a sibling key" in (
+        inputs_fields_description
+    )
+    assert '"payload": "$.event.attributes"' in inputs_fields_description
 
     subscription = specs["create_subscription"]
     assert subscription.call.args_into == "subscription"

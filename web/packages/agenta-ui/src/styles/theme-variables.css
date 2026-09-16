@@ -56,8 +56,9 @@
     --ag-colorInfoBgHover: #d3e7f5;
     --ag-controlItemBgActive: #f0efed;
     --ag-controlItemBgActiveHover: #e5e5e3;
-    --ag-controlOutline: rgba(217, 217, 44, 0.35);
-    --ag-errorOutline: rgba(217, 76, 74, 0.12);
+    --ag-ring: #a3a19f;
+    --ag-controlOutline: rgba(163, 161, 159, 0.5);
+    --ag-errorOutline: rgba(217, 76, 74, 0.2);
     --ag-colorWhite: #ffffff;
     --ag-boxShadowTertiary: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
     --ag-boxShadowSecondary: 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05);
@@ -445,8 +446,9 @@
     --ag-colorInfoBgHover: #111a2c;
     --ag-controlItemBgActive: #57572a;
     --ag-controlItemBgActiveHover: #57572a;
-    --ag-controlOutline: rgba(251, 251, 96, 0.29);
-    --ag-errorOutline: rgba(238, 38, 56, 0.11);
+    --ag-ring: rgba(255, 255, 255, 0.45);
+    --ag-controlOutline: rgba(255, 255, 255, 0.25);
+    --ag-errorOutline: rgba(238, 38, 56, 0.4);
     --ag-colorWhite: #ffffff;
     --ag-boxShadowTertiary: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 1px 2px 0 rgba(0, 0, 0, 0.30), 0 1px 6px -1px rgba(0, 0, 0, 0.20), 0 2px 4px 0 rgba(0, 0, 0, 0.20);
     --ag-boxShadowSecondary: 0 0 0 1px rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28);

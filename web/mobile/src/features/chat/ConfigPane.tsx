@@ -1,5 +1,8 @@
+import {useCallback} from "react"
+
 import {AutomationDrawer} from "@agenta/automation-ui"
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
+import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
@@ -8,6 +11,7 @@ import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 import {ChevronsLeft} from "lucide-react"
+import {useRouter} from "next/router"
 
 import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
 
@@ -25,13 +29,25 @@ import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
 export const ConfigPane = ({
     entityId,
     sessionId,
+    workspaceId,
     projectId,
 }: {
     entityId: string
     sessionId: string
+    workspaceId: string
     projectId: string
 }) => {
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const router = useRouter()
+    // A row's "Run history" is the automation detail screen opened on its runs (`?view=runs`).
+    const openRunHistory = useCallback(
+        ({id}: TriggerOwnerRef) => {
+            void router
+                .push(`/w/${workspaceId}/p/${projectId}/automations/${id}?view=runs`)
+                .catch(() => undefined)
+        },
+        [router, workspaceId, projectId],
+    )
 
     return (
         <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
@@ -54,6 +70,7 @@ export const ConfigPane = ({
                     // The same automations editor the /m screens render, so a schedule opened
                     // from an agent's panel is the surface it is opened from anywhere else.
                     automationDrawer={<AutomationDrawer />}
+                    onOpenRunHistory={openRunHistory}
                     header={
                         <AgentConfigHeader
                             revisionId={entityId}

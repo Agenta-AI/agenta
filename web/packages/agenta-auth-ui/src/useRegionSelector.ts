@@ -7,7 +7,7 @@ import {
     isCloudAliasHost,
     RegionId,
     setPreferredRegion,
-} from "@/oss/lib/helpers/region"
+} from "@agenta/auth"
 
 const REDIRECT_KEY_PREFIX = "region-redirect-"
 

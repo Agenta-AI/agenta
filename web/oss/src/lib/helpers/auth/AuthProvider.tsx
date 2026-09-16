@@ -1,9 +1,11 @@
 import {useEffect, useCallback, useState} from "react"
 
+import {installTurnstileFetchPatch} from "@agenta/auth"
 import {configureAuthToken, configureAxios} from "@agenta/shared/api"
 import SuperTokensReact, {SuperTokensWrapper} from "supertokens-auth-react"
 
-import {installTurnstileFetchPatch} from "@/oss/lib/helpers/auth/turnstile"
+// The Turnstile helper reads env through @agenta/auth's runtime — configure it before boot.
+import "@/oss/lib/auth/configureAuthPackage"
 import {getJWT} from "@/oss/services/api"
 import {prewarmBootQueryGraph} from "@/oss/state/boot/prewarmBootQueryGraph"
 

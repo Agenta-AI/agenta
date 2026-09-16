@@ -51,6 +51,23 @@ const nextConfig: NextConfig = {
     typescript: {
         ignoreBuildErrors: true,
     },
+    async redirects() {
+        return [
+            {
+                // The providers' ONE registered redirect URI is the desktop `/auth/callback/<id>`;
+                // in production the desktop middleware hands a mobile-started landing to
+                // `/m/auth/callback/<id>` (see decideDesktopGate), and behind Traefik this app
+                // never sees the bare path. On a direct-port dev run (`next dev` on the origin
+                // the URI is registered against, no desktop in front) the landing arrives
+                // here and would 404, killing every OAuth sign-in. Mirror the hand-off so
+                // the dev loop completes; Next carries the `code`/`state` query along.
+                source: "/auth/callback/:provider",
+                destination: "/m/auth/callback/:provider",
+                basePath: false,
+                permanent: false,
+            },
+        ]
+    },
     async headers() {
         return [
             {

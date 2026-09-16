@@ -6,12 +6,11 @@ import {
     AutomationTriggerDrawers,
     useAutomationCreate,
 } from "@agenta/automation-ui"
-import {LoaderCircle} from "lucide-react"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {Button} from "@/components/ui/button"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -57,9 +56,7 @@ export const AutomationDraftScreen = ({
                                 <div className="mt-[30px] flex items-center justify-end gap-2.5 border-0 border-t border-solid border-border pt-5">
                                     <Button
                                         type="button"
-                                        size="sm"
                                         variant="outline"
-                                        className="text-xs font-normal"
                                         onClick={() => void router.push(`${base}/automations`)}
                                     >
                                         Cancel
@@ -69,18 +66,13 @@ export const AutomationDraftScreen = ({
                                         how the reader learns what to do. */}
                                     <Button
                                         type="button"
-                                        size="sm"
-                                        className="text-xs font-normal"
                                         disabled={state.saving}
                                         onClick={() => void onCreate()}
                                     >
                                         {/* Creating writes a trigger and, for a schedule,
                                                 its first run — long enough that a button which
-                                                only greys out reads as broken. Sized by class:
-                                                lucide's `size` prop leaves the svg em-scaled. */}
-                                        {state.saving ? (
-                                            <LoaderCircle className="size-3 animate-spin" />
-                                        ) : null}
+                                                only greys out reads as broken. */}
+                                        {state.saving ? <Spinner data-icon="inline-start" /> : null}
                                         Create automation
                                     </Button>
                                 </div>

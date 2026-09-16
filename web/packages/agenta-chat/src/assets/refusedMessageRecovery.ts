@@ -4,29 +4,28 @@ export const canRestoreRefusedSend = (editor: RichChatInputHandle | null): boole
     Boolean(editor && editor.getMarkdown() === "")
 
 /**
- * Turns of the microtask queue the composer gets to commit the text before we call it a failure.
- *
- * The editor is Lexical, and `setMarkdown` schedules an update rather than applying one: the state
- * `getMarkdown` reads is the COMMITTED state, which has not changed yet in the calling tick. A
- * microtask loop is what that costs, and it is proof against a test that fakes timers.
+ * Turns of the microtask queue an editor that does not acknowledge its writes gets to commit the
+ * text before we call it a failure. The real editor resolves `setMarkdown` once the write is
+ * committed, so this only covers a handle that returns nothing (a test stub, an older adapter).
  */
 const PLACEMENT_CONFIRM_TICKS = 12
 
 /**
  * Write the text and wait for the composer to actually hold it.
  *
- * Reading it back in the same tick answers "no" for a placement that is on its way, which is how a
- * refused message ended up in the transcript AND the composer at the same time: the caller kept the
- * flagged row on that answer while the text arrived a moment later, and the user could send it
- * twice (staging, `66ed5a6c57`). Reporting success without reading it back at all is the opposite
- * failure and loses the message, so the read-back stays; it just gets the ticks it needs.
+ * "The composer took it" is the editor's own acknowledgement — `setMarkdown` resolves once Lexical
+ * has committed the write — and then ONE read-back. Inferring it from a synchronous read is how a
+ * refused message ended up in the transcript AND the composer at the same time: the read answered
+ * "no" for a placement that was on its way, the caller kept the flagged row, and the text arrived
+ * a moment later, so the user could send it twice (staging, `66ed5a6c57`, then #6697). Reporting
+ * success without reading back at all is the opposite failure and loses the message.
  */
 export const restoreRefusedDraft = async (
     editor: RichChatInputHandle | null,
     text: string,
 ): Promise<boolean> => {
     if (!editor || !text || !canRestoreRefusedSend(editor)) return false
-    editor.setMarkdown(text)
+    await editor.setMarkdown(text)
     for (let tick = 0; tick < PLACEMENT_CONFIRM_TICKS; tick += 1) {
         if (editor.getMarkdown() === text) return true
         await Promise.resolve()

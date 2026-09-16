@@ -1,15 +1,16 @@
 import {useEffect, useState} from "react"
 
-import {Button} from "@/components/ui/button"
-import {Input} from "@/components/ui/input"
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet"
+    Button,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/ui/ui"
+
+import {Input} from "@/components/ui/input"
 
 /** Create-project prompt. Not the shared `NamePromptModal`: that renders antd, which /m bans. */
 export const CreateProjectSheet = ({
@@ -35,14 +36,14 @@ export const CreateProjectSheet = ({
     }
 
     return (
-        <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent side="responsive">
-                <SheetHeader>
-                    <SheetTitle>Create project</SheetTitle>
-                    <SheetDescription>Projects keep agents and sessions apart.</SheetDescription>
-                </SheetHeader>
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create project</DialogTitle>
+                    <DialogDescription>Projects keep agents and sessions apart.</DialogDescription>
+                </DialogHeader>
                 <form
-                    className="flex flex-col gap-3 px-4"
+                    className="flex flex-col gap-3"
                     onSubmit={(event) => {
                         event.preventDefault()
                         submit()
@@ -57,16 +58,16 @@ export const CreateProjectSheet = ({
                     {/* Enter submits; the visible Create sits in the footer, outside this form. */}
                     <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
                 </form>
-                <SheetFooter>
+                <DialogFooter>
                     {/* Pending blocks submitting only: a dismissed create still lands and refetches. */}
-                    <Button disabled={!name.trim() || isPending} onClick={submit}>
-                        {isPending ? "Creating…" : "Create"}
-                    </Button>
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         Cancel
                     </Button>
-                </SheetFooter>
-            </SheetContent>
-        </Sheet>
+                    <Button disabled={!name.trim() || isPending} onClick={submit}>
+                        {isPending ? "Creating…" : "Create"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     )
 }

@@ -407,7 +407,7 @@ export function Cascader({
     const rowClass = (opts: {selected: boolean; active: boolean; disabled?: boolean}) =>
         cn(
             // antd option geometry: min-h 28px, 4px×12px padding, selected weight 600.
-            "flex w-full cursor-pointer select-none items-center justify-between gap-2 box-border min-h-control rounded-control-sm px-3 py-1 text-field-md",
+            "flex w-full cursor-pointer select-none items-center justify-between gap-2 box-border min-h-control-sm rounded-control-sm px-3 py-1 text-field-md",
             // antd: selected row = controlItemBgActive (always); a non-selected active/hovered
             // row = controlItemBgHover.
             opts.selected ? "bg-controlItemBgActive font-semibold" : "",

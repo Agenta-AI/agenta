@@ -17,6 +17,7 @@ export {startupLabelFromDataPart} from "./startupPhases"
 export {getMessageTurnId, latestTurnId} from "./agentTurn"
 export * from "./resolveStopExecution"
 export * from "./pendingSendEchoes"
+export * from "./refusedMessageRecovery"
 
 export {liveCommittedRevisions, type CommittedRevision} from "./committedRevisions"
 export * from "./filePaletteRows"

@@ -79,7 +79,7 @@
         "jsdom": "^26.1.0",
         "jsonrepair": "^3.13.3",
         "lexical": "^0.46.0",
-        "next": "15.5.18",
+        "next": "15.5.24",
         "prismjs": "^1.30.0",
         "typescript": "^5.9.3",
         "usehooks-ts": "^3.1.1",

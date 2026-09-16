@@ -52,6 +52,7 @@ import {filesToParts} from "../assets/files"
 import {
     isSessionTranscript,
     loadSessionMessages,
+    reloadSessionMessages,
     type SessionTranscript,
 } from "../assets/loadSession"
 import {mergePendingSendEchoRows} from "../assets/pendingSendEchoes"
@@ -101,6 +102,7 @@ import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
 import {useApprovalDock, type ApprovalDock} from "./useApprovalDock"
+import type {ComposerAttachment} from "./useComposerAttachments"
 import {useFileActivityDetector} from "./useFileActivityDetector"
 import {useMountGeneration} from "./useMountGeneration"
 import {useServerSessionInputs} from "./useServerSessionInputs"
@@ -118,6 +120,11 @@ export interface SendInput {
     files?: File[]
     /** Prebuilt file parts (server-uploaded attachment references) — appended after `files`. */
     parts?: FileUIPart[]
+    /**
+     * The composer entries behind `parts`. Carried with the send so a refusal can put them back
+     * in the tray; without them a refused send with files can only keep its transcript row.
+     */
+    stagedFiles?: ComposerAttachment[]
 }
 
 /** The pure scan result of a rewind request; the skin renders any confirm UI and then calls
@@ -150,8 +157,9 @@ export interface UseAgentConversationArgs {
     sharedReaderRunning?: boolean
     /** Timestamp of the liveness snapshot behind `sharedReaderRunning`. */
     sharedReaderLivenessUpdatedAt?: number
-    /** Hand a late-refused send back to the composer; return whether it took the text. */
-    restoreRefusedSend?: (message: {text: string}) => boolean | Promise<boolean>
+    /** Hand a late-refused send back to the composer; return whether it took the text (and the
+     * staged files it carried). See `restoreRefusedSend` in `@agenta/chat/assets`. */
+    restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
     /** A durable send was admitted: the turn it started, or `null` for a parked input. */
     onSendAccepted?: (message: {text: string}, executionId: string | null) => void
     /** A durable send was rejected or refused; no turn will ever carry it. */
@@ -746,12 +754,14 @@ export const useAgentConversation = ({
         locallyBusy: busy,
         isSharedReaderReady: () => sharedSenderReadyRef.current,
         onExecuted: () => {
-            // The run stream that calls this outlives its mount, and both continuations below run
-            // past an await, so both carry the generation of the mount that started the read.
+            // The run stream that calls this outlives its mount, and the delivery below runs past
+            // an await, so it carries the generation of the mount that started the read. A FRESH
+            // read, not the cached one: the rows this turn just saved are what settlement waits
+            // for, and the cache answers unchanged inside its stale window.
             const generation = mount.capture()
-            void loadSessionMessages(sessionId, (transcript) =>
+            return reloadSessionMessages(sessionId, (transcript) =>
                 adoptServerTranscript(transcript, generation),
-            ).then((transcript) => adoptServerTranscript(transcript, generation))
+            )
         },
     })
 
@@ -1233,7 +1243,7 @@ export const useAgentConversation = ({
     }, [sessionId])
 
     const send = useCallback(
-        async ({text, files, parts}: SendInput) => {
+        async ({text, files, parts, stagedFiles}: SendInput) => {
             const trimmed = text.trim()
             const fileObjs = files ?? []
             const refParts = parts ?? []
@@ -1251,7 +1261,7 @@ export const useAgentConversation = ({
             clearSessionTurnId(sessionId)
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the release gate.
-            await submit({text: trimmed, fileParts})
+            await submit({text: trimmed, fileParts, stagedFiles})
             // The message left the composer — drop its persisted draft (per-session store).
             composerDraftBySession.delete(sessionId)
         },
@@ -1259,14 +1269,14 @@ export const useAgentConversation = ({
     )
 
     const steerInput = useCallback(
-        async ({text, files, parts}: SendInput) => {
+        async ({text, files, parts, stagedFiles}: SendInput) => {
             const trimmed = text.trim()
             const fileObjs = files ?? []
             const refParts = parts ?? []
             if (!trimmed && fileObjs.length === 0 && refParts.length === 0) return
             const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
             const merged = [...(encoded?.parts ?? []), ...refParts]
-            await steer({text: trimmed, fileParts: merged.length ? merged : undefined})
+            await steer({text: trimmed, fileParts: merged.length ? merged : undefined, stagedFiles})
             composerDraftBySession.delete(sessionId)
         },
         [sessionId, steer],
