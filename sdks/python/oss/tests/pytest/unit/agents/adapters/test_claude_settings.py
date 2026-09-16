@@ -460,19 +460,31 @@ def test_tool_rules_accept_plain_dicts():
 _STRICTNESS = {"allow": 0, "ask": 1, "deny": 2}
 
 
-def _runner_decision(server, new_tool, tool):
+def _runner_decision(server, new_tool, has_tool_table, tool):
     """Mirror of `mcpToolPermission` in `services/runner/src/mcp-permission.ts`.
 
     Written out rather than imported because it lives in the runner's TypeScript; keeping a copy
     here is what lets this file assert the two agree. If the runner's ladder changes, this mirror
-    has to change with it and the matrix below will say so.
+    has to change with it and the matrices below will say so.
+
+    THE ONLY MIRROR IN THIS FILE, deliberately. A second one was added for the unnamed-tool
+    matrix and the two then disagreed about the last rung, which is exactly how D88 started: a
+    copy of a ladder that quietly stops matching the ladder it copies.
+
+    `has_tool_table` is separate from `tool` because the runner's opt-in is what the policy
+    DECLARED, not what this tool matched: `normalizeMcpServerPermissions` treats a declared
+    `toolPermissions` as opting in even with no `newToolPermission` beside it, and gives the tools
+    it does not name `ask` — "a human decides for anything the table does not name". The
+    whole-server permission is never consulted once the table is declared (D88).
     """
-    opted_in = tool is not None or new_tool is not None
+    opted_in = new_tool is not None or has_tool_table
     if not opted_in:
         return server  # None means "the run's own default ladder decides"
     if tool is not None:
         return tool
-    return new_tool or server or "ask"
+    if new_tool is not None:
+        return new_tool
+    return "ask"
 
 
 def _claude_decision(perms, server_name, tool_name):
@@ -512,7 +524,9 @@ def test_generated_rules_resolve_the_way_the_runner_gate_does(
     files = build_claude_settings_files(None, None, [server])
     perms = _settings(files)["permissions"] if files else {}
 
-    expected = _runner_decision(server_permission, None, tool_permission)
+    expected = _runner_decision(
+        server_permission, None, tool_permission is not None, tool_permission
+    )
     assert _claude_decision(perms, "acme", "echo") == expected
 
 
@@ -539,7 +553,12 @@ def test_the_new_tool_default_is_translated_too(
     files = build_claude_settings_files(None, None, [server])
     perms = _settings(files)["permissions"] if files else {}
 
-    expected = _runner_decision(server_permission, new_tool_permission, tool_permission)
+    expected = _runner_decision(
+        server_permission,
+        new_tool_permission,
+        tool_permission is not None,
+        tool_permission,
+    )
     assert _claude_decision(perms, "acme", "echo") == expected
 
 
@@ -611,23 +630,6 @@ def test_a_server_rule_survives_when_every_named_tool_is_stricter():
 # runs. For a named tool the table answers first, so those cases could never reach it.
 
 
-def _runner_decision_unnamed(server_permission, new_tool_permission, has_tool_table):
-    """Mirror of `mcpToolPermission` for a tool the per-tool table does not name.
-
-    The opt-in is what the policy DECLARED, not what this tool matched:
-    `normalizeMcpServerPermissions` treats a declared `toolPermissions` as opting in even with no
-    `newToolPermission` beside it, and gives the tools it does not name `ask` — "a human decides
-    for anything the table does not name". With nothing declared, the whole-server permission
-    decides, and `None` there means the run's own default ladder does.
-    """
-    opted_in = new_tool_permission is not None or has_tool_table
-    if not opted_in:
-        return server_permission
-    if new_tool_permission is not None:
-        return new_tool_permission
-    return "ask"
-
-
 @pytest.mark.parametrize("server_permission", ["allow", "ask", "deny", None])
 @pytest.mark.parametrize("new_tool_permission", ["allow", "ask", "deny", None])
 @pytest.mark.parametrize("named_permission", ["allow", "ask", "deny", None])
@@ -656,8 +658,8 @@ def test_an_unnamed_tool_resolves_the_way_the_runner_gate_does(
     files = build_claude_settings_files(None, None, [server])
     perms = _settings(files)["permissions"] if files else {}
 
-    default = _runner_decision_unnamed(
-        server_permission, new_tool_permission, named_permission is not None
+    default = _runner_decision(
+        server_permission, new_tool_permission, named_permission is not None, None
     )
     looser_named_tool = (
         named_permission is not None
