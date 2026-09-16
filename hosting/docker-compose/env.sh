@@ -10,7 +10,10 @@ EE_DIR="${SCRIPT_DIR}/ee"
 
 error() { echo "Error: $*" >&2; exit 1; }
 require_value() { [[ -n "${2:-}" ]] || error "Missing value for $1."; }
-absolute_path() { local dir; dir="$(cd "$(dirname "$1")" && pwd)"; printf '%s/%s\n' "$dir" "$(basename "$1")"; }
+# `cd "$(dirname …)"` fails on a path whose parent does not exist yet, and under `set -e` that
+# aborts before the `mkdir -p` further down would have created it. `realpath -m` resolves a path
+# whose components are still missing, which is exactly the --output case.
+absolute_path() { realpath -m -- "$1"; }
 display_path() {
     local path="$1"
     if [[ "$path" == "${SCRIPT_DIR}/"* ]]; then
