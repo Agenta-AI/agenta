@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **1** | **12** | **5** | **5 closed, 2 fixed pending a run, 21 open** |
+| **As this file is written** | **0** | **1** | **11** | **7** | **5 closed, 2 fixed pending a run, 1 part fixed, 19 open** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -88,14 +88,14 @@ whether that fix was read against the finding and its test.
 | D28 | both | P2 | `hooks/useMcpConnectJourney.ts:274-295` | Fix | | mechanism, code |
 | D29 | reviewer 2 | P2 | `core/connectJourney.ts:181`, `hooks/useMcpConnectJourney.ts:331`, `McpConnectJourney.tsx:117` | Fix | | mechanism, code |
 | D30 | reviewer 2 | P2 | `core/connectJourney.ts:185` | Fix | | mechanism, code |
-| D31 | both | P2 | `hooks/useMcpConnectJourney.ts:220`, `McpConnectJourney.tsx:104`, `router.py:541-554` | Fix the duplicate; narrow the write | | mechanism, code |
+| D31 | both | P2 | `hooks/useMcpConnectJourney.ts:220`, `McpConnectJourney.tsx:104`, `router.py:541-554` | **Part fixed.** API half done; the duplicate call is the web half | `cb3a277fdc` | **yes** for the API half, code and tests |
 | D32 | both | P2 | `web/packages/agenta-entities/src/mcpEndpoint/api/api.ts:142-181` | Fix | | mechanism, spec and two in-repo clients |
 | D33 | Codex | P2 | `api/oss/src/dbs/postgres/gateways/mcps/dao.py:265`, `oauth/storage.py:229` | Fix. Re-opens D21 | `dd8f6066e3` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D34 | Codex | P2 | `hooks/useMcpConnectJourney.ts:156-169`, `McpConnectJourney.tsx:96` | Fix with D23 | | mechanism, code |
 | D35 | both | P2 | `web/packages/agenta-shared/src/api/env.ts:146`, `api/oss/src/utils/env.py:112` | Fix | | mechanism, both parsers |
 | D36 | Codex | P2 | `web/packages/agenta-entity-ui/src/secretProvider/ProviderConnectionCard.tsx:156`, `:358`, `secret/core/providerFields.ts:176` | Fix | | mechanism, code |
 | D37 | Codex | P2 | `sdks/python/agenta/sdk/agents/adapters/claude_settings.py:137` | Fix | `341a9c16c6` | **yes**, code, tests, suite run, incl. pre-fix run |
-| D38 | Codex | P2 | `api/oss/src/core/gateways/mcps/probe.py:161` | Fix | | mechanism, code |
+| D38 | Codex | P2 | `api/oss/src/core/gateways/mcps/probe.py:161` | Fix | `fd278ec1ca` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D39 | reviewer 2 | P2 | `mcp-connect.ts:166`, `:270`, `mcpConnectJourney.test.ts:82`, `mcpEndpointConnectStatus.render.test.tsx:189` | Fix the assertions | | mechanism, all four |
 | D40 | reviewer 2 | P2 | `hooks/useMcpConnectJourney.ts:67`, `mcpEndpointApi.test.ts:189` | Fix the gap | | mechanism, configs and suites |
 | D41 | Codex | P3 | `core/connectionName.ts:36`, `core/agentReference.ts:47`, `api/oss/src/core/gateways/mcps/service.py:207` | Fix the truncation; accept the rest | | mechanism, both implementations |
@@ -103,6 +103,8 @@ whether that fix was read against the finding and its test.
 | D43 | reviewer 2 | P3 | `McpConnectionDetail.tsx:95-106` | Fix with D31 | | mechanism, code |
 | D44 | reviewer 2 | P3 | `core/connectionState.ts:10` | Fix | | mechanism, code |
 | D45 | reviewer 2 | P3 | `core/connectionName.ts:69` | Fix | | mechanism, code |
+| D46 | D38 residual | P3 | `api/oss/src/core/gateways/mcps/oauth/client.py:273` | Fix with D38's bound | | mechanism, code |
+| D47 | verification | P3 | `api/oss/src/core/gateways/egress.py:113`, [qa.md](../qa.md) | Fix the collision or document it | | mechanism, reproduced |
 | Q1 | both | P2 | `McpConnectJourney.tsx:98-106`, `hooks/useMcpConnectJourney.ts:189` | Quality, altitude. The root of D22, D23, D29, D30, D31 and D34 | | mechanism, code |
 | Q2 | both | P2 | `McpConnectionDetail.tsx:66-83`, `McpToolPermissions.tsx:77-93` | Quality, reuse and efficiency | | mechanism, code |
 | Q3 | reviewer 2 | P3 | `McpConnectionDetail.tsx:74`, `McpToolPermissions.tsx:85` | Quality, reuse | | mechanism, code |
@@ -128,6 +130,8 @@ revision before the fix, so the predicted failure is watched rather than assumed
 | D24 | `98e1ddb6e4` | 16 passed | 3 failed, 13 passed |
 | D33 | `dd8f6066e3` | 23 passed | 3 failed, 20 passed |
 | D37 | `341a9c16c6` | 122 passed | 28 failed, 94 passed |
+| D31, API half | `cb3a277fdc` | 165 passed | 2 failed, 163 passed |
+| D38 | `fd278ec1ca` | 17 passed | 2 failed, 15 passed |
 
 The pre-fix failures are the predicted ones in every case. D24's headline case comes back with the
 grant's `client_registration_slug` set to nothing after the first renewal, where the pinned slug
@@ -343,6 +347,22 @@ clobber needs a discovery in flight while a callback writes, which the ordinary 
 not produce. The duplicate call is the new evidence. Fix: give discovery one caller, and have the
 route patch only the OAuth metadata it owns.
 
+**The API half is fixed** by `cb3a277fdc`, verified. Discovery now writes the one key it owns,
+merged into the row as it stands inside the transaction that holds the row lock, so nothing it
+writes can carry a stale credential handle or a stale flag. The fix goes a level deeper than the
+suggestion: the helper that built these full replacements is deleted, and with no callers left no
+route can express a credential lifecycle change as a row replacement at all. That closes the class
+rather than the instance. **The duplicate call is still open**, in the web layer, where the finding
+also placed it.
+
+**A coverage gap worth closing with it.** The new write has no test against a real database. Both
+new cases install a fake store that merges by construction (`test_gateways_mcp_service.py`,
+`test_mcp_oauth_connect.py`), so neither could fail if the real implementation replaced the row
+instead of merging into it. What they prove is that the route calls the new path rather than the
+old one, which is worth proving and is not the finding. The missing case belongs in
+`test_gateways_mcp_endpoints_dao.py`: write a credential handle after reading the endpoint, call the
+discovery write, and assert the handle survived.
+
 **D32. The tool-list client speaks an incomplete MCP handshake and reports protocol failures as an
 empty catalogue.** `listMcpTools` (`api/api.ts:142-181`) sends `initialize` then `tools/list` with
 no `notifications/initialized` between them, omits the `Accept: application/json,
@@ -424,8 +444,15 @@ under D17 in the MCP servers reference page.
 (`probe.py:161`) buffers the whole response before anything inspects it, and the read timeout is an
 inactivity timeout rather than a total elapsed deadline, so a slow trickle keeps a worker occupied.
 The caller must hold `EDIT_MCP_ENDPOINTS`, so this is an authorized capability rather than an open
-one, and it is the only gap found in an otherwise well-built boundary. Fix: stream with a byte cap
-and a total-elapsed timeout. A local bound on the probe, not the deferred streaming redesign.
+one, and it is the only gap found in an otherwise well-built boundary.
+
+**Fixed** by `fd278ec1ca`, verified. The handshake is streamed and stopped at a megabyte, and the
+exchange sits under a total elapsed deadline of twice the inactivity timeout. Both limits are
+reported through the probe's own result rather than as an exception, which keeps the promise that
+this function never raises for a server that behaves badly: too much data reads as not an MCP
+server, too slow reads as unreachable. The bytes that were read are handed on as an ordinary
+response, so everything downstream parses the handshake unchanged. **D46** records the half the
+bound does not reach.
 
 **D39. Four assertions are proved by text the frontend renders regardless of the backend.**
 `mcp-connect.ts:166` asserts the duplicate-name message, which `connectionNameProblem` renders
@@ -478,6 +505,28 @@ operation owns.
 **D45. The name suggestion can return a name the API will refuse.** After a hundred collisions
 `core/connectionName.ts:69` returns the bare `base`, the one name it has already established is
 taken, contradicting the file's own stated contract. Return null and let the caller ask.
+
+**D46. The bound stops at the handshake, and the branch every OAuth server takes is past it.**
+D38's deadline and cap cover the `initialize` exchange. A server that answers 401 sends the probe
+into `_challenged`, which calls the OAuth client's discovery, and that client is built with an
+inactivity timeout and nothing else (`api/oss/src/core/gateways/mcps/oauth/client.py:273`): no total
+deadline and no size cap on the metadata documents it fetches. The address those documents come from
+is named by the server being probed, so it is tenant-influenced in the same way the handshake
+address is. Same class as D38, same authorized caller, and the branch is the common one rather than
+the exotic one, which is why it is worth closing with the same change rather than separately.
+
+**D47. The documented host-side preconditions make two unit tests fail.** Exporting the integration
+preconditions from [qa.md](../qa.md) in a shell and then running the gateways unit suite turns two
+tests red: the loopback refusals in `test_gateways_egress.py` and
+`test_gateways_http_mcp_adapter.py`. The cause is not a defect in either: `exempt_hosts()`
+(`api/oss/src/core/gateways/egress.py:113`) adds the mock upstreams' hosts while the mocks flag is
+on, and on a host-side run those URLs name `127.0.0.1`, so loopback becomes an exempt host and the
+guard correctly stops refusing it. Reproduced with the two mock URL variables and the mocks flag
+alone: **2 failed, 74 passed**, against **1042 passed** for the whole unit directory in a clean
+shell. The cost is a person following the QA document, seeing two failures that have nothing to do
+with their change, and either chasing them or learning to ignore a red suite. Either scope the
+exemption to the addresses the integration layer actually dials, or say in the QA document that
+these variables belong to an integration shell and not a unit one.
 
 ## Quality findings
 
