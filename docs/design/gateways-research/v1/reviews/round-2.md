@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **1** | **12** | **7** | **5 closed, 2 fixed pending a run, 2 part fixed, 20 open** |
+| **As this file is written** | **0** | **1** | **9** | **7** | **9 closed, 2 fixed pending a run, 2 part fixed, 17 open** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -89,11 +89,11 @@ whether that fix was read against the finding and its test.
 | D29 | reviewer 2 | P2 | `core/connectJourney.ts:181`, `hooks/useMcpConnectJourney.ts:331`, `McpConnectJourney.tsx:117` | Fix | | mechanism, code |
 | D30 | reviewer 2 | P2 | `core/connectJourney.ts:185` | Fix | | mechanism, code |
 | D31 | both | P2 | `hooks/useMcpConnectJourney.ts:220`, `McpConnectJourney.tsx:104`, `router.py:541-554` | **Part fixed.** API half done; the duplicate call is the web half | `cb3a277fdc` | **yes** for the API half, code and tests |
-| D32 | both | P2 | `web/packages/agenta-entities/src/mcpEndpoint/api/api.ts:142-181` | Fix | | mechanism, spec and two in-repo clients |
+| D32 | both | P2 | `web/packages/agenta-entities/src/mcpEndpoint/api/api.ts:142-181` | Fix | `8079441042` | **yes**, code and tests, suites run |
 | D33 | Codex | P2 | `api/oss/src/dbs/postgres/gateways/mcps/dao.py:265`, `oauth/storage.py:229` | Fix. Re-opens D21 | `dd8f6066e3` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D34 | Codex | P2 | `hooks/useMcpConnectJourney.ts:156-169`, `McpConnectJourney.tsx:96` | Fix with D23 | | mechanism, code |
-| D35 | both | P2 | `web/packages/agenta-shared/src/api/env.ts:146`, `api/oss/src/utils/env.py:112` | Fix | | mechanism, both parsers |
-| D36 | Codex | P2 | `web/packages/agenta-entity-ui/src/secretProvider/ProviderConnectionCard.tsx:156`, `:358`, `secret/core/providerFields.ts:176` | Fix | | mechanism, code |
+| D35 | both | P2 | `web/packages/agenta-shared/src/api/env.ts:146`, `api/oss/src/utils/env.py:112` | Fix | `acdf1de2e4` | **yes**, code, tests, suites run, incl. an old-versus-new run of the shell block |
+| D36 | Codex | P2 | `web/packages/agenta-entity-ui/src/secretProvider/ProviderConnectionCard.tsx:156`, `:358`, `secret/core/providerFields.ts:176` | Fix | `7ee965e435` | **yes**, code and tests, suites run |
 | D37 | Codex | P2 | `sdks/python/agenta/sdk/agents/adapters/claude_settings.py:137` | Fix | `341a9c16c6` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D38 | Codex | P2 | `api/oss/src/core/gateways/mcps/probe.py:161` | Fix | `fd278ec1ca` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D39 | reviewer 2 | P2 | `mcp-connect.ts:166`, `:270`, `mcpConnectJourney.test.ts:82`, `mcpEndpointConnectStatus.render.test.tsx:189` | Fix the assertions | | mechanism, all four |
@@ -108,7 +108,7 @@ whether that fix was read against the finding and its test.
 | D48 | verification | P2 | `mcpConnectJourney.tools.test.tsx:79`, `mcpConnectJourney.reconnect.test.tsx:66` | Fix: cover the wiring, not only the hook | | mechanism, imports checked, suites run |
 | Q1 | both | P2 | `McpConnectJourney.tsx:98-106`, `hooks/useMcpConnectJourney.ts:189` | Quality, altitude. The root of D22, D23, D29, D30, D31 and D34 | | mechanism, code |
 | Q2 | both | P2 | `McpConnectionDetail.tsx:66-83`, `McpToolPermissions.tsx:77-93` | Quality, reuse and efficiency | | mechanism, code |
-| Q3 | reviewer 2 | P3 | `McpConnectionDetail.tsx:74`, `McpToolPermissions.tsx:85` | Quality, reuse | | mechanism, code |
+| Q3 | reviewer 2 | P3 | `McpConnectionDetail.tsx:74`, `McpToolPermissions.tsx:85` | Quality, reuse. **Closed by D32's fix** | `8079441042` | **yes**, code |
 | Q4 | Codex | P3 | `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx:212` | Quality, simplification | | **not verified** |
 
 **One finding still blocks the release: D25.** D22, D24, D33 and D37 are fixed and verified, and
@@ -134,6 +134,7 @@ revision before the fix, so the predicted failure is watched rather than assumed
 | D31, API half | `cb3a277fdc` | 165 passed | 2 failed, 163 passed |
 | D38 | `fd278ec1ca` | 17 passed | 2 failed, 15 passed |
 | D22, D23 hook tests | `277fc7d4fe`, `5b11eada26` | 13 passed | not applicable, see D48 |
+| D32, D35, D36 | `8079441042`, `acdf1de2e4`, `7ee965e435` | 797 + 547 + 1846 passed | asserted behaviour the old code cannot produce; the shell half run both ways |
 
 The pre-fix failures are the predicted ones in every case. D24's headline case comes back with the
 grant's `client_registration_slug` set to nothing after the first renewal, where the pinned slug
@@ -421,7 +422,15 @@ declaration. A declared protocol then gates harness eligibility through `effecti
 (`secret/core/agentModelCandidates.ts:127-142`), and `secret/core/connections.ts:625-630` states the
 hazard in its own words: an Anthropic gateway narrowed this way loses every Claude Code row in the
 picker. This is frontend code and runs whether or not the LLM gateway is enabled, so "the LLM plane
-ships disabled" does not cover it. Fix: keep "undeclared" until someone picks a protocol.
+ships disabled" does not cover it.
+
+**Fixed** by `7ee965e435`, verified. The card holds "declares none" as a state of its own, seeded in
+the initializer and in the reseed effect alike, so the first render of an existing undeclared record
+is already undeclared rather than becoming so later. A connection being created still declares the
+default, which is right: the person is describing an endpoint as they make it. The save omits the
+key entirely while the state is null, and the control goes on showing the default so the keyboard
+and the pointer behave, on the stated principle that showing an option is not the same act as saving
+it.
 
 **D37. Claude's generated native rules cannot express a per-tool exception to a server denial.** The
 adapter emits both a whole-server rule and per-tool rules (`claude_settings.py:137`). Claude's

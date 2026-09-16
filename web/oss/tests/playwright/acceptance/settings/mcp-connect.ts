@@ -38,8 +38,22 @@ import {buildAcceptanceTags} from "../utils/tags"
 
 const scenarios = createScenarios(test)
 
-/** The unauthenticated mock MCP server, as the API dials it. */
-const mockBaseUrl = (process.env.AGENTA_MOCK_MCP_GATEWAY_URL || "").replace(/\/$/, "")
+/**
+ * The unauthenticated mock MCP server, as the API dials it.
+ *
+ * Defaulted rather than gated. This suite used to skip whenever the variable was unset, and it
+ * was set nowhere in the repository, so the only end-to-end coverage this feature has never ran
+ * and every run reported green (D25). It runs by default now and says what is missing when it
+ * cannot run, because a skipped suite that reads as a passing one is worse than a red one.
+ */
+const mockBaseUrl = (
+    process.env.AGENTA_MOCK_MCP_GATEWAY_URL || "http://mock-mcp-gateway:9092"
+).replace(/\/$/, "")
+
+/** The same container as this process sees it, which is where the reachability check goes. */
+const publishedMockUrl = (
+    process.env.AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL || "http://127.0.0.1:9092"
+).replace(/\/$/, "")
 /** Its OAuth-protected surface. `/` stays open so the no-auth case has something to use. */
 const oauthPath = process.env.AGENTA_MCP_OAUTH_ACCEPTANCE_PATH || "/oauth/mcp"
 
@@ -113,8 +127,32 @@ const startJourney = async (page: Page, url: string, name: string) => {
 export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
     const tags = createTags(license)
 
+    // One reachability check for the whole suite, so a stack without the mock upstream fails
+    // in one place with a sentence naming what to start, rather than seven times with a
+    // sixty-second timeout apiece.
+    test.beforeAll(async () => {
+        let reachable = false
+        try {
+            const response = await fetch(publishedMockUrl, {
+                method: "POST",
+                headers: {"content-type": "application/json"},
+                body: JSON.stringify({jsonrpc: "2.0", id: 1, method: "ping", params: {}}),
+                signal: AbortSignal.timeout(5000),
+            })
+            reachable = response.status < 500
+        } catch {
+            reachable = false
+        }
+        if (!reachable) {
+            throw new Error(
+                `The MCP mock upstream did not answer at ${publishedMockUrl}. This suite needs a ` +
+                    "stack running the gateway mocks: bring one up with AGENTA_GATEWAYS_MOCKS_ENABLED=true, " +
+                    "and set AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL if it is published somewhere else.",
+            )
+        }
+    })
+
     test.beforeEach(async ({page}) => {
-        test.skip(!mockBaseUrl, "requires AGENTA_MOCK_MCP_GATEWAY_URL for the mock upstream")
         await expectAuthenticatedSession(page)
     })
 
@@ -304,10 +342,15 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
     })
 
     test("authorizes a server that uses OAuth", {tag: tags}, async ({page, apiHelpers}) => {
-        test.skip(
-            !process.env.PLAYWRIGHT_HOST_RESOLVER_RULES,
-            "the issuer publishes a container address the browser must resolve too; set PLAYWRIGHT_HOST_RESOLVER_RULES",
-        )
+        // Not a skip: the consent page is the half of this flow only a browser can prove, and
+        // a run that quietly drops it is the failure mode D25 is about.
+        if (!process.env.PLAYWRIGHT_HOST_RESOLVER_RULES) {
+            throw new Error(
+                "The authorization server publishes itself under the address the API dials, so " +
+                    "the browser has to resolve that name too. Re-run with " +
+                    `PLAYWRIGHT_HOST_RESOLVER_RULES="MAP ${new URL(mockBaseUrl).hostname} 127.0.0.1".`,
+            )
+        }
         const name = uniqueName("OAuth MCP")
         const basePath = apiHelpers.getProjectScopedBasePath()
 
