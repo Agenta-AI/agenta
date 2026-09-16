@@ -33,8 +33,9 @@ const ACTIONS_COLUMN: ListTableColumn = {
     key: "actions",
     label: "Actions",
     srOnly: true,
-    // Wide enough for an Update button beside the kebab once a check finds one.
-    width: "minmax(24px,auto)",
+    // Two icon buttons and their gap: the kebab, and the Update mark a check can put beside it.
+    // Fixed, so a row with something to update keeps its cells on the others' tracks.
+    width: "52px",
 }
 
 const WIDE_COLUMNS: ListTableColumn[] = [
@@ -47,8 +48,8 @@ const NARROW_COLUMNS: ListTableColumn[] = [NAME_COLUMN, updatedColumn("84px"), A
 
 /** Tailwind's `sm`. Below it Source goes; the minima then fit a 375px screen. */
 const WIDE_QUERY = "(min-width: 640px)"
-const WIDE_MIN_WIDTH = 400
-const NARROW_MIN_WIDTH = 300
+const WIDE_MIN_WIDTH = 420
+const NARROW_MIN_WIDTH = 320
 
 /** A group's rows all share one repository, so the first says whether it can be checked. */
 const repositoryIds = (group: SkillListGroup): string[] =>
