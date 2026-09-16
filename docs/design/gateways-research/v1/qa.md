@@ -247,6 +247,70 @@ cells further down route their model through a custom gateway endpoint and need 
 this stack was switched after the run above. A deployment cannot produce both sets of evidence at
 once, and the off-mode run has to come first.
 
+## Rollback and disable
+
+Rehearsed on the development stack with a project's real data in place throughout: three consented
+OAuth connections, their stored grants, and the endpoints that reference them. Nothing was lost and
+nothing was reconnected.
+
+### Disabling the plane
+
+Set `AGENTA_MCP_GATEWAY_ENABLED=false` and recreate the api and web containers.
+
+| Check | Result |
+| --- | --- |
+| MCP data plane, a relay call | 403, JSON-RPC error `-32000`, `data.cause` = `mcp_gateway_disabled` |
+| MCP control plane, listing endpoints | 403 |
+| LLM control plane, listing endpoints | 200 |
+| Vault secrets, the legacy model path | 200 |
+
+So the switch refuses the plane it names and leaves the rest alone, and it refuses with a typed
+envelope a client can branch on rather than a bare error. The refusal message names the deployment
+rather than the request, which is the right shape: nothing the caller sends can make it succeed.
+
+**One thing this rehearsal could not verify.** The settings tab stayed visible with the plane off.
+That is not the product's answer, though: the web entrypoint does publish the flag to the browser,
+and the running image simply predates that work, so its entrypoint does not contain the key at all
+and no recreate can introduce it. A rebuild is needed to test the UI half, and on a stack whose
+local override pins the web image there is nothing for `--rebuild` to build. Verify the tab on a
+deployment whose web image was built from the candidate.
+
+### Re-enabling
+
+Set the flag back and recreate the same two containers. Everything came back exactly as it was:
+five endpoints, the same three OAuth connections still carrying their stored grant, and `tools/list`
+through the gateway returning the same tool counts as before the disable, 79 from one server and 28
+from the other. No reconnect, no consent, no data touched.
+
+The disable is therefore a switch rather than a teardown, which is what a release needs from it.
+
+### The migration's downgrade
+
+`oss000000032` moves stored MCP OAuth grants onto a connection-derived key. **Its `downgrade()` is
+deliberately a no-op**, and the revision says so in its own docstring rather than leaving a reader
+to discover it. The reasoning holds: the renames need no undo, because the previous revision's code
+never addressed a grant by its slug, it listed the project's secrets and matched on the payload's
+`server` field, so it finds these rows under the new slugs exactly as it did under the old. The
+deletions cannot be undone, and the revision says that plainly instead of pretending otherwise:
+those rows held one account's tokens while several connections claimed them, so there was nothing
+to preserve for the others, and after a downgrade those connections read as needing authorization.
+
+Rehearsed against a scratch database restored from the deployment's own, never against the live one:
+
+| Stage | Head | Grants | Providers | Grant slug set |
+| --- | --- | --- | --- | --- |
+| Start | `oss000000032` | 19 | 20 | `c86bdadd…` |
+| After `downgrade -1` | `oss000000031` | 19 | 20 | `c86bdadd…` |
+| After `upgrade head` | `oss000000032` | 19 | 20 | `c86bdadd…` |
+
+Both directions ran clean, and the slug set is byte-identical across the round trip, so on data that
+is already rekeyed the revision is idempotent and the round trip loses nothing. That is the case a
+rollback would actually meet. It does not exercise the destructive branch, which needs a grant
+claimed by several connections, and no such row exists on this deployment; that branch is covered by
+the revision's own tests.
+
+The scratch database was dropped afterwards and the deployment was never migrated.
+
 ## Dashboard procedure
 
 Use the dashboard's managed-agent creation and run flow. For each harness available in the
