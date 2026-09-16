@@ -140,6 +140,29 @@ describe("the harness code marker", () => {
         expect(gatewayRefusalCode(new Error("network"))).toBeNull()
     })
 
+    it("reads the data plane's cause from the envelope, not out of the sentence", () => {
+        // D50's third source, and the one the marker cannot stand in for. The relay refuses a
+        // call in JSON-RPC: no `detail` at all, the cause stated structurally, and the message
+        // written for a person with no marker in it. Every other case here carries the marker
+        // too, so the last-resort scan answers them and this branch could be deleted unseen.
+        const relayRefusal = {
+            response: {
+                data: {
+                    jsonrpc: "2.0",
+                    id: null,
+                    error: {
+                        code: -32000,
+                        message: "This connection needs authorization.",
+                        data: {cause: "auth_required", requirement: {state: "needs_auth"}},
+                    },
+                },
+            },
+        }
+
+        expect(gatewayRefusalCode(relayRefusal)).toBe("auth_required")
+        expect(gatewayRefusalMessage(relayRefusal)).toBe("This connection needs authorization.")
+    })
+
     it("reads a hostile message in a moment, not in an afternoon", () => {
         // The body is written by whatever server the person pointed us at, so it is input from
         // outside. The pattern this parser used to hold began with `\s*` and then looked for a
