@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **4** | **14** | **5** | **1 closed, 27 open** |
+| **As this file is written** | **0** | **2** | **12** | **5** | **4 closed, 1 fixed pending a run, 23 open** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -81,7 +81,7 @@ whether that fix was read against the finding and its test.
 | --- | --- | --- | --- | --- | --- | --- |
 | D22 | both | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectJourney.ts:311`, `web/packages/agenta-entity-ui/src/mcpEndpoint/McpConnectJourney.tsx:263` | Fix, blocking | `cd9e6f2c16` | **yes**, code and spec; suite run still owed |
 | D23 | both | P1 | `web/packages/agenta-settings-ui/src/mcp/McpServersSection.tsx:247`, `hooks/useMcpConnectJourney.ts:75` | Fix, blocking | | mechanism, code |
-| D24 | Codex | P1 | `api/oss/src/core/gateways/mcps/oauth/storage.py:366`, `:222`, `oauth/service.py:456`, `:483` | Fix, blocking. Re-opens D6 | | mechanism, all four sites |
+| D24 | Codex | P1 | `api/oss/src/core/gateways/mcps/oauth/storage.py:366`, `:222`, `oauth/service.py:456`, `:483` | Fix, blocking. Re-opens D6 | `98e1ddb6e4` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D25 | reviewer 2 | P1 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:106`, `:297` | Fix or record, blocking the gate | | mechanism, repo-wide grep |
 | D26 | reviewer 2 | P1 | `mcp-connect.ts:190`, `:219`, `:236` | Fix with D22 | `cd9e6f2c16` | **partly**, code read; suite run still owed |
 | D27 | both | P2 | `hooks/useMcpConnectJourney.ts:160`, `api/oss/src/apis/fastapi/gateways/mcps/router.py:889` | Fix | | mechanism, both sites |
@@ -90,11 +90,11 @@ whether that fix was read against the finding and its test.
 | D30 | reviewer 2 | P2 | `core/connectJourney.ts:185` | Fix | | mechanism, code |
 | D31 | both | P2 | `hooks/useMcpConnectJourney.ts:220`, `McpConnectJourney.tsx:104`, `router.py:541-554` | Fix the duplicate; narrow the write | | mechanism, code |
 | D32 | both | P2 | `web/packages/agenta-entities/src/mcpEndpoint/api/api.ts:142-181` | Fix | | mechanism, spec and two in-repo clients |
-| D33 | Codex | P2 | `api/oss/src/dbs/postgres/gateways/mcps/dao.py:265`, `oauth/storage.py:229` | Fix. Re-opens D21 | | mechanism, code |
+| D33 | Codex | P2 | `api/oss/src/dbs/postgres/gateways/mcps/dao.py:265`, `oauth/storage.py:229` | Fix. Re-opens D21 | `dd8f6066e3` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D34 | Codex | P2 | `hooks/useMcpConnectJourney.ts:156-169`, `McpConnectJourney.tsx:96` | Fix with D23 | | mechanism, code |
 | D35 | both | P2 | `web/packages/agenta-shared/src/api/env.ts:146`, `api/oss/src/utils/env.py:112` | Fix | | mechanism, both parsers |
 | D36 | Codex | P2 | `web/packages/agenta-entity-ui/src/secretProvider/ProviderConnectionCard.tsx:156`, `:358`, `secret/core/providerFields.ts:176` | Fix | | mechanism, code |
-| D37 | Codex | P2 | `sdks/python/agenta/sdk/agents/adapters/claude_settings.py:137` | Fix or document | | mechanism only; not run against live Claude |
+| D37 | Codex | P2 | `sdks/python/agenta/sdk/agents/adapters/claude_settings.py:137` | Fix | `341a9c16c6` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D38 | Codex | P2 | `api/oss/src/core/gateways/mcps/probe.py:161` | Fix | | mechanism, code |
 | D39 | reviewer 2 | P2 | `mcp-connect.ts:166`, `:270`, `mcpConnectJourney.test.ts:82`, `mcpEndpointConnectStatus.render.test.tsx:189` | Fix the assertions | | mechanism, all four |
 | D40 | reviewer 2 | P2 | `hooks/useMcpConnectJourney.ts:67`, `mcpEndpointApi.test.ts:189` | Fix the gap | | mechanism, configs and suites |
@@ -108,10 +108,55 @@ whether that fix was read against the finding and its test.
 | Q3 | reviewer 2 | P3 | `McpConnectionDetail.tsx:74`, `McpToolPermissions.tsx:85` | Quality, reuse | | mechanism, code |
 | Q4 | Codex | P3 | `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx:212` | Quality, simplification | | **not verified** |
 
-**Four findings still block the release: D23, D24, D25 and D26.** D22 is fixed and verified. D23
-makes the journey unrepeatable and reconnect impossible. D24 undoes a round-1 fix on the first token
-refresh. D25 and D26 are the reason none of this was caught before the review: the only end-to-end
-suite has never run in CI, and its gating variables are set nowhere in the repository.
+**Two findings still block the release: D23 and D25.** D22, D24, D33 and D37 are fixed and
+verified, and D26 is fixed pending a recorded run. D23 makes the journey unrepeatable and reconnect
+impossible. D25 is the reason none of this was caught before the review: the only end-to-end suite
+has never run in CI, and its gating variables are set nowhere in the repository.
+
+## Verifying the fixes
+
+A fix is marked verified only when its code was read against the finding, its test was read to
+confirm it would fail without the fix, and the suite was actually run — and, where the finding is
+about behaviour an existing suite already touched, run a second time with the suite pinned to the
+revision before the fix, so the predicted failure is watched rather than assumed.
+
+| Finding | Fix | At the fix | Pinned before it |
+| --- | --- | --- | --- |
+| D22, D26 | `cd9e6f2c16` | code and spec read | acceptance run still owed (D25) |
+| D24 | `98e1ddb6e4` | 16 passed | 3 failed, 13 passed |
+| D33 | `dd8f6066e3` | 23 passed | 3 failed, 20 passed |
+| D37 | `341a9c16c6` | 122 passed | 28 failed, 94 passed |
+
+The pre-fix failures are the predicted ones in every case. D24's headline case comes back with the
+grant's `client_registration_slug` set to nothing after the first renewal, where the pinned slug
+belonged. D33's three are the reconnect-in-flight case, the renewal-in-flight case, and the
+non-regression case that a credential the connection still holds is still invalidated. D37's are the
+three inexpressible server-and-tool combinations in the four-by-four matrix, the untranslated
+new-tool default across the four-by-four-by-four, the five inexpressible cases, and the one
+pre-existing assertion the fix deliberately changes.
+
+The whole `oss/tests/pytest/integration/gateways` directory was run at the three committed API
+fixes, from a clean tree at that revision rather than from a working copy carrying other work in
+progress: **93 passed**, serially.
+
+**Two notes on how these runs have to be done, because both cost time here.**
+
+A pre-fix run cannot be arranged by putting an older copy of one module earlier on the import path.
+Both `api/pytest.ini` and `sdks/python/pytest.ini` set `pythonpath = .` relative to the rootdir they
+discover, which puts the repository's own tree ahead of anything else and silently runs the suite
+against the code under review. The first D37 pre-fix attempt reported a clean pass for exactly that
+reason, and a clean pass is the one result that looks like evidence and is not. What works is
+materialising the whole area at the revision under test — `git archive <rev> | tar -x` into a
+scratch directory — copying the new test file over it, and running from there with the repository's
+virtual environment supplied through `uv run --project`.
+
+The gateway integration suites do run from the host, with the preconditions now written down in
+[qa.md](../qa.md). Without them the symptom is not a skip: the suite resolved to a different
+deployment's database on the default Postgres port and failed all 23 cases on a missing gateway
+table. That sharpens **D19**, which recorded that these suites cannot be run correctly from the
+host. The addressing is now documented and workable; what remains of D19 is that the defaults still
+send a careless host-side run into another stack, where it fails for a reason that has nothing to do
+with the code under test.
 
 ## D22, fixed and verified
 
@@ -190,9 +235,13 @@ dies until someone reconnects it.
 registration. The renewal does not, and the fix's test does not run two consecutive refreshes. That
 is new evidence about an unexercised path, which is the bar this round was given.
 
-**Suggested fix.** Assign the slug in `get_client_info_for_grant` on both branches, and add an
-integration case that refreshes twice against two registrations at one issuer and asserts the pin
-still names the first.
+**Fixed** by `98e1ddb6e4`, verified. Both branches now record what they resolved. The pinned branch
+records the grant's own reference even when the row behind it has been deleted, because a slug
+naming a registration that is gone still says which client these tokens belong to, and dropping it
+would downgrade the next renewal to whatever the issuer holds now. The by-issuer branch records the
+slug the row was found under, so a grant written before the reference existed gains one and the
+renewal after it is pinned. Three new cases: two consecutive renewals end to end, the seam itself on
+both branches, and the deleted-registration decision.
 
 ### D25. The browser acceptance suite skips on every run, and a skip reports as a pass — P1
 
@@ -297,8 +346,13 @@ connection-keyed slug and calls `_update` (`oauth/storage.py:229`) — so `secre
 token A and token B, and a late 401 carrying token A's handle passes the check and marks the freshly
 repaired connection invalid. D21's test substitutes a different secret row, which is the
 disconnect-then-connect path; the Reconnect button does not go that way. One unnecessary "Needs
-authorization" after a successful repair, self-correcting, hence P2. Fix: compare a credential
-generation rather than the container's id.
+authorization" after a successful repair, self-correcting, hence P2.
+
+**Fixed** by `dd8f6066e3`, verified. The relay now passes the access token it actually sent, and the
+connection is marked invalid only while it still holds that token, read back through the same
+resolver the relay obtained it from. The row-id precondition stays in the write, where it is
+transactional and covers the disconnect. A caller that cannot say which token it presented
+invalidates exactly as before, so the condition narrows without the behaviour widening.
 
 **D34. Consent startup that finishes after cancel or unmount installs a watch nothing owns.**
 `driveConsent` awaits `beginMcpConnect` and only then installs the watch
@@ -336,9 +390,16 @@ is not translated at all. The cost is over-restriction and spurious prompts rath
 the runner's own gate is still authoritative at execution and fails closed. The divergence is
 between what the editor says an agent may do and what the harness does. The mechanism is read from
 the adapter; the precedence claim comes from Claude's documented rule ordering and was not
-reproduced against the pinned runtime, so treat the cost as predicted rather than observed. Fix:
-emit the resolved per-tool decision only, and translate `new_tool_permission` into the server-level
-rule.
+reproduced against the pinned runtime, so treat the cost as predicted rather than observed.
+
+**Fixed** by `341a9c16c6`, verified. The rules are now built from resolved decisions: with no
+per-tool table the output is unchanged, so every configuration written before per-tool policy
+existed emits exactly what it did; with one, the server rule carries the resolved default and a
+named tool gets its own rule only where it is stricter. The one shape the rule language cannot
+express — a named tool looser than that default — drops the server rule rather than lose the tool,
+and the unnamed tools that leaves uncovered fall to the runner's gate, which is authoritative and
+fails closed. `new_tool_permission` is translated now, which it was not. Documented for readers
+under D17 in the MCP servers reference page.
 
 **D38. The probe has neither a response-size bound nor a total deadline.** `client.post`
 (`probe.py:161`) buffers the whole response before anything inspects it, and the read timeout is an
