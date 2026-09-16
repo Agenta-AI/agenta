@@ -24,19 +24,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
-import {
-    buildMcpConnectionRef,
-    findCustomMcpEndpoint,
-    getMcpConnectionState,
-    hostnameLabel,
-    mcpEndpointsQueryAtom,
-    readMcpConnectionSlug,
-    readMcpPolicy,
-    refreshMcpEndpointsAtom,
-    type McpServerPolicy,
-    toolPrefixFromName,
-    type MCPEndpoint,
-} from "@agenta/entities/mcpEndpoint"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     agentCreationPrefsAtom,
@@ -47,11 +34,7 @@ import {
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
-import {
-    StatusIndicator,
-    useRecentFlag,
-    type SectionIndicatorTone,
-} from "@agenta/ui/components/presentational"
+import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
@@ -67,15 +50,9 @@ import {
     UploadSimple,
 } from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
-import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
+import {useAtom, useAtomValue, useStore} from "jotai"
 
 import {ChangedPathsProvider} from "../../drawers/shared"
-import {
-    McpAddServerDrawer,
-    McpConnectJourney,
-    McpPermissionDrawer,
-    type McpConnectionOption,
-} from "../../mcpEndpoint"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
@@ -98,7 +75,7 @@ import {
 } from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
-import {mcpItemNeedsRepair, mcpLoginExpired} from "./agentTemplate/mcpRail"
+import {McpServersSectionBody} from "./agentTemplate/McpServersSectionBody"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
@@ -221,16 +198,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // row's own click target, and React events propagate through the React tree, so a dialog
     // mounted there reopens the edit drawer on every click inside it — including the one that
     // opens the consent popup, which then surfaces behind it.
-    const [connectingMcpEndpoint, setConnectingMcpEndpoint] = useState<MCPEndpoint | null>(null)
-    // Connecting a server that does not exist yet, which is a different journey from
-    // repairing one that does: it names and creates the connection rather than reauthorizing.
-    const [connectingNewMcp, setConnectingNewMcp] = useState(false)
-    // The Add MCP server drawer, B1 and B2.
+    // The Add MCP server drawer, B1 and B2. Only the open flag lives here, because the
+    // section header's add button renders outside the section body that owns the drawer.
     const [addMcpOpen, setAddMcpOpen] = useState(false)
-    // Which saved MCP item has its permission drawer open, by its index in `config.mcps` —
-    // the same key every other control in this section addresses an item by.
-    const [mcpPermissionIndex, setMcpPermissionIndex] = useState<number | null>(null)
-    const refreshMcpEndpoints = useSetAtom(refreshMcpEndpointsAtom)
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
     // Nothing is registered at save any more. An MCP item names a connection that already
     // exists, created by the connect journey, so committing one writes the reference and
@@ -564,106 +534,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     )
     // The plus opens the registry drawer, not a blank form. Creating a server here used to
     // mean filling in a form whose first field was a select over connections the author
-    // could not see until they opened it.
+    // could not see until they opened it. The registry itself is read by the section body,
+    // so a host with no MCP section fetches nothing.
     const handleAddMcpServer = useCallback(() => setAddMcpOpen(true), [])
-
-    // ── The project's MCP connection registry ─────────────────────────────────
-    // `custom` only, which is the namespace an agent's connection reference names. A
-    // builtin or provider row is not something an agent adds by slug.
-    const mcpEndpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
-    const mcpEndpoints = useMemo(
-        () =>
-            (mcpEndpointsQuery.data ?? []).filter(
-                (endpoint) => (endpoint.namespace ?? "custom") === "custom",
-            ),
-        [mcpEndpointsQuery.data],
-    )
-    /** The registered connection one saved item points at, or undefined when it is gone. */
-    const mcpEndpointForItem = useCallback(
-        (item: unknown): MCPEndpoint | undefined => {
-            // The slug the item points at, never one re-derived from its name: deriving one
-            // is how a renamed item silently repointed at a different connection.
-            const slug = readMcpConnectionSlug((item ?? {}) as Record<string, unknown>)
-            return slug ? findCustomMcpEndpoint(mcpEndpoints, slug) : undefined
-        },
-        [mcpEndpoints],
-    )
-    const mcpItemExpired = useCallback(
-        (item: unknown): boolean => mcpLoginExpired(mcpEndpointForItem(item)),
-        [mcpEndpointForItem],
-    )
-    const mcpAddedSlugs = useMemo(
-        () =>
-            new Set(
-                mcpServers
-                    .map((item) => readMcpConnectionSlug(item as Record<string, unknown>))
-                    .filter((slug): slug is string => Boolean(slug)),
-            ),
-        [mcpServers],
-    )
-    const mcpConnectionOptions = useMemo<McpConnectionOption[]>(
-        () =>
-            mcpEndpoints
-                .filter((endpoint): endpoint is MCPEndpoint & {slug: string} =>
-                    Boolean(endpoint.slug),
-                )
-                .map((endpoint) => ({
-                    slug: endpoint.slug,
-                    name: endpoint.name || endpoint.slug,
-                    host: hostnameLabel(endpoint.data.route.base_url ?? ""),
-                    state: (getMcpConnectionState(endpoint) === "ready"
-                        ? "connected"
-                        : "expired") as McpConnectionOption["state"],
-                    added: mcpAddedSlugs.has(endpoint.slug),
-                }))
-                // Sorted by name, and an added row keeps its place rather than sorting to
-                // the end: the reader is looking a server up, not reading a work queue.
-                .sort((a, b) => a.name.localeCompare(b.name)),
-        [mcpEndpoints, mcpAddedSlugs],
-    )
-
-    /**
-     * Attach one connection to this agent and open its permissions.
-     *
-     * Two fields are written and they answer different questions. `connection.slug` is what
-     * the gateway resolves at run time. `name` is the prefix the model sees on this server's
-     * tools, frozen here: renaming the connection later must not rename tools in an agent
-     * that is already saved, because the per-tool rules are keyed by the old spelling.
-     */
-    const addMcpConnection = useCallback(
-        (option: {slug: string; name: string}) => {
-            const item = {
-                name: toolPrefixFromName(option.name) ?? option.slug,
-                connection: buildMcpConnectionRef(option.slug),
-                // The spec's "Allow all": the whole-server decision, with no per-tool table.
-                // The drawer opens on top of this so the author can tighten it immediately.
-                policy: {tools: {mode: "all"}, permission: "allow"},
-            }
-            const next = [...mcpServers, item]
-            setAgentField("mcps", next)
-            setAddMcpOpen(false)
-            setMcpPermissionIndex(next.length - 1)
-        },
-        [mcpServers, setAgentField],
-    )
-    const reconnectMcpConnection = useCallback(
-        (option: {slug: string}) => {
-            const endpoint = findCustomMcpEndpoint(mcpEndpoints, option.slug)
-            if (endpoint) setConnectingMcpEndpoint(endpoint)
-        },
-        [mcpEndpoints],
-    )
-    // Read live from the list rather than captured when the drawer opened: an item removed
-    // from under it has to close the drawer, not leave it editing a policy nobody holds.
-    const mcpPermissionItem = useMemo(() => {
-        if (mcpPermissionIndex == null) return null
-        const item = mcpServers[mcpPermissionIndex]
-        return item && typeof item === "object" ? (item as Record<string, unknown>) : null
-    }, [mcpPermissionIndex, mcpServers])
-    const mcpPermissionEndpoint = useMemo(
-        () => (mcpPermissionItem ? mcpEndpointForItem(mcpPermissionItem) : undefined),
-        [mcpPermissionItem, mcpEndpointForItem],
-    )
 
     // Skills: a flat array of inline SKILL.md packages or `@ag.embed` references the backend inlines.
     const skills = useMemo(
@@ -1001,39 +874,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             return toolResolutionStatus(index) ?? baseStatus
         }
     }, [statusForKind, toolResolutionStatus])
-    // A blocking problem outranks a draft marker and structural invalid stays first, the
-    // same order the tool rows use. The expired status carries no label: the row states it
-    // in its own body as a dot plus text, and a tag saying it again reads as two problems.
-    const mcpStatusFor = useMemo(() => {
-        const base = statusForKind("mcp")
-        return (item: unknown, index: number): ItemRowStatus | undefined => {
-            const baseStatus = base(item, index)
-            if (baseStatus?.tone === "invalid") return baseStatus
-            if (mcpItemExpired(item)) return {tone: "incomplete"}
-            return baseStatus
-        }
-    }, [statusForKind, mcpItemExpired])
-    // Only an unhealthy connection surfaces a state. A healthy one says nothing, because a
-    // row that reads "Connected" on every server teaches the reader to skip the column.
-    const mcpExtraFor = useCallback(
-        (item: unknown) =>
-            mcpItemExpired(item) ? (
-                <StatusIndicator tone="warning" label="Login expired" className="text-xs" />
-            ) : undefined,
-        [mcpItemExpired],
-    )
-    /** Where a saved MCP row goes when it is clicked; see {@link mcpItemNeedsRepair}. */
-    const openMcpItem = useCallback(
-        (kind: ItemKind, index: number, item: unknown) => {
-            const record = (item ?? {}) as Record<string, unknown>
-            if (mcpItemNeedsRepair(record, mcpEndpointForItem(item))) {
-                openEdit(kind, index, item)
-                return
-            }
-            setMcpPermissionIndex(index)
-        },
-        [mcpEndpointForItem, openEdit],
-    )
+    const mcpStatusFor = useMemo(() => statusForKind("mcp"), [statusForKind])
     // Registry head versions for the pinned-row nudge. The bridge's presence is host-stable,
     // so the conditional hook resolution keeps a stable hook order in practice.
     const useHeadVersions = skillsBridge?.useHeadVersions ?? useNoHeadVersions
@@ -1366,16 +1207,17 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
             content: (
-                <ConfigItemList
-                    kind="mcp"
+                <McpServersSectionBody
                     items={mcpServers}
-                    openEdit={openMcpItem}
-                    removeItem={removeItem}
-                    closeEditor={closeEditor}
                     disabled={disabled}
+                    onChangeItems={(next: unknown[]) => setAgentField("mcps", next)}
+                    openForm={(index: number, item: unknown) => openEdit("mcp", index, item)}
+                    removeItem={(index: number) => removeItem("mcp", index)}
+                    closeEditor={closeEditor}
                     statusFor={mcpStatusFor}
-                    extraFor={mcpExtraFor}
                     emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
+                    addOpen={addMcpOpen}
+                    onAddClose={() => setAddMcpOpen(false)}
                 />
             ),
         },
@@ -1683,87 +1525,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     }
                     agentPolicy={agentPermissionPolicy}
                     disabled={disabled}
-                />
-            )}
-
-            {/* Every MCP overlay is mounted here, outside the rows, so no click inside one
-                reaches a row's onClick. React events propagate through the React tree rather
-                than the DOM tree, so a portal is no protection: a dialog mounted in a row
-                reopened that row's drawer on every click inside it, including the one that
-                opened the consent popup. Each is rendered only while it has a target, so a
-                list of servers still carries no modal and no scope discovery per row. */}
-            <McpAddServerDrawer
-                open={addMcpOpen}
-                onClose={() => setAddMcpOpen(false)}
-                options={mcpConnectionOptions}
-                loading={mcpEndpointsQuery.isPending}
-                onConnectServer={() => setConnectingNewMcp(true)}
-                onAdd={addMcpConnection}
-                onReconnect={reconnectMcpConnection}
-            />
-
-            {mcpPermissionItem ? (
-                <McpPermissionDrawer
-                    open
-                    onClose={() => setMcpPermissionIndex(null)}
-                    slug={readMcpConnectionSlug(mcpPermissionItem) ?? undefined}
-                    connectionName={mcpPermissionEndpoint?.name || undefined}
-                    toolPrefix={
-                        typeof mcpPermissionItem.name === "string"
-                            ? mcpPermissionItem.name
-                            : undefined
-                    }
-                    policy={readMcpPolicy(mcpPermissionItem)}
-                    onChange={(policy: McpServerPolicy) =>
-                        setAgentField(
-                            "mcps",
-                            mcpServers.map((item, index) =>
-                                index === mcpPermissionIndex
-                                    ? {...(item as Record<string, unknown>), policy}
-                                    : item,
-                            ),
-                        )
-                    }
-                    onRemove={() => {
-                        removeItem("mcp", mcpPermissionIndex!)
-                        setMcpPermissionIndex(null)
-                    }}
-                    onReconnect={
-                        mcpPermissionEndpoint
-                            ? () => setConnectingMcpEndpoint(mcpPermissionEndpoint)
-                            : undefined
-                    }
-                    expired={mcpItemExpired(mcpPermissionItem)}
-                    disabled={disabled}
-                />
-            ) : null}
-
-            {connectingNewMcp && (
-                <McpConnectJourney
-                    open
-                    onClose={() => setConnectingNewMcp(false)}
-                    existingNames={mcpEndpoints.map((endpoint) => endpoint.name)}
-                    // B1: the new connection joins this agent and its permissions open, so
-                    // connecting a server and configuring it is one errand, not two.
-                    onConnected={({slug, name}) => {
-                        setConnectingNewMcp(false)
-                        addMcpConnection({slug, name})
-                    }}
-                />
-            )}
-
-            {connectingMcpEndpoint?.id && connectingMcpEndpoint.slug && (
-                <McpConnectJourney
-                    open
-                    onClose={() => setConnectingMcpEndpoint(null)}
-                    reconnect={{
-                        id: connectingMcpEndpoint.id,
-                        slug: connectingMcpEndpoint.slug,
-                        name: connectingMcpEndpoint.name || connectingMcpEndpoint.slug,
-                        url: connectingMcpEndpoint.data.route.base_url || "",
-                        authMode: connectingMcpEndpoint.auth_mode,
-                    }}
-                    onConnected={() => void refreshMcpEndpoints()}
                 />
             )}
         </div>

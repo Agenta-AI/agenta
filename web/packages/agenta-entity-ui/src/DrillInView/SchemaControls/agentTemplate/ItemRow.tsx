@@ -52,7 +52,9 @@ const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
     incomplete: "var(--ag-colorWarning)",
 }
 
-export function StatusTag({status}: {status: ItemRowStatus & {label: string}}) {
+export function StatusTag({status}: {status: ItemRowStatus}) {
+    // A status with no label tints the row's border and draws nothing here.
+    if (!status.label) return null
     const tag = (
         <Tag tone={STATUS_TAG_TONE[status.tone]} className={TAG_CLS}>
             {status.label}
@@ -174,7 +176,7 @@ export function ItemRow({
                 </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
-                {status?.label ? <StatusTag status={{...status, label: status.label}} /> : null}
+                {status ? <StatusTag status={status} /> : null}
                 {descriptor.tags.map((tag) => {
                     const label = typeof tag === "string" ? tag : tag.label
                     const tone = typeof tag === "string" ? undefined : tag.tone
@@ -265,7 +267,7 @@ export function ItemChildRow({
                 onClick={(e) => e.stopPropagation()}
                 role="presentation"
             >
-                {status?.label ? <StatusTag status={{...status, label: status.label}} /> : null}
+                {status ? <StatusTag status={status} /> : null}
                 {onRemove && !disabled ? (
                     <button
                         type="button"
@@ -336,7 +338,7 @@ export function InstructionsFileRow({
                     <span className="shrink-0 text-xs leading-[1.6667] text-colorTextDescription">
                         {meta}
                     </span>
-                    {status?.label ? <StatusTag status={{...status, label: status.label}} /> : null}
+                    {status ? <StatusTag status={status} /> : null}
                 </div>
                 {/* `descriptor.description` is the stripped-markdown preview (or "Empty file");
                     clamp to 2 lines so long instructions get a real "…" rather than a hard cut. */}

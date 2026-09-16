@@ -95,3 +95,15 @@ export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
         permissions: prettifyKind(str(nested(nested(agent, "runner"), "permissions")?.default)),
     }
 }
+
+/**
+ * What the MCP servers row says, on every summary card in both apps.
+ *
+ * "configured", not "connected": this counts the servers on the agent, and whether each one
+ * is authorized is a live fact no summary card holds. Saying "connected" claimed the
+ * authorized state for a disconnected server, in the one word the rest of the product now
+ * reserves for it (round 4, D5). The rule lives here because the mobile card is a fork of
+ * the shared one and drifted back to the wrong word once already.
+ */
+export const mcpSummaryDetail = (mcps: number, {canEdit = false} = {}): string =>
+    mcps ? `${mcps} configured` : canEdit ? "Connect a server" : "None configured"

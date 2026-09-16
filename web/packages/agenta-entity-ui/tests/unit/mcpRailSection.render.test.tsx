@@ -169,8 +169,11 @@ describe("the MCP rail rows", () => {
     it("states the expiry once, not as a tag and a line saying the same thing", async () => {
         await renderSection({items: [OCTOLENS], expired: new Set(["octolens"])})
 
-        const occurrences = (rowNodes()[0]!.textContent ?? "").split("Login expired").length - 1
-        expect(occurrences).toBe(1)
+        const row = rowNodes()[0]!
+        expect((row.textContent ?? "").split("Login expired").length - 1).toBe(1)
+        // Not an empty tag either: a labelless status tints the border and draws nothing.
+        // The spec's rail row is the name and the caret, so there is no badge at all.
+        expect(row.querySelectorAll('[data-slot="badge"]')).toHaveLength(0)
     })
 
     it("keeps the Remove control on every row", async () => {
