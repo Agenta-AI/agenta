@@ -81,12 +81,20 @@ const state = (over: Partial<McpJourneyState> & {status: McpJourneyStatus}): Mcp
     ...over,
 })
 
+/** The stub the last `open` handed the sheet, for the cases that assert what it was asked. */
+let asked: Record<string, ReturnType<typeof vi.fn>>
+
 const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyProps> = {}) => {
+    asked = {
+        setUrl: vi.fn(),
+        cancelConsent: vi.fn(),
+        onClose: vi.fn(),
+    }
     useMcpConnectJourney.mockReturnValue({
         state: current,
         popupName: "mcp_consent",
         expectsConsent: current.probe?.auth.mode === "oauth",
-        setUrl: vi.fn(),
+        setUrl: asked.setUrl,
         submitUrl: vi.fn(),
         loadTools: vi.fn(),
         setName: vi.fn(),
@@ -98,7 +106,7 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
         skipAuthentication: vi.fn(),
         finish: vi.fn(() => new Promise(() => undefined)),
         cancel: vi.fn(),
-        cancelConsent: vi.fn(),
+        cancelConsent: asked.cancelConsent,
         retry: vi.fn(),
         retryTools: vi.fn(),
         abandonAttempt: vi.fn(),
@@ -121,6 +129,12 @@ const control = (label: string) =>
 
 const button = (label: string) =>
     [...document.querySelectorAll("button")].find((candidate) => candidate.textContent === label)
+
+const press = async (element: Element | undefined) => {
+    await act(async () => {
+        element?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+    })
+}
 
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
@@ -225,6 +239,15 @@ describe("C3, the server signs in with OAuth", () => {
         expect(button("Connect")).toBeDefined()
     })
 
+    it("sends Change back to the address with it kept", async () => {
+        // Retyping an address to correct one character in it is how a person ends up
+        // connecting a different server than the one they meant.
+        await open(naming)
+        await press(button("Change"))
+
+        expect(asked.setUrl).toHaveBeenCalledWith("https://mcp.linear.app/mcp")
+    })
+
     it("asks nobody to choose scopes", async () => {
         // They are the server's business, and the checklist this replaces asked a question
         // whose answer nobody outside the provider's documentation could know.
@@ -254,6 +277,25 @@ describe("C4, the provider's window", () => {
         )
         expect(button("Open the window again")).toBeDefined()
         expect(button("Connect")).toBeUndefined()
+    })
+
+    it("abandons one attempt on Cancel without closing what was typed", async () => {
+        // Cancelling the provider's window gives up on an attempt, not on the connection.
+        // Closing the sheet here would make a closed sign-in cost the address and the name
+        // as well.
+        await open(
+            state({
+                status: "awaiting_consent",
+                url: "https://mcp.linear.app/mcp",
+                name: "Linear",
+                probe: OAUTH_PROBE,
+                endpointId: "mcp-1",
+            }),
+        )
+        await press(button("Cancel"))
+
+        expect(asked.cancelConsent).toHaveBeenCalled()
+        expect(asked.onClose).not.toHaveBeenCalled()
     })
 
     it("reports a refusal without claiming anything was saved", async () => {
