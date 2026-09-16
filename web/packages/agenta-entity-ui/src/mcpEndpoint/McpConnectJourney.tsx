@@ -168,11 +168,13 @@ const screenFor = (state: McpJourneyState, path: AuthPath, consentRequested: boo
             // that explains an open window is the honest one from here.
             return path === "oauth" ? "waiting" : SCREEN_FOR_AUTH_PATH[path]
         case "discovering_scopes":
+            // A reconnect enters HERE, with nobody having pressed anything. It shows what
+            // it is about to do and waits for the press, because the window it ends at can
+            // only be opened inside one.
+            return consentRequested ? "waiting" : "oauth"
         case "choosing_scopes":
         case "awaiting_consent":
-            // A reconnect enters at discovery with nobody having pressed anything, so it
-            // shows what it is about to do and waits for the press that opens the window.
-            return consentRequested ? "waiting" : "oauth"
+            return "waiting"
         case "scopes_failed":
         case "consent_cancelled":
         case "consent_failed":
