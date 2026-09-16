@@ -266,7 +266,10 @@ export function DriveExplorer({
 
     // Writes share the upload gate: a writable, real mount.
     const canWrite = canUpload
-    const writes = useDriveWrites(drive)
+    // The pane's own box: confirms render inside it, not over the whole window.
+    const paneRef = useRef<HTMLDivElement>(null)
+    const getPane = useCallback(() => paneRef.current, [])
+    const writes = useDriveWrites(drive, getPane)
     const siblingsOf = useCallback(
         (folder: string) =>
             (folder === "" ? tree : (nodeByPath.get(folder)?.children ?? [])).map((n) => n.name),
@@ -719,7 +722,7 @@ export function DriveExplorer({
         <>
             {lazyTree.subscribers}
             {chrome ? (
-                <div className="flex h-full min-h-0 w-full flex-col">
+                <div ref={paneRef} className="relative flex h-full min-h-0 w-full flex-col">
                     <DriveHeader
                         selectedPath={selectedPath}
                         isFolder={selectedIsFolder}
