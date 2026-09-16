@@ -125,20 +125,24 @@ export function localRelayActivitySource(
   return {
     suspendsPolling: false,
     isHealthy: () => !closed,
-    wait: async ({ timeoutMs }) => {
-      if (closed) return "closed";
+    wait: async ({ timeoutMs, signal }) => {
+      // M11: the interface declares `signal` and this source used to destructure only
+      // `timeoutMs`, so an abort was honoured only if `close()` happened to be called too. The
+      // loop below already re-checks its exit conditions every 100ms, so reading the signal in
+      // the same places bounds an aborted wait by that tick rather than by the caller's deadline.
+      if (closed || signal?.aborted) return "closed";
       const deadline = Date.now() + timeoutMs;
       // A directory watch is advisory: macOS may replay the directory's creation and all
       // platforms may report our own response-file writes. Treat a notification as a wake only
       // after observing an inbound request, otherwise keep the caller's original deadline.
-      while (!closed) {
+      while (!closed && !signal?.aborted) {
         const remaining = deadline - Date.now();
         if (remaining <= 0) return "timeout";
         // FSEvents can coalesce a real creation for seconds. A short poll only exists while a
         // relay wait is parked, and makes the watch an acceleration rather than a correctness
         // dependency on every local platform.
         const outcome = await dirWatch.wait(Math.min(remaining, 100));
-        if (closed) return "closed";
+        if (closed || signal?.aborted) return "closed";
         if (hasRelayRequest(dir)) return "activity";
         if (outcome === "timeout" && Date.now() >= deadline) return "timeout";
       }
