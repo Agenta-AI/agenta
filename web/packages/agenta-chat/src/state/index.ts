@@ -7,6 +7,7 @@ export * from "./sessionChats"
 export {
     chatPanelMaximizedAtom,
     configPanelCollapsedAtom,
+    configPanelCollapsedOverrideAtom,
     configPanelCollapsedPreferenceAtom,
     phoneViewportAtom,
     resolveConfigPanelCollapsed,
