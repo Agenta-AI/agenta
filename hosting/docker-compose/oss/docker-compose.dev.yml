@@ -218,8 +218,12 @@ services:
             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/*
-            --signal SIGTERM --kill-after 5 --
+            --signal SIGTERM --kill-after 5 --debounce-interval 1 --
             python -m entrypoints.worker_streams
+        # === RESOURCES =========================================== #
+        # Cap child PIDs so a reloader/consumer leak fails loudly instead of
+        # exhausting the host (a rebase file-event burst orphaned ~219 workers).
+        pids_limit: 20
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/ee:/app/ee
@@ -268,8 +272,12 @@ services:
             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/*
-            --signal SIGTERM --kill-after 5 --
+            --signal SIGTERM --kill-after 5 --debounce-interval 1 --
             python -m entrypoints.worker_queues
+        # === RESOURCES =========================================== #
+        # Cap child PIDs so a reloader/consumer leak fails loudly instead of
+        # exhausting the host (a rebase file-event burst orphaned ~219 workers).
+        pids_limit: 20
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/ee:/app/ee
