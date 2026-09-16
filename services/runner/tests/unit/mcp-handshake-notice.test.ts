@@ -316,3 +316,75 @@ describe("a disconnected MCP connection's handshake refusal", () => {
     assert.equal(failure?.detail, undefined);
   });
 });
+
+describe("the probe never follows a redirect (CR9)", () => {
+  function recordingFetch(response: Response) {
+    const calls: { url: string; init: any }[] = [];
+    const impl = (async (url: string, init: any) => {
+      calls.push({ url, init });
+      return response;
+    }) as unknown as typeof fetch;
+    return { impl, calls };
+  }
+
+  it("asks for manual redirect handling on the handshake", async () => {
+    // The URL is user-declared and checked once, before the request. A 302 re-points the SAME
+    // request — credentials attached — at a host nothing checked, which is the whole point of
+    // checking it. `manual` turns the 3xx into an ordinary non-ok response instead.
+    const { impl, calls } = recordingFetch(
+      new Response("", { status: 302, headers: { location: "http://169.254.169.254/latest/meta-data/" } }),
+    );
+
+    const failure = await probeMcpServerHandshake(
+      {
+        name: "acme",
+        connection: {
+          type: "http",
+          url: "https://api.example.test/gateways/mcps/custom/acme",
+          credentials: [
+            {
+              binding: { kind: "header", name: "X-AG-Credentials" },
+              value: "short-lived-gateway-token",
+              usage: "opaque_http",
+            },
+          ],
+        },
+      },
+      { fetchImpl: impl },
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].init.redirect, "manual");
+    // The redirect is reported as a failed handshake rather than chased.
+    assert.equal(failure?.reasonCode, "handshake_http_error");
+    assert.equal(failure?.status, 302);
+    // And the credential went to the declared host only.
+    assert.equal(calls[0].url, "https://api.example.test/gateways/mcps/custom/acme");
+  });
+
+  it("asks for manual redirect handling on the session-release DELETE too", async () => {
+    // The release carries the same credentials as the handshake, so it needs the same posture.
+    const calls: { url: string; init: any }[] = [];
+    const impl = (async (url: string, init: any) => {
+      calls.push({ url, init });
+      if (init.method === "DELETE") return new Response("", { status: 302 });
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: 1, result: { protocolVersion: "2026-07-28" } }),
+        { status: 200, headers: { "content-type": "application/json", "mcp-session-id": "s-1" } },
+      );
+    }) as unknown as typeof fetch;
+
+    const failure = await probeMcpServerHandshake(
+      {
+        name: "acme",
+        connection: { type: "http", url: "https://api.example.test/mcp" },
+      },
+      { fetchImpl: impl },
+    );
+
+    assert.equal(failure, undefined, "a healthy handshake reports no failure");
+    const release = calls.find((call) => call.init.method === "DELETE");
+    assert.ok(release, "the probe releases the session it opened");
+    assert.equal(release!.init.redirect, "manual");
+  });
+});
