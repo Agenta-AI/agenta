@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **0** | **4** | **5** | **19 closed, 1 part fixed, 9 open. No P1 remains** |
+| **As this file is written** | **0** | **1** | **6** | **6** | **21 closed, 3 part fixed, 13 open** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -91,13 +91,13 @@ whether that fix was read against the finding and its test.
 | D31 | both | P2 | `hooks/useMcpConnectJourney.ts:220`, `McpConnectJourney.tsx:104`, `router.py:541-554` | Fix, both halves | `cb3a277fdc`, `23dc332d94` | **yes**, code and tests |
 | D32 | both | P2 | `web/packages/agenta-entities/src/mcpEndpoint/api/api.ts:142-181` | Fix | `8079441042` | **yes**, code and tests, suites run |
 | D33 | Codex | P2 | `api/oss/src/dbs/postgres/gateways/mcps/dao.py:265`, `oauth/storage.py:229` | Fix. Re-opens D21 | `dd8f6066e3` | **yes**, code, tests, suite run, incl. pre-fix run |
-| D34 | Codex | P2 | `hooks/useMcpConnectJourney.ts:156-169`, `McpConnectJourney.tsx:96` | Fix with D23 | | mechanism, code |
+| D34 | Codex | P2 | `hooks/useMcpConnectJourney.ts:156-169`, `McpConnectJourney.tsx:96` | **Part fixed.** Both named windows shut; the general remedy is not what landed | `ee8486fd61` | **yes**, code and a pre-fix run |
 | D35 | both | P2 | `web/packages/agenta-shared/src/api/env.ts:146`, `api/oss/src/utils/env.py:112` | Fix | `acdf1de2e4` | **yes**, code, tests, suites run, incl. an old-versus-new run of the shell block |
 | D36 | Codex | P2 | `web/packages/agenta-entity-ui/src/secretProvider/ProviderConnectionCard.tsx:156`, `:358`, `secret/core/providerFields.ts:176` | Fix | `7ee965e435` | **yes**, code and tests, suites run |
 | D37 | Codex | P2 | `sdks/python/agenta/sdk/agents/adapters/claude_settings.py:137` | Fix | `341a9c16c6` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D38 | Codex | P2 | `api/oss/src/core/gateways/mcps/probe.py:161` | Fix | `fd278ec1ca` | **yes**, code, tests, suite run, incl. pre-fix run |
-| D39 | reviewer 2 | P2 | `mcp-connect.ts:166`, `:270`, `mcpConnectJourney.test.ts:82`, `mcpEndpointConnectStatus.render.test.tsx:189` | Fix the assertions | | mechanism, all four |
-| D40 | reviewer 2 | P2 | `hooks/useMcpConnectJourney.ts:67`, `mcpEndpointApi.test.ts:189` | **Part fixed.** The hook has tests now; most of the list is still uncovered | `277fc7d4fe`, `5b11eada26` | **yes**, both suites read and run |
+| D39 | reviewer 2 | P2 | `mcp-connect.ts:166`, `:270`, `mcpConnectJourney.test.ts:82`, `mcpEndpointConnectStatus.render.test.tsx:189` | **Part fixed.** Three of four; see D51 | `0bd5ee82e8` | **yes**, code and a mutation run |
+| D40 | reviewer 2 | P2 | `hooks/useMcpConnectJourney.ts:67`, `mcpEndpointApi.test.ts:189` | **Part fixed.** Four more of the ten covered; seven remain | `277fc7d4fe`, `5b11eada26`, `ee8486fd61` | **yes**, suites read and run |
 | D41 | Codex | P3 | `core/connectionName.ts:36`, `core/agentReference.ts:47`, `api/oss/src/core/gateways/mcps/service.py:207` | Fix the truncation; accept the rest | | mechanism, both implementations |
 | D42 | both | P3 | `core/toolPolicy.ts:83` | Fix | | mechanism, code |
 | D43 | reviewer 2 | P3 | `McpConnectionDetail.tsx:95-106` | Fix with D31 | | mechanism, code |
@@ -106,7 +106,10 @@ whether that fix was read against the finding and its test.
 | D46 | D38 residual | P3 | `api/oss/src/core/gateways/mcps/oauth/client.py:273` | Fix with D38's bound | `ae87c4f5f4` | **yes**, code and one discriminating test; two of the three do not discriminate |
 | D47 | verification | P3 | `api/oss/src/core/gateways/egress.py:113`, [qa.md](../qa.md) | Fix the collision or document it | `b92db4946a` | **yes**, 1061 passed with the preconditions exported |
 | D48 | verification | P2 | `mcpConnectJourney.tools.test.tsx:79`, `mcpConnectJourney.reconnect.test.tsx:66` | Fix: cover the wiring, not only the hook | `bc96498688` | **yes**, code and suites run |
-| D49 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:77`, `:122` | Fix the flake | | mechanism, five runs |
+| D49 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:77`, `:122` | Fix landed for the flake; **not verifiable** while the suite cannot authenticate | `3fe16196a3` | code only, eight runs attempted |
+| D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix: QA-D3's better wording cannot fire in production | | mechanism, both sites read |
+| D51 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:293` | Fix the assertion | | mechanism, both message strings compared |
+| D52 | verification | P3 | `hooks/useMcpConnectJourney.ts:179`, `McpConnectJourney.tsx:96` | Record the invariant or apply the check | | mechanism, seven await sites counted |
 | Q1 | both | P2 | `McpConnectJourney.tsx:98-106`, `hooks/useMcpConnectJourney.ts:189` | Quality, altitude. The root of D22, D23, D29, D30, D31 and D34 | | mechanism, code |
 | Q2 | both | P2 | `McpConnectionDetail.tsx:66-83`, `McpToolPermissions.tsx:77-93` | Quality, reuse and efficiency | | mechanism, code |
 | Q3 | reviewer 2 | P3 | `McpConnectionDetail.tsx:74`, `McpToolPermissions.tsx:85` | Quality, reuse. **Closed by D32's fix** | `8079441042` | **yes**, code |
@@ -141,6 +144,12 @@ revision before the fix, so the predicted failure is watched rather than assumed
 | D28, D48 | `2019858a58`, `bc96498688` | 802 passed in the entity UI package | structurally discriminating, see D48 |
 | D29, D30 | `133f17c110` | 816 + 44 passed | — |
 | D31 web half | `23dc332d94` | 816 passed in the entity UI package | the duplicate is observable only while discovery is in flight |
+| D34, M14 | `ee8486fd61` | 6 + 15 passed | 2 failed, 4 passed; and 2 failed, 13 passed |
+| D39 | `0bd5ee82e8` | 6 passed | 1 failed, 5 passed with the prop deleted |
+| QA-D1 | `c1358a3f13` | 24 passed, plus a real-server case against Linear | 2 failed, 22 passed |
+| QA-D3 | `08325a21eb` | 17 passed | 4 failed, 13 passed |
+| QA-D5 | `461b8d150c` | 8 passed | 6 failed, 2 passed |
+| CodeRabbit N3 | `99b270da8d` | see coderabbit-pass-1.md | — |
 
 The pre-fix failures are the predicted ones in every case. D24's headline case comes back with the
 grant's `client_registration_slug` set to nothing after the first renewal, where the pinned slug
@@ -759,6 +768,77 @@ is not obtainable while this holds, and those three are recorded on their code a
 alone. And the manual gate step D25 settled on is, at this moment, unrunnable, which is a sharper
 version of the same point: the only guard for three P1 fixes is a suite that flakes about half the
 time when it runs and cannot start at all when the stack shifts under it.
+
+## The UI QA round-2 findings
+
+Recorded here because their fixes were verified in the same pass. The findings themselves come from
+a QA run against the deployed stack, not from this review.
+
+**QA-D1. Probing any real MCP server returned a 500 — fixed by `c1358a3f13`, verified.** This was a
+regression introduced by the very bounds this review asked for. The capped read added for D38 and
+D46 rebuilds a response around the bytes it read and carried the upstream's headers over verbatim;
+those bytes are decoded, so keeping `content-encoding` told the next reader to decompress what was
+already decompressed, and the first touch of the body raised. Both rebuild sites now go through one
+helper that drops the three headers describing the body as it travelled and keeps `content-type`,
+which is what tells the probe whether a handshake came back as JSON or as a single event. The probe
+also gains an outer guard, so a failure that only surfaces when a body is touched is reported on the
+result rather than as a 500 with no cause.
+
+**This one is on this review as much as on the fix.** I verified D38 and D46 with unit suites and a
+pinned pre-fix run, and both were sound on the bound itself. Neither the mocks nor the acceptance
+stack compresses, so every suite stayed green while the feature was broken for every server a person
+would actually type in. The new acceptance case is the kind that would have caught it: it drives the
+deployed probe route against a real OAuth-protected server, and it passes here against Linear's.
+
+One note on its unit cases: the two gzip cases fail without the fix, and the third, for the outer
+guard, passes either way, because the decoding error it raises is already a transport error the
+inner handler catches. A failure raised outside that handler would discriminate.
+
+**QA-D2. The open connection drawer reported Ready after a disconnect — fixed by `08325a21eb`,
+verified by reading only.** The drawer is now held by identity and the row looked up fresh on each
+render. There is no test, and there can be none without work: the package it lives in has no test
+runner at all, no vitest dependency and no test script.
+
+**QA-D3. The permission editor showed an internal marker, a slug and an HTTP status line — part
+fixed by `08325a21eb`.** The marker half is real and reaches production: the refusal helper strips it
+from every sentence, including the JSON-RPC envelope path. The naming and Connect halves do not
+reach production at all, which is **D50**.
+
+**QA-D5. The model picker never offered a keyless custom provider — fixed by `461b8d150c`,
+verified.** Pinned before the fix, six of its eight cases fail, three of them behaviourally. The gate
+is not over-broad: driving every other deployment kind through it leaves them all ineligible, and
+only a custom endpoint with a base URL becomes keyless-eligible.
+
+**D50. The better wording QA-D3 asked for cannot fire on the path that produces the error.** The
+editor decides whether to offer Connect with `gatewayRefusalCode(error) === "auth_required"`
+(`McpToolPermissions.tsx:104`). Two independent reasons that is always false. The helper reads only
+`response.data.detail` (`core/refusal.ts:29`), while the MCP data plane refuses with a JSON-RPC
+envelope whose cause sits at `data.error.data.cause` — a shape the sibling helper
+`gatewayRefusalMessage` does read. And the error the editor catches has no `response` at all:
+`listMcpTools` wraps every data-plane failure in a typed protocol error carrying only a message
+(`api/api.ts:150-155`). So the component sees a plain error, the code is null, and it renders the
+route and the slug with a Retry, which is QA-D3's original complaint minus the marker.
+
+The two cases that assert the new wording pass because the test rejects with
+`{response: {data: {detail: "… ⟦agenta_code:auth_required⟧"}}}`, a shape the real function cannot
+throw. That is the fourth time in this candidate a test has supplied a shape or a step the product
+does not produce, and the first time it has made a fix look delivered when none of it reaches a
+person. **Fix:** read the envelope's cause in `gatewayRefusalCode`, and carry the code onto the
+typed error `relayFailure` throws.
+
+**D51. The duplicate-name case still cannot tell the server's refusal from the client's.** The
+assertion matches "already uses this name", and both messages contain it: the client's ends there,
+the server's continues "; pick a different one". The case now creates the collision out of band so
+the list is stale, but nothing asserts the stale premise, and if the list is fresh the Continue
+handler returns early, the field shows the client-side message, and the case passes having exercised
+what D39 said it exercised before. Asserting the server-only suffix would pin it.
+
+**D52. The attempt generation is checked at two of seven await sites, and the commit says every
+one.** Both windows D34 named are genuinely shut. The other five async steps dispatch after their
+await with no check, and are benign only because the component unmounts the hook when it closes —
+an invariant nothing asserts, and one a host would naturally break by keeping the body mounted and
+toggling `open`, which is what the D48 render test does to the component. Either apply the check at
+the remaining sites or record the unmount as the load-bearing invariant it now is.
 
 ## Quality findings
 
