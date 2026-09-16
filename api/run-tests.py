@@ -25,6 +25,39 @@ TYPES = {
 }
 
 
+def _split_marker_expression(args):
+    """Pull the caller's own `-m` out of the forwarded arguments.
+
+    pytest honours the LAST `-m` it is given, and this wrapper appends its own after the
+    forwarded ones, so a caller asking for `-m acceptance` was silently overruled whenever a
+    selection or dimension flag was also set — and `hosting/docker-compose/test.sh` always
+    injects one. The operator got a different selection from the one they asked for, and a
+    green answer to a question they did not pose (P7, P11, P12).
+
+    Returned separately so the two expressions can be combined into the single `-m` pytest
+    will actually read.
+    """
+    remaining = []
+    expression = None
+    expecting_value = False
+    for arg in args:
+        if expecting_value:
+            expecting_value = False
+            expression = arg
+            continue
+        if arg == "-m":
+            expecting_value = True
+            continue
+        if arg.startswith("-m="):
+            expression = arg[len("-m=") :]
+            continue
+        if arg.startswith("-m") and len(arg) > 2 and not arg.startswith("--"):
+            expression = arg[2:]
+            continue
+        remaining.append(arg)
+    return remaining, expression
+
+
 def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
     if not pytest_args:
         return False
@@ -273,7 +306,9 @@ def run_tests(
             marker_args.append(f"{name.lower()}_{value}")
 
     # If pytest_args contains test paths, use them instead of test_dirs
-    forwarded_args = list(pytest_args or ())
+    forwarded_args, caller_marker_expr = _split_marker_expression(
+        list(pytest_args or ())
+    )
     has_test_target = any(
         not arg.startswith("-") and (arg.endswith(".py") or "/" in arg or "::" in arg)
         for arg in forwarded_args
@@ -293,6 +328,10 @@ def run_tests(
 
     marker_exprs = {"fast": ["not slow"], "slow": ["slow"], "all": []}[test_selection]
     marker_exprs.extend(marker_args)
+    # The caller's own expression joins the generated ones rather than being overruled by
+    # them, and only one `-m` reaches pytest.
+    if caller_marker_expr:
+        marker_exprs.append(caller_marker_expr)
     if marker_exprs:
         marker_expr = " and ".join(f"({expr})" for expr in marker_exprs)
         cmd += ["-m", marker_expr]
