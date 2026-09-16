@@ -18,7 +18,7 @@ from uuid import uuid4
 
 import pytest
 
-from utils.gateways import skip_unless_llm_gateway
+from utils.gateways import require_llm_gateway
 
 pytestmark = [pytest.mark.acceptance]
 
@@ -46,7 +46,7 @@ def refusing_endpoint(harness, mod_api, llm_gateway_plane):
     """A registered custom endpoint whose allow-list excludes the model the agent will ask for."""
     if not _MOCKS_ENABLED:
         pytest.skip("gateway mock services are disabled")
-    skip_unless_llm_gateway(llm_gateway_plane)
+    require_llm_gateway(llm_gateway_plane)
 
     provider, model = _HARNESS_CONNECTIONS[harness]
     slug = f"or28-{harness}-{uuid4().hex[:8]}"
@@ -148,7 +148,7 @@ def test_a_control_plane_refusal_reaches_the_caller_with_its_code(
     be refused by: it falls back to the vault, finds no connection under this slug, and raises
     `ConnectionNotFoundError`, which carries the same 422 and no failure code at all.
     """
-    skip_unless_llm_gateway(llm_gateway_plane)
+    require_llm_gateway(llm_gateway_plane)
     model = _HARNESS_CONNECTIONS[harness][1]
     resp = _invoke(
         mod_services_api, harness, f"never-registered-{uuid4().hex[:8]}", model

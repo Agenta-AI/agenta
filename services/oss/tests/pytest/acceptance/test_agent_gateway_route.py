@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from utils.gateways import skip_unless_llm_gateway
+from utils.gateways import require_llm_gateway
 
 pytestmark = [pytest.mark.acceptance]
 
@@ -122,7 +122,7 @@ def llm_gateway_connection(request, harness, mod_api, llm_gateway_plane):
         pytest.skip("gateway mock services are disabled")
     # Every route this fixture hands back is a gateway route, so with the plane off there is
     # nothing here to exercise: the run would resolve its model from the vault instead.
-    skip_unless_llm_gateway(llm_gateway_plane)
+    require_llm_gateway(llm_gateway_plane)
 
     provider, model = _HARNESS_CONNECTIONS[harness]
     cleanup: list[tuple[str, str]] = []
