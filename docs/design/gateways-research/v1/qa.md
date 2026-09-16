@@ -811,3 +811,117 @@ one cell is two short turns. The key lives in `~/.agenta-qa-secrets.env` on the 
 into the run from there, and is stored as an ordinary project secret — it appears in no committed
 file, no log line, and no assertion.
 
+### The real-model matrix
+
+Every other cell in this section drives the mock LLM, which is deterministic and proves the
+plumbing. This matrix drives real models, and proves something the mock cannot: that a model
+chooses the tool, reads its result, and reports it. The mock matrix is untouched and remains the
+deterministic gate; this sits beside it.
+
+Nine cells, three harnesses crossed with the three mock MCP gateway namespaces, driven by one
+parametrized script. Nine rather than twenty-seven is the complete equivalent set, not a subset
+chosen for time: the mock matrix's third axis is the LLM namespace, and `builtin`/`standard` are
+the mock LLM provider specifically, so a real model can only arrive through a `custom` endpoint.
+
+**Tally: 6 of 9. Cost: $0.19** (OpenRouter usage $36.2212 before, $36.4138 after, including every
+model-selection probe below).
+
+| Harness | Protocol | Model | builtin | standard | custom |
+| --- | --- | --- | --- | --- | --- |
+| Pi | Chat Completions | `~deepseek/deepseek-v4-flash-latest` | PASS | PASS | PASS |
+| Claude Code | Messages | `anthropic/claude-haiku-4.5` | PASS | PASS | PASS |
+| Codex | Responses | see below | FAIL | FAIL | FAIL |
+
+Pi and Claude Code pass in every MCP namespace, and the closing sentence is the model's own each
+time — `The echo tool ran with the marker and returned {"marker": "MCP-ACCEPTANCE-R"}`,
+`Done. The echo tool returned the marker MCP-ACCEPTANCE-R as expected.` — rather than the mock's
+fixed `mock MCP echo:` string. Every cell raised the approval gate, parked, resumed on approval,
+and produced a `tool-output-available` carrying the marker, so the whole chain under test is the
+same one the mock cells exercise.
+
+### Choosing the models: probe, do not read the metadata
+
+OpenRouter's `supported_parameters` listing `"tools"` is a claim. Each candidate was given a real
+tool on each protocol the gateway relays before being chosen:
+
+| model | $/Mtok | `/chat/completions` | `/responses` |
+| --- | --- | --- | --- |
+| `mistralai/mistral-nemo` | 0.019 / 0.030 | tool call | **inconsistent** across two identical probes |
+| `inclusionai/ling-3.0-flash` | 0.021 / 0.063 | tool call | function call |
+| `qwen/qwen3.7-flash` | 0.030 / 0.130 | **no tool call** | — |
+| `~deepseek/deepseek-v4-flash-latest` | 0.040 / 0.100 | tool call | function call |
+
+The cheapest model on the list would have produced a flaky matrix and the second cheapest fails
+outright, so the fourth was chosen. This is the same class of mistake as a guessed tool name: a
+declared capability is not an observed one.
+
+### Codex: excluded, and the reason is the harness rather than the model
+
+All three Codex cells fail, in every MCP namespace, on every model tried. The failure is not the
+gate and not the MCP path — `gate=true` throughout, the approval resumes, and the tool returns a
+`tool-output-available`. What comes back is empty:
+
+```
+codex x mcp:builtin   gate=True  outcome=available
+  text='Warning: Model metadata for `~deepseek/deepseek-v4-flash-latest` not found.
+        Defaulting to fallback metadata; this can degrade performance and cause issues.
+        Echo tool executed and returned `{}`.'
+codex x mcp:standard
+  text='... Done. Called `mcp.mock-mcp.echo({})` — echo'
+```
+
+The model called `echo` with no arguments, so the mock echoed `{}` back instead of the marker.
+
+Three models were tried, which is what separates a harness finding from a cost one:
+
+| model | $/Mtok | result |
+| --- | --- | --- |
+| `~deepseek/deepseek-v4-flash-latest` | 0.040 / 0.100 | 0/3 — tool called with empty arguments |
+| `gpt-5-nano` (bare id, accepted by OpenRouter) | 0.050 / 0.400 | 1/3 — two cells did not call the tool at all |
+| `deepseek/deepseek-v3.2` | 0.269 / 0.400 | 0/3 — same empty arguments, at 7x the price |
+
+A stronger model fails the same way, so this is not model capability. Every one of them logs
+`Model metadata for <id> not found. Defaulting to fallback metadata`, which is Codex validating a
+model against its own built-in selectable set before it makes the request — the same behaviour the
+mock matrix already accommodates by giving Codex the id `gpt-5.5`. No OpenRouter id is in that set,
+including the bare `gpt-5-nano`, so every real-model Codex run takes the fallback path and its
+tool-argument fidelity degrades.
+
+**So Codex has no real-model row, and will not until it is given a model in its own selectable
+set** — which means an OpenAI-direct key rather than an OpenRouter one. This costs the gate nothing
+it already had: Codex's gate behaviour is covered deterministically by the mock matrix and by the
+per-tool permission cells above. What is missing is only the real-model confirmation Pi and Claude
+Code now have.
+
+### The provider-row recipe, to reproduce any of this
+
+No code change is needed; it is two API calls per protocol. For Chat Completions and Responses
+(Pi, Codex) one endpoint serves both, because the gateway appends the protocol's own path:
+
+```
+POST /secrets/            {"header": {"name": "<slug>"},
+                           "secret": {"kind": "custom_provider", "data": {
+                             "kind": "openai",
+                             "provider": {"url": "https://openrouter.ai/api/v1", "key": "<OR key>"},
+                             "models": [{"slug": "<model>"}]}}}
+
+POST /gateways/llms/endpoints/
+                          {"endpoint": {"slug": "<slug>", "provider_key": "openai",
+                            "deployment_kind": "custom", "secret_id": "<id>",
+                            "flags": {"is_active": true},
+                            "data": {"route": {"base_url": "https://openrouter.ai/api/v1"},
+                                     "models": {"allowlist": ["<model>"]}}}}
+```
+
+For Messages (Claude Code) the same two calls with `"kind": "anthropic"` and
+`"provider_key": "anthropic"`. That is all the difference: `_PROTOCOL_PATHS`
+(`passthrough/routing.py`) appends `/chat/completions`, `/responses` or `/messages` to the base
+URL, and `passthrough/auth.py` sends `x-api-key` for `anthropic` and `Authorization: Bearer`
+otherwise — which is exactly what OpenRouter accepts on each of its three endpoints. The agent then
+sets `llm` to `{model: "<model>", provider: "<openai|anthropic>", connection: {mode: "agenta",
+slug: "<slug>"}}`.
+
+The key is read from `~/.agenta-qa-secrets.env` on the QA box into the process environment, stored
+as an ordinary project secret, and deleted with the endpoint when the run finishes. It appears in
+no committed file, no log line and no assertion.
+
