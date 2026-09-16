@@ -102,6 +102,9 @@ export const SkillListTable = ({
             columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
             minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
             view={view}
+            // A card holds three lines of description; narrower than this they wrap to four
+            // and the grid reads as a wall of text.
+            cardMinWidth={300}
             // The column names stay put while the list scrolls, as they do on agents.
             stickyHeader
             loading={isLoading}
