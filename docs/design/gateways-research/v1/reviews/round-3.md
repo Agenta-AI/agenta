@@ -276,6 +276,34 @@ origin, so the path already returns there, and the fallback lands on the connect
 anywhere wrong. Worth being precise about what stays true — on a deployment that does split them, a
 blocked popup still loses the originating surface.
 
+## D88, a coverage gap that turned out to be a live divergence
+
+`247bfbc9f1`, verified. The finding was that the Claude settings matrices cross every server
+decision with every per-tool decision and then ask about the one tool the table names, so the other
+half of the ladder — a tool the table does **not** name, which is what the new-tool default exists
+to decide and what a server adds between two runs — was never reached.
+
+**Adding that case found a real disagreement rather than a gap.** The adapter resolved an unnamed
+tool as the new-tool default, then the whole-server permission, then ask. The runner's intake gives
+a declared table with no floor beside it `ask` and deliberately never consults the whole-server
+permission, on the stated principle that a human decides for anything the table does not name. So a
+server permission of `allow` beside any per-tool table emitted a whole-server allow, and a tool the
+author had never named ran unapproved under Claude while the same saved configuration raised a gate
+under Pi.
+
+**The divergence ran in the unsafe direction**, which is why resolving it toward the runner rather
+than the adapter is the right call: the gate is the authoritative side, and the adapter's job is to
+describe it, not to decide differently. One hundred and eighty-five cases pass; pinned before the
+fix, seven fail, all of them unnamed-tool combinations.
+
+This is the fourth finding in this candidate where the same policy was read differently in two
+places, after D37, D57 and D63. Three of the four resolved toward the runner.
+
+One residual, noted rather than filed: the file now carries two mirrors of the runner's resolver,
+and the original still encodes the superseded ladder on its last line. It is unreachable for the
+matrix it serves, because a named tool answers before that line, so it is a stale copy rather than a
+wrong answer — worth deleting when someone is next in there.
+
 ## The fixes that hold
 
 Codex's disposition table judged twenty-two earlier fixes at the code level and found the great
