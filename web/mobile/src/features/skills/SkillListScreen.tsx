@@ -21,6 +21,9 @@ import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+
 import {useAgentOwners} from "../agents/useAgentOwners"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -40,9 +43,6 @@ import {
 import {SkillsEmpty} from "./states/SkillsEmpty"
 import {SkillsError} from "./states/SkillsError"
 import {SkillsNoMatch} from "./states/SkillsNoMatch"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 /** The page column, shared with agents and automations, so the nav entries line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
