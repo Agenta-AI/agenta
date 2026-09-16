@@ -1,3 +1,5 @@
+import {gatewayRefusalCode, gatewayRefusalMessage} from "@agenta/entities/mcpEndpoint/refusal"
+
 export interface ParsedRunError {
     message: string
     /** An HTTP-ish status from a JSON error envelope, or a stable runner failure class string. */
@@ -59,6 +61,104 @@ export const SESSION_TURN_IN_USE_MESSAGE =
 export const isSessionBusyRefusal = (err: unknown): boolean =>
     parseAgentRunError(err).message.trim() === SESSION_TURN_IN_USE_MESSAGE
 
+/**
+ * The sentence a refused invoke states about itself, or `null` when it states none.
+ *
+ * One refusal reaches the browser in two envelopes. The SDK's normalizer answers
+ * `{status: {code, message, failure_code, stacktrace}}`; the API and gateway layers in front of
+ * it answer FastAPI's `{detail: …}` or the relay's `{error: {…}}`. Both are read through
+ * `gatewayRefusalMessage` — the reader the MCP connect dialog and the permission editor already
+ * use — by handing it whichever of the two this body carries. That reader strips the runner's
+ * `⟦agenta_code:…⟧` marker and appends `next_step` when the refusal named one, so the reader of
+ * the chat learns what happened AND what to do about it.
+ *
+ * Reading the body is the whole point: the SDK envelope ships a multi-kilobyte stacktrace beside
+ * the message, so the body text is never something to show whole.
+ */
+const statedRefusal = (data: unknown): ParsedRunError | null => {
+    if (!data || typeof data !== "object") return null
+    const record = data as Record<string, unknown>
+    const status = record.status
+    const envelopes = status && typeof status === "object" ? [{detail: status}, record] : [record]
+    for (const candidate of envelopes) {
+        const shaped = {response: {data: candidate}}
+        const message = gatewayRefusalMessage(shaped)
+        if (!message) continue
+        // The failure CLASS outranks the HTTP status, same rule the stream path applies: `422`
+        // alone says only "refused", while the slug says which refusal it was.
+        const failureCode =
+            status && typeof status === "object"
+                ? (status as {failure_code?: unknown}).failure_code
+                : undefined
+        const code =
+            typeof failureCode === "string" && failureCode
+                ? failureCode
+                : (gatewayRefusalCode(shaped) ?? undefined)
+        return code ? {message, code} : {message}
+    }
+    return null
+}
+
+/**
+ * The reason half of the composer's refusal chip when the server stated nothing usable. The
+ * failed-echo row says the same thing with its subject attached (`PENDING_SEND_FAILED_NOTE`);
+ * the two are one event, and two phrasings would read as carelessness.
+ */
+export const REFUSED_SEND_REASON = "wasn't sent — try again."
+
+/** A send the server refused outright, carrying whatever reason the refusal stated. */
+export class SendRefusedError extends Error {
+    /** The refusal's own sentence, or `null` when the body carried none. */
+    readonly statedReason: string | null
+    /** The refusal's failure class, when it named one. */
+    readonly refusalCode: string | null
+    readonly status: number
+
+    constructor({
+        status,
+        statedReason,
+        refusalCode,
+    }: {
+        status: number
+        statedReason: string | null
+        refusalCode: string | null
+    }) {
+        super(statedReason ?? `The input was not accepted (${status}).`)
+        this.name = "SendRefusedError"
+        this.status = status
+        this.statedReason = statedReason
+        this.refusalCode = refusalCode
+    }
+}
+
+/** Build the refusal for a non-OK invoke response from its status and its (already read) body. */
+export const readSendRefusal = (status: number, body: string): SendRefusedError => {
+    let parsed: ParsedRunError | null = null
+    try {
+        parsed = statedRefusal(JSON.parse(body))
+    } catch {
+        // Not JSON — an HTML error page or an empty body states nothing to pass on.
+    }
+    return new SendRefusedError({
+        status,
+        statedReason: parsed?.message ?? null,
+        refusalCode: typeof parsed?.code === "string" ? parsed.code : null,
+    })
+}
+
+/** The refusal's own sentence, for a host that already has a frame to put it in. */
+export const refusedSendReason = (error: unknown): string | null =>
+    error instanceof SendRefusedError ? error.statedReason : null
+
+/**
+ * What the composer says about a send that never left: the server's own reason when the refusal
+ * stated one, and the standing "try again" wording when it did not.
+ */
+export const describeRefusedSend = (error: unknown): string => {
+    const stated = refusedSendReason(error)
+    return stated ? `wasn't sent — ${stated}` : REFUSED_SEND_REASON
+}
+
 // Keep byte parity with the desktop parser until its duplicate is removed.
 /**
  * Best-effort human reason from a useChat stream error: a plain string or a `{status:{…}}`
@@ -81,6 +181,14 @@ export const parseAgentRunError = (err: unknown, serverErrorProvenance = false):
                 : typeof obj?.message === "string"
                   ? (obj.message as string)
                   : null
+        if (!message) {
+            // Neither `status.message` nor a top-level one: this refusal was written by a layer
+            // in FRONT of the SDK route, which answers in FastAPI's `detail` or the relay's
+            // `error` instead. Read through the same reader the MCP dialogs use, so one refusal
+            // cannot be a sentence in a dialog and a bare status number in the chat.
+            const stated = statedRefusal(obj)
+            if (stated) return stated
+        }
         if (message) {
             const type = typeof status?.type === "string" ? status.type : undefined
             // A failure CLASS outranks the HTTP status. The server sends both, and `422` alone

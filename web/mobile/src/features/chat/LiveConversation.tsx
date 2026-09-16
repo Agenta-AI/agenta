@@ -765,8 +765,11 @@ export const LiveConversation = ({
                             <ContentRail>
                                 <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
                                     <span role="alert" className="text-destructive">
-                                        The message was not sent. Your text and attachments are
-                                        saved.
+                                        The message was not sent.
+                                        {pendingTask?.failureReason
+                                            ? ` ${pendingTask.failureReason}`
+                                            : ""}{" "}
+                                        Your text and attachments are saved.
                                     </span>
                                     {pendingTask?.parts?.map((part, index) => (
                                         <span
