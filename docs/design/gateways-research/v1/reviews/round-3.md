@@ -184,9 +184,13 @@ Thirteen P2 and ten P3, recorded in full in the round's working file. The ones w
   listener when `fetch` resolves, and the body is then read with nothing watching, so an upstream
   that answers and stalls holds the call and a cancelled turn cannot end it. This is CR10's own
   defect, half closed.
-- **D55 is closed on one path and open on another** (`sdks/python/agenta/sdk/decorators/routing.py:575`).
-  OR89 gated the traceback in the normalizer; the invoke-failure handler still returns it and ignores
-  the flag the documentation advertises.
+- **D68, D55's other traceback site — fixed at `8405da1d1b`, verified.** OR89 gated the traceback in
+  the normalizer; the invoke-failure handler still returned it and ignored the flag the documentation
+  advertises. Both of its branches now withhold it, and the routing layer gained the failure log that
+  makes withholding cost an operator nothing. The switch moved beside `failure_code_of`, which is the
+  part that matters: one request cannot get two different answers from the two modules, and a case
+  drives both sites in the same test with the flag off and then on. Nineteen cases pass; pinned before
+  the fix, four fail, including that one.
 - **Two user-visible fixes are unguarded on both apps.** Reverting the whole classic half of r3-D2
   and QA-D6 leaves `web/oss` unchanged at 524 passed; reverting the whole mobile half leaves
   `web/mobile` unchanged at 227. The package-level logic is pinned; neither app's copy is.
