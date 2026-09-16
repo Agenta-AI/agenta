@@ -202,6 +202,8 @@ export {
     type IconTileSize,
     type IconTileTone,
 } from "./icon-tile"
+export {InlineConfirm, type InlineConfirmProps} from "./inline-confirm"
+export {SkeletonRows, type SkeletonRowsProps} from "./skeleton-rows"
 export {Label} from "./label"
 export {Field, fieldLabelVariants, type FieldProps} from "./field"
 export {
