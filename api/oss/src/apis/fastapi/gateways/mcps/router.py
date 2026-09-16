@@ -780,6 +780,9 @@ def _connect_card(
     if endpoint_id:
         payload["endpoint_id"] = endpoint_id
     oauth_complete_message_js = _json_for_inline_script(payload)
+    # Where a stranded tab goes back to. The settings surface owns connections, and it is the
+    # one place that is right whichever surface started the flow.
+    agenta_return_path_js = _json_for_inline_script("/settings?tab=mcpEndpoints")
 
     accent = "#16a34a" if success else "#dc2626"
     icon = "✓" if success else "✕"
@@ -787,10 +790,14 @@ def _connect_card(
         heading_html = '<p class="h-line">The MCP server is connected.</p>'
     else:
         heading_html = f'<p class="h-error">{safe_error or "Something went wrong."}</p>'
+    # Two different situations, and the page cannot tell them apart until it runs: a popup,
+    # which has an opener and can close itself, and a tab the app navigated because the popup
+    # was blocked, which has neither. The script below picks the line that applies.
     auto_return_html = (
-        '<p id="auto-return-text" class="auto-return">This tab will close automatically in 3 seconds...</p>'  # noqa: E501
+        '<p id="auto-return-text" class="auto-return" hidden>This tab will close automatically in 3 seconds...</p>'  # noqa: E501
+        '<p id="manual-return-text" class="auto-return" hidden>Taking you back to Agenta...</p>'
         if success
-        else ""
+        else '<p id="manual-return-text" class="auto-return" hidden>Taking you back to Agenta...</p>'
     )
 
     return f"""<!DOCTYPE html>
@@ -842,12 +849,27 @@ def _connect_card(
   <script>
     const AGENTA_POST_MESSAGE_ORIGIN = {agenta_post_message_origin_js};
     const AGENTA_OAUTH_COMPLETE = {oauth_complete_message_js};
+    const AGENTA_RETURN_PATH = {agenta_return_path_js};
 
-    if (window.opener && AGENTA_POST_MESSAGE_ORIGIN) {{
+    const AGENTA_SUCCESS = {str(success).lower()};
+    const opened = Boolean(window.opener) && Boolean(AGENTA_POST_MESSAGE_ORIGIN);
+
+    if (opened) {{
+      // The popup path: the dashboard is listening, and a window a script opened may close
+      // itself.
       window.opener.postMessage(AGENTA_OAUTH_COMPLETE, AGENTA_POST_MESSAGE_ORIGIN);
-    }}
-    if ({str(success).lower()}) {{
-      setTimeout(function () {{ window.close(); }}, 3000);
+      const autoReturn = document.getElementById("auto-return-text");
+      if (AGENTA_SUCCESS && autoReturn) {{ autoReturn.hidden = false; }}
+      if (AGENTA_SUCCESS) {{ setTimeout(function () {{ window.close(); }}, 3000); }}
+    }} else if (AGENTA_POST_MESSAGE_ORIGIN) {{
+      // No opener, so the app navigated this tab because the popup was blocked. `window.close`
+      // is ignored for a tab a script did not open, so without this the person is stranded on
+      // the API's origin with the app gone. Send them back to it.
+      const manualReturn = document.getElementById("manual-return-text");
+      if (manualReturn) {{ manualReturn.hidden = false; }}
+      setTimeout(function () {{
+        window.location.replace(AGENTA_POST_MESSAGE_ORIGIN + AGENTA_RETURN_PATH);
+      }}, 1500);
     }}
   </script>
 </body>
