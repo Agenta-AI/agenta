@@ -384,7 +384,10 @@ export {
     TriggerManagementSection,
     AddTriggerDropdown,
 } from "./SchemaControls/TriggerManagementSection"
-export type {TriggerManagementSectionProps} from "./SchemaControls/TriggerManagementSection"
+export type {
+    TriggerManagementSectionProps,
+    TriggerOwnerRef,
+} from "./SchemaControls/TriggerManagementSection"
 export {TriggerRow} from "./SchemaControls/triggerManagement/TriggerRow"
 export {SubscriptionChildRow} from "./SchemaControls/triggerManagement/SubscriptionChildRow"
 export {TriggerActionsMenu} from "./SchemaControls/triggerManagement/TriggerActionsMenu"

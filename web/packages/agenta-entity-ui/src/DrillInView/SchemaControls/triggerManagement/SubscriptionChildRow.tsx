@@ -81,7 +81,7 @@ export function SubscriptionChildRow({
                 }}
             >
                 <Flask size={16} />
-                Run in playground
+                Test run
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {menu}
