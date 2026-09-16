@@ -1,3 +1,4 @@
 export {ListTable} from "./ListTable"
 export {ListTableToolbar} from "./ListTableToolbar"
-export type {ListTableColumn, ListTableGroup, ListTableProps} from "./types"
+export {ListTableViewToggle} from "./ListTableViewToggle"
+export type {ListTableColumn, ListTableGroup, ListTableProps, ListTableView} from "./types"
