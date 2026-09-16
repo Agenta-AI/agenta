@@ -124,7 +124,7 @@ describe("watchOauthConsent teardown", () => {
     it("is idempotent, so stopping after an outcome does not report a second one", () => {
         const watch = setup()
 
-        watch.post({type: "mcp:oauth:connected", success: true})
+        watch.post({type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"})
         watch.stop()
         watch.stop()
 
@@ -136,7 +136,7 @@ describe("watchOauthConsent teardown", () => {
         const watch = setup()
 
         watch.stop()
-        watch.post({type: "mcp:oauth:connected", success: true})
+        watch.post({type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"})
         watch.tickPoll()
         watch.fireTimeout()
 
@@ -149,7 +149,12 @@ describe("watchOauthConsent outcomes", () => {
     it("reports the callback's own error on an explicit failure", () => {
         const watch = setup()
 
-        watch.post({type: "mcp:oauth:connected", success: false, error: "User declined"})
+        watch.post({
+            type: "mcp:oauth:connected",
+            success: false,
+            error: "User declined",
+            endpoint_id: "mcp-1",
+        })
 
         expect(watch.onFailed).toHaveBeenCalledWith("User declined")
     })
@@ -157,7 +162,7 @@ describe("watchOauthConsent outcomes", () => {
     it("falls back to a sentence when a failed completion carries no error", () => {
         const watch = setup()
 
-        watch.post({type: "mcp:oauth:connected", success: false})
+        watch.post({type: "mcp:oauth:connected", success: false, endpoint_id: "mcp-1"})
 
         expect(watch.onFailed).toHaveBeenCalledWith(CONSENT_FAILED_MESSAGE)
     })
@@ -198,7 +203,10 @@ describe("watchOauthConsent trust", () => {
     it("ignores a completion posted from an untrusted origin", () => {
         const watch = setup()
 
-        watch.post({type: "mcp:oauth:connected", success: true}, "https://evil.test")
+        watch.post(
+            {type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"},
+            "https://evil.test",
+        )
 
         expect(watch.onConnected).not.toHaveBeenCalled()
         expect(attached(watch).listeners).toBe(1)
@@ -211,6 +219,29 @@ describe("watchOauthConsent trust", () => {
 
         expect(watch.onConnected).not.toHaveBeenCalled()
         expect(attached(watch).listeners).toBe(1)
+    })
+
+    it("ignores a completion that names no endpoint at all", () => {
+        // It cannot be shown to belong to this attempt, and a watch that accepts it settles
+        // on whatever consent finished last (M14).
+        const watch = setup({endpointId: "mcp-1"})
+
+        watch.post({type: "mcp:oauth:connected", success: true})
+
+        expect(watch.onConnected).not.toHaveBeenCalled()
+        expect(attached(watch).listeners).toBe(1)
+    })
+
+    it("still ends an unidentifiable attempt when the window closes", () => {
+        // Requiring the id must not leave a watch running forever.
+        const popup = {closed: false}
+        const watch = setup({popup, endpointId: "mcp-1"})
+
+        watch.post({type: "mcp:oauth:connected", success: true})
+        popup.closed = true
+        watch.tickPoll()
+
+        expect(watch.onFailed).toHaveBeenCalledWith(CONSENT_CLOSED_MESSAGE)
     })
 
     it("accepts a completion that names this endpoint", () => {

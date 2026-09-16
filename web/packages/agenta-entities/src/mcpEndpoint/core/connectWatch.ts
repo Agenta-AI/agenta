@@ -95,8 +95,12 @@ export function watchOauthConsent({
     function onMessage(event: MessageEvent) {
         if (!isTrustedOauthConnectedMessage(event.data, event.origin, trustedOrigins)) return
         const completion = event.data as McpOauthCompletionMessage
-        // A completion that names a different endpoint belongs to another attempt.
-        if (completion.endpoint_id && endpointId && completion.endpoint_id !== endpointId) return
+        // A completion has to name this attempt's endpoint, not merely fail to contradict it.
+        // Accepting one that omits the id let whichever watch happened to be live settle on
+        // another attempt's message, which is a connection reporting itself from someone
+        // else's consent (M14). The poll and the timeout still end an attempt whose callback
+        // says nothing identifiable.
+        if (endpointId && completion.endpoint_id !== endpointId) return
         settle(() => {
             if (completion.success) onConnected()
             else onFailed(completion.error || CONSENT_FAILED_MESSAGE)

@@ -85,6 +85,16 @@ export function useMcpConnectJourney({
         (initial): McpJourneyState => (initial ? startReconnect(initial) : startJourney()),
     )
 
+    /**
+     * Which attempt the journey is on.
+     *
+     * Every async step reads it before its await and checks it after. A step that comes back
+     * to a bumped generation belongs to an attempt nobody is waiting for any more: a cancel,
+     * or an unmount. Without it, work in flight installed itself afterwards — a watch holding
+     * a listener, an interval and a three-minute timeout on a dead attempt, or an endpoint row
+     * arriving after the cancel that was supposed to delete it (D34).
+     */
+    const attemptRef = useRef(0)
     const stopWatchRef = useRef<(() => void) | null>(null)
     const popupNameRef = useRef(`mcp_oauth_${randomAlphanumeric(6)}`)
     // The reducer's state is not readable from inside an async step that already started,
@@ -97,6 +107,12 @@ export function useMcpConnectJourney({
         stopWatchRef.current?.()
         stopWatchRef.current = null
     }, [])
+
+    /** Abandon whatever is in flight. Anything that returns after this is ignored. */
+    const abandonAttempt = useCallback(() => {
+        attemptRef.current += 1
+        stopWatch()
+    }, [stopWatch])
 
     const setUrl = useCallback((url: string) => dispatch({type: "url_changed", url}), [])
     const setName = useCallback((name: string) => dispatch({type: "name_changed", name}), [])
@@ -160,7 +176,17 @@ export function useMcpConnectJourney({
     /** Point an already-open popup at the provider, or report that it was blocked. */
     const driveConsent = useCallback(
         async (popup: Window | null, endpointId: string, scopes: string[]) => {
+            const attempt = attemptRef.current
             const result = await beginMcpConnect(endpointId, scopes, projectId)
+
+            if (attemptRef.current !== attempt) {
+                // The dialog closed while the authorization URL was being minted. Installing
+                // the watch now would hold a listener, an interval and a timeout on an
+                // attempt nobody is waiting for, which is the window OR67's own teardown
+                // cannot cover because there is nothing installed yet to tear down.
+                popup?.close()
+                return
+            }
             const redirectUrl = result.redirect_url
             if (!redirectUrl) throw new Error("No authorization URL returned.")
 
@@ -203,6 +229,7 @@ export function useMcpConnectJourney({
         const mode = AUTH_MODE_FOR_PROBE[probe?.auth.mode ?? "unknown"] ?? "none"
 
         try {
+            const attempt = attemptRef.current
             let endpointId = endpointRef.current?.id
             let slug = endpointRef.current?.slug
 
@@ -223,6 +250,13 @@ export function useMcpConnectJourney({
                 }
                 endpointId = endpoint.id
                 slug = endpoint.slug
+
+                if (attemptRef.current !== attempt) {
+                    // Cancelled while the create was in flight. The cancel found no row to
+                    // delete, so this one would be left behind; delete it here instead.
+                    void deleteMcpEndpoint(endpointId, projectId).catch(() => undefined)
+                    return
+                }
                 endpointRef.current = {id: endpointId, slug}
             }
 
@@ -350,7 +384,7 @@ export function useMcpConnectJourney({
      * reconnect leaves the working connection exactly as it found it.
      */
     const cancel = useCallback(async () => {
-        stopWatch()
+        abandonAttempt()
         const endpoint = endpointRef.current
         if (cancelDeletesEndpoint(state) && endpoint) {
             endpointRef.current = null
@@ -361,7 +395,7 @@ export function useMcpConnectJourney({
                 // blocking the person on.
             }
         }
-    }, [projectId, state, stopWatch])
+    }, [abandonAttempt, projectId, state])
 
     const retry = useCallback(() => dispatch({type: "retry"}), [])
     const retryTools = useCallback(() => dispatch({type: "retry_tools"}), [])
@@ -413,8 +447,10 @@ export function useMcpConnectJourney({
             retry,
             retryTools,
             stopWatch,
+            abandonAttempt,
         }),
         [
+            abandonAttempt,
             cancel,
             expectsConsent,
             finish,
