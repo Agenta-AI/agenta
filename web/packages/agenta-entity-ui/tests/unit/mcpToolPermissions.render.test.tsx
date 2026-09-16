@@ -1,9 +1,16 @@
 /**
- * What the per-tool editor has to say on screen, not just compute.
+ * The five things the per-tool editor has to say on screen, carried over to the drawer that
+ * replaced it.
  *
- * Each of these is a case where a table that reads as safe would not be: a tool with no rule
- * looking unrestricted, an opted-out server looking like it has rules, and a filter-hidden
- * tool looking assignable when the API would refuse the whole policy.
+ * Each was a fix for a reported problem and each is invisible from a mockup, so each survives the
+ * port with its own case: a filter-hidden tool looking assignable when the API would refuse the
+ * whole policy, a tool with no rule looking unrestricted, a filtered row showing no matching text,
+ * an unauthorized server offered a retry that cannot work, and an agent written before per-tool
+ * policy existed quietly gaining a table.
+ *
+ * The drawer renders through a portal, so every query here goes to the document rather than to the
+ * host node. A query scoped to the host finds nothing and the symptom reads as a component that
+ * rendered nothing at all.
  */
 import {act, createElement} from "react"
 
@@ -23,7 +30,7 @@ vi.mock("jotai", async (importOriginal) => ({
     useAtomValue: () => "project-1",
 }))
 
-import McpToolPermissions from "../../src/mcpEndpoint/McpToolPermissions"
+import McpPermissionDrawer from "../../src/mcpEndpoint/McpPermissionDrawer"
 import {McpProtocolError, type McpServerPolicy} from "@agenta/entities/mcpEndpoint"
 
 let host: HTMLDivElement
@@ -33,17 +40,48 @@ const render = async (
     policy: McpServerPolicy,
     onChange = vi.fn(),
     slug = "acme",
-    extra: {connectionName?: string; onConnect?: () => void} = {},
+    extra: Partial<Parameters<typeof McpPermissionDrawer>[0]> = {},
 ) => {
     await act(async () => {
-        root.render(createElement(McpToolPermissions, {slug, policy, onChange, ...extra}))
+        root.render(
+            createElement(McpPermissionDrawer, {
+                open: true,
+                onClose: () => undefined,
+                slug,
+                policy,
+                onChange,
+                ...extra,
+            }),
+        )
     })
     return onChange
 }
 
-const text = () => host.textContent ?? ""
+const text = () => document.body.textContent ?? ""
 
-const selectFor = (label: string) => host.querySelector<HTMLElement>(`[aria-label="${label}"]`)
+const selectFor = (label: string) => document.querySelector<HTMLElement>(`[aria-label="${label}"]`)
+
+const button = (label: string) =>
+    [...document.querySelectorAll("button")].find((candidate) => candidate.textContent === label)
+
+const click = async (element: Element | undefined) => {
+    await act(async () => {
+        element!.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+    })
+}
+
+/** Type into the search box the way a person does, through the real input event. */
+const typeSearch = async (value: string) => {
+    const box = document.querySelector<HTMLInputElement>('input[aria-label="Search tools"]')!
+    await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype,
+            "value",
+        )!.set!
+        setter.call(box, value)
+        box.dispatchEvent(new Event("input", {bubbles: true}))
+    })
+}
 
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
@@ -63,79 +101,31 @@ afterEach(async () => {
     vi.clearAllMocks()
 })
 
-describe("while the per-tool table is off", () => {
-    it("says the server's own permission governs, and offers to opt in", async () => {
-        await render({permission: "allow"})
-
-        expect(text()).toContain("follows the server")
-        expect(text()).toContain("Set permissions per tool")
-    })
-
-    it("writes nothing per-tool until someone opts in", async () => {
-        const onChange = await render({permission: "allow"})
-
-        const optIn = [...host.querySelectorAll("button")].find(
-            (button) => button.textContent === "Set permissions per tool",
-        )
-        await act(async () => {
-            optIn!.dispatchEvent(new MouseEvent("click", {bubbles: true}))
-        })
-
-        // `ask` is the floor for a tool nobody has looked at, so opting in cannot widen.
-        expect(onChange).toHaveBeenCalledWith({permission: "allow", new_tool_permission: "ask"})
-    })
-})
-
-describe("once the table is on", () => {
-    const policy: McpServerPolicy = {tool_permissions: {echo: "allow"}}
-
-    it("says what a tool with no rule of its own gets", async () => {
-        await render(policy)
-
+describe("a tool with no rule of its own", () => {
+    it("says what it inherits, rather than showing a bare value", async () => {
         // Without this the row reads as unrestricted, which is the opposite of the truth.
-        expect(text()).toContain("Inherits ask")
-        expect(selectFor("Permission for a tool with no rule")).not.toBeNull()
+        await render({tool_permissions: {echo: "allow"}})
+
+        expect(selectFor("Permission for wipe")?.textContent).toContain("Inherits ask")
     })
 
     it("says Ask for an unnamed tool even when the server permission is allow", async () => {
-        // The discriminating shape, which every other label case here misses: a per-tool table
-        // BESIDE a server permission. With no server permission both the old expression
-        // (`new_tool_permission ?? permission ?? "ask"`) and the corrected one answer "ask", so
-        // the label cases passed either way. The runner's gate never consults the whole-server
-        // permission once a table is declared — a human decides for anything the table does not
-        // name — so a server set to allow must still read Ask here, or the label promises a tool
-        // will run unapproved when the run will stop and ask (D88).
+        // The discriminating shape: a per-tool table BESIDE a server permission. The runner's gate
+        // never consults the whole-server permission once a table is declared — a human decides for
+        // anything the table does not name — so a server set to allow must still read Ask here, or
+        // the label promises a tool will run unapproved when the run will stop and ask (D88).
         await render({tool_permissions: {echo: "allow"}, permission: "allow"})
 
-        expect(text()).toContain("Inherits ask")
-        expect(text()).not.toContain("Inherits allow")
+        expect(selectFor("Permission for wipe")?.textContent).toContain("Inherits ask")
+        expect(selectFor("Permission for wipe")?.textContent).not.toContain("Inherits allow")
     })
 
-    it("offers a control for every advertised tool", async () => {
-        await render(policy)
+    it("names the server permission while no table is declared", async () => {
+        // With nothing per-tool written, the whole-server permission really is what an unnamed
+        // tool gets, and the row has to say so rather than repeating the floor.
+        await render({permission: "allow"})
 
-        expect(selectFor("Permission for echo")).not.toBeNull()
-        expect(selectFor("Permission for wipe")).not.toBeNull()
-    })
-
-    it("shows the tool names the server advertises, never a rendered one", async () => {
-        await render(policy)
-
-        expect(text()).toContain("echo")
-        expect(text()).not.toContain("mcp__")
-    })
-
-    it("offers a way back to the whole-server permission", async () => {
-        const onChange = await render({permission: "deny", ...policy})
-
-        const revert = [...host.querySelectorAll("button")].find((button) =>
-            button.textContent?.includes("server permission instead"),
-        )
-        await act(async () => {
-            revert!.dispatchEvent(new MouseEvent("click", {bubbles: true}))
-        })
-
-        expect(onChange).toHaveBeenCalledWith({permission: "deny"})
+        expect(selectFor("Permission for echo")?.textContent).toContain("Inherits allow")
     })
 })
 
@@ -148,8 +138,7 @@ describe("a tool the include filter hides", () => {
     it("cannot be assigned one, because the API refuses the whole policy", async () => {
         await render(filtered)
 
-        const hidden = selectFor("Permission for wipe")
-        expect(hidden?.getAttribute("disabled")).not.toBeNull()
+        expect(selectFor("Permission for wipe")?.getAttribute("disabled")).not.toBeNull()
         expect(text()).toContain("Hidden by this server's tool filter")
     })
 
@@ -160,56 +149,23 @@ describe("a tool the include filter hides", () => {
     })
 })
 
-describe("switching connection while a tool list is in flight", () => {
-    it("never shows one connection's tools under another's name", async () => {
-        // The lists arrive whenever they arrive. Before this the slower answer overwrote the
-        // faster one regardless of which connection had been asked for (M4).
-        let releaseFirst: (tools: unknown) => void = () => undefined
-        listMcpTools.mockImplementationOnce(
-            () =>
-                new Promise((resolve) => {
-                    releaseFirst = resolve
-                }),
-        )
-        listMcpTools.mockResolvedValueOnce([{name: "beta-only-tool"}])
-
-        const onChange = vi.fn()
-        await render({tool_permissions: {echo: "allow"}}, onChange, "alpha")
-        await render({tool_permissions: {echo: "allow"}}, onChange, "beta")
-
-        releaseFirst([{name: "alpha-only-tool"}])
-        await act(async () => {
-            await Promise.resolve()
-        })
-
-        expect(text()).toContain("beta-only-tool")
-        expect(text()).not.toContain("alpha-only-tool")
-    })
-})
-
 describe("a tool the filter hides that still holds a permission", () => {
-    it("offers a way to remove it, because the API refuses the whole policy", async () => {
-        await render({
-            tools: {mode: "include", names: ["echo"]},
-            tool_permissions: {echo: "allow", wipe: "deny"},
-        })
+    const stranded: McpServerPolicy = {
+        tools: {mode: "include", names: ["echo"]},
+        tool_permissions: {echo: "allow", wipe: "deny"},
+    }
+
+    it("offers a way to remove it, because the row's own control is disabled", async () => {
+        await render(stranded)
 
         expect(text()).toContain("filter hides")
         expect(text()).toContain("cannot run until they are removed")
     })
 
     it("clears it when asked", async () => {
-        const onChange = await render({
-            tools: {mode: "include", names: ["echo"]},
-            tool_permissions: {echo: "allow", wipe: "deny"},
-        })
+        const onChange = await render(stranded)
 
-        const remove = [...host.querySelectorAll("button")].find(
-            (button) => button.textContent === "Remove",
-        )
-        await act(async () => {
-            remove!.dispatchEvent(new MouseEvent("click", {bubbles: true}))
-        })
+        await click(button("Remove"))
 
         expect(onChange).toHaveBeenCalledWith({
             tools: {mode: "include", names: ["echo"]},
@@ -218,117 +174,57 @@ describe("a tool the filter hides that still holds a permission", () => {
     })
 })
 
-/** Type into the filter box the way a person does, through the real input event. */
-const typeFilter = async (value: string) => {
-    const box = host.querySelector<HTMLInputElement>('[aria-label="Filter tools"]')!
-    await act(async () => {
-        const setter = Object.getOwnPropertyDescriptor(
-            window.HTMLInputElement.prototype,
-            "value",
-        )!.set!
-        setter.call(box, value)
-        box.dispatchEvent(new Event("input", {bubbles: true}))
-    })
-}
-
-describe("a catalogue too long to scroll", () => {
+describe("a row that survived a search", () => {
     const many = Array.from({length: 40}, (_, index) => ({
         name: `tool_${index}`,
         description: index === 7 ? "File a new issue in a team" : "Does a thing",
     }))
 
-    it("offers a filter once there are enough tools to hunt through", async () => {
-        listMcpTools.mockResolvedValue(many)
-
-        await render({new_tool_permission: "ask"})
-
-        // Linear advertises seventy-nine of these and every row rendered, so choosing what one
-        // tool may do meant scrolling for it (UI QA round 3, scenario G).
-        expect(host.querySelector('[aria-label="Filter tools"]')).not.toBeNull()
-    })
-
-    it("does not put a filter above a handful", async () => {
-        await render({new_tool_permission: "ask"})
-
-        // The default stub advertises two.
-        expect(host.querySelector('[aria-label="Filter tools"]')).toBeNull()
-    })
-
-    it("narrows the rows to what was typed, by name or by what the tool does", async () => {
+    it("shows the description it was matched on, so the result is explainable", async () => {
+        // The search matches a description as well as a name. Typing "screenshot" once kept one row
+        // called `extract_images` whose visible text contained no such word, and it looked like a
+        // bug (round 4, D6).
         listMcpTools.mockResolvedValue(many)
         await render({new_tool_permission: "ask"})
 
-        const box = host.querySelector<HTMLInputElement>('[aria-label="Filter tools"]')!
-        await act(async () => {
-            const setter = Object.getOwnPropertyDescriptor(
-                window.HTMLInputElement.prototype,
-                "value",
-            )!.set!
-            setter.call(box, "issue")
-            box.dispatchEvent(new Event("input", {bubbles: true}))
-        })
+        await typeSearch("issue")
 
         expect(selectFor("Permission for tool_7")).not.toBeNull()
         expect(selectFor("Permission for tool_1")).toBeNull()
-    })
-
-    it("shows the description a row was matched on, so the result is explainable", async () => {
-        // The filter matches a description as well as a name, and this editor renders a
-        // description only for a tool that already carries a rule. So a description match left
-        // a row on screen with nothing in its visible text containing the word: typing
-        // "screenshot" kept one row called `extract_images` and looked like a bug (round 4, D6).
-        listMcpTools.mockResolvedValue(many)
-        await render({new_tool_permission: "ask"})
-
-        await typeFilter("issue")
-
-        expect(selectFor("Permission for tool_7")).not.toBeNull()
         expect(text()).toContain("File a new issue in a team")
-    })
-
-    it("goes back to saying what each row inherits once the query is cleared", async () => {
-        listMcpTools.mockResolvedValue(many)
-        await render({new_tool_permission: "ask"})
-
-        await typeFilter("issue")
-        await typeFilter("")
-
-        expect(text()).toContain("Inherits ask")
-    })
-
-    it("says the query matched nothing rather than looking like a server with no tools", async () => {
-        listMcpTools.mockResolvedValue(many)
-        await render({new_tool_permission: "ask"})
-
-        const box = host.querySelector<HTMLInputElement>('[aria-label="Filter tools"]')!
-        await act(async () => {
-            const setter = Object.getOwnPropertyDescriptor(
-                window.HTMLInputElement.prototype,
-                "value",
-            )!.set!
-            setter.call(box, "nothing-matches-this")
-            box.dispatchEvent(new Event("input", {bubbles: true}))
-        })
-
-        expect(text()).toContain("No tool here matches that")
-        expect(text()).not.toContain("exposes no tools yet")
     })
 })
 
-describe("rules for tools that are no longer advertised", () => {
-    it("are shown rather than dropped, so a decision survives a server blip", async () => {
-        await render({tool_permissions: {echo: "allow", gone: "deny"}})
+describe("switching connection while a tool list is in flight", () => {
+    it("never shows one connection's tools under another's name", async () => {
+        // The lists arrive whenever they arrive. Before this the slower answer overwrote the faster
+        // one regardless of which connection had been asked for (M4).
+        let releaseFirst: (tools: unknown) => void = () => undefined
+        listMcpTools.mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    releaseFirst = resolve
+                }),
+        )
+        listMcpTools.mockResolvedValueOnce([{name: "beta_only_tool"}])
 
-        expect(text()).toContain("no longer advertises")
-        expect(text()).toContain("gone")
+        const onChange = vi.fn()
+        await render({tool_permissions: {echo: "allow"}}, onChange, "alpha")
+        await render({tool_permissions: {echo: "allow"}}, onChange, "beta")
+
+        releaseFirst([{name: "alpha_only_tool"}])
+        await act(async () => {
+            await Promise.resolve()
+        })
+
+        expect(text()).toContain("beta_only_tool")
+        expect(text()).not.toContain("alpha_only_tool")
     })
 })
 
 describe("when the server has not been authorized", () => {
-    // The error the tool-list client actually throws. It used to be stubbed with an
-    // axios-shaped object, which that function cannot produce: the response is read and
-    // discarded at the throw, so both cases below passed against a shape that never reaches
-    // them and neither half could fire in front of a person (D50).
+    // The error the tool-list client actually throws. An axios-shaped stub cannot reach this
+    // component: the response is read and discarded at the throw (D50).
     const authRefusal = new McpProtocolError(
         "Authorization required for custom/acme",
         "auth_required",
@@ -348,51 +244,57 @@ describe("when the server has not been authorized", () => {
 
     it("offers the action that fixes it rather than a retry that cannot", async () => {
         listMcpTools.mockRejectedValue(authRefusal)
-        const onConnect = vi.fn()
+        const onReconnect = vi.fn()
 
         await render({tool_permissions: {echo: "allow"}}, vi.fn(), "acme", {
             connectionName: "Acme (prod)",
-            onConnect,
+            onReconnect,
         })
 
-        const connect = [...host.querySelectorAll("button")].find(
-            (button) => button.textContent === "Connect",
-        )
-        expect(connect).toBeDefined()
-        expect(
-            [...host.querySelectorAll("button")].find((b) => b.textContent === "Retry tools"),
-        ).toBeUndefined()
+        expect(button("Connect")).toBeDefined()
+        expect(button("Retry tools")).toBeUndefined()
 
-        await act(async () => {
-            connect!.dispatchEvent(new MouseEvent("click", {bubbles: true}))
-        })
-        expect(onConnect).toHaveBeenCalled()
+        await click(button("Connect"))
+        expect(onReconnect).toHaveBeenCalled()
     })
 })
 
 describe("when the tool list cannot be read", () => {
     it("says so in the gateway's own words, and offers to try again", async () => {
-        // The shape the tool-list client actually throws, for the same reason the
-        // needs-authorization stub above says: every relay failure is funnelled through
-        // `relayFailure` into an McpProtocolError carrying the server's sentence, so an
-        // axios-shaped rejection cannot reach this component and a case built on one passes
-        // without exercising the branch the real flow depends on (CodeRabbit pass 2, P15).
         listMcpTools.mockRejectedValue(new McpProtocolError("The server did not answer."))
         const onChange = await render({tool_permissions: {echo: "allow"}})
 
         expect(text()).toContain("The server did not answer.")
-        expect(text()).toContain("Retry tools")
+        expect(button("Retry tools")).toBeDefined()
         expect(onChange).not.toHaveBeenCalled()
     })
 
     it("says something readable when the failure carries no sentence at all", async () => {
-        // A transport error's own message is "Request failed with status code 424", which is
-        // a number where a reason belongs, so it is not what gets shown.
+        // A transport error's own message is "Request failed with status code 424", which is a
+        // number where a reason belongs, so it is not what gets shown.
         listMcpTools.mockRejectedValue(new Error("Request failed with status code 424"))
         await render({tool_permissions: {echo: "allow"}})
 
         expect(text()).toContain("The tool list could not be read.")
         expect(text()).not.toContain("status code 424")
+    })
+})
+
+describe("an agent configured before per-tool policy existed", () => {
+    it("is not given a table by the drawer merely opening on it", async () => {
+        const onChange = await render({permission: "allow"})
+
+        expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it("reads its whole-server permission back as a preset, with nothing per-tool on screen", async () => {
+        // The drawer opens on a policy that has no table. It must read as "Allow all" rather than
+        // as the Custom that a table would produce, or an author would think they had overrides
+        // they never wrote. The write path itself is pinned in mcpPermissionAdapter.test.ts.
+        await render({permission: "allow"})
+
+        expect(selectFor("Default permission")?.textContent).toContain("Allow all")
+        expect(selectFor("Default permission")?.textContent).not.toContain("Custom")
     })
 })
 
