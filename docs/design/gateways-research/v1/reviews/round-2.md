@@ -381,6 +381,27 @@ and against the two implementations in this repository that do it properly. Fix:
 behind a control-plane route that reuses the gateway's own MCP client, rather than keeping a third
 MCP client in the browser. That also removes the browser's need to mint a data-plane credential.
 
+**Fixed** by `8079441042`, verified. The client now speaks the sequence the specification requires:
+`initialize`, then the `notifications/initialized` that completes it, then `tools/list`. It declares
+both answer shapes in its `Accept` header and reads both, taking an event stream's last frame that
+carries a result or an error, because notifications may precede the answer. It carries the
+negotiated version on every later call and follows the cursor. Most of the finding's cost is closed
+by one distinction the new module states plainly: a missing or non-array `tools` member, and a
+JSON-RPC `error` inside a 200, now raise with the server's own wording instead of becoming an empty
+catalogue, so an empty server and a broken conversation no longer reach the reader as the same
+value.
+
+The browser client was kept rather than moved behind a control-plane route, which was the larger
+suggestion. That is a reasonable call for this release: the seam is now one small module whose
+behaviour can be compared against the other two clients in the repository, and the route can come
+later.
+
+Two notes rather than findings. Pagination stops after twenty pages and returns what it has, so a
+server with more would be truncated silently; the tools it drops fall to the new-tool default, which
+is the safe direction. And **Q3 closes with this**: both components render `(error as Error).message`,
+which is now the server's own sentence rather than an HTTP status line, because the client raises a
+typed error carrying the gateway's refusal or the JSON-RPC message.
+
 **D33. Invalidate compares a secret row id, which a reconnect does not change.** The D21 fix skips
 invalidation when `dbe.secret_id != secret_id` (`dao.py:265`). An OAuth reconnect updates the
 existing grant row rather than creating one — `write_tokens` finds the grant by the
@@ -411,8 +432,17 @@ API's `_parse_bool_env` returns `value.lower() in _TRUTHY` (`api/oss/src/utils/e
 three read as off. The frontend's `isMcpGatewayEnabled` returns true for everything but the literal
 string `false` (`web/packages/agenta-shared/src/api/env.ts:146`). The operator switches the plane
 off and keeps a settings tab, a Connect journey and an agent-config surface whose every request the
-API refuses with a 403. Fix: one accepted vocabulary, normalized where the value is already mirrored
-into the browser.
+API refuses with a 403.
+
+**Fixed** by `acdf1de2e4`, verified. Both halves now parse the flag the way `_parse_bool_env` does,
+against the same vocabulary, and the three lists were compared literally: the API's `_TRUTHY`, the
+TypeScript set and the shell `case` carry the same eight spellings, with unset or blank taking the
+default. The browser helper that was carrying its own copy of that vocabulary now shares the one
+parser. The shell half is covered by a test that reads `entrypoint.sh` and executes the block's own
+text, so an edit to the script cannot leave the test passing against a copy.
+
+Run both ways rather than read: extracting the old block and the new one and feeding each the same
+nine values, `0`, `off` and `no` move from on to off, and nothing else changes.
 
 **D36. Saving an existing custom model connection silently declares the OpenAI protocol.** A
 connection whose record declares no protocol opens on `DEFAULT_ENDPOINT_PROTOCOL`, which is OpenAI
