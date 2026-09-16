@@ -52,8 +52,8 @@ Permissions belong to the agent, not to the connection. Two agents can share one
 In the agent's **MCPs** section, open the server and find `Permissions`.
 
 1. The field starts on "Every tool on this server follows the server's own permission." Click `Set permissions per tool` to decide tool by tool.
-2. Set `A tool with no rule of its own` to `Ask`, `Allow`, or `Deny`. This covers every tool you leave without a rule, including one the server starts advertising after you save.
-3. Give individual tools their own rule. `Allow` runs the tool without asking, `Ask` pauses the run for you, `Deny` never runs it, and `Inherit` hands the tool back to the default you set in step 2. A row with no rule of its own says what it inherits, such as `Inherits ask`.
+2. Set `A tool with no rule of its own` to `Ask`, `Allow`, or `Deny`. This covers every tool you leave without a rule, including one the server starts advertising after you save. It starts on `Ask`, and it is the only thing that decides those tools: once you set permissions per tool, the whole-server permission no longer reaches a tool you did not name.
+3. Give individual tools their own rule. `Allow` runs the tool without asking, `Ask` pauses the run for you, `Deny` never runs it, and `Inherit` hands the tool back to the default you set in step 2. A row with no rule of its own says which of those it inherits.
 
 To hand the whole server back to one decision, click `Use the server permission instead`. That clears every per-tool rule you set.
 

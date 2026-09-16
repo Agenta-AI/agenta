@@ -91,7 +91,7 @@ Three optional fields, answering three different questions.
 | `tool_permissions` | object | `{}` | Per-tool decisions, keyed by the name the server advertises (`echo`), never the harness-rendered name (`mcp__acme__echo`). |
 | `new_tool_permission` | `"allow"` \| `"ask"` \| `"deny"` | unset | The decision for an advertised tool that `tool_permissions` does not name. |
 
-Setting either `tool_permissions` or `new_tool_permission` opts this server into per-tool policy. An advertised tool then resolves to its `tool_permissions` entry, and otherwise to `new_tool_permission`. When `new_tool_permission` is absent, it falls back to `permission`, and to `ask` when `permission` is absent too. The agent's default permission is not consulted for a server that opted in, so a run default cannot widen the table.
+Setting either `tool_permissions` or `new_tool_permission` opts this server into per-tool policy. An advertised tool then resolves to its `tool_permissions` entry, and otherwise to `new_tool_permission`. When `new_tool_permission` is absent, an unnamed tool is `ask`. Neither `permission` nor the agent's default permission reaches it: once you write a per-tool table, a tool you never named waits for a person rather than inheriting a wider decision made elsewhere.
 
 With both fields absent, the entry carries no per-tool policy and `permission` governs the server, or `runner.permissions.default` when `permission` is `null`.
 
