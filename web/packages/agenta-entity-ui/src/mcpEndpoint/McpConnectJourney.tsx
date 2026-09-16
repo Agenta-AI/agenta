@@ -41,6 +41,7 @@ import {
     isBusy,
     toolPrefixFromName,
     useMcpConnectJourney,
+    type McpConnectJourney as McpConnectJourneyApi,
     type McpJourneyState,
 } from "@agenta/entities/mcpEndpoint"
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
@@ -257,13 +258,45 @@ export default function McpConnectJourney(props: McpConnectJourneyProps) {
 }
 
 function McpConnectJourneyBody({
-    open,
-    onClose,
     existingNames = [],
     reconnect = null,
     onConnected,
+    ...rest
 }: McpConnectJourneyProps) {
     const journey = useMcpConnectJourney({existingNames, reconnect, onConnected})
+    return (
+        <McpConnectSheet
+            {...rest}
+            journey={journey}
+            existingNames={existingNames}
+            reconnect={reconnect}
+        />
+    )
+}
+
+export interface McpConnectSheetProps extends Omit<
+    McpConnectJourneyProps,
+    "existingNames" | "reconnect" | "onConnected"
+> {
+    /** The journey this sheet is a rendering of. */
+    journey: McpConnectJourneyApi
+    existingNames?: (string | null | undefined)[]
+    reconnect?: McpConnectJourneyProps["reconnect"]
+}
+
+/**
+ * The six screens, given a journey.
+ *
+ * Separated from the hook so that every state can be held still: a story and a rendered
+ * test both need to look at `consent_cancelled` without a provider refusing anything.
+ */
+export function McpConnectSheet({
+    open,
+    onClose,
+    journey,
+    existingNames = [],
+    reconnect = null,
+}: McpConnectSheetProps) {
     const {state} = journey
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
 
