@@ -453,13 +453,12 @@ The removal itself is right: the card resolves its endpoint from the notice's sl
 field. So the fix is the stale assertion, not the field. Worth deciding rather than deleting on
 sight, because the case's own title argues the field was the reader's affordance.
 
-**On keeping `registerChatSkin`: the carve-out is right and its stated reason is not.** The
-resolvers that read the store are live product code, five of them. The writer has no product caller
-at all, so the store is empty at runtime and every reader falls through to its default. Deleting the
-writer alone would leave five resolvers consulting a store nothing can fill, which is worse than
-today, and the override route is real and documented — so keep it. But "three live readers" should
-read as "the socket is wired and documented, the plug is not in use", or the record claims a
-capability is in service when what exists is the extension point.
+**On keeping `registerChatSkin`: the carve-out is right, and the reason is not "three live
+readers".** Five resolvers read the store and they are live product code; the writer has no product
+caller, so the store is empty at runtime and every reader falls through to its default. Deleting the
+writer alone would leave those five consulting a store nothing else can fill, which is worse than
+today, and the override route is real and documented. **The socket is wired and the plug is unused** —
+that is the reason to keep it, and it does not claim a capability is in service.
 
 **On dropping D84's mask-click case: the reasoning does not hold, and it was measured.** The comment
 says jsdom's dismissable layer ignores a synthesized pointer event. It does not: dispatching one on
@@ -481,7 +480,8 @@ NAT `100.64.0.0/10` to the blocked set. The predicate is right and the fixture i
 is exactly what the new range is for. 3423 of 3424 pass. A whole-repository sweep found no other
 place still calling a 100.64 address routable.
 
-**The chat package** fails one case, recorded above under D86.
+**The chat package** failed one case, recorded above under D86, and is **green again** at
+`85bc6697d7`: 91 files, 1064 passed.
 
 Neither is a defect in the product. Both make every suite run on this branch read red, which is worth
 clearing before the rebase rather than after, because a red baseline is how a real failure hides.
@@ -524,6 +524,49 @@ a fix.
 job carries the expectation variable D77 introduced. On a plane-off preview the API gateway cells go
 green while covering nothing, which is D25's shape once more. Outside D77's recorded scope, so it is
 its own entry rather than a reopening.
+
+## The web batch's second half
+
+**The D86 residual is closed by `85bc6697d7`, and closed better than by restoring the field.** The
+stale case asserted an internal id; the replacement asserts what a reader can do with the replayed
+notice. It resolves the connection through the card's own lookup, drives the transcript record to a
+rendered **Connect button named after the resolved connection**, and asserts the runner's marker is
+nowhere on the page. A third case covers a notice naming a connection this project cannot see: the
+problem is stated and no dead button is offered. That is the rendered surface, which is where the
+D88 lesson says this belongs.
+
+**D84's mask route is restored at `5d25826430`** with both directions: sealed does nothing, unsealed
+closes and cancels. Web5 reproduced the three mutations I measured, including the one that matters —
+the prop alone and the handler guard alone each leave the suite green, and only removing both fails.
+So the seal is now pinned as the pair it actually is.
+
+**D75's filter half and D78's view-model assertion land at `0602d145cd`**, and both are the level
+their findings were measured at. The filter has five cases including the threshold and the
+empty-query sentence; the view-model case places a notice-only turn **after an answerless one**,
+which is the position that hides a turn, and asserts the empty neighbour collapses while the notice
+does not. All three close.
+
+**D72's framing was mine to correct.** I had treated it as the same gap as D73; it is not. D73 is the
+reconnect notice in the transcript, and D72 is a refused send at the composer's catch. The mobile
+call site is now driven through the real composer with mutation proof (`cf11d92a6e`), and the
+classic half is **deferred on a reachability argument I checked and accept**: on this build the
+classic agent route redirects to the mobile app, so that composer is not user-reachable for agents,
+and covering it would mean extracting the handler out of the conversation component. The two honest
+options — extract the handler, or cover it with a browser case — are recorded rather than left
+implicit.
+
+## Round 4: the mobile dialog defect
+
+**D94 (round 4, D7 and D9). One configuration intent opened one session per tap.**
+`useStartBlankSession` minted a session id on every call and pushed a route each time, so a second
+tap remounted the session workspace under whatever the first had already opened, and the drawer's
+open item went with it. That is why the sheet closed itself and why Create sat inert after Connect
+MCP: not a dialog defect at all, but a route change discarding the pane that held it.
+
+**Fixed at `9b41e8d639`**, verified. One navigation is allowed at a time and the latch is released on
+both outcomes, so a refused navigation lets the person ask again rather than wedging the surface —
+and there is a case for exactly that, which is the half a naive guard would have missed. Three cases,
+mobile suite 235 passed. Live verification is with the QA agent.
 
 ## The fixes that hold
 
