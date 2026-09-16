@@ -13,6 +13,7 @@
  * a row sends every click inside it back to the row.
  */
 import {StatusIndicator} from "@agenta/ui/components/presentational"
+import {cn} from "@agenta/ui/styles"
 import {Button, IconTile} from "@agenta/ui/ui"
 import {ArrowClockwise, Check, Plugs, Plus} from "@phosphor-icons/react"
 
@@ -54,10 +55,10 @@ export function ConnectionListRow({
     return (
         <div
             data-state={state}
-            className={
-                "flex items-center gap-3 rounded-lg border border-solid border-colorBorderSecondary px-3.5 py-3 " +
-                (state === "added" ? "opacity-70" : "")
-            }
+            className={cn(
+                "flex items-center gap-3 rounded-lg border border-solid border-colorBorderSecondary px-3.5 py-3",
+                state === "added" && "opacity-70",
+            )}
         >
             <IconTile size={28}>
                 <Plugs size={16} />
@@ -66,10 +67,10 @@ export function ConnectionListRow({
             <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-colorText">{name}</div>
                 <div
-                    className={
-                        "truncate font-mono text-xs " +
-                        (expired ? "text-colorWarning" : "text-colorTextTertiary")
-                    }
+                    className={cn(
+                        "truncate font-mono text-xs",
+                        expired ? "text-colorWarning" : "text-colorTextTertiary",
+                    )}
                 >
                     {subtitle}
                 </div>
