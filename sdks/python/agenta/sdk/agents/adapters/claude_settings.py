@@ -166,8 +166,16 @@ def _rules_from_mcp_permissions(mcp_servers: Any) -> Dict[str, List[str]]:
             add(permission, f"mcp__{name}")
             continue
 
-        # The runner's own ladder for a tool the table does not name.
-        default = new_tool_permission or permission or "ask"
+        # The runner's own ladder for a tool the table does not name, and it does NOT fall back
+        # to the whole-server permission (D88). `normalizeMcpServerPermissions` gives a declared
+        # table with no floor beside it `newTool = "ask"` — "a human decides for anything the
+        # table does not name" — and never consults `permission` for those tools.
+        #
+        # Reading `permission` here made the two disagree in the unsafe direction: `permission:
+        # allow` beside any per-tool table emitted a whole-server ALLOW, so a tool the author had
+        # never named, including one an MCP server adds between two runs, ran unapproved under
+        # Claude while the same configuration raised a gate under Pi.
+        default = new_tool_permission or "ask"
         expressible = all(
             _PERMISSION_STRICTNESS[value] >= _PERMISSION_STRICTNESS[default]
             for value in named.values()

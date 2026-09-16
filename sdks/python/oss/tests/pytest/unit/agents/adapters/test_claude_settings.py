@@ -144,10 +144,20 @@ def test_per_tool_mcp_permissions_render_per_tool_rules():
 
     # The server rule carries the resolved default for unnamed tools; a named tool gets its own
     # rule only where it is STRICTER, because Claude takes the most restrictive matching rule
-    # rather than the most specific (D37). `read` matches the default, so it needs no rule.
-    assert perms["allow"] == ["mcp__acme"]
+    # rather than the most specific (D37).
+    #
+    # That default is `ask`, not the server's `allow` (D88): once a per-tool table is declared,
+    # the runner's ladder decides the tools it does not name and never consults `permission`, so
+    # reading `permission` here let a tool the author never named run unapproved under Claude
+    # while the same configuration raised a gate under Pi.
+    #
+    # `read: allow` is now LOOSER than that default, so no whole-server rule can stand beside it
+    # and every named tool carries its own. The tools this table does not name fall to the runner
+    # gate, which is the trade-off the case further down documents.
+    assert perms["allow"] == ["mcp__acme__read"]
     assert perms["ask"] == ["mcp__acme__search"]
     assert perms["deny"] == ["mcp__acme__purge"]
+    assert _claude_decision(perms, "acme", "unnamed") is None
 
 
 def test_per_tool_rules_render_without_a_whole_server_permission():
@@ -537,7 +547,6 @@ def test_the_new_tool_default_is_translated_too(
     "server_permission,new_tool_permission,tool_permission",
     [
         ("deny", None, "allow"),
-        ("deny", None, "ask"),
         ("ask", None, "allow"),
         (None, "deny", "allow"),
         (None, "ask", "allow"),
@@ -576,7 +585,11 @@ def test_a_tool_looser_than_the_default_keeps_its_rule_and_drops_the_server_rule
 
 
 def test_a_server_rule_survives_when_every_named_tool_is_stricter():
-    """The expressible shape, which must keep its server rule: unnamed tools stay covered."""
+    """The expressible shape, which must keep its server rule: unnamed tools stay covered.
+
+    The surviving rule carries `ask`, the runner's default for a declared table with no floor
+    beside it, rather than the server's `allow` (D88).
+    """
     server = ResolvedMCPServer(
         name="acme",
         url="https://x",
@@ -585,6 +598,82 @@ def test_a_server_rule_survives_when_every_named_tool_is_stricter():
 
     perms = _settings(build_claude_settings_files(None, None, [server]))["permissions"]
 
-    assert perms["allow"] == ["mcp__acme"]
+    assert perms["ask"] == ["mcp__acme"]
     assert perms["deny"] == ["mcp__acme__purge"]
-    assert _claude_decision(perms, "acme", "unnamed") == "allow"
+    assert _claude_decision(perms, "acme", "unnamed") == "ask"
+
+
+# --- D88: the matrices above only ever resolve a tool the table NAMES -----------------------
+#
+# Every case above asks what happens to `echo`, which is the tool `tool_permissions` names. The
+# other half of the ladder was unmeasured on the Claude side: a tool the table does NOT mention,
+# which is what `new_tool_permission` exists to decide and what an MCP server adds between two
+# runs. For a named tool the table answers first, so those cases could never reach it.
+
+
+def _runner_decision_unnamed(server_permission, new_tool_permission, has_tool_table):
+    """Mirror of `mcpToolPermission` for a tool the per-tool table does not name.
+
+    The opt-in is what the policy DECLARED, not what this tool matched:
+    `normalizeMcpServerPermissions` treats a declared `toolPermissions` as opting in even with no
+    `newToolPermission` beside it, and gives the tools it does not name `ask` — "a human decides
+    for anything the table does not name". With nothing declared, the whole-server permission
+    decides, and `None` there means the run's own default ladder does.
+    """
+    opted_in = new_tool_permission is not None or has_tool_table
+    if not opted_in:
+        return server_permission
+    if new_tool_permission is not None:
+        return new_tool_permission
+    return "ask"
+
+
+@pytest.mark.parametrize("server_permission", ["allow", "ask", "deny", None])
+@pytest.mark.parametrize("new_tool_permission", ["allow", "ask", "deny", None])
+@pytest.mark.parametrize("named_permission", ["allow", "ask", "deny", None])
+def test_an_unnamed_tool_resolves_the_way_the_runner_gate_does(
+    server_permission, new_tool_permission, named_permission
+):
+    """Every server decision crossed with every new-tool default and every named-tool entry,
+    asked about a tool nobody named.
+
+    Two outcomes are correct, and which one applies is not a detail: Claude either carries the
+    resolved default as a whole-server rule, or carries no rule for this tool at all. The second
+    is the deliberate trade-off the case above this one documents — a whole-server rule beside a
+    LOOSER named tool would win and take that tool down with it, so the server rule is dropped and
+    the tools the table does not name become the runner gate's responsibility. This asserts that
+    the second outcome happens only in that shape, which is what nothing checked before.
+    """
+    policy_kwargs = {"permission": server_permission}
+    if new_tool_permission is not None:
+        policy_kwargs["new_tool_permission"] = new_tool_permission
+    if named_permission is not None:
+        policy_kwargs["tool_permissions"] = {"echo": named_permission}
+    server = ResolvedMCPServer(
+        name="acme", url="https://x", policy=MCPPolicy(**policy_kwargs)
+    )
+
+    files = build_claude_settings_files(None, None, [server])
+    perms = _settings(files)["permissions"] if files else {}
+
+    default = _runner_decision_unnamed(
+        server_permission, new_tool_permission, named_permission is not None
+    )
+    looser_named_tool = (
+        named_permission is not None
+        and default is not None
+        and _STRICTNESS[named_permission] < _STRICTNESS[default]
+    )
+    decided = _claude_decision(perms, "acme", "a_tool_nobody_named")
+
+    if looser_named_tool:
+        assert decided is None, (
+            "a whole-server rule here would out-restrict the looser named tool and hide it; "
+            "the runner gate covers the unnamed tools instead"
+        )
+    else:
+        assert decided == default
+
+    # Whichever branch applied, the named tool must still resolve exactly as the runner decides.
+    if named_permission is not None:
+        assert _claude_decision(perms, "acme", "echo") == named_permission
