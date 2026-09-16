@@ -31,6 +31,7 @@ from pydantic import BaseModel
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
     classify_transport_error,
+    decoded_response,
     egress_client,
     open_egress,
 )
@@ -39,6 +40,9 @@ from oss.src.core.gateways.mcps.oauth.registration import (
     is_publicly_resolvable_async,
 )
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthDiscoveryError
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 class _ResponseTooLarge(Exception):
@@ -198,14 +202,46 @@ class MCPServerProbe:
             finally:
                 await response.aclose()
 
-        return httpx.Response(
-            status_code=response.status_code,
-            headers=response.headers,
-            content=bytes(body),
-        )
+        # Rebuilt without the headers that describe the encoded body; see
+        # `decoded_response`. The handshake's own `content-type` is kept, because it is
+        # what says whether the answer is JSON or a single SSE event.
+        return decoded_response(response, bytes(body))
 
     async def probe(self, *, server_url: str) -> MCPServerProbeResult:
-        """Inspect `server_url`. Never raises for a server that behaves badly."""
+        """Inspect `server_url`. Never raises for a server that behaves badly.
+
+        The promise in that sentence is the reason for the outer guard: this is the first
+        thing a person's typed address touches, and the connect dialog has a place to show
+        a problem and no place to show a stack trace. An unhandled exception here reached
+        them as a 500 with no cause, which is how a body the gateway could not decode
+        presented itself before that was fixed at the source.
+        """
+        try:
+            return await self._probe(server_url=server_url)
+        except httpx.HTTPError as e:
+            # Every transport and protocol failure httpx raises, including the decoding
+            # ones that are not raised until a body is touched.
+            failure = (
+                classify_transport_error(e)
+                if isinstance(e, httpx.RequestError)
+                else None
+            )
+            log.warning(
+                "[gateways] probe failed with an unhandled transport error",
+                error_class=type(e).__name__,
+            )
+            return MCPServerProbeResult(
+                problem=MCPProbeProblem(
+                    cause="unreachable",
+                    message=(
+                        f"The server did not answer usably. {failure.detail}"
+                        if failure is not None
+                        else "The server's answer could not be read."
+                    ),
+                )
+            )
+
+    async def _probe(self, *, server_url: str) -> MCPServerProbeResult:
         try:
             target = await open_egress(server_url)
         except EgressRefusedError as e:

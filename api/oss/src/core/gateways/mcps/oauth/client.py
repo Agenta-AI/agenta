@@ -25,6 +25,7 @@ from pydantic import ValidationError
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
     classify_transport_error,
+    decoded_response,
     egress_client,
     exempt_hosts,
     open_egress,
@@ -331,11 +332,10 @@ class MCPOAuthClient:
         finally:
             await response.aclose()
 
-        return httpx.Response(
-            status_code=response.status_code,
-            headers=response.headers,
-            content=bytes(body),
-        )
+        # Rebuilt without the headers that describe the encoded body: what was read is
+        # decoded, and saying otherwise made every compressed metadata document a
+        # `DecodingError` at the first `.content`.
+        return decoded_response(response, bytes(body))
 
     async def discover(self, *, server_url: str) -> MCPOAuthDiscovery:
         async with self._client() as client:

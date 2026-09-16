@@ -12,6 +12,7 @@ throughout rather than once: it sends no credential, and it sends no tool call.
 from __future__ import annotations
 
 import asyncio
+import gzip
 import json
 import time
 
@@ -541,3 +542,81 @@ async def test_a_server_whose_metadata_trickles_forever_is_reported_not_awaited(
     assert result.problem.cause == "auth_undiscoverable"
     assert "in time" in result.problem.message
     assert elapsed < 5
+
+
+# ---------------------------------------------------------------------------
+# A compressed answer, which is what every real server sends
+# ---------------------------------------------------------------------------
+
+
+def _gzipped(payload: bytes) -> tuple[bytes, dict]:
+    return gzip.compress(payload), {
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_gzip_encoded_metadata_document_is_read():
+    """The capped read yields decoded bytes, and the rebuilt response used to carry the
+    upstream's `content-encoding` over them, so the next reader tried to decompress what
+    was already decompressed. Every real server compresses; the mocks do not, which is
+    why only a live probe found it."""
+    document, headers = _gzipped(json.dumps(_PRM).encode())
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(200, headers=headers, content=document)
+        if request.url.path == "/.well-known/oauth-authorization-server":
+            encoded, as_headers = _gzipped(json.dumps(_AS_METADATA).encode())
+            return httpx.Response(200, headers=as_headers, content=encoded)
+        return httpx.Response(
+            401,
+            json={"error": "invalid_token"},
+            headers={
+                "WWW-Authenticate": (
+                    "Bearer resource_metadata="
+                    '"https://mcp.acme.io/.well-known/oauth-protected-resource"'
+                )
+            },
+        )
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.problem is None, result.problem
+    assert result.auth is not None
+    assert result.auth.mode is MCPProbeAuthMode.OAUTH
+    assert result.auth.authorization_server == "https://auth.acme.io/"
+
+
+@pytest.mark.asyncio
+async def test_a_gzip_encoded_handshake_is_read():
+    """The same rebuild, on the branch a server that needs no authorization takes."""
+    document, headers = _gzipped(json.dumps(_INITIALIZE_RESULT).encode())
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, headers=headers, content=document)
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.problem is None, result.problem
+    assert result.reachable is True
+    assert result.server_name == "Acme Tools"
+
+
+@pytest.mark.asyncio
+async def test_a_body_that_cannot_be_decoded_is_a_result_not_a_crash():
+    """Whatever the cause, the connect dialog has somewhere to show a problem and
+    nowhere to show a stack trace."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "application/json", "content-encoding": "gzip"},
+            content=b"this was never gzip",
+        )
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.problem is not None
+    assert result.reachable is False

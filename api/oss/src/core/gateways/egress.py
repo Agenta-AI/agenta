@@ -232,6 +232,34 @@ def harden_pooled_client(client: httpx.AsyncClient) -> httpx.AsyncClient:
     return client
 
 
+# --- reading a streamed response without lying about what was read ------------- #
+
+# Headers that describe the body as it travelled, not the bytes a caller now holds.
+# `aiter_bytes` yields DECODED bytes, so carrying these forward tells the next reader to
+# decode what is already decoded: a gzip-encoded document came back as a `DecodingError`
+# the moment anything touched `.content`, and every real MCP server compresses. The mock
+# upstreams do not, which is why nothing here caught it.
+_ENCODED_BODY_HEADERS = ("content-encoding", "content-length", "transfer-encoding")
+
+
+def decoded_response(response: httpx.Response, body: bytes) -> httpx.Response:
+    """Rebuild a streamed response around the bytes that were actually read.
+
+    Callers that cap a response read it themselves and cannot hand the original object
+    on, because its stream is spent. This gives them one that carries the same status and
+    the same meaningful headers over the decoded bytes, with the three that would
+    misdescribe them removed. `content-type` is kept: it is what tells a reader whether
+    the payload is JSON or an event stream.
+    """
+    headers = httpx.Headers(response.headers)
+    for name in _ENCODED_BODY_HEADERS:
+        if name in headers:
+            del headers[name]
+    return httpx.Response(
+        status_code=response.status_code, headers=headers, content=body
+    )
+
+
 # --- how an outbound call failed, without quoting the failure ------------------ #
 
 # `str(httpx.RequestError)` is not safe to show a caller. h11 validates the request we
