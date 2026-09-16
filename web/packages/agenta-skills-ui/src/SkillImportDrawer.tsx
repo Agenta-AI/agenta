@@ -276,7 +276,9 @@ export function SkillImportDrawer({
                                         }`}
                                     >
                                         <Checkbox
-                                            className="mt-0.5"
+                                            // A 16px box at /m's control radius reads as a
+                                            // circle, and a circle says "pick one".
+                                            className="mt-0.5 rounded"
                                             checked={selected.has(path)}
                                             disabled={!candidate.valid || imported || busy}
                                             onCheckedChange={() => toggle(path)}
