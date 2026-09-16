@@ -47,6 +47,7 @@ export type ShortcutGroupId =
     | "elicitation"
     | "voice"
     | "rename"
+    | "files"
     | "help"
 
 export const SHORTCUT_GROUP_TITLES: Record<ShortcutGroupId, string> = {
@@ -62,6 +63,7 @@ export const SHORTCUT_GROUP_TITLES: Record<ShortcutGroupId, string> = {
     elicitation: "Forms the agent asks",
     voice: "Voice",
     rename: "Renaming a session",
+    files: "Files pane",
     help: "Help",
 }
 
@@ -135,13 +137,47 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         modifiers: ["alt"],
         key: "O",
     },
+
+    // Files pane — DriveExplorer.tsx, VirtualTileGrid.tsx, FolderList.tsx
+    {id: "drive.move", group: "files", label: "Move between files", key: "↑", alt: {key: "↓"}},
+    {id: "drive.open", group: "files", label: "Open the focused file or folder", key: "↵"},
+    {
+        id: "drive.up",
+        group: "files",
+        label: "Up to the parent folder",
+        key: "⌫",
+        alt: {modifiers: ["mod"], key: "↑"},
+    },
+    {
+        id: "drive.close",
+        group: "files",
+        label: "Back to the open file's folder",
+        key: "Esc",
+        when: "while a file is open",
+    },
+    {
+        id: "drive.back",
+        group: "files",
+        label: "Back in history",
+        modifiers: ["alt"],
+        key: "←",
+        alt: {modifiers: ["mod"], key: "["},
+    },
+    {
+        id: "drive.forward",
+        group: "files",
+        label: "Forward in history",
+        modifiers: ["alt"],
+        key: "→",
+        alt: {modifiers: ["mod"], key: "]"},
+    },
     {
         id: "drive.save",
-        group: "panels",
+        group: "files",
         label: "Save the open file",
         modifiers: ["mod"],
         key: "S",
-        when: "while editing a file in the files pane",
+        when: "while editing a file",
     },
 
     // The running turn — AgentConversation.tsx
