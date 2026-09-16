@@ -15,13 +15,14 @@ import type {IconMap} from "streamdown"
  * so a wide window reads at the same scale as /w instead of staying phone-sized.
  */
 export const proseClassName = [
-    "w-full min-w-0 space-y-2 overflow-hidden text-xs wrap-anywhere sm:text-sm",
+    // 20/22px leading, two over the size's own: prose that reads at length wants the air.
+    "w-full min-w-0 space-y-2 overflow-hidden text-xs leading-5 wrap-anywhere sm:text-sm sm:leading-[22px]",
     "[&_a]:text-primary [&_a]:font-medium [&_a]:underline",
-    "[&_p]:text-foreground [&_p]:text-xs sm:[&_p]:text-sm",
+    "[&_p]:text-foreground [&_p]:text-xs [&_p]:leading-5 sm:[&_p]:text-sm sm:[&_p]:leading-[22px]",
     "[&_:is(h1,h2,h3,h4,h5,h6)]:mt-3 [&_:is(h1,h2,h3,h4,h5,h6)]:mb-1",
     "[&_h1]:text-base [&_:is(h2,h3)]:text-sm [&_:is(h4,h5,h6)]:text-xs sm:[&_:is(h4,h5,h6)]:text-sm",
-    "[&_:is(ul,ol)]:my-1 [&_li]:py-0.5 [&_li]:text-xs sm:[&_li]:text-sm",
-    "[&_blockquote]:my-2 [&_blockquote]:text-xs sm:[&_blockquote]:text-sm [&_blockquote_p]:text-muted-foreground",
+    "[&_:is(ul,ol)]:my-1 [&_li]:py-0.5 [&_li]:text-xs [&_li]:leading-5 sm:[&_li]:text-sm sm:[&_li]:leading-[22px]",
+    "[&_blockquote]:my-2 [&_blockquote]:text-xs [&_blockquote]:leading-5 sm:[&_blockquote]:text-sm sm:[&_blockquote]:leading-[22px] [&_blockquote_p]:text-muted-foreground",
     "[&_hr]:my-3",
     "[&_code]:text-[0.95em]",
     "[&_:is(th,td)]:px-2 [&_:is(th,td)]:py-1 [&_:is(th,td)]:text-xs",
