@@ -20,6 +20,7 @@ a server wants an API key, and offering a key field on that evidence asks a pers
 a credential into a form that may have no use for it.
 """
 
+import asyncio
 import json
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -37,7 +38,25 @@ from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.registration import is_publicly_resolvable
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthDiscoveryError
 
+
+class _ResponseTooLarge(Exception):
+    """The server sent more than a handshake can be. Never reaches a caller."""
+
+
 _TIMEOUT_SECONDS = 10.0
+
+# A total elapsed deadline for the handshake, and a cap on what is read back.
+#
+# The client's timeout is an inactivity timeout: a server that sends one byte just inside
+# it keeps a worker occupied for as long as it likes, and the body was buffered whole
+# before anything looked at it, so its size was the server's choice too. The address is
+# tenant data, so both are somebody else's number unless they are bounded here (D38).
+#
+# A handshake result is a few kilobytes. The cap is generous against that, and small
+# enough that a hostile or broken server cannot spend the process's memory; the deadline
+# is twice the inactivity timeout, so an ordinary slow server still completes.
+_DEADLINE_SECONDS = 20.0
+_MAX_RESPONSE_BYTES = 1 * 1024 * 1024
 
 # The version this branch speaks. A server that answers a different one still answers,
 # and the reported value is what the journey shows.
@@ -145,6 +164,44 @@ class MCPServerProbe:
         # Injectable seam for tests, matching MCPOAuthClient / HttpMCPAdapter.
         self._transport = transport
 
+    async def _handshake(self, target) -> httpx.Response:
+        """Send the handshake and read at most `_MAX_RESPONSE_BYTES` of the answer.
+
+        Streamed rather than buffered so the cap is applied while the bytes arrive
+        instead of after they have all been accepted. The bytes that were read are
+        returned as an ordinary response, so everything downstream parses the handshake
+        the way it always has.
+        """
+        async with egress_client(
+            timeout=_TIMEOUT_SECONDS, transport=self._transport
+        ) as client:
+            request = client.build_request(
+                "POST",
+                target.url,
+                content=_initialize_request(),
+                headers={
+                    **target.headers,
+                    "content-type": "application/json",
+                    "accept": "application/json, text/event-stream",
+                },
+                extensions=target.extensions,
+            )
+            response = await client.send(request, stream=True)
+            try:
+                body = bytearray()
+                async for chunk in response.aiter_bytes():
+                    body.extend(chunk)
+                    if len(body) > _MAX_RESPONSE_BYTES:
+                        raise _ResponseTooLarge()
+            finally:
+                await response.aclose()
+
+        return httpx.Response(
+            status_code=response.status_code,
+            headers=response.headers,
+            content=bytes(body),
+        )
+
     async def probe(self, *, server_url: str) -> MCPServerProbeResult:
         """Inspect `server_url`. Never raises for a server that behaves badly."""
         try:
@@ -158,19 +215,29 @@ class MCPServerProbe:
             )
 
         try:
-            async with egress_client(
-                timeout=_TIMEOUT_SECONDS, transport=self._transport
-            ) as client:
-                response = await client.post(
-                    target.url,
-                    content=_initialize_request(),
-                    headers={
-                        **target.headers,
-                        "content-type": "application/json",
-                        "accept": "application/json, text/event-stream",
-                    },
-                    extensions=target.extensions,
+            async with asyncio.timeout(_DEADLINE_SECONDS):
+                response = await self._handshake(target)
+        except _ResponseTooLarge:
+            return MCPServerProbeResult(
+                reachable=True,
+                problem=MCPProbeProblem(
+                    cause="not_an_mcp_server",
+                    message=(
+                        "The address answered with more data than an MCP handshake "
+                        "should return, so it was not read."
+                    ),
+                ),
+            )
+        except TimeoutError:
+            return MCPServerProbeResult(
+                problem=MCPProbeProblem(
+                    cause="unreachable",
+                    message=(
+                        "The server did not finish answering in time. It may be "
+                        "responding too slowly to be usable."
+                    ),
                 )
+            )
         except httpx.RequestError as e:
             # The probe's message is shown in the connect dialog, so it carries the
             # classified sentence rather than the exception's text (OR86).
