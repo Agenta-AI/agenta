@@ -34,6 +34,7 @@ export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
                 `${available.length} update${available.length === 1 ? "" : "s"} available`,
             count("detached") && `${count("detached")} modified locally`,
             count("missing_in_source") && `${count("missing_in_source")} gone upstream`,
+            count("invalid_in_source") && `${count("invalid_in_source")} invalid upstream`,
             count("check_failed") && `${count("check_failed")} failed`,
         ].filter(Boolean) as string[]
         setSummary(parts.length ? parts.join(" · ") : "up to date")
