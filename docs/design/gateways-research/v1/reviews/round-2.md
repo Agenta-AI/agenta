@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **3** | **8** | **6** | **23 closed, 4 part fixed, 17 open** |
+| **As this file is written** | **0** | **1** | **7** | **6** | **27 closed, 4 part fixed, 14 open** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -111,8 +111,9 @@ whether that fix was read against the finding and its test.
 | D54 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:273`, `engines/sandbox_agent/mcp-handshake.ts:142` | Fix, blocking | `d1055842db` | **yes**, code, tests, incl. pre-fix run |
 | QA-D6 | sanity QA | P2 | `web/packages/agenta-chat/src/model/error.ts` | Fix | `f84a90747b` | **yes**, code and its suite |
 | D55 | verification | P2 | `sdks/python/agenta/sdk/middlewares/running/normalizer.py:240-250` | **Fixed here, pre-existing on main.** Also OR89 | `abeb966b88` | **yes**, code, tests, incl. pre-fix run |
-| D56 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:204` at HEAD | Fix, blocking a real upstream | pending | mechanism, code read |
-| D57 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:326` at HEAD | Fix, blocking after a downgrade | pending | mechanism, code read |
+| D56 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:204` at HEAD | Fix, blocking a real upstream | `a96b45c400` | **yes**, code and a mutation run |
+| D57 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:326` at HEAD | Fix, blocking after a downgrade | `a96b45c400` | **yes**, code and a mutation run |
+| D58 | structural | P2 | `api/oss/src/core/gateways/mcps/providers/mock/` | **Closed.** The mock now enforces what a real server enforces | `14ef19e60b` | **yes**, code read, 1104 unit cases pass |
 | D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix: QA-D3's better wording cannot fire in production | | mechanism, both sites read |
 | D51 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:293` | Fix the assertion | | mechanism, both message strings compared |
 | D52 | verification | P3 | `hooks/useMcpConnectJourney.ts:179`, `McpConnectJourney.tsx:96` | Record the invariant or apply the check | | mechanism, seven await sites counted |
@@ -982,6 +983,14 @@ fix: that change recorded the negotiated version and used it on the header, and 
 that needs it kept the constant. A fix for both is in the working tree and not yet committed, so
 these entries exist to give the revisions a home.
 
+**Both fixed** by `a96b45c400`, verified by mutating each half in turn: putting the leading-data
+test back fails three cases, and putting the version constant back into `_meta` fails one. The fix
+for D56 is better than fixing the parser twice — the probe and the client now share one parser,
+which is what the divergence was. The probe had the correct rule and its own copy of it; the client
+had a copy that tested only the first line, so a server passed the probe and was then unreadable to
+the client that followed it. One leaf module, imported by both, removes the class rather than the
+instance.
+
 **This is the "obliging mocks" point a third time**, and at this point it is the most useful
 structural finding of the round. The mock answers plain JSON, never frames an event, never
 downgrades a version and never compresses. Four defects have now reached a person through that gap:
@@ -989,6 +998,17 @@ the probe's decoding failure, the version asserted on initialize, and these two.
 passed every mock cell. The real-server probe case, the completed real-model matrix and this Pi run
 are the only three things that have caught any of them, which is the argument for keeping all three
 in the gate rather than treating them as slow extras.
+
+**D58, and the structural gap is now closed at the source.** `14ef19e60b` makes the mock MCP server
+behave like a strict one: it refuses `MCP-Protocol-Version` on `initialize` with the 400 shape a
+real server answers, requires the header afterwards, and frames one method as an event stream with
+the `event:` line first. The judgement in it is the part worth keeping — one framed method is enough
+to catch a client that reads only a leading data line, and leaving the rest as plain JSON keeps both
+framings in the matrix instead of trading one blind spot for the other. That is the difference
+between a mock that reproduces a bug and a mock that tests a client.
+
+Every one of the four defects in this family would now be caught by the mock cells that missed them.
+This is the finding I would most want kept if the suite is ever trimmed for speed.
 
 ## Quality findings
 
