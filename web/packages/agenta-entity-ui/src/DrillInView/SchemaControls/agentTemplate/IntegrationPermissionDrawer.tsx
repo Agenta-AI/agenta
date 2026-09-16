@@ -31,7 +31,7 @@ import {
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Badge, Button, SearchInput, SkeletonBlock} from "@agenta/ui/ui"
+import {Badge, Button, SearchInput, SkeletonRows} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -70,9 +70,6 @@ import {PermissionPolicySelect, type PermissionPolicyOption} from "./PermissionP
 
 /** Rows rendered per group before the "Show N more" link. */
 const GROUP_PAGE_SIZE = 25
-
-/** Placeholder rows while a catalog is being read, rather than one spinner over an empty frame. */
-const LOADING_ROWS = 3
 
 // Persisted expand state per source and group (key = `${catalogKey}:${groupKey}`).
 const permissionGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
@@ -224,9 +221,7 @@ const ToolRow = memo(function ToolRow({
                         ) : null}
                     </div>
                     {lockedReason ? (
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                            {lockedReason}
-                        </span>
+                        <span className="text-xs text-colorTextTertiary">{lockedReason}</span>
                     ) : (
                         <ExpandableDescription
                             description={tool.description}
@@ -397,16 +392,6 @@ function ToolGroup({
     )
 }
 
-function LoadingRows() {
-    return (
-        <div className="flex flex-col gap-2 rounded border border-solid border-[var(--ag-colorBorderSecondary)] p-3">
-            {Array.from({length: LOADING_ROWS}, (_, index) => (
-                <SkeletonBlock key={index} active className="h-5 w-full" />
-            ))}
-        </div>
-    )
-}
-
 /**
  * The body, once somebody has produced a catalog. Pure in the catalog: it fetches nothing, so the
  * Composio hook and an MCP tool-list request never both fire for one open drawer.
@@ -540,7 +525,12 @@ function PermissionDrawerBody({
                 />
 
                 {catalog.status === "loading" ? (
-                    <LoadingRows />
+                    // Three rows at a tool row's own height, so the list area keeps its shape
+                    // while the answer is on the way (decision 25).
+                    <SkeletonRows
+                        className="rounded border border-solid border-colorBorderSecondary p-3"
+                        rowClassName="h-9"
+                    />
                 ) : catalog.status === "error" ? (
                     // The saved policy is still editable through the preset above; only the
                     // per-tool list needs the catalog, so say what is missing rather than showing
@@ -738,7 +728,9 @@ export function IntegrationPermissionDrawer({
             rootClassName="ag-drawer-elevated"
             open={open}
             onClose={onClose}
-            placement="right"
+            // A bottom sheet below lg and the app's right-edge drawer above it, which is what makes
+            // one component correct in both apps rather than a desktop panel squeezed onto a phone.
+            placement="responsive"
             width={INTEGRATION_DRAWER_WIDTH}
             destroyOnClose
             title={
