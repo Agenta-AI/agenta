@@ -52,7 +52,8 @@ export interface ListTableProps<Row> {
     /**
      * A card's CONTENTS. The frame owns the tile — border, radius, padding, hover, the open
      * affordance — the way it owns a row's, so a consumer draws what is inside it and nothing
-     * else. Required when `view` is `"grid"`.
+     * else. Required when `view` is `"grid"`: without it the tiles are empty, never a row's
+     * cells stacked, which would only look like a bug further away from its cause.
      */
     renderCard?: (row: Row) => ReactNode
     /**
