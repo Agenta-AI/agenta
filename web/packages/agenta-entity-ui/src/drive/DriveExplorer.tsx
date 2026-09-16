@@ -165,12 +165,16 @@ export function DriveExplorer({
     const copyText = useCopyText()
     const projectId = useAtomValue(projectIdAtom)
     const pane = useDriveTreePane({
-        searchActive,
         mirrored,
         initialWidth: mirrored ? TREE_WIDTH_COMPACT : undefined,
         initialShow: initialShowTree,
     })
-    const {toggleTree, treeVisible, treeShift} = pane
+    const {treeVisible, treeShift} = pane
+    // The search box lives in the rail: hiding the rail also clears the search it holds.
+    const toggleTree = useCallback(() => {
+        if (treeVisible && searchActive) setSearch("")
+        pane.toggleTree()
+    }, [treeVisible, searchActive, setSearch, pane])
     const {archiveMounts, downloadingAll, handleDownloadAll} = useDriveDownloadAll({
         drive,
         projectId,
@@ -607,7 +611,7 @@ export function DriveExplorer({
                             allowClear
                             size="sm"
                             value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                            onValueChange={setSearch}
                             placeholder="Search files"
                             className="w-full"
                             prefix={
@@ -690,7 +694,6 @@ export function DriveExplorer({
                         showGitignored={showGitignored}
                         onToggleGitignored={toggleShowGitignoredPref}
                         treeVisible={treeVisible}
-                        searchActive={searchActive}
                         onToggleTree={toggleTree}
                         onClose={onClose}
                         closeVariant={closeVariant}

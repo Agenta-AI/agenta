@@ -59,7 +59,6 @@ export const DriveHeader = ({
     showGitignored,
     onToggleGitignored,
     treeVisible,
-    searchActive,
     onToggleTree,
     onClose,
     closeVariant = "close",
@@ -90,8 +89,6 @@ export const DriveHeader = ({
     showGitignored: boolean
     onToggleGitignored: () => void
     treeVisible: boolean
-    /** A search forces the rail, so the toggle is disabled. */
-    searchActive: boolean
     onToggleTree: () => void
     /** For hosts whose close lives in this row. */
     onClose?: () => void
@@ -248,21 +245,12 @@ export const DriveHeader = ({
                     ))}
                 </DropdownMenuContent>
             </DropdownMenu>
-            <Tooltip
-                title={
-                    searchActive
-                        ? "Tree shown while searching"
-                        : treeVisible
-                          ? "Hide file tree"
-                          : "Show file tree"
-                }
-            >
+            <Tooltip title={treeVisible ? "Hide file tree" : "Show file tree"}>
                 <Button
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Show file tree"
                     aria-pressed={treeVisible}
-                    disabled={searchActive}
                     onClick={onToggleTree}
                     className={treeVisible ? ROW_ICON_BTN_ON : ROW_ICON_BTN}
                 >
