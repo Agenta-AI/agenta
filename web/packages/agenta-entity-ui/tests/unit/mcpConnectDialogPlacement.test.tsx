@@ -4,9 +4,12 @@
  * rather than the DOM tree — so every click inside the portalled dialog reopened the edit drawer,
  * which then surfaced over the chat when the consent popup closed.
  *
- * The first two cases establish that mechanism against a hand-built row, so the third — that
- * McpServerConnectAction reports the request instead of mounting the dialog — is not a vacuous
- * assertion about a component that happens to render nothing.
+ * The first two cases establish that mechanism against a hand-built row, so the ones after
+ * them — that the add-server drawer reports the request instead of mounting the journey —
+ * are not vacuous assertions about a component that happens to render nothing.
+ *
+ * The rows changed shape in the gateway redesign; the reason this file exists did not. A
+ * clickable row is still a click target that a portal does not escape.
  */
 import {act, createElement, type ReactNode} from "react"
 
@@ -14,26 +17,15 @@ import {createPortal} from "react-dom"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const endpoint = {
-    id: "mcp-1",
-    slug: "acme",
-    name: "Acme",
-    auth_mode: "oauth" as const,
-    namespace: "custom" as const,
-    data: {route: {base_url: "https://mcp.example.test"}},
-}
+import {
+    McpAddServerDrawer,
+    type McpConnectionOption,
+} from "../../src/mcpEndpoint/McpAddServerDrawer"
 
-vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("@agenta/entities/mcpEndpoint")>()),
-    mcpEndpointsQueryAtom: {},
-}))
-
-vi.mock("jotai", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("jotai")>()),
-    useAtomValue: () => ({data: [endpoint]}),
-}))
-
-import {McpServerConnectAction} from "../../src/mcpEndpoint/McpServerConnectAction"
+const OPTIONS: McpConnectionOption[] = [
+    {slug: "acme", name: "Acme", host: "mcp.example.test", status: "connected"},
+    {slug: "octolens", name: "Octolens", host: "mcp.octolens.com", status: "login_expired"},
+]
 
 /** The clickable config row, reduced to the one property that caused the defect. */
 const Row = ({onEdit, children}: {onEdit: () => void; children?: ReactNode}) =>
@@ -99,39 +91,57 @@ describe("where the MCP connect dialog is mounted", () => {
     })
 })
 
-describe("McpServerConnectAction", () => {
-    it("asks its host to authorize the endpoint instead of mounting a dialog", async () => {
+describe("McpAddServerDrawer", () => {
+    it("reports the connect request rather than mounting the journey itself", async () => {
         const onEdit = vi.fn()
-        const onConnect = vi.fn()
+        const onReconnect = vi.fn()
         await render(
             createElement(
-                Row,
-                {onEdit},
-                createElement(McpServerConnectAction, {slug: "acme", onConnect}),
+                "div",
+                null,
+                createElement(Row, {onEdit}),
+                // Mounted as a SIBLING of the rows, which is how AgentTemplateControl
+                // mounts it. Inside a row it would misbehave for the reason above, and the
+                // drawer cannot defend itself against that: its own portal does not escape
+                // the React tree, so only the host's placement can.
+                createElement(McpAddServerDrawer, {
+                    open: true,
+                    onClose: () => undefined,
+                    options: OPTIONS,
+                    onAdd: () => undefined,
+                    onConnectServer: () => undefined,
+                    onReconnect,
+                }),
             ),
         )
 
-        // The trigger is the row's own child, so the guard on it still has to hold.
-        await click("row")
-        onEdit.mockClear()
-
-        const connectButton = [...document.querySelectorAll("button")].find(
-            (button) => button.textContent === "Connect",
+        const reconnect = [...document.querySelectorAll("button")].find(
+            (button) => button.getAttribute("aria-label") === "Reconnect Octolens",
         )
         await act(async () => {
-            connectButton!.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+            reconnect!.dispatchEvent(new MouseEvent("click", {bubbles: true}))
         })
 
-        expect(onConnect).toHaveBeenCalledWith(endpoint)
+        expect(onReconnect).toHaveBeenCalledWith(OPTIONS[1])
         expect(onEdit).not.toHaveBeenCalled()
     })
 
-    it("renders no dialog of its own, so nothing it mounts can reach the row", async () => {
+    it("renders no connect journey of its own, so nothing it mounts can reach a row", async () => {
         await render(
-            createElement(McpServerConnectAction, {slug: "acme", onConnect: () => undefined}),
+            createElement(McpAddServerDrawer, {
+                open: true,
+                onClose: () => undefined,
+                options: OPTIONS,
+                onAdd: () => undefined,
+                onConnectServer: () => undefined,
+                onReconnect: () => undefined,
+            }),
         )
 
-        expect(host.querySelector("[role='dialog']")).toBeNull()
-        expect(document.body.textContent).not.toContain("Choose which permissions to grant.")
+        // The journey's own dialog title, which would be on the page if it were here. The
+        // string this used to name was retired with the scope checklist, so the assertion
+        // passed whatever the drawer mounted.
+        expect(document.body.textContent).not.toContain("Connect MCP server")
+        expect(document.querySelectorAll("[role='dialog']")).toHaveLength(1)
     })
 })

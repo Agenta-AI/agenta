@@ -167,6 +167,42 @@ describe("Checking URL", () => {
         expect(journeyReducer(failed, {type: "retry"}).status).toBe("checking_url")
     })
 
+    it("keeps what the probe answered, so the failure can name its cause", () => {
+        // The screen reads `problem.cause` to choose between "couldn't reach this server" and
+        // "reached the address, but it isn't an MCP server". Dropping the probe here leaves
+        // every failure wearing the unreachable wording, including the ones that answered.
+        const failed = run(
+            {type: "url_changed", url: URL},
+            {type: "submit_url"},
+            {
+                type: "probe_failed",
+                error: "The address answered, but not with an MCP handshake (HTTP 200).",
+                probe: {
+                    reachable: true,
+                    auth: {mode: "unknown", scopes_offered: []},
+                    problem: {
+                        cause: "not_an_mcp_server",
+                        message: "The address answered, but not with an MCP handshake (HTTP 200).",
+                    },
+                },
+            },
+        )
+
+        expect(failed.probe?.problem?.cause).toBe("not_an_mcp_server")
+    })
+
+    it("carries no probe when the check never got an answer to carry", () => {
+        // A thrown refusal and the client-side bound both fail without one, and the screen
+        // falls back to the unreachable wording rather than reading a stale probe.
+        const failed = run(
+            {type: "url_changed", url: URL},
+            {type: "submit_url"},
+            {type: "probe_failed", error: "The server could not be checked."},
+        )
+
+        expect(failed.probe).toBeNull()
+    })
+
     it("forgets what the probe said once the address changes", () => {
         const state = run(...beforeCreate("oauth").slice(0, 3), {
             type: "url_changed",
@@ -624,5 +660,46 @@ describe("the row a refused name belongs to", () => {
         expect(adoptableEndpoint([row({slug: ""})], {name: "Acme", url: URL})).toBeNull()
         expect(adoptableEndpoint(undefined, {name: "Acme", url: URL})).toBeNull()
         expect(adoptableEndpoint([row()], {name: "   ", url: URL})).toBeNull()
+    })
+})
+
+describe("Abandoning one authorization attempt", () => {
+    const waiting = (mode: "oauth" | "none" | "unknown" = "oauth") =>
+        run(
+            ...upToCreated(mode),
+            {type: "scopes_discovered", scopes: ["tools:list"]},
+            {type: "submit_scopes"},
+        )
+
+    it("goes back to the name, keeping it and the row", () => {
+        // Cancelling the provider's window abandons an attempt, not the connection being
+        // made: retyping the address and the name to try a second time is a punishment for
+        // a sign-in someone closed.
+        const state = journeyReducer(waiting(), {type: "consent_abandoned"})
+
+        expect(state.status).toBe("naming")
+        expect(state.name).toBe("Acme Tools")
+        expect(state.endpointId).toBe("mcp-1")
+        expect(state.error).toBeNull()
+    })
+
+    it("still owns the row it created, so cancelling the dialog still cleans it up", () => {
+        const state = journeyReducer(waiting(), {type: "consent_abandoned"})
+
+        expect(cancelDeletesEndpoint(state)).toBe(true)
+    })
+
+    it("does nothing for a reconnect, which has no screen behind it", () => {
+        // A reconnect entered at scope discovery and chose nothing. There is no name step to
+        // return to, and landing on one would offer to rename a working connection.
+        const reconnecting = startReconnect({
+            id: "mcp-9",
+            slug: "acme-prod",
+            name: "Acme (prod)",
+            url: URL,
+            authMode: "oauth",
+        })
+
+        expect(journeyReducer(reconnecting, {type: "consent_abandoned"})).toBe(reconnecting)
     })
 })

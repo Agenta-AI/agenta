@@ -240,7 +240,10 @@ export function describeMcp(server: unknown): ItemDescriptor {
         mono: "",
         color: "#2563eb",
         icon: <Plugs size={15} weight="fill" />,
-        tags: ["HTTP"],
+        // No type tag. Every MCP row carried "HTTP", which said the same thing on every
+        // row and is not even true of a gateway-referenced connection: the transport is
+        // the connection's business, not the agent item's.
+        tags: [],
         typeLabel: "MCP server",
         typeColor: "cyan",
         subtitle: "Model Context Protocol server",

@@ -24,12 +24,14 @@ import {act, createElement, useState} from "react"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {probeMcpUrl, createMcpEndpoint, listMcpTools, discoverMcpConnect} = vi.hoisted(() => ({
-    probeMcpUrl: vi.fn(),
-    createMcpEndpoint: vi.fn(),
-    listMcpTools: vi.fn(),
-    discoverMcpConnect: vi.fn(),
-}))
+const {probeMcpUrl, createMcpEndpoint, listMcpTools, discoverMcpConnect, beginMcpConnect} =
+    vi.hoisted(() => ({
+        probeMcpUrl: vi.fn(),
+        createMcpEndpoint: vi.fn(),
+        listMcpTools: vi.fn(),
+        discoverMcpConnect: vi.fn(),
+        beginMcpConnect: vi.fn(),
+    }))
 
 vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
     ...(await importOriginal<typeof import("../../../agenta-entities/src/mcpEndpoint/api/api")>()),
@@ -37,6 +39,7 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     createMcpEndpoint,
     listMcpTools,
     discoverMcpConnect,
+    beginMcpConnect,
 }))
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
@@ -140,6 +143,15 @@ beforeEach(() => {
     })
     listMcpTools.mockResolvedValue([{name: "echo", description: "Echo it back"}])
     discoverMcpConnect.mockResolvedValue({count: 1, scopes_offered: ["tools:list"]})
+    // Held open: the provider's window is what ends this step, and nothing in a unit test
+    // is going to open one.
+    beginMcpConnect.mockImplementation(() => new Promise(() => undefined))
+    // jsdom has no `window.open`, and the journey opens the consent window inside the tap
+    // that asks for it. A stub keeps that gesture observable without a real popup.
+    vi.stubGlobal(
+        "open",
+        vi.fn(() => ({closed: false, close: vi.fn(), focus: vi.fn()})),
+    )
     host = document.createElement("div")
     document.body.appendChild(host)
     root = createRoot(host)
@@ -178,9 +190,9 @@ describe("the duplicate-name refusal reaches assistive technology", () => {
         })
 
         await openJourney()
-        await typeInto(field("MCP server URL")!, "https://mcp.acme.test/")
+        await typeInto(field("Server URL")!, "https://mcp.acme.test/")
         await press(button("Continue"))
-        await press(button("Continue"))
+        await press(button("Connect"))
 
         const name = field("Name")
         expect(name).toBeTruthy()
@@ -198,10 +210,10 @@ describe("the rendered journey", () => {
     it("lists the tools after connecting, with nobody asking it to", async () => {
         await openJourney()
 
-        await typeInto(field("MCP server URL")!, "https://mcp.acme.test/")
+        await typeInto(field("Server URL")!, "https://mcp.acme.test/")
         await press(button("Continue"))
-        await typeInto(field("Connection name")!, "Acme")
-        await press(button("Continue"))
+        await typeInto(field("Name")!, "Acme")
+        await press(button("Connect"))
 
         // Nothing in this test called the loader. The dialog's own effect has to.
         expect(listMcpTools).toHaveBeenCalledWith("acme-7mx", "project-1")
@@ -212,9 +224,9 @@ describe("the rendered journey", () => {
     it("asks for a URL again after closing and reopening", async () => {
         await openJourney()
 
-        await typeInto(field("MCP server URL")!, "https://mcp.acme.test/")
+        await typeInto(field("Server URL")!, "https://mcp.acme.test/")
         await press(button("Continue"))
-        expect(field("Connection name")).not.toBeNull()
+        expect(field("Name")).not.toBeNull()
 
         // Closed and reopened through the host, the way the settings section does it.
         await act(async () => setOpen(false))
@@ -222,9 +234,9 @@ describe("the rendered journey", () => {
         await act(async () => setOpen(true))
         await settle()
 
-        expect(field("MCP server URL")).not.toBeNull()
-        expect(field("MCP server URL")!.value).toBe("")
-        expect(field("Connection name")).toBeNull()
+        expect(field("Server URL")).not.toBeNull()
+        expect(field("Server URL")!.value).toBe("")
+        expect(field("Name")).toBeNull()
     })
 })
 
@@ -251,10 +263,10 @@ describe("connecting a server that uses OAuth", () => {
         })
 
         await openJourney()
-        await typeInto(field("MCP server URL")!, "https://mcp.acme.test/")
+        await typeInto(field("Server URL")!, "https://mcp.acme.test/")
         await press(button("Continue"))
-        await typeInto(field("Connection name")!, "Acme")
-        await press(button("Continue"))
+        await typeInto(field("Name")!, "Acme")
+        await press(button("Connect"))
 
         // Counted only once discovery has finished, so a second in-flight call cannot hide
         // behind the flush window. Two callers used to race here: `submitName` awaited
@@ -269,11 +281,43 @@ describe("connecting a server that uses OAuth", () => {
         expect(discoverMcpConnect).toHaveBeenCalledTimes(1)
 
         release({count: 1, scopes_offered: ["tools:list"]})
+        // Straight past the scope step to the provider: the offered scopes are asked for in
+        // full, because which of them to grant is the server's business and nobody here
+        // could answer it.
         await waitFor(
-            () =>
-                document.body.textContent?.includes("Choose which permissions to grant.") ?? false,
-            "the scope checklist",
+            () => document.body.textContent?.includes("Waiting for Acme") ?? false,
+            "the consent wait",
         )
         expect(discoverMcpConnect).toHaveBeenCalledTimes(1)
+        // No chooser came with the wait. Pinned on the controls rather than on the retired
+        // headline, which no longer exists anywhere and so could not fail, and rather than
+        // on the offered scope, which this screen never holds.
+        expect(document.querySelectorAll("input[type='checkbox']")).toHaveLength(0)
+    })
+
+    it("opens the consent window inside the tap, before anything is awaited", async () => {
+        // WebKit refuses `window.open` once a promise has resolved. The row is created and
+        // the authorization URL minted after this press, so a window opened when they come
+        // back is a window that never opens, which is how the mobile app ended up with a
+        // flow that silently did nothing.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                server_name: "Acme",
+                auth: {mode: "oauth", scopes_offered: ["tools:list"]},
+            },
+        })
+        createMcpEndpoint.mockImplementation(() => new Promise(() => undefined))
+
+        await openJourney()
+        await typeInto(field("Server URL")!, "https://mcp.acme.test/")
+        await press(button("Continue"))
+        await press(button("Connect"))
+
+        expect(window.open).toHaveBeenCalledOnce()
+        // Blank, and named, so the callback can find it again.
+        expect(vi.mocked(window.open).mock.calls[0][0]).toBe("")
+        expect(createMcpEndpoint).toHaveBeenCalled()
     })
 })

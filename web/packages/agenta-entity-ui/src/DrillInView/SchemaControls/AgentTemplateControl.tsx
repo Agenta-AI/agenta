@@ -24,11 +24,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
-import {
-    readMcpConnectionSlug,
-    refreshMcpEndpointsAtom,
-    type MCPEndpoint,
-} from "@agenta/entities/mcpEndpoint"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     agentCreationPrefsAtom,
@@ -55,10 +50,9 @@ import {
     UploadSimple,
 } from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
-import {useAtom, useAtomValue, useSetAtom, useStore} from "jotai"
+import {useAtom, useAtomValue, useStore} from "jotai"
 
 import {ChangedPathsProvider} from "../../drawers/shared"
-import {McpConnectJourney, McpServerConnectAction} from "../../mcpEndpoint"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {AddTextLink} from "./AddTextLink"
@@ -81,6 +75,7 @@ import {
 } from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
+import {McpServersSectionBody} from "./agentTemplate/McpServersSectionBody"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
@@ -203,8 +198,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // row's own click target, and React events propagate through the React tree, so a dialog
     // mounted there reopens the edit drawer on every click inside it — including the one that
     // opens the consent popup, which then surfaces behind it.
-    const [connectingMcpEndpoint, setConnectingMcpEndpoint] = useState<MCPEndpoint | null>(null)
-    const refreshMcpEndpoints = useSetAtom(refreshMcpEndpointsAtom)
+    // The Add MCP server drawer, B1 and B2. Only the open flag lives here, because the
+    // section header's add button renders outside the section body that owns the drawer.
+    const [addMcpOpen, setAddMcpOpen] = useState(false)
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
     // Nothing is registered at save any more. An MCP item names a connection that already
     // exists, created by the connect journey, so committing one writes the reference and
@@ -536,10 +532,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         () => (Array.isArray(config.mcps) ? (config.mcps as unknown[]) : []),
         [config.mcps],
     )
-    const handleAddMcpServer = useCallback(
-        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed()),
-        [openCreate],
-    )
+    // The plus opens the registry drawer, not a blank form. Creating a server here used to
+    // mean filling in a form whose first field was a select over connections the author
+    // could not see until they opened it. The registry itself is read by the section body,
+    // so a host with no MCP section fetches nothing.
+    const handleAddMcpServer = useCallback(() => setAddMcpOpen(true), [])
 
     // Skills: a flat array of inline SKILL.md packages or `@ag.embed` references the backend inlines.
     const skills = useMemo(
@@ -878,24 +875,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         }
     }, [statusForKind, toolResolutionStatus])
     const mcpStatusFor = useMemo(() => statusForKind("mcp"), [statusForKind])
-    // An OAuth server is registered but unusable until someone completes the consent flow, so the
-    // row carries that state and runs the flow here rather than sending the author to Settings.
-    const mcpExtraFor = useCallback(
-        (item: unknown) => {
-            // The slug the item points at, never one re-derived from its name: deriving
-            // one is how a renamed item silently repointed at a different connection.
-            const slug = readMcpConnectionSlug((item ?? {}) as Record<string, unknown>)
-            if (!slug) return undefined
-            return (
-                <McpServerConnectAction
-                    slug={slug}
-                    disabled={disabled}
-                    onConnect={setConnectingMcpEndpoint}
-                />
-            )
-        },
-        [disabled],
-    )
     // Registry head versions for the pinned-row nudge. The bridge's presence is host-stable,
     // so the conditional hook resolution keeps a stable hook order in practice.
     const useHeadVersions = skillsBridge?.useHeadVersions ?? useNoHeadVersions
@@ -1222,22 +1201,23 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasMcp && {
             key: "mcp",
             icon: <Plugs size={16} />,
-            title: fieldTitle("mcps", "MCPs"),
+            title: fieldTitle("mcps", "MCP servers"),
             summary: countSummary(mcpServers.length, "server"),
             indicator: sectionIndicator("mcp"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
             content: (
-                <ConfigItemList
-                    kind="mcp"
+                <McpServersSectionBody
                     items={mcpServers}
-                    openEdit={openEdit}
-                    removeItem={removeItem}
-                    closeEditor={closeEditor}
                     disabled={disabled}
+                    onChangeItems={(next: unknown[]) => setAgentField("mcps", next)}
+                    openForm={(index: number, item: unknown) => openEdit("mcp", index, item)}
+                    removeItem={(index: number) => removeItem("mcp", index)}
+                    closeEditor={closeEditor}
                     statusFor={mcpStatusFor}
-                    extraFor={mcpExtraFor}
                     emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
+                    addOpen={addMcpOpen}
+                    onAddClose={() => setAddMcpOpen(false)}
                 />
             ),
         },
@@ -1545,24 +1525,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     }
                     agentPolicy={agentPermissionPolicy}
                     disabled={disabled}
-                />
-            )}
-
-            {/* One dialog for the whole section, outside the rows, so no click inside it reaches
-                a row's onClick. Rendered only while an endpoint is selected, so a list of servers
-                still carries no modal and no scope discovery request per row. */}
-            {connectingMcpEndpoint?.id && connectingMcpEndpoint.slug && (
-                <McpConnectJourney
-                    open
-                    onClose={() => setConnectingMcpEndpoint(null)}
-                    reconnect={{
-                        id: connectingMcpEndpoint.id,
-                        slug: connectingMcpEndpoint.slug,
-                        name: connectingMcpEndpoint.name || connectingMcpEndpoint.slug,
-                        url: connectingMcpEndpoint.data.route.base_url || "",
-                        authMode: connectingMcpEndpoint.auth_mode,
-                    }}
-                    onConnected={() => void refreshMcpEndpoints()}
                 />
             )}
         </div>

@@ -18,7 +18,7 @@ import {useAtomValue} from "jotai"
 
 import {InstructionsFileRow} from "../DrillInView/SchemaControls/agentTemplate/ItemRow"
 
-import {agentConfigSummary} from "./agentConfigSummary"
+import {agentConfigSummary, mcpSummaryDetail} from "./agentConfigSummary"
 import {SectionLoadError} from "./SectionLoadError"
 import {agentLatestRevisionAtomFamily} from "./state"
 
@@ -125,13 +125,9 @@ export const AgentConfigSummaryCard = ({
             key: "mcps",
             icon: <PlugsIcon size={16} />,
             title: "MCP servers",
-            // "configured", not "connected": this counts the servers on the agent, and whether
-            // each one is authorized is a live fact this card does not have. Saying "connected"
-            // claimed the authorized state for a disconnected server, in the one word the rest
-            // of the product now reserves for it (round 4, D5).
             ...(summary.mcps
-                ? stated(`${summary.mcps} configured`)
-                : emptyAction(onEdit ? "Connect a server" : "None configured")),
+                ? stated(mcpSummaryDetail(summary.mcps))
+                : emptyAction(mcpSummaryDetail(0, {canEdit: Boolean(onEdit)}))),
         },
         {
             key: "skills",

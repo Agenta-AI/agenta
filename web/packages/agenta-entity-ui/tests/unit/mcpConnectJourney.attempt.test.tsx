@@ -13,7 +13,7 @@
  */
 import {act, createElement} from "react"
 
-import {useMcpConnectJourney} from "@agenta/entities/mcpEndpoint"
+import {PROBE_TIMEOUT_MS, useMcpConnectJourney} from "@agenta/entities/mcpEndpoint"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -589,5 +589,41 @@ describe("the popup contract", () => {
             } as MessageEvent)
         })
         expect(journey.state.status).toBe("saving")
+    })
+})
+
+describe("the URL check has an end", () => {
+    it("gives up on a server that never answers, and keeps the address", async () => {
+        // The check is the first thing anyone does here, and a spinner with no end is
+        // indistinguishable from a broken dialog. The probe's own deadline is twice this
+        // one, so without a client bound the wait is twenty seconds of nothing.
+        //
+        // The clock is faked only across the wait itself, and only `setTimeout`: React
+        // flushes its own work on the same timers, so a test that fakes them around its
+        // render waits on a clock nobody winds.
+        probeMcpUrl.mockImplementation(() => new Promise(() => undefined))
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+
+        vi.useFakeTimers({toFake: ["setTimeout"]})
+        let submitted: Promise<void>
+        try {
+            submitted = journey.submitUrl("https://mcp.acme.test/")
+            vi.advanceTimersByTime(PROBE_TIMEOUT_MS)
+        } finally {
+            vi.useRealTimers()
+        }
+        await act(async () => {
+            await submitted
+        })
+
+        expect(journey.state.status).toBe("check_failed")
+        // The address survives, so Try again does not mean retype.
+        expect(journey.state.url).toBe("https://mcp.acme.test/")
+        // The probe's own sentence for this, rather than a second wording for one condition.
+        expect(journey.state.error).toContain("did not finish answering in time")
+        // Nothing was learned, so nothing is claimed: the failure screen falls back to the
+        // unreachable wording rather than reading a cause it does not have.
+        expect(journey.state.probe).toBeNull()
     })
 })
