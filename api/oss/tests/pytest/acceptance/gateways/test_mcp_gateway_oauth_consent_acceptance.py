@@ -31,7 +31,7 @@ import hashlib
 import os
 import secrets
 import uuid
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Iterator, Optional
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -46,11 +46,6 @@ BASE_TIMEOUT = 60
 
 _MOCKS_ENABLED = os.getenv("AGENTA_GATEWAYS_MOCKS_ENABLED", "").lower() == "true"
 
-# The address the API dials, and therefore the address the issuer publishes itself under.
-_MCP_MOCK_URL = os.getenv(
-    "AGENTA_MOCK_MCP_GATEWAY_URL", "http://mock-mcp-gateway:9092"
-).rstrip("/")
-
 # The same container as seen from the host, which is where a browser — and this test —
 # stands. The dev compose files publish the mock on this port.
 _PUBLISHED_MOCK_URL = os.getenv(
@@ -59,6 +54,45 @@ _PUBLISHED_MOCK_URL = os.getenv(
 
 # The OAuth-protected MCP surface. `/` stays unauthenticated for every other suite.
 _OAUTH_MCP_PATH = "/oauth/mcp"
+_PROTECTED_RESOURCE_PATH = "/.well-known/oauth-protected-resource"
+
+
+def _published_base() -> Optional[str]:
+    """The address the mock issuer publishes ITSELF under, asked of the mock.
+
+    A stack whose consent flow is driven by a browser sets
+    `AGENTA_MOCK_MCP_GATEWAY_PUBLIC_URL` so the issuer advertises an address a browser can
+    resolve. That variable is set on the container, not in this process, and discovery
+    refuses a server whose origin differs from the resource its own metadata names, so an
+    endpoint registered here at the in-network address is refused on exactly the stack that
+    can run the browser flow.
+
+    Reading the issuer's own document keeps the two in step without this shell having to be
+    told anything, so one stack serves both the browser flow and these tests. `None` when
+    the mock cannot be reached, which the caller turns back into the compose default; the
+    suite's own skip then reports the absence.
+    """
+    try:
+        document = requests.get(
+            f"{_PUBLISHED_MOCK_URL}{_PROTECTED_RESOURCE_PATH}{_OAUTH_MCP_PATH}",
+            timeout=10,
+        ).json()
+        resource = str(document["resource"]).rstrip("/")
+    except Exception:  # pylint: disable=broad-except
+        return None
+    if not resource.endswith(_OAUTH_MCP_PATH):
+        return None
+    return resource[: -len(_OAUTH_MCP_PATH)]
+
+
+# The address the API dials, and therefore the address endpoints are registered at. The
+# explicit variable still wins, for a run that means to override both sides at once.
+_MCP_MOCK_URL = (
+    os.getenv("AGENTA_MOCK_MCP_GATEWAY_URL")
+    or _published_base()
+    or "http://mock-mcp-gateway:9092"
+).rstrip("/")
+
 _OAUTH_MCP_URL = f"{_MCP_MOCK_URL}{_OAUTH_MCP_PATH}"
 
 # The mock's second issuer, which advertises no registration endpoint and so forces the
