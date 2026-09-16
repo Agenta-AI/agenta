@@ -53,9 +53,18 @@ export const mockNeedsHostMapping = (): boolean => {
     return !hostname.includes(".") && hostname !== "localhost"
 }
 
-/** The same container as the test process sees it, which is where the reachability check goes. */
+/**
+ * The same container as the test process sees it, which is where the reachability check goes.
+ *
+ * The host port is allocated per stack (CR8) — every other published port already was, and the
+ * two mocks were the last literals, so a second dev stack on one machine could not bind them.
+ * `env.sh` writes the chosen port into the stack's env file as `AGENTA_MOCK_MCP_GATEWAY_PORT`,
+ * so that is what decides the default here. 9092 remains the fallback, which is what a stack
+ * allocated before this keeps.
+ */
 export const publishedMockMcpUrl = (
-    process.env.AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL || "http://127.0.0.1:9092"
+    process.env.AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL ||
+    `http://127.0.0.1:${process.env.AGENTA_MOCK_MCP_GATEWAY_PORT || "9092"}`
 ).replace(/\/$/, "")
 
 /** Its OAuth-protected surface. `/` stays open so the no-auth cases have something to use. */
