@@ -88,6 +88,8 @@ export function SkillCreateDrawer({
             setPicks(null)
             setAttempted(false)
             setError(null)
+            // A close mid-read skips the read's own reset.
+            setReading(false)
         }
     }
 
@@ -182,6 +184,8 @@ export function SkillCreateDrawer({
             for (const candidate of chosen) {
                 await createOne(toFormValue(candidate))
                 createdAny = true
+                // Off the list once it is in, so a retry after a later failure skips it.
+                togglePick(candidate.dir)
             }
             close()
         } catch (err) {
@@ -195,7 +199,7 @@ export function SkillCreateDrawer({
             if (createdAny) invalidateSkillsListCache()
             setBusy(false)
         }
-    }, [chosen, close, createOne])
+    }, [chosen, close, createOne, togglePick])
 
     return (
         <EnhancedDrawer
