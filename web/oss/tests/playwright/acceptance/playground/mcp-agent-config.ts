@@ -401,7 +401,7 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
                         `${mockMcpBase()}/`,
                         connectionName,
                     )
-                    await dialog.getByRole("button", {name: "Continue"}).click()
+                    await dialog.getByRole("button", {name: "Connect", exact: true}).click()
 
                     // Opened from an agent, the journey closes the moment the connection
                     // exists: the item takes it and the person carries on configuring.

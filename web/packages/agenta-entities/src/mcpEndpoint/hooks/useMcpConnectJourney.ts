@@ -66,6 +66,26 @@ export interface McpConnectJourneyOptions {
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
 }
 
+/**
+ * How long the URL check may run before the dialog stops waiting on it.
+ *
+ * The probe's own deadline is twice this, so this is the bound a person actually meets. It
+ * exists because the check is the first thing anyone does here and a spinner with no end is
+ * indistinguishable from a broken dialog; the address is kept and Try again re-runs it.
+ */
+export const PROBE_TIMEOUT_MS = 10_000
+
+/**
+ * What the probe says when its own deadline expires
+ * (`api/oss/src/core/gateways/mcps/probe.py`). The bound above expires first, so it reports
+ * the same condition in the same words rather than inventing a second sentence for it.
+ */
+const PROBE_TIMED_OUT_MESSAGE =
+    "The server did not finish answering in time. It may be responding too slowly to be usable."
+
+/** Marks the bound above expiring, so the catch can tell it from the server's own failures. */
+class ProbeTimedOut extends Error {}
+
 const AUTH_MODE_FOR_PROBE: Record<string, MCPAuthMode> = {
     oauth: "oauth",
     none: "none",
@@ -161,14 +181,24 @@ export function useMcpConnectJourney({
         async (url: string) => {
             const attempt = attemptRef.current
             dispatch({type: "submit_url"})
+            let bound: ReturnType<typeof setTimeout> | undefined
             try {
-                const response = await probeMcpUrl(url, projectId)
+                const response = await Promise.race([
+                    probeMcpUrl(url, projectId),
+                    new Promise<never>((_, reject) => {
+                        bound = setTimeout(() => reject(new ProbeTimedOut()), PROBE_TIMEOUT_MS)
+                    }),
+                ])
                 if (!isCurrent(attempt)) return
                 const probe = response.probe
                 if (!probe) throw new Error("The server could not be checked.")
                 if (!probe.reachable) {
+                    // The probe travels with the refusal: its `problem.cause` is what tells
+                    // "could not reach it" from "reached it, and it is not an MCP server",
+                    // which are different sentences and different advice.
                     dispatch({
                         type: "probe_failed",
+                        probe,
                         error: probe.problem?.message || "The server did not answer.",
                     })
                     return
@@ -184,10 +214,16 @@ export function useMcpConnectJourney({
                 })
             } catch (error) {
                 if (!isCurrent(attempt)) return
+                if (error instanceof ProbeTimedOut) {
+                    dispatch({type: "probe_failed", error: PROBE_TIMED_OUT_MESSAGE})
+                    return
+                }
                 dispatch({
                     type: "probe_failed",
                     error: gatewayRefusalMessage(error) || "The server could not be checked.",
                 })
+            } finally {
+                if (bound !== undefined) clearTimeout(bound)
             }
         },
         [existingNames, isCurrent, projectId],
@@ -485,6 +521,18 @@ export function useMcpConnectJourney({
         }
     }, [abandonAttempt, projectId, state])
 
+    /**
+     * Give up on one authorization attempt without giving up on the connection.
+     *
+     * The row stays: it is inert until a grant lands on it, and the next attempt continues
+     * from it rather than making a second one. Whatever is in flight is disowned first, so a
+     * consent that arrives after this cannot install itself on a screen that moved on.
+     */
+    const cancelConsent = useCallback(() => {
+        abandonAttempt()
+        dispatch({type: "consent_abandoned"})
+    }, [abandonAttempt])
+
     const retry = useCallback(() => dispatch({type: "retry"}), [])
     const retryTools = useCallback(() => dispatch({type: "retry_tools"}), [])
 
@@ -536,6 +584,7 @@ export function useMcpConnectJourney({
             skipAuthentication,
             finish,
             cancel,
+            cancelConsent,
             retry,
             retryTools,
             abandonAttempt,
@@ -543,6 +592,7 @@ export function useMcpConnectJourney({
         [
             abandonAttempt,
             cancel,
+            cancelConsent,
             expectsConsent,
             finish,
             loadTools,

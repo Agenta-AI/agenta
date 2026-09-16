@@ -30,7 +30,12 @@ export {
     type AgentConfigSummaryCardProps,
     type AgentConfigSummaryCopy,
 } from "./AgentConfigSummaryCard"
-export {agentConfigSummary, prettifyKind, type AgentConfigSummary} from "./agentConfigSummary"
+export {
+    agentConfigSummary,
+    mcpSummaryDetail,
+    prettifyKind,
+    type AgentConfigSummary,
+} from "./agentConfigSummary"
 export {agentLatestRevisionAtomFamily} from "./state"
 export {AgentCardGrid, type AgentCardGridProps} from "./AgentCardGrid"
 export {AgentRosterGrid, type AgentRosterEntry, type AgentRosterGridProps} from "./AgentRosterGrid"

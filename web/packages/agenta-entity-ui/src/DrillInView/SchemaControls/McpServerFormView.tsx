@@ -21,8 +21,8 @@ import {
     isLegacyMcpItem,
     mcpEndpointsQueryAtom,
     readMcpPolicy,
-    toGatewayPermissions,
     readMcpConnectionSlug,
+    readMcpToolCount,
     RESERVED_TOOL_PREFIX,
     toolPrefixFromName,
     type MCPEndpoint,
@@ -37,14 +37,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
-import {CaretRight, Plus} from "@phosphor-icons/react"
+import {Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 import McpConnectJourney from "../../mcpEndpoint/McpConnectJourney"
 import McpPermissionDrawer from "../../mcpEndpoint/McpPermissionDrawer"
-
-import {integrationPermissionSummary} from "./integrationPolicy"
 
 export interface McpServerFormViewProps {
     value: Record<string, unknown>
@@ -55,7 +53,7 @@ export interface McpServerFormViewProps {
 export function McpServerFormView({value, onChange, disabled}: McpServerFormViewProps) {
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
     const [connecting, setConnecting] = useState(false)
-    const [editingPermissions, setEditingPermissions] = useState(false)
+    const [permissionsOpen, setPermissionsOpen] = useState(false)
 
     const endpoints = useMemo(() => endpointsQuery.data ?? [], [endpointsQuery.data])
     const selectedSlug = readMcpConnectionSlug(value)
@@ -67,10 +65,6 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
         (endpoint: MCPEndpoint) => {
             if (!endpoint.slug) return
             const label = endpoint.name || endpoint.slug
-            // No policy is written here. On this wire an absent `permission` is not "unset", it
-            // means the run's own permission ladder decides, which is the state a server is added
-            // in (decision 36). Writing a default would be choosing a preset on the author's
-            // behalf.
             onChange({
                 ...value,
                 // Frozen here and not recomputed later: a rename must not rename tools.
@@ -82,12 +76,6 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
     )
 
     const prefix = typeof value.name === "string" ? value.name : ""
-
-    // The same short label a connected integration's row carries, so the two read alike.
-    const permissionSummary = useMemo(
-        () => integrationPermissionSummary(toGatewayPermissions(readMcpPolicy(value))).label,
-        [value],
-    )
 
     return (
         <div className="flex flex-col gap-3">
@@ -174,23 +162,18 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
             ) : null}
 
             <RailField label="Permissions" align="center">
-                {selected ? (
-                    // One navigation per configuration intent: the rail says what the policy is and
-                    // the drawer is where it is set, rather than a second editor inline.
-                    <Button
-                        variant="outline"
-                        disabled={disabled}
-                        onClick={() => setEditingPermissions(true)}
-                        className="w-full justify-between"
-                    >
-                        {permissionSummary}
-                        <CaretRight size={12} className="shrink-0" />
-                    </Button>
-                ) : (
-                    <p className="m-0 text-xs text-[var(--ag-colorTextSecondary)]">
-                        Select a connection to choose what this agent may do with it.
-                    </p>
-                )}
+                {/* A link out, not the editor inline. The per-tool table is the densest
+                    surface in the feature and it was nested two panels deep inside the
+                    shallowest one; it is now one destination that the rail row reaches
+                    directly too, so setting permissions is one navigation either way. */}
+                <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={disabled || !selected?.slug}
+                    onClick={() => setPermissionsOpen(true)}
+                >
+                    Set permissions
+                </Button>
             </RailField>
 
             {legacy ? (
@@ -208,20 +191,18 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                 </p>
             ) : null}
 
-            {selected ? (
+            {permissionsOpen ? (
                 <McpPermissionDrawer
-                    open={editingPermissions}
-                    onClose={() => setEditingPermissions(false)}
-                    slug={selected.slug ?? undefined}
-                    connectionName={selected.name || selected.slug || undefined}
+                    open
+                    onClose={() => setPermissionsOpen(false)}
+                    slug={selected?.slug ?? undefined}
+                    connectionName={selected?.name || selected?.slug || undefined}
                     toolPrefix={prefix || undefined}
-                    status={getMcpConnectionStatus(selected)}
                     policy={readMcpPolicy(value)}
                     onChange={(policy) => onChange({...value, policy})}
-                    onReconnect={() => {
-                        setEditingPermissions(false)
-                        setConnecting(true)
-                    }}
+                    onReconnect={() => setConnecting(true)}
+                    status={selected ? getMcpConnectionStatus(selected) : undefined}
+                    cachedToolCount={selected ? readMcpToolCount(selected) : null}
                     disabled={disabled}
                 />
             ) : null}

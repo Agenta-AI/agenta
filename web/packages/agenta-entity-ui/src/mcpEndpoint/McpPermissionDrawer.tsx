@@ -74,8 +74,13 @@ export interface McpPermissionDrawerProps {
      * rather than "Needs input" (decision 34).
      */
     status?: McpConnectionStatus
-    /** The tool count the connection record carries, for the cases where the list cannot be read. */
-    cachedToolCount?: number
+    /**
+     * The tool count the connection record carries, for the cases where the list cannot be read.
+     *
+     * Null as well as undefined, because `readMcpToolCount` returns null for a record with no
+     * cached count and every caller passes it straight through.
+     */
+    cachedToolCount?: number | null
     /**
      * Where the tool list comes from. Defaults to a live `tools/list` against the connection.
      *
@@ -439,13 +444,14 @@ export default function McpPermissionDrawer({
                             readOnly
                                 ? catalog.status === "ready"
                                     ? catalogTools.length
-                                    : cachedToolCount
+                                    : (cachedToolCount ?? undefined)
                                 : undefined
                         }
                     />
                 ),
                 catalog,
-                searchCount: catalog.status === "ready" ? undefined : cachedToolCount,
+                searchCount:
+                    catalog.status === "ready" ? undefined : (cachedToolCount ?? undefined),
                 emptyLabel: "This server exposes no tools yet.",
                 readOnlyLabel: "Read-only",
                 writeLabel: "Write",

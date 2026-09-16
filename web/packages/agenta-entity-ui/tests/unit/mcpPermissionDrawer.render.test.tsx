@@ -28,7 +28,12 @@ vi.mock("jotai", async (importOriginal) => ({
 }))
 
 import McpPermissionDrawer from "../../src/mcpEndpoint/McpPermissionDrawer"
-import {getMcpConnectionStatus, type McpServerPolicy} from "@agenta/entities/mcpEndpoint"
+import {
+    getMcpConnectionStatus,
+    readMcpPolicy,
+    type McpServerPolicy,
+} from "@agenta/entities/mcpEndpoint"
+import {buildMcpAgentItem} from "../../src/DrillInView/SchemaControls/agentTemplate/mcpRail"
 
 /** The nine tools the spec's own data block supplies, read-only group then write group. */
 const LINEAR_TOOLS = [
@@ -248,7 +253,18 @@ describe("a server just added to an agent", () => {
     // Adding writes no server permission (decision 36), and on this wire that is not "nothing
     // set": it means the run's own permission ladder decides. The drawer has to render it as the
     // preset that saves that absence rather than as a value nobody chose.
-    const justAdded: McpServerPolicy = {}
+    //
+    // The exact shape the add path writes, taken from `buildMcpAgentItem` rather than written
+    // out here, so the two packages cannot drift: a filter admitting everything, and no
+    // permission, no floor and no table. If adding ever starts writing one, these four cases
+    // fail rather than the drawer quietly showing a preset nobody picked.
+    const justAdded = readMcpPolicy(buildMcpAgentItem({slug: "linear", name: "Linear"}))
+
+    it("carries no permission, no floor and no per-tool table", async () => {
+        expect(justAdded.permission).toBeUndefined()
+        expect(justAdded.new_tool_permission).toBeUndefined()
+        expect(justAdded.tool_permissions).toBeUndefined()
+    })
 
     it("reads back as the preset whose saved value is the absence, not as Allow all", async () => {
         await render({policy: justAdded})
@@ -278,7 +294,13 @@ describe("a server just added to an agent", () => {
 
         await choose(labelled("Default permission"), "Allow all")
 
-        expect(onChange).toHaveBeenCalledWith({permission: "allow"})
+        // The permission is written, and the tool filter the add path wrote survives untouched:
+        // it decides what the server ADVERTISES, not what the agent may run, and dropping it on a
+        // preset pick would quietly widen a filtered server.
+        expect(onChange).toHaveBeenCalledWith({
+            tools: {mode: "all"},
+            permission: "allow",
+        })
     })
 })
 
