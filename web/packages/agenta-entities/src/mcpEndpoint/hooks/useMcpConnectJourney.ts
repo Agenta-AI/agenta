@@ -45,6 +45,7 @@ import {
 import {buildTrustedOrigins} from "../core/connectMessage"
 import {watchOauthConsent} from "../core/connectWatch"
 import {gatewayRefusalMessage, isNameTakenRefusal} from "../core/refusal"
+import {rememberMcpReturnPath} from "../core/returnPath"
 import type {MCPAuthMode, MCPEndpoint} from "../core/types"
 import {refreshMcpEndpointsAtom} from "../state/atoms"
 
@@ -197,6 +198,11 @@ export function useMcpConnectJourney({
                 // tab back to the connections list rather than leaving it on the API's origin
                 // under a message about closing itself. Anything unsaved elsewhere is lost;
                 // that is the cost of the popup being refused, not of this branch.
+                //
+                // Where to come back to is written down HERE, because this is the last moment
+                // anything knows it: the callback page knows the deployment's origin and not
+                // which surface, workspace or project the person was in (r3-D1).
+                rememberMcpReturnPath()
                 window.location.assign(redirectUrl)
                 return
             }

@@ -197,10 +197,7 @@ describe("the popup contract", () => {
         expect(journey.expectsConsent).toBe(true)
     })
 
-    it("falls back to this tab when the window was refused", async () => {
-        const assign = vi.fn()
-        vi.stubGlobal("location", {assign, href: "https://app.example.test/"})
-
+    const driveToConsent = async (popup: Window | null) => {
         await mountJourney()
         await act(async () => journey.setUrl("https://mcp.acme.test/"))
         await act(async () => {
@@ -212,10 +209,47 @@ describe("the popup contract", () => {
         })
         await settle()
         await act(async () => {
-            await journey.submitScopes(null)
+            await journey.submitScopes(popup)
         })
+    }
+
+    it("falls back to this tab when the window was refused", async () => {
+        const assign = vi.fn()
+        vi.stubGlobal("location", {assign, href: "https://app.example.test/"})
+
+        await driveToConsent(null)
 
         expect(assign).toHaveBeenCalledWith("https://issuer.test/authorize")
+    })
+
+    it("writes down where the tab was before it leaves it", async () => {
+        const setItem = vi.fn()
+        vi.stubGlobal("location", {
+            assign: vi.fn(),
+            pathname: "/m/w/ws-1/p/proj-1/settings",
+            search: "?tab=mcpEndpoints",
+        })
+        vi.stubGlobal("sessionStorage", {setItem, getItem: () => null, removeItem: vi.fn()})
+
+        await driveToConsent(null)
+
+        // The callback page knows the deployment's origin and nothing else, so a return that
+        // keeps the surface, the workspace and the project has to be recorded here, at the
+        // last moment anything knows them (UI QA round 3, D1).
+        expect(setItem).toHaveBeenCalledWith(
+            "agenta:mcp:return-path",
+            "/m/w/ws-1/p/proj-1/settings?tab=mcpEndpoints",
+        )
+    })
+
+    it("writes nothing down when the window opened, because the app is still standing", async () => {
+        const setItem = vi.fn()
+        vi.stubGlobal("sessionStorage", {setItem, getItem: () => null, removeItem: vi.fn()})
+
+        await driveToConsent(fakePopup())
+
+        // A stale path would send the next blocked return to wherever this attempt began.
+        expect(setItem).not.toHaveBeenCalled()
     })
 
     it("trusts only the origin that serves the callback", async () => {

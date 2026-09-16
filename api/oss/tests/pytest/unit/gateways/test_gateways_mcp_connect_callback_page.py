@@ -62,6 +62,44 @@ class TestTheBlockedPopupPath:
         assert "window.location.replace" in page
         assert "The authorization was declined." in page
 
+    def test_it_prefers_the_page_the_tab_was_actually_on(self):
+        page = _card()
+
+        fallback = page.split("} else if")[1]
+        # This page knows the deployment's origin and nothing else: not the surface, not the
+        # workspace, not the project. The tab wrote its own path down before navigating away,
+        # and that is what it comes back to (UI QA round 3, D1).
+        assert "sessionStorage.getItem(AGENTA_RETURN_PATH_KEY)" in fallback
+        assert '"agenta:mcp:return-path"' in page
+        assert (
+            "window.location.replace(AGENTA_POST_MESSAGE_ORIGIN + target)" in fallback
+        )
+
+    def test_it_refuses_a_remembered_value_that_names_another_origin(self):
+        page = _card()
+
+        fallback = page.split("} else if")[1]
+        # The value is joined to an origin, so "//evil.test" would be a URL to somewhere else.
+        # Path-only, one leading slash, no backslashes, and a length that cannot be a payload.
+        assert 'remembered.charAt(0) === "/"' in fallback
+        assert 'remembered.charAt(1) !== "/"' in fallback
+        assert 'remembered.indexOf("\\") === -1' in fallback
+        assert "remembered.length <= 2048" in fallback
+
+    def test_it_forgets_the_path_once_it_has_used_it(self):
+        page = _card()
+
+        # A stale path would send the NEXT blocked-popup return to wherever the last one began.
+        assert "sessionStorage.removeItem(AGENTA_RETURN_PATH_KEY)" in page
+
+    def test_it_still_has_a_path_when_nothing_was_remembered(self):
+        page = _card()
+
+        fallback = page.split("} else if")[1]
+        # Cross-origin deployments share no storage with this page, so the fallback is the
+        # only thing that runs there.
+        assert "let target = AGENTA_RETURN_PATH;" in fallback
+
     def test_it_says_nothing_about_closing_a_tab_it_cannot_close(self):
         page = _card()
 

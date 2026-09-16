@@ -783,6 +783,10 @@ def _connect_card(
     # Where a stranded tab goes back to. The settings surface owns connections, and it is the
     # one place that is right whichever surface started the flow.
     agenta_return_path_js = _json_for_inline_script("/settings?tab=mcpEndpoints")
+    # Where the tab that is about to be navigated away writes down its own scoped path. The
+    # same key as `web/packages/agenta-entities/src/mcpEndpoint/core/returnPath.ts`; the two
+    # halves only meet in the browser, so the string is repeated rather than shared.
+    agenta_return_path_key_js = _json_for_inline_script("agenta:mcp:return-path")
 
     accent = "#16a34a" if success else "#dc2626"
     icon = "✓" if success else "✕"
@@ -850,6 +854,7 @@ def _connect_card(
     const AGENTA_POST_MESSAGE_ORIGIN = {agenta_post_message_origin_js};
     const AGENTA_OAUTH_COMPLETE = {oauth_complete_message_js};
     const AGENTA_RETURN_PATH = {agenta_return_path_js};
+    const AGENTA_RETURN_PATH_KEY = {agenta_return_path_key_js};
 
     const AGENTA_SUCCESS = {str(success).lower()};
     const opened = Boolean(window.opener) && Boolean(AGENTA_POST_MESSAGE_ORIGIN);
@@ -867,8 +872,31 @@ def _connect_card(
       // the API's origin with the app gone. Send them back to it.
       const manualReturn = document.getElementById("manual-return-text");
       if (manualReturn) {{ manualReturn.hidden = false; }}
+      // The page the tab was on wrote down where it stood before it navigated away, because
+      // this page knows the deployment's origin and not which surface, workspace or project
+      // the person came from. Same-origin deployments hand it back here; anywhere else the
+      // storage is simply empty and the settings path below still lands them in the app.
+      let target = AGENTA_RETURN_PATH;
+      try {{
+        const remembered = window.sessionStorage.getItem(AGENTA_RETURN_PATH_KEY);
+        // Path-only and one slash: this value is joined to an origin, and "//evil.test" is a
+        // URL to another one. The page that stored it checks the same thing; so does this.
+        if (
+          remembered &&
+          remembered.length > 1 &&
+          remembered.length <= 2048 &&
+          remembered.charAt(0) === "/" &&
+          remembered.charAt(1) !== "/" &&
+          remembered.indexOf("\\") === -1
+        ) {{
+          target = remembered;
+        }}
+        window.sessionStorage.removeItem(AGENTA_RETURN_PATH_KEY);
+      }} catch (error) {{
+        // Storage refused. The fallback path is still a page in the app.
+      }}
       setTimeout(function () {{
-        window.location.replace(AGENTA_POST_MESSAGE_ORIGIN + AGENTA_RETURN_PATH);
+        window.location.replace(AGENTA_POST_MESSAGE_ORIGIN + target);
       }}, 1500);
     }}
   </script>
