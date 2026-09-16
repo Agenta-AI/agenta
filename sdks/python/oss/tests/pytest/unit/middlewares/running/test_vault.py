@@ -124,3 +124,59 @@ async def test_a_workflow_with_no_agent_parameter_gets_the_vault(monkeypatch):
     await vault.VaultMiddleware()(request, call_next)
 
     assert fetched
+
+
+@pytest.mark.asyncio
+async def test_an_agent_carrying_no_configuration_is_still_an_agent(monkeypatch):
+    """Every field of an agent template defaults, so `{}` is a valid agent. Requiring
+    one of them to be present sent a real agent to the vault, which is the opposite
+    mistake to the one this check was narrowed to avoid."""
+    fetched = False
+
+    async def get_secrets(*_args, **_kwargs):
+        nonlocal fetched
+        fetched = True
+        return [], [], []
+
+    monkeypatch.setattr(vault, "get_secrets", get_secrets)
+    request = WorkflowServiceRequest(data={"parameters": {"agent": {}}})
+
+    async def call_next(received):
+        return received
+
+    await vault.VaultMiddleware()(request, call_next)
+
+    assert not fetched
+
+
+@pytest.mark.asyncio
+async def test_a_block_mixing_agent_keys_with_its_own_is_not_an_agent(monkeypatch):
+    """An agent template forbids unknown fields, so a block carrying one is not one,
+    however much of it looks familiar."""
+    fetched = False
+
+    async def get_secrets(*_args, **_kwargs):
+        nonlocal fetched
+        fetched = True
+        return [], [], []
+
+    monkeypatch.setattr(vault, "get_secrets", get_secrets)
+    request = WorkflowServiceRequest(
+        data={"parameters": {"agent": {"llm": {"model": "x"}, "team": "billing"}}}
+    )
+
+    async def call_next(received):
+        return received
+
+    await vault.VaultMiddleware()(request, call_next)
+
+    assert fetched
+
+
+def test_the_recognised_keys_are_the_agent_templates_own():
+    """The list here duplicates the schema, so it can drift from it silently: a field
+    added to the template would make a real agent carrying it look like somebody else's
+    parameter and send it to the vault."""
+    from agenta.sdk.utils.types import AgentTemplateSchema
+
+    assert vault._AGENT_TEMPLATE_KEYS == AgentTemplateSchema.model_fields.keys()

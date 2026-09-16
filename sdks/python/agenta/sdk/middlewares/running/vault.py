@@ -513,10 +513,12 @@ class VaultMiddleware:
         explanation (M10).  Requiring at least one key only an agent template defines
         makes the match say what it means.
 
-        Still a recognition rather than a declaration: the request carries no field
-        saying which kind of workflow it is, and adding one is a wire change for both
-        sides.  Until it exists, an ordinary workflow collides only by naming a parameter
-        ``agent`` *and* giving it one of the keys below.
+        Still a recognition rather than a declaration, and that is the real closure this
+        is standing in for: the request carries no field saying which kind of workflow it
+        is, so both directions of this check are guesses about a shape.  Recording a
+        declared kind on the wire is a change for the API and the SDK together, and until
+        it exists an ordinary workflow collides only by naming a parameter ``agent`` and
+        giving it nothing but keys from an agent template.
         """
         data = request.data
         parameters = data.parameters if data is not None else None
@@ -527,7 +529,13 @@ class VaultMiddleware:
         if not isinstance(agent, dict):
             return False
 
-        return any(key in agent for key in _AGENT_TEMPLATE_KEYS)
+        # Every key it has, and nothing else. An agent template's fields all default, so
+        # an agent may legitimately arrive as `{}` and requiring one of them to be
+        # present sent a real agent to the vault — the opposite mistake to the one this
+        # check was narrowed to avoid. A subset admits the empty block and still refuses
+        # a workflow whose author happened to name a parameter `agent`, because that
+        # block carries keys of its own.
+        return agent.keys() <= _AGENT_TEMPLATE_KEYS
 
     async def __call__(
         self,
