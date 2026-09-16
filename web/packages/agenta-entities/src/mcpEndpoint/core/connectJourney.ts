@@ -20,7 +20,51 @@
  *   an explanation, and `isConnected` is true for exactly the states after credentials are
  *   persisted.
  */
+import {normalizeConnectionName} from "./connectionName"
 import type {MCPServerProbe} from "./types"
+
+/**
+ * The address two rows are compared by: no trailing slash, no case, no surrounding space.
+ *
+ * Deliberately not a URL parse. What is being asked is "did this journey already write this
+ * row", and an answer that depends on how a parser normalizes a port or a path would say yes
+ * to two rows the person sees as different addresses.
+ */
+const sameAddress = (a: string | null | undefined, b: string | null | undefined): boolean => {
+    const clean = (value: string | null | undefined) =>
+        (value ?? "").trim().replace(/\/+$/, "").toLowerCase()
+    const left = clean(a)
+    return !!left && left === clean(b)
+}
+
+/**
+ * The existing row a refused create was refused BY, when it is the same connection.
+ *
+ * A create can land server-side and lose its response. The retry then creates again, the API
+ * refuses the name as taken, and the person is told to invent a second name for a connection
+ * they already have — with the half-finished row left behind at "Needs authorization" and no
+ * way forward (round 4, D3).
+ *
+ * The row is only offered back when its name AND its address both match what is being
+ * connected. A name collision against a DIFFERENT server is a real collision and still has to
+ * be refused: two connections to two servers cannot share one label, and silently continuing
+ * into someone else's row would be worse than the dead end.
+ */
+export function adoptableEndpoint<
+    T extends {id?: string | null; slug?: string | null; name?: string | null; data?: unknown},
+>(endpoints: T[] | undefined, target: {name: string; url: string}): T | null {
+    const wanted = normalizeConnectionName(target.name)
+    if (!wanted) return null
+    return (
+        (endpoints ?? []).find((endpoint) => {
+            if (!endpoint.id || !endpoint.slug) return false
+            if (normalizeConnectionName(endpoint.name ?? "") !== wanted) return false
+            const baseUrl = (endpoint.data as {route?: {base_url?: string | null}} | undefined)
+                ?.route?.base_url
+            return sameAddress(baseUrl, target.url)
+        }) ?? null
+    )
+}
 
 export type McpJourneyStatus =
     | "url_entry"
@@ -83,7 +127,13 @@ export type McpJourneyEvent =
     | {type: "probe_failed"; error: string}
     | {type: "name_changed"; name: string}
     | {type: "submit_name"}
-    | {type: "endpoint_created"; endpointId: string; slug: string}
+    | {
+          type: "endpoint_created"
+          endpointId: string
+          slug: string
+          /** The row already existed and this journey took it over, so it does not own it. */
+          adopted?: boolean
+      }
     | {type: "create_failed"; error: string}
     | {type: "name_taken"; error: string}
     | {type: "scopes_discovered"; scopes: string[]}
@@ -249,8 +299,11 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                 ...state,
                 endpointId: event.endpointId,
                 slug: event.slug,
-                // Only the first create owns the row; a retry reuses it.
-                createdHere: state.createdHere || !state.endpointId,
+                // Only the first create owns the row; a retry reuses it. An ADOPTED row was
+                // found rather than made, and this journey never owns one: cancelling has to
+                // leave it exactly as it was found, because the only thing distinguishing it
+                // from a row someone else made is that we cannot tell them apart.
+                createdHere: state.createdHere || (!state.endpointId && !event.adopted),
                 error: null,
             }
             if (state.probe?.auth.mode === "oauth") {

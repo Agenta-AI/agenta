@@ -9,6 +9,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    adoptableEndpoint,
     cancelDeletesEndpoint,
     isBusy,
     isConnected,
@@ -569,5 +570,59 @@ describe("no failure reads as a success", () => {
         const pending = run(...upToConsent())
 
         expect(journeyReducer(pending, {type: "retry"})).toBe(pending)
+    })
+})
+
+describe("the row a refused name belongs to", () => {
+    const row = (overrides: Record<string, unknown> = {}) => ({
+        id: "mcp-1",
+        slug: "acme-7mx",
+        name: "Acme",
+        data: {route: {base_url: "https://mcp.acme.test"}},
+        ...overrides,
+    })
+
+    it("is the one whose name and address both match what is being connected", () => {
+        expect(adoptableEndpoint([row()], {name: "Acme", url: "https://mcp.acme.test"})?.id).toBe(
+            "mcp-1",
+        )
+    })
+
+    it("ignores a trailing slash, the case and the surrounding space in the address", () => {
+        // The create sends a trimmed URL and the row comes back as the API stored it, so the
+        // two spellings of one address must not read as two servers.
+        expect(
+            adoptableEndpoint([row()], {name: "Acme", url: "  HTTPS://MCP.Acme.test/  "})?.id,
+        ).toBe("mcp-1")
+    })
+
+    it("compares names the way the API refuses them", () => {
+        // The refusal this answers is the API's, which compares normalized names, so matching
+        // the raw string would leave the dead end in place for exactly the names it refuses.
+        expect(
+            adoptableEndpoint([row()], {name: " acme ", url: "https://mcp.acme.test"}),
+        ).toBeNull()
+        expect(
+            adoptableEndpoint([row({name: "Acme Prod"})], {
+                name: "Acme-Prod",
+                url: "https://mcp.acme.test",
+            })?.id,
+        ).toBe("mcp-1")
+    })
+
+    it("is nothing when the name matches a different server", () => {
+        // A real collision. Continuing into that row would connect the person to a server they
+        // did not name, which is worse than making them choose another label.
+        expect(
+            adoptableEndpoint([row()], {name: "Acme", url: "https://mcp.somewhere-else.test"}),
+        ).toBeNull()
+    })
+
+    it("is nothing for a row with no address, no identity, or no list at all", () => {
+        expect(adoptableEndpoint([row({data: {}})], {name: "Acme", url: URL})).toBeNull()
+        expect(adoptableEndpoint([row({id: null})], {name: "Acme", url: URL})).toBeNull()
+        expect(adoptableEndpoint([row({slug: ""})], {name: "Acme", url: URL})).toBeNull()
+        expect(adoptableEndpoint(undefined, {name: "Acme", url: URL})).toBeNull()
+        expect(adoptableEndpoint([row()], {name: "   ", url: URL})).toBeNull()
     })
 })

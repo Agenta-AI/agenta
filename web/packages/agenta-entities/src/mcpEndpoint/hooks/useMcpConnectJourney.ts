@@ -33,9 +33,11 @@ import {
     editMcpEndpoint,
     listMcpTools,
     probeMcpUrl,
+    queryMcpEndpoints,
 } from "../api/api"
 import {suggestConnectionName} from "../core/connectionName"
 import {
+    adoptableEndpoint,
     cancelDeletesEndpoint,
     journeyReducer,
     startJourney,
@@ -70,6 +72,31 @@ const AUTH_MODE_FOR_PROBE: Record<string, MCPAuthMode> = {
     // Discovery was inconclusive. The row is created carrying no credential rather than
     // presuming a key, and moves to api_key only if the person supplies one.
     unknown: "none",
+}
+
+/**
+ * The row a refused create was refused by, when it is the same connection being made.
+ *
+ * Asked only after a name refusal, so the ordinary path costs nothing. A list that cannot be
+ * read answers "nothing to adopt", which leaves the person with the refusal they already had
+ * rather than a second failure on top of it.
+ */
+const findAdoptableEndpoint = async ({
+    name,
+    url,
+    projectId,
+}: {
+    name: string
+    url: string
+    projectId?: string
+}): Promise<{id: string; slug: string} | null> => {
+    try {
+        const response = await queryMcpEndpoints(projectId)
+        const row = adoptableEndpoint(response.endpoints, {name, url})
+        return row?.id && row.slug ? {id: row.id, slug: row.slug} : null
+    } catch {
+        return null
+    }
 }
 
 export function useMcpConnectJourney({
@@ -260,49 +287,68 @@ export function useMcpConnectJourney({
         const mode = AUTH_MODE_FOR_PROBE[probe?.auth.mode ?? "unknown"] ?? "none"
 
         const attempt = attemptRef.current
-        try {
-            let endpointId = endpointRef.current?.id
-            let slug = endpointRef.current?.slug
-
-            if (!endpointId) {
-                // No slug is sent: the API derives one from the name and hands it back,
-                // and that returned slug is what agents reference.
-                const created = await createMcpEndpoint(
-                    {
-                        name: state.name.trim(),
-                        auth_mode: mode,
-                        data: {route: {base_url: state.url.trim()}},
-                    },
-                    projectId,
-                )
-                const endpoint = created.endpoint
-                if (!endpoint?.id || !endpoint.slug) {
-                    throw new Error("The server did not return the created connection.")
-                }
-                endpointId = endpoint.id
-                slug = endpoint.slug
-
-                if (!isCurrent(attempt)) {
-                    // Cancelled while the create was in flight. The cancel found no row to
-                    // delete, so this one would be left behind; delete it here instead.
-                    void deleteMcpEndpoint(endpointId, projectId).catch(() => undefined)
-                    return
-                }
-                endpointRef.current = {id: endpointId, slug}
-            }
-
+        /** Continue from a row, however this journey came by it. */
+        const continueFrom = (row: {id: string; slug: string}, adopted?: boolean) => {
+            endpointRef.current = row
             // This transition already moves an OAuth connection to `discovering_scopes`, and
             // the component's effect owns that state. Awaiting discovery here as well ran it
             // twice per connect: two outbound round trips, and two full-row writes on a route
             // that writes back the snapshot it read (D31).
-            dispatch({type: "endpoint_created", endpointId, slug: slug as string})
-
+            dispatch({type: "endpoint_created", endpointId: row.id, slug: row.slug, adopted})
             if (probe?.auth.mode === "none") {
                 dispatch({type: "verify_started"})
                 dispatch({type: "verify_succeeded"})
             }
+        }
+        try {
+            const existing = endpointRef.current
+            if (existing) {
+                continueFrom(existing)
+                return
+            }
+
+            // No slug is sent: the API derives one from the name and hands it back,
+            // and that returned slug is what agents reference.
+            const created = await createMcpEndpoint(
+                {
+                    name: state.name.trim(),
+                    auth_mode: mode,
+                    data: {route: {base_url: state.url.trim()}},
+                },
+                projectId,
+            )
+            const endpoint = created.endpoint
+            if (!endpoint?.id || !endpoint.slug) {
+                throw new Error("The server did not return the created connection.")
+            }
+
+            if (!isCurrent(attempt)) {
+                // Cancelled while the create was in flight. The cancel found no row to
+                // delete, so this one would be left behind; delete it here instead.
+                void deleteMcpEndpoint(endpoint.id, projectId).catch(() => undefined)
+                return
+            }
+            continueFrom({id: endpoint.id, slug: endpoint.slug})
         } catch (error) {
             if (!isCurrent(attempt)) return
+
+            // A create whose response was lost still landed. The retry creates again, the API
+            // refuses the name, and the person is told to rename a connection they already
+            // have while the half-finished row sits behind the dialog (round 4, D3). So before
+            // refusing, ask whether the row this name belongs to IS the one being made.
+            if (isNameTakenRefusal(error)) {
+                const adopted = await findAdoptableEndpoint({
+                    name: state.name.trim(),
+                    url: state.url.trim(),
+                    projectId,
+                })
+                if (!isCurrent(attempt)) return
+                if (adopted) {
+                    continueFrom(adopted, true)
+                    return
+                }
+            }
+
             const refusal = gatewayRefusalMessage(error) || "The connection could not be saved."
             // A taken name is the one create failure the person can fix where they are
             // standing; everything else is a retry.

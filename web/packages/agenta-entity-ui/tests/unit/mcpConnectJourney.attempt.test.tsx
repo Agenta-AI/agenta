@@ -24,6 +24,7 @@ const {
     beginMcpConnect,
     discoverMcpConnect,
     listMcpTools,
+    queryMcpEndpoints,
 } = vi.hoisted(() => ({
     probeMcpUrl: vi.fn(),
     createMcpEndpoint: vi.fn(),
@@ -31,6 +32,7 @@ const {
     beginMcpConnect: vi.fn(),
     discoverMcpConnect: vi.fn(),
     listMcpTools: vi.fn(),
+    queryMcpEndpoints: vi.fn(),
 }))
 
 vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
@@ -41,6 +43,7 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     beginMcpConnect,
     discoverMcpConnect,
     listMcpTools,
+    queryMcpEndpoints,
 }))
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test/api"}))
@@ -120,6 +123,7 @@ beforeEach(() => {
     deleteMcpEndpoint.mockResolvedValue(undefined)
     beginMcpConnect.mockResolvedValue({count: 1, redirect_url: "https://issuer.test/authorize"})
     discoverMcpConnect.mockResolvedValue({count: 1, scopes_offered: ["tools:list"]})
+    queryMcpEndpoints.mockResolvedValue({count: 0, endpoints: []})
     host = document.createElement("div")
     document.body.appendChild(host)
     root = createRoot(host)
@@ -233,6 +237,130 @@ describe("a name the server refuses", () => {
             "Another connection in this project already uses this name; pick a different one. " +
                 "Give this connection a name no other one in the project uses.",
         )
+    })
+})
+
+describe("a retry after a save whose response was lost", () => {
+    const nameTaken = {
+        response: {
+            data: {
+                detail: {
+                    code: "mcp_connection_name_taken",
+                    message:
+                        "Another connection in this project already uses this name; pick a different one.",
+                },
+            },
+        },
+    }
+
+    /** Type the URL and the name, then submit it. */
+    const submitNamed = async (name = "Acme", url = "https://mcp.acme.test/") => {
+        await act(async () => journey.setUrl(url))
+        await act(async () => {
+            await journey.submitUrl(url)
+        })
+        await act(async () => journey.setName(name))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+    }
+
+    it("continues from the row its own lost save already made", async () => {
+        // The first save landed and only its answer was lost, so the retry's create is refused
+        // by the row the person already owns. Telling them to rename it is a dead end: the only
+        // way forward was to invent a second name for one connection (round 4, D3).
+        createMcpEndpoint.mockRejectedValue(nameTaken)
+        queryMcpEndpoints.mockResolvedValue({
+            count: 1,
+            endpoints: [
+                {
+                    id: "mcp-1",
+                    slug: "acme-7mx",
+                    name: "Acme",
+                    auth_mode: "oauth",
+                    data: {route: {base_url: "https://mcp.acme.test"}},
+                },
+            ],
+        })
+
+        await mountJourney()
+        await submitNamed()
+
+        expect(journey.state.status).toBe("discovering_scopes")
+        expect(journey.state.endpointId).toBe("mcp-1")
+        expect(journey.state.slug).toBe("acme-7mx")
+        expect(journey.state.error).toBeNull()
+    })
+
+    it("does not claim the row it adopted, so cancelling leaves it alone", async () => {
+        // The row it found is indistinguishable from one somebody else made a moment earlier.
+        // Deleting that on cancel would destroy a connection this journey never created.
+        createMcpEndpoint.mockRejectedValue(nameTaken)
+        queryMcpEndpoints.mockResolvedValue({
+            count: 1,
+            endpoints: [
+                {
+                    id: "mcp-1",
+                    slug: "acme-7mx",
+                    name: "Acme",
+                    data: {route: {base_url: "https://mcp.acme.test/"}},
+                },
+            ],
+        })
+
+        await mountJourney()
+        await submitNamed()
+        await act(async () => {
+            await journey.cancel()
+        })
+        await settle()
+
+        expect(journey.state.createdHere).toBe(false)
+        expect(deleteMcpEndpoint).not.toHaveBeenCalled()
+    })
+
+    it("still refuses a name another server has already taken", async () => {
+        // The name matches and the address does not, so this is the collision the refusal is
+        // for: two connections to two servers cannot share one label.
+        createMcpEndpoint.mockRejectedValue(nameTaken)
+        queryMcpEndpoints.mockResolvedValue({
+            count: 1,
+            endpoints: [
+                {
+                    id: "mcp-9",
+                    slug: "acme-other",
+                    name: "Acme",
+                    data: {route: {base_url: "https://mcp.somewhere-else.test"}},
+                },
+            ],
+        })
+
+        await mountJourney()
+        await submitNamed()
+
+        expect(journey.state.status).toBe("naming")
+        expect(journey.state.endpointId).toBeNull()
+        expect(journey.state.error).toContain("already uses this name")
+    })
+
+    it("leaves the refusal standing when the connection list cannot be read", async () => {
+        createMcpEndpoint.mockRejectedValue(nameTaken)
+        queryMcpEndpoints.mockRejectedValue(new Error("network down"))
+
+        await mountJourney()
+        await submitNamed()
+
+        expect(journey.state.status).toBe("naming")
+        expect(journey.state.error).toContain("already uses this name")
+    })
+
+    it("asks nothing extra when the save simply succeeds", async () => {
+        await mountJourney()
+        await submitNamed()
+
+        expect(queryMcpEndpoints).not.toHaveBeenCalled()
+        expect(journey.state.endpointId).toBe("mcp-1")
     })
 })
 
