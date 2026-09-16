@@ -209,6 +209,13 @@ One thing that looks like a defect and is not: a sandbox-origin line in the API 
 the `/api` prefix twice. That is the access log printing the application's root path in front of the
 request path. The sandbox dials the single-prefix URL, and both spellings answer 200.
 
+**Rechecked and still present.** The runner fix that removed the protocol-version header from
+`initialize` cleared a different failure, the one that made the handshake answer 400 at all, and it
+is genuinely fixed: the probe now returns 200. It does not touch the parse. `readJsonResponse` is
+byte-for-byte unchanged on the candidate, and a re-run of the read-only cell after that fix behaves
+exactly as before, with one sandbox POST and no `tools/list` behind it. Both defects above are open,
+and the agent path to a real provider stays unproven until the parse is fixed.
+
 ## Dashboard procedure
 
 Use the dashboard's managed-agent creation and run flow. For each harness available in the
