@@ -150,31 +150,14 @@ const createAgentApp = async (page: Page, basePath: string, appName: string): Pr
     expect(state, AGENT_APPS_UNAVAILABLE_REASON).not.toBe("not-agent")
 
     await navigate(page, `${basePath}/apps/${body.workflow.id}/playground`)
-    await expectPlaygroundPainted(page)
     return body.workflow.id
 }
 
-/**
- * Wait for the playground to actually paint, reloading once if it did not.
- *
- * On a development server the route answers 200 and the page still comes up empty, because the
- * client asked for a chunk id that the last rebuild replaced. One reload fetches the current one.
- * The allowance is one: a second empty page is the page being broken, which is this suite's to
- * report rather than to wait out.
- */
-const expectPlaygroundPainted = async (page: Page) => {
-    const anyChrome = page.getByRole("button", {name: "Commit", exact: true}).first()
-    if (await anyChrome.isVisible().catch(() => false)) return
-    try {
-        await expect(anyChrome).toBeVisible({timeout: 60000})
-    } catch {
-        await page.reload({waitUntil: "domcontentloaded"})
-        await expect(anyChrome).toBeVisible({timeout: ROUTE_WARMUP_MS})
-    }
-}
+/** Whether this worker has already paid for the agent playground to compile. */
+let playgroundWarmed = false
 
 /**
- * Open the MCPs section's create drawer.
+ * Open the MCP servers section's create drawer.
  *
  * The section itself is conditional: it appears only while the agent's harness says it can reach
  * user MCP servers. Asserting it rather than skipping past it is deliberate — a deployment whose
@@ -183,7 +166,22 @@ const expectPlaygroundPainted = async (page: Page) => {
 const openNewMcpItem = async (page: Page) => {
     const addLink = page.getByRole("button", {name: "add a server", exact: true})
     const sectionHeader = page.getByRole("button", {name: /^MCP servers\b/})
-    await expect(sectionHeader.or(addLink).first()).toBeVisible({timeout: ROUTE_WARMUP_MS})
+    // The section appearing is also this page's sign of life: an agent's playground opens a
+    // session first, so there is nothing to assert on until the configuration panel is up.
+    // On a development server it sometimes never comes, because the client asked for a chunk id
+    // the last rebuild replaced; one reload fetches the current one. The allowance is one — a
+    // second empty page is the page being broken, which is this suite's to report.
+    // The first case in a worker also pays for a development server to compile this route, and
+    // the agent playground is the heaviest one there is, so it gets its own budget rather than
+    // borrowing the one meant for a page that is already built.
+    const budget = playgroundWarmed ? ROUTE_WARMUP_MS : 4 * ROUTE_WARMUP_MS
+    try {
+        await expect(sectionHeader.or(addLink).first()).toBeVisible({timeout: budget})
+    } catch {
+        await page.reload({waitUntil: "domcontentloaded"})
+        await expect(sectionHeader.or(addLink).first()).toBeVisible({timeout: budget})
+    }
+    playgroundWarmed = true
     if (!(await addLink.isVisible())) {
         await sectionHeader.first().click()
     }
@@ -220,28 +218,12 @@ const createItem = async (page: Page) => {
     await expect(drawer).toHaveCount(0, {timeout: 20000})
 }
 
-/** Commit the open configuration as a new version, which is what makes it readable. */
-const commitVersion = async (page: Page) => {
-    const commit = page.getByRole("button", {name: "Commit", exact: true}).first()
-    await expect(commit).toBeVisible({timeout: 30000})
-    await expect(commit).toBeEnabled({timeout: 30000})
-    await commit.click()
-
-    const modal = page
-        .getByRole("dialog")
-        .filter({has: page.getByRole("button", {name: "New version", exact: true})})
-        .last()
-    await expect(modal).toBeVisible({timeout: 30000})
-    await modal.getByRole("button", {name: "New version", exact: true}).first().click()
-    await modal.getByRole("button", {name: "Commit", exact: true}).last().click()
-    await expect(modal).toBeHidden({timeout: 60000})
-}
-
 /**
- * The MCP items of the agent's newest committed revision.
+ * The MCP items of the agent's newest revision.
  *
- * Polled rather than read once: a commit answers the browser before the revision is queryable,
- * and the point of this suite is what the server ends up holding.
+ * Polled rather than read once. An agent's configuration commits itself as it is edited, so
+ * there is no button to press and no response to await: the test asks the server until the
+ * item it just made shows up, which is the only claim it cares about anyway.
  */
 const savedMcpItems = async (
     page: Page,
@@ -283,7 +265,7 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
     test.beforeEach(async ({page}) => {
         // Each case makes an agent app through the UI and then waits on a round trip to an MCP
         // server, which together do not fit the suite-wide minute meant for a page of clicks.
-        test.setTimeout(300_000)
+        test.setTimeout(600_000)
         await expectAuthenticatedSession(page)
     })
 
@@ -327,9 +309,8 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
                 ).toBeVisible()
             })
 
-            await scenarios.and("the committed configuration names that connection", async () => {
+            await scenarios.and("the saved configuration names that connection", async () => {
                 await createItem(page)
-                await commitVersion(page)
 
                 const items = await savedMcpItems(page, basePath, workflowId)
                 expect(items).toHaveLength(1)
@@ -386,7 +367,6 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
                     {timeout: 30000},
                 )
                 await createItem(page)
-                await commitVersion(page)
 
                 const items = await savedMcpItems(page, basePath, workflowId)
                 expect(items).toHaveLength(1)
@@ -443,9 +423,8 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
                 await setPermission(page, "Permission for echo", "Deny")
             })
 
-            await scenarios.then("both decisions are in the committed configuration", async () => {
+            await scenarios.then("both decisions are in the saved configuration", async () => {
                 await createItem(page)
-                await commitVersion(page)
 
                 const items = await savedMcpItems(page, basePath, workflowId)
                 expect(items).toHaveLength(1)
