@@ -14,6 +14,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointEdit,
     MCPEndpointQuery,
     MCPEndpointRoute,
+    MCPOAuthData,
     MCPToolFilter,
 )
 from oss.src.core.gateways.policy.types import SecretInvalidError
@@ -395,3 +396,72 @@ async def test_bind_refuses_a_credential_from_another_project_out_loud(
 
     refetched = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
     assert refetched.secret_id is None
+
+
+@pytest.mark.asyncio
+async def test_caching_discovery_keeps_the_credential_the_connection_holds(
+    seeded_project,
+):
+    """D31, against the database rather than a stand-in.
+
+    The connect route reads the connection, makes an outbound call, and only then writes
+    what discovery found. The write used to replay the row from that pre-call snapshot,
+    so a callback that bound a grant in the meantime had its handle overwritten with the
+    `None` the snapshot carried.
+
+    The unit cases for this merge by construction, because their store is a dictionary
+    that only assigns the key it was given. This one asserts the property the real column
+    has to have: two writers, one row, and the second must not carry the first away.
+    """
+    dao = MCPEndpointsDAO(engine=get_transactions_engine())
+    project_id = seeded_project["project_id"]
+    user_id = seeded_project["user_id"]
+
+    created = await dao.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint=_create_dto(slug="acme-discovery-keeps-handle"),
+    )
+    assert created.secret_id is None
+
+    # What the route is holding: the connection as it was before it dialled out.
+    snapshot = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
+    assert snapshot.secret_id is None
+
+    # Meanwhile the callback binds the grant this consent produced.
+    await dao.bind_endpoint_secret(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint_id=created.id,
+        secret_id=seeded_project["secret_id"],
+    )
+
+    # Now discovery's write lands, built from the snapshot above.
+    cached = await dao.cache_endpoint_discovery(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint_id=snapshot.id,
+        oauth=MCPOAuthData(
+            resource="https://mcp.acme.com/",
+            authorization_server="https://auth.acme.com/",
+            scopes_offered=["read", "write"],
+        ),
+    )
+
+    assert cached is not None
+    stored = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
+    # The handle the callback wrote is still there.
+    assert stored.secret_id == seeded_project["secret_id"]
+    assert stored.flags.is_valid is True
+    # And discovery's own metadata landed.
+    assert stored.data.oauth is not None
+    assert stored.data.oauth.scopes_offered == ["read", "write"]
+    assert stored.data.oauth.authorization_server == "https://auth.acme.com/"
+    # Everything else the connection was created with is untouched.
+    assert stored.data.route.base_url == "https://mcp.acme.com"
+    assert stored.data.tools.allowlist == ["search"]
+    assert stored.data.settings.timeout_seconds == 10.0
+    assert stored.name == "Acme Notion"
