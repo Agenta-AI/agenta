@@ -132,6 +132,28 @@ not guaranteed. Runtime proof now covers the target UX on the paths listed above
 the API and the runner against a live deployment, and three rounds of UI QA cover a person using
 the product in a browser.
 
+## Known limitations
+
+Two, both understood, both filed, both shipping as they are.
+
+**Codex agents see only the first page of a paginated tool list (#6892).** A server that lists its
+catalogue across several pages is only partly visible to an agent on Codex: the model is never told
+the rest of the tools exist, so the turn reads as a model that chose not to use one. Pi and Claude
+Code both follow the pagination cursor, and so does the tool list in the UI. This one is not ours:
+the gap is in Codex's own MCP client. It was measured while fixing the same defect in the runner's
+client (D69), by moving the marker tool to the last page so the harness matrix had to follow the
+cursor to find it. Nine Pi cells and nine Claude Code cells pass, and all nine Codex cells fail.
+The marker went back on the first page rather than holding the matrix red on a limitation we cannot
+fix, because a permanently red suite hides every other regression.
+
+**A raised per-endpoint `timeout_seconds` is ignored during a run (#6893).** Setting an endpoint's
+timeout above the gateway default looks like it applies and does not: a tool call is still bounded
+by the default and cancelled at it. Nothing carries the stored value to the runner, so the client
+bounds a call by a constant derived from the gateway's budget rather than by a resolved
+per-endpoint setting. Found as a residual of D65, whose own defect, a ten-second handshake bound
+applied to tool calls as well, is fixed. Honouring the setting means carrying the resolved budget
+on the run's MCP wire, which is a contract change across the API, the SDK and the client.
+
 ## Open decisions
 
 One, and it ships as it is unless someone says otherwise.
