@@ -16,12 +16,10 @@
  */
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import {AgentChip, AgentPickerPanel} from "@agenta/entity-ui/agent"
+import {AgentChip} from "@agenta/entity-ui/agent"
 import {SkillFormView} from "@agenta/entity-ui/drill-in"
 import {
-    addSkillToAgents,
     archiveSkill,
-    buildSkillEmbedEntry,
     commitSkillRevision,
     fetchSkillRevisions,
     querySkillReferencedBy,
@@ -69,6 +67,7 @@ import {
 import {useQuery} from "@tanstack/react-query"
 import Link from "next/link"
 
+import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 import {SkillSaveBlastRadius} from "./SkillSaveBlastRadius"
 import type {SkillListItem, SkillUsageRef} from "./types"
 
@@ -119,7 +118,7 @@ export function SkillDetailDrawer({
         staleTime: 15_000,
     })
     const usageQuery = useQuery({
-        queryKey: ["skills", "usage", projectId, workflowId],
+        queryKey: skillUsageQueryKey(projectId, workflowId),
         queryFn: () => querySkillReferencedBy({projectId, workflowId}),
         enabled: open && Boolean(projectId && workflowId) && !isBuiltin,
         staleTime: 15_000,
@@ -267,41 +266,6 @@ export function SkillDetailDrawer({
         }
     }, [editBaseId, head, pending, projectId, revisionsQuery, saveMessage, workflowId])
 
-    const usedByIdList = useMemo(() => usedBy.map((agent) => agent.id), [usedBy])
-    // One agent at a time, from the kebab's submenu: the tick is the action, and the drawer
-    // stays where it is — the header's count answers whether it landed.
-    const [addingTo, setAddingTo] = useState<string | null>(null)
-    const addToAgent = useCallback(
-        async (agentWorkflowId: string) => {
-            if (!skill) return
-            setAddingTo(agentWorkflowId)
-            setError(null)
-            try {
-                const entry = buildSkillEmbedEntry({
-                    slug: skill.slug,
-                    workflowId: skill.id,
-                    name: skill.name,
-                    description: skill.description,
-                    mode: "latest",
-                }) as unknown as Record<string, unknown>
-                const outcome = await addSkillToAgents({
-                    projectId,
-                    agentWorkflowIds: [agentWorkflowId],
-                    entry,
-                    message: `Add skill ${skill.slug}`,
-                })
-                if (outcome.failed.length) {
-                    setError(`Couldn't add to that agent: ${outcome.failed[0].error}`)
-                }
-                await usageQuery.refetch()
-                invalidateSkillsListCache()
-            } finally {
-                setAddingTo(null)
-            }
-        },
-        [projectId, skill, usageQuery],
-    )
-
     // Read-only where there is nothing to write to: a built-in, or a skill that is put away.
     const readOnly = isBuiltin || Boolean(skill?.archived)
 
@@ -349,7 +313,12 @@ export function SkillDetailDrawer({
                         <DotsThreeVertical aria-hidden className="size-4" weight="bold" />
                     </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" sideOffset={6} className="flex w-[200px] flex-col p-1">
+                <PopoverContent
+                    align="end"
+                    sideOffset={6}
+                    container={panel}
+                    className="flex w-[200px] flex-col p-1"
+                >
                     <>
                         {/* Opens on hover, as the filter menu's rows do: the row is an
                                 anchor, not a trigger, so a click on a row the pointer already
@@ -375,17 +344,14 @@ export function SkillDetailDrawer({
                                 align="start"
                                 sideOffset={6}
                                 aria-label="Add to agent"
+                                // Inside the sheet, or its scroll lock swallows the list's wheel.
+                                container={panel}
                                 className="flex w-[280px] flex-col gap-0 p-0"
                                 onOpenAutoFocus={(event) => event.preventDefault()}
                                 onMouseEnter={openAgents}
                                 onMouseLeave={scheduleCloseAgents}
                             >
-                                <AgentPickerPanel
-                                    selectedIds={usedByIdList}
-                                    selectedInert
-                                    pendingId={addingTo}
-                                    onSelect={(id) => void addToAgent(id)}
-                                />
+                                <SkillAgentPicker projectId={projectId} skill={skill} />
                             </PopoverContent>
                         </Popover>
                         <button
@@ -464,6 +430,7 @@ export function SkillDetailDrawer({
                 align="start"
                 sideOffset={6}
                 aria-label="Agents using this skill"
+                container={panel}
                 className="flex w-[240px] flex-col gap-px p-1"
                 onOpenAutoFocus={(event) => event.preventDefault()}
                 onMouseEnter={openUsage}
