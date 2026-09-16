@@ -72,7 +72,12 @@ fi
 # The accepted spellings are the API's `_TRUTHY` set (api/oss/src/utils/env.py): anything else
 # is off. Reading only the literal "false" as off would leave an operator who wrote "0" with an
 # API that refuses every MCP route and an interface that still offers all of them.
-case "$(printf '%s' "${AGENTA_MCP_GATEWAY_ENABLED}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
+#
+# Trimmed, not squeezed. The API strips the value and the browser trims it, so both read
+# "y es" as a spelling they do not know and turn the plane off. Deleting every space instead
+# made this shell read it as "yes" and leave the plane on, which is the one disagreement the
+# three parsers must not have (D35 residual).
+case "$(printf '%s' "${AGENTA_MCP_GATEWAY_ENABLED}" | tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')" in
   "" | true | 1 | t | y | yes | on | enable | enabled) export AGENTA_MCP_GATEWAY_ENABLED="true" ;;
   *) export AGENTA_MCP_GATEWAY_ENABLED="false" ;;
 esac

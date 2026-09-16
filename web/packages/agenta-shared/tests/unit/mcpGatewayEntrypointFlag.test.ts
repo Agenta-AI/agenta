@@ -67,4 +67,17 @@ describe("entrypoint.sh normalizes the MCP gateway switch", () => {
             expect(normalized(off), off).toBe("false")
         }
     })
+
+    it("trims the value rather than squeezing the spaces out of it", () => {
+        // The API strips its value and the browser trims its own, so both read a spelling with
+        // a space in the middle as one they do not know, and turn the plane off. Deleting every
+        // space instead made this shell alone read "y es" as "yes" — the interface offering a
+        // feature its own API refuses, which is the disagreement this whole switch exists to
+        // prevent.
+        expect(normalized("  true  ")).toBe("true")
+        expect(normalized("\tyes\n")).toBe("true")
+        for (const inner of ["y es", "t rue", "o n", "enab led"]) {
+            expect(normalized(inner), inner).toBe("false")
+        }
+    })
 })
