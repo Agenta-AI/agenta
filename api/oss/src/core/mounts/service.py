@@ -36,6 +36,7 @@ from oss.src.core.mounts.types import (
     SESSION_SLUG_PREFIX,
     MountArtifactIdInvalid,
     MountArtifactNotFound,
+    MountError,
     MountFileConflict,
     MountFileNotFound,
     MountImmutableField,
@@ -1553,15 +1554,24 @@ class MountsService:
             prefix=exact_key + "/",
         )
         keys = [obj.key for obj in objects]
-
-        single = await self.mounts_store.list_objects_v2(
-            bucket=bucket,
-            prefix=exact_key,
-        )
-        if any(obj.key == exact_key for obj in single):
+        if await self._key_exists(bucket=bucket, key=exact_key):
             keys.append(exact_key)
+        return keys
 
-        return list(dict.fromkeys(keys))
+    async def _key_exists(self, *, bucket: str, key: str) -> bool:
+        # A key sorts first among everything sharing its prefix, so one page settles it.
+        objects, _ = await self.mounts_store.list_objects_page(
+            bucket=bucket, prefix=key, max_keys=1
+        )
+        return bool(objects) and objects[0].key == key
+
+    async def _path_exists(self, *, bucket: str, exact_key: str) -> bool:
+        if await self._key_exists(bucket=bucket, key=exact_key):
+            return True
+        objects, _ = await self.mounts_store.list_objects_page(
+            bucket=bucket, prefix=exact_key + "/", max_keys=1
+        )
+        return bool(objects)
 
     async def move_path(
         self,
@@ -1578,7 +1588,7 @@ class MountsService:
         if source == destination:
             raise MountPathInvalid("Destination is the same path.")
         if destination.startswith(source + "/"):
-            raise MountPathInvalid("A folder cannot be moved into itself.")
+            raise MountPathInvalid("Destination cannot be inside the source path.")
 
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
         bucket = self._bucket()
@@ -1590,7 +1600,7 @@ class MountsService:
         source_keys = await self._path_keys(bucket=bucket, exact_key=source_key)
         if not source_keys:
             raise MountFileNotFound()
-        if await self._path_keys(bucket=bucket, exact_key=dest_key):
+        if await self._path_exists(bucket=bucket, exact_key=dest_key):
             raise MountFileConflict()
 
         # Copy everything first, delete last: a failed copy leaves the source intact.
@@ -1610,8 +1620,21 @@ class MountsService:
                         bucket=bucket, source_key=key, dest_key=target
                     )
 
-        await asyncio.gather(*(_copy(key) for key in source_keys))
-        await self.mounts_store.delete_keys(bucket=bucket, keys=source_keys)
+        copies = [asyncio.create_task(_copy(key)) for key in source_keys]
+        try:
+            await asyncio.gather(*copies)
+        except BaseException:
+            # gather leaves the siblings running; stop them so nothing lands after the failure.
+            for task in copies:
+                task.cancel()
+            await asyncio.gather(*copies, return_exceptions=True)
+            raise
+
+        deleted = await self.mounts_store.delete_keys(bucket=bucket, keys=source_keys)
+        if deleted != len(source_keys):
+            raise MountError(
+                f"Copied, but {len(source_keys) - deleted} source key(s) could not be removed."
+            )
         return MountFileMoved(
             source=source, destination=destination, count=len(source_keys)
         )

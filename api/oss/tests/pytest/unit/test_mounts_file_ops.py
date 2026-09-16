@@ -33,6 +33,7 @@ from oss.src.core.mounts.service import (
 )
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.mounts.types import (
+    MountError,
     MountFileConflict,
     MountFileNotFound,
     MountNotFound,
@@ -1052,3 +1053,46 @@ class TestMountFileOpsRoundtrip:
         # Nothing moved on any refusal.
         listing = await service.list_files(project_id=pid, mount_id=mid)
         assert {f.path for f in listing.files if not f.is_folder} == {"a.md", "b.md"}
+
+    async def test_move_ignores_prefix_siblings(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="src/a.py", content=b"a"
+        )
+        # `src-old/` sorts between `src` and `src/`; neither side may mistake it for `src`.
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="src-old/z.py", content=b"z"
+        )
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="app-old/z.py", content=b"z"
+        )
+
+        moved = await service.move_path(
+            project_id=pid, mount_id=mid, path="src", to="app"
+        )
+        assert moved.count == 1
+
+        listing = await service.list_files(project_id=pid, mount_id=mid)
+        assert {f.path for f in listing.files if not f.is_folder} == {
+            "app/a.py",
+            "src-old/z.py",
+            "app-old/z.py",
+        }
+
+    async def test_move_reports_a_source_the_store_failed_to_remove(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="a.md", content=b"a"
+        )
+        store = service.mounts_store
+
+        async def _keep_everything(*, bucket: str, keys: List[str]) -> int:
+            return 0
+
+        store.delete_keys = _keep_everything
+        with pytest.raises(MountError):
+            await service.move_path(
+                project_id=pid, mount_id=mid, path="a.md", to="b.md"
+            )

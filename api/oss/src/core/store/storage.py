@@ -554,7 +554,7 @@ class ObjectStore:
         source_key: str,
         dest_key: str,
     ) -> None:
-        # Server-side: the bytes never leave the store (≤ 5 GiB per object for S3 CopyObject).
+        # Server-side (a stat then a copy; the client goes multipart above 5 GiB on its own).
         client = self._client()
         try:
             await client.copy_object(bucket, dest_key, CopySource(bucket, source_key))
@@ -578,9 +578,10 @@ class ObjectStore:
             bucket,
             [DeleteObject(key) for key in keys],
         )
+        failed = 0
         async for _ in errors:
-            pass
-        return len(keys)
+            failed += 1
+        return len(keys) - failed
 
     async def delete_prefix(
         self,
