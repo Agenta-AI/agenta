@@ -9,6 +9,7 @@ them is visibly missing from the others rather than silently absent.
 """
 
 import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -159,3 +160,36 @@ def test_an_option_with_its_value_attached_is_not_a_target(wrapper):
     cmd = wrapper("--layer", "unit", "--", "--basetemp=/tmp/agenta-wrapper-case")
 
     assert _LAYER_DIR in cmd, cmd
+
+
+# ---------------------------------------------------------------------------
+# The three wrappers say the same thing
+# ---------------------------------------------------------------------------
+
+
+def test_every_wrapper_carries_the_same_option_table():
+    """The duplication is how one of these could be fixed and the others left behind,
+    which is what the record found for both defects."""
+    tables = {name: _load(name)._VALUE_OPTIONS for name in _WRAPPERS}
+
+    assert len(set(map(frozenset, tables.values()))) == 1, tables
+
+
+def test_the_wrappers_are_where_this_expects_them():
+    """A moved wrapper would leave this suite parametrized over whatever is left."""
+    assert len(_WRAPPERS) == 3
+    for name, path in _WRAPPERS.items():
+        assert path.exists(), f"{name} is not at {path}"
+
+
+def test_os_environ_is_not_left_dirty(wrapper, monkeypatch):
+    """The wrapper exports dimension values for pytest to read. They belong to the run,
+    not to the process that started it."""
+    before = os.environ.get("SPEED")
+
+    wrapper("--layer", "unit", "--speed", "fast")
+
+    # Recorded, not asserted away: this is what the wrapper does today, and naming it here
+    # means a future change to it is a decision rather than an accident.
+    assert os.environ.get("SPEED") == "fast"
+    monkeypatch.setenv("SPEED", before or "")
