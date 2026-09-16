@@ -223,7 +223,7 @@ const FileActionsMenu = ({
                 title="More"
                 className={ROW_ICON_BTN}
             >
-                <DotsThreeVertical size={16} weight="bold" />
+                <DotsThreeVertical size={14} weight="bold" />
             </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
@@ -316,7 +316,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                             title="More"
                             className={ROW_ICON_BTN}
                         >
-                            <DotsThreeVertical size={16} weight="bold" />
+                            <DotsThreeVertical size={14} weight="bold" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
