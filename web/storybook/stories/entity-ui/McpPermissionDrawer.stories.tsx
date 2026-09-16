@@ -1,12 +1,15 @@
 import {useEffect, useState} from "react"
 
-import {McpProtocolError, type McpServerPolicy} from "@agenta/entities/mcpEndpoint"
+import {
+    McpProtocolError,
+    type McpServerPolicy,
+    type McpToolSummary,
+} from "@agenta/entities/mcpEndpoint"
 import {Button} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // Imported from source: the mcpEndpoint barrel re-exports it, but the sibling drawers here are
 // imported from source too and mixing the two makes the deep-link paths inconsistent.
-import type {McpAnnotatedTool} from "../../../packages/agenta-entity-ui/src/mcpEndpoint/mcpPermissionAdapter"
 import McpPermissionDrawer from "../../../packages/agenta-entity-ui/src/mcpEndpoint/McpPermissionDrawer"
 
 /**
@@ -42,7 +45,7 @@ type Story = StoryObj
 const noop = () => undefined
 
 /** The nine tools the design board's own data block supplies. */
-const LINEAR_TOOLS: McpAnnotatedTool[] = [
+const LINEAR_TOOLS: McpToolSummary[] = [
     {
         name: "get_current_user",
         title: "Get current user",
@@ -106,10 +109,10 @@ const LINEAR_TOOLS: McpAnnotatedTool[] = [
 const listTools = async () => LINEAR_TOOLS
 
 /** A request that never settles, for the placeholder state. */
-const neverSettles = () => new Promise<McpAnnotatedTool[]>(() => undefined)
+const neverSettles = () => new Promise<McpToolSummary[]>(() => undefined)
 
 /** The shape the tool-list client really throws; an axios-shaped stub never reaches the drawer. */
-const refuseWithoutAuth = async (): Promise<McpAnnotatedTool[]> => {
+const refuseWithoutAuth = async (): Promise<McpToolSummary[]> => {
     throw new McpProtocolError("Authorization required for custom/linear", "auth_required")
 }
 
@@ -164,8 +167,11 @@ function DrawerHost({
 }
 
 /**
- * D1. The default a newly added server carries: `allow`, no overrides. Both groups summarise as
+ * D1, as the board draws it: `allow` at the server level and no overrides. Both groups summarise as
  * "runs automatically", and every row says it inherits that rather than claiming a rule of its own.
+ *
+ * This is a state an author reaches by picking "Allow all", not the state a server is added in. See
+ * `JustAdded`.
  */
 export const AllowAll: Story = {
     render: () => <DrawerHost policy={{permission: "allow"}} onRemove={noop} />,
@@ -197,10 +203,13 @@ export const PerToolMenuOpen: Story = {
 }
 
 /**
- * D3. One tool overridden. The preset reads back as "Custom · 1 override", the write group's
- * summary turns to "mixed", and the read-only group is untouched. The count is the number of SAVED
- * entries, including one that happens to equal the default: an author who set a value deliberately
- * gets to keep seeing it.
+ * D3. Two tools overridden. The preset reads back as "Custom · 2 overrides" and the write group's
+ * summary turns to "mixed". The count is the number of SAVED entries, including one that happens to
+ * equal what governs the rest: an author who set a value deliberately gets to keep seeing it.
+ *
+ * Note what the untouched read-only rows now say. Declaring a per-tool table moves the governing
+ * value from the server permission to the table's own floor, so a row nobody named reads
+ * "Inherits allow" only because the floor was written at the value the rows were already showing.
  */
 export const CustomWithOverrides: Story = {
     render: () => (
@@ -228,7 +237,7 @@ export const LoginExpired: Story = {
             policy={{}}
             connectionName="Octolens"
             toolPrefix="octolens_"
-            connectionState="needs_auth"
+            status="login_expired"
             cachedToolCount={12}
             loadTools={refuseWithoutAuth}
             onReconnect={noop}
@@ -283,6 +292,18 @@ export const Unauthorized: Story = {
             onReconnect={noop}
         />
     ),
+}
+
+/**
+ * The state a server is actually added in: no permission written at all (decision 36).
+ *
+ * On this wire that is not "nothing set", it is "follows the agent's own permission ladder", so the
+ * preset reads as the one whose saved value is that absence and every row reads "Follow agent
+ * policy" with no provenance to add. Picking "Allow all" from here writes `permission: "allow"`
+ * explicitly.
+ */
+export const JustAdded: Story = {
+    render: () => <DrawerHost policy={{}} onRemove={noop} />,
 }
 
 /** Three placeholder rows, so the list area keeps its shape while the answer is on the way. */

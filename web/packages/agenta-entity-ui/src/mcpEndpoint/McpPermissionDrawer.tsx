@@ -2,10 +2,14 @@
  * What one agent may do with one connected MCP server.
  *
  * The drawer itself is the Integrations permission drawer: same preset menu, same two groups, same
- * per-tool select, same rollups. This file is the adapter that feeds it an MCP connection — the
- * header, the tool list, and the three things an MCP server has that a Composio integration does
- * not: a login that can lapse, an include filter that can lock a row, and a place in an agent it
- * can be removed from.
+ * per-tool select. This file is the adapter that feeds it an MCP connection — the header, the tool
+ * list, and the three things an MCP server has that a Composio integration does not: a login that
+ * can lapse, an include filter that can lock a row, and a place in an agent it can be removed from.
+ *
+ * The translation between the two saved shapes is not here. It is `toGatewayPermissions` and
+ * `fromGatewayPermissions` in `@agenta/entities`, where `inherit` is modelled as the absence of a
+ * value and `default` means "what a tool with no entry of its own gets". This file calls them and
+ * resolves nothing itself; the runner is still the only place an effective permission is computed.
  *
  * The policy belongs to the AGENT, not to the connection: two agents can share one server and be
  * allowed different things, which is why Settings shows the same tools read-only and sends people
@@ -17,21 +21,23 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {
+    fromGatewayPermissions,
     gatewayRefusalCode,
     gatewayRefusalMessage,
-    getMcpConnectionStateLabel,
+    getMcpConnectionStatusLabel,
     isToolHidden,
     listMcpTools,
-    setToolPermission,
+    toCatalogTools,
+    toGatewayPermissions,
     toolPermissions,
-    type McpConnectionState,
-    type McpPermission,
+    type McpConnectionStatus,
     type McpServerPolicy,
+    type McpToolSummary,
 } from "@agenta/entities/mcpEndpoint"
 import {projectIdAtom} from "@agenta/shared/state"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {Button} from "@agenta/ui/ui"
-import {ArrowClockwise, Plugs, WarningCircle} from "@phosphor-icons/react"
+import {Alert, Button, IconTile, InlineConfirm} from "@agenta/ui/ui"
+import {ArrowClockwise, Plugs} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {
@@ -47,14 +53,6 @@ import type {
     GatewayPermission,
 } from "../DrillInView/SchemaControls/toolUtils"
 
-import {
-    fromGatewayPermissions,
-    inheritOptionLabel,
-    toCatalogTools,
-    toGatewayPermissions,
-    type McpAnnotatedTool,
-} from "./mcpPermissionAdapter"
-
 /** A tool the server's include filter hides may not be given a permission at all. */
 const HIDDEN_TOOL_REASON = "Hidden by this server's tool filter"
 
@@ -67,8 +65,15 @@ export interface McpPermissionDrawerProps {
     connectionName?: string
     /** The prefix the model sees on this server's tools, frozen when the server was added. */
     toolPrefix?: string
-    /** The connection's health, as the endpoint record derives it. */
-    connectionState?: McpConnectionState
+    /**
+     * The connection's health, in the list surfaces' own vocabulary.
+     *
+     * A caller holding an endpoint record passes `getMcpConnectionStatus(endpoint)`. That is one
+     * word per state across the registry table, the agent rail and this drawer, and it is why a
+     * key-authenticated connection whose credential stopped working reads "Login expired" here
+     * rather than "Needs input" (decision 34).
+     */
+    status?: McpConnectionStatus
     /** The tool count the connection record carries, for the cases where the list cannot be read. */
     cachedToolCount?: number
     /**
@@ -78,7 +83,7 @@ export interface McpPermissionDrawerProps {
      * supplies its own. The drawer's four-state machine and its discard-on-switch guard are the
      * same either way.
      */
-    loadTools?: (slug: string) => Promise<McpAnnotatedTool[]>
+    loadTools?: (slug: string) => Promise<McpToolSummary[]>
     policy: McpServerPolicy
     onChange: (policy: McpServerPolicy) => void
     /** Renew the login: the OAuth popup, or the key sheet. */
@@ -95,19 +100,8 @@ export interface McpPermissionDrawerProps {
 type ToolsState =
     | {status: "idle"}
     | {status: "loading"}
-    | {status: "ready"; tools: McpAnnotatedTool[]}
+    | {status: "ready"; tools: McpToolSummary[]}
     | {status: "failed"; error: string; needsAuth: boolean}
-
-/**
- * The health words this drawer uses.
- *
- * "Connected" is the word every MCP surface says for a working connection. A lapsed login reads as
- * "Login expired" here rather than the record's own "Needs authorization", because the drawer's
- * banner is about renewing a sign-in that used to work, not about authorizing for the first time.
- */
-export function mcpHealthLabel(state: McpConnectionState): string {
-    return state === "needs_auth" ? "Login expired" : getMcpConnectionStateLabel(state)
-}
 
 /** The login-expired banner (D4), and the one action that fixes it. */
 function LoginExpiredBanner({
@@ -118,24 +112,21 @@ function LoginExpiredBanner({
     onReconnect?: () => void
 }) {
     return (
-        <div
-            role="status"
-            className="flex shrink-0 items-center gap-3 rounded-control border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3.5 py-3"
-        >
-            <WarningCircle size={16} className="shrink-0 text-[var(--ag-colorWarning)]" />
-            <p className="m-0 min-w-0 flex-1 text-xs leading-relaxed text-[var(--ag-colorTextSecondary)]">
-                <span className="font-medium text-[var(--ag-colorText)]">
-                    {connectionName} needs a new sign-in.
-                </span>{" "}
-                Its tools fail until someone in the project reconnects. Permissions below are kept.
-            </p>
-            {onReconnect ? (
-                <Button variant="default" size="sm" className="shrink-0" onClick={onReconnect}>
-                    <ArrowClockwise size={13} data-icon="inline-start" />
-                    Reconnect
-                </Button>
-            ) : null}
-        </div>
+        <Alert
+            type="warning"
+            showIcon
+            className="shrink-0 border-colorWarningBorder bg-colorWarningBg"
+            message={`${connectionName} needs a new sign-in.`}
+            description="Its tools fail until someone in the project reconnects. Permissions below are kept."
+            action={
+                onReconnect ? (
+                    <Button variant="default" size="sm" onClick={onReconnect}>
+                        <ArrowClockwise data-icon="inline-start" />
+                        Reconnect
+                    </Button>
+                ) : undefined
+            }
+        />
     )
 }
 
@@ -143,39 +134,38 @@ function LoginExpiredBanner({
 function DrawerTitle({
     connectionName,
     toolPrefix,
-    state,
+    status,
     toolCount,
 }: {
     connectionName: string
     toolPrefix?: string
-    state: McpConnectionState
+    status: McpConnectionStatus
     toolCount?: number
 }) {
     return (
         // w-full + min-w-0: the title slot will not shrink alone, pushing the health past the edge.
         <div className="flex w-full min-w-0 items-center gap-3">
             {/* One generic glyph for every server: an MCP endpoint has no branding to show, and a
-                per-server logo would have to be guessed from a URL. Replaced by @agenta/ui's
-                IconTile once WP0's primitive lands. */}
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-[5px] bg-[var(--ag-colorInfoBg)]">
-                <Plugs size={14} className="text-[var(--ag-colorInfo)]" />
-            </span>
+                per-server logo would have to be guessed from a URL (decision 3). */}
+            <IconTile size={24}>
+                <Plugs />
+            </IconTile>
             <div className="flex min-w-0 flex-1 items-baseline gap-2">
                 <span className="truncate text-[15px] font-semibold">{connectionName}</span>
                 {toolPrefix ? (
-                    <span className="shrink-0 font-mono text-xs font-normal text-[var(--ag-colorTextTertiary)]">
+                    <span className="shrink-0 font-mono text-xs font-normal text-colorTextTertiary">
                         {toolPrefix}
                     </span>
                 ) : null}
                 {toolCount != null ? (
-                    <span className="shrink-0 text-xs font-normal text-[var(--ag-colorTextTertiary)]">
+                    <span className="shrink-0 text-xs font-normal text-colorTextTertiary">
                         {toolCount} tools
                     </span>
                 ) : null}
             </div>
             <StatusIndicator
-                tone={state === "ready" ? "success" : "warning"}
-                label={mcpHealthLabel(state)}
+                tone={status === "connected" ? "success" : "warning"}
+                label={getMcpConnectionStatusLabel(status)}
                 className="shrink-0 text-[13px] font-normal"
             />
         </div>
@@ -194,38 +184,29 @@ function RemoveFromAgent({
 }) {
     const [confirming, setConfirming] = useState(false)
 
+    if (confirming) {
+        return (
+            <InlineConfirm
+                message={`Remove ${connectionName} from this agent? The connection stays in the project.`}
+                confirmLabel="Remove"
+                onConfirm={onRemove}
+                onCancel={() => setConfirming(false)}
+            />
+        )
+    }
+
     return (
-        <>
-            {/* The kit's button rather than a bare anchor-styled one: it is the only thing here
-                that carries the app's focus ring, and this is the destructive control. */}
-            <Button
-                variant="ghost"
-                size="sm"
-                disabled={disabled}
-                onClick={() => setConfirming(true)}
-                // colorError, not colorErrorTextHover: the hover token is not generated for the
-                // mobile app, where it would resolve to nothing and take the colour with it.
-                className="px-0 text-[13px] font-normal text-[var(--ag-colorError)] hover:bg-transparent hover:opacity-80"
-            >
-                Remove from agent
-            </Button>
-            {confirming ? (
-                <div className="flex flex-col items-start gap-2">
-                    <span className="text-xs text-[var(--ag-colorTextSecondary)]">
-                        Remove {connectionName} from this agent? The connection stays in the
-                        project.
-                    </span>
-                    <div className="flex items-center gap-2">
-                        <Button variant="destructive" size="sm" onClick={onRemove}>
-                            Remove
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
-                            Cancel
-                        </Button>
-                    </div>
-                </div>
-            ) : null}
-        </>
+        // The kit's button rather than a bare styled one: it is the only thing here that carries
+        // the app's focus ring, and this is the destructive control.
+        <Button
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            onClick={() => setConfirming(true)}
+            className="px-0 text-[13px] font-normal text-colorError hover:bg-transparent hover:opacity-80"
+        >
+            Remove from agent
+        </Button>
     )
 }
 
@@ -235,7 +216,7 @@ export default function McpPermissionDrawer({
     slug,
     connectionName,
     toolPrefix,
-    connectionState = "ready",
+    status = "connected",
     cachedToolCount,
     loadTools: loadToolsFrom,
     policy,
@@ -262,7 +243,7 @@ export default function McpPermissionDrawer({
         try {
             const listed = loadToolsFrom
                 ? await loadToolsFrom(slug)
-                : ((await listMcpTools(slug, projectId)) as McpAnnotatedTool[])
+                : await listMcpTools(slug, projectId)
             if (shownFor.current !== slug) return
             setTools({status: "ready", tools: listed})
         } catch (error) {
@@ -295,7 +276,7 @@ export default function McpPermissionDrawer({
         [tools],
     )
 
-    const loginLapsed = connectionState !== "ready"
+    const loginLapsed = status !== "connected"
 
     /**
      * Tools that hold a permission the filter now hides.
@@ -312,22 +293,22 @@ export default function McpPermissionDrawer({
         [policy],
     )
 
-    const setTool = useCallback(
-        (toolKey: string, permission: GatewayPermission) =>
-            onChange(
-                setToolPermission(
-                    policy,
-                    toolKey,
-                    // An absent entry IS "inherit" on this wire, so choosing it clears the row.
-                    permission === "inherit" ? null : (permission as McpPermission),
-                ),
-            ),
+    // Both write paths go through the one adapter, so a preset pick and a per-tool change cannot
+    // disagree about which slot holds the default.
+    const write = useCallback(
+        (next: GatewayConnectionPermissions) => onChange(fromGatewayPermissions(next, policy)),
         [onChange, policy],
     )
 
-    const setPermissions = useCallback(
-        (next: GatewayConnectionPermissions) => onChange(fromGatewayPermissions(next, policy)),
-        [onChange, policy],
+    const setTool = useCallback(
+        (toolKey: string, permission: GatewayPermission) => {
+            const nextTools = {...permissions.tools}
+            // An absent entry IS "inherit" on this wire, so choosing it clears the row.
+            if (permission === "inherit") delete nextTools[toolKey]
+            else nextTools[toolKey] = permission
+            write({...permissions, tools: nextTools})
+        },
+        [permissions, write],
     )
 
     // The spec's four values, named the way the spec names them. What one ROW shows when it holds
@@ -347,26 +328,31 @@ export default function McpPermissionDrawer({
      * What a row's control shows.
      *
      * A tool with no entry in the table holds NO value on this wire, so its control reads as the
-     * fourth value rather than borrowing the server's, and its trigger says what the run will
-     * actually do with it. A bare "Allow" on a row nobody set would claim a rule that does not
-     * exist, and it would go on claiming it after the server permission changed underneath.
+     * fourth value rather than borrowing the one that governs it, and its trigger says what the run
+     * will actually do. A bare "Allow" on a row nobody set would claim a rule that does not exist,
+     * and it would go on claiming it after the governing value changed underneath.
      */
     const rowValue = useCallback(
         (toolKey: string) => {
-            const explicit = toolPermissions(policy)[toolKey]
-            if (explicit) return {value: explicit as GatewayPermission}
+            const explicit = permissions.tools[toolKey]
+            if (explicit) return {value: explicit}
             return {
                 value: "inherit" as GatewayPermission,
-                triggerTitle: inheritOptionLabel(policy),
+                // Nothing governs it either, so there is no provenance to add and the row says
+                // which value it holds.
+                triggerTitle:
+                    permissions.default === "inherit"
+                        ? undefined
+                        : `Inherits ${permissions.default}`,
             }
         },
-        [policy],
+        [permissions],
     )
 
     const errorNode = useMemo<ReactNode>(() => {
         if (!slug) {
             return (
-                <p className="m-0 px-1 py-4 text-xs text-[var(--ag-colorTextSecondary)]">
+                <p className="m-0 px-1 py-4 text-xs text-colorTextSecondary">
                     Select a connection to choose what this agent may do with it.
                 </p>
             )
@@ -377,7 +363,7 @@ export default function McpPermissionDrawer({
         if (tools.status !== "failed") return null
         return (
             <div className="flex flex-col items-start gap-1 px-1 py-4">
-                <p className="m-0 text-xs text-[var(--ag-colorError)]">{tools.error}</p>
+                <p className="m-0 text-xs text-colorError">{tools.error}</p>
                 {/* The action that fixes it, where the problem is reported. Retrying a tool list on
                     a server nobody has authorized only fails again. */}
                 {tools.needsAuth && onReconnect ? (
@@ -409,7 +395,7 @@ export default function McpPermissionDrawer({
     const footNote =
         strandedByFilter.length && !readOnly ? (
             <div className="flex flex-col gap-1">
-                <span className="text-xs text-[var(--ag-colorError)]">
+                <span className="text-xs text-colorError">
                     Rules for tools this server&apos;s filter hides. The agent cannot run until they
                     are removed.
                 </span>
@@ -438,7 +424,7 @@ export default function McpPermissionDrawer({
             target={{provider: "mcp", integration: slug ?? ""}}
             connectionSlug={slug ?? ""}
             permissions={permissions}
-            onChangePermissions={setPermissions}
+            onChangePermissions={write}
             onChangeToolPermission={setTool}
             agentPolicy={agentPolicy}
             disabled={disabled}
@@ -448,7 +434,7 @@ export default function McpPermissionDrawer({
                     <DrawerTitle
                         connectionName={name}
                         toolPrefix={toolPrefix}
-                        state={connectionState}
+                        status={status}
                         toolCount={
                             readOnly
                                 ? catalog.status === "ready"

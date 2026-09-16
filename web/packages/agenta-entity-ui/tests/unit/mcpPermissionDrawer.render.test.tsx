@@ -28,7 +28,7 @@ vi.mock("jotai", async (importOriginal) => ({
 }))
 
 import McpPermissionDrawer from "../../src/mcpEndpoint/McpPermissionDrawer"
-import type {McpServerPolicy} from "@agenta/entities/mcpEndpoint"
+import {getMcpConnectionStatus, type McpServerPolicy} from "@agenta/entities/mcpEndpoint"
 
 /** The nine tools the spec's own data block supplies, read-only group then write group. */
 const LINEAR_TOOLS = [
@@ -221,6 +221,44 @@ describe("D1 — the drawer at its default", () => {
     })
 })
 
+describe("a server just added to an agent", () => {
+    // Adding writes no server permission (decision 36), and on this wire that is not "nothing
+    // set": it means the run's own permission ladder decides. The drawer has to render it as the
+    // preset that saves that absence rather than as a value nobody chose.
+    const justAdded: McpServerPolicy = {}
+
+    it("reads back as the preset whose saved value is the absence, not as Allow all", async () => {
+        await render({policy: justAdded})
+
+        expect(labelled("Default permission")?.textContent).toContain("Ask for write and delete")
+        expect(labelled("Default permission")?.textContent).not.toContain("Allow all")
+        expect(labelled("Default permission")?.textContent).not.toContain("Custom")
+    })
+
+    it("says every row follows the agent policy, with no provenance to add", async () => {
+        // There is no governing value to name here, so the row says which value it holds rather
+        // than "Inherits" something the policy does not state.
+        await render({policy: justAdded})
+
+        expect(labelled("Permission for get_issue")?.textContent).toContain("Follow agent policy")
+        expect(labelled("Permission for get_issue")?.textContent).not.toContain("Inherits")
+    })
+
+    it("summarises both groups as following the agent policy", async () => {
+        await render({policy: justAdded})
+
+        expect(text()).toContain("follows agent policy")
+    })
+
+    it("writes the permission explicitly when Allow all is picked from there", async () => {
+        const onChange = await render({policy: justAdded})
+
+        await choose(labelled("Default permission"), "Allow all")
+
+        expect(onChange).toHaveBeenCalledWith({permission: "allow"})
+    })
+})
+
 describe("D2 — the preset menu", () => {
     it("holds the five presets, each with the line that says what it does", async () => {
         await render()
@@ -277,12 +315,15 @@ describe("D3 — one tool overridden", () => {
         expect(labelled("Default permission")?.textContent).toContain("Custom · 1 override")
     })
 
-    it("turns the affected group's summary to mixed and leaves the other alone", async () => {
+    it("turns the affected group's summary to mixed and the untouched one to the floor", async () => {
         await render({policy: custom})
 
         expect(text()).toContain("mixed")
-        // The read-only group is untouched, so it still says what all four of its tools do.
-        expect(text()).toContain("runs automatically")
+        // Not "runs automatically". Declaring a per-tool table moves the governing value from the
+        // server permission to the table's own floor, and the floor is `ask` until somebody sets
+        // one, so the four read-only tools nobody named now ask first. Saying "runs
+        // automatically" here would promise an unapproved run the runner will not perform (D88).
+        expect(text()).toContain("asks first")
     })
 
     it("writes an entry for the tool that was set", async () => {
@@ -290,9 +331,13 @@ describe("D3 — one tool overridden", () => {
 
         await choose(labelled("Permission for delete_issue"), "Deny")
 
+        // The floor is written alongside the entry, at the value the rows were already showing.
+        // Without it, declaring a table would silently move every other tool from allow to the
+        // `ask` floor, which is not what the author did and not what the screen said.
         expect(onChange).toHaveBeenCalledWith({
             permission: "allow",
             tool_permissions: {delete_issue: "deny"},
+            new_tool_permission: "allow",
         })
     })
 
@@ -307,13 +352,34 @@ describe("D3 — one tool overridden", () => {
 })
 
 describe("D4 — the login has lapsed", () => {
-    const expired = {connectionState: "needs_auth" as const, connectionName: "Octolens"}
+    // "login_expired" is the only failure status the release ships, and a key-authenticated
+    // connection whose credential stopped working reports it too (decision 34), so one connection
+    // reads the same word in the registry table and here.
+    const expired = {
+        status: "login_expired" as const,
+        connectionName: "Octolens",
+        toolPrefix: "octolens_",
+    }
 
     it("says so in the header rather than claiming the server is connected", async () => {
         await render(expired)
 
         expect(text()).toContain("Login expired")
         expect(text()).not.toContain("Connected")
+    })
+
+    it("says the same thing for a key connection whose credential stopped working", async () => {
+        // Driven through the derivation a caller really uses, not through a literal, because the
+        // thing under test is that a key connection and a revoked grant reach the same word. An
+        // OAuth grant that was revoked and an API key the server started refusing are the same
+        // sentence to the person and differ only in which reconnect path the row offers. Two words
+        // for one state is what the shared vocabulary exists to prevent (decision 34).
+        const keyConnection = {auth_mode: "key"} as Parameters<typeof getMcpConnectionStatus>[0]
+
+        await render({...expired, status: getMcpConnectionStatus(keyConnection)})
+
+        expect(text()).toContain("Login expired")
+        expect(text()).not.toContain("Needs input")
     })
 
     it("explains what stops working, what is kept, and who can fix it", async () => {

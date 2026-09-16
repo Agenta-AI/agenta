@@ -17,9 +17,11 @@ import {
     buildMcpConnectionRef,
     getMcpConnectionState,
     getMcpConnectionStateLabel,
+    getMcpConnectionStatus,
     isLegacyMcpItem,
     mcpEndpointsQueryAtom,
     readMcpPolicy,
+    toGatewayPermissions,
     readMcpConnectionSlug,
     RESERVED_TOOL_PREFIX,
     toolPrefixFromName,
@@ -40,7 +42,6 @@ import {useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 import McpConnectJourney from "../../mcpEndpoint/McpConnectJourney"
-import {DEFAULT_MCP_POLICY, toGatewayPermissions} from "../../mcpEndpoint/mcpPermissionAdapter"
 import McpPermissionDrawer from "../../mcpEndpoint/McpPermissionDrawer"
 
 import {integrationPermissionSummary} from "./integrationPolicy"
@@ -66,15 +67,15 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
         (endpoint: MCPEndpoint) => {
             if (!endpoint.slug) return
             const label = endpoint.name || endpoint.slug
-            const existing = readMcpPolicy(value)
+            // No policy is written here. On this wire an absent `permission` is not "unset", it
+            // means the run's own permission ladder decides, which is the state a server is added
+            // in (decision 36). Writing a default would be choosing a preset on the author's
+            // behalf.
             onChange({
                 ...value,
                 // Frozen here and not recomputed later: a rename must not rename tools.
                 name: toolPrefixFromName(label) ?? endpoint.slug,
                 connection: buildMcpConnectionRef(endpoint.slug),
-                // Only for an item that has none. Re-pointing a configured server at another
-                // connection must not throw away what its author already decided.
-                policy: Object.keys(existing).length ? existing : DEFAULT_MCP_POLICY,
             })
         },
         [onChange, value],
@@ -214,7 +215,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     slug={selected.slug ?? undefined}
                     connectionName={selected.name || selected.slug || undefined}
                     toolPrefix={prefix || undefined}
-                    connectionState={getMcpConnectionState(selected)}
+                    status={getMcpConnectionStatus(selected)}
                     policy={readMcpPolicy(value)}
                     onChange={(policy) => onChange({...value, policy})}
                     onReconnect={() => {
