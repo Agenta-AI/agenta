@@ -7,23 +7,26 @@
  *
  * The list shows stored connections only. Provider-managed rows belong with the
  * integrations they come from, not under a heading about MCP servers.
+ *
+ * This page is the registry and nothing else: it says which servers the project has and how
+ * each one authenticates. What a server may actually do is a property of an agent, not of the
+ * connection, so permissions are reachable from here only read-only ("View tools").
  */
 import {useCallback, useMemo, useState} from "react"
 
 import {
-    disconnectMcpEndpointAtom,
     deleteMcpEndpointAtom,
     getMcpConnectionState,
-    getMcpConnectionStateLabel,
     mcpEndpointsQueryAtom,
     refreshMcpEndpointsAtom,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
+import {customNamedSecretsAtom} from "@agenta/entities/secret"
 import {McpConnectJourney, McpConnectionDetail} from "@agenta/entity-ui/mcpEndpoint"
 import {message} from "@agenta/ui/app-message"
-import {Tag} from "@agenta/ui/components/presentational"
-import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
-import {Plus} from "@phosphor-icons/react"
+import {StatusIndicator} from "@agenta/ui/components/presentational"
+import {Button, DataTable, EmptyState, IconTile, type DataTableColumn} from "@agenta/ui/ui"
+import {Plugs, Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
@@ -37,9 +40,29 @@ export interface McpServersSectionCopy {
 
 const DEFAULT_COPY: McpServersSectionCopy = {
     connect: "Connect MCP",
-    emptyTitle: "No MCP servers connected yet",
-    emptyBody: "Connect a server by URL to give your agents new tools.",
+    emptyTitle: "No MCP servers connected",
+    emptyBody:
+        "Connect a server by URL. You'll sign in or add a key once; agents in this project can then add it and choose what it may run.",
 }
+
+/**
+ * The two statuses this page can tell apart.
+ *
+ * The spec draws a third, "Unreachable", for a server whose last health check failed. Nothing
+ * on the connection record says that — `flags.is_valid` reports the credential, not the host —
+ * so deriving it here would mean labelling every unauthorized row unreachable. Shipped without
+ * it per decision 30, and the gap is filed rather than guessed at.
+ *
+ * Both failure modes collapse to "Login expired": an OAuth grant that was revoked or aged out,
+ * and an API key that the server has stopped accepting. They differ in which sheet Reconnect
+ * opens, not in what the reader has to do about them (decision 34).
+ */
+const STATUS = {
+    connected: {label: "Connected", tone: "success"} as const,
+    expired: {label: "Login expired", tone: "warning"} as const,
+}
+
+const isConnected = (endpoint: MCPEndpoint) => getMcpConnectionState(endpoint) === "ready"
 
 export interface McpServersSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
@@ -61,8 +84,8 @@ export default function McpServersSection({
 
     const {data: endpoints, isPending} = useAtomValue(mcpEndpointsQueryAtom)
     const refresh = useSetAtom(refreshMcpEndpointsAtom)
-    const disconnect = useSetAtom(disconnectMcpEndpointAtom)
     const deleteEndpoint = useSetAtom(deleteMcpEndpointAtom)
+    const namedSecrets = useAtomValue(customNamedSecretsAtom)
 
     const [connecting, setConnecting] = useState(false)
     const [reconnecting, setReconnecting] = useState<MCPEndpoint | null>(null)
@@ -87,31 +110,57 @@ export default function McpServersSection({
         [rowKey],
     )
 
+    /**
+     * The name the project filed a credential under, for the Auth cell.
+     *
+     * The endpoint stores `secret_id`; the label has to be the name the person chose in the
+     * connect sheet, which lives on the vault row. A secret that no longer resolves falls back
+     * to the bare kind rather than printing an id — this cell never shows a value, and an id
+     * is closer to a value than to a name.
+     */
+    const secretNameById = useMemo(() => {
+        const byId = new Map<string, string>()
+        for (const secret of namedSecrets) {
+            if (secret.id) byId.set(secret.id, secret.name || secret.slug || "")
+        }
+        return byId
+    }, [namedSecrets])
+
     const openConnect = useCallback(() => {
         setReconnecting(null)
         setConnecting(true)
     }, [])
 
-    const openReconnect = useCallback((endpoint: MCPEndpoint) => {
-        setViewing(null)
-        setReconnecting(endpoint)
-        setConnecting(true)
-    }, [])
+    const openReconnect = useCallback(
+        (endpoint: MCPEndpoint) => {
+            setViewing(null)
+            setReconnecting(endpoint)
+            setConnecting(true)
+        },
+        [setViewing],
+    )
 
     const closeConnect = useCallback(() => {
         setConnecting(false)
         setReconnecting(null)
     }, [])
 
+    /**
+     * Disconnecting ends the connection: the row leaves the project.
+     *
+     * The confirm sentence is the spec's and it describes exactly this — agents lose the
+     * server's tools, because the server is gone, not because a token was revoked. Per
+     * decision 33 there is no second destructive verb on the row; renewing a login is
+     * Reconnect, which is a different item.
+     */
     const handleDisconnect = useCallback(
         (endpoint: MCPEndpoint) => {
             if (!endpoint.id) return
             const label = endpoint.name || endpoint.slug || "this server"
             const run = async () => {
                 try {
-                    await disconnect(endpoint.id as string)
+                    await deleteEndpoint(endpoint.id as string)
                     setViewing(null)
-                    message.success("MCP server disconnected.")
                 } catch (error) {
                     message.error(
                         (error as Error)?.message || "Failed to disconnect the MCP server.",
@@ -120,36 +169,14 @@ export default function McpServersSection({
             }
             if (!confirm) return void run()
             confirm({
-                title: "Disconnect server",
-                message: `Agents using ${label} stop working until it is connected again. The server and its tools are kept.`,
+                title: `Disconnect ${label}`,
+                message: "Agents using this server lose its tools",
+                okText: "Disconnect",
+                danger: true,
                 onOk: run,
             })
         },
-        [confirm, disconnect],
-    )
-
-    const handleDelete = useCallback(
-        (endpoint: MCPEndpoint) => {
-            if (!endpoint.id) return
-            const label = endpoint.name || endpoint.slug || "this server"
-            const run = async () => {
-                try {
-                    await deleteEndpoint(endpoint.id as string)
-                    setViewing(null)
-                    message.success("MCP server removed.")
-                } catch (error) {
-                    message.error((error as Error)?.message || "Failed to remove the MCP server.")
-                }
-            }
-            if (!confirm) return void run()
-            confirm({
-                title: "Remove server",
-                // Removing takes the identity with it, which disconnecting does not.
-                message: `${label} is removed from this project. Agents configured to use it stop working, and reconnecting later creates a new connection.`,
-                onOk: run,
-            })
-        },
-        [confirm, deleteEndpoint],
+        [confirm, deleteEndpoint, setViewing],
     )
 
     const columns = useMemo<DataTableColumn<MCPEndpoint>[]>(
@@ -157,15 +184,26 @@ export default function McpServersSection({
             {
                 key: "name",
                 title: "Name",
+                width: 220,
                 render: (record) => (
-                    <span data-testid="mcp-connection-name" className="font-medium">
-                        {record.name || record.slug}
+                    <span className="flex min-w-0 items-center gap-2.5">
+                        {/* One generic glyph for every server: the registry holds arbitrary
+                            URLs, so there is no per-server branding to show (decision 3). */}
+                        <IconTile size={24} tone="info" aria-hidden="true">
+                            <Plugs />
+                        </IconTile>
+                        <span data-testid="mcp-connection-name" className="truncate font-medium">
+                            {record.name || record.slug}
+                        </span>
                     </span>
                 ),
             },
             {
                 key: "url",
                 title: "Server URL",
+                width: 320,
+                flexible: true,
+                mono: true,
                 render: (record) => (
                     <span
                         className="block truncate text-colorTextDescription"
@@ -176,38 +214,92 @@ export default function McpServersSection({
                 ),
             },
             {
+                key: "auth",
+                title: "Auth",
+                width: 200,
+                render: (record) => {
+                    if (record.auth_mode === "oauth") return "OAuth"
+                    if (record.auth_mode === "none") return "None"
+                    const secretName = record.secret_id
+                        ? secretNameById.get(record.secret_id)
+                        : undefined
+                    // Never the credential itself, only what it is filed under.
+                    return secretName ? (
+                        <span className="flex min-w-0 items-center gap-1">
+                            <span>API key ·</span>
+                            <span className="truncate font-mono text-xs">{secretName}</span>
+                        </span>
+                    ) : (
+                        "API key"
+                    )
+                },
+            },
+            {
                 key: "status",
                 title: "Status",
+                width: 190,
                 render: (record) => {
-                    const state = getMcpConnectionState(record)
+                    const connected = isConnected(record)
+                    const status = connected ? STATUS.connected : STATUS.expired
                     return (
-                        <Tag
+                        <span
                             data-testid="mcp-connection-status"
-                            tone={state === "ready" ? "green" : "gold"}
-                            className="m-0 text-xs"
+                            className="flex min-w-0 items-center gap-2"
                         >
-                            {getMcpConnectionStateLabel(state)}
-                        </Tag>
+                            <StatusIndicator
+                                tone={status.tone}
+                                label={status.label}
+                                className="text-[13px]"
+                            />
+                            {/* The repair is offered where the problem is reported, so a row
+                                that needs attention does not send the reader to a menu. */}
+                            {!connected && !readOnly ? (
+                                <Button
+                                    variant="link"
+                                    size="xs"
+                                    className="h-auto p-0 text-xs"
+                                    onClick={(event) => {
+                                        // The row opens the connection on click; this is a
+                                        // different intent and must not also do that.
+                                        event.stopPropagation()
+                                        openReconnect(record)
+                                    }}
+                                >
+                                    Reconnect
+                                </Button>
+                            ) : null}
+                        </span>
                     )
                 },
             },
         ],
-        [],
+        [openReconnect, readOnly, secretNameById],
     )
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="flex justify-end">
-                {readOnly ? null : (
+            {/* E2 drops the header button in favour of the one in the empty state, so there is
+                never a screen offering the same action twice. */}
+            {readOnly || (!isPending && rows.length === 0) ? null : (
+                <div className="flex justify-end">
                     <Button data-testid="mcp-connect-open" onClick={openConnect}>
                         <Plus size={14} />
                         {copy.connect}
                     </Button>
-                )}
-            </div>
+                </div>
+            )}
 
             {!isPending && rows.length === 0 ? (
-                <EmptyState image="simple" description={copy.emptyBody} title={copy.emptyTitle}>
+                <EmptyState
+                    className="rounded-lg border border-dashed border-colorBorder px-6 py-12"
+                    image={
+                        <IconTile size={44} tone="muted" aria-hidden="true">
+                            <Plugs />
+                        </IconTile>
+                    }
+                    description={copy.emptyBody}
+                    title={copy.emptyTitle}
+                >
                     {readOnly ? null : (
                         <Button data-testid="mcp-connect-open" onClick={openConnect}>
                             {copy.connect}
@@ -219,6 +311,7 @@ export default function McpServersSection({
                     columns={columns}
                     rows={rows}
                     loading={isPending}
+                    skeletonRows={3}
                     rowKey={rowKey}
                     onRowClick={(record) => setViewing(record)}
                     actions={
@@ -226,34 +319,26 @@ export default function McpServersSection({
                             ? undefined
                             : (record) => [
                                   {
-                                      key: "open",
-                                      label: "Open",
-                                      onClick: () => setViewing(record),
-                                  },
-                                  {
-                                      key: "connect",
-                                      label:
-                                          getMcpConnectionState(record) === "ready"
-                                              ? "Reconnect"
-                                              : "Connect",
+                                      key: "reconnect",
+                                      label: "Reconnect",
                                       onClick: () => openReconnect(record),
                                   },
                                   {
-                                      key: "disconnect",
-                                      label: "Disconnect",
-                                      // Only where there is a grant to revoke. A server that
-                                      // needs no authentication is ready without holding one,
-                                      // and the route refuses a non-OAuth endpoint outright.
-                                      hidden:
-                                          record.auth_mode !== "oauth" ||
-                                          getMcpConnectionState(record) !== "ready",
-                                      onClick: () => handleDisconnect(record),
+                                      key: "view-tools",
+                                      label: "View tools",
+                                      onClick: () => setViewing(record),
                                   },
                                   {
-                                      key: "delete",
-                                      label: "Remove",
+                                      key: "rename",
+                                      label: "Rename",
+                                      onClick: () => setViewing(record),
+                                  },
+                                  {type: "divider"},
+                                  {
+                                      key: "disconnect",
+                                      label: "Disconnect",
                                       danger: true,
-                                      onClick: () => handleDelete(record),
+                                      onClick: () => handleDisconnect(record),
                                   },
                               ]
                     }
@@ -288,6 +373,8 @@ export default function McpServersSection({
                 onClose={() => setViewing(null)}
                 existingNames={names}
                 onReconnect={openReconnect}
+                // One meaning per word: the drawer's Disconnect ends the connection, exactly as
+                // the row menu's does.
                 onDisconnect={handleDisconnect}
                 onChanged={() => void refresh()}
             />
