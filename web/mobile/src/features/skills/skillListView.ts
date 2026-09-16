@@ -80,6 +80,10 @@ export const NO_DESCRIPTION = "No description"
 export const provenanceLabel = (row: SkillListRow, group: SkillGrouping): string =>
     group === "source" ? row.creatorName || "—" : row.sourceLabel
 
+/** The "Used by" cell: how many agents run it, or an em dash for none. */
+export const usedByLabel = (count: number): string =>
+    count === 0 ? "—" : `${count} ${count === 1 ? "agent" : "agents"}`
+
 /** The "Last updated" cell. Empty rows read as an em dash, not as "just now". */
 export const lastUpdatedLabel = (age: string | null): string => age || "—"
 
