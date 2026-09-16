@@ -24,7 +24,7 @@ from oss.src.core.gateways.mcps.oauth.interfaces import (
 from oss.src.core.gateways.mcps.oauth.registration import (
     Resolver,
     identity_document_client_info,
-    is_publicly_resolvable,
+    is_publicly_resolvable_async,
     registration_covers,
 )
 from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS, new_state
@@ -129,7 +129,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         # registration endpoint cannot be registered with, and then a public identity
         # document is the only way to name ourselves.
         if not discovery.registration_endpoint:
-            if is_publicly_resolvable(self.api_url, **self._resolve_kwargs):
+            if await is_publicly_resolvable_async(self.api_url, **self._resolve_kwargs):
                 return (
                     identity_document_client_info(
                         api_url=self.api_url, redirect_uri=redirect_uri

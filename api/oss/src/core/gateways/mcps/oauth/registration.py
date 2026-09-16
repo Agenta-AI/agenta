@@ -1,5 +1,6 @@
 """Choose between OAuth client-identity documents and dynamic registration."""
 
+import asyncio
 import ipaddress
 import socket
 from typing import Callable, List
@@ -7,7 +8,15 @@ from urllib.parse import urlparse
 
 from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata
 
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
 _METADATA_PATH = "/gateways/mcps/oauth/client-metadata.json"
+
+# Long enough for a resolver that is merely slow, short enough that one that is gone does
+# not hold a consent step open.
+_RESOLVE_TIMEOUT_SECONDS = 5.0
 
 Resolver = Callable[[str], List[str]]
 
@@ -76,10 +85,47 @@ def _is_public_ip(ip: ipaddress._BaseAddress) -> bool:
     )
 
 
+async def is_publicly_resolvable_async(
+    api_url: str,
+    *,
+    resolve: Resolver = _default_resolve,
+    timeout: float = _RESOLVE_TIMEOUT_SECONDS,
+) -> bool:
+    """The same answer, without holding the event loop while the resolver thinks.
+
+    `socket.getaddrinfo` is a blocking call with no timeout of its own, and both callers
+    are coroutines, so a slow or unreachable resolver stalled every request the worker
+    was serving rather than the one that asked (M18). The lookup goes to a thread, and
+    the wait is bounded so a resolver that never answers costs one coroutine rather than
+    a worker.
+
+    A timeout answers `False`, which is what an unresolvable address already answers.
+    Both callers read `False` as "this deployment cannot name itself to an authorization
+    server", and fall back to dynamic registration or report the connection as
+    unusable — the same conservative reading a genuine resolution failure gets.
+    """
+    try:
+        async with asyncio.timeout(timeout):
+            return await asyncio.to_thread(
+                is_publicly_resolvable, api_url, resolve=resolve
+            )
+    except TimeoutError:
+        log.warning(
+            "[gateways] resolving this deployment's own address timed out",
+            timeout=timeout,
+        )
+        return False
+
+
 def is_publicly_resolvable(
     api_url: str, *, resolve: Resolver = _default_resolve
 ) -> bool:
-    """Return whether an HTTPS API URL resolves exclusively to public addresses."""
+    """Whether an HTTPS API URL resolves exclusively to public addresses.
+
+    Synchronous, and the judgement the async wrapper above delegates to. Call that one
+    from a coroutine; this one is the logic, and what the cases that inject a resolver
+    exercise directly.
+    """
     parsed = urlparse(api_url)
     if parsed.scheme != "https" or not parsed.hostname:
         return False

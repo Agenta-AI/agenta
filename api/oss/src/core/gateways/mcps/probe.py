@@ -35,7 +35,9 @@ from oss.src.core.gateways.egress import (
     open_egress,
 )
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
-from oss.src.core.gateways.mcps.oauth.registration import is_publicly_resolvable
+from oss.src.core.gateways.mcps.oauth.registration import (
+    is_publicly_resolvable_async,
+)
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthDiscoveryError
 
 
@@ -317,11 +319,11 @@ class MCPServerProbe:
                 mode=MCPProbeAuthMode.OAUTH,
                 authorization_server=discovery.authorization_server,
                 scopes_offered=discovery.scopes_offered,
-                registration=self._registration(discovery.registration_endpoint),
+                registration=await self._registration(discovery.registration_endpoint),
             ),
         )
 
-    def _registration(
+    async def _registration(
         self, registration_endpoint: Optional[str]
     ) -> MCPProbeRegistration:
         """Which client-identity strategy this deployment would use.
@@ -332,6 +334,6 @@ class MCPServerProbe:
         """
         if registration_endpoint:
             return MCPProbeRegistration.DYNAMIC
-        if is_publicly_resolvable(self.api_url):
+        if await is_publicly_resolvable_async(self.api_url):
             return MCPProbeRegistration.METADATA
         return MCPProbeRegistration.UNAVAILABLE
