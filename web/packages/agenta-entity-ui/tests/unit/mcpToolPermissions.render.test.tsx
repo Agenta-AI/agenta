@@ -204,6 +204,19 @@ describe("a tool the filter hides that still holds a permission", () => {
     })
 })
 
+/** Type into the filter box the way a person does, through the real input event. */
+const typeFilter = async (value: string) => {
+    const box = host.querySelector<HTMLInputElement>('[aria-label="Filter tools"]')!
+    await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype,
+            "value",
+        )!.set!
+        setter.call(box, value)
+        box.dispatchEvent(new Event("input", {bubbles: true}))
+    })
+}
+
 describe("a catalogue too long to scroll", () => {
     const many = Array.from({length: 40}, (_, index) => ({
         name: `tool_${index}`,
@@ -243,6 +256,30 @@ describe("a catalogue too long to scroll", () => {
 
         expect(selectFor("Permission for tool_7")).not.toBeNull()
         expect(selectFor("Permission for tool_1")).toBeNull()
+    })
+
+    it("shows the description a row was matched on, so the result is explainable", async () => {
+        // The filter matches a description as well as a name, and this editor renders a
+        // description only for a tool that already carries a rule. So a description match left
+        // a row on screen with nothing in its visible text containing the word: typing
+        // "screenshot" kept one row called `extract_images` and looked like a bug (round 4, D6).
+        listMcpTools.mockResolvedValue(many)
+        await render({new_tool_permission: "ask"})
+
+        await typeFilter("issue")
+
+        expect(selectFor("Permission for tool_7")).not.toBeNull()
+        expect(text()).toContain("File a new issue in a team")
+    })
+
+    it("goes back to saying what each row inherits once the query is cleared", async () => {
+        listMcpTools.mockResolvedValue(many)
+        await render({new_tool_permission: "ask"})
+
+        await typeFilter("issue")
+        await typeFilter("")
+
+        expect(text()).toContain("Inherits ask")
     })
 
     it("says the query matched nothing rather than looking like a server with no tools", async () => {

@@ -333,6 +333,7 @@ const ToolRows = ({
         )
     }
 
+    const filtering = filter.trim().length > 0
     const shown = filterMcpTools(state.tools, filter)
     if (shown.length === 0) {
         // The server has tools; this query names none of them. A rule already set on a tool the
@@ -349,14 +350,23 @@ const ToolRows = ({
             {shown.map((tool) => {
                 const hidden = isToolHidden(policy, tool.name)
                 const explicit = toolPermissions(policy)[tool.name]
+                // While a query is narrowing the list, a row has to say why it survived. The
+                // filter matches a tool's description as well as its name, and the description
+                // is exactly what this editor otherwise never renders: typing "screenshot" left
+                // one row whose visible text contained no such word (round 4, D6). The drawer
+                // reads correctly already, because it shows descriptions all the time.
+                const explainMatch = filtering && !!tool.description
                 return (
                     <li key={tool.name} className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 flex-col">
                             <span className="truncate text-field-md">{tool.name}</span>
-                            <span className="truncate text-xs text-[var(--ag-colorTextSecondary)]">
+                            <span
+                                className="truncate text-xs text-[var(--ag-colorTextSecondary)]"
+                                title={tool.description || undefined}
+                            >
                                 {hidden
                                     ? "Hidden by this server's tool filter"
-                                    : explicit
+                                    : explicit || explainMatch
                                       ? (tool.description ?? "")
                                       : `Inherits ${inheritLabel}`}
                             </span>
