@@ -10,12 +10,8 @@
  * label regresses and a test id does not, and the label is the part a person actually reads.
  * Structure-only elements are located by their text within a row.
  *
- * Two environment facts the OAuth case depends on, both gated rather than assumed:
- *
- * - The issuer publishes itself under the address the API dials, which on a compose stack is
- *   a container name. The browser has to resolve that same name, which is what
- *   `PLAYWRIGHT_HOST_RESOLVER_RULES=MAP mock-mcp-gateway 127.0.0.1` is for.
- * - The mock upstream only exists while `AGENTA_GATEWAYS_MOCKS_ENABLED` is on.
+ * The environment facts this suite depends on, and the steps it shares with the agent
+ * configuration suite, live in ../utils/mcpConnections.
  */
 import {
     TestCostType,
@@ -33,29 +29,23 @@ import {expect} from "@agenta/web-tests/utils"
 import type {Page} from "@playwright/test"
 
 import {expectAuthenticatedSession} from "../utils/auth"
+import {
+    createMcpConnectionViaApi,
+    fillJourneyUrlAndName,
+    finishJourney,
+    journeyDialog,
+    mcpOauthPath,
+    mockMcpBaseUrl,
+    navigate,
+    PROBE_MS,
+    requireMockMcpUpstream,
+    ROUTE_WARMUP_MS,
+    uniqueName,
+} from "../utils/mcpConnections"
 import {createScenarios} from "../utils/scenarios"
 import {buildAcceptanceTags} from "../utils/tags"
 
 const scenarios = createScenarios(test)
-
-/**
- * The unauthenticated mock MCP server, as the API dials it.
- *
- * Defaulted rather than gated. This suite used to skip whenever the variable was unset, and it
- * was set nowhere in the repository, so the only end-to-end coverage this feature has never ran
- * and every run reported green (D25). It runs by default now and says what is missing when it
- * cannot run, because a skipped suite that reads as a passing one is worse than a red one.
- */
-const mockBaseUrl = (
-    process.env.AGENTA_MOCK_MCP_GATEWAY_URL || "http://mock-mcp-gateway:9092"
-).replace(/\/$/, "")
-
-/** The same container as this process sees it, which is where the reachability check goes. */
-const publishedMockUrl = (
-    process.env.AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL || "http://127.0.0.1:9092"
-).replace(/\/$/, "")
-/** Its OAuth-protected surface. `/` stays open so the no-auth case has something to use. */
-const oauthPath = process.env.AGENTA_MCP_OAUTH_ACCEPTANCE_PATH || "/oauth/mcp"
 
 const createTags = (license: TestLicenseType) =>
     buildAcceptanceTags({
@@ -70,58 +60,8 @@ const createTags = (license: TestLicenseType) =>
         speed: TestSpeedType.SLOW,
     })
 
-/** A name no other run shares, so a duplicate refusal is this test's own doing. */
-const uniqueName = (prefix: string) => `${prefix} ${Date.now()}${Math.floor(Math.random() * 1000)}`
-
-/** How long the settings route may take the first time a worker asks for it. */
-const ROUTE_WARMUP_MS = 90_000
-/** How long a probe of a server the API has to dial may take. */
-const PROBE_MS = 45_000
-
 /** Whether this worker has already paid for the settings route to compile. */
 let settingsWarmed = false
-
-/**
- * Go to a page, tolerating the abort a browser reports when a navigation is superseded.
- *
- * A `goto` issued while an earlier one is still settling cancels that one, and Playwright
- * surfaces the cancellation as an error on the call that caused it rather than on the
- * navigation that lost. Nothing is wrong when that happens, and the assertion that follows is
- * what decides whether the page arrived (D49).
- */
-const navigate = async (page: Page, url: string) => {
-    try {
-        await page.goto(url, {waitUntil: "domcontentloaded"})
-    } catch (error) {
-        if (!String(error).includes("ERR_ABORTED")) throw error
-    }
-}
-
-/**
- * Create a connection through the API, without the open page hearing about it.
- *
- * The client refuses a duplicate name from the list it already holds, so a name typed into a
- * page that knows about the collision never reaches the server and the API's own refusal is
- * never exercised (D39). Creating one behind the page's back leaves the list stale, which is
- * also what happens when a colleague adds a connection while someone has settings open.
- */
-const createConnectionOutOfBand = async (page: Page, basePath: string, name: string) => {
-    const projectId = basePath.match(/\/p\/([^/]+)/)?.[1]
-    const apiUrl = process.env.AGENTA_API_URL || `${process.env.AGENTA_WEB_URL}/api`
-    const response = await page.request.post(
-        `${apiUrl}/gateways/mcps/endpoints/?project_id=${projectId}`,
-        {
-            data: {
-                endpoint: {
-                    name,
-                    auth_mode: "none",
-                    data: {route: {base_url: `${mockBaseUrl}/`}},
-                },
-            },
-        },
-    )
-    expect(response.ok(), await response.text()).toBe(true)
-}
 
 const openSettings = async (page: Page, basePath: string) => {
     await navigate(page, `${basePath}/settings?tab=mcpEndpoints`)
@@ -140,46 +80,10 @@ const openSettings = async (page: Page, basePath: string) => {
 const connectionRow = (page: Page, name: string) =>
     page.locator("tr").filter({hasText: name}).first()
 
-/**
- * Close a journey that reached its connected state.
- *
- * It stays open on purpose, reporting what was connected; the next thing a test does is
- * behind it, so every case that connects has to finish the journey first.
- */
-const finishJourney = async (page: Page) => {
-    const dialog = journeyDialog(page)
-    await expect(dialog.getByText("is connected.")).toBeVisible({timeout: 60000})
-    await dialog.getByRole("button", {name: "Done"}).click()
-    await expect(dialog).toHaveCount(0, {timeout: 20000})
-}
-
-/**
- * The connect journey's own dialog.
- *
- * Addressed as the dialog CONTAINING the journey's test id, not `getByRole("dialog").last()`:
- * the settings page also mounts the connection detail drawer, which is a dialog too, so "the
- * last one" is whichever the DOM happens to order last. This is the case a test id is for —
- * the element has no accessible name that tells it apart. The id marks the journey's fields,
- * while the footer buttons are its siblings, so the handle has to be the dialog around both.
- */
-const journeyDialog = (page: Page) =>
-    page.locator('[role="dialog"]:has([data-testid="mcp-connect-journey"])')
-
-/** Drive the journey as far as the name step, which every path shares. */
+/** Open the journey from the settings header and drive it to the name step. */
 const startJourney = async (page: Page, url: string, name: string) => {
     await page.getByRole("button", {name: "Connect MCP"}).first().click()
-    const dialog = journeyDialog(page)
-
-    await dialog.getByLabel("MCP server URL").fill(url)
-    await dialog.getByRole("button", {name: "Continue"}).click()
-
-    // The step between these two is a probe: the API dials the server and reads what it
-    // answers. That is a round trip to a third party, so it gets its own budget rather than
-    // the default one meant for a render.
-    const nameField = dialog.getByLabel("Connection name")
-    await expect(nameField).toBeVisible({timeout: PROBE_MS})
-    await nameField.fill(name)
-    return dialog
+    return fillJourneyUrlAndName(page, url, name)
 }
 
 export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
@@ -188,29 +92,13 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
     // One reachability check for the whole suite, so a stack without the mock upstream fails
     // in one place with a sentence naming what to start, rather than seven times with a
     // sixty-second timeout apiece.
-    test.beforeAll(async () => {
-        let reachable = false
-        try {
-            const response = await fetch(publishedMockUrl, {
-                method: "POST",
-                headers: {"content-type": "application/json"},
-                body: JSON.stringify({jsonrpc: "2.0", id: 1, method: "ping", params: {}}),
-                signal: AbortSignal.timeout(5000),
-            })
-            reachable = response.status < 500
-        } catch {
-            reachable = false
-        }
-        if (!reachable) {
-            throw new Error(
-                `The MCP mock upstream did not answer at ${publishedMockUrl}. This suite needs a ` +
-                    "stack running the gateway mocks: bring one up with AGENTA_GATEWAYS_MOCKS_ENABLED=true, " +
-                    "and set AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL if it is published somewhere else.",
-            )
-        }
-    })
+    test.beforeAll(requireMockMcpUpstream)
 
     test.beforeEach(async ({page}) => {
+        // Every case here waits on the API dialing a third party, and the OAuth one waits on
+        // discovery and a consent page besides. The suite-wide minute is meant for a page of
+        // clicks and is the wrong budget for that: it was cutting the OAuth case off mid-probe.
+        test.setTimeout(180_000)
         await expectAuthenticatedSession(page)
     })
 
@@ -226,7 +114,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             })
 
             await scenarios.when("the user connects a server by URL", async () => {
-                const dialog = await startJourney(page, `${mockBaseUrl}/`, name)
+                const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, name)
                 // The probe reached the server and read what it needs, so the journey says
                 // so before asking for anything else.
                 await expect(dialog.getByText("needs no authentication")).toBeVisible()
@@ -255,7 +143,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 async () => {
                     await page.getByRole("button", {name: "Connect MCP"}).first().click()
                     const dialog = journeyDialog(page)
-                    await dialog.getByLabel("MCP server URL").fill(`${mockBaseUrl}/`)
+                    await dialog.getByLabel("MCP server URL").fill(`${mockMcpBaseUrl}/`)
                     await dialog.getByRole("button", {name: "Continue"}).click()
 
                     const nameField = dialog.getByLabel("Connection name")
@@ -281,11 +169,11 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             await scenarios.and("another connection takes it", async () => {
                 // Out of band on purpose: a page that already knows about the collision
                 // refuses the name from its own list and never asks the server.
-                await createConnectionOutOfBand(page, basePath, name)
+                await createMcpConnectionViaApi(page, basePath, name)
             })
 
             await scenarios.when("the user submits that name", async () => {
-                const dialog = await startJourney(page, `${mockBaseUrl}/`, name)
+                const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, name)
                 await dialog.getByRole("button", {name: "Continue"}).click()
 
                 // The server's refusal, carried back to the field the person can fix, and
@@ -315,7 +203,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
 
         await scenarios.when("the user connects the same URL twice", async () => {
             for (const name of [first, second]) {
-                const dialog = await startJourney(page, `${mockBaseUrl}/`, name)
+                const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, name)
                 await dialog.getByRole("button", {name: "Continue"}).click()
                 await finishJourney(page)
                 await expect(connectionRow(page, name)).toBeVisible({timeout: 30000})
@@ -336,7 +224,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
 
         await scenarios.given("a connected server", async () => {
             await openSettings(page, basePath)
-            const dialog = await startJourney(page, `${mockBaseUrl}/`, name)
+            const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, name)
             await dialog.getByRole("button", {name: "Continue"}).click()
             await finishJourney(page)
             await expect(connectionRow(page, name).getByText("Ready", {exact: true})).toBeVisible({
@@ -363,7 +251,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             // It holds no grant, and the route refuses a non-OAuth endpoint, so offering the
             // action would produce a 400 on a row that reads as connected.
             const other = uniqueName("No auth MCP")
-            const dialog = await startJourney(page, `${mockBaseUrl}/`, other)
+            const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, other)
             await dialog.getByRole("button", {name: "Continue"}).click()
             await finishJourney(page)
             const row = connectionRow(page, other)
@@ -380,7 +268,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
 
         await scenarios.given("a connected server", async () => {
             await openSettings(page, basePath)
-            const dialog = await startJourney(page, `${mockBaseUrl}/`, name)
+            const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, name)
             await dialog.getByRole("button", {name: "Continue"}).click()
             await finishJourney(page)
             await expect(connectionRow(page, name).getByText("Ready", {exact: true})).toBeVisible({
@@ -411,7 +299,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             throw new Error(
                 "The authorization server publishes itself under the address the API dials, so " +
                     "the browser has to resolve that name too. Re-run with " +
-                    `PLAYWRIGHT_HOST_RESOLVER_RULES="MAP ${new URL(mockBaseUrl).hostname} 127.0.0.1".`,
+                    `PLAYWRIGHT_HOST_RESOLVER_RULES="MAP ${new URL(mockMcpBaseUrl).hostname} 127.0.0.1".`,
             )
         }
         const name = uniqueName("OAuth MCP")
@@ -422,7 +310,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         })
 
         await scenarios.when("the user connects the protected surface", async () => {
-            const dialog = await startJourney(page, `${mockBaseUrl}${oauthPath}`, name)
+            const dialog = await startJourney(page, `${mockMcpBaseUrl}${mcpOauthPath}`, name)
             // Discovery read the challenge, so the journey knows it is OAuth before the
             // person commits to anything.
             await expect(dialog.getByText("uses OAuth")).toBeVisible()
