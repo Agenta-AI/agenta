@@ -49,6 +49,8 @@ export function SkillAgentPicker({
     const [pendingId, setPendingId] = useState<string | null>(null)
     const toggle = useCallback(
         async (agentWorkflowId: string) => {
+            // One commit at a time: a second tick mid-flight would race the first's base.
+            if (pendingId) return
             const remove = usedByIds.includes(agentWorkflowId)
             setPendingId(agentWorkflowId)
             try {
@@ -85,7 +87,7 @@ export function SkillAgentPicker({
                 setPendingId(null)
             }
         },
-        [projectId, skill, usageQuery, usedByIds],
+        [pendingId, projectId, skill, usageQuery, usedByIds],
     )
 
     return (
