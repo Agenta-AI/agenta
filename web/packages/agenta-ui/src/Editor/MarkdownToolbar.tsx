@@ -375,13 +375,13 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
             )}
 
             {divider}
-            {button("b", "Bold", <Bold size={15} />, () => formatText("bold"), active.bold)}
-            {button("i", "Italic", <Italic size={15} />, () => formatText("italic"), active.italic)}
+            {button("b", "Bold", <Bold size={14} />, () => formatText("bold"), active.bold)}
+            {button("i", "Italic", <Italic size={14} />, () => formatText("italic"), active.italic)}
             {layout === "inline"
                 ? button(
                       "s",
                       "Strikethrough",
-                      <Strikethrough size={15} />,
+                      <Strikethrough size={14} />,
                       () => formatText("strikethrough"),
                       active.strikethrough,
                   )
@@ -390,7 +390,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                 ? button(
                       "code",
                       "Inline code",
-                      <Code size={15} />,
+                      <Code size={14} />,
                       () => formatText("code"),
                       active.code,
                   )
@@ -399,14 +399,14 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
             {button(
                 "ul",
                 "Bulleted list",
-                <List size={15} />,
+                <List size={14} />,
                 () => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined),
                 active.bullet,
             )}
             {button(
                 "ol",
                 "Numbered list",
-                <ListOrdered size={15} />,
+                <ListOrdered size={14} />,
                 () => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
                 active.ordered,
             )}
@@ -414,7 +414,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                 ? button(
                       "quote",
                       "Quote",
-                      <TextQuote size={15} />,
+                      <TextQuote size={14} />,
                       () => formatBlock(blockType === "quote" ? "paragraph" : "quote"),
                       blockType === "quote",
                   )
@@ -439,7 +439,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                         onMouseDown={(e) => e.preventDefault()}
                         className={btnClass(disabled, active.link)}
                     >
-                        <LinkIcon size={15} />
+                        <LinkIcon size={14} />
                     </button>
                 </PopoverTrigger>
                 <PopoverContent side="bottom" align="center" className="p-3">
@@ -486,7 +486,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                             onMouseDown={(e) => e.preventDefault()}
                             className={`${btnClass(false, false)} !w-auto gap-0.5 px-1`}
                         >
-                            <TableIcon size={15} />
+                            <TableIcon size={14} />
                             <ChevronDown size={12} />
                         </button>
                     </DropdownMenuTrigger>
@@ -548,7 +548,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
                             onMouseDown={(e) => e.preventDefault()}
                             className={btnClass(disabled, false)}
                         >
-                            <TableIcon size={15} />
+                            <TableIcon size={14} />
                         </button>
                     </PopoverTrigger>
                     <PopoverContent
