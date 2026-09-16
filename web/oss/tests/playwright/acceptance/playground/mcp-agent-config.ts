@@ -217,12 +217,18 @@ const openNewMcpItem = async (page: Page) => {
     }
     await expect(addLink).toBeVisible({timeout: 15000})
 
-    // An agent's playground opens a session for the conversation and navigates to it. A drawer
-    // opened before that lands is torn down mid-click: one run spent ten minutes on "element was
-    // detached from the DOM, retrying" against a page that kept navigating. Waiting for the URL
-    // to name a session lets the page finish arriving first. Tolerated rather than required:
-    // a session that is already open never navigates again, and the assertions that follow are
-    // what decide whether the drawer is there.
+    // INVARIANT: a drawer may only be opened once the session route has landed.
+    //
+    // An agent's playground opens a session for its conversation and navigates to it, and that
+    // navigation remounts the configuration panel — so a drawer opened before it arrives is torn
+    // down under the interaction, taking its draft with it (D94).
+    //
+    // This wait is a workaround, not a convenience: it stands in for the mobile case that would
+    // assert the product holds that invariant itself, which does not exist yet (#6897). Keep it
+    // until that case does.
+    //
+    // Tolerated rather than required: a session that is already open never navigates again, and
+    // the assertions that follow are what decide whether the drawer is there.
     await page.waitForURL(/session_id=/, {timeout: PLAYGROUND_WARMUP_MS}).catch(() => undefined)
 
     await addLink.click()
