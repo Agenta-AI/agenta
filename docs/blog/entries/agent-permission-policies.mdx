@@ -3,7 +3,7 @@ title: "Configure permissions for your agent"
 slug: agent-permission-policies
 date: 2026-09-09
 tags: [v0.115.3]
-description: "Set a default permission policy for an agent and review the tool-specific rules that can override it."
+description: "Configure AI agent permissions in Agenta. Allow tool calls, require approval, or block them, with tool-specific rules that override the agent default."
 ---
 
 <Summary>
@@ -16,25 +16,25 @@ These are the default permissions for the agent. You can still configure each to
 
 {/* truncate */}
 
-A research agent may need to read connected data on its own while asking before changing anything. Another agent may need approval before every tool call. You can choose a different default for each agent without digging through Advanced settings.
+You can now choose how much your agent can do without asking. Set a default for the agent, then change the permissions of individual tools if needed.
 
-## Set the default
+## Set your agent's permissions
 
-Open the agent's configuration and select Permissions. The choices describe what happens to tool calls that follow the general policy:
+Open the agent configuration and click Permissions. Choose from:
 
-- Allow reads runs tools marked as read-only and asks before other calls.
-- Allow all lets tool calls run without approval.
-- Ask requests approval for each tool call.
-- Deny all refuses tool calls.
+- Allow reads: run tools marked as read-only and ask before other calls.
+- Allow all: run tool calls without asking.
+- Ask: request approval before each tool call.
+- Deny all: block tool calls.
 
-Agents created from the standard template start on Allow all. To have one ask before writes, change it to Allow reads. Existing agents keep their saved policies.
+New agents created from the standard template start on Allow all. Existing agents keep their saved permissions.
 
-## Check individual tools
+## Set exceptions for individual tools
 
-The general policy is a default, not an absolute limit. An explicit permission on a tool takes precedence. A tool set to Allow can still run under a general Ask policy; a tool set to Deny stays blocked.
+A tool's own permission overrides the agent default. For example, you can set the agent to Ask but allow a specific search tool to run without approval.
 
-If you want an agent to read records but never delete them, review the permissions on those individual actions as well as the general policy. See the [agent configuration reference](/reference/agents/agent-configuration#runnerpermissions) for the stored policy and tool overrides.
+Check these exceptions when changing the default. Setting the agent to Ask won't make a tool ask if that tool is explicitly set to Allow.
 
-## Make ongoing approval explicit
+On an approval card, leave Always auto-approve unchecked if you only want to approve the current call. Checking it lets that tool run without asking again.
 
-On supported approval cards, Always auto-approve means that tool will run without asking again. Leave it unchecked when you mean to approve only the current call. Denying a call does not grant ongoing permission.
+See the [agent configuration reference](/reference/agents/agent-configuration#runnerpermissions) for the permission settings.

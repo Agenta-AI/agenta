@@ -3,7 +3,7 @@ title: "Point your agent to a file with @"
 slug: mention-workspace-files-in-prompts
 date: 2026-09-09
 tags: [v0.115.4]
-description: "Search the session's files from the message box and insert the exact file reference into your instructions."
+description: "Mention workspace files in Agenta agent chat with @. Search for a file and add its path to your instructions without copying and pasting it by hand."
 ---
 
 <Summary>
@@ -16,16 +16,18 @@ The reference becomes part of the instruction you send.
 
 {/* truncate */}
 
-After an agent writes a report, your next request often concerns that same file. You can now point to it from the message box instead of describing where it is or uploading it again.
+When you want your agent to work on a file, you shouldn't need to find its path and paste it into chat. You can now type @, search for the file, and select it.
 
-## Pick a file from the message box
+## Select a file
 
-In an existing session in the new app, type @ at the start of a word. The file picker shows recent files and the session's drive. Continue typing part of a filename to search.
+Open an existing session in the new app and type @ in the chat box. You'll see recent files and the session's folders. Keep typing to search by filename.
 
-Select a file to insert its path into your message, then explain what you want the agent to do. For example: select report.md and ask, "Shorten the introduction and keep the recommendations."
+Select the file, then write what you want the agent to do. For example, choose report.md and add: "Shorten the introduction."
 
-## Browse folders
+The file path becomes part of your message. You're pointing to the existing file, not uploading another copy.
 
-Use Tab or a folder's chevron to enter it. Escape steps back a level, then closes the picker. You can reference a folder too, although folder references remain text rather than clickable file chips.
+## Find a file inside a folder
 
-File mentions work in the new app on desktop and mobile. They use files already available to the session; they do not upload a copy or grant access to a new location. The picker needs an existing session with a drive, so it is not part of the home task box before a session exists.
+Click a folder's chevron or press Tab to open it. Press Escape to go back.
+
+File mentions work in the new app on desktop and mobile. Open a session first; the file picker isn't available in the home task box.

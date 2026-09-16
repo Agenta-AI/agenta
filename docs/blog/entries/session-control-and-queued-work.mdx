@@ -3,7 +3,7 @@ title: "Queue the next instruction while an agent works"
 slug: session-control-and-queued-work
 date: 2026-09-07
 tags: [v0.115.2]
-description: "Add follow-up instructions during a run and correct a queued message without losing its place or attachments."
+description: "Queue messages for AI agents in Agenta, edit pending instructions, and follow the same chat across tabs. Stop a run or steer it where supported."
 ---
 
 <Summary>
@@ -18,18 +18,20 @@ We've made big improvements to the way chat sesesions work:
 
 {/* truncate */}
 
-You do not have to wait for an agent to finish before planning the next step. Add a follow-up message during a run and leave it in the queue.
+We've improved how agent chat sessions work. You can queue the next task while your agent is working, open the same conversation in another tab, and change direction during a run.
 
-For example, while an agent drafts a report, queue a request to shorten the introduction. If you change your mind about the wording, edit that queued request instead of deleting it and starting over.
+## Queue the next task
 
-## Correct a queued message
+Send a follow-up message while the agent is busy. It waits in the queue until the agent can run it. Queued messages are saved, so closing the tab doesn't remove them. If the agent needs approval or input, it still waits for your response.
 
-Choose Edit on a message that has not started. Change the text and save it. The message keeps its position and its existing attachments.
+You can edit a queued message before it starts. Click Edit, change the text, and save. The message keeps its place and attachments.
 
-Once a message has started, or has been selected for Send Now, it can no longer be edited in the queue. A failed save keeps your draft available so you can retry.
+## Open the same chat in another tab
 
-## Work in another session
+You can open the same session in multiple tabs and follow the conversation from either one. You don't need to start a separate chat to return to the task.
 
-Switch to another conversation while the agent continues its current work. Return to the session to follow progress or respond if it needs approval. A queued instruction does not answer an approval request for you.
+## Stop or steer a run
 
-If you need to stop the current run, use Stop. You can continue the conversation afterward. Stopping does not undo tool calls that have already completed, such as a file edit or an email that was sent.
+Use Stop to end the current run. You can then send new instructions in the same conversation. Where the runtime supports steering, you can send input to the active run without waiting for it to finish.
+
+Stopping doesn't undo completed actions, such as a file edit or a sent email. See the [sessions and turns reference](/reference/agents/sessions-and-turns) for queue, stop, and steering behavior.

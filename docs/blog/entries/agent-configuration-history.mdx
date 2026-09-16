@@ -3,7 +3,7 @@ title: "Version your agent configuration"
 slug: agent-configuration-history
 date: 2026-09-05
 tags: [v0.114.8]
-description: "Compare an earlier agent configuration with the current one and restore it as a new version without deleting history."
+description: "Track AI agent configuration changes in Agenta. Open version history to read commit messages, compare changes, and restore an earlier configuration."
 ---
 
 <Summary>
@@ -14,24 +14,18 @@ Each change to your agent configuration is now versioned. Click on the agent ver
 
 {/* truncate */}
 
-A list of version numbers tells you little when an agent starts behaving differently. You need to see what changed before deciding whether to keep it.
+Each saved change to your agent configuration has a version. You can now open the history, see what changed, and revert to an earlier configuration.
 
-Version history shows the configuration behind each version and the differences from the one you are viewing.
+## See what changed
 
-## Review a previous configuration
+Click the version number next to the agent's name. You'll see the versions, newest first, with a commit message for each one.
 
-Click the version chip beside the agent, such as v12, to open its history. Versions appear newest first with their change messages.
+Select a version to compare it with the configuration you're viewing. This shows changes to your instructions, tools, and other settings.
 
-Select an older version to see what restoring it would change. The comparison uses names from the configuration, including the names of tools, rather than internal storage fields.
+## Revert to an earlier version
 
-## Restore without erasing history
+Select the version you want, review the changes, and confirm the restore. Agenta saves it as a new version, so you keep the history in between.
 
-Choose the version you want to return to, review the differences, then confirm the restore. Agenta saves that configuration as a new version at the top of the history. It does not delete the versions in between.
+This changes the agent's configuration. It doesn't undo files the agent edited or actions it took in connected apps.
 
-This restores the agent's configuration, not files it edited or actions it took in connected apps.
-
-## Saving in the new app
-
-In the new app on desktop and mobile, changes to the latest configuration save automatically after a short pause. Saving waits while a run is active or waiting for approval. Check the save status before you leave: a failed save or an edit to an older version may need the Save button.
-
-The classic app keeps its separate commit flow. Version history is available in both apps.
+Version history is available in both the classic and new apps.
