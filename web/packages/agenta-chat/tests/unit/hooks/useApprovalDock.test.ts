@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import {act, renderHook} from "@testing-library/react"
+import type {SessionInteractionRowStates} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 import {describe, expect, it, vi} from "vitest"
 
+import {reconcileInteractionRowStates} from "../../../src/assets/transcriptToMessages"
 import {useApprovalDock} from "../../../src/hooks/useApprovalDock"
 
 const gatePart = (approvalId: string, toolName = "send_email") => ({
@@ -103,6 +105,24 @@ describe("useApprovalDock", () => {
         expect(result.current.open).toBe(false)
     })
 
+    it("approveAll uses one batch response when the host supports it", () => {
+        const respond = vi.fn()
+        const respondAll = vi.fn()
+        const {result} = renderHook(() =>
+            useApprovalDock({
+                messages: [userTurn, assistantWithGates("g1", "g2")],
+                respond,
+                respondAll,
+            }),
+        )
+
+        act(() => result.current.approveAll())
+
+        expect(respond).not.toHaveBeenCalled()
+        expect(respondAll).toHaveBeenCalledOnce()
+        expect(respondAll).toHaveBeenCalledWith({ids: ["g1", "g2"], approved: true})
+    })
+
     it("keeps the last card latched while closed so a leave transition has content", () => {
         const {result, rerender} = setup([userTurn, assistantWithGates("g1")])
         expect(result.current.current?.approvalId).toBe("g1")
@@ -110,5 +130,113 @@ describe("useApprovalDock", () => {
         expect(result.current.open).toBe(false)
         // The latched gate is still available for the closing animation frame.
         expect(result.current.current?.approvalId).toBe("g1")
+    })
+
+    it("closes when the continuation reaches a terminal record", () => {
+        const terminal = {
+            ...assistantWithGates("g1"),
+            metadata: {
+                approvalContinuation: {
+                    sourceExecutionId: "source-turn",
+                    executionId: "continuation-turn",
+                    state: "done",
+                    approvalIds: ["g1"],
+                },
+            },
+        } as UIMessage
+
+        const {result} = setup([userTurn, terminal])
+
+        expect(result.current.open).toBe(false)
+    })
+
+    it("closes when another reader resolves the interaction row", () => {
+        const pending = assistantWithGates("g1")
+        const rows: SessionInteractionRowStates = new Map([
+            [
+                "g1",
+                {
+                    token: "g1",
+                    kind: "user_approval",
+                    status: "resolved",
+                    resolution: {verdict: "approved"},
+                },
+            ],
+        ])
+        const reconciled = reconcileInteractionRowStates([pending], rows)
+        const {result} = setup(reconciled)
+
+        expect(result.current.open).toBe(false)
+    })
+
+    it("moves from sending to answered only after the response promise resolves", async () => {
+        let accept: (() => void) | undefined
+        const respond = vi.fn(
+            () =>
+                new Promise<void>((resolve) => {
+                    accept = resolve
+                }),
+        )
+        const {result} = renderHook(() =>
+            useApprovalDock({messages: [assistantWithGates("g1")], respond}),
+        )
+
+        act(() => result.current.respond(true))
+        expect(result.current.responding).toBe(true)
+        expect(result.current.answered).toBe(false)
+
+        await act(async () => accept?.())
+        expect(result.current.answered).toBe(true)
+        expect(result.current.errorText).toBeNull()
+    })
+
+    it("re-arms the pending decision and shows an error when submission fails", async () => {
+        const respond = vi.fn(() => Promise.reject(new Error("Network unavailable")))
+        const {result} = renderHook(() =>
+            useApprovalDock({messages: [assistantWithGates("g1")], respond}),
+        )
+
+        await act(async () => result.current.respond(false))
+
+        expect(result.current.responding).toBe(false)
+        expect(result.current.answered).toBe(false)
+        expect(result.current.errorText).toBe("Network unavailable")
+        act(() => result.current.respond(false))
+        expect(respond).toHaveBeenCalledTimes(2)
+    })
+
+    it("preserves a recoverable durable response for the shared card", async () => {
+        const respond = vi.fn(() => Promise.resolve({durable: true, recoverable: true}))
+        const {result} = renderHook(() =>
+            useApprovalDock({messages: [assistantWithGates("g1")], respond}),
+        )
+
+        await act(async () => result.current.respond(true))
+
+        expect(result.current.answered).toBe(true)
+        expect(result.current.recoverable).toBe(true)
+    })
+
+    it("does not apply a late recoverable result to the next interaction", async () => {
+        let resolveFirst: ((value: {durable: boolean; recoverable: boolean}) => void) | undefined
+        const respond = vi.fn(
+            () =>
+                new Promise<{durable: boolean; recoverable: boolean}>((resolve) => {
+                    resolveFirst = resolve
+                }),
+        )
+        const {result, rerender} = renderHook(
+            (props: {messages: UIMessage[]}) =>
+                useApprovalDock({messages: props.messages, respond}),
+            {initialProps: {messages: [assistantWithGates("g1")]}},
+        )
+
+        act(() => result.current.respond(true))
+        rerender({messages: [assistantWithGates("g2")]})
+        await act(async () => resolveFirst?.({durable: true, recoverable: true}))
+
+        expect(result.current.current?.approvalId).toBe("g2")
+        expect(result.current.answered).toBe(false)
+        expect(result.current.recoverable).toBe(false)
     })
 })

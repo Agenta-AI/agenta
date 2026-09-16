@@ -1382,7 +1382,8 @@ class _PermissionsSchema(BaseModel):
         description=(
             "allow runs every tool without asking. ask requires approval for every tool. "
             "deny refuses every tool. allow_reads runs read-hinted tools and asks for "
-            "everything else; this is the default."
+            "everything else. Omitting this field applies allow_reads; the standard "
+            "creation template sets it to allow."
         ),
     )
 
@@ -1413,6 +1414,26 @@ class _RunnerSchema(BaseModel):
     )
 
 
+class _SandboxSecretReferenceSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid", title="Secret reference")
+    slug: str = Field(title="Secret", description="Project secret slug.")
+
+
+class _SandboxEnvironmentBindingSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid", title="Environment binding")
+    type: Literal["env"] = "env"
+    name: str = Field(
+        title="Variable name",
+        pattern=r"^[A-Za-z_][A-Za-z0-9_]*$",
+    )
+
+
+class _SandboxCredentialSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid", title="Sandbox credential")
+    secret: _SandboxSecretReferenceSchema
+    binding: _SandboxEnvironmentBindingSchema
+
+
 class _SandboxSchema(BaseModel):
     """Where the agent runs plus its security boundary (was the flat ``sandbox`` scalar and the
     sibling ``sandbox_permission``).
@@ -1426,6 +1447,11 @@ class _SandboxSchema(BaseModel):
         default=_DEFAULT_SANDBOX,
         title="Sandbox",
         description="Where the agent runs: local daemon or a Daytona sandbox.",
+    )
+    credentials: List[_SandboxCredentialSchema] = Field(
+        default_factory=list,
+        title="Credentials",
+        description="Project secret references bound to sandbox environment variables.",
     )
     permissions: Optional[SandboxPermission] = Field(
         default=None,
@@ -1486,7 +1512,7 @@ def build_agent_v0_default(
     template["harness"] = {"kind": _DEFAULT_HARNESS}
     template["runner"] = {
         "kind": "sidecar",
-        "permissions": {"default": _DEFAULT_PERMISSION_MODE},
+        "permissions": {"default": "allow"},
     }
     template["sandbox"] = sandbox
     return template

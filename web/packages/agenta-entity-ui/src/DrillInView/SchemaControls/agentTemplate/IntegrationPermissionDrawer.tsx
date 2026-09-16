@@ -149,13 +149,14 @@ const ToolRow = memo(function ToolRow({
                     disabled={disabled}
                     size="sm"
                     aria-label={`Permission for ${tool.key}`}
+                    // Narrower and smaller-set on a phone, so the tool name beside it stays legible.
                     triggerClassName={
                         permission === "deny"
-                            ? "w-auto min-w-[132px] shrink-0 border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)]"
-                            : "w-auto min-w-[132px] shrink-0"
+                            ? "w-auto min-w-[104px] shrink-0 border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)] max-sm:!text-field-sm sm:min-w-[132px]"
+                            : "w-auto min-w-[104px] shrink-0 max-sm:!text-field-sm sm:min-w-[132px]"
                     }
                     // The panel is pinned to the trigger; a compact chip wraps every option label.
-                    contentClassName="w-auto min-w-[260px]"
+                    contentClassName="w-auto min-w-[220px] sm:min-w-[260px]"
                 />
             </div>
         </div>
@@ -464,19 +465,32 @@ function DrawerTitle({
     const {integration} = useToolIntegrationDetail(target.integration)
     const {connections} = useToolConnectionsQuery()
     const connection = findTargetConnection(connections, target, connectionSlug)
+    const displayName = integration?.name || target.integration
+    const showSlug = displayName.toLowerCase() !== target.integration.toLowerCase()
 
     return (
         // w-full + min-w-0: the title slot will not shrink alone, pushing the badge past the edge.
         <div className="flex w-full min-w-0 items-center gap-2.5">
-            <ProviderLogo logo={integration?.logo ?? null} size={22} />
-            <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-semibold">
-                    {integration?.name || target.integration}
-                </span>
-                <span className="truncate text-xs font-normal text-[var(--ag-colorTextTertiary)]">
-                    Integration · {target.integration}
-                    {connectionSlug ? ` · ${connectionSlug} connection` : ""}
-                </span>
+            <ProviderLogo
+                logo={integration?.logo ?? null}
+                size={22}
+                className="max-sm:!size-[18px]"
+            />
+            {/* One line: "Integration · gmail · gmail-main connection" repeated the name and
+                labelled what the logo already says. The slug is dropped where the name IS it. */}
+            <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                <span className="truncate text-sm font-semibold">{displayName}</span>
+                {showSlug ? (
+                    // Dropped on a phone: it never shrinks, so it cut the name down to one letter.
+                    <span className="hidden shrink-0 text-xs font-normal text-[var(--ag-colorTextTertiary)] sm:inline">
+                        {target.integration}
+                    </span>
+                ) : null}
+                {connectionSlug ? (
+                    <span className="min-w-0 truncate text-xs font-normal text-[var(--ag-colorTextTertiary)]">
+                        {connectionSlug}
+                    </span>
+                ) : null}
             </div>
             {/* Shows Pending and Inactive too, which is exactly what an author needs here. */}
             {connection ? (

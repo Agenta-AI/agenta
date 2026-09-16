@@ -13,6 +13,8 @@ describe("sandbox teardown disposition", () => {
       ["kill", "delete"],
       ["failed-turn", "delete"],
       ["aborted", "delete"],
+      // A settled user Stop keeps the sandbox; an unsettled one stays "aborted".
+      ["cancelled", "stop"],
       ["compatibility-mismatch", "delete"],
       // Lifecycle migration, step 1: the four named layers. Only the two whose daemon is sound
       // may park. See `teardown.ts`.

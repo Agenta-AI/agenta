@@ -49,7 +49,7 @@ const inputNumberVariants = cva(
             state: {
                 // Matches Input's `default` variant border/hover/focus exactly.
                 enabled:
-                    "bg-background border-border hover:border-btn-primary-hover focus-within:border-primary focus-within:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
+                    "bg-background border-border focus-within:border-ring focus-within:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
                 disabled: "cursor-not-allowed bg-disabled-bg border-disabled-border text-disabled",
             },
             size: {

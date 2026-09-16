@@ -1,17 +1,14 @@
 import {PreferencesPage} from "@agenta/settings-ui"
-import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {classicModeEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {useAtom} from "jotai"
 
 import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
-import {navSimplifiedOverrideAtom} from "@/oss/lib/onboarding/atoms"
-import {advancedNavHiddenAtom} from "@/oss/state/onboarding/selectors"
 
 /** OSS binding: this app's theme control and its experiment flags on the shared page. */
 const Preferences = () => {
     const {themeMode, toggleAppTheme} = useAppTheme()
-    const advancedNavHidden = useAtomValue(advancedNavHiddenAtom)
-    const setNavSimplifiedOverride = useSetAtom(navSimplifiedOverrideAtom)
+    const [classicModeEnabled, setClassicModeEnabled] = useAtom(classicModeEnabledAtom)
     const [playgroundInspectorEnabled, setPlaygroundInspectorEnabled] = useAtom(
         playgroundInspectorEnabledAtom,
     )
@@ -28,8 +25,8 @@ const Preferences = () => {
                     key: "classic-mode",
                     title: "Classic mode",
                     description: "Show all platform areas in the navigation.",
-                    enabled: !advancedNavHidden,
-                    onChange: (enabled) => setNavSimplifiedOverride(!enabled),
+                    enabled: classicModeEnabled,
+                    onChange: setClassicModeEnabled,
                 },
                 {
                     key: "playground-inspector",

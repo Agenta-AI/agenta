@@ -25,11 +25,14 @@ The fields and the full schema follow.
 | `mcp_servers` | `MCPServerConfig[]` | `[]` | External HTTP MCP servers; named header-secret references resolve from the vault per run. See [MCP models and resolution](../in-service/mcp-models-and-resolution.md). |
 | `harness` | `"pi_core" \| "claude" \| "pi_agenta"` (see slug+name note) | `"pi_core"` | The coding agent to drive. `pi_core` and `pi_agenta` both drive the `pi` ACP agent; `pi_agenta` adds Agenta's forced skills, prompt, and policy. |
 | `sandbox` | `"local" \| "daytona"` | `"local"` | Where it runs. |
-| `permissions` | `{default: "allow" \| "ask" \| "deny" \| "allow_reads", rules?: [...]}` | `{default: "allow_reads"}` | The agent-wide policy. `allow_reads` runs read-hinted tools and asks for everything else; `allow` runs everything; `ask` asks for everything; `deny` runs nothing unless a tool explicitly allows it. `rules` are the authored patterns from `harness.permissions.{allow, ask, deny}` that override the default for matching tools; for the seven Pi built-ins the tool name is matched case-insensitively. See [the supported rule syntax](#which-rule-syntax-the-pi-matcher-supports). |
+| `runner.permissions.default` | `"allow" \| "ask" \| "deny" \| "allow_reads"` | `"allow"` in the canonical new-agent template; `"allow_reads"` for omitted request/schema values | The agent-wide fallback after explicit tool policies and authored rules. `allow_reads` allows read-hinted tools and asks for other calls. The operator deny switch remains a separate restriction. See [permissions and creation defaults](../../documentation/agent-configuration.md#layer-1-the-frontend-playground-form) and [the supported rule syntax](#which-rule-syntax-the-pi-matcher-supports). |
 | `sandbox_permission` | `SandboxPermission \| null` | `null` (form pre-fills one) | The declared network and filesystem boundary. See [Sandbox permission](../in-service/sandbox-permission.md). |
 | `skills` | `(SkillConfig \| EmbedRef)[]` | `[]` (the playground overlay embeds the `build-an-agent` playbook) | Inline SKILL.md packages, or `@ag.embed` references the backend inlines before the runner sees them. |
 
-Note that `harness`, `sandbox`, and `permissions` are the run-selection fields. They
+For legacy compatibility, a saved `builtin` entry in `tools` is accepted, ignored with a warning,
+and rendered nowhere. Pi's built-ins are always active and are no longer configured in this field.
+
+Note that `harness`, `sandbox`, and `runner.permissions.default` are the run-selection fields. They
 live on `AgentConfig` itself, under `data.parameters.agent`, and the handler reads them in the
 one `AgentConfig.from_params(...)` parse along with the rest of the config. There is one agent
 config, not a config plus a separate selection object.
@@ -65,30 +68,11 @@ versioning the contract (`/run` `version`, the `/health` skew read) is deferred 
 
 ## The default config
 
-`/inspect` ships this as the value the form starts from. It is the canonical example of
-every field in its default state:
+`build_agent_v0_default` supplies the value the form starts from. Its runner slice is:
 
 ```jsonc
 {
-  "agents_md": "You are a friendly hello-world agent running on the Agenta agent service.\n\n- Greet the user warmly.\n- Answer the user's message in one or two short sentences.",
-  "model": "gpt-5.5",
-  "tools": [],
-  "mcp_servers": [],
-  "harness": "pi_core",
-  "sandbox": "local",
-  "permissions": { "default": "allow_reads" },
-  "sandbox_permission": {
-    "network": { "mode": "on", "allowlist": [] },
-    "enforcement": "strict"
-  },
-  "skills": [
-    {
-      "@ag.embed": {
-        "@ag.references": { "workflow": { "slug": "__ag__build_an_agent" } },
-        "@ag.selector": { "path": "parameters.skill" }
-      }
-    }
-  ]
+  "runner": { "kind": "sidecar", "permissions": { "default": "allow" } }
 }
 ```
 
@@ -100,10 +84,10 @@ shared golden fixture
 `sdks/python/oss/tests/pytest/unit/agents/golden/pi_builtin_tools.json`, which also carries each
 built-in's canonical rule name and its read-only flag.
 
-Being active is not the same as being allowed to run: under the default `permissions.default` of
-`allow_reads`, the read-only built-ins (`read`, `grep`, `find`, `ls`) run without asking, and
-`bash`, `edit` and `write` raise an approval on every call. To change that, write a rule into
-`harness.permissions.allow`, `.ask` or `.deny`. See
+Being active is not the same as being allowed to run. New agents use `allow`; an agent using
+`allow_reads` allows the read-only built-ins (`read`, `grep`, `find`, `ls`) and asks for
+`bash`, `edit` and `write`. Authored rules in `harness.permissions.allow`, `.ask` or `.deny`
+can override that fallback. Existing saved policies are preserved. See
 [Tools](../../documentation/tools.md) for the activation path and the permission relay.
 
 The `/run` wire still carries a `tools` field, and the SDK still fills it with all seven names for
@@ -142,7 +126,7 @@ Not supported:
 A tool name outside the seven built-ins that reaches the gate with no matching rule fails closed:
 `buildPiGateDescriptor` returns nothing and the caller rejects the gate.
 
-The skill embed above comes from the playground **build-kit overlay**
+The default skill embed comes from the playground **build-kit overlay**
 (`build_agent_template_overlay` in `api/oss/src/apis/fastapi/applications/overlay.py`), not
 from the bare default: the overlay adds the default platform ops (`DEFAULT_BUILD_KIT_OPS`),
 the `request_connection` client tool, and exactly one skill, the `build-an-agent` playbook,
@@ -332,6 +316,14 @@ not `SKILL.md` itself.
   without updating the catalog breaks the form silently.
 - **The default config.** It is shipped on `/inspect` and is what an untouched form runs. It
   has one source, `build_agent_v0_default`; change a default field there, not in each consumer.
+  Its explicit `allow` is not the omitted request/schema fallback (`allow_reads`).
+- **Shared settings.** Permissions owns only `runner.permissions.default`; Advanced owns
+  the visible `sandbox.kind` selector, build-kit switches, and Custom secrets. Secret bindings
+  remain available with a revision id even when the environment selector is hidden.
+  Hidden harness/sandbox policies
+  must survive edits, undo, and buffered saves. See [settings visibility](../../documentation/agent-configuration.md#layer-1-the-frontend-playground-form).
+- **Build-kit policies.** Check exact membership, conditional `read_config` inclusion, and
+  every explicit permission against [the operation table](../../documentation/tools.md#platform-tools-existing-agenta-endpoints).
 - **The built-in tool table.** `PI_BUILTIN_TOOL_NAMES` must stay equal to the runner's
   `PI_BUILTIN_TOOL_IDENTITY`. Both are pinned against
   `sdks/python/oss/tests/pytest/unit/agents/golden/pi_builtin_tools.json`; change the fixture and
@@ -347,3 +339,13 @@ not `SKILL.md` itself.
   of the concrete `ToolConfig` variants — including `reference` and `platform` — plus an `@ag.embed`
   arm), or a valid config fails validation. `@ag.embed` is a separate feature the generic resolver
   inlines; it is not surfaced in the tool-authoring UI.
+
+## Required test updates
+
+- SDK `test_dtos_agent_template.py` and service `test_default_agent_template.py`: canonical
+  creation defaults remain aligned without changing omitted-value fallbacks.
+- API `test_build_kit_overlay.py`: exact operation membership and explicit policies with
+  ordered operations enabled and disabled.
+- Entity UI `agentSettings.test.tsx`, `agentConfigPatch.test.ts`, and `sectionChanges.test.ts`:
+  zero/one/multiple enabled environments, hidden controls, saved-policy preservation,
+  Permissions dirty/undo ownership, and buffered saves after inline edits.

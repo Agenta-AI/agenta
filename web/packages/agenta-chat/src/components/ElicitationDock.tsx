@@ -16,7 +16,7 @@
  * Escape here does NOT settle, unlike `ApprovalCard` and `ConnectionDock`. This card owns a text
  * field, and Escape-to-back-out-of-typing is the stronger expectation; dismissing is the header ✕.
  */
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     buildAcceptResult,
@@ -29,8 +29,8 @@ import {
     serializeElicitationContent,
     type ElicitationRequestPayload,
 } from "@agenta/shared/utils"
-import {Button} from "@agenta/ui/ui"
-import {CaretLeft, CaretRight, Prohibit, Question, X} from "@phosphor-icons/react"
+import {Button, LoadingButton} from "@agenta/ui/ui"
+import {CaretLeft, CaretRight, CircleNotch, Prohibit, Question, X} from "@phosphor-icons/react"
 
 import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"
 import type {ElicitationDockState} from "../hooks/useElicitationDock"
@@ -117,13 +117,34 @@ const ElicitationCard = ({
     const parsed = useMemo(() => parseElicitationPayload(meta.input), [meta.input])
 
     // One settle per card. `meta.settled` only flips after the host's durable write resolves, so the
-    // buttons stay live in between without this latch.
+    // buttons stay live in between without this latch. `submitting` is the same latch made visible:
+    // it stays up after the write lands, because the card only leaves once the transcript catches
+    // up, and it drops only when the write fails and the buttons must come back.
     const settledRef = useRef(false)
+    const [submitting, setSubmitting] = useState(false)
+    const [submissionError, setSubmissionError] = useState<string | null>(null)
     const settle = useCallback(
         (output: Record<string, unknown>) => {
             if (settledRef.current) return
             settledRef.current = true
-            onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output})
+            setSubmitting(true)
+            setSubmissionError(null)
+            const failed = (error: unknown) => {
+                settledRef.current = false
+                setSubmitting(false)
+                setSubmissionError(
+                    error instanceof Error
+                        ? error.message
+                        : "Could not submit your answer. Try again.",
+                )
+            }
+            try {
+                void Promise.resolve(
+                    onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output}),
+                ).catch(failed)
+            } catch (error) {
+                failed(error)
+            }
         },
         [onOutput, meta.toolName, meta.toolCallId],
     )
@@ -132,6 +153,7 @@ const ElicitationCard = ({
         return (
             <RefusalPanel
                 reason={parsed.reason}
+                submitting={submitting}
                 onSkip={() => settle(toOutput(buildCancelResult("Dismissed the request.")))}
             />
         )
@@ -146,6 +168,8 @@ const ElicitationCard = ({
             active={active}
             shortcutsEnabled={shortcutsEnabled}
             settle={settle}
+            submitting={submitting}
+            submissionError={submissionError}
         />
     )
 }
@@ -157,7 +181,15 @@ const toOutput = (result: {action: string; content?: unknown; humanFriendlyMessa
  * A payload the dialect refuses. The dock has already settled it (see `useElicitationDock`), so this
  * panel is transient — the durable explanation is the transcript row. It holds the box meanwhile.
  */
-const RefusalPanel = ({reason, onSkip}: {reason: string; onSkip: () => void}) => {
+const RefusalPanel = ({
+    reason,
+    submitting,
+    onSkip,
+}: {
+    reason: string
+    submitting: boolean
+    onSkip: () => void
+}) => {
     const secret = parseSecretRefusal(reason)
     return (
         <Shell>
@@ -180,9 +212,9 @@ const RefusalPanel = ({reason, onSkip}: {reason: string; onSkip: () => void}) =>
                 </div>
             </div>
             <div className="flex flex-row-reverse items-center gap-2">
-                <Button variant="ghost" onClick={onSkip}>
+                <LoadingButton variant="ghost" loading={submitting} onClick={onSkip}>
                     Skip
-                </Button>
+                </LoadingButton>
             </div>
         </Shell>
     )
@@ -206,6 +238,8 @@ const LiveCard = ({
     active,
     shortcutsEnabled,
     settle,
+    submitting,
+    submissionError,
 }: {
     payload: ElicitationRequestPayload
     meta: ClientToolMeta
@@ -214,9 +248,14 @@ const LiveCard = ({
     active: boolean
     shortcutsEnabled: boolean
     settle: (output: Record<string, unknown>) => void
+    /** A settle is in flight: the fired button spins and the others sit out, as in ApprovalCard. */
+    submitting: boolean
+    submissionError?: string | null
 }) => {
     const cardRef = useRef<HTMLDivElement>(null)
     const form = useMemo(() => buildElicitationSteps(payload), [payload])
+    // Which button fired, so the spinner lands on it (the card only reports "submitting").
+    const [firedAction, setFiredAction] = useState<"primary" | "secondary" | "dismiss" | null>(null)
 
     const complete = useCallback(
         (content: Record<string, unknown>) => {
@@ -248,6 +287,34 @@ const LiveCard = ({
         },
         [stepper, settle],
     )
+
+    // Every entry point checks `submitting` itself: `settle` already refuses a second answer, but
+    // `settleAnd` discards the draft before it gets there, and a retry after a failed send would
+    // come back to an empty form.
+    const decline = useCallback(() => {
+        if (submitting) return
+        setFiredAction("secondary")
+        settleAnd(toOutput(buildDeclineResult("Declined the request.")))
+    }, [submitting, settleAnd])
+
+    const dismiss = useCallback(() => {
+        if (submitting) return
+        setFiredAction("dismiss")
+        settleAnd(toOutput(buildCancelResult("Dismissed the request.")))
+    }, [submitting, settleAnd])
+
+    const primary = useCallback(() => {
+        if (submitting) return
+        setFiredAction("primary")
+        stepper.primary()
+    }, [submitting, stepper])
+
+    // A skip with no next step and no review to land on must settle, or the run parks forever.
+    const skipStep = useCallback(() => {
+        if (submitting) return
+        if (!isReview && !stepper.canGoForward) return decline()
+        stepper.skip()
+    }, [submitting, isReview, stepper, decline])
 
     const multi = isMultiSelect(step)
 
@@ -285,7 +352,7 @@ const LiveCard = ({
     }, [rows.length, isReview, stepper.index, active])
 
     const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-        if (!active || !shortcutsEnabled || event.repeat) return
+        if (!active || !shortcutsEnabled || submitting || event.repeat) return
         const mod = event.metaKey || event.ctrlKey
         const target = event.target as HTMLElement | null
         const typing =
@@ -299,7 +366,7 @@ const LiveCard = ({
         // calendar on a date trigger, a pick on an option row, an entry in a chip field.
         if (mod && event.key === "Enter") {
             event.preventDefault()
-            stepper.primary()
+            primary()
             return
         }
         if (mod && event.key === "ArrowLeft") {
@@ -314,7 +381,7 @@ const LiveCard = ({
         }
         if (mod && (event.key === "Backspace" || event.key === "Delete")) {
             event.preventDefault()
-            stepper.skip()
+            skipStep()
             return
         }
         if (mod) return
@@ -407,7 +474,7 @@ const LiveCard = ({
                         <>
                             <NavButton
                                 label="Previous question"
-                                disabled={!stepper.canGoBack}
+                                disabled={submitting || !stepper.canGoBack}
                                 onClick={stepper.back}
                             >
                                 <CaretLeft size={11} />
@@ -420,7 +487,7 @@ const LiveCard = ({
                             </span>
                             <NavButton
                                 label="Next question"
-                                disabled={!stepper.canGoForward}
+                                disabled={submitting || !stepper.canGoForward}
                                 onClick={stepper.forward}
                             >
                                 <CaretRight size={11} />
@@ -432,12 +499,15 @@ const LiveCard = ({
                         size="icon-sm"
                         title="Dismiss"
                         aria-label="Dismiss this request"
-                        onClick={() =>
-                            settleAnd(toOutput(buildCancelResult("Dismissed the request.")))
-                        }
+                        disabled={submitting && firedAction !== "dismiss"}
+                        onClick={dismiss}
                         className={`ml-1 size-[22px] text-colorTextQuaternary hover:text-colorText ${touchCls}`}
                     >
-                        <X size={11} />
+                        {submitting && firedAction === "dismiss" ? (
+                            <CircleNotch size={11} className="animate-spin" />
+                        ) : (
+                            <X size={11} />
+                        )}
                     </Button>
                 </div>
             </Eyebrow>
@@ -459,10 +529,11 @@ const LiveCard = ({
                 alone read as cramped under a field. */}
             <div className="flex flex-col gap-2 pb-1" style={{minHeight: CONTROL_MIN_H}}>
                 {isReview ? (
-                    <ReviewList stepper={stepper} />
+                    <ReviewList stepper={stepper} disabled={submitting} />
                 ) : step ? (
                     <>
-                        <span className="text-[13px] font-medium leading-tight line-clamp-2">
+                        {/* Capped and scrollable, not clamped: nothing shifts, nothing is lost. */}
+                        <span className="block max-h-20 overflow-y-auto text-sm font-medium leading-snug sm:max-h-[34px] sm:text-[13px] sm:leading-tight">
                             {stepper.isMultiStep ? (
                                 <span className="text-colorText">{stepper.position}. </span>
                             ) : null}
@@ -482,34 +553,39 @@ const LiveCard = ({
                             onChange={(value) => stepper.setValue(step.name, value)}
                             onPick={pickRow}
                             onCursor={stepper.setCursor}
-                            onSubmit={stepper.primary}
+                            onSubmit={primary}
                         />
                     </>
                 ) : null}
             </div>
 
             <div className="flex flex-row-reverse items-center gap-2">
-                <Button className={touchCls} onClick={stepper.primary}>
+                <LoadingButton
+                    className={touchCls}
+                    disabled={submitting}
+                    loading={submitting && firedAction === "primary"}
+                    onClick={primary}
+                >
                     {stepper.primaryLabel}
-                </Button>
-                <Button
+                </LoadingButton>
+                <LoadingButton
                     variant="ghost"
                     className={touchCls}
-                    onClick={() =>
-                        isReview
-                            ? settleAnd(toOutput(buildDeclineResult("Declined the request.")))
-                            : stepper.skip()
-                    }
+                    disabled={submitting}
+                    loading={submitting && firedAction === "secondary"}
+                    onClick={isReview ? decline : skipStep}
                 >
                     {isReview ? "Decline" : "Skip"}
-                </Button>
+                </LoadingButton>
                 <span
                     aria-live="polite"
                     className={`mr-auto truncate text-xs ${
-                        stepper.error ? "text-colorError" : "text-colorTextTertiary"
+                        submissionError || stepper.error
+                            ? "text-colorError"
+                            : "text-colorTextTertiary"
                     }`}
                 >
-                    {stepper.error ?? stepper.hold ?? ""}
+                    {submissionError ?? stepper.error ?? stepper.hold ?? ""}
                 </span>
             </div>
         </div>
@@ -540,7 +616,13 @@ const NavButton = ({
     </Button>
 )
 
-const ReviewList = ({stepper}: {stepper: ReturnType<typeof useElicitationStepper>}) => (
+const ReviewList = ({
+    stepper,
+    disabled,
+}: {
+    stepper: ReturnType<typeof useElicitationStepper>
+    disabled: boolean
+}) => (
     <>
         <span className="text-[13px] font-medium leading-tight">
             Review your answers{" "}
@@ -554,6 +636,7 @@ const ReviewList = ({stepper}: {stepper: ReturnType<typeof useElicitationStepper
                 <button
                     key={step.name}
                     type="button"
+                    disabled={disabled}
                     onMouseEnter={() => stepper.setCursor(index)}
                     onClick={() => stepper.goTo(index)}
                     // `border-transparent` is load-bearing: the app's button reset paints a border,

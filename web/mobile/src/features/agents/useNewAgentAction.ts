@@ -105,8 +105,13 @@ export const useNewAgentAction = (base: string) => {
      * mints its ephemeral with — naming from the prompt is the agent's job, not the composer's.
      */
     const createFromPrompt = useCallback(
-        (input: {text: string; sessionId?: string; parts?: FileUIPart[]}) =>
-            run({seedMessage: input.text, sessionId: input.sessionId, seedParts: input.parts}),
+        (input: {text: string; sessionId?: string; parts?: FileUIPart[]; name?: string}) =>
+            run({
+                name: input.name,
+                seedMessage: input.text,
+                sessionId: input.sessionId,
+                seedParts: input.parts,
+            }),
         [run],
     )
 

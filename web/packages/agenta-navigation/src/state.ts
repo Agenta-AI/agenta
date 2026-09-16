@@ -143,3 +143,25 @@ export const sidebarOpenGroupsAtomFamily = atomFamily((scopeId: string) =>
         },
     ),
 )
+
+/**
+ * Filter menus currently on screen for this scope, by the group key they hang off.
+ *
+ * In-memory and per scope, exactly like `sidebarPopupGroupsAtomFamily` above. A menu's facets can
+ * be expensive to populate — the Sessions menu's Agent facet needs the whole agent catalog — and
+ * the Sessions group is `alwaysOpen`, so the group gate cannot defer that work. This one can:
+ * nothing reads the catalog until the menu is actually open.
+ */
+export const sidebarOpenFilterMenusAtomFamily = atomFamily((_scopeId: string) => atom<string[]>([]))
+
+export const setSidebarFilterMenuOpenAtom = atom(
+    null,
+    (get, set, {scopeId, key, open}: {scopeId: string; key: string; open: boolean}) => {
+        const menusAtom = sidebarOpenFilterMenusAtomFamily(scopeId)
+        const current = get(menusAtom)
+        const next = open
+            ? Array.from(new Set([...current, key]))
+            : current.filter((menuKey) => menuKey !== key)
+        set(menusAtom, next)
+    },
+)

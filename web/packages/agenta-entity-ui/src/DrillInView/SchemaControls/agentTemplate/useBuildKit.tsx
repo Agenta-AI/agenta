@@ -7,10 +7,9 @@
  * revision) plus the user's build-kit state — the master on/off and the platform ops switched off
  * individually — and returns:
  *   - `hasBuildKitOverlay`: whether to render the build-kit block / extend the Advanced section,
+ *   - `buildKitEnabled`: the master on/off, for callers that flag the panel while it is live,
  *   - `buildKitSection`: the drawer block (one tool list — platform tools with a switch each, the
- *     Agenta-owned embeds locked on — plus sandbox permissions) under the master enable switch,
- *   - `permissionOverrideHint`: the inline warning to show above SandboxPermissionControl when the
- *     build kit overrides one of the user's permission values.
+ *     Agenta-owned embeds locked on) under the master enable switch.
  *
  * Kept beside useModelHarness (which owns the Advanced section) so the overlay and the user's own
  * sandbox/permission controls render together.
@@ -26,7 +25,7 @@ import {
 import {useAtom, useAtomValue} from "jotai"
 
 import {describeBuildKitEmbed, describeBuildKitPlatformTool} from "./buildKitDescriptors"
-import {BuildKitSection, PermissionOverrideHint, type BuildKitTool} from "./BuildKitSection"
+import {BuildKitSection, type BuildKitTool} from "./BuildKitSection"
 import {asObj, staticEmbedSlug} from "./itemDescriptors"
 
 /** Display name for an `@ag.embed` row: the overlay's sibling `name`, else the referenced
@@ -53,35 +52,12 @@ function embedRow(entry: Record<string, unknown>, fallbackKey: string): BuildKit
     }
 }
 
-function stableString(value: unknown): string {
-    try {
-        return JSON.stringify(value)
-    } catch {
-        return String(value)
-    }
-}
-
-function overriddenPermissionKeys(
-    userPermissions: Record<string, unknown> | null | undefined,
-    overlayPermissions: Record<string, unknown> | null | undefined,
-): string[] {
-    if (!userPermissions || !overlayPermissions) return []
-    return Object.entries(overlayPermissions)
-        .filter(([key, overlayValue]) => {
-            if (!(key in userPermissions)) return false
-            return stableString(userPermissions[key]) !== stableString(overlayValue)
-        })
-        .map(([key]) => key)
-}
-
 export function useBuildKit({
     revisionId,
-    sandboxPermissions,
     disabled,
     stateOverride,
 }: {
     revisionId: string | null
-    sandboxPermissions: Record<string, unknown> | null
     disabled?: boolean
     /** When set, the switches read/write this draft buffer instead of the persisted atoms. */
     stateOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
@@ -138,11 +114,6 @@ export function useBuildKit({
             embeddedOverlaySkills.length > 0 ||
             Object.keys(overlayPermissions ?? {}).length > 0),
     )
-    const sandboxPermissionOverrideKeys = useMemo(
-        () =>
-            buildKitEnabled ? overriddenPermissionKeys(sandboxPermissions, overlayPermissions) : [],
-        [buildKitEnabled, sandboxPermissions, overlayPermissions],
-    )
 
     // Platform tools first, then the Agenta-owned embeds — one list, no category headings (#6025).
     const toolRows = useMemo<BuildKitTool[]>(
@@ -175,18 +146,13 @@ export function useBuildKit({
             tools={toolRows}
             onToggleTool={toggleTool}
             onSetAllTools={setAllTools}
-            permissions={overlayPermissions}
         />
     ) : null
 
-    const permissionOverrideHint =
-        sandboxPermissionOverrideKeys.length > 0 ? (
-            <PermissionOverrideHint keys={sandboxPermissionOverrideKeys} />
-        ) : null
-
     return {
         hasBuildKitOverlay,
+        // The master on/off, so the Advanced rail can flag the panel while the overlay is live.
+        buildKitEnabled,
         buildKitSection,
-        permissionOverrideHint,
     }
 }

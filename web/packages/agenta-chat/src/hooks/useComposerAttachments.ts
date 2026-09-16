@@ -14,7 +14,8 @@ import {attachmentsBySession} from "../state/sessionEphemera"
 
 import {removeUploadFile, useAttachmentUploads} from "./useAttachmentUploads"
 
-type StagedFile = UploadFile<SessionAttachmentResponse>
+export type ComposerAttachment = UploadFile<SessionAttachmentResponse>
+type StagedFile = ComposerAttachment
 
 /** Convert settled upload-tray entries into reference `file` parts via the neutral builder. */
 export const stagedFilesToParts = (files: StagedFile[], sessionId: string) =>
@@ -279,7 +280,14 @@ export const useComposerAttachments = ({
     /** Drop the attachments a send just carried, plus any rejection notice. */
     const clearAttachments = (consumedUids: string[]) => {
         // Only what this send carried: anything staged while it was in flight belongs to the next message.
-        setFiles((prev) => prev.filter((file) => !consumedUids.includes(file.uid)))
+        const keep = (file: StagedFile) => !consumedUids.includes(file.uid)
+        setFiles((prev) => prev.filter(keep))
+        // The store is also written here, not only by the sync effect: a hand-off navigates right
+        // after this call, and the destination composer seeds its tray from the store on mount.
+        const owner = filesOwnerRef.current
+        const remaining = files.filter(keep)
+        if (remaining.length > 0) attachmentsBySession.set(owner, remaining)
+        else attachmentsBySession.delete(owner)
         setRejections([])
     }
 
@@ -289,12 +297,12 @@ export const useComposerAttachments = ({
      * than through `addFiles`, which would re-upload them as second attachments. Idempotent:
      * anything already back in the tray is left where it is.
      */
-    const restoreAttachments = (restored: StagedFile[]) => {
+    const restoreAttachments = useCallback((restored: StagedFile[]) => {
         setFiles((prev) => [
             ...restored.filter((file) => !prev.some((row) => row.uid === file.uid)),
             ...prev,
         ])
-    }
+    }, [])
 
     return {
         uploadsEnabled,

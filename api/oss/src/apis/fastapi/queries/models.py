@@ -1,6 +1,8 @@
 from typing import Optional, List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from oss.src.core.git.dtos import RevisionGrouping, validate_revision_grouping
 
 from oss.src.core.shared.dtos import (
     Reference,
@@ -135,7 +137,26 @@ class QueryRevisionQueryRequest(BaseModel):
     #
     include_archived: Optional[bool] = None
     #
+    grouping: Optional[RevisionGrouping] = Field(
+        default=None,
+        description=(
+            "Divide matching revisions by artifact or variant and select one "
+            "revision from each group."
+        ),
+    )
+    #
     windowing: Optional[Windowing] = None
+
+    @model_validator(mode="after")
+    def _validate_grouping(self):
+        validate_revision_grouping(
+            grouping=self.grouping,
+            artifact_refs=self.query_refs,
+            variant_refs=self.query_variant_refs,
+            revision_refs=self.query_revision_refs,
+            windowing=self.windowing,
+        )
+        return self
 
 
 class QueryRevisionCommitRequest(BaseModel):

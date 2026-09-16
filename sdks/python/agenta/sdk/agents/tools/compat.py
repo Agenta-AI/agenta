@@ -60,6 +60,32 @@ def _copy_tool_metadata(
     return result
 
 
+def _action_key_from_provider_action(
+    provider_action: Any, integration: Any
+) -> Optional[str]:
+    """The catalog tool key a legacy ``provider_action`` names, or ``None``.
+
+    ``provider_action`` holds the PROVIDER action id, which carries the integration as a
+    prefix (``GITHUB_GET_AN_ISSUE``). The ``action`` field holds the catalog key, which does
+    not (``GET_AN_ISSUE``), and the backend resolves a legacy reference by that key alone.
+    Copying the id across verbatim would name a tool no catalog carries, so strip the prefix
+    exactly as the catalog does when it derives the key.
+
+    "Exactly" includes the case rule. The catalog upper-cases the INTEGRATION to build the
+    prefix and then matches the raw provider id against it, so a lower-case prefix on the id
+    is not a prefix at all and stays part of the key. Matching case-insensitively here would
+    strip a prefix the catalog keeps, and turn a key that was already correct into one no
+    catalog holds.
+    """
+    if not isinstance(provider_action, str) or not provider_action:
+        return None
+    if isinstance(integration, str) and integration:
+        prefix = f"{integration.upper()}_"
+        if provider_action.startswith(prefix):
+            return provider_action[len(prefix) :]
+    return provider_action
+
+
 def coerce_tool_config(value: Any) -> ToolConfig:
     """Convert one supported legacy shape into canonical tool configuration."""
     if isinstance(
@@ -87,6 +113,19 @@ def coerce_tool_config(value: Any) -> ToolConfig:
     if data.get("type") == "composio":
         data["type"] = "gateway"
         data.setdefault("provider", "composio")
+
+    # Pre-2026-08-27 ``gateway`` entries spelled the action ``provider_action``, the field
+    # name the discovery response uses. No migration ever rewrote them, so translate on
+    # read. The key is dropped either way: the arm forbids extras, so leaving it beside a
+    # canonical ``action`` would refuse the entry for the field it no longer needs.
+    if data.get("type") == "gateway":
+        provider_action = data.pop("provider_action", None)
+        if not data.get("action"):
+            action = _action_key_from_provider_action(
+                provider_action, data.get("integration")
+            )
+            if action:
+                data["action"] = action
 
     if data.get("type") in {
         "builtin",

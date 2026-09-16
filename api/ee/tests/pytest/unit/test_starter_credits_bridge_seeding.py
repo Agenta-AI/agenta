@@ -5,14 +5,16 @@ blocking, alias conflicts), policy resolution, and velocity caps, with every
 external dependency stubbed."""
 
 import asyncio
+import copy
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
 from oss.src.utils.env import env, PostHogConfig, StarterCreditsBridgeConfig
-from oss.src.core.secrets.dtos import SecretResponseDTO
+from oss.src.core.secrets.dtos import CustomModelSettingsDTO, SecretResponseDTO
 from oss.src.core.secrets.enums import CustomProviderKind
+from oss.src.core.secrets.redaction import project_secret_response
 from oss.src.core.secrets.managed import (
     SecretManagementDTO,
     SecretManagementPolicy,
@@ -76,6 +78,8 @@ class FakeVaultService:
         self.create_dto = None
         self.management = None
         self.create_error = None
+        self.update_calls = []
+        self.invalidations = []
 
     async def get_secret_by_slug(self, secret_slug, project_id=None, **kwargs):
         assert secret_slug == service.STARTER_CREDITS_SLUG
@@ -91,12 +95,36 @@ class FakeVaultService:
         self.management = management
         self.row = SimpleNamespace(
             id=uuid4(),
+            slug=create_secret_dto.slug,
             header=create_secret_dto.header,
             data=create_secret_dto.secret.data,
             management=management,
             write_only=bool(create_secret_dto.write_only),
         )
         self.created_count += 1
+        return self.row
+
+    async def invalidate_secrets_cache(self, project_id):
+        await asyncio.sleep(0)
+        self.invalidations.append(str(project_id))
+
+    async def update_managed_secret(
+        self,
+        *,
+        secret_id,
+        update_secret_dto,
+        manager,
+        project_id=None,
+        organization_id=None,
+    ):
+        await asyncio.sleep(0)
+        assert self.row is not None
+        assert secret_id == self.row.id
+        assert manager is SecretManager.STARTER_CREDITS_BRIDGE
+        self.update_calls.append(update_secret_dto)
+        # The real service revalidates the merged payload and writes it back, so the row
+        # the next read returns is the update's own data.
+        self.row.data = update_secret_dto.secret.data
         return self.row
 
 
@@ -107,6 +135,7 @@ class FakeProxyClient:
 
     records: dict = {}
     generate_failures: list = []
+    update_failures: list = []
     instances: list = []
 
     def __init__(self, *, base_url, master_key):
@@ -114,6 +143,7 @@ class FakeProxyClient:
         self.master_key = master_key
         self.generate_calls = []
         self.block_calls = []
+        self.update_calls = []
         FakeProxyClient.instances.append(self)
 
     @classmethod
@@ -166,6 +196,17 @@ class FakeProxyClient:
     async def block_key(self, *, key):
         self.block_calls.append(key)
 
+    async def update_key_models(self, *, key, models):
+        await asyncio.sleep(0)
+        self.update_calls.append(dict(key=key, models=models))
+        if FakeProxyClient.update_failures:
+            raise FakeProxyClient.update_failures.pop(0)
+        for record in FakeProxyClient.records.values():
+            if record["key"] == key:
+                record["models"] = list(models)
+                return
+        raise ProxyRequestError(status_code=404, detail="no such key")
+
 
 def _all_generate_calls():
     return [
@@ -184,8 +225,11 @@ def _all_block_calls():
 @pytest.fixture
 def seeding_env(monkeypatch):
     """Arm the config and stub every dependency; returns the mutable stubs."""
+    service._reconciling_projects.clear()
+    service._reconcile_cooldowns.clear()
     FakeProxyClient.records = {}
     FakeProxyClient.generate_failures = []
+    FakeProxyClient.update_failures = []
     FakeProxyClient.instances = []
     service._verified_teams.clear()
 
@@ -1176,3 +1220,446 @@ def test_a_bridge_deployment_without_a_runtime_key_fails_at_startup(monkeypatch)
 
     with pytest.raises(RuntimeError, match="AGENTA_SERVICES_INTERNAL_KEY"):
         helpers.validate_platform_runtime_key()
+
+
+def _all_key_update_calls():
+    return [
+        call for instance in FakeProxyClient.instances for call in instance.update_calls
+    ]
+
+
+class TestReconcilingAStaleFundedModel:
+    """The row freezes the funded model at creation, but the proxy serves exactly one model
+    and that model gets cut over. A row left on the old id resolves every run to a model the
+    proxy refuses with HTTP 400 "Invalid model name passed in model=<old id>"."""
+
+    async def _seed_then_cut_the_model_over(self, seeding_env, *, funded: str):
+        await _seed()
+        assert seeding_env.vault.row is not None
+        seeding_env.monkeypatch.setattr(
+            env,
+            "starter_credits_bridge",
+            _armed_config(model_id=funded),
+        )
+
+    async def test_a_stale_row_is_repointed_at_the_funded_model(self, seeding_env):
+        await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+
+        await _seed()
+
+        row = seeding_env.vault.row
+        assert [model.slug for model in row.data.models] == ["vertex_ai/new-model"]
+        # The credential and the routing URL survive the rewrite untouched.
+        assert row.data.provider.key == FakeProxyClient.records[ORGANIZATION_ID]["key"]
+        assert row.data.provider.url == "https://credits-proxy.example.test"
+        assert row.data.provider_slug == service.STARTER_CREDITS_NAME
+        # A carried model_keys list would keep publishing the old model id.
+        assert row.data.model_keys is None
+
+    async def test_the_minted_key_is_repointed_and_never_re_minted(self, seeding_env):
+        await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+
+        await _seed()
+
+        (update,) = _all_key_update_calls()
+        assert update["models"] == ["vertex_ai/new-model"]
+        assert update["key"] == FakeProxyClient.records[ORGANIZATION_ID]["key"]
+        assert FakeProxyClient.records[ORGANIZATION_ID]["models"] == [
+            "vertex_ai/new-model"
+        ]
+        # One mint, from the original seed. The grant invariant is one key per organization.
+        assert len(_all_generate_calls()) == 1
+        assert _all_block_calls() == []
+
+    async def test_a_current_row_is_left_alone(self, seeding_env):
+        await _seed()
+        seeding_env.vault.update_calls.clear()
+
+        await _seed()
+
+        assert seeding_env.vault.update_calls == []
+        assert _all_key_update_calls() == []
+        assert len(_all_generate_calls()) == 1
+
+    async def test_a_failed_key_update_leaves_the_row_stale(self, seeding_env):
+        # A row on the new model whose key still allows only the old one is just as broken,
+        # and it would read as current forever, so nothing would try again. Leaving it stale
+        # is what keeps the next read retrying. Nothing is raised: the signup path this runs
+        # inside deletes the new user when setup raises.
+        await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        FakeProxyClient.update_failures = [
+            ProxyRequestError(status_code=503, detail="proxy down")
+        ]
+
+        await _seed()
+
+        row = seeding_env.vault.row
+        assert [model.slug for model in row.data.models] == ["vertex_ai/some-model"]
+        assert seeding_env.vault.update_calls == []
+        assert len(_all_key_update_calls()) == 1
+
+    async def test_reconciling_consumes_no_velocity_slot(self, seeding_env):
+        # The velocity caps meter GRANTS. A repair mints nothing, so it must not spend one.
+        await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+
+        await _seed()
+
+        assert seeding_env.released == []
+        assert len(_all_generate_calls()) == 1
+
+    async def test_the_repaired_row_resolves_to_the_funded_model(self, seeding_env):
+        # The end the repair exists for: what the runtime resolver runs after it.
+        from agenta.sdk.agents.connections import ModelRef
+        from agenta.sdk.agents.platform import connections
+
+        await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        await _seed()
+
+        row = seeding_env.vault.row
+        stored = SecretResponseDTO(
+            id=uuid4(),
+            slug=service.STARTER_CREDITS_SLUG,
+            kind="custom_provider",
+            data=row.data.model_dump(mode="json"),
+            header=row.header,
+            write_only=True,
+            management=seeding_env.vault.management,
+        )
+        # The shape the route actually returns to the runtime resolver: the management
+        # POLICY without the manager's name, which is what says the model list is Agenta's.
+        public = project_secret_response(stored, reveal_write_only=True)
+        (candidate,) = connections._catalog([public.model_dump(mode="json")])
+        assert candidate.managed is True
+
+        # A revision saved before the cutover still names the old id.
+        stale = ModelRef(
+            model=f"{service.STARTER_CREDITS_NAME}/custom/vertex_ai/some-model",
+            connection={"mode": "agenta", "slug": service.STARTER_CREDITS_SLUG},
+        )
+        assert candidate.selected_model_id(stale) == "vertex_ai/new-model"
+
+        fresh = ModelRef(
+            model=f"{service.STARTER_CREDITS_NAME}/custom/vertex_ai/new-model",
+            connection={"mode": "agenta", "slug": service.STARTER_CREDITS_SLUG},
+        )
+        assert candidate.selected_model_id(fresh) == "vertex_ai/new-model"
+
+
+class TestReconcilingOnRead:
+    """Seeding runs once, at signup, so nothing revisits a row written before a cutover.
+    The read path is what reaches those rows: the picker and the runtime resolver both list
+    a project's secrets."""
+
+    async def _seed_then_cut_the_model_over(self, seeding_env, *, funded: str):
+        await _seed()
+        seeding_env.monkeypatch.setattr(
+            env,
+            "starter_credits_bridge",
+            _armed_config(model_id=funded),
+        )
+        return seeding_env.vault.row
+
+    async def test_a_stale_row_read_comes_back_on_the_funded_model(self, seeding_env):
+        row = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        minted = FakeProxyClient.records[ORGANIZATION_ID]["key"]
+
+        repaired = await service.reconcile_starter_credits_on_read(
+            project_id=seeding_env.project.id,
+            secrets=[row],
+        )
+
+        assert repaired is not None
+        assert [model.slug for model in repaired.data.models] == ["vertex_ai/new-model"]
+        # One attempt per project per cooldown, so nothing can rewrite a row per read.
+        assert str(seeding_env.project.id) in service._reconcile_cooldowns
+        (update,) = _all_key_update_calls()
+        assert update == {"key": minted, "models": ["vertex_ai/new-model"]}
+        assert repaired.data.provider.key == minted
+        # A repair is not a grant.
+        assert len(_all_generate_calls()) == 1
+
+    async def test_a_current_row_read_costs_no_call(self, seeding_env):
+        await _seed()
+        row = seeding_env.vault.row
+        seeding_env.vault.update_calls.clear()
+
+        repaired = await service.reconcile_starter_credits_on_read(
+            project_id=seeding_env.project.id,
+            secrets=[row],
+        )
+
+        assert repaired is None
+        assert _all_key_update_calls() == []
+        assert seeding_env.vault.update_calls == []
+
+    async def test_a_failed_key_update_is_retried_by_a_later_read(self, seeding_env):
+        # The retry is the whole point of leaving the row stale, so pin that it happens
+        # once the proxy recovers.
+        row = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        FakeProxyClient.update_failures = [
+            ProxyRequestError(status_code=503, detail="proxy down")
+        ]
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[row],
+            )
+            is None
+        )
+        assert [model.slug for model in row.data.models] == ["vertex_ai/some-model"]
+
+        # The cooldown holds a project that did not repair, so a read inside it is free.
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[row],
+            )
+            is None
+        )
+        assert len(_all_key_update_calls()) == 1
+
+        service._reconcile_cooldowns.clear()
+        repaired = await service.reconcile_starter_credits_on_read(
+            project_id=seeding_env.project.id,
+            secrets=[row],
+        )
+
+        assert repaired is not None
+        assert [model.slug for model in repaired.data.models] == ["vertex_ai/new-model"]
+        assert len(_all_key_update_calls()) == 2
+
+    async def test_a_reader_that_skips_the_repair_still_answers_from_the_row(
+        self, seeding_env
+    ):
+        # Reads are served from a cached list, so a snapshot taken before another request
+        # repaired the row can still be published after it. A reader that skips the repair
+        # must not serve the stale model it is holding.
+        stale = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        snapshot = copy.deepcopy(stale)
+        # Another request has already repaired the row and is still in flight.
+        stale.data.models = [CustomModelSettingsDTO(slug="vertex_ai/new-model")]
+        service._reconciling_projects.add(str(seeding_env.project.id))
+
+        try:
+            fresh = await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[snapshot],
+            )
+        finally:
+            service._reconciling_projects.discard(str(seeding_env.project.id))
+
+        assert fresh is not None
+        assert [model.slug for model in fresh.data.models] == ["vertex_ai/new-model"]
+        # No second repair: the in-flight request owns it.
+        assert _all_key_update_calls() == []
+        assert seeding_env.vault.update_calls == []
+        # The cached list this snapshot came from is stale, so it is dropped.
+        assert seeding_env.vault.invalidations == [str(seeding_env.project.id)]
+
+    async def test_a_cooling_reader_still_answers_from_the_row(self, seeding_env):
+        # Same for a project inside its cooldown: suppressing another proxy call must not
+        # mean serving stale data.
+        stale = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        snapshot = copy.deepcopy(stale)
+        stale.data.models = [CustomModelSettingsDTO(slug="vertex_ai/new-model")]
+        service._hold_off(str(seeding_env.project.id))
+
+        fresh = await service.reconcile_starter_credits_on_read(
+            project_id=seeding_env.project.id,
+            secrets=[snapshot],
+        )
+
+        assert fresh is not None
+        assert [model.slug for model in fresh.data.models] == ["vertex_ai/new-model"]
+        assert _all_key_update_calls() == []
+
+    async def test_a_failed_read_back_never_reaches_the_caller(self, seeding_env):
+        # The re-read and the cache drop both reach the database. Neither may take the
+        # caller's secrets list down with it.
+        stale = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        service._hold_off(str(seeding_env.project.id))
+
+        async def explode(*args, **kwargs):
+            raise ConnectionError("the database is down")
+
+        seeding_env.monkeypatch.setattr(
+            seeding_env.vault, "get_secret_by_slug", explode
+        )
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[stale],
+            )
+            is None
+        )
+
+    async def test_a_row_that_is_still_stale_hands_nothing_back(self, seeding_env):
+        # Nothing better to give the caller than what it already holds, and the cached list
+        # must not be dropped on every read while a project cannot be repaired.
+        stale = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        service._hold_off(str(seeding_env.project.id))
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[stale],
+            )
+            is None
+        )
+        assert seeding_env.vault.invalidations == []
+
+    async def test_the_read_stands_when_the_repair_fails(self, seeding_env):
+        # A caller must never lose its whole secrets list over a connection that is at
+        # worst as broken as it already was.
+        row = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+
+        async def explode(**kwargs):
+            raise RuntimeError("vault is down")
+
+        seeding_env.monkeypatch.setattr(
+            seeding_env.vault, "update_managed_secret", explode
+        )
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[row],
+            )
+            is None
+        )
+        # The in-flight guard is released and the cooldown is armed, so a later read tries
+        # again without every read in between paying for it.
+        assert service._reconciling_projects == set()
+        assert str(seeding_env.project.id) in service._reconcile_cooldowns
+
+    async def test_a_row_the_bridge_does_not_own_is_left_alone(self, seeding_env):
+        # A user may delete the seeded connection and save their own under the same slug.
+        # That one is theirs to point anywhere.
+        row = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        row.management = None
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[row],
+            )
+            is None
+        )
+        assert _all_key_update_calls() == []
+
+    async def test_a_disarmed_bridge_reads_nothing(self, seeding_env):
+        row = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        seeding_env.monkeypatch.setattr(
+            env,
+            "starter_credits_bridge",
+            _armed_config(model_id="vertex_ai/new-model", enabled=False),
+        )
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[row],
+            )
+            is None
+        )
+        assert _all_key_update_calls() == []
+
+
+class TestTheRepairSurvivesTheMapping:
+    """The repair is only worth anything if it PERSISTS. If the write did not change the
+    stored models, the read path would see the same stale row on every list and send the
+    same repair again, so this pins the round trip through the storage mapping."""
+
+    async def test_the_rewrite_round_trips_through_the_row(self, seeding_env):
+        from oss.src.dbs.postgres.secrets.mappings import (
+            map_secrets_dbe_to_dto,
+            map_secrets_dto_to_dbe,
+            map_secrets_dto_to_dbe_update,
+        )
+
+        await _seed()
+        created = seeding_env.vault.create_dto
+        dbe = map_secrets_dto_to_dbe(
+            project_id=seeding_env.project.id,
+            organization_id=None,
+            secret_dto=created,
+            management=seeding_env.vault.management,
+        )
+        stored = map_secrets_dbe_to_dto(secrets_dbe=dbe)
+        assert [model.slug for model in stored.data.models] == ["vertex_ai/some-model"]
+
+        config = _armed_config(model_id="vertex_ai/new-model")
+        map_secrets_dto_to_dbe_update(
+            secrets_dbe=dbe,
+            update_secret_dto=service._model_update(row=stored, config=config),
+        )
+        rewritten = map_secrets_dbe_to_dto(secrets_dbe=dbe)
+
+        assert [model.slug for model in rewritten.data.models] == [
+            "vertex_ai/new-model"
+        ]
+        # Everything else survives: the credential, the routing URL, the namespace, and
+        # the two server-controlled flags that ride inside the encrypted payload.
+        assert rewritten.data.provider.key == stored.data.provider.key
+        assert rewritten.data.provider.url == stored.data.provider.url
+        assert rewritten.data.provider_slug == service.STARTER_CREDITS_NAME
+        assert rewritten.data.harnesses == ["pi_core"]
+        assert rewritten.write_only is True
+        assert rewritten.management == seeding_env.vault.management
+        # The published namespaced key follows the new model, so the row stops offering
+        # the old one to the picker and to the runtime resolver.
+        assert rewritten.data.model_keys == [
+            f"{service.STARTER_CREDITS_NAME}/custom/vertex_ai/new-model"
+        ]
+
+    async def test_a_row_with_no_key_is_not_rewritten(self, seeding_env):
+        # A credential-less row cannot run any model, so a repair would fix nothing and the
+        # read path would send it again on every list.
+        await _seed()
+        row = seeding_env.vault.row
+        row.data.provider.key = None
+        seeding_env.monkeypatch.setattr(
+            env,
+            "starter_credits_bridge",
+            _armed_config(model_id="vertex_ai/new-model"),
+        )
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[row],
+            )
+            is None
+        )
+        assert seeding_env.vault.update_calls == []
+        assert _all_key_update_calls() == []

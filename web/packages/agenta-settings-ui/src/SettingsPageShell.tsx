@@ -94,32 +94,36 @@ const SettingsPageShell = ({
                     clearance above the title once it is stuck against the container edge. */}
                 <header
                     ref={headerRef}
-                    className="sticky top-0 z-20 -mt-4 flex items-start justify-between gap-6 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer pb-6 pt-4"
+                    className="sticky top-0 z-20 -mt-4 flex flex-col gap-1 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer pb-6 pt-4"
                 >
-                    <div className="flex min-w-0 flex-col gap-1">
+                    {/* The docs link rides the TITLE's row, not the header's: as a sibling of the
+                        whole title+description column it wrapped under the description on a
+                        narrow page, reading as a third line of body copy. */}
+                    <div className="flex min-w-0 items-center justify-between gap-4">
                         {/* antd's heading-3 (24px / 1.3333 / 600) as literals, not `--ant-*`
                             vars: those exist only where antd runs, so on mobile the heading
                             fell back to body text and the hierarchy collapsed. The literals
                             are 20/1.4 no longer — that was heading-4's size, and it shipped a
-                            title a full step below prod's. `m-0` kills the UA margin
-                            (preflight is off). */}
-                        <h1 className="m-0 truncate text-[24px] font-semibold leading-[1.3333333333333333] text-colorText">
+                            title a full step below prod's. Below `sm` it drops to the 16px body
+                            ramp, like every other page title on a phone. `m-0` kills the UA
+                            margin (preflight is off). */}
+                        <h1 className="m-0 min-w-0 truncate text-[16px] font-semibold leading-[1.5] text-colorText sm:text-[24px] sm:leading-[1.3333333333333333]">
                             {title}
                         </h1>
-                        <p className="m-0 text-colorTextSecondary">{description}</p>
-                    </div>
 
-                    {docs ? (
-                        <a
-                            className="mt-1 flex shrink-0 items-center gap-1 text-colorTextSecondary no-underline hover:text-colorText"
-                            href={docs.href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            {docs.label}
-                            <ArrowSquareOut size={14} />
-                        </a>
-                    ) : null}
+                        {docs ? (
+                            <a
+                                className="flex shrink-0 items-center gap-1 text-colorTextSecondary no-underline hover:text-colorText"
+                                href={docs.href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                {docs.label}
+                                <ArrowSquareOut size={14} />
+                            </a>
+                        ) : null}
+                    </div>
+                    <p className="m-0 text-colorTextSecondary">{description}</p>
                 </header>
 
                 {/* The variant cap lives on the content only, so the header + its divider span

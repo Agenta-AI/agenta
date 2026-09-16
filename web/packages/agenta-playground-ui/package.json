@@ -34,7 +34,8 @@
         "./commit": "./src/components/CommitVariantChanges/index.ts",
         "./mode-switch": "./src/components/PlaygroundModeSwitch.tsx",
         "./agent-config-header": "./src/components/AgentConfigHeader.tsx",
-        "./agent-page-header": "./src/components/AgentPageHeader/index.ts"
+        "./agent-page-header": "./src/components/AgentPageHeader/index.ts",
+        "./agent-version-history": "./src/components/AgentVersionHistory/index.ts"
     },
     "dependencies": {
         "@agenta/chat": "workspace:../agenta-chat",
@@ -54,7 +55,7 @@
         "antd": ">=5.0.0",
         "jotai": ">=2.9.0",
         "jotai-family": ">=0.1.0",
-        "next": ">=15.5.21 <17",
+        "next": ">=15.5.24 <17",
         "react": ">=18.0.0",
         "react-dom": ">=18.0.0"
     },

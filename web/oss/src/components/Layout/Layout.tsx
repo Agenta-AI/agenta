@@ -4,7 +4,6 @@ import {NotFoundScreen} from "@agenta/auth-ui"
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
 import {ProjectWatch} from "@agenta/sessions/watch"
-import AppMessageContext from "@agenta/ui/app-message"
 import {useVisualViewportHeight} from "@agenta/ui/hooks"
 import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
@@ -449,7 +448,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
     return (
         <>
             <PostHogThemeCapture />
-            <AppMessageContext />
             {typeof window === "undefined" ? null : isBareRoute ? (
                 <Layout className={classes.layout}>
                     <ErrorBoundary FallbackComponent={ErrorFallback}>

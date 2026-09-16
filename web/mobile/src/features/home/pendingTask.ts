@@ -6,6 +6,7 @@ export interface PendingTask {
     agentId: string
     text: string
     parts?: FileUIPart[]
+    delivery?: "sending" | "failed"
 }
 
 /**
@@ -33,3 +34,46 @@ export const takePendingTaskAtom = atom(null, (get, set, sessionId: string) => {
     set(pendingTasksAtom, rest)
     return task
 })
+
+export const failPendingTaskAtom = atom(null, (get, set, sessionId: string) => {
+    const tasks = get(pendingTasksAtom)
+    const task = tasks[sessionId]
+    if (task && task.delivery !== "sending") {
+        set(pendingTasksAtom, {...tasks, [sessionId]: {...task, delivery: "failed"}})
+    }
+})
+
+export const sendPendingTaskAtom = atom(
+    null,
+    async (
+        get,
+        set,
+        {
+            sessionId,
+            send,
+            retry = false,
+        }: {
+            sessionId: string
+            send: (task: PendingTask) => Promise<void>
+            retry?: boolean
+        },
+    ) => {
+        const task = get(pendingTasksAtom)[sessionId]
+        if (!task || task.delivery === "sending" || (task.delivery === "failed" && !retry)) return
+        const sending: PendingTask = {...task, delivery: "sending"}
+        set(pendingTasksAtom, {...get(pendingTasksAtom), [sessionId]: sending})
+        try {
+            await send(sending)
+        } catch {
+            const tasks = get(pendingTasksAtom)
+            if (tasks[sessionId] === sending) {
+                set(pendingTasksAtom, {...tasks, [sessionId]: {...sending, delivery: "failed"}})
+            }
+            return
+        }
+        const tasks = get(pendingTasksAtom)
+        if (tasks[sessionId] !== sending) return
+        const {[sessionId]: _sent, ...rest} = tasks
+        set(pendingTasksAtom, rest)
+    },
+)

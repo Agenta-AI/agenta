@@ -230,3 +230,56 @@ class TestTeamInfo:
         with pytest.raises(ProxyRequestError) as excinfo:
             await client.get_team_info(team_id="team-1")
         assert excinfo.value.status_code == 404
+
+
+class TestUpdateKeyModels:
+    async def test_posts_the_key_and_the_full_model_list(self):
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["method"] = request.method
+            seen["url"] = str(request.url)
+            seen["auth"] = request.headers.get("Authorization")
+            seen["body"] = _read_body(request)
+            return httpx.Response(200, json={"key": "sk-virtual-abc"})
+
+        await _client_with_handler(handler).update_key_models(
+            key="sk-virtual-abc",
+            models=["vertex_ai/new-model"],
+        )
+
+        assert seen["method"] == "POST"
+        assert seen["url"] == "https://proxy.internal.test/key/update"
+        assert seen["auth"] == "Bearer sk-master-test"
+        # An explicit list always. An omitted one would widen the key to every model the
+        # proxy serves.
+        assert seen["body"] == {
+            "key": "sk-virtual-abc",
+            "models": ["vertex_ai/new-model"],
+        }
+
+    async def test_a_proxy_refusal_raises(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(404, text="key not found")
+
+        with pytest.raises(ProxyRequestError) as raised:
+            await _client_with_handler(handler).update_key_models(
+                key="sk-virtual-gone",
+                models=["vertex_ai/new-model"],
+            )
+
+        assert raised.value.status_code == 404
+
+    async def test_an_error_body_never_echoes_key_material(self):
+        # A proxy error may echo the failing request, which carries a virtual key.
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(400, text="rejected models for key sk-virtual-abc")
+
+        with pytest.raises(ProxyRequestError) as raised:
+            await _client_with_handler(handler).update_key_models(
+                key="sk-virtual-abc",
+                models=["vertex_ai/new-model"],
+            )
+
+        assert "sk-virtual-abc" not in raised.value.detail
+        assert "sk-[redacted]" in raised.value.detail

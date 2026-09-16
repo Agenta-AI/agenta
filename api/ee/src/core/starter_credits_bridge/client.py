@@ -77,6 +77,25 @@ class StarterCreditsProxyClient:
 
         return MintedKey(key=key, key_alias=key_alias)
 
+    async def update_key_models(self, *, key: str, models: list[str]) -> None:
+        """Rewrite an existing key's model allow-list, in place.
+
+        The proxy serves one model, and that model can be cut over. A key minted before
+        the cutover still allows only the old id, so it must be re-pointed at the funded
+        one. This never mints: the grant invariant is one key per organization, and a
+        second key would be a second grant.
+        """
+        await self._request(
+            "POST",
+            "/key/update",
+            json={
+                "key": key,
+                # An explicit list always, for the same reason the mint sends one: an
+                # omitted list would widen the key to every model the proxy serves.
+                "models": models,
+            },
+        )
+
     async def get_team_info(self, *, team_id: str) -> dict[str, Any]:
         payload = await self._request("GET", "/team/info", params={"team_id": team_id})
         return payload if isinstance(payload, dict) else {}

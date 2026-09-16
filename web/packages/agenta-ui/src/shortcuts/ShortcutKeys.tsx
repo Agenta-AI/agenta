@@ -15,6 +15,7 @@ import {
     type ShortcutModifier,
 } from "@agenta/shared/utils"
 
+import {Kbd, type KbdProps} from "../components/ui/kbd"
 import {cn} from "../components/ui/utils"
 
 export interface ShortcutKeysProps {
@@ -25,25 +26,12 @@ export interface ShortcutKeysProps {
     /** Also print the shortcut's mirror chord, e.g. `Alt Z` and `Alt X`. */
     showAlt?: boolean
     /** `chip` sits on a surface; `inverse` sits inside a dark tooltip or a filled button. */
-    tone?: "chip" | "inverse"
-    size?: "sm" | "md"
+    tone?: KbdProps["tone"]
+    size?: KbdProps["size"]
     /** Hide from assistive tech where an adjacent label already names the action. */
     "aria-hidden"?: boolean
     className?: string
 }
-
-const capBase =
-    "inline-flex items-center justify-center rounded font-medium leading-none whitespace-nowrap"
-
-const capTone = {
-    chip: "ag-surface-chip text-[var(--ag-colorTextSecondary)]",
-    inverse: "bg-white/20 text-inherit",
-} as const
-
-const capSize = {
-    sm: "min-w-4 px-1 py-0.5 text-[11px]",
-    md: "min-w-5 px-1.5 py-1 text-[12px]",
-} as const
 
 /** Reads the platform once on mount. Exported so a parent can print many caps from one read. */
 export const useIsMacPlatform = (): boolean => {
@@ -58,14 +46,14 @@ const Caps = ({
     size,
 }: {
     faces: string[]
-    tone: keyof typeof capTone
-    size: keyof typeof capSize
+    tone: KbdProps["tone"]
+    size: KbdProps["size"]
 }) => (
     <>
         {faces.map((face, index) => (
-            <kbd key={`${face}-${index}`} className={cn(capBase, capTone[tone], capSize[size])}>
+            <Kbd key={`${face}-${index}`} tone={tone} size={size}>
                 {face}
-            </kbd>
+            </Kbd>
         ))}
     </>
 )

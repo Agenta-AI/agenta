@@ -35,6 +35,8 @@ export interface NewAgentButtonProps {
     label?: string
     /** A create is in flight — the trigger reports it rather than accepting a second click. */
     loading?: boolean
+    /** On the trigger — a phone toolbar sizes it down from here. */
+    className?: string
 }
 
 /** Enough to recognise the shape of what's on offer; the rest is one click away. */
@@ -55,23 +57,38 @@ export const NewAgentButton = ({
     totalTemplates,
     label = "New agent",
     loading = false,
+    className,
 }: NewAgentButtonProps) => {
     const suggested = onPickTemplate ? templates.slice(0, SUGGESTED) : []
 
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild disabled={loading}>
-                <EnhancedButton type="primary" loading={loading} icon={<PlusIcon size={14} />}>
+                <EnhancedButton
+                    type="primary"
+                    loading={loading}
+                    icon={<PlusIcon size={14} />}
+                    className={className}
+                >
                     {label}
                 </EnhancedButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-w-[320px]">
                 <DropdownMenuItem onSelect={onCreateBlank}>
-                    <PlusIcon size={16} />
-                    <span className="flex flex-col py-0.5">
-                        <span className="text-sm text-colorText">Blank agent</span>
-                        <span className="text-xs text-colorTextTertiary">
-                            Configure model, instructions and tools yourself
+                    {/* A tile, like the templates under it: the entries are alternatives to each
+                        other, so they read as one list rather than a button above a list. */}
+                    <span
+                        aria-hidden
+                        className="flex size-7 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-colorTextSecondary"
+                    >
+                        <PlusIcon size={15} />
+                    </span>
+                    <span className="flex min-w-0 flex-col py-0.5">
+                        <span className="truncate text-sm text-colorText">New agent</span>
+                        {/* One line, like the template rows under it: a subtitle that wraps makes
+                            the first entry taller than every entry it is offered beside. */}
+                        <span className="truncate text-xs text-colorTextTertiary">
+                            Start with an empty agent and shape it in chat
                         </span>
                     </span>
                 </DropdownMenuItem>

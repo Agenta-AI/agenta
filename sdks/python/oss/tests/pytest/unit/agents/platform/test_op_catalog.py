@@ -64,6 +64,9 @@ def test_catalog_ships_platform_builder_ops():
     assert set(PLATFORM_OPS) - {"read_config"} == {
         "discover_tools",
         "query_workflows",
+        "search_skills",
+        "check_skill_updates",
+        "apply_skill_update",
         "query_spans",
         "rename_session",
         "rename_agent",
@@ -279,18 +282,48 @@ async def test_rename_session_emits_a_bound_direct_call(connection):
     assert spec.call_ref is None
     assert isinstance(spec.call, ToolCall)
     assert spec.call.method == "POST"
-    assert spec.call.path == "/api/sessions/streams/header?session_id={session_id}"
+    # `name_source=automatic` is fixed in the catalog path, so the endpoint can refuse a
+    # rename that would replace a name a person controls. The model fills only the body, so
+    # it cannot claim a person chose the name it is writing.
+    assert (
+        spec.call.path
+        == "/api/sessions/streams/header?session_id={session_id}&name_source=automatic"
+    )
     assert spec.call.context == {"session_id": "$ctx.session.id"}
     assert spec.read_only is False
 
     schema = get_platform_op("rename_session").resolved_input_schema()
-    assert set(schema["properties"]) == {"name", "description"}
+    assert set(schema["properties"]) == {
+        "name",
+        "description",
+        "replacing_name",
+        "replacing_revision",
+    }
     assert schema["required"] == ["name"]
     assert spec.input_schema == schema
 
     wire = spec.to_wire()
     assert wire["call"]["path"] == spec.call.path
     assert wire["call"]["context"] == {"session_id": "$ctx.session.id"}
+
+
+def test_rename_session_takes_the_name_it_replaces():
+    # "Rename this session to X" stays possible after the person named it themselves. The
+    # field is the name being replaced, not a bare permission, so the endpoint can refuse a
+    # request the person has since overtaken.
+    schema = get_platform_op("rename_session").resolved_input_schema()
+
+    jsonschema.validate(
+        {"name": "A new name", "replacing_name": "An older name"}, schema
+    )
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"name": "A new name", "replacing_name": True}, schema)
+
+
+def test_rename_session_tells_the_agent_to_adopt_a_person_name():
+    description = get_platform_op("rename_session").description
+
+    assert "replacing_name" in description
 
 
 def test_rename_session_rejects_whitespace_only_name():
@@ -412,6 +445,31 @@ async def test_platform_handlers_empty_flag_uses_default_on(connection, monkeypa
     )
 
     assert [spec.name for spec in resolution.tool_specs] == ["test_run"]
+
+
+async def test_check_skill_updates_is_read_only(connection):
+    # The read half of skill update sync: its own endpoint that never writes.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="check_skill_updates")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.call.method == "POST"
+    assert spec.call.path == "/api/skills/{skill_id}/updates/check"
+    assert spec.call.body is None
+    assert spec.read_only is True
+    assert set(spec.input_schema["properties"]) == {"skill_id"}
+    assert spec.input_schema["required"] == ["skill_id"]
+
+
+async def test_apply_skill_update_is_a_gated_write(connection):
+    # The write half: read_only=False means the approval card is the user prompt.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="apply_skill_update")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.call.path == "/api/skills/{skill_id}/updates/apply"
+    assert spec.read_only is False
+    assert set(spec.input_schema["properties"]) == {"skill_id"}
 
 
 async def test_query_spans_emits_project_scoped_read_call(connection):
@@ -766,6 +824,17 @@ async def test_create_trigger_ops_bind_self_target_and_hide_destination(connecti
     inputs_fields_description = schedule_data_props["inputs_fields"]["description"]
     assert "JSON Path" in inputs_fields_description
     assert "JSON Pointer" in inputs_fields_description
+    assert "Put only the task in `messages`" in inputs_fields_description
+    assert "not schedule/trigger metadata, timing checks, or skip-run guards" in (
+        inputs_fields_description
+    )
+    assert "Configure when to run in the schedule or trigger settings" in (
+        inputs_fields_description
+    )
+    assert "For subscriptions, map event data under a sibling key" in (
+        inputs_fields_description
+    )
+    assert '"payload": "$.event.attributes"' in inputs_fields_description
 
     subscription = specs["create_subscription"]
     assert subscription.call.args_into == "subscription"

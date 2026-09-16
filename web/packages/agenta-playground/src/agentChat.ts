@@ -8,10 +8,12 @@
 export {
     buildAgentRequest,
     applyBuildKitOverlay,
+    SHARED_SESSION_RESPONSE_HEADER,
     type AgentRequest,
 } from "./state/execution/agentRequest"
 export {
     agentShouldResumeAfterApproval,
+    isPendingClientToolInteraction,
     type LiveAgentInteraction,
 } from "./state/execution/agentApprovalResume"
 export {
@@ -20,5 +22,11 @@ export {
     type ChatStatusLike,
 } from "./state/execution/approvalAnswer"
 export {RECORD_ANSWER_TIMEOUT_MS, recordAnswerThenRelease} from "./state/execution/answerOrdering"
-export {canReleaseQueuedMessage, isHitlPending} from "./state/execution/agentMessageQueue"
+export {
+    approvalContinuationSettled,
+    canReleaseQueuedMessage,
+    hasRunningApprovalContinuation,
+    isHitlPending,
+} from "./state/execution/agentMessageQueue"
 export {createNegotiatingFetch, type NegotiatingFetch} from "./state/execution/agentNegotiation"
+export {buildRenderMap, renderKindFor, type RenderHintLike} from "./state/execution/renderMap"

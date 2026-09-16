@@ -7,8 +7,9 @@
  * attachment ENGINE (staging + uploads) arrives as the `useComposerAttachments` result so
  * hosts control the rollout flag and the viewer wiring.
  */
-import {Suspense, lazy, useRef, type ReactNode, type RefObject} from "react"
+import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from "react"
 
+import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -16,10 +17,12 @@ import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
+import {useFilePalette} from "../hooks/useFilePalette"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
 import ComposerRejections from "./ComposerRejections"
+import RecordingWaveform from "./RecordingWaveform"
 
 // Lexical is the heaviest dependency of the chat chunk — keep it out of the synchronous
 // mount. React.lazy (not next/dynamic) so the imperative handle ref forwards.
@@ -35,8 +38,12 @@ export interface ChatComposerProps {
     autoFocus?: boolean
     /** Voice dictation is writing into the input (desktop). */
     dictating?: boolean
+    /** Live analyser for the dictated voice; absent ⇒ no wave (a refused stream, or no mic). */
+    dictationAnalyserRef?: RefObject<AnalyserNode | null>
     /** Width column for the input (desktop passes its chat column; mobile's rail is outside). */
     className?: string
+    /** How far the editor may grow before it scrolls itself; see RichChatInput. */
+    maxHeightClassName?: string
     disabled?: boolean
     hideSendButton?: boolean
     /**
@@ -50,9 +57,17 @@ export interface ChatComposerProps {
     waitingOnUser?: boolean
     initialMarkdown?: string
     onChange?: (markdown: string) => void
+    /** The send is in flight and has not landed — the button spins and refuses a second press. */
+    sending?: boolean
     /** A run is streaming — the send button becomes Stop. */
     streaming?: boolean
+    /** The Stop request is pending or accepted, awaiting the stream's terminal event. */
+    stopping?: boolean
     onStop?: () => void
+    /** Only the active session owns the global Escape shortcut. */
+    stopShortcutEnabled?: boolean
+    /** Capability-gated controls shown beside Stop while the session is busy. */
+    busyActions?: {label: string; onSubmit: (text: string) => void}[]
     /** Read at event time — attachments are refused right now (a voice take in flight…). */
     attachmentsBlocked?: () => boolean
     /** The composer itself is unusable (gates the paperclip alongside `uploadsEnabled`). */
@@ -65,6 +80,11 @@ export interface ChatComposerProps {
     trailing?: ReactNode
     /** The `/` palette's sections. Omit where the surface has no commands. */
     slashCommands?: SlashCommandSection[]
+    /**
+     * Enable the `@` file palette. Needs an enclosing `DriveSessionProvider`; off by default so the
+     * surfaces that run before a session exists (onboarding, the home task composer) are untouched.
+     */
+    fileMentions?: boolean
     /** Suspense fallback while the Lexical chunk hydrates (hosts pass their skeleton). */
     fallback?: ReactNode
 }
@@ -75,7 +95,9 @@ export const ChatComposer = ({
     inputRef,
     autoFocus,
     dictating,
+    dictationAnalyserRef,
     className,
+    maxHeightClassName,
     disabled,
     hideSendButton,
     hideShortcutHints,
@@ -83,14 +105,19 @@ export const ChatComposer = ({
     waitingOnUser,
     initialMarkdown,
     onChange,
+    sending,
     streaming,
+    stopping,
     onStop,
+    stopShortcutEnabled = true,
+    busyActions,
     attachmentsBlocked,
     composerDisabled,
     onViewAttachment,
     extraPrefix,
     trailing,
     slashCommands,
+    fileMentions,
     fallback,
 }: ChatComposerProps) => {
     const {
@@ -113,9 +140,24 @@ export const ChatComposer = ({
     // take room from a placeholder that is already tight. `isMacPlatform` reads the UA, so a real
     // iPhone was being shown the `⌘` variant specifically.
     const hasKeyboard = useHardwareKeyboard()
+    const filePalette = useFilePalette({enabled: fileMentions})
+
+    useEffect(() => {
+        if (!streaming || !onStop || !stopShortcutEnabled) return
+        const stopOnEscape = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || isOverlayOpen()) return
+            if (event.key !== "Escape" || event.isComposing) return
+            event.preventDefault()
+            onStop()
+        }
+        document.addEventListener("keydown", stopOnEscape)
+        return () => document.removeEventListener("keydown", stopOnEscape)
+    }, [onStop, stopShortcutEnabled, streaming])
 
     return (
         <Suspense fallback={fallback ?? null}>
+            {/* Renders null; it holds the `@` palette's per-directory listings. */}
+            {filePalette.subscribers}
             <input
                 ref={fileInputRef}
                 type="file"
@@ -140,7 +182,16 @@ export const ChatComposer = ({
                 ref={inputRef}
                 autoFocus={autoFocus}
                 dictating={dictating}
+                dictationWave={
+                    dictationAnalyserRef ? (
+                        <RecordingWaveform
+                            analyserRef={dictationAnalyserRef}
+                            className="h-5 flex-1 text-colorPrimary"
+                        />
+                    ) : null
+                }
                 className={className}
+                maxHeightClassName={maxHeightClassName}
                 onSubmit={onSubmit}
                 disabled={disabled}
                 hideSendButton={hideSendButton}
@@ -157,38 +208,46 @@ export const ChatComposer = ({
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}
+                filePalette={filePalette.spec}
                 onChange={onChange}
                 onPasteFile={(pasted) => {
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))
                 }}
-                sendForceEnabled={files.length > 0 && attachmentsSettled}
+                sendForceEnabled={files.length > 0}
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}
+                sending={sending}
                 streaming={streaming}
+                stopping={stopping}
                 onStop={onStop}
+                busyActions={busyActions}
                 prefix={
-                    <div className="flex items-center gap-2">
+                    // Tight: these are one cluster of composer tools, not separate controls.
+                    <div className="flex items-center gap-0.5">
                         {extraPrefix}
-                        {/* Gate the attach button until inline file parts are supported. */}
-                        <SimpleTooltip
-                            title={
-                                !uploadsEnabled
-                                    ? "Attach files coming soon"
-                                    : atMax
-                                      ? `Up to ${limits.maxCount} files`
-                                      : "Attach files"
-                            }
-                        >
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                disabled={!uploadsEnabled || composerDisabled}
-                                onClick={() => fileInputRef.current?.click()}
-                                aria-label="Attach files"
+                        {/* Gone while dictating: the row belongs to the wave, and attaching a file
+                            mid-utterance is not a thing anyone is doing. */}
+                        {dictating ? null : (
+                            <SimpleTooltip
+                                title={
+                                    !uploadsEnabled
+                                        ? "Attach files coming soon"
+                                        : atMax
+                                          ? `Up to ${limits.maxCount} files`
+                                          : "Attach files"
+                                }
                             >
-                                <Paperclip size={16} />
-                            </Button>
-                        </SimpleTooltip>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={!uploadsEnabled || composerDisabled}
+                                    onClick={() => fileInputRef.current?.click()}
+                                    aria-label="Attach files"
+                                >
+                                    <Paperclip size={16} />
+                                </Button>
+                            </SimpleTooltip>
+                        )}
                     </div>
                 }
                 header={

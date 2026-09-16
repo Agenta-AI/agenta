@@ -429,6 +429,15 @@ posthog:
 # ================================================================== #
 # === api / web / services / workers / cron — deployment knobs ===
 # ================================================================== #
+# Every workload below also takes `extraEnv` (explicit Kubernetes env entries, so
+# valueFrom works) and `envFrom` (raw secretRef/configMapRef entries). Matching names
+# in extraEnv override chart entries. envFrom supplies only names absent from explicit
+# env entries. Use extraEnv to reach a Secret key the chart does not model:
+#   api:
+#     extraEnv:
+#       - name: AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY
+#         valueFrom:
+#           secretKeyRef: {name: agenta, key: AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY}
 # api:
 #   enabled: true
 #   replicas: 1
@@ -471,41 +480,37 @@ posthog:
 #       memory: 512Mi
 #     limits:
 #       memory: 1Gi
-# workerEvaluations:
+# The chart has two worker deployments. `streams` and `queues` are comma-separated
+# selector strings; an empty string means every loop of that kind.
+# workerStreams:
 #   enabled: true
 #   replicas: 1
-# workerTracing:
+#   # streams: "tracing"
+# workerQueues:
 #   enabled: true
 #   replicas: 1
-# workerWebhooks:
-#   enabled: true
-#   replicas: 1
-# workerEvents:
-#   enabled: true
-#   replicas: 1
-# workerRecords:
-#   enabled: true
-#   replicas: 1
-# workerTriggers:
-#   enabled: true
-#   replicas: 1
-# workerInteractions:
-#   enabled: true
-#   replicas: 1
+#   # queues: "evaluations"
 # cron:
 #   enabled: true
 #   replicas: 1
 
 # ================================================================== #
 # === ingress ===
-# Path routing: / → web, /m → web-mobile, /api → api (prefix-stripped),
-# /services → services (prefix-stripped). The /m route is fixed because the mobile
-# image is built with basePath /m.  When running behind Traefik, attach the StripPrefix
+# Path routing: / → web, /m → web-mobile, /api → api, /services → services.
+#
+# Do NOT strip /api.  The API is mounted at /api (SCRIPT_NAME plus the FastAPI
+# root_path), so it needs the prefix and its redirects keep it.  This matches
+# docker-compose.
+#
+# DO strip /services.  When running behind Traefik, attach the StripPrefix
 # Middleware defined under extraObjects below.
+#
+# The /m route is fixed because the mobile image is built with basePath /m.
 # ================================================================== #
 # ingress:
 #   enabled: true
-#   className: traefik
+#   className: traefik   # "" leaves spec.ingressClassName out entirely, for a controller that
+#                        # ignores the field and routes by annotation instead (GKE).
 #   host: agenta.example.com
 #   annotations:
 #     traefik.ingress.kubernetes.io/router.middlewares: agenta-strip-prefixes@kubernetescrd
@@ -523,9 +528,20 @@ posthog:
 # ================================================================== #
 # === store — object store (AGENTA_STORE_*) ===
 # Docs: https://docs.agenta.ai/self-host/configuration#store-durable-object-store
+#
+# store.enabled is FALSE by default, so the whole block below does nothing until
+# you set it.  The store holds session artifacts and file mounts.
+#
+# With store.enabled: true the chart also deploys a bundled SeaweedFS
+# StatefulSet, because store.seaweedfs.enabled defaults to true.  If you point
+# the store at your own S3 or GCS bucket, set store.seaweedfs.enabled: false as
+# well, or you pay for a StatefulSet nothing reads.
 # ================================================================== #
 # store:
-#   endpointUrl:
+#   enabled: false
+#   endpointUrl: https://store.example.com  # wins over the internal Service URL even with SeaweedFS bundled.
+#                      # Set it to the ingress host below so a Daytona sandbox, which runs
+#                      # outside the cluster, can reach the store.
 #   stsEndpointUrl:
 #   accessKey:
 #   secretKey:
@@ -536,8 +552,16 @@ posthog:
 #   jwtIssuer:
 #   jwtPrivateKey:
 #   seaweedfs:
-#     enabled: false
+#     enabled: false   # defaults to TRUE when store.enabled is true; set false for an external store
 #     port: 8333
+#     ingress:         # optional public route to the bundled S3 gateway; off by default
+#       enabled: false
+#       className: nginx
+#       host: store.example.com
+#       annotations: {}
+#       tls:
+#         - hosts: [store.example.com]
+#           secretName: agenta-store-tls
 #     image:
 #       repository: chrislusf/seaweedfs
 #       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases
@@ -545,8 +569,8 @@ posthog:
 # ================================================================== #
 # === extraObjects — arbitrary Kubernetes resources ===
 # Includes the Traefik v3 StripPrefix Middleware referenced from the
-# ingress.annotations above.  Required so /api and /services backends
-# receive requests without the prefix.
+# ingress.annotations above.  Required so the services backend receives
+# requests without its prefix.  The API keeps /api, so it is not listed.
 # ================================================================== #
 # extraObjects:
 #   - apiVersion: traefik.io/v1alpha1
@@ -556,6 +580,6 @@ posthog:
 #       namespace: "{{ .Release.Namespace }}"
 #     spec:
 #       stripPrefix:
+#         # /api is deliberately absent: the API expects its own prefix.
 #         prefixes:
-#           - /api
 #           - /services

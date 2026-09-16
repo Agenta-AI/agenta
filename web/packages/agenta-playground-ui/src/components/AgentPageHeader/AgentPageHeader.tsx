@@ -1,17 +1,17 @@
 import type {ReactNode} from "react"
 
+import {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK} from "@agenta/entity-ui/agent"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {Robot} from "@phosphor-icons/react"
 
-/** The bar's 24px chip: geometry only, so a host's colours (or the agent's) are the only ones set. */
-export const AGENT_CHIP_BOX = "flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
-
-/** What the chip wears when nobody picked an icon. */
-export const AGENT_CHIP_FALLBACK = "bg-colorFillSecondary text-[var(--ag-preset-cyan-text)]"
+// Re-exported from their home in @agenta/entity-ui, which owns the agent identity's chrome.
+export {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK}
 
 export interface AgentPageHeaderProps {
     /** Before the identity: the desktop's workflow kebab, the mobile screen's back link. */
     leading?: ReactNode
+    /** The icon + name as one node (`AgentIdentity`), replacing the `icon`/`name` slot pair. */
+    identity?: ReactNode
     /**
      * The agent's name. A node so a host can pass its inline-rename editor; a plain string
      * renders as the same 16px semibold label.
@@ -48,6 +48,7 @@ export interface AgentPageHeaderProps {
  */
 export const AgentPageHeader = ({
     leading,
+    identity,
     name,
     title,
     revision,
@@ -69,21 +70,27 @@ export const AgentPageHeader = ({
             than pushing them off the bar; the name truncates instead. */}
             <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                 {leading}
-                {name ? (
+                {identity || name ? (
                     <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-                        {icon ?? (
-                            <SimpleTooltip title="Agent">
-                                <span className={`${AGENT_CHIP_BOX} ${AGENT_CHIP_FALLBACK}`}>
-                                    <Robot size={15} weight="fill" />
-                                </span>
-                            </SimpleTooltip>
-                        )}
-                        {typeof name === "string" ? (
-                            <span className="truncate whitespace-nowrap text-sm font-[600] leading-[18px] text-colorText sm:text-[16px]">
-                                {name}
-                            </span>
-                        ) : (
-                            name
+                        {identity ?? (
+                            <>
+                                {icon ?? (
+                                    <SimpleTooltip title="Agent">
+                                        <span
+                                            className={`${AGENT_CHIP_BOX} ${AGENT_CHIP_FALLBACK}`}
+                                        >
+                                            <Robot size={15} weight="fill" />
+                                        </span>
+                                    </SimpleTooltip>
+                                )}
+                                {typeof name === "string" ? (
+                                    <span className="truncate whitespace-nowrap text-sm font-[600] leading-[18px] text-colorText sm:text-[16px]">
+                                        {name}
+                                    </span>
+                                ) : (
+                                    name
+                                )}
+                            </>
                         )}
                         {revision ? (
                             <>

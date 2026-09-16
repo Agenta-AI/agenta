@@ -10,6 +10,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.decorators.routing import (
     create_app,
     apply_invoke_prelude,
+    admit_session_input,
     handle_invoke_success,
     handle_invoke_failure,
     handle_inspect_success,
@@ -47,6 +48,7 @@ from oss.src.chat import chat_v0_app
 from oss.src.completion import completion_v0_app
 from oss.src.agent import agent_v0_app
 from entrypoints.legacy import register_legacy_routes
+from entrypoints.prefix import ServicesPrefixStripMiddleware
 
 
 ag.init()
@@ -87,6 +89,9 @@ async def services_invoke(req: Request, request: WorkflowInvokeRequest):
     credentials = req.state.auth.get("credentials")
     apply_invoke_prelude(req, request)
     try:
+        admission_response = await admit_session_input(req, request, credentials)
+        if admission_response is not None:
+            return admission_response
         response = await invoke_workflow(request=request, credentials=credentials)
         return await handle_invoke_success(req, response)
     except Exception as exception:
@@ -137,6 +142,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Added last => outermost: a managed ingress forwards the public `/services` prefix
+# verbatim, so normalize the path before anything else looks at it.
+app.add_middleware(ServicesPrefixStripMiddleware)
 
 
 @app.get("/health")

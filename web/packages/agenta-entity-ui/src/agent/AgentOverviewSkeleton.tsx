@@ -66,7 +66,7 @@ export const AgentOverviewSkeleton = () => (
                 <PanelSection title="Files">
                     <TextRows widths={["w-full", "w-5/6", "w-2/3"]} />
                 </PanelSection>
-                <PanelSection title="Next triggers">
+                <PanelSection title="Automations">
                     <TextRows widths={["w-3/4", "w-1/2"]} />
                 </PanelSection>
                 {/* Usage has no placeholder of its own — it renders its real rows with em-dashes

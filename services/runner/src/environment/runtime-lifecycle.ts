@@ -33,6 +33,7 @@
 import { rmSync } from "node:fs";
 
 import { configureDaytonaCodexEnv } from "../engines/sandbox_agent/codex-assets.ts";
+import { configureDaytonaSubscriptionEnv } from "../engines/sandbox_agent/daytona.ts";
 import { buildDaemonEnv } from "../engines/sandbox_agent/daemon.ts";
 import {
   buildPiExtensionEnv,
@@ -87,6 +88,11 @@ export interface RuntimeFilesInput {
    */
   runAgentDir: string | undefined;
   /**
+   * The per-run Pi prompt dir (`preparePiPromptChannel`). Throwaway by construction: it holds
+   * only this run's prompt files and the wrapper that hands them to Pi.
+   */
+  piPromptDir: string | undefined;
+  /**
    * The local off-mount Codex SQLite home. Disposable: native resume rides the `sessions/`
    * rollout files on CODEX_HOME, not the SQLite, so losing it costs nothing.
    */
@@ -109,6 +115,7 @@ export function removeRuntimeFiles(input: RuntimeFilesInput): void {
   // never to throw. Each removal is independent, so one failure must not skip the next.
   for (const [path, recursive] of [
     [input.runAgentDir, true],
+    [input.piPromptDir, true],
     [input.codexSqliteHome, true],
   ] as const) {
     if (!path) continue;
@@ -169,6 +176,18 @@ export interface RuntimeEnvironment {
  * The stable telemetry-control PATH enters Pi's env; per-turn context rides that read-once file.
  * The OTLP endpoint and authorization remain runner-owned and never enter the daemon env.
  */
+export function assignSandboxEnvironment(
+  targets: Array<Record<string, string>>,
+  sandboxEnvironment: Record<string, string>,
+): void {
+  for (const name of Object.keys(sandboxEnvironment)) {
+    if (targets.some((target) => Object.prototype.hasOwnProperty.call(target, name))) {
+      throw new Error(`sandboxCredentials binding  collides with runner-owned environment`);
+    }
+  }
+  for (const target of targets) Object.assign(target, sandboxEnvironment);
+}
+
 export function buildRuntimeEnvironment(
   input: BuildRuntimeEnvironmentInput,
 ): RuntimeEnvironment {
@@ -185,6 +204,9 @@ export function buildRuntimeEnvironment(
       clearProviderEnv,
       provider: r.modelConnection?.provider,
       deployment: r.modelConnection?.deployment,
+      // A hosted subscription run reads its login from a per-connection dir, never the operator's
+      // mount. Undefined on every other run, which keeps today's inheritance.
+      piAgentDir: p.isDaytona ? undefined : p.credentials.subscriptionHome,
     },
   );
   // Apply only the resolved provider keys.
@@ -220,6 +242,12 @@ export function buildRuntimeEnvironment(
   // `sessions/` rollouts) while CODEX_SQLITE_HOME points in-VM, off the mount. Set here because
   // the Daytona daemon env is fixed at sandbox creation and is built from `piExtEnv`.
   configureDaytonaCodexEnv(input.plan, piExtEnv);
+  // A hosted subscription run on Daytona reads its login from an in-VM dir the runner writes
+  // through the sandbox file API. Set here for the same reason as the Codex paths above: the
+  // Daytona daemon environment is fixed at sandbox creation and is built from `piExtEnv`, so a
+  // value decided after the sandbox exists never reaches the harness.
+  configureDaytonaSubscriptionEnv(input.plan, piExtEnv);
+  assignSandboxEnvironment([env, piExtEnv], p.credentials.sandboxEnvironment);
   // LAST, deliberately: the local daemon inherits the extension env, and Daytona gets the same
   // values through `envVars`. Assigning earlier would drop every key added above.
   Object.assign(env, piExtEnv);

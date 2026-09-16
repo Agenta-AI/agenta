@@ -60,6 +60,9 @@ export {
     ConfigBlock,
     SectionSkeleton,
     ConfigAccordionSection,
+    CONFIG_REGION_BAR,
+    ConfigRowCaret,
+    ConfigRowTrailing,
     sectionIndicatorColor,
     useAccordionSectionOpen,
     useRecentFlag,
@@ -69,6 +72,7 @@ export {
     type ConfigBlockProps,
     type SectionSkeletonProps,
     type ConfigAccordionSectionProps,
+    type ConfigRowTrailingProps,
     type SectionIndicatorTone,
 } from "./section"
 
@@ -291,13 +295,3 @@ export {
     userBubbleContentClass,
     type ChatBubbleProps,
 } from "./chat"
-
-export {
-    FilterMenu,
-    FILTER_MENU_MIN_WIDTH,
-    FILTER_MENU_FLIP_WIDTH,
-    type FilterMenuProps,
-    type FilterMenuFacet,
-    type FilterMenuToggle,
-    type FilterMenuOption,
-} from "./filter"

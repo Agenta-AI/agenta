@@ -5,11 +5,12 @@ import {atomFamily} from "jotai-family"
 
 import type {CurrentStepState} from "./types"
 
+// The nav-simplified pair lives in `@agenta/shared/state` — `/m` needs it too (it owns the
+// Classic mode switch that gets a user back to the desktop) and cannot import `@/oss/*`.
+
 // Storage keys
 const STORAGE_KEYS = {
     IS_NEW_USER: "is-new-user",
-    NAV_SIMPLIFIED: "nav-simplified",
-    NAV_SIMPLIFIED_OVERRIDE: "nav-simplified-override",
     SEEN_TOURS: "seen-tours",
 } as const
 
@@ -23,17 +24,6 @@ const createScopedStorageKey = (userId: string, key: string) => `agenta:onboardi
 
 const isNewUserAtomFamily = atomFamily((userId: string) =>
     atomWithStorage<boolean>(createScopedStorageKey(userId, STORAGE_KEYS.IS_NEW_USER), false),
-)
-
-const navSimplifiedDefaultAtomFamily = atomFamily((userId: string) =>
-    atomWithStorage<boolean>(createScopedStorageKey(userId, STORAGE_KEYS.NAV_SIMPLIFIED), false),
-)
-
-const navSimplifiedOverrideAtomFamily = atomFamily((userId: string) =>
-    atomWithStorage<boolean | null>(
-        createScopedStorageKey(userId, STORAGE_KEYS.NAV_SIMPLIFIED_OVERRIDE),
-        null,
-    ),
 )
 
 const seenToursAtomFamily = atomFamily((userId: string) =>
@@ -65,41 +55,6 @@ export const isNewUserAtom = atom(
         const userId = get(onboardingStorageUserIdAtom)
         if (!userId) return
         set(isNewUserAtomFamily(userId), next)
-    },
-)
-
-/**
- * Durable "this user signed up under the simplified-nav experience" flag.
- *
- * Distinct from {@link isNewUserAtom} on purpose: that flag is sticky-true for everyone
- * who ever signed up, so reusing it would strip advanced nav from existing users. This one
- * uses a fresh key that is only written on signups going forward — existing users default
- * to `false` (full nav). Drives `advancedNavHiddenAtom` (state/onboarding selectors).
- */
-export const navSimplifiedDefaultAtom = atom(
-    (get) => {
-        const userId = get(onboardingStorageUserIdAtom)
-        if (!userId) return false
-        return get(navSimplifiedDefaultAtomFamily(userId))
-    },
-    (get, set, next: boolean) => {
-        const userId = get(onboardingStorageUserIdAtom)
-        if (!userId) return
-        set(navSimplifiedDefaultAtomFamily(userId), next)
-    },
-)
-
-/** A user's explicit navigation choice. Null preserves their signup-era default. */
-export const navSimplifiedOverrideAtom = atom(
-    (get) => {
-        const userId = get(onboardingStorageUserIdAtom)
-        if (!userId) return null
-        return get(navSimplifiedOverrideAtomFamily(userId))
-    },
-    (get, set, next: boolean | null) => {
-        const userId = get(onboardingStorageUserIdAtom)
-        if (!userId) return
-        set(navSimplifiedOverrideAtomFamily(userId), next)
     },
 )
 

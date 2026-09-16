@@ -631,3 +631,15 @@ describe("the controls the dialect grew", () => {
         expect(screen.getByText("Region")).toBeTruthy()
     })
 })
+
+it("shows a failed durable answer and permits retry without a second in-flight submission", async () => {
+    const {onOutput} = setup(ONE_QUESTION)
+    onOutput
+        .mockRejectedValueOnce(new Error("Answer could not be saved"))
+        .mockResolvedValue(undefined)
+    fireEvent.click(screen.getByRole("button", {name: "Send answers"}))
+    await waitFor(() => expect(screen.getByText("Answer could not be saved")).toBeTruthy())
+    fireEvent.click(screen.getByRole("button", {name: "Send answers"}))
+    await waitFor(() => expect(onOutput).toHaveBeenCalledTimes(2))
+    expect(screen.queryByText("Answer could not be saved")).toBeNull()
+})

@@ -57,13 +57,51 @@ function keyHintFor(
  * `runner_error` is the catch-all every unclassified failure keeps, matching what the SDK stamped
  * on runner-reported errors before the runner had a say.
  */
+/**
+ * Markers the runner puts in an error message so `classifyRunError` can set the class.
+ *
+ * Both are strings only this runner produces, so a match needs no corroboration. They live
+ * here, next to the codes they map to, and are imported by the modules that raise them.
+ */
+export const SANDBOX_GONE_MARKER = "sandbox is gone";
+export const ABANDONED_TURN_MARKER = "execution abandoned";
+
+/** The line the user reads when the machine running their turn disappeared. */
+export const SANDBOX_GONE_MESSAGE =
+  "The sandbox running this session stopped responding, so the run was ended. " +
+  "Send the message again to start a fresh sandbox.";
+
+/** The line the user reads when the run never produced an outcome of its own. */
+export const EXECUTION_LOST_MESSAGE =
+  "The agent stopped responding and the run was closed. Send the message again to retry.";
+
 export type RunErrorCode =
   | "runner_error"
   | "starter_credits_exhausted"
   | "starter_credits_program_paused"
   | "starter_credits_unavailable"
   | "credential_delivery_failed"
-  | "rate_limited";
+  | "rate_limited"
+  // Not a failure: the turn was REFUSED before it started because another turn already owns
+  // this session. Nothing ran, nothing was destroyed, and the user's message was never sent.
+  // Clients render it as a "not sent, try again" state and keep the text, never as a run error.
+  // Produced by `sessions/admission.ts`, not by this module's classifier.
+  | "session_turn_in_use"
+  // The sandbox died under a running turn: its liveness probe stopped answering, so the turn
+  // was ended rather than left holding a machine that no longer exists. See
+  // `sandbox-liveness.ts`.
+  | "sandbox_gone"
+  // The execution never produced an outcome of its own, so one was written for it. Two
+  // producers: this runner, when a turn will not unwind after its abort (`sessions/
+  // turn-settle.ts`), and the platform's execution watchdog, when the runner itself is gone
+  // (`api/oss/src/tasks/asyncio/sessions/orphan_sweep.py`).
+  | "execution_lost"
+  // The hosted subscription login this run used is dead, and no newer one exists. The user has to
+  // sign in again; a retry would fail the same way. See `isSubscriptionAuthFailure`.
+  | "subscription_login_required"
+  // The login this run used was stale: another session already replaced it. Nothing is wrong with
+  // the connection, so this one IS retryable — the next turn picks up the newer login.
+  | "subscription_login_refreshed";
 
 /** One failed run, condensed: the line the user reads plus the class a client can act on. */
 export interface ClassifiedRunError {
@@ -336,6 +374,14 @@ export function classifyRunError(
       code: "credential_delivery_failed",
     };
   }
+  // First, and self-evidencing: this marker is produced by our own liveness probe and by
+  // nothing else, so it needs no corroboration and must not be re-read as a provider fault.
+  if (raw.includes(SANDBOX_GONE_MARKER)) {
+    return { message: SANDBOX_GONE_MESSAGE, code: "sandbox_gone" };
+  }
+  if (raw.includes(ABANDONED_TURN_MARKER)) {
+    return { message: EXECUTION_LOST_MESSAGE, code: "execution_lost" };
+  }
   // A budget refusal is checked first: it is the most specific reading of a 429, and its body also
   // trips the rate-limit and quota matchers below.
   if (BUDGET_REFUSAL.test(raw)) {
@@ -443,6 +489,110 @@ export function classifyRunError(
     };
   }
   return { message: msg || "agent run failed", code: "runner_error" };
+}
+
+/*
+ * Hosted subscription auth. Product copy, and the one pattern that recognizes it.
+ *
+ * The reader is the person in the chat, and they own the connection, so the copy names the action
+ * and the place. It carries no provider mechanics, no token, and no path — the same rule as the
+ * starter-credits copy above.
+ */
+export const SUBSCRIPTION_LOGIN_REQUIRED_MESSAGE =
+  "The ChatGPT sign-in is no longer valid. Sign in again from AI providers.";
+/**
+ * The login this turn started on is gone and a live one has taken its place — refreshed by this
+ * run, or signed in again elsewhere. The running harness cannot pick it up (see
+ * `SubscriptionRecovery`), so the copy asks for the message again rather than for a sign-in.
+ */
+export const SUBSCRIPTION_LOGIN_REFRESHED_MESSAGE =
+  "The ChatGPT sign-in was renewed. Send your message again.";
+/**
+ * The provider could not be reached to judge the login, so nothing is known about it and nothing
+ * was marked. Distinct copy from the two above, and deliberately NOT "sign in again": the
+ * connection may be perfectly good, and sending the user through a device login to fix a network
+ * blip would spend a sign-in for nothing (contract amendment A2).
+ */
+export const SUBSCRIPTION_LOGIN_UNCHECKED_MESSAGE =
+  "The ChatGPT sign-in could not be checked. Try again.";
+
+/**
+ * Pi's own words for a login it cannot use.
+ *
+ * Pi exposes no error taxonomy: every failure is a plain `Error` carrying a formatted string, so
+ * the classification is by string and there is nothing better to key on (research/pi-auth.md
+ * section 7). Every alternative below is read out of the SHIPPED bundle
+ * (`@earendil-works/pi-ai` and `pi-coding-agent` 0.80.6), never from the design notes:
+ *
+ * - `Authentication failed` / `Authentication failed for <provider>` — the credential is unusable.
+ * - `Failed to refresh OAuth token for <providerId>` — the refresh was rejected and its cause was
+ *   discarded, so this is what most callers actually see.
+ * - `No API key found for <providerDisplay>`, `No API key for provider: <provider>`, and
+ *   `No API key for <provider>/<model>` — three DIFFERENT sentences for "there is no credential at
+ *   all", one of which interpolates a display NAME rather than the provider id. A hosted run that
+ *   sees any of them had its materialized login fail to reach the harness.
+ * - `Failed to extract accountId from token` — the stored access token is not a readable JWT, so
+ *   the login on disk is corrupt.
+ *
+ * The last alternative is not Pi's at all. `Could not parse your authentication token. Please try
+ * signing in again.` is the PROVIDER's own prose, relayed through Pi. Provider prose is the most
+ * fragile input here, so it is matched on the two nouns that carry the meaning rather than on the
+ * whole sentence.
+ *
+ * The provider id is deliberately NOT required: several of these sentences do not carry it, and
+ * requiring it leaves a dead sign-in unclassified. The breadth is safe because this pattern is
+ * consulted ONLY for a run that carries a subscription: such a run has no vault key, so "no API
+ * key" can only be about the login.
+ */
+const PI_SUBSCRIPTION_AUTH_FAILURE =
+  /authentication failed|failed to refresh oauth token|no api key|failed to extract accountid from token|authentication token|sign(?:ing)? in again/i;
+
+/**
+ * Whether this failure means the run's hosted subscription login was refused.
+ *
+ * Call it ONLY for a run that carries a subscription. The bare-401 half is `AUTH_REFUSAL` minus the
+ * runner's own five internal emitters: a subscription run has no vault key, so a credential refusal
+ * on it is about the login by elimination — but a 401 the RUNNER produced (a tool callback, an
+ * attachment fetch, a session-records call) is not a provider refusal at all, and reporting one as
+ * a dead sign-in would tell the user to re-authenticate a connection that is fine.
+ */
+export function isSubscriptionAuthFailure(err: unknown): boolean {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (RUNNER_INTERNAL_401.test(raw)) return false;
+  return PI_SUBSCRIPTION_AUTH_FAILURE.test(raw) || AUTH_REFUSAL.test(raw);
+}
+
+/**
+ * A short word for WHY the login was refused, for the failure report the API records.
+ *
+ * A closed set of six, never the harness's own sentence: that sentence can quote the request, and
+ * this value is stored on the connection row and shown to the user as `login_error`.
+ */
+export function subscriptionAuthFailureReason(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (/failed to refresh oauth token/i.test(raw)) return "refresh_rejected";
+  if (/no api key/i.test(raw)) return "login_missing";
+  if (/failed to extract accountid from token/i.test(raw)) {
+    return "login_unreadable";
+  }
+  if (/authentication token|sign(?:ing)? in again/i.test(raw)) {
+    return "token_rejected";
+  }
+  if (/authentication failed/i.test(raw)) return "auth_failed";
+  return "unauthorized";
+}
+
+/** The classified error for a subscription auth failure, given the API's `stale` answer. */
+export function subscriptionAuthError(stale: boolean): ClassifiedRunError {
+  return stale
+    ? {
+        message: SUBSCRIPTION_LOGIN_REFRESHED_MESSAGE,
+        code: "subscription_login_refreshed",
+      }
+    : {
+        message: SUBSCRIPTION_LOGIN_REQUIRED_MESSAGE,
+        code: "subscription_login_required",
+      };
 }
 
 /** The human line of {@link classifyRunError}, for the log/diagnostic call sites that want only it. */

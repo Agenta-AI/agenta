@@ -1,7 +1,10 @@
 import type {UIMessage, UIMessageChunk} from "ai"
 import {describe, expect, it, vi} from "vitest"
 
-import {AgentChatTransport} from "../../../src/transport/AgentChatTransport"
+import {
+    AgentChatTransport,
+    SHARED_SENDER_ACCEPTANCE_TIMEOUT_MS,
+} from "../../../src/transport/AgentChatTransport"
 
 const readAll = async (stream: ReadableStream<UIMessageChunk>): Promise<UIMessageChunk[]> => {
     const reader = stream.getReader()
@@ -16,6 +19,22 @@ const readAll = async (stream: ReadableStream<UIMessageChunk>): Promise<UIMessag
 
 const userMessage = (text: string): UIMessage =>
     ({id: "m1", role: "user", parts: [{type: "text", text}]}) as unknown as UIMessage
+
+const streamResponse = (text: string): Response => {
+    const chunks = [
+        {type: "start", messageId: "assistant-1"},
+        {type: "start-step"},
+        {type: "text-start", id: "text-1"},
+        {type: "text-delta", id: "text-1", delta: text},
+        {type: "text-end", id: "text-1"},
+        {type: "finish-step"},
+        {type: "finish"},
+    ]
+    const body = chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("")
+    return new Response(`${body}data: [DONE]\n\n`, {
+        headers: {"content-type": "text/event-stream"},
+    })
+}
 
 describe("AgentChatTransport", () => {
     it("constructs and owns its own fetch (a caller-supplied fetch becomes the negotiator's base)", () => {
@@ -175,5 +194,242 @@ describe("AgentChatTransport", () => {
         expect(chunks[0]).toMatchObject({type: "start"})
         expect(chunks[chunks.length - 1]).toMatchObject({type: "finish"})
         expect(chunks.filter((c) => c.type === "text-end")).toHaveLength(1)
+    })
+
+    it("consumes a shared sender invoke as acceptance and errors, never rendered content", async () => {
+        const sseBody =
+            [
+                {type: "start", messageId: "acceptance-1", messageMetadata: {sessionId: "s1"}},
+                {type: "start-step"},
+                {
+                    type: "data-session-accepted",
+                    data: {turnId: "turn-1", executionId: "turn-1"},
+                },
+                {
+                    type: "data-agent-error",
+                    data: {code: "runner_error", errorText: "provider failed"},
+                },
+                {type: "text-start", id: "t1"},
+                {type: "text-delta", id: "t1", delta: "must render from the event route"},
+                {type: "text-end", id: "t1"},
+                {type: "error", errorText: "provider failed"},
+                {type: "finish-step"},
+                {type: "finish", messageMetadata: {traceId: "trace-1"}},
+            ]
+                .map((c) => `data: ${JSON.stringify(c)}\n\n`)
+                .join("") + "data: [DONE]\n\n"
+        const transport = new AgentChatTransport({
+            api: "/api/agent/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "x-ag-session-response": "shared",
+            },
+            fetch: vi.fn(
+                async () =>
+                    new Response(sseBody, {
+                        status: 200,
+                        headers: {"content-type": "text/event-stream"},
+                    }),
+            ) as unknown as typeof fetch,
+        })
+
+        const chunks = await readAll(
+            await transport.sendMessages({
+                trigger: "submit-message",
+                chatId: "chat-1",
+                messageId: undefined,
+                messages: [userMessage("hi")],
+            }),
+        )
+
+        expect(chunks.map((chunk) => chunk.type)).toEqual([
+            "start",
+            "start-step",
+            "data-session-accepted",
+            "data-agent-error",
+            "error",
+            "finish-step",
+            "finish",
+        ])
+        expect(chunks[0]).toMatchObject({messageMetadata: {sessionId: "s1", sharedSender: true}})
+        expect(chunks[3]).toMatchObject({
+            data: {code: "runner_error", errorText: "provider failed"},
+        })
+        expect(chunks.at(-1)).toMatchObject({
+            messageMetadata: {traceId: "trace-1", sharedSender: true},
+        })
+    })
+
+    it("rejects a shared sender request when no acceptance arrives before the deadline", async () => {
+        vi.useFakeTimers()
+        try {
+            let requestSignal: AbortSignal | null | undefined
+            const transport = new AgentChatTransport({
+                api: "/api/agent/invoke",
+                headers: {
+                    Accept: "text/event-stream",
+                    "x-ag-session-response": "shared",
+                },
+                fetch: vi.fn((_input, init) => {
+                    requestSignal = init?.signal
+                    return new Promise<Response>(() => undefined)
+                }) as unknown as typeof fetch,
+            })
+
+            const pending = transport.sendMessages({
+                trigger: "submit-message",
+                chatId: "chat-1",
+                messageId: undefined,
+                messages: [userMessage("offline before send")],
+            })
+            const rejection = expect(pending).rejects.toThrow("Failed to fetch")
+            await vi.advanceTimersByTimeAsync(SHARED_SENDER_ACCEPTANCE_TIMEOUT_MS)
+
+            await rejection
+            expect(requestSignal?.aborted).toBe(true)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("rejects a shared sender response body that opens but never emits acceptance", async () => {
+        vi.useFakeTimers()
+        try {
+            let requestSignal: AbortSignal | null | undefined
+            const encoder = new TextEncoder()
+            const transport = new AgentChatTransport({
+                api: "/api/agent/invoke",
+                headers: {
+                    Accept: "text/event-stream",
+                    "x-ag-session-response": "shared",
+                },
+                fetch: vi.fn((_input, init) => {
+                    requestSignal = init?.signal
+                    return Promise.resolve(
+                        new Response(
+                            new ReadableStream<Uint8Array>({
+                                start(controller) {
+                                    for (const chunk of [
+                                        {type: "start", messageId: "waiting-1"},
+                                        {type: "start-step"},
+                                    ]) {
+                                        controller.enqueue(
+                                            encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`),
+                                        )
+                                    }
+                                },
+                            }),
+                            {headers: {"content-type": "text/event-stream"}},
+                        ),
+                    )
+                }) as unknown as typeof fetch,
+            })
+            const pending = readAll(
+                await transport.sendMessages({
+                    trigger: "submit-message",
+                    chatId: "chat-1",
+                    messageId: undefined,
+                    messages: [userMessage("response opened but no acceptance")],
+                }),
+            )
+            const rejection = expect(pending).rejects.toThrow("Failed to fetch")
+
+            await vi.advanceTimersByTimeAsync(SHARED_SENDER_ACCEPTANCE_TIMEOUT_MS)
+
+            await rejection
+            expect(requestSignal?.aborted).toBe(true)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("disarms the deadline after acceptance so a later disconnect stays post-acceptance", async () => {
+        vi.useFakeTimers()
+        try {
+            let source: ReadableStreamDefaultController<Uint8Array> | undefined
+            let requestSignal: AbortSignal | null | undefined
+            const encoder = new TextEncoder()
+            const transport = new AgentChatTransport({
+                api: "/api/agent/invoke",
+                headers: {
+                    Accept: "text/event-stream",
+                    "x-ag-session-response": "shared",
+                },
+                fetch: vi.fn((_input, init) => {
+                    requestSignal = init?.signal
+                    return Promise.resolve(
+                        new Response(
+                            new ReadableStream<Uint8Array>({
+                                start(controller) {
+                                    source = controller
+                                    for (const chunk of [
+                                        {type: "start", messageId: "accepted-1"},
+                                        {type: "start-step"},
+                                        {
+                                            type: "data-session-accepted",
+                                            data: {executionId: "turn-1"},
+                                        },
+                                    ]) {
+                                        controller.enqueue(
+                                            encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`),
+                                        )
+                                    }
+                                },
+                            }),
+                            {headers: {"content-type": "text/event-stream"}},
+                        ),
+                    )
+                }) as unknown as typeof fetch,
+            })
+            const reader = (
+                await transport.sendMessages({
+                    trigger: "submit-message",
+                    chatId: "chat-1",
+                    messageId: undefined,
+                    messages: [userMessage("accepted first")],
+                })
+            ).getReader()
+
+            expect((await reader.read()).value?.type).toBe("start")
+            expect((await reader.read()).value?.type).toBe("start-step")
+            expect((await reader.read()).value?.type).toBe("data-session-accepted")
+            await vi.advanceTimersByTimeAsync(SHARED_SENDER_ACCEPTANCE_TIMEOUT_MS * 2)
+            expect(requestSignal?.aborted).toBe(false)
+
+            source?.error(new TypeError("Failed to fetch"))
+            await expect(reader.read()).rejects.toThrow("Failed to fetch")
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("does not apply the acceptance deadline when the shared sender flag is off", async () => {
+        vi.useFakeTimers()
+        try {
+            const baseFetch = vi.fn(
+                () =>
+                    new Promise<Response>((resolve) => {
+                        setTimeout(() => resolve(streamResponse("legacy response")), 20_000)
+                    }),
+            )
+            const transport = new AgentChatTransport({
+                api: "/api/agent/invoke",
+                headers: {Accept: "text/event-stream"},
+                fetch: baseFetch as unknown as typeof fetch,
+            })
+
+            const pending = transport.sendMessages({
+                trigger: "submit-message",
+                chatId: "chat-1",
+                messageId: undefined,
+                messages: [userMessage("legacy path")],
+            })
+            await vi.advanceTimersByTimeAsync(20_000)
+            const chunks = await readAll(await pending)
+
+            expect(chunks.some((chunk) => chunk.type === "text-delta")).toBe(true)
+        } finally {
+            vi.useRealTimers()
+        }
     })
 })

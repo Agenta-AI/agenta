@@ -47,6 +47,18 @@ KEY = os.environ["AGENTA_API_KEY"]
 BASELINE_INSTRUCTIONS = "Be terse. Do exactly what is asked."
 TOKEN = f"QA-APPROVE-{uuid.uuid4().hex[:12]}"
 
+# Same knobs, same names and same reasoning as `qa_matrix_lib.py`. The default is Claude on the
+# operator's mounted subscription on a local sandbox, which no preview stage can serve: a cloud
+# stage refuses the local sandbox by configuration and holds no operator login, so this script
+# fails on the environment rather than on the release unless the shape is overridden. Only the
+# shape moves; every assertion stays.
+MODEL = os.environ.get("AGENTA_QA_MODEL", "sonnet")
+PROVIDER = os.environ.get("AGENTA_QA_PROVIDER", "anthropic")
+CONNECTION_MODE = os.environ.get("AGENTA_QA_CONNECTION_MODE", "self_managed")
+CONNECTION_SLUG = os.environ.get("AGENTA_QA_CONNECTION_SLUG") or None
+HARNESS_KIND = os.environ.get("AGENTA_QA_HARNESS", "claude")
+SANDBOX_KIND = os.environ.get("AGENTA_QA_SANDBOX", "local")
+
 
 def api_call(method: str, path: str, timeout: float = 60.0, **kwargs) -> httpx.Response:
     return httpx.request(
@@ -63,16 +75,16 @@ def agent_config(tools: list[dict]) -> dict:
     return {
         "instructions": {"agents_md": BASELINE_INSTRUCTIONS},
         "llm": {
-            "model": "sonnet",
-            "provider": "anthropic",
-            "connection": {"mode": "self_managed", "slug": None},
+            "model": MODEL,
+            "provider": PROVIDER,
+            "connection": {"mode": CONNECTION_MODE, "slug": CONNECTION_SLUG},
             "extras": {},
         },
         "tools": tools,
         "mcps": [],
         "skills": [],
-        "harness": {"kind": "claude"},
-        "sandbox": {"kind": "local"},
+        "harness": {"kind": HARNESS_KIND},
+        "sandbox": {"kind": SANDBOX_KIND},
     }
 
 

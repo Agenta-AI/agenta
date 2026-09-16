@@ -466,11 +466,17 @@ services:
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
+            # Where the runner keeps state that must outlive a container recreate: the per-connection
+            # copy of a hosted subscription login (Pi rotates the refresh token on every exchange).
+            AGENTA_RUNNER_STATE_DIR: /var/lib/agenta/runner-state
             AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: ${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}
             AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: ${AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER:-local}
             # Worst-case turn duration. Keep AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS (API) above it
             # plus 60s of skew, or every dispatch rebuilds the environment cold.
             AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS: ${AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS:-}
+            # Defaults: 30 min without progress; 30 min for one tool call.
+            AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS: ${AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS:-}
+            AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS: ${AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS:-}
             AGENTA_RUNNER_DAYTONA_API_KEY: ${AGENTA_RUNNER_DAYTONA_API_KEY:-}
             AGENTA_RUNNER_DAYTONA_API_URL: ${AGENTA_RUNNER_DAYTONA_API_URL:-}
             AGENTA_RUNNER_DAYTONA_TARGET: ${AGENTA_RUNNER_DAYTONA_TARGET:-}
@@ -488,6 +494,7 @@ services:
             # only its last message loses the conversation.
             AGENTA_SESSIONS_RECONSTRUCT: ${AGENTA_SESSIONS_RECONSTRUCT:-}
             AGENTA_RECORDS_DURABLE: ${AGENTA_RECORDS_DURABLE:-}
+            AGENTA_RUNNER_LIVE_FRAMES: ${AGENTA_RUNNER_LIVE_FRAMES:-true}
         # === STORAGE ============================================== #
         volumes:
             - ../../../services/runner/src:/app/src
@@ -496,6 +503,7 @@ services:
             # token must persist back to the host login (a copy would discard it).
             - ${HOME}/.pi/agent:/pi-agent:rw
         # === NETWORK ============================================== #
+            - runner-state:/var/lib/agenta/runner-state
         networks:
             - agenta-network
         # === RUNTIME ============================================== #
@@ -809,6 +817,7 @@ networks:
     agenta-network:
 
 volumes:
+    runner-state:
     postgres-data:
     redis-volatile-data:
     redis-durable-data:

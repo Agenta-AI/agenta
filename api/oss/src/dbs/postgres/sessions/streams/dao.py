@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 import uuid_utils.compat as uuid
@@ -23,6 +23,7 @@ from oss.src.core.sessions.dtos import (
     SessionTriggerKind,
 )
 from oss.src.core.sessions.streams.dtos import (
+    SessionNameSource,
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
@@ -35,6 +36,7 @@ from oss.src.core.sessions.streams.interfaces import (
     SessionStreamsDAOInterface,
     TriggerSessionClaimsDAOInterface,
 )
+from oss.src.core.sessions.streams.naming import refuse_name_change
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.triggers.dtos import TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE
@@ -48,6 +50,7 @@ from oss.src.dbs.postgres.sessions.references import (
     references_containment_json,
     references_to_json,
 )
+from oss.src.dbs.postgres.sessions.executions.dbes import SessionExecutionDBE
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
     SESSION_ORIGIN_TAG_KEY,
@@ -58,6 +61,8 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
     map_stream_query_result,
     map_stream_dto_to_dbe_create,
     map_stream_dto_to_dbe_edit,
+    decode_name_revision,
+    decode_name_source,
     map_stream_dto_to_dbe_header_edit,
 )
 
@@ -94,6 +99,42 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         if engine is None:
             engine = get_transactions_engine()
         self.engine = engine
+
+    async def settle_command(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str],
+        mirror_stopped: bool,
+        transaction: Optional[Any] = None,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        values = {"stopping_turn_id": None, "updated_at": now}
+        if mirror_stopped:
+            values["flags"] = func.coalesce(SessionStreamDBE.flags, cast({}, JSONB)).op(
+                "||"
+            )(cast({"is_running": False}, JSONB))
+        stmt = sa_update(SessionStreamDBE).where(
+            SessionStreamDBE.project_id == project_id,
+            SessionStreamDBE.session_id == session_id,
+        )
+        if turn_id is not None:
+            stmt = stmt.where(
+                or_(
+                    SessionStreamDBE.stopping_turn_id == turn_id,
+                    SessionStreamDBE.stopping_turn_id.is_(None),
+                )
+            )
+
+        async def execute(session: Any) -> None:
+            await session.execute(stmt.values(**values))
+
+        if transaction is not None:
+            await execute(transaction)
+            return
+        async with self.engine.session() as session:
+            await execute(session)
 
     async def create(
         self,
@@ -494,6 +535,53 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         session_id: str,
         stream: SessionStreamEdit,
     ) -> Optional[SessionStream]:
+        if stream.expected_turn_id is not None:
+            terminal_execution_exists = (
+                select(SessionExecutionDBE.execution_id)
+                .where(
+                    SessionExecutionDBE.project_id == project_id,
+                    SessionExecutionDBE.session_id == session_id,
+                    SessionExecutionDBE.execution_id == stream.expected_turn_id,
+                    SessionExecutionDBE.terminal_outcome.is_not(None),
+                )
+                .exists()
+            )
+            values = {
+                "updated_by_id": user_id,
+                "updated_at": datetime.now(timezone.utc),
+            }
+            if stream.flags is not None:
+                values["flags"] = stream.flags.model_dump(mode="json")
+            if stream.turn_id is not None:
+                values["turn_id"] = stream.turn_id
+
+            async with self.engine.session() as session:
+                result = await session.execute(
+                    sa_update(SessionStreamDBE)
+                    .where(
+                        SessionStreamDBE.project_id == project_id,
+                        SessionStreamDBE.session_id == session_id,
+                        SessionStreamDBE.deleted_at.is_(None),
+                        SessionStreamDBE.turn_id == stream.expected_turn_id,
+                        SessionStreamDBE.flags.contains(
+                            {"is_alive": True, "is_running": True}
+                        ),
+                        # Final idle beats must persist after settlement; active beats
+                        # must not revive an execution that has already ended.
+                        (~terminal_execution_exists)
+                        if stream.flags is None or stream.flags.is_running
+                        else True,
+                    )
+                    .values(**values)
+                    .returning(SessionStreamDBE)
+                    .execution_options(synchronize_session=False)
+                )
+                dbe = result.scalar_one_or_none()
+                await session.commit()
+            if dbe is None:
+                return None
+            return map_stream_dbe_to_dto(stream_dbe=dbe)
+
         async with self.engine.session() as session:
             stmt = select(SessionStreamDBE).where(
                 SessionStreamDBE.project_id == project_id,
@@ -607,21 +695,44 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         user_id: Optional[UUID],
         session_id: str,
         header: SessionStreamHeaderEdit,
+        name_source: SessionNameSource = SessionNameSource.manual,
     ) -> Optional[SessionStream]:
+        """Apply the header edit, refusing an automatic rename over a person's name.
+
+        The refusal is decided HERE, inside the write transaction, against a row this
+        transaction has locked. Deciding it a layer up would be a read-then-write: a person
+        could commit their rename between the read and the write, and the automatic edit
+        would replace a name that did not exist when it was checked. `FOR UPDATE` makes the
+        two header writers queue on the row instead, so the loser re-reads the winner's name
+        and is refused on it. Raises `SessionNameProtected` when the edit must not land.
+        """
         async with self.engine.session() as session:
-            stmt = select(SessionStreamDBE).where(
-                SessionStreamDBE.project_id == project_id,
-                SessionStreamDBE.session_id == session_id,
-                SessionStreamDBE.deleted_at.is_(None),
+            stmt = (
+                select(SessionStreamDBE)
+                .where(
+                    SessionStreamDBE.project_id == project_id,
+                    SessionStreamDBE.session_id == session_id,
+                    SessionStreamDBE.deleted_at.is_(None),
+                )
+                .with_for_update(key_share=True)
             )
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
             if dbe is None:
                 return None
+            refuse_name_change(
+                session_id=session_id,
+                current_name=dbe.name,
+                current_source=decode_name_source(dbe.tags),
+                current_revision=decode_name_revision(dbe.tags),
+                header=header,
+                name_source=name_source,
+            )
             map_stream_dto_to_dbe_header_edit(
                 stream_dbe=dbe,
                 user_id=user_id,
                 header=header,
+                name_source=name_source,
             )
             # `updated_at` is deliberately not bumped: it is the last-ACTIVITY sort key, and
             # renaming a session is not activity — bumping it teleports the row you just

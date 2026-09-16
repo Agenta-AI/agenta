@@ -44,7 +44,8 @@
     --colorErrorBg: #f9e5e5;
     --colorErrorBorder: #d94c4a;
     --controlItemBgHover: rgba(36, 36, 36, 0.02);
-    --colorBgSpotlight: rgba(36, 36, 36, 0.9);
+    --controlItemBgActive: #f0efed;
+    --colorBgSpotlight: #242424;
     --colorTextLightSolid: #ffffff;
     --colorSplit: #f0efed;
     --colorInfo: #113955;
@@ -72,7 +73,7 @@
     --destructive: #5e0908;
     --success: #2e7d3a;
     --destructive-foreground: #ffffff;
-    --border: #e5e5e3;
+    --border: #d7d7d7;
     --input: #d7d7d7;
     --ag-surface-app: #f6f5f3;
     --ag-surface-gutter: #f6f5f3;
@@ -91,7 +92,7 @@
     --ag-surface-inspector-shadow: -8px 0 24px rgba(16, 18, 22, 0.08);
     --ag-sidebar-bg: #f6f5f3;
     --ag-shell-line: #e5e5e3;
-    --ring: #242424;
+    --ring: #a3a19f;
     --placeholder: #a3a19f;
     --focus-ring: #e5e5e3;
     --disabled: #a3a19f;
@@ -111,8 +112,9 @@
     --btn-link: #5e5e08;
     --btn-link-hover: #242424;
     --btn-link-active: #1e1c1d;
-    --ag-controlOutline: rgba(217, 217, 44, 0.35);
-    --ag-errorOutline: rgba(217, 76, 74, 0.12);
+    --ag-ring: #a3a19f;
+    --ag-controlOutline: rgba(163, 161, 159, 0.5);
+    --ag-errorOutline: rgba(217, 76, 74, 0.2);
     --ag-colorFillQuaternary: rgba(36, 36, 36, 0.02);
     --switch-handle-shadow: 0 2px 4px 0 rgba(0, 35, 11, 0.2);
     --ag-composer-border: #e5e5e3;
@@ -120,6 +122,9 @@
     --ag-composer-placeholder: #848b8c;
     --ag-send-disabled-bg: #f0efed;
     --ag-send-disabled-fg: #a3a19f;
+    --ag-run-status-success: #12B76A;
+    --ag-run-status-warning: #F79009;
+    --ag-run-status-default: #98A2B3;
     --ag-colorText: #242424;
     --ag-colorTextSecondary: #676770;
     --ag-colorFillSecondary: rgba(36, 36, 36, 0.06);
@@ -172,6 +177,7 @@
     --colorErrorBg: #2c1618;
     --colorErrorBorder: #5b2526;
     --controlItemBgHover: rgba(255, 255, 255, 0.04);
+    --controlItemBgActive: #57572a;
     --colorBgSpotlight: #424242;
     --colorTextLightSolid: #ffffff;
     --colorSplit: rgba(253, 253, 253, 0.12);
@@ -200,7 +206,7 @@
     --destructive: #ff4d4f;
     --success: #52c41a;
     --destructive-foreground: #141414;
-    --border: #303030;
+    --border: #424242;
     --input: #424242;
     --ag-surface-app: #0a0a0c;
     --ag-surface-gutter: #060607;
@@ -219,7 +225,7 @@
     --ag-surface-inspector-shadow: -8px 0 24px rgba(0, 0, 0, 0.35);
     --ag-sidebar-bg: #101010;
     --ag-shell-line: #2c2c2c;
-    --ring: #f2f25c;
+    --ring: rgba(255, 255, 255, 0.45);
     --placeholder: rgba(255, 255, 255, 0.38);
     --focus-ring: #57572a;
     --disabled: rgba(255, 255, 255, 0.25);
@@ -239,8 +245,9 @@
     --btn-link: #8ccfff;
     --btn-link-hover: #b0deff;
     --btn-link-active: #54b5fa;
-    --ag-controlOutline: rgba(251, 251, 96, 0.29);
-    --ag-errorOutline: rgba(238, 38, 56, 0.11);
+    --ag-ring: rgba(255, 255, 255, 0.45);
+    --ag-controlOutline: rgba(255, 255, 255, 0.25);
+    --ag-errorOutline: rgba(238, 38, 56, 0.4);
     --ag-colorFillQuaternary: rgba(255, 255, 255, 0.04);
     --switch-handle-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.45);
     --ag-composer-border: #2a2c30;
@@ -248,6 +255,9 @@
     --ag-composer-placeholder: #7e828a;
     --ag-send-disabled-bg: #26282c;
     --ag-send-disabled-fg: #6e7176;
+    --ag-run-status-success: #12B76A;
+    --ag-run-status-warning: #F79009;
+    --ag-run-status-default: #98A2B3;
     --ag-colorText: rgba(255, 255, 255, 0.85);
     --ag-colorTextSecondary: rgba(255, 255, 255, 0.65);
     --ag-colorFillSecondary: rgba(255, 255, 255, 0.12);
@@ -256,4 +266,8 @@
     --ag-surface-chat-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
     --ag-surface-chip: #2a2a2e;
     --ag-surface-chip-border: #303035;
+    --drawer-right-shadow: -1px 0 0 0 rgba(255, 255, 255, 0.16), -6px 0 16px 0 rgba(0, 0, 0, 0.44), -3px 0 6px -4px rgba(0, 0, 0, 0.52), -9px 0 28px 8px rgba(0, 0, 0, 0.28);
+    --drawer-left-shadow: 1px 0 0 0 rgba(255, 255, 255, 0.16), 6px 0 16px 0 rgba(0, 0, 0, 0.44), 3px 0 6px -4px rgba(0, 0, 0, 0.52), 9px 0 28px 8px rgba(0, 0, 0, 0.28);
+    --drawer-top-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28);
+    --drawer-bottom-shadow: 0 -1px 0 0 rgba(255, 255, 255, 0.16), 0 -6px 16px 0 rgba(0, 0, 0, 0.44), 0 -3px 6px -4px rgba(0, 0, 0, 0.52), 0 -9px 28px 8px rgba(0, 0, 0, 0.28);
 }

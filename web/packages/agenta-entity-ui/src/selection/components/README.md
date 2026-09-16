@@ -287,7 +287,6 @@ Displays the current navigation path with clickable items.
 
 ```tsx
 import {EntityBreadcrumb} from "@agenta/entity-ui"
-
 ;<EntityBreadcrumb
     path={[
         {id: "1", label: "My App"},
@@ -304,7 +303,6 @@ A single selectable item with optional children indicator.
 
 ```tsx
 import {EntityListItem} from "@agenta/entity-ui"
-
 ;<EntityListItem
     label="My App"
     labelNode={<CustomLabel />} // Optional rich label
@@ -323,7 +321,6 @@ Debounced search input.
 
 ```tsx
 import {SearchInput} from "@agenta/entity-ui"
-
 ;<SearchInput
     value={searchTerm}
     onChange={setSearchTerm}
@@ -382,7 +379,6 @@ Renders a single level as an Ant Design `Select`:
 
 ```tsx
 import {LevelSelect} from "@agenta/entity-ui"
-
 ;<LevelSelect level={levelState} onChange={handleChange} showLabel size="middle" />
 ```
 
@@ -392,7 +388,6 @@ Renders children in a popover:
 
 ```tsx
 import {ChildPopoverContent} from "@agenta/entity-ui"
-
 ;<ChildPopoverContent
     parentId={parent.id}
     parentLabel={parent.label}

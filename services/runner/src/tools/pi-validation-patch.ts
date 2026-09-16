@@ -23,7 +23,7 @@
  * from its own install, which this does not reach. That half needs the same patch wherever that
  * image is built, and until then the two paths word this error differently.
  *
- * VERSION-PIN FRICTION, ACCEPTED. The anchor is the exact `.map(...)` line pi-ai 0.80.6 ships, so
+ * VERSION-PIN FRICTION, ACCEPTED. The anchor is the exact `.map(...)` line pi-ai 0.85.1 ships, so
  * a Pi upgrade will usually not match it and the image build will fail until someone re-reads the
  * formatter and updates the anchor here. That cost is accepted deliberately: the alternative is a
  * loose pattern that keeps matching something after the surrounding code has moved, which is how a

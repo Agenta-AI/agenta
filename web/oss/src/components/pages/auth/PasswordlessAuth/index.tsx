@@ -1,7 +1,6 @@
-import {PasswordlessRequestForm} from "@agenta/auth-ui"
+import {PasswordlessRequestForm, useTurnstileSecurity} from "@agenta/auth-ui"
 
 import {PasswordlessAuthProps} from "../assets/types"
-import {useTurnstileSecurity} from "../assets/useTurnstileSecurity"
 
 /** OSS binding over the package form: Turnstile as the security seam, page state mapped 1:1. */
 const PasswordlessAuth = ({

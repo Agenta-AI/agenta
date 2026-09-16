@@ -1,10 +1,8 @@
 import {useState} from "react"
 
-import {RailField} from "@agenta/entity-ui/drawers/shared"
-import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
-import {Warning, Wrench} from "@phosphor-icons/react"
+import {Wrench} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-import {Switch as AntSwitch, Tag as AntTag, Tooltip as AntTooltip, Typography} from "antd"
+import {Switch as AntSwitch, Typography} from "antd"
 
 // Imported from source: agentTemplate internals are not re-exported from the DrillInView barrel.
 import {
@@ -14,13 +12,11 @@ import {
 import {
     BuildKitSection,
     type BuildKitTool,
-    PermissionOverrideHint,
-    formatPermissionValue,
 } from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/BuildKitSection"
 import type {ItemDescriptor} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/itemDescriptors"
 import {ItemRow} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/ItemRow"
 
-// BuildKitSection / PermissionOverrideHint — the presentational half of `useBuildKit`, split out
+// BuildKitSection - the presentational half of `useBuildKit`, split out
 // of the hook so the read-only playground overlay can be storied with plain props. Migration:
 // antd `Switch` → `@agenta/ui` `Switch` (`onChange` → `onCheckedChange`), antd `Tag` →
 // presentational `Tag` (Badge default), antd `Tooltip` → Radix `Tooltip` (+ `TooltipProvider`),
@@ -28,7 +24,7 @@ import {ItemRow} from "../../../packages/agenta-entity-ui/src/DrillInView/Schema
 //
 // The antd half replays the pre-migration markup from
 // `git show feat/storybook-data-seam:web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/useBuildKit.tsx`
-// inside the same (already-migrated) `ConfigAccordionSection` / `RailField` / `ItemRow` chrome.
+// inside the same (already-migrated) plain-panel / `ItemRow` chrome.
 const meta = {
     title: "@agenta/entity-ui/DrillIn/BuildKitSection",
     component: BuildKitSection,
@@ -37,7 +33,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The playground-only build-kit overlay — one readable tool list (switchable platform tools plus the locked Agenta-owned embeds) and the sandbox permissions, under its enable switch. Stripped by the backend on commit. `PermissionOverrideHint` is the sibling warning shown above SandboxPermissionControl.",
+                    "The playground-only build-kit overlay: one readable tool list with switchable platform tools and locked Agenta-owned embeds. Stored sandbox permissions are not displayed or changed.",
             },
         },
     },
@@ -78,16 +74,9 @@ const buildKitTools = (disabledOps: string[] = []): BuildKitTool[] => [
 
 const TOOLS = buildKitTools()
 
-const PERMISSIONS: Record<string, unknown> = {
-    network: "on",
-    filesystem: "read_write",
-    enforcement: {mode: "best_effort"},
-}
-
 const CAPTION =
     "These playground-only tools and permissions help the assistant build and revise this agent. None of this is part of the published agent."
 const DISABLED_NOTE = "The assistant can no longer create files, run code, or edit the agent here."
-const OVERRIDE_KEYS = ["network", "filesystem"]
 
 /** Pre-migration antd markup. */
 const AntdBuildKitSection = ({
@@ -97,67 +86,36 @@ const AntdBuildKitSection = ({
     enabled?: boolean
     disabled?: boolean
 }) => (
-    <ConfigAccordionSection
-        size="compact"
-        defaultOpen
-        icon={<Wrench size={15} />}
-        title="Playground build kit"
-        summary={
-            <span className="inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-[var(--ag-colorWarning)]" />
-                Removed on commit
-            </span>
-        }
-        extra={<AntSwitch checked={enabled} disabled={disabled} />}
-    >
-        <Typography.Text type="secondary" className="text-[11px] leading-snug">
-            {CAPTION}
-        </Typography.Text>
+    <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 text-xs font-medium">Playground build kit</span>
+                <AntSwitch checked={enabled} disabled={disabled} />
+            </div>
+            <Typography.Text type="secondary" className="text-[11px] leading-snug">
+                {CAPTION}
+            </Typography.Text>
+        </div>
         {!enabled ? (
             <div className="rounded border border-solid border-[var(--ant-color-info-border)] bg-[var(--ant-color-info-bg)] px-2.5 py-2 text-[11.5px] leading-snug text-[var(--ant-color-info-text)]">
                 {DISABLED_NOTE}
             </div>
         ) : null}
-        <RailField label="Platform tools">
+        <div className="flex flex-col gap-1.5">
+            <Typography.Text type="secondary" className="text-xs">
+                Platform tools
+            </Typography.Text>
             {PLATFORM_OPS.map((op) => (
                 <ItemRow key={`platform-${op}`} descriptor={platformDescriptor(op)} locked />
             ))}
-        </RailField>
-        <RailField label="Sandbox permissions">
-            <div className="flex flex-col gap-1.5 opacity-70">
-                {Object.entries(PERMISSIONS).map(([key, value]) => (
-                    <div
-                        key={key}
-                        className="flex items-center justify-between gap-3 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2 text-xs"
-                    >
-                        <span className="font-mono">{key}</span>
-                        <AntTag className="m-0 font-mono text-[11px]">
-                            {formatPermissionValue(value)}
-                        </AntTag>
-                    </div>
-                ))}
-            </div>
-        </RailField>
-    </ConfigAccordionSection>
-)
-
-/** Pre-migration antd markup for the override hint. */
-const AntdPermissionOverrideHint = () => (
-    <AntTooltip title="This value is overridden by the build kit in playground. Turn the build kit off to match the published agent.">
-        <div className="inline-flex w-fit items-center gap-1.5 rounded bg-[var(--ant-color-warning-bg)] px-2 py-1 text-[11px] text-[var(--ant-color-warning-text)]">
-            <Warning size={12} />
-            Build kit overrides {OVERRIDE_KEYS.join(", ")}
         </div>
-    </AntTooltip>
+    </div>
 )
 
 const BASE = {
     tools: TOOLS,
     onToggleTool: () => undefined,
     onSetAllTools: () => undefined,
-    permissions: PERMISSIONS,
-    // The app renders this collapsed; every story opens it so the body is visible/measured.
-    defaultOpen: true,
 }
 
 const Live = ({
@@ -219,36 +177,26 @@ export const SomeToolsOff: Story = {
     render: () => <Live initialDisabledOps={["commit_revision", "test_run"]} />,
 }
 
-/** A thin overlay: permissions only, no tools. */
-export const PermissionsOnly: Story = {
+/** An empty overlay: the kit is on but contributes no tools. */
+export const NoTools: Story = {
     args: {
         enabled: true,
         onEnabledChange: () => undefined,
         tools: [],
         onToggleTool: () => undefined,
         onSetAllTools: () => undefined,
-        permissions: PERMISSIONS,
-        defaultOpen: true,
     },
     render: () => (
         <div className="max-w-[560px]">
             <BuildKitSection
                 enabled
-                defaultOpen
                 onEnabledChange={() => undefined}
                 tools={[]}
                 onToggleTool={() => undefined}
                 onSetAllTools={() => undefined}
-                permissions={PERMISSIONS}
             />
         </div>
     ),
-}
-
-/** The sibling hint rendered above SandboxPermissionControl. */
-export const OverrideHint: Story = {
-    args: {...BASE, enabled: true, onEnabledChange: () => undefined},
-    render: () => <PermissionOverrideHint keys={OVERRIDE_KEYS} />,
 }
 
 const Row = ({
@@ -295,11 +243,6 @@ export const AntdVsAgenta: Story = {
                 label="kit off"
                 a={<AntdBuildKitSection enabled={false} />}
                 s={<BuildKitSection {...BASE} enabled={false} onEnabledChange={() => undefined} />}
-            />
-            <Row
-                label="override hint"
-                a={<AntdPermissionOverrideHint />}
-                s={<PermissionOverrideHint keys={OVERRIDE_KEYS} />}
             />
         </div>
     ),

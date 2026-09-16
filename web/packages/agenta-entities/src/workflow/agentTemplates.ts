@@ -94,9 +94,10 @@ export interface AgentStarterTemplate {
     requiredIntegrations: RequiredIntegration[]
 }
 
-/** Provider slug → display label + brand logo URL (Composio logo CDN, the tool catalog's source). */
-const composioLogo = (slug: string) => `https://logos.composio.dev/api/${slug}`
+/** An integration slug's brand logo URL (Composio logo CDN, the tool catalog's source). */
+export const composioLogo = (slug: string) => `https://logos.composio.dev/api/${slug}`
 
+/** Provider slug → display label + brand logo URL. */
 export const PROVIDERS: Record<string, {label: string; logo: string}> = {
     github: {label: "GitHub", logo: composioLogo("github")},
     gitlab: {label: "GitLab", logo: composioLogo("gitlab")},

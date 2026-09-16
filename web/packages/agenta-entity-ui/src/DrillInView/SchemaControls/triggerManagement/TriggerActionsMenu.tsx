@@ -21,7 +21,7 @@ export function TriggerActionsMenu({
             <DropdownMenuTrigger asChild>
                 <Button
                     variant="ghost"
-                    size="icon"
+                    size="icon-sm"
                     aria-label="Open trigger actions"
                     onClick={(e) => e.stopPropagation()}
                 >

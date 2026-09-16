@@ -15,8 +15,13 @@ Services does not run agent code. It sends each agent run to one runner service 
 URL and a shared token:
 
 ```text
-Services  --(AGENTA_RUNNER_INTERNAL_URL, AGENTA_RUNNER_TOKEN)-->  Runner
+Services  --(AGENTA_RUNNER_INTERNAL_URL, AGENTA_RUNNER_TOKEN)-->  Runner   run a turn
+API       --(AGENTA_RUNNER_INTERNAL_URL, AGENTA_RUNNER_TOKEN)-->  Runner   Stop a turn, kill a session
 ```
+
+The platform API uses the same two values for its own calls to the runner. It cancels a turn when a
+user presses Stop, and it tears down a sandbox on the session `kill` verb. Both containers need
+both values.
 
 The runner owns sandbox execution. It receives a run request, starts a harness process inside a
 sandbox, streams results back, and relays server-side tools. A deployment has one logical runner.

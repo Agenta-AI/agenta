@@ -47,7 +47,11 @@ export interface SessionLocalCache {
     has: (target: SessionActionTarget) => boolean
     /** Awaited before the lists revalidate: these verbs own the server call for a cached
      * session, and a refetch that overtakes it brings the old row straight back. */
-    rename: (target: SessionActionTarget, title: string) => void | Promise<unknown>
+    /**
+     * Resolve `false` when the write did not land, so the verb reports it instead of claiming a
+     * rename the next list read will undo. `void` is success: a host with no server write.
+     */
+    rename: (target: SessionActionTarget, title: string) => void | boolean | Promise<boolean | void>
     setArchived: (target: SessionActionTarget) => void | Promise<unknown>
     remove: (target: SessionActionTarget) => void | Promise<unknown>
 }
@@ -103,12 +107,19 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
             const name = title.trim()
             if (!name) return false
             if (isCached(target)) {
-                await localCache?.rename(target, name)
+                // The host's write can fail like the direct one below. Dropping its answer
+                // reported success, so the row kept the new name until the next list read
+                // quietly put the old one back, and the person never learned the rename was
+                // lost (#6695).
+                if ((await localCache?.rename(target, name)) === false) return false
             } else {
                 const ok = await setSessionHeader({
                     sessionId: target.sessionId,
                     projectId,
                     name,
+                    // A person typed this one, so the server remembers it as theirs and
+                    // refuses an agent rename over it.
+                    nameSource: "manual",
                 })
                 if (!ok) return false
             }
@@ -250,10 +261,20 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
         [pinnedSet, sharePathFor],
     )
 
+    /**
+     * Routes a menu key to its verb.
+     *
+     * "rename" is the one key this hook cannot finish on its own: the edit happens IN the row, and
+     * only the surface knows which row that is. So it travels back out as `onRename`, the same way
+     * "open" does. A surface that renders the "rename" entry MUST supply it, or hand the key to a
+     * component that starts the edit itself (`SessionsListView`, `SessionRowActions`) — otherwise
+     * the entry is dead. It was dead on the chat tab strip and the card lists until now.
+     */
     const onMenuClick = useCallback(
-        (target: SessionActionTarget, options?: {onOpen?: () => void}) =>
+        (target: SessionActionTarget, options?: {onOpen?: () => void; onRename?: () => void}) =>
             ({key}: {key: string}) => {
                 if (key === "open") options?.onOpen?.()
+                if (key === "rename") options?.onRename?.()
                 if (key === "pin") togglePin(target.sessionId)
                 if (key === "copy-link") void copyShareLink(target)
                 if (key === "archive") void setArchived(target)

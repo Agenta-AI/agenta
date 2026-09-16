@@ -41,7 +41,9 @@ import type {QueryKey} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
+import {z} from "zod"
 
+import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {createVaultSecret, deleteVaultSecret, fetchVaultSecret, updateVaultSecret} from "../api/api"
 import {
     getEnvNameMap,
@@ -349,9 +351,9 @@ export const deleteSecretAtom = atom(null, async (get, set, provider: LlmProvide
  * migrated. The hook's `useEffect` is responsible for the user-presence
  * trigger and the logout reset (re-arm).
  *
- * On success, sets `{migrating: false, migrated: true}`.
- * On failure, rolls back to `{migrating: false, migrated: false}` so the
- * next mount can retry.
+ * Always ends in `{migrating: false, migrated: true}`, on failure too: a legacy payload
+ * that cannot be parsed stays backed up in localStorage, and the vault UI must never wait
+ * on it. The server list is the source of truth.
  */
 export const migrateVaultKeysAtom = atom(null, async (get, set) => {
     const migrationStatus = get(vaultMigrationAtom)
@@ -366,24 +368,67 @@ export const migrateVaultKeysAtom = atom(null, async (get, set) => {
         const localStorageProviders = localStorage.getItem(llmAvailableProvidersToken)
 
         if (localStorageProviders) {
-            const _providers = JSON.parse(localStorageProviders)
-            const providers = JSON.parse(_providers)
-
-            for (const provider of providers) {
-                if (provider.key) {
-                    await set(createStandardSecretAtom, provider as LlmProvider)
+            const providers = parseLegacyProviders(localStorageProviders)
+            const failed: LlmProvider[] = []
+            if (providers) {
+                for (const provider of providers) {
+                    if (!provider.key) continue
+                    try {
+                        await set(createStandardSecretAtom, provider)
+                    } catch (error) {
+                        // One bad entry must not stop the others; it stays for the next load.
+                        console.error("[vault] Legacy provider key was not migrated:", error)
+                        failed.push(provider)
+                    }
                 }
+            } else {
+                console.error(
+                    "[vault] Legacy provider keys could not be parsed; leaving them backed up.",
+                )
             }
 
-            // Create backup and cleanup
+            // Keep a backup, then leave only the entries that still need a retry in place, in
+            // the canonical double-encoded form. A later page load picks them up again.
             localStorage.setItem(`${llmAvailableProvidersToken}Backup`, localStorageProviders)
-            localStorage.removeItem(llmAvailableProvidersToken)
+            if (failed.length > 0) {
+                localStorage.setItem(
+                    llmAvailableProvidersToken,
+                    JSON.stringify(JSON.stringify(failed)),
+                )
+            } else {
+                localStorage.removeItem(llmAvailableProvidersToken)
+            }
         }
-
-        set(vaultMigrationAtom, {migrating: false, migrated: true})
     } catch (error) {
+        // A failed migration must not hold the vault UI in its loading state: the keys stay
+        // in localStorage for a later attempt, and the app keeps working with the server list.
         console.error("Migration failed:", error)
-        set(vaultMigrationAtom, {migrating: false, migrated: false})
-        throw error
+    } finally {
+        set(vaultMigrationAtom, {migrating: false, migrated: true})
     }
 })
+
+/** One legacy entry: whatever else it carried, only an object with a string key can migrate. */
+const legacyProviderSchema = z.object({key: z.string().nullish()}).passthrough()
+
+/**
+ * The legacy localStorage payload was double-encoded JSON (a JSON string holding JSON), but
+ * older builds wrote it once. Accept both; return null when the payload is not a list. Each
+ * entry is validated on its own, so one malformed entry does not block the valid ones.
+ */
+function parseLegacyProviders(raw: string): LlmProvider[] | null {
+    let parsed: unknown
+    try {
+        parsed = JSON.parse(raw)
+        if (typeof parsed === "string") parsed = JSON.parse(parsed)
+    } catch {
+        return null
+    }
+    if (!Array.isArray(parsed)) return null
+    const providers: LlmProvider[] = []
+    for (const entry of parsed) {
+        const valid = safeParseWithLogging(legacyProviderSchema, entry, "[vault] legacy provider")
+        if (valid) providers.push(valid as unknown as LlmProvider)
+    }
+    return providers
+}

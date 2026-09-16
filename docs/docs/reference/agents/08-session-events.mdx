@@ -1,0 +1,37 @@
+---
+title: "Session events"
+sidebar_label: "Session events"
+description: "Read per-turn streams and reconnect to durable agent session events."
+sidebar_position: 9
+---
+
+Agenta exposes two event scopes: the invoke response for one turn and a durable event reader for a session.
+
+## Turn stream
+
+Request `Accept: text/event-stream` from `/services/agent/v0/invoke`. Agenta-format frames are SSE `data:` lines containing objects such as `message_delta`, `tool_call`, `tool_result`, `interaction_request`, `usage`, `error`, and `done`.
+
+Use `Accept: application/x-ndjson` for the same objects as newline-delimited JSON. Use `x-ag-messages-format: vercel` for Vercel UI Message Stream parts. See [Chat message format](/reference/agents/chat-message-format#streamed-frames-agenta-format).
+
+## Durable session reader
+
+```http
+GET /api/sessions/{session_id}/events?after=0
+Accept: text/event-stream
+Authorization: ApiKey {API_KEY}
+```
+
+Each event has a monotonically increasing cursor. Persist the latest cursor and reconnect with `after=<cursor>` to replay later durable events before joining the live stream.
+
+Durable records cover execution lifecycle, completed messages and tools, and interaction lifecycle. Incremental token deltas are turn-stream data and should not be treated as durable records.
+
+## Reconnection
+
+- Ignore SSE comment lines; they are heartbeats.
+- Process duplicate events idempotently.
+- Advance the stored cursor only after processing an event.
+- Reconnect with the last committed cursor after a network failure.
+
+The durable reader can return `404` when the deployment has not enabled the shared session reader and `403` when the caller lacks session-view access.
+
+`/api/sessions/streams/watch` is a low-frequency change-notification stream for list refreshes. It is not a replayable transcript of an agent turn.

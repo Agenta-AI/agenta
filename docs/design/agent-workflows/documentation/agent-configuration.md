@@ -73,9 +73,32 @@ existing control:
   shape the prompt control uses.
 - `mcp_servers` renders as a flat array. Each entry uses `McpServerItemControl`, which is a
   JSON editor for one server entry.
-- `harness`, `sandbox`, and the permission policy each render as an enum select. The
-  permission policy select has four modes: `allow`, `ask`, `deny`, `allow_reads` (the
-  default). It renders for Pi too; Pi now honors it the same way Claude does.
+- The shared `AgentTemplateControl` renders `runner.permissions.default` in a top-level
+  Permissions section, outside Advanced. The select has four modes: `allow`, `ask`, `deny`,
+  `allow_reads`. New agents start with `allow`; omitted request/schema values still fall
+  back to `allow_reads`.
+- Advanced retains the build-kit switches and shows the sandbox environment selector only
+  when more than one schema-filtered, enabled option is available (`sandboxOptions.length > 1`).
+  Advanced also retains Custom secrets whenever a revision id exists. It is hidden only
+  when there are no environment choices, build-kit overlay, or revision for secret bindings.
+  Harness and sandbox permission editors, including their changed-field views, are hidden.
+  The build-kit permission display is also hidden; its runtime overlay is unchanged.
+
+These settings are composed in
+`web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx` and
+`agentTemplate/useModelHarness.tsx` in the same directory. Permissions changes, including
+`/permissions`, belong to the Permissions section. Undo targets `runner.permissions.default`
+or `sandbox.kind`, not hidden restriction subtrees. Buffered Model and Advanced saves merge
+their edits into the live draft rather than replacing newer inline permission changes.
+
+The canonical creation builder, `build_agent_v0_default` in
+`sdks/python/agenta/sdk/utils/types.py`, sets `runner.permissions.default` to `allow` before
+remembered model/harness routing. Existing saved policies are not reset by this default or
+by harness changes. User integration defaults in the UI and builder remain
+`{default: "allow", tools: {}}`; this change does not alter external integrations.
+The runner value is a fallback, not an override of explicit tool policies or authored rules.
+It does not establish native-tool permission parity for Claude and Codex. Their live spikes
+are blocked on credentials; source inspection is not live verification.
 
 So the object the form produces is:
 
@@ -106,7 +129,7 @@ Its fields and defaults:
 | `mcp_servers` | `List[MCPServerConfig]` | empty list | typed |
 | `harness` | `Literal["pi_core","claude","codex"]` | `"pi_core"` | enum |
 | `sandbox` | `Literal["local","daytona"]` | `"local"` | enum |
-| `runner.permissions.default` | `Literal["allow","ask","deny","allow_reads"]` | `"allow_reads"` | enum, four modes |
+| `runner.permissions.default` | `Literal["allow","ask","deny","allow_reads"]` | `"allow_reads"` | Schema fallback only; the canonical new-agent template explicitly sets `"allow"`. |
 
 The schema is registered in `CATALOG_TYPES` under the key `"agent_config"`
 (`sdks/python/agenta/sdk/utils/types.py:1132`). The API catalog imports `CATALOG_TYPES` from
@@ -223,7 +246,7 @@ Legend: (a) catalog/schema, (b) SDK neutral config, (c) runtime.
 | agents_md | yes, `agents_md: str` | yes, as `instructions` | wired to `agentsMd` | The schema names it `agents_md`. The neutral config names it `instructions`. |
 | harness | yes, enum | yes, on `AgentConfig` | wired, picks the harness class | Enum-enforced. The runtime validates via `make_harness`. |
 | sandbox | yes, enum | yes, on `AgentConfig` | wired to the backend, absent from `SessionConfig` | Backend concern, not agent identity. |
-| runner.permissions.default | yes, enum (4 modes) | yes, as `permission_default` on `AgentConfig` | wired to `SessionConfig` and the run request's `permissions.default` | Enforced for both harnesses: Claude at its settings file and the ACP responder, Pi at the tool relay. No longer decorative on Pi. |
+| runner.permissions.default | yes, enum (4 modes) | yes, as `permission_default` on `AgentConfig` | wired to `SessionConfig` and the run request's `permissions.default` | Shared runner policy; native-tool behavior still depends on the harness. See the verification limit in Layer 1. |
 
 ## Notable gaps and quirks
 
@@ -233,8 +256,8 @@ append-system string). `skills` is author config: inline `SkillConfig` packages 
 still arrives without the author writing anything: the playground build-kit overlay embeds
 the `build-an-agent` playbook. No harness forces skills or a persona.
 
-Per-harness divergence is real in other ways, but not in permission enforcement anymore: the
-permission policy is now enforced on both Claude and Pi. Builtin tool names are dropped for
+Shared runner policy does not establish native-tool permission parity across harnesses.
+Builtin tool names are dropped for
 Claude, because builtins are Pi-only; that drop warns only when the set differs from Pi's four
 defaults, which is the set the shipped template carries. Forced skills and persona are
 Agenta-only. Pi's

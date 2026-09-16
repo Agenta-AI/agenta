@@ -213,7 +213,9 @@ class GatewayPermissions(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    default: GatewayPermission
+    # ``inherit`` is the safe absent value: the compiler defers every tool to the
+    # agent-wide runner mode, which is what an entry saved without a policy means.
+    default: GatewayPermission = "inherit"
     tools: Dict[Annotated[str, Field(min_length=1)], GatewayPermission] = Field(
         default_factory=dict
     )
@@ -225,7 +227,7 @@ class GatewayConnectionPolicy(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    permissions: GatewayPermissions
+    permissions: GatewayPermissions = Field(default_factory=GatewayPermissions)
 
 
 class GatewayConnectionToolConfig(BaseModel):
@@ -247,7 +249,10 @@ class GatewayConnectionToolConfig(BaseModel):
 
     type: Literal["gateway_connection"] = "gateway_connection"
     connection: GatewayConnectionRef
-    policy: GatewayConnectionPolicy
+    # Defaulted, not required. The commit path does not validate an entry against this
+    # model, so an entry written without ``policy`` must mean "inherit the runner policy"
+    # rather than fail the run at parse time.
+    policy: GatewayConnectionPolicy = Field(default_factory=GatewayConnectionPolicy)
 
 
 class CompiledTool(BaseModel):
@@ -702,7 +707,9 @@ class GatewayToolResolution(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    tool_specs: List[CallbackToolSpec] = Field(default_factory=list)
+    tool_specs: List[Union[CallbackToolSpec, ClientToolSpec]] = Field(
+        default_factory=list
+    )
     tool_callback: ToolCallback
 
 

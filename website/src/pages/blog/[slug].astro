@@ -14,7 +14,7 @@ export const getStaticPaths = (async () => {
 }) satisfies GetStaticPaths;
 
 const { post } = Astro.props;
-const { title, description, date, heroImage, ogImage, readingTime } =
+const { title, description, date, updated, heroImage, ogImage, readingTime, faq } =
   post.data;
 
 // Resolve every contributor (primary first, then co-authors) for the byline.
@@ -50,6 +50,7 @@ const articleJsonLd = {
   description,
   image: ogUrl ?? defaultOgUrl,
   datePublished: date.toISOString(),
+  dateModified: (updated ?? date).toISOString(),
   url: canonicalUrl,
   mainEntityOfPage: { "@type": "WebPage", "@id": canonicalUrl },
   author: authors.map((a) => ({
@@ -68,6 +69,40 @@ const articleJsonLd = {
   },
 };
 
+const breadcrumbJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Blog",
+      item: new URL("/blog", Astro.site).toString(),
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: title,
+      item: canonicalUrl,
+    },
+  ],
+};
+
+const faqJsonLd = faq?.length
+  ? {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: faq.map(({ question, answer }) => ({
+        "@type": "Question",
+        name: question,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: answer,
+        },
+      })),
+    }
+  : undefined;
+
 ---
 
 <Site
@@ -82,6 +117,20 @@ const articleJsonLd = {
       is:inline
       set:html={JSON.stringify(articleJsonLd)}
     />
+    <script
+      type="application/ld+json"
+      is:inline
+      set:html={JSON.stringify(breadcrumbJsonLd)}
+    />
+    {
+      faqJsonLd && (
+        <script
+          type="application/ld+json"
+          is:inline
+          set:html={JSON.stringify(faqJsonLd)}
+        />
+      )
+    }
   </Fragment>
 
   <Section as="article" tone="flat" style="background:var(--bp-sec-1);padding:0 0 24px;">

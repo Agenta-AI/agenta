@@ -11,9 +11,12 @@ import {
     connectionModelIds,
     effectiveHarnesses,
     firstAgentModelForConnection,
+    isSubscriptionConnection,
+    mountedSubscriptionName,
     resolveAgentModelSelection,
-    subscriptionPlanName,
     SecretKind,
+    SUBSCRIPTION_SIGN_IN_HINT,
+    subscriptionAvailability,
     type AgentModelCandidate,
     type AgentModelSelection,
     type ProviderConnection,
@@ -42,6 +45,10 @@ export interface PickerConnectionRow {
     iconKey: string
     kind: "connection" | "subscription"
     managed?: boolean
+    /** The row is shown but cannot be picked — a hosted subscription whose sign-in is not usable. */
+    disabled?: boolean
+    /** One short line under the name, saying why the row is disabled. */
+    hint?: string
     models: PickerModelRow[]
 }
 
@@ -58,14 +65,32 @@ export interface BuildPickerRowsArgs {
     candidates: readonly AgentModelCandidate[]
     connections: readonly ProviderConnection[]
     capabilities: HarnessCapabilitiesMap | null | undefined
+    /**
+     * The harnesses this picker's agent can run, when the caller narrowed the candidates to them.
+     * Only the sign-in-needed row reads it, so it stays quiet about a subscription this agent could
+     * not drive even after a sign-in. Absent means no narrowing, and every subscription may speak.
+     */
+    harnessIds?: readonly string[]
 }
+
+/**
+ * What a candidate's row is called.
+ *
+ * A candidate backed by a stored record uses the record's own name. Only a MOUNTED subscription
+ * has no record, and that fallback has to say so: a project that also holds a hosted subscription
+ * to the same plan would otherwise show two rows called "ChatGPT · Subscription".
+ */
+const candidateRowName = (
+    candidate: AgentModelCandidate,
+    connection: ProviderConnection | undefined,
+): string => connection?.name ?? mountedSubscriptionName(candidate.provider ?? "")
 
 const rowFromCandidate = (
     candidate: AgentModelCandidate,
     connection: ProviderConnection | undefined,
 ): PickerConnectionRow => ({
     key: candidate.connectionKey,
-    name: connection?.name ?? subscriptionPlanName(candidate.provider ?? ""),
+    name: candidateRowName(candidate, connection),
     iconKey: candidate.managed ? "agenta" : (connection?.kind ?? candidate.provider ?? ""),
     kind: candidate.source,
     managed: candidate.managed || undefined,
@@ -92,9 +117,26 @@ const modelFromCandidate = (
         slug: candidate.slug,
         provider: candidate.provider,
         connectionKey: candidate.connectionKey,
-        connectionName: connection?.name ?? subscriptionPlanName(candidate.provider ?? ""),
+        connectionName: candidateRowName(candidate, connection),
     }
 }
+
+/**
+ * The row a hosted subscription shows while its sign-in cannot run anything.
+ *
+ * It contributes no candidates, so without this it would vanish from the picker exactly when the
+ * user needs to be told why. The row is disabled and says "Sign in needed"; the AI providers page
+ * is where the sign-in is done.
+ */
+const disabledSubscriptionRow = (connection: ProviderConnection): PickerConnectionRow => ({
+    key: connection.id,
+    name: connection.name,
+    iconKey: connection.kind,
+    kind: "subscription",
+    disabled: true,
+    hint: SUBSCRIPTION_SIGN_IN_HINT,
+    models: [],
+})
 
 /** Every connection in source order, with its model/harness candidates in deterministic order. */
 export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConnectionRow[] => {
@@ -111,6 +153,16 @@ export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConn
         }
         row.models.push(modelFromCandidate(candidate, args.capabilities, connection))
     }
+
+    for (const connection of args.connections) {
+        if (!isSubscriptionConnection(connection)) continue
+        if (byKey.has(connection.id)) continue
+        // Only a sign-in the user can act on earns the row. A READY subscription with no candidates
+        // was dropped for another reason, and a row this agent cannot drive has nothing to say.
+        if (subscriptionAvailability(connection, args.harnessIds) !== "sign_in_needed") continue
+        rows.push(disabledSubscriptionRow(connection))
+    }
+
     return rows
 }
 
@@ -271,7 +323,9 @@ export const pickerSelectionFrom = (
         modelId,
         provider: read("provider"),
         mode,
-        slug: mode === "agenta" ? read("connectionSlug") : null,
+        // A slug survives in either mode. Under `self_managed` it names a hosted subscription's
+        // stored sign-in; dropping it there sent the run to whatever login the deployment mounted.
+        slug: read("connectionSlug"),
         harness: read("harness"),
     }
 }

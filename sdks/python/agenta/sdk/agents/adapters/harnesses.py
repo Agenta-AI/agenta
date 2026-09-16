@@ -29,7 +29,7 @@ from ..dtos import (
 )
 from ..interfaces import Environment, Harness
 from ..tools.models import ToolSpec, coerce_tool_spec
-from .agenta_builtins import gateway_guidance_field
+from ..platform_instructions import compose_platform_instructions
 
 
 def _opt_str(value: Any) -> Any:
@@ -71,12 +71,15 @@ class PiHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
+            sandbox_credentials=list(config.sandbox_credentials),
             permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,
             system=_opt_str(extras.get("system")),
             append_system=_opt_str(extras.get("append_system")),
-            gateway_guidance=gateway_guidance_field(
-                config.gateway_integration_names, "appendSystemPrompt"
+            platform_instructions=compose_platform_instructions(
+                config.gateway_integration_names,
+                [credential.binding.name for credential in config.sandbox_credentials],
+                [spec.name for spec in config.tool_specs],
             ),
         )
 
@@ -95,8 +98,10 @@ class ClaudeHarness(Harness):
         # claude-specific parsing happens here; the runner just writes the files into the cwd.
         return ClaudeAgentTemplate(
             agents_md=config.agent.instructions,
-            gateway_guidance=gateway_guidance_field(
-                config.gateway_integration_names, "agentsMd"
+            platform_instructions=compose_platform_instructions(
+                config.gateway_integration_names,
+                [credential.binding.name for credential in config.sandbox_credentials],
+                [spec.name for spec in config.tool_specs],
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -105,6 +110,7 @@ class ClaudeHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
+            sandbox_credentials=list(config.sandbox_credentials),
             permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,
         )
@@ -116,16 +122,18 @@ class CodexHarness(Harness):
     def _to_harness_config(self, config: SessionConfig) -> CodexAgentTemplate:
         # Codex has no Pi built-in tools. Tools go over MCP, and the shared permission plan
         # is carried through.
-        # Skills stay on the harness config (carried for parity with Claude); wiring them into
-        # Codex is a later milestone, so a Milestone 1 text-only run carries none.
+        # Skills stay on the harness config; the runner materializes them into
+        # `.codex/skills` at workspace build (services/runner workspace.ts), same as Claude.
         # The harness's first-class `permissions` slice (plus sandbox_permission + mcp_servers) is
         # threaded onto the CodexAgentTemplate; the config's `wire_harness_files` (the Python codex
         # adapter) renders `.codex/config.toml` as a generic `harnessFiles` entry. No
         # codex-specific parsing happens here; the runner just writes the files into the cwd.
         return CodexAgentTemplate(
             agents_md=config.agent.instructions,
-            gateway_guidance=gateway_guidance_field(
-                config.gateway_integration_names, "agentsMd"
+            platform_instructions=compose_platform_instructions(
+                config.gateway_integration_names,
+                [credential.binding.name for credential in config.sandbox_credentials],
+                [spec.name for spec in config.tool_specs],
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -134,6 +142,7 @@ class CodexHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
+            sandbox_credentials=list(config.sandbox_credentials),
             permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,
         )

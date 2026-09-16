@@ -1,6 +1,6 @@
 import {type ReactNode} from "react"
 
-import {ArrowUp} from "@phosphor-icons/react"
+import {ArrowUp, CircleNotch} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
 import {cn} from "../components/ui/utils"
@@ -12,6 +12,11 @@ export interface ComposerSendButtonProps {
     /** Override the glyph when the primary action is a variant of sending (e.g. attaching a
      * recording to the message instead of sending it outright). */
     icon?: ReactNode
+    /**
+     * The send is in flight and has not landed yet — a create that is still minting, a navigation
+     * that has not committed. The arrow becomes a spinner and the button refuses a second press.
+     */
+    sending?: boolean
 }
 
 /**
@@ -22,24 +27,44 @@ export interface ComposerSendButtonProps {
  * a second, similar-but-different send button in the most-used flow in the product is worse than
  * any styling detail it might otherwise get right.
  */
-export function ComposerSendButton({onClick, disabled, ariaLabel, icon}: ComposerSendButtonProps) {
+export function ComposerSendButton({
+    onClick,
+    disabled,
+    ariaLabel,
+    icon,
+    sending,
+}: ComposerSendButtonProps) {
     return (
         <Button
             size="icon"
             variant="default"
-            aria-label={ariaLabel ?? "Send"}
-            disabled={disabled}
+            aria-label={sending ? "Sending" : (ariaLabel ?? "Send")}
+            aria-busy={sending || undefined}
+            disabled={disabled || sending}
             onClick={onClick}
             // Filled accent when there's something to send, a clearly-inert grey fill when empty
-            // (never a faint outlined ghost).
+            // (never a faint outlined ghost). A send in flight keeps the fill even though the
+            // editor has already emptied under it: a spinner on the inert grey said "nothing to
+            // do" and "working" at once.
             className={cn(
-                "rounded-control-round",
-                disabled
+                // The control radius, not a circle: the composer is a rounded rectangle and every
+                // other control on it follows that radius — a puck was the one round thing on it.
+                "rounded-control",
+                disabled && !sending
                     ? "!border-[var(--ag-send-disabled-bg)] !bg-[var(--ag-send-disabled-bg)] !text-[var(--ag-send-disabled-fg)]"
-                    : "!border-[var(--ag-surface-accent)] !bg-[var(--ag-surface-accent)] !text-[#191a0d] hover:!border-[#b8cb3f] hover:!bg-[#b8cb3f]",
+                    : // Re-toned by its CONTAINER, not by a prop: the button sits five levels below
+                      // any host that might want a different fill, and threading a colour down
+                      // that chain is how one control becomes two. Defaults to the brand accent.
+                      "!border-[var(--ag-composer-send-bg,var(--ag-surface-accent))] !bg-[var(--ag-composer-send-bg,var(--ag-surface-accent))] !text-[var(--ag-composer-send-fg,#191a0d)] hover:!border-[var(--ag-composer-send-hover-bg,#b8cb3f)] hover:!bg-[var(--ag-composer-send-hover-bg,#b8cb3f)]",
             )}
         >
-            {icon ?? <ArrowUp size={16} weight="bold" />}
+            {sending ? (
+                // The ring the rest of the chat surfaces load with, not the antd four-dot
+                // spinner: one glyph swaps for another at the same weight on the same button.
+                <CircleNotch size={16} weight="bold" className="animate-spin" />
+            ) : (
+                (icon ?? <ArrowUp size={16} weight="bold" />)
+            )}
         </Button>
     )
 }

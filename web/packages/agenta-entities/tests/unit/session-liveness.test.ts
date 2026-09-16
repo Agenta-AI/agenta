@@ -9,6 +9,7 @@ import {describe, expect, it} from "vitest"
 import {
     deriveSessionLifecycle,
     deriveStreamNest,
+    livenessPollInterval,
     refineLifecycleWithSandbox,
 } from "../../src/session/core/liveness"
 import type {SessionStream} from "../../src/session/core/schema"
@@ -90,5 +91,33 @@ describe("refineLifecycleWithSandbox", () => {
         expect(refineLifecycleWithSandbox("cold", {alive: false})).toBe("dead")
         expect(refineLifecycleWithSandbox("cold", {alive: true, warm: true})).toBe("warm")
         expect(refineLifecycleWithSandbox("cold", {alive: true, warm: false})).toBe("cold")
+    })
+})
+
+// Every liveness poll shares the running-versus-warm cadence rule.
+describe("livenessPollInterval", () => {
+    const rows = (...flags: Partial<NonNullable<SessionStream["flags"]>>[]) => flags.map(streamWith)
+
+    it("polls fast while any row is running", () => {
+        expect(livenessPollInterval(rows({is_alive: true, is_running: true}))).toBe(15_000)
+        expect(livenessPollInterval(rows({is_alive: true}, {is_running: true}))).toBe(15_000)
+    })
+
+    // A stopped session stays alive for warm resume but no longer polls quickly.
+    it("drops to the slow cadence for a session that is alive but not running", () => {
+        expect(livenessPollInterval(rows({is_alive: true}))).toBe(60_000)
+    })
+
+    it("stops by default when nothing is alive", () => {
+        expect(livenessPollInterval(rows({}))).toBe(false)
+        expect(livenessPollInterval([])).toBe(false)
+        expect(livenessPollInterval(null)).toBe(false)
+        expect(livenessPollInterval(undefined)).toBe(false)
+    })
+
+    // The rail must still DISCOVER a run it did not start, so it names a floor instead of false.
+    it("uses the caller's idle floor when one is given", () => {
+        expect(livenessPollInterval([], {idle: 60_000})).toBe(60_000)
+        expect(livenessPollInterval(rows({}), {idle: 60_000})).toBe(60_000)
     })
 })

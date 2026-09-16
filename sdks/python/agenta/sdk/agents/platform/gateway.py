@@ -105,7 +105,7 @@ def _derived_tool_specs(integration_names: Sequence[str]) -> List[CallbackToolSp
     arguments rather than through the tool name.
 
     The tool descriptions deliberately do NOT name the connected integrations. The names
-    live in the ``gatewayGuidance`` prompt section instead: ``customTools`` is part of the
+    live in the ``platformInstructions`` prompt section instead: ``customTools`` is part of the
     session fingerprint, so a names sentence here made ADDING AN INTEGRATION evict the warm
     session for a one-word description change. With the descriptions stable, the derived
     pair is byte-identical for any integration set, and only the FIRST connection (which

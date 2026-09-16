@@ -28,6 +28,8 @@ BASE_ARGS = [
     "--set",
     "agenta.cryptKey=test-crypt-key",
     "--set",
+    "agenta.servicesInternalKey=test-services-internal-key",
+    "--set",
     "agenta.runnerToken=test-runner-token",
     "--set",
     "postgres.password=test-postgres-password",
@@ -157,6 +159,11 @@ def main() -> int:
 
     print("OK: Helm deploys and routes web-mobile by default, with a safe opt-out.")
     return 0
+
+
+def test_web_mobile_is_deployed_and_routed() -> None:
+    """pytest entry point. The module also runs standalone; both call main()."""
+    assert main() == 0, "web-mobile is deployed and routed"
 
 
 if __name__ == "__main__":

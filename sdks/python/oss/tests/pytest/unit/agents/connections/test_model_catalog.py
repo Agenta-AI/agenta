@@ -9,15 +9,13 @@ unchanged ``models`` map.
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
-
+from agenta.sdk.agents import model_catalog as model_catalog_module
 from agenta.sdk.agents.capabilities import (
     CLAUDE_MODEL_ALIASES,
     HARNESS_CONNECTION_CAPABILITIES,
     PROVIDER_DEFAULT_MODELS,
     harness_catalog_document,
 )
-from agenta.sdk.agents import model_catalog as model_catalog_module
 from agenta.sdk.agents.model_catalog import (
     ModelCatalogEntry,
     ModelRatings,
@@ -30,6 +28,7 @@ from agenta.sdk.agents.model_catalog import (
     model_input_modalities,
     pi_model_catalog,
 )
+from pydantic import ValidationError
 
 _ALL_HARNESSES = ("pi_core", "claude", "codex")
 
@@ -124,7 +123,7 @@ def test_gemini_3_7_flash_is_published_with_its_display_name():
     assert entry is not None, "gemini/gemini-3.7-flash missing from the pi catalog"
     assert entry["name"] == "Gemini 3.7 Flash"
     assert entry["provider"] == "gemini"
-    assert entry["source"] == "curated"
+    assert entry["source"] == "pi_generated"
     assert entry["context_window"] == 1048576
     assert entry["pricing"]["input_per_mtok"] == 0.75
     assert entry["pricing"]["output_per_mtok"] == 3.75
@@ -137,9 +136,7 @@ def test_gemini_3_7_flash_is_the_first_default_model():
 
 
 def test_gemini_3_6_flash_is_published_with_its_display_name():
-    # The model postdates the pinned pi-ai snapshot, so it reaches the catalog through the curated
-    # `additions` list. Without an entry the picker can only show the bare id, which is the bug
-    # this pins: the Model row must read "Gemini 3.6 Flash".
+    # The generated catalog keeps the provider's display name rather than exposing only the id.
     entries = model_catalog_entries("pi_core")
     entry = next(
         (item for item in entries if item["id"] == "gemini/gemini-3.6-flash"), None
@@ -147,7 +144,7 @@ def test_gemini_3_6_flash_is_published_with_its_display_name():
     assert entry is not None, "gemini/gemini-3.6-flash missing from the pi catalog"
     assert entry["name"] == "Gemini 3.6 Flash"
     assert entry["provider"] == "gemini"
-    assert entry["source"] == "curated"
+    assert entry["source"] == "pi_generated"
     assert entry["context_window"] == 1048576
 
 
@@ -340,24 +337,30 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
     assert set(pi_defaults) == set(PROVIDER_DEFAULT_MODELS)
     # Pi spells the openai family bare and every other family provider-prefixed; the defaults
     # follow the accepted set rather than the curated list's canonical spelling.
-    assert pi_defaults["openai"] == ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]
+    assert pi_defaults["openai"] == [
+        "gpt-6-astra",
+        "gpt-5.6-luna",
+        "gpt-5.6-terra",
+        "gpt-5.6-sol",
+    ]
     assert pi_defaults["anthropic"] == [
-        "anthropic/claude-fable-5",
         "anthropic/claude-opus-5",
+        "anthropic/claude-fable-5-1",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-4-5",
     ]
     assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]
+    assert len(pi_defaults["openrouter"]) == 10
 
     # Claude selects by alias: `claude-fable-5` is its own alias, and the versioned opus, sonnet
     # and haiku ids arrive under the tier alias Claude actually accepts. Opus arrives as the
     # bracketed `opus[1m]` because that is the spelling Claude publishes for the Opus tier.
     assert catalog["claude"]["capabilities"]["default_models"] == {
-        "anthropic": ["claude-fable-5", "opus[1m]", "sonnet", "haiku"]
+        "anthropic": ["opus[1m]", "claude-fable-5", "sonnet", "haiku"]
     }
     # Codex reaches openai only, and names its models bare.
     assert catalog["codex"]["capabilities"]["default_models"] == {
-        "openai": ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]
+        "openai": ["gpt-6-astra", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]
     }
 
 

@@ -1,44 +1,43 @@
 import {createElement, useCallback, useMemo, type ReactNode} from "react"
 
-import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
-import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {
     AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
     defineSidebarEntity,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
-    sidebarAgentRanksAtomFamily,
+    SKILLS_SIDEBAR_KEY,
     sidebarSessionToggledGroupsAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
-    sidebarSessionScopeLimit,
+    loadMoreSidebarSessionsAtomFamily,
+    SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
     withEntityGroups,
-    withRefsByRecency,
     type SessionSidebarRef,
     type SidebarConfig,
     type SidebarEntityRef,
 } from "@agenta/navigation"
-import {SessionFilterMenu} from "@agenta/navigation-ui"
+import {buildReleaseNavItems, SessionFilterMenu} from "@agenta/navigation-ui"
 import {SessionRowActions, useSessionActions, useSessionRowChrome} from "@agenta/sessions-ui"
-import {atom, useAtomValue} from "jotai"
-import {unwrap} from "jotai/utils"
+import {Spinner} from "@agenta/ui/ui"
 import {
-    Activity,
-    Bot,
-    CalendarClock,
-    Circle,
-    HelpCircle,
-    LoaderCircle,
-    Zap,
-    Github,
-    House,
-    MessagesSquare,
-    ScrollText,
-    Settings,
-    Slack,
-} from "lucide-react"
+    ChartLineUpIcon,
+    ChatsCircleIcon,
+    CircleIcon,
+    GearIcon,
+    GithubLogoIcon,
+    HouseIcon,
+    KeyboardIcon,
+    LightningIcon,
+    PuzzlePieceIcon,
+    QuestionIcon,
+    RobotIcon,
+    ScrollIcon,
+    SlackLogoIcon,
+} from "@phosphor-icons/react"
+import {atom, useAtomValue, useSetAtom} from "jotai"
+import {unwrap} from "jotai/utils"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
@@ -48,18 +47,24 @@ export const MOBILE_NAV_SCOPE_ID = "mobile-main"
  * pinned-first ordering, mobile's own child routes. Desktop's registry entry differs only
  * in its paths and its pending-open handoff — the model is the reuse, the content is ours.
  */
+/** Flip to show the Observability rail entry again — the screen and its route are untouched. */
+const SHOW_OBSERVABILITY = false
+
 const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     MOBILE_NAV_SCOPE_ID,
     SESSIONS_SIDEBAR_KEY,
     {
         kind: "app",
-        icon: createElement(MessagesSquare, {size: 14}),
+        icon: createElement(ChatsCircleIcon, {size: 14}),
         // Its OWN scope: the source reads that scope's filters, so the desktop rail's filters
         // cannot narrow this drawer. Mobile has no filter UI, so this scope keeps the defaults.
         listAtom: sidebarSessionsListAtomFamily(MOBILE_NAV_SCOPE_ID),
         getLabel: (session) => session.name || "Untitled session",
         childPath: (session) => `/sessions/${session.sessionId}`,
         emptyLabel: "No sessions yet",
+        // No caret on this row to protect, and "No sessions yet" under a heading that already
+        // says Sessions is the same sentence twice.
+        hideWhenEmpty: true,
         // No "Show all" row: the group's own "Sessions" row already links to the full list, and
         // the headings make a trailing overflow link read as one more session.
         // No pin glyph: pinned rows sit under their own heading, which says it once.
@@ -70,18 +75,18 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
             // State wins the glyph while a turn is live; otherwise the SHAPE says the type — a
             // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
             const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
-            if (session.running)
-                return createElement(LoaderCircle, {size: 12, className: "animate-spin"})
+            const live = session.waiting || session.alive
+            if (session.running) return createElement(Spinner, {className: "size-3"})
             if (session.isAutomation)
-                return createElement(Zap, {
+                return createElement(LightningIcon, {
                     size: 12,
                     // Fill means LIVE on both glyphs; the bolt shape alone says automation.
-                    fill: session.waiting || session.alive ? "currentColor" : "none",
+                    weight: live ? "fill" : "regular",
                     className: amber,
                 })
-            return createElement(Circle, {
+            return createElement(CircleIcon, {
                 size: 8,
-                fill: session.waiting || session.alive ? "currentColor" : "none",
+                weight: live ? "fill" : "regular",
                 className: amber,
             })
         },
@@ -94,30 +99,9 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
         // No visible cap: the rail renders every row it fetched, so nothing is dropped between
         // the request and the render. The server window is the only bound.
-        maxItems: sidebarSessionScopeLimit(MOBILE_NAV_SCOPE_ID),
+        maxItems: SIDEBAR_UNBOUNDED,
     },
 )
-
-/**
- * Same shape for agents, over the roster query the Agents screen already reads — so opening the
- * group costs nothing once that screen has run. Children land on mobile's own agent overview.
- */
-const mobileAgentsEntity = defineSidebarEntity(MOBILE_NAV_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
-    kind: "app",
-    icon: createElement(Bot, {size: 14}),
-    // Per row: this agent's own glyph, falling back to the shared one.
-    getIcon: (workflow) =>
-        createElement(AgentGlyph, {
-            workflowId: workflow.id,
-            size: 14,
-            fallback: createElement(Bot, {size: 14}),
-        }),
-    listAtom: agentWorkflowsListQueryStateAtom,
-    getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
-    childPath: (workflow) => `/agents/${workflow.id}`,
-    emptyLabel: "No agents",
-    showAllPath: "/agents",
-})
 
 /**
  * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
@@ -126,19 +110,12 @@ const mobileAgentsEntity = defineSidebarEntity(MOBILE_NAV_SCOPE_ID, AGENTS_SIDEB
  */
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const rawSource = useAtomValue(mobileSessionsEntity.activeSourceAtom)
+    const loadMoreSessions = useSetAtom(loadMoreSidebarSessionsAtomFamily(MOBILE_NAV_SCOPE_ID))
     const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
     // MEMOIZED, and load-bearing: `withEntityGroups` spreads into a new object, so an unmemoized
     // call changes identity on every render — which busts the memo below, re-buckets every row,
     // and hands `NavMenu` a new items array that defeats its own memo.
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
-    // Busiest agent first, by session count — stable session to session (frozen per page load),
-    // where recency reshuffled on every turn. Agents with no session keep catalog order below.
-    const rawAgentsSource = useAtomValue(mobileAgentsEntity.activeSourceAtom)
-    const agentRanks = useAtomValue(sidebarAgentRanksAtomFamily(MOBILE_NAV_SCOPE_ID))
-    const agentsSource = useMemo(
-        () => withRefsByRecency(rawAgentsSource, (ref) => agentRanks.get(ref.id)),
-        [agentRanks, rawAgentsSource],
-    )
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
     const chrome = useSessionRowChrome(useSessionActions())
     const wrapSessionRow = useCallback(
@@ -156,24 +133,32 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             {
                 key: "mobile-home",
                 title: "Home",
-                icon: createElement(House, {size: 16}),
+                icon: createElement(HouseIcon, {size: 16}),
                 link: `${projectURL}/apps`,
             },
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: "Agents",
-                icon: createElement(Bot, {size: 16}),
+                icon: createElement(RobotIcon, {size: 16}),
                 link: `${projectURL}/agents`,
-                // Collapsed rail: navigate to the section instead of flyout-ing the list, the
-                // same call the desktop rail makes. The icon's obvious meaning is "take me
-                // there", and a long popover is a list to read rather than a menu to pick from.
-                hideChildrenWhenCollapsed: true,
-                submenu: resolveChildren(mobileAgentsEntity, agentsSource, projectURL),
+            },
+            // After Agents: an automation is something an agent has, and Skills is what it uses.
+            {
+                key: "automations",
+                title: "Automations",
+                icon: createElement(LightningIcon, {size: 16}),
+                link: `${projectURL}/automations`,
+            },
+            {
+                key: SKILLS_SIDEBAR_KEY,
+                title: "Skills",
+                icon: createElement(PuzzlePieceIcon, {size: 16}),
+                link: `${projectURL}/skills`,
             },
             {
                 key: SESSIONS_SIDEBAR_KEY,
                 title: "Sessions",
-                icon: createElement(MessagesSquare, {size: 16}),
+                icon: createElement(ChatsCircleIcon, {size: 16}),
                 link: `${projectURL}/sessions`,
                 hideChildrenWhenCollapsed: true,
                 // No collapse caret here: the filter control is this group's affordance, and the
@@ -182,6 +167,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 // The rail does not scroll; THIS group does. Sessions is the only list that grows
                 // without bound, so Observability (and whatever lands after it) stays on screen.
                 scrollChildren: true,
+                onReachEnd: loadMoreSessions,
                 groupAction: createElement(SessionFilterMenu, {
                     scopeId: MOBILE_NAV_SCOPE_ID,
                 }),
@@ -194,14 +180,19 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                     wrapSessionRow,
                 ),
             },
-            {
-                key: "mobile-observability",
-                title: "Observability",
-                icon: createElement(Activity, {size: 16}),
-                link: `${projectURL}/observability`,
-            },
+            // Observability is hidden from the rail for now; the screen and its route still work.
+            ...(SHOW_OBSERVABILITY
+                ? [
+                      {
+                          key: "mobile-observability",
+                          title: "Observability",
+                          icon: createElement(ChartLineUpIcon, {size: 16}),
+                          link: `${projectURL}/observability`,
+                      },
+                  ]
+                : []),
         ],
-        [agentsSource, source, projectURL, wrapSessionRow],
+        [loadMoreSessions, source, projectURL, wrapSessionRow],
     )
 }
 
@@ -215,42 +206,60 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
 // `unwrap` yields undefined until the import settles, which is all the suffix below needs.
 const versionAtom = unwrap(atom(async () => (await import("../../../package.json")).version))
 
+export const useMobileVersion = () => useAtomValue(versionAtom)
+
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
-): SidebarConfig[] => {
-    const version = useAtomValue(versionAtom)
-
-    return useMemo(
-        () => [
+): SidebarConfig[] =>
+    useMemo(
+        () =>
             // The settings scope drops it: the rail IS settings there, as on the desktop.
-            ...(includeSettingsLink
+            includeSettingsLink
                 ? [
                       {
                           key: "mobile-settings",
                           title: "Settings",
-                          icon: createElement(Settings, {size: 16}),
+                          icon: createElement(GearIcon, {size: 16}),
                           link: `${projectURL}/settings`,
                       },
                   ]
-                : []),
+                : [],
+        [includeSettingsLink, projectURL],
+    )
+
+/**
+ * Help & Docs as an item the rail renders as an icon button beside the project switcher, the
+ * same place the desktop rail puts it. It is a menu you reach for, not a place in the product,
+ * and the row it held was the widest thing in the rail's footer.
+ */
+export const useMobileHelpItem = ({
+    onOpenShortcuts,
+}: {onOpenShortcuts?: () => void} = {}): SidebarConfig => {
+    const version = useMobileVersion()
+
+    return useMemo(
+        () =>
             buildHelpDocsNavItem({
                 icons: {
-                    help: createElement(HelpCircle, {size: 16}),
-                    docs: createElement(ScrollText, {size: 14}),
-                    github: createElement(Github, {size: 14}),
-                    slack: createElement(Slack, {size: 14}),
-                    bookCall: createElement(CalendarClock, {size: 14}),
+                    help: createElement(QuestionIcon, {size: 16}),
+                    docs: createElement(ScrollIcon, {size: 14}),
+                    github: createElement(GithubLogoIcon, {size: 14}),
+                    slack: createElement(SlackLogoIcon, {size: 14}),
                 },
-                suffix: version
-                    ? createElement(
-                          "span",
-                          {className: "text-[10px] leading-none text-colorTextTertiary"},
-                          `v${version}`,
-                      )
-                    : undefined,
+                extraItems: [
+                    {
+                        key: "keyboard-shortcuts",
+                        title: "Keyboard shortcuts",
+                        icon: createElement(KeyboardIcon, {size: 14}),
+                        isHidden: !onOpenShortcuts,
+                        onClick: () => onOpenShortcuts?.(),
+                        // The rule between the destinations and the release list.
+                        divider: true,
+                    },
+                    ...buildReleaseNavItems(version),
+                ],
             }),
-        ],
-        [includeSettingsLink, projectURL, version],
+        [onOpenShortcuts, version],
     )
 }

@@ -16,8 +16,14 @@ export interface AgentConfigSummary {
     /** The brief itself, raw — `InstructionsFileRow` derives its own preview from the markdown. */
     instructions: string | null
     tools: number
+    /** The integration behind each gateway-connection tool (`linear`, `github`), in tool order,
+     * deduplicated — so an overview can show the marks rather than only the count. */
+    integrationKeys: string[]
     mcps: number
     skills: number
+    /** Display names of the agent's skills (embed refs by their sibling name/slug, inline
+     * packages by their own name), so the overview row can list them. */
+    skillNames: string[]
     sandbox: string | null
     /** Default tool permission, e.g. "allow_reads". */
     permissions: string | null
@@ -30,6 +36,23 @@ const str = (value: unknown): string | null =>
     typeof value === "string" && value.trim() ? value.trim() : null
 
 const count = (value: unknown): number => (Array.isArray(value) ? value.length : 0)
+
+/** A skill entry's display name: the sibling `name` (embed refs carry it too), else the
+ * referenced workflow slug, else null (an unparseable entry stays counted but unnamed). */
+const skillName = (entry: unknown): string | null => {
+    if (!isRecord(entry)) return null
+    const name = str(entry.name)
+    if (name) return name
+    const refs = nested(nested(entry, "@ag.embed"), "@ag.references")
+    const slug = str(nested(refs, "workflow")?.slug) ?? str(nested(refs, "workflow_revision")?.slug)
+    return slug
+}
+
+/** A gateway-connection tool's integration key; null for a custom or builtin tool. */
+const integrationKey = (entry: unknown): string | null =>
+    isRecord(entry) && entry.type === "gateway_connection"
+        ? str(nested(entry, "connection")?.integration)
+        : null
 
 const nested = (parent: unknown, key: string): Record<string, unknown> | null => {
     if (!isRecord(parent)) return null
@@ -56,8 +79,18 @@ export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
         instructionWords: instructions ? instructions.split(/\s+/).filter(Boolean).length : null,
         instructions,
         tools: count(agent.tools),
+        integrationKeys: Array.isArray(agent.tools)
+            ? [
+                  ...new Set(
+                      agent.tools.map(integrationKey).filter((key): key is string => Boolean(key)),
+                  ),
+              ]
+            : [],
         mcps: count(agent.mcps),
         skills: count(agent.skills),
+        skillNames: Array.isArray(agent.skills)
+            ? agent.skills.map(skillName).filter((name): name is string => Boolean(name))
+            : [],
         sandbox: prettifyKind(str(nested(agent, "sandbox")?.kind)),
         permissions: prettifyKind(str(nested(nested(agent, "runner"), "permissions")?.default)),
     }

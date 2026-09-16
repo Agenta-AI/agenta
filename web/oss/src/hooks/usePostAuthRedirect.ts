@@ -3,6 +3,7 @@ import {useCallback, useMemo} from "react"
 import {clearLastSsoOrgSlug, readLastSsoOrgSlug, writeLastAuthMethod} from "@agenta/auth"
 import {fetchAllOrgsList} from "@agenta/entities/organization"
 import {isEE} from "@agenta/shared/api"
+import {navSimplifiedDefaultAtom} from "@agenta/shared/state"
 import {getDefaultStore, useSetAtom, type Atom} from "jotai"
 import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
@@ -10,11 +11,7 @@ import {useLocalStorage} from "usehooks-ts"
 
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
-import {
-    isNewUserAtom,
-    navSimplifiedDefaultAtom,
-    onboardingStorageUserIdAtom,
-} from "@/oss/lib/onboarding/atoms"
+import {isNewUserAtom, onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
 import {resolvePreferredWorkspaceId, resolveWorkspaceIdForOrg} from "@/oss/state/org/selectors/org"

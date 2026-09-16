@@ -60,7 +60,7 @@ interface SessionRailRowProps {
     // every render and re-render the whole row (Tooltip/Button/status-dot subtree) with it.
     onSelect: (id: string) => void
     onDelete: (id: string) => void
-    onRename: (id: string, title: string) => void
+    onRename: (id: string, title: string) => void | boolean | Promise<boolean | void>
     onArchive: (id: string) => void
     onUnarchive: (id: string) => void
     /** Shared project-wide pin (the SAME pin Home and mobile show) — pinned rows lead the list. */

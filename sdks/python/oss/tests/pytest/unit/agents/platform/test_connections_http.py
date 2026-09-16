@@ -14,9 +14,24 @@ from agenta.sdk.agents.connections import (
     ModelRef,
     ProviderMismatchError,
     RuntimeAuthContext,
+    SubscriptionConnectionMissingError,
+    SubscriptionLoginRequiredError,
+    SubscriptionNotSupportedError,
 )
 from agenta.sdk.agents.platform import PlatformConnection, VaultConnectionResolver
 from agenta.sdk.agents.platform import connections
+
+
+# The login shape Pi writes, carried verbatim through the vault.
+_READY_LOGIN = {
+    "type": "oauth",
+    "access": "access-token",
+    "refresh": "refresh-token",
+    "expires": 1789000000000,
+    "accountId": "acct-1",
+}
+# Distinguishes "the test passed no login" from "the test passed None on purpose".
+_SENTINEL_LOGIN: dict = {"sentinel": True}
 
 
 def _credential_environment(resolved) -> dict[str, str]:
@@ -840,6 +855,148 @@ async def test_bare_backend_model_id_is_left_untouched(fake_http, connection):
     assert resolved.model == _BACKEND_MODEL
 
 
+# ------------------------------------------ a starter-credits model that is no longer funded
+
+# What the proxy funds after a cutover; `_BACKEND_MODEL` above is what it funded before one.
+_FUNDED_MODEL = "vertex_ai/gemini-3.7-flash"
+
+
+def _funded_starter_credits(
+    *,
+    name: str = "Agenta",
+    slug: str = "starter-credits",
+    managed: bool = True,
+) -> dict:
+    """The seeded connection after Agenta re-pointed it at the model funded today.
+
+    The vault marks it managed, which is what says the model list is Agenta's and not the
+    user's. The public secret carries the policy only, never the manager's name.
+    """
+    secret = _custom_provider(
+        name,
+        "custom",
+        key="sk-gateway",
+        url=_GATEWAY_URL,
+        models=[_FUNDED_MODEL],
+        slug=slug,
+    )
+    if managed:
+        secret["management"] = {"policy": "manager_only"}
+    return secret
+
+
+async def test_a_stale_starter_credits_model_runs_the_funded_one(fake_http, connection):
+    # The starter-credits proxy serves exactly one model and that model gets cut over. A
+    # revision saved before a cutover still names the old id, and sending it upstream fails
+    # every turn with "Invalid model name passed in model=vertex_ai/gemini-3.6-flash". The
+    # connection states what is funded now, so run that instead of a certain failure.
+    fake_http(connections, payload=[_funded_starter_credits()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            model=f"Agenta/custom/{_BACKEND_MODEL}",
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _FUNDED_MODEL
+
+
+async def test_a_stale_bare_starter_credits_model_runs_the_funded_one(
+    fake_http, connection
+):
+    # The same substitution for the un-namespaced spelling of the saved id.
+    fake_http(connections, payload=[_funded_starter_credits()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model=_BACKEND_MODEL,
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _FUNDED_MODEL
+
+
+async def test_a_current_starter_credits_model_is_left_untouched(fake_http, connection):
+    # The substitution must be reachable only after every match misses.
+    fake_http(connections, payload=[_funded_starter_credits()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            model=f"Agenta/custom/{_FUNDED_MODEL}",
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _FUNDED_MODEL
+
+
+async def test_a_stale_deployment_prefixed_model_runs_the_funded_one(
+    fake_http, connection
+):
+    # The namespace strip runs before the fallback, so this spelling would otherwise reach
+    # the upstream stale, having matched nothing the connection has.
+    fake_http(connections, payload=[_funded_starter_credits()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model=f"custom/{_BACKEND_MODEL}",
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _FUNDED_MODEL
+
+
+async def test_a_connection_the_user_owns_under_the_slug_is_left_untouched(
+    fake_http, connection
+):
+    # A user may save their own connection under any slug, this one included. Their model
+    # list is theirs, so nothing may be substituted into it.
+    fake_http(connections, payload=[_funded_starter_credits(managed=False)])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model=_BACKEND_MODEL,
+            connection={"mode": "agenta", "slug": "starter-credits"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _BACKEND_MODEL
+
+
+async def test_another_connections_unknown_model_is_left_untouched(
+    fake_http, connection
+):
+    # Only the Agenta-funded connection substitutes. On a connection the user configured,
+    # running a model they did not pick would misreport what ran, so the id goes upstream
+    # unchanged and fails there.
+    fake_http(
+        connections,
+        payload=[_funded_starter_credits(name="My gateway", slug="my-gateway")],
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model=_BACKEND_MODEL,
+            connection={"mode": "agenta", "slug": "my-gateway"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.model == _BACKEND_MODEL
+
+
 async def test_provider_key_model_id_is_unaffected(fake_http, connection):
     # A plain provider key stores no namespaced model keys; its model id must survive verbatim.
     fake_http(
@@ -1087,3 +1244,166 @@ def test_a_slugged_custom_record_keeps_its_model_key_namespace():
 
     assert candidate.slug == "my-bedrock-abcdef123456"
     assert candidate.model_keys == {"my-bedrock/bedrock/anthropic.claude-3"}
+
+
+# ------------------------------------------------ hosted subscription (self_managed + slug)
+
+
+def _subscription_secret(
+    *,
+    slug: str = "chatgpt",
+    state: str = "ready",
+    login: dict | None = _SENTINEL_LOGIN,
+) -> dict:
+    """A `subscription_provider` record as the vault returns it WITH the resolve grant."""
+    return {
+        "id": "0199-secret-id",
+        "slug": slug,
+        "kind": "subscription_provider",
+        "header": {"name": "ChatGPT"},
+        "data": {
+            "provider": "chatgpt",
+            "harnesses": ["pi_core"],
+            "models": ["gpt-5.5"],
+            "login": _READY_LOGIN if login is _SENTINEL_LOGIN else login,
+            "login_version": 3,
+            "login_generation": 1,
+            "login_state": state,
+        },
+    }
+
+
+def _subscription_model(slug: str | None = "chatgpt") -> ModelRef:
+    connection: dict = {"mode": "self_managed"}
+    if slug is not None:
+        connection["slug"] = slug
+    return ModelRef(provider="openai-codex", model="gpt-5.5", connection=connection)
+
+
+async def test_subscription_resolves_to_runtime_provided_with_the_login(
+    fake_http, connection
+):
+    capture = fake_http(connections, payload=[_subscription_secret()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_subscription_model(), context=_context()
+    )
+
+    # The harness still owns authentication, so nothing is bound to an env var.
+    assert resolved.credential_mode == "runtime_provided"
+    assert resolved.credentials == []
+    assert resolved.environment == {}
+    # Pi reaches the ChatGPT subscription under its own provider family.
+    assert resolved.provider == "openai-codex"
+    assert resolved.model == "gpt-5.5"
+    assert resolved.subscription is not None
+    assert resolved.subscription.id == "0199-secret-id"
+    assert resolved.subscription.slug == "chatgpt"
+    assert resolved.subscription.provider == "chatgpt"
+    assert resolved.subscription.version == 3
+    assert resolved.subscription.generation == 1
+    assert resolved.subscription.login == _READY_LOGIN
+    # A named self-managed connection reads the vault, exactly like an `agenta` one.
+    assert capture["method"] == "GET"
+    assert capture["url"] == "https://api.x/api/secrets/"
+
+
+@pytest.mark.parametrize("harness", ["codex", "claude_code", None])
+async def test_a_subscription_on_another_harness_fails_loud(
+    fake_http, connection, harness
+):
+    """Only Pi can consume the ChatGPT login.
+
+    Codex refuses a login file without an `id_token`, which this credential never carries.
+    Handing it over anyway would start a run that authenticates with nothing and reports a
+    provider auth error the person cannot act on.
+    """
+    fake_http(connections, payload=[_subscription_secret()])
+
+    with pytest.raises(SubscriptionNotSupportedError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=ModelRef(
+                provider="openai",
+                model="gpt-5.5",
+                connection={"mode": "self_managed", "slug": "chatgpt"},
+            ),
+            context=RuntimeAuthContext(harness=harness, backend="local"),
+        )
+
+    assert raised.value.status_code == 422
+    assert "Pi harness" in str(raised.value)
+    assert _READY_LOGIN["access"] not in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    "payload_kwargs",
+    [
+        {"state": "pending_login"},
+        {"state": "needs_login"},
+        {"login": None},
+    ],
+    ids=["pending", "needs_login", "no_login"],
+)
+async def test_subscription_without_a_ready_login_fails_loud(
+    fake_http, connection, payload_kwargs
+):
+    fake_http(connections, payload=[_subscription_secret(**payload_kwargs)])
+
+    with pytest.raises(SubscriptionLoginRequiredError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_subscription_model(), context=_context()
+        )
+
+    assert raised.value.failure_code == "subscription_login_required"
+    assert raised.value.status_code == 422
+    assert str(raised.value) == (
+        "The ChatGPT sign-in is not ready. Sign in from AI providers."
+    )
+
+
+async def test_subscription_with_an_unknown_slug_names_the_connection(
+    fake_http, connection
+):
+    """A name the project does not hold is a config problem, not a sign-in problem.
+
+    It used to raise the sign-in error, which sent a user with a typo to the AI providers
+    page to sign in again. No sign-in can fix a name.
+    """
+    fake_http(connections, payload=[_subscription_secret(slug="other")])
+
+    with pytest.raises(SubscriptionConnectionMissingError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_subscription_model(), context=_context()
+        )
+
+    assert raised.value.failure_code == "subscription_connection_missing"
+    assert raised.value.status_code == 422
+    assert str(raised.value) == (
+        "No ChatGPT connection named 'chatgpt'. Check the agent's model connection."
+    )
+    # Not the sign-in error: a client keys its "Sign in again" verb on that one.
+    assert not isinstance(raised.value, SubscriptionLoginRequiredError)
+
+
+async def test_subscription_error_never_names_the_login(fake_http, connection):
+    fake_http(connections, payload=[_subscription_secret(state="needs_login")])
+
+    with pytest.raises(SubscriptionLoginRequiredError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_subscription_model(), context=_context()
+        )
+
+    message = str(raised.value)
+    assert "access-token" not in message
+    assert "refresh-token" not in message
+
+
+async def test_self_managed_without_a_slug_still_skips_the_vault(fake_http):
+    # The mounted-login path is unchanged: no slug, no fetch, no subscription block.
+    resolved = await VaultConnectionResolver(PlatformConnection()).resolve(
+        model=_subscription_model(slug=None), context=_context()
+    )
+
+    assert resolved.credential_mode == "runtime_provided"
+    assert resolved.subscription is None
+    assert resolved.provider == "openai-codex"

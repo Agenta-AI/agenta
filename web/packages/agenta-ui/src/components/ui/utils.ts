@@ -25,10 +25,17 @@ import {extendTailwindMerge} from "tailwind-merge"
  *
  * Any new `controlScale` entry must be mirrored here, in the group matching its utility.
  */
-const CONTROL_BOX = ["control-sm", "control", "control-lg"]
+const CONTROL_BOX = ["control-xs", "control-sm", "control", "control-lg"]
 // controlScale.height / .width — control heights plus the switch + checkbox/radio dims.
 const CONTROL_DIMS = [
     ...CONTROL_BOX,
+    "avatar-sm",
+    "avatar",
+    "avatar-lg",
+    // In-button glyph sizes.
+    "btn-icon-xs",
+    "btn-icon-sm",
+    "btn-icon",
     "switch",
     "switch-sm",
     "switch-thumb",
@@ -39,9 +46,12 @@ const CONTROL_DIMS = [
 ]
 // controlScale.spacing — the button and input horizontal/vertical padding families.
 const CONTROL_PAD = [
+    "btn-xs",
     "btn-sm",
     "btn",
     "btn-lg",
+    "btn-icon-pad-sm",
+    "btn-icon-pad",
     "input-sm",
     "input",
     "input-lg",
@@ -59,6 +69,7 @@ const twMerge = extendTailwindMerge({
             "font-size": [
                 {
                     text: [
+                        "btn-xs",
                         "btn-sm",
                         "btn-md",
                         "btn-lg",
@@ -72,6 +83,9 @@ const twMerge = extendTailwindMerge({
             p: [{p: CONTROL_PAD}],
             px: [{px: CONTROL_PAD}],
             py: [{py: CONTROL_PAD}],
+            pl: [{pl: CONTROL_PAD}],
+            pr: [{pr: CONTROL_PAD}],
+            gap: [{gap: ["btn-gap-sm", "btn-gap"]}],
             h: [{h: CONTROL_DIMS}],
             "min-h": [{"min-h": CONTROL_DIMS}],
             w: [{w: CONTROL_DIMS}],

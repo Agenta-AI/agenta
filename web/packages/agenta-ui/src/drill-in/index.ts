@@ -78,6 +78,8 @@ export type {
     DrillInUIComponents,
     DrillInUIProviderProps,
     GatewayToolsBridge,
+    SkillsBridge,
+    SkillsPickerHostProps,
     WorkflowReferenceBridge,
     WorkflowReferenceCatalogEntry,
     SubagentDetail,

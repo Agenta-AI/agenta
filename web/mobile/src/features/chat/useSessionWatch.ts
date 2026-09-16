@@ -1,5 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
+import {shouldRefreshLegacyObserverLiveness} from "@agenta/chat/model"
+import {invalidateSessionDurableApprovalsCapability} from "@agenta/entities/session"
 import {useQueryClient} from "@tanstack/react-query"
 
 import {tryRefreshSession} from "@/lib/auth"
@@ -14,13 +16,25 @@ import {sessionWatchUrl, watchRetryDelayMs} from "./watchRelay"
 const MIN_INTERVAL_MS = 3_000
 
 /**
- * One EventSource per foregrounded chat screen (M3 live relay). Events carry no payloads —
- * every handler funnels into the existing revalidate paths:
+ * The rail's head window, not its paging tail.
+ *
+ * Both live under the `sidebar-sessions` prefix, and the tail carries `"older"` in the third
+ * slot. Invalidating the tail re-reads every page the rail has loaded, one request each, so at
+ * twelve pages a single turn costs twelve requests and a turn start and settle both land here.
+ * The head alone is correct for a lifecycle event: it is ordered by last activity, so the session
+ * that just changed is inside its window by definition.
+ */
+export const isSidebarSessionHeadQuery = (queryKey: readonly unknown[]) =>
+    queryKey[0] === "sidebar-sessions" && queryKey[2] !== "older"
+
+/**
+ * One EventSource per foregrounded chat screen (M3 live relay). Most events invalidate existing
+ * queries; interaction events also carry committed row state for immediate gate retirement:
  *
  * - `records-changed` (and every `open`, for missed-event coverage) → `onRecordsChanged`,
  *   i.e. the transcript tick's body (`revalidateSessionRecordsAtom` + re-read).
- * - `lifecycle` / `interaction` → invalidate the shared liveness + actionable-interactions
- *   queries, and the nav rail's own session queries (no duplicated state; each refetches).
+ * - `interaction` → reduce its committed row state and invalidate the shared badge queries.
+ * - `lifecycle` → invalidate liveness and the nav rail's session queries.
  *
  * Foreground-only: the source closes on `visibilitychange → hidden` and reopens on visible.
  * Transient errors ride EventSource's built-in reconnect (the server pins its delay with an
@@ -33,15 +47,21 @@ export const useSessionWatch = ({
     sessionId,
     projectId,
     onRecordsChanged,
+    onInteractionChanged,
+    sharedReaderAdvertised = true,
 }: {
     sessionId: string
     projectId: string
     onRecordsChanged: () => void
+    onInteractionChanged?: (event: MessageEvent<string>) => void
+    sharedReaderAdvertised?: boolean
 }): {connected: boolean} => {
     const [connected, setConnected] = useState(false)
     const queryClient = useQueryClient()
     const onRecordsChangedRef = useRef(onRecordsChanged)
     onRecordsChangedRef.current = onRecordsChanged
+    const onInteractionChangedRef = useRef(onInteractionChanged)
+    onInteractionChangedRef.current = onInteractionChanged
 
     useEffect(() => {
         if (!sessionId || !projectId) return
@@ -52,6 +72,7 @@ export const useSessionWatch = ({
         let disposed = false
         let attempt = 0
         let lastNotifiedAt = 0
+        let lastLivenessRefreshAt = 0
 
         /** Reconnect coverage only — real `records-changed` events are never throttled. */
         const notifyOnConnect = () => {
@@ -61,14 +82,21 @@ export const useSessionWatch = ({
             onRecordsChangedRef.current()
         }
 
-        const invalidateBadges = () => {
+        const invalidateLiveness = (trackLegacyRefresh = false) => {
+            if (trackLegacyRefresh) lastLivenessRefreshAt = Date.now()
             void queryClient.invalidateQueries({queryKey: livenessQueryKey(projectId)})
+        }
+
+        const invalidateBadges = (trackLegacyRefresh = false) => {
+            invalidateLiveness(trackLegacyRefresh)
             void queryClient.invalidateQueries({
                 queryKey: actionableInteractionsQueryKey(projectId),
             })
             // The rail draws the same liveness on its own rows, off its own queries. Without
             // these its dot outlives the run you are watching finish, until the next poll.
-            void queryClient.invalidateQueries({queryKey: ["sidebar-sessions"]})
+            void queryClient.invalidateQueries({
+                predicate: (query) => isSidebarSessionHeadQuery(query.queryKey),
+            })
             void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-pinned"]})
             void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-waiting"]})
         }
@@ -107,12 +135,28 @@ export const useSessionWatch = ({
             // headers reach us before the server's Redis subscription is live, so a
             // change landing in that window would miss both this refetch and the stream.
             es.addEventListener("ready", () => {
+                invalidateSessionDurableApprovalsCapability({projectId, sessionId})
                 notifyOnConnect()
                 invalidateBadges()
             })
-            es.addEventListener("records-changed", () => onRecordsChangedRef.current())
-            es.addEventListener("lifecycle", invalidateBadges)
-            es.addEventListener("interaction", invalidateBadges)
+            es.addEventListener("records-changed", () => {
+                onRecordsChangedRef.current()
+                const now = Date.now()
+                if (
+                    shouldRefreshLegacyObserverLiveness({
+                        sharedReaderAdvertised,
+                        lastRefreshAt: lastLivenessRefreshAt,
+                        now,
+                    })
+                ) {
+                    invalidateLiveness(true)
+                }
+            })
+            es.addEventListener("lifecycle", () => invalidateBadges(true))
+            es.addEventListener("interaction", (event) => {
+                onInteractionChangedRef.current?.(event as MessageEvent<string>)
+                invalidateBadges()
+            })
             es.onerror = () => {
                 setConnected(false)
                 // CONNECTING = built-in auto-reconnect; only a fatal CLOSED needs us.
@@ -136,7 +180,7 @@ export const useSessionWatch = ({
             if (retryHandle !== undefined) window.clearTimeout(retryHandle)
             close()
         }
-    }, [sessionId, projectId, queryClient])
+    }, [sessionId, projectId, queryClient, sharedReaderAdvertised])
 
     return {connected}
 }

@@ -114,7 +114,7 @@ export const rowSummary = (part: ToolUIPart, display?: ToolSummaryDisplay): stri
 
 /** A runner error that reports a call never RAN, rather than a call that ran and failed. Those
  * keep the present tense: nothing happened yet. */
-const isNonFinalRunnerError = (errorText: string | undefined): boolean =>
+export const isNonFinalRunnerError = (errorText: string | undefined): boolean =>
     !!errorText &&
     (errorText.startsWith(DEFERRED_NOT_EXECUTED_PREFIX) ||
         errorText.startsWith(APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX))
@@ -142,4 +142,18 @@ export const partSentence = (
 ): string => {
     if (partHasFailed(part)) return `${activity.running} failed`
     return partHasLanded(part) ? activity.done : activity.running
+}
+
+/**
+ * What an answered gate says it was answered WITH.
+ *
+ * `approved` is asserted only when the part carries the verdict: a replay can settle a gate to
+ * `approval-responded` knowing only THAT it was answered, and on a permission surface an
+ * unevidenced "approved" is the one wrong answer. Mirrors the OSS `approvalVerdictText`.
+ */
+export const approvalVerdictText = (part: ToolUIPart): string => {
+    const approved = (part as {approval?: {approved?: boolean}}).approval?.approved
+    if (approved === true) return "approved"
+    if (approved === false) return "denied"
+    return "responded"
 }

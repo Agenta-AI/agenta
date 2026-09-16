@@ -358,6 +358,25 @@ async def _agent_run_to_vercel_parts_impl(
                     failure_code=_runner_failure_code(data.get("code")),
                 ):
                     yield part
+            elif etype == "turn":
+                # The runner's admitted execution id, forwarded onto the MESSAGE METADATA so the
+                # client reads it as `message.metadata.turnId`, beside the `sessionId` the `start`
+                # frame already carries and the `traceId`/`usage` the `finish` frame adds.
+                #
+                # It cannot ride the `start` frame itself: that frame is emitted before the runner
+                # replies at all (see the `start` yield above), so a runner-minted id does not
+                # exist yet. A `message-metadata` chunk is the same channel one frame later, and
+                # the AI SDK MERGES metadata rather than replacing it (`mergeObjects`), so the id
+                # survives the `finish` frame's own metadata to the end of the turn.
+                #
+                # A client keeps it to name the execution it means to Stop
+                # (`expected_execution_id`) instead of cancelling "whatever runs now".
+                turn_id = data.get("turnId")
+                if isinstance(turn_id, str) and turn_id:
+                    yield {
+                        "type": "message-metadata",
+                        "messageMetadata": {"turnId": turn_id},
+                    }
             elif etype == "done":
                 # Last non-null stop reason wins; see the routing-layer twin's `done` note.
                 reason = data.get("stopReason")
@@ -641,6 +660,25 @@ async def _agent_stream_to_vercel_stream_impl(
                     failure_code=_runner_failure_code(data.get("code")),
                 ):
                     yield part
+            elif etype == "turn":
+                # The runner's admitted execution id, forwarded onto the MESSAGE METADATA so the
+                # client reads it as `message.metadata.turnId`, beside the `sessionId` the `start`
+                # frame already carries and the `traceId`/`usage` the `finish` frame adds.
+                #
+                # It cannot ride the `start` frame itself: that frame is emitted before the runner
+                # replies at all (see the `start` yield above), so a runner-minted id does not
+                # exist yet. A `message-metadata` chunk is the same channel one frame later, and
+                # the AI SDK MERGES metadata rather than replacing it (`mergeObjects`), so the id
+                # survives the `finish` frame's own metadata to the end of the turn.
+                #
+                # A client keeps it to name the execution it means to Stop
+                # (`expected_execution_id`) instead of cancelling "whatever runs now".
+                turn_id = data.get("turnId")
+                if isinstance(turn_id, str) and turn_id:
+                    yield {
+                        "type": "message-metadata",
+                        "messageMetadata": {"turnId": turn_id},
+                    }
             elif etype == "done":
                 # Prefer the LAST non-null stop reason. The handler appends a corrective
                 # terminal `done` after the runner's `done` when the authoritative result

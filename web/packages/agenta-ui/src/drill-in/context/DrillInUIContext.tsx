@@ -215,6 +215,43 @@ export interface WorkflowReferenceBridge {
     agentHref?: (workflowId: string) => string | null
 }
 
+/** Props the agent-config panel hands the injected skills picker (artboard 4b). */
+export interface SkillsPickerHostProps {
+    open: boolean
+    onClose: () => void
+    /** Skills already referenced by the agent: their embed slugs, with the pin when pinned. */
+    added: {slug: string; pinnedVersion?: string}[]
+    /** Append fully-built `@ag.embed` entries to the agent's skills list. */
+    onAdd: (entries: Record<string, unknown>[]) => void
+    /** Remove the embed entries whose referenced slug matches. */
+    onRemove: (slugs: string[]) => void
+}
+
+/**
+ * Bridge for the registry-backed "Add skill" flow. Injected as a COMPONENT so this package
+ * stays dependency-free: the implementation (registry list, create/upload/import drawers)
+ * lives in @agenta/skills-ui and is wired by each host's DrillInUIProvider. Parallels
+ * {@link GatewayToolsBridge}. Absent → the panel falls back to the inline-skill editor.
+ */
+export interface SkillsBridge {
+    enabled: boolean
+    PickerHost: ComponentType<SkillsPickerHostProps>
+    /** Registry head versions by embed slug (no "v" prefix) — the panel's pinned rows use
+     * it for the "vN available" nudge. A hook (required, not optional: hook order) that
+     * may answer {} while the registry list loads. */
+    useHeadVersions: () => Record<string, string>
+    /** Publish an INLINE skill package to the registry. Resolves with the `@ag.embed`
+     * entry that replaces the inline entry in place, or an error the caller surfaces.
+     * The migration path for pre-registry configs; runtime keeps accepting inline. */
+    publishInlineSkill: (
+        skill: Record<string, unknown>,
+    ) => Promise<{entry: Record<string, unknown>} | {error: string}>
+    /** Registry detail drawer for one skill, addressed by its embed slug. The panel opens
+     * it for project-owned embed refs instead of the raw JSON editor; absent (or an
+     * unresolvable slug) falls back to the JSON round-trip. */
+    DetailHost?: ComponentType<{open: boolean; onClose: () => void; slug: string | null}>
+}
+
 /**
  * Interface for injectable UI components
  */
@@ -335,11 +372,20 @@ export interface DrillInUIComponents {
         selfHostingGuideUrl?: string
     }
 
+    /** Host-owned permissions for package surfaces. Missing capabilities fail closed. */
+    permissions?: {canEditSecrets: boolean}
+
+    /** Adopt a workflow revision created by a package-owned configuration action. */
+    onWorkflowRevisionCommitted?: (revisionId: string) => void
+
     /** Gateway tools integration for the tool selector */
     gatewayTools?: GatewayToolsBridge
 
     /** Workflow-as-tool reference integration for the tool selector (#4860) */
     workflowReference?: WorkflowReferenceBridge
+
+    /** Registry-backed skills picker for the agent config's Skills section */
+    skills?: SkillsBridge
 
     /** Open a trace in the host application. */
     openTrace?: (params: {traceId: string; spanId?: string | null}) => void

@@ -7,19 +7,31 @@ import {
     removeFromWorkspace,
 } from "@agenta/entities/organization"
 import {MembersPage} from "@agenta/settings-ui"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/ui/ui"
 import {useMutation, useQuery} from "@tanstack/react-query"
 
-import {Button} from "@/components/ui/button"
 import {Input} from "@/components/ui/input"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"
-import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet"
 
 interface Props {
     members: WorkspaceMember[]
@@ -34,7 +46,7 @@ interface Props {
 }
 
 /**
- * Mobile binding: the shared roster, with invite and remove as bottom sheets. Role editing
+ * Mobile binding: the shared roster, with invite and remove as modals. Role editing
  * stays on the desktop — it is a per-row control, and a select inside a table row is a poor
  * trade on a phone.
  */
@@ -123,15 +135,15 @@ export const MembersTab = ({
                 setPendingRemoval(member)
             }}
         >
-            <Sheet open={inviteOpen} onOpenChange={(next) => (next ? undefined : closeInvite())}>
-                <SheetContent side="responsive">
-                    <SheetHeader>
-                        <SheetTitle>Invite members</SheetTitle>
-                        <SheetDescription>
+            <Dialog open={inviteOpen} onOpenChange={(next) => (next ? undefined : closeInvite())}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Invite members</DialogTitle>
+                        <DialogDescription>
                             They join this organization once they accept.
-                        </SheetDescription>
-                    </SheetHeader>
-                    <div className="flex flex-col gap-3 px-4">
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3">
                         <Input
                             autoFocus
                             type="email"
@@ -157,7 +169,14 @@ export const MembersTab = ({
                         ) : null}
                         {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
                     </div>
-                    <SheetFooter>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={closeInvite}
+                            disabled={inviteMutation.isPending}
+                        >
+                            Cancel
+                        </Button>
                         <Button
                             disabled={!email.trim() || inviteMutation.isPending}
                             onClick={() => {
@@ -167,48 +186,53 @@ export const MembersTab = ({
                         >
                             {inviteMutation.isPending ? "Sending…" : "Send invitation"}
                         </Button>
-                        <Button
-                            variant="outline"
-                            onClick={closeInvite}
-                            disabled={inviteMutation.isPending}
-                        >
-                            Cancel
-                        </Button>
-                    </SheetFooter>
-                </SheetContent>
-            </Sheet>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
-            <Sheet
+            <AlertDialog
                 open={Boolean(pendingRemoval)}
-                onOpenChange={(next) => (next ? undefined : setPendingRemoval(null))}
+                onOpenChange={(next) =>
+                    next || removeMutation.isPending ? undefined : setPendingRemoval(null)
+                }
             >
-                <SheetContent side="responsive">
-                    <SheetHeader>
-                        <SheetTitle>Remove member</SheetTitle>
-                        <SheetDescription>They lose access to this organization.</SheetDescription>
-                    </SheetHeader>
-                    <p className="px-4 text-sm">
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Remove member</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            They lose access to this organization.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <p className="m-0 text-sm">
                         Remove {pendingRemoval?.user.username || pendingRemoval?.user.email}?
                     </p>
-                    {error ? <p className="px-4 pt-2 text-sm text-colorError">{error}</p> : null}
-                    <SheetFooter>
-                        <Button
-                            variant="destructive"
-                            disabled={removeMutation.isPending}
-                            onClick={() => pendingRemoval && removeMutation.mutate(pendingRemoval)}
-                        >
-                            {removeMutation.isPending ? "Removing…" : "Remove"}
-                        </Button>
-                        <Button
-                            variant="outline"
-                            onClick={() => setPendingRemoval(null)}
-                            disabled={removeMutation.isPending}
-                        >
-                            Cancel
-                        </Button>
-                    </SheetFooter>
-                </SheetContent>
-            </Sheet>
+                    {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button
+                                variant="outline"
+                                onClick={() => setPendingRemoval(null)}
+                                disabled={removeMutation.isPending}
+                            >
+                                Cancel
+                            </Button>
+                        </AlertDialogCancel>
+                        {/* Stays open for the error; the mutation clears pendingRemoval on success. */}
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={removeMutation.isPending}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    if (pendingRemoval) removeMutation.mutate(pendingRemoval)
+                                }}
+                            >
+                                {removeMutation.isPending ? "Removing…" : "Remove"}
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </MembersPage>
     )
 }

@@ -1,8 +1,10 @@
 from inspect import isawaitable
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Request, status, HTTPException, Depends
+from fastapi import APIRouter, Body, Request, status, HTTPException, Depends
+from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
 
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -90,7 +92,6 @@ from oss.src.apis.fastapi.workflows.utils import (
     parse_workflow_variant_query_request_from_body,
     merge_workflow_variant_query_requests,
     parse_workflow_revision_query_request_from_params,
-    parse_workflow_revision_query_request_from_body,
     merge_workflow_revision_query_requests,
 )
 from oss.src.apis.fastapi.environments.utils import (
@@ -114,6 +115,79 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 
 log = get_module_logger(__name__)
+
+_SANDBOX_CREDENTIAL_PATH = ("parameters", "agent", "sandbox", "credentials")
+
+
+def _overlaps_sandbox_credentials(path: tuple[str, ...]) -> bool:
+    if not path:
+        return False
+    common = min(len(path), len(_SANDBOX_CREDENTIAL_PATH))
+    return path[:common] == _SANDBOX_CREDENTIAL_PATH[:common]
+
+
+def _changes_sandbox_credentials(value: Any, path: tuple[str, ...] = ()) -> bool:
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(mode="json", exclude_none=True)
+    if isinstance(value, dict):
+        for key, child in value.items():
+            segments = tuple(
+                part for part in str(key).replace("/", ".").split(".") if part
+            )
+            next_path = (*path, *segments)
+            if len(next_path) >= 2 and next_path[-2:] == ("sandbox", "credentials"):
+                return True
+            if _changes_sandbox_credentials(child, next_path):
+                return True
+    elif isinstance(value, list):
+        if (
+            path[-1:] in (("target",), ("path",))
+            and value
+            and all(isinstance(item, str) for item in value)
+        ):
+            if _overlaps_sandbox_credentials(tuple(value)):
+                return True
+        if path[-1:] == ("remove",):
+            for item in value:
+                if not isinstance(item, str):
+                    continue
+                segments = tuple(
+                    part for part in item.replace("/", ".").split(".") if part
+                )
+                if _overlaps_sandbox_credentials(segments):
+                    return True
+        return any(_changes_sandbox_credentials(item, path) for item in value)
+    return False
+
+
+async def _require_secret_attachment_access(request: Request, payload: Any) -> None:
+    serialized = (
+        payload.model_dump(mode="json", exclude_none=True)
+        if hasattr(payload, "model_dump")
+        else payload
+    )
+    if not _changes_sandbox_credentials(serialized):
+        return
+    if not await check_action_access(  # type: ignore
+        user_uid=request.state.user_id,
+        project_id=request.state.project_id,
+        permission=Permission.EDIT_SECRET,  # type: ignore
+    ):
+        raise FORBIDDEN_EXCEPTION  # type: ignore
+
+
+async def _require_fork_secret_attachment_access(
+    request: Request,
+    workflows_service: WorkflowsService,
+    workflow_fork_request: WorkflowVariantForkRequest,
+) -> None:
+    source_revision = await workflows_service.fetch_workflow_revision(
+        project_id=UUID(request.state.project_id),
+        workflow_variant_ref=workflow_fork_request.workflow_variant_ref,
+        workflow_revision_ref=workflow_fork_request.workflow_revision_ref,
+    )
+    if source_revision is not None:
+        await _require_secret_attachment_access(request, source_revision)
 
 
 class WorkflowsRouter:
@@ -791,7 +865,7 @@ class WorkflowsRouter:
         edit_name = workflow_edit_request.workflow.name
         if edit_name is not None and not edit_name.strip():
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="workflow.name must contain a non-whitespace character.",
             )
 
@@ -1251,6 +1325,12 @@ class WorkflowsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        await _require_fork_secret_attachment_access(
+            request,
+            self.workflows_service,
+            workflow_fork_request,
+        )
+
         workflow_variant = await self.workflows_service.fork_workflow_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1287,6 +1367,10 @@ class WorkflowsRouter:
             permission=Permission.EDIT_WORKFLOWS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        await _require_secret_attachment_access(
+            request, workflow_revision_create_request.workflow_revision
+        )
 
         workflow_revision = await self.workflows_service.commit_workflow_revision(
             project_id=UUID(request.state.project_id),
@@ -1459,24 +1543,19 @@ class WorkflowsRouter:
         query_request_params: Optional[WorkflowRevisionQueryRequest] = Depends(
             parse_workflow_revision_query_request_from_params
         ),
+        query_request_body: Optional[WorkflowRevisionQueryRequest] = Body(None),
     ) -> WorkflowRevisionsResponse:
-        body_json = None
-        query_request_body = None
-
         try:
-            body_json = await request.json()
-
-            if body_json:
-                query_request_body = parse_workflow_revision_query_request_from_body(
-                    **body_json
-                )
-
-        except Exception:  # pylint: disable=bare-except
-            pass
-
-        workflow_revision_query_request = merge_workflow_revision_query_requests(
-            query_request_params, query_request_body
-        )
+            workflow_revision_query_request = merge_workflow_revision_query_requests(
+                query_request_params, query_request_body
+            )
+        except ValidationError as exc:
+            # Merging re-runs request validation, so an invalid params/body combination
+            # must reach the caller as 422 instead of being suppressed into an empty 200.
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=jsonable_encoder(exc.errors()),
+            ) from exc
 
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
@@ -1496,14 +1575,20 @@ class WorkflowsRouter:
             #
             include_archived=workflow_revision_query_request.include_archived,
             #
+            grouping=workflow_revision_query_request.grouping,
+            #
             windowing=workflow_revision_query_request.windowing,
         )
 
-        next_windowing = compute_next_windowing(
-            entities=workflow_revisions,
-            attribute="id",
-            windowing=workflow_revision_query_request.windowing,
-            order="descending",
+        next_windowing = (
+            None
+            if workflow_revision_query_request.grouping
+            else compute_next_windowing(
+                entities=workflow_revisions,
+                attribute="id",
+                windowing=workflow_revision_query_request.windowing,
+                order="descending",
+            )
         )
 
         await publish_revision_event(
@@ -1586,6 +1671,17 @@ class WorkflowsRouter:
                 status_code=400,
                 detail="Provide either data or delta for a commit, not both.",
             )
+
+        secret_access_payload: Any = workflow_revision_commit
+        if has_data and not _changes_sandbox_credentials(workflow_revision_commit):
+            current_revision = await self.workflows_service.fetch_workflow_revision(
+                project_id=UUID(request.state.project_id),
+                workflow_variant_ref=Reference(id=variant_id),
+                include_archived=False,
+            )
+            if current_revision and _changes_sandbox_credentials(current_revision):
+                secret_access_payload = current_revision
+        await _require_secret_attachment_access(request, secret_access_payload)
         # A scoped caller states changes, never a whole configuration: a full replacement
         # carries every field the scope exists to protect, so it is refused rather than
         # filtered. The agent's tool only ever sends a delta.

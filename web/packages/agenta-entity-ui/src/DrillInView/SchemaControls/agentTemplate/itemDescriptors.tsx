@@ -26,8 +26,9 @@ export interface ItemDescriptor {
     avatarClassName?: string
     /** Custom properties the chip classes read (the light and dark tint and ink). */
     avatarStyle?: React.CSSProperties
-    /** Type tags shown on the right of a row (e.g. "built-in", "definition", "gmail"). */
-    tags: string[]
+    /** Type tags shown on the right of a row (e.g. "built-in", "definition", "gmail").
+     * An object form carries a semantic tone (e.g. green for "Latest"). */
+    tags: (string | {label: string; tone?: "success" | "warning" | "default"})[]
     /** Type label for the drawer header badge (e.g. "definition", "MCP server"). */
     typeLabel: string
     /** antd Tag colour for the header badge. */
@@ -284,7 +285,7 @@ export function staticEmbedName(skill: Record<string, unknown>): string | undefi
 }
 
 /** A pinned revision's version, when the embed references a `workflow_revision`. */
-function embedRevisionVersion(skill: Record<string, unknown>): string | undefined {
+export function embedRevisionVersion(skill: Record<string, unknown>): string | undefined {
     const refs = asObj(asObj(skill["@ag.embed"])?.["@ag.references"])
     const version = asObj(refs?.workflow_revision)?.version
     return typeof version === "string" ? version : undefined
@@ -308,25 +309,30 @@ export function describeSkill(skill: unknown): ItemDescriptor {
     const s = (skill ?? {}) as Record<string, unknown>
     if (isStaticSkill(s)) {
         const slug = staticEmbedSlug(s)
-        const version = embedRevisionVersion(s)
         return {
             name: staticEmbedName(s) ?? slug ?? "Static skill",
             mono: "sk",
             color: "#6b7280",
-            tags: version ? ["static", `v${version}`] : ["static"],
+            tags: ["static"],
             typeLabel: "static skill",
             subtitle: "Provided by Agenta — read-only",
         }
     }
     if (isEmbedRefSkill(s)) {
+        // Registry-by-default: the raw "@ag.embed" marker is plumbing, not information.
+        // The row says what the author chose: follow the head, or stay pinned.
+        const pinned = embedRevisionVersion(s)
         return {
             name: staticEmbedName(s) ?? staticEmbedSlug(s) ?? "Skill reference",
+            description: typeof s.description === "string" ? (s.description as string) : undefined,
             mono: "sk",
             color: "#b45309",
-            tags: ["@ag.embed"],
-            typeLabel: "@ag.embed",
-            typeColor: "blue",
-            subtitle: "Referenced skill — inlined by the backend",
+            tags: pinned ? [{label: "Pinned"}] : [{label: "Latest", tone: "success"}],
+            typeLabel: "registry skill",
+            typeColor: "gold",
+            subtitle: pinned
+                ? "Registry skill — pinned to the version it was added at"
+                : "Registry skill — follows the latest version",
         }
     }
     return {
@@ -334,7 +340,9 @@ export function describeSkill(skill: unknown): ItemDescriptor {
         description: typeof s.description === "string" ? (s.description as string) : undefined,
         mono: "sk",
         color: "#b45309",
-        tags: ["skill"],
+        // No "skill" tag: the section it sits in is already Skills. The other branches tag what a
+        // reader cannot otherwise tell — that it is static, or an @ag.embed reference.
+        tags: [],
         typeLabel: "skill",
         typeColor: "gold",
         subtitle: "Inline SKILL.md package",

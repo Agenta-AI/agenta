@@ -147,12 +147,14 @@ function piTracePort(options: {
           content: request.telemetry?.capture?.content?.enabled !== false,
         },
         skills: plan.workspace.skillDirs.map((skill) => skill.name),
+        skillsDropped: plan.workspace.skillsDropped,
         // Only secret values visible inside the sandbox cross this boundary. Approved public
         // model configuration and the runner OTLP authorization never enter the control file.
         redaction: {
           knownValues: [
             ...new Set(
               [
+                ...(request.sandboxCredentials ?? []).map((credential) => credential.value),
                 ...modelEnvironmentSecretValues(
                   request.modelConnection?.environment,
                 ),

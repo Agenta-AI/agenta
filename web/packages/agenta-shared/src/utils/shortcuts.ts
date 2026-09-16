@@ -40,6 +40,7 @@ export type ShortcutGroupId =
     | "run"
     | "composer"
     | "commands"
+    | "mentions"
     | "picker"
     | "approval"
     | "connection"
@@ -54,6 +55,7 @@ export const SHORTCUT_GROUP_TITLES: Record<ShortcutGroupId, string> = {
     run: "While the agent runs",
     composer: "Composer",
     commands: "The / menu",
+    mentions: "The @ file menu",
     picker: "Permission picker",
     approval: "Approval card",
     connection: "Connection dock",
@@ -158,8 +160,9 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
     {id: "composer.bold", group: "composer", label: "Bold", modifiers: ["mod"], key: "B"},
     {id: "composer.italic", group: "composer", label: "Italic", modifiers: ["mod"], key: "I"},
     {id: "composer.commands", group: "composer", label: "Open commands", key: "/"},
+    {id: "composer.mentions", group: "composer", label: "Mention a file", key: "@"},
 
-    // The / menu — SlashCommandPlugin.tsx. It binds no Home, End or ArrowLeft; those belong to
+    // The / menu — CommandPalettePlugin.tsx. It binds no Home, End or ArrowLeft; those belong to
     // the permission picker below, which is a different surface with its own key handler.
     {
         id: "commands.move",
@@ -170,6 +173,23 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
     },
     {id: "commands.pick", group: "commands", label: "Pick the command", key: "↵", alt: {key: "⇥"}},
     {id: "commands.dismiss", group: "commands", label: "Close the menu", key: "Esc"},
+
+    // The @ file menu — the same plugin, with a folder level Tab enters and Esc steps back out of.
+    {
+        id: "mentions.move",
+        group: "mentions",
+        label: "Move through the list",
+        key: "↑",
+        alt: {key: "↓"},
+    },
+    {id: "mentions.pick", group: "mentions", label: "Reference the file or folder", key: "↵"},
+    {id: "mentions.open", group: "mentions", label: "Open the folder", key: "⇥"},
+    {
+        id: "mentions.back",
+        group: "mentions",
+        label: "Up one folder, then close the menu",
+        key: "Esc",
+    },
 
     // The permission picker the / menu opens — useRovingList.ts
     {id: "picker.move", group: "picker", label: "Move through the list", key: "↑", alt: {key: "↓"}},

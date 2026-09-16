@@ -200,3 +200,109 @@ async def test_new_turn_on_a_previously_run_session_is_current(lock_engine):
     assert fresh.is_current_turn is True, (
         "a new turn must not be aborted just because the row still named the old one"
     )
+
+
+@pytest.mark.asyncio
+async def test_second_turn_on_a_RUNNING_session_is_refused(lock_engine):
+    """Single-turn admission (#6417, #5539, #5538): the answer the runner's edge now acts on.
+
+    A second user message on a session with a turn in flight reaches the runner as its own turn.
+    Its FIRST beat is the admission request, and this is what must come back: `is_current_turn`
+    False, with the running turn's locks untouched. The API already answered this correctly; the
+    runner used to read it only as "abort later", walk into the keepalive pool, and destroy the
+    running turn's environment on the way. It now stops at the edge, so this answer is the whole
+    gate and it needs its own test.
+    """
+    svc = _service(lock_engine)
+
+    # turn-1 is live: it holds both `alive` and `running`.
+    await svc.heartbeat(project_id=_PROJECT, request=_beat("replica-a", "turn-1"))
+
+    # The second message arrives on the SAME replica as its own turn. Nothing cancelled turn-1,
+    # so `running` still names it — the discriminator that separates this from a handover.
+    second = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("replica-a", "turn-2")
+    )
+
+    assert second.is_current_turn is False, (
+        "a turn that arrives while a DIFFERENT turn holds `running` must be refused"
+    )
+    assert (
+        await get_alive_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=_SESSION
+        )
+        == "turn-1"
+    ), "the refused turn must not take the running turn's alive lock"
+
+    # And the live turn's own next beat is unaffected: it was never displaced.
+    still_live = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("replica-a", "turn-1")
+    )
+    assert still_live.is_current_turn is True
+
+
+@pytest.mark.asyncio
+async def test_a_refused_turns_end_beat_cannot_clear_the_live_turns_running(
+    lock_engine,
+):
+    """The refused turn's watchdog release sends `is_running: false`. That beat must be inert.
+
+    The runner stops a refused turn by releasing its watchdog, which sends one end beat under the
+    REFUSED turn's id. Releasing `running` on behalf of whoever holds it would end the live turn
+    from under itself, which is the failure this whole slice exists to remove. The release is
+    owner-scoped, so it is a no-op here.
+    """
+    svc = _service(lock_engine)
+
+    await svc.heartbeat(project_id=_PROJECT, request=_beat("replica-a", "turn-1"))
+    await svc.heartbeat(project_id=_PROJECT, request=_beat("replica-a", "turn-2"))
+
+    # The refused turn's end beat.
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("replica-a", "turn-2", running=False)
+    )
+
+    live = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("replica-a", "turn-1")
+    )
+    assert live.is_current_turn is True, (
+        "the refused turn's end beat released the LIVE turn's locks"
+    )
+    assert (
+        await get_alive_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=_SESSION
+        )
+        == "turn-1"
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_resume_is_admitted_while_the_previous_turn_is_PARKED(lock_engine):
+    """The case a naive "is anything alive?" gate gets wrong, and the reason `running` exists.
+
+    A turn parked awaiting approval still holds `alive` — that is what makes the session
+    reattachable — but its turn-end beat released `running`. The approval resume arrives as a NEW
+    turn and must be admitted, or every approval in the product stops resuming. `alive` alone
+    cannot tell this apart from the refusal case above; the absent `running` owner is what does.
+    """
+    svc = _service(lock_engine)
+
+    await svc.heartbeat(project_id=_PROJECT, request=_beat("replica-a", "turn-1"))
+    # Park: the turn ends its execution but the session stays alive.
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("replica-a", "turn-1", running=False)
+    )
+
+    resume = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("replica-a", "turn-2")
+    )
+
+    assert resume.is_current_turn is True, (
+        "an approval resume must be admitted while the previous turn is parked, not running"
+    )
+    assert (
+        await get_alive_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=_SESSION
+        )
+        == "turn-2"
+    ), "the resume takes the nest as a legitimate handover"

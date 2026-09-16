@@ -15,10 +15,12 @@ import {readFileSync, writeFileSync} from "fs"
 import {dirname, resolve} from "path"
 import {fileURLToPath} from "url"
 
-import {palette, type ColorValue} from "../../oss/src/styles/theme/palette"
+import {controlScale} from "@agenta/oss/src/styles/theme/controlScale"
+import {palette, type ColorValue} from "@agenta/oss/src/styles/theme/palette"
 
 const HERE = dirname(fileURLToPath(import.meta.url)) // web/mobile/scripts
 const OUT = resolve(HERE, "../src/styles/theme.generated.css")
+const GLOBALS = resolve(HERE, "../src/styles/globals.css")
 
 /**
  * Palette values are plain strings (a color, or a whole shadow list) except antd() refs, which
@@ -86,6 +88,12 @@ const VARS: Record<string, [string, string]> = {
     // pair; without the border half the callout read as a bare tinted block on mobile.
     colorErrorBorder: [color(p.semantic.errorBorder.light), color(p.semantic.errorBorder.dark)],
     controlItemBgHover: [color(p.fill.quaternary.light), color(p.fill.quaternary.dark)],
+    // The kit Select paints its CHECKED row with this; without it the selected option was
+    // indistinguishable from the rest of the list on /m.
+    controlItemBgActive: [
+        color(p.surface.controlItemBgActive.light),
+        color(p.surface.controlItemBgActive.dark),
+    ],
     // The overlay/status vocabulary the kit's PORTALED surfaces paint with — Tooltip
     // (colorBgSpotlight + colorTextLightSolid), DropdownMenu/Select (colorSplit separators) and the
     // session/status dots (colorInfo). Every one was undefined on mobile: a tooltip rendered as
@@ -143,7 +151,8 @@ const VARS: Record<string, [string, string]> = {
     success: [color(p.semantic.success.light), color(p.semantic.success.dark)],
     // Bright-red fill gets dark text in dark mode, matching the primary treatment.
     "destructive-foreground": [color(p.surface.white.light), p.componentsDark.Button.primaryColor],
-    border: [color(p.border.secondary.light), color(p.border.secondary.dark)],
+    // Both are `--ag-colorBorder` (border.default) on desktop — see shadcnTokens.ts.
+    border: [color(p.border.default.light), color(p.border.default.dark)],
     input: [color(p.border.default.light), color(p.border.default.dark)],
     // ── The surface LADDER, emitted under its desktop `--ag-surface-*` names ──
     // `@agenta/ui/surfaces.css` styles `.ag-app-ground` / `.ag-panel-raised` / `.ag-canvas` /
@@ -212,7 +221,8 @@ const VARS: Record<string, [string, string]> = {
     // literally, so mobile must publish the same names off the same palette roles.
     "ag-sidebar-bg": [color(p.shell.railBg.light), color(p.shell.railBg.dark)],
     "ag-shell-line": [color(p.shell.line.light), color(p.shell.line.dark)],
-    ring: [color(p.accent.primary.light), color(p.accent.primary.dark)],
+    // shadcn's `ring` is a neutral grey, not the brand colour (palette `surface.ring`).
+    ring: [color(p.surface.ring.light), color(p.surface.ring.dark)],
     // ── @agenta/ui control primitives (Button/Input/Switch) ──
     // The kit's state tokens, fed from the SAME palette roles that generate the desktop
     // --ag-* layer, so a shared control renders identically in both apps.
@@ -249,6 +259,7 @@ const VARS: Record<string, [string, string]> = {
     "btn-link-active": [color(p.button.linkActive.light), color(p.button.linkActive.dark)],
     // Plain vars referenced VERBATIM inside the kit's arbitrary shadow values
     // (shadow-[0_2px_0_var(--ag-controlOutline)]) — emitted with the desktop's exact names.
+    "ag-ring": [color(p.surface.ring.light), color(p.surface.ring.dark)],
     "ag-controlOutline": [
         color(p.surface.controlOutline.light),
         color(p.surface.controlOutline.dark),
@@ -275,6 +286,13 @@ const VARS: Record<string, [string, string]> = {
         color(p.composer.sendDisabledFg.light),
         color(p.composer.sendDisabledFg.dark),
     ],
+    // ── Run-status dots, under their desktop `--ag-run-status-*` names ──
+    // The nav rail already paints a blocked session with `--ag-run-status-warning`, and the
+    // sessions list has to agree with it. The semantic `colorWarning` is a TEXT amber (#8a6400),
+    // dark enough to read as brown at 7px; these are the dot hues.
+    "ag-run-status-success": [color(p.runStatus.success.light), color(p.runStatus.success.dark)],
+    "ag-run-status-warning": [color(p.runStatus.warning.light), color(p.runStatus.warning.dark)],
+    "ag-run-status-default": [color(p.runStatus.default.light), color(p.runStatus.default.dark)],
     "ag-colorText": [color(p.text.primary.light), color(p.text.primary.dark)],
     "ag-colorTextSecondary": [color(p.text.secondary.light), color(p.text.secondary.dark)],
     "ag-colorFillSecondary": [color(p.fill.secondary.light), color(p.fill.secondary.dark)],
@@ -297,10 +315,27 @@ const VARS: Record<string, [string, string]> = {
     ],
 }
 
-const block = (selector: string, side: 0 | 1) =>
-    `${selector} {\n${Object.entries(VARS)
-        .map(([name, pair]) => `    --${name}: ${pair[side]};`)
-        .join("\n")}\n}\n`
+/**
+ * Dark-only bridges: roles whose LIGHT value is an antd() ref the desktop keeps deliberately, so
+ * antd upgrades keep tracking. Resolving those to literals here would freeze antd's current output
+ * into the source of truth; mobile has no antd to track anyway, so it keeps its own light literals
+ * and takes only the dark side — which is the side that carries the separating ring.
+ */
+const DARK_ONLY_VARS: Record<string, string> = {
+    "drawer-right-shadow": color(p.shadow.drawerRight.dark),
+    "drawer-left-shadow": color(p.shadow.drawerLeft.dark),
+    "drawer-top-shadow": color(p.shadow.drawerTop.dark),
+    "drawer-bottom-shadow": color(p.shadow.drawerBottom.dark),
+}
+
+const declarations = (entries: [string, string][]) =>
+    entries.map(([name, value]) => `    --${name}: ${value};`).join("\n")
+
+const block = (selector: string, side: 0 | 1) => {
+    const rows = Object.entries(VARS).map(([name, pair]) => [name, pair[side]] as [string, string])
+    const extra = side === 1 ? Object.entries(DARK_ONLY_VARS) : []
+    return `${selector} {\n${declarations([...rows, ...extra])}\n}\n`
+}
 
 const css = `/* GENERATED by scripts/generate-shadcn-tokens.ts — DO NOT EDIT.
  * Source of truth: web/oss/src/styles/theme/palette.ts
@@ -308,6 +343,38 @@ const css = `/* GENERATED by scripts/generate-shadcn-tokens.ts — DO NOT EDIT.
  */
 ${block(":root", 0)}
 ${block(".dark", 1)}`
+
+// ── Control-scale drift guard ────────────────────────────────────
+// Tailwind v4 only builds utilities from a `@theme` block, so globals.css hand-declares the
+// control scale rather than generating it here; --check compares those literals to the source.
+const controlScaleVars = (): Record<string, string> => {
+    const expected: Record<string, string> = {}
+    // One `--spacing-*` namespace, so a geometry key bridges only when height and width agree.
+    const width = controlScale.width as Record<string, string>
+    for (const [k, v] of Object.entries(controlScale.height)) {
+        if (width[k] === v) expected[`--spacing-${k}`] = v
+    }
+    for (const [k, v] of Object.entries(controlScale.spacing)) expected[`--spacing-${k}`] = v
+    for (const [k, v] of Object.entries(controlScale.borderRadius)) expected[`--radius-${k}`] = v
+    for (const [k, [size, {lineHeight}]] of Object.entries(controlScale.fontSize)) {
+        expected[`--text-${k}`] = size
+        expected[`--text-${k}--line-height`] = lineHeight
+    }
+    return expected
+}
+
+const controlScaleDrift = (): string[] => {
+    const declared = new Map<string, string>()
+    const source = readFileSync(GLOBALS, "utf8")
+    for (const m of source.matchAll(/^\s*(--(?:spacing|radius|text)-[\w-]+):\s*([^;]+);/gm)) {
+        declared.set(m[1], m[2].trim())
+    }
+    return Object.entries(controlScaleVars()).flatMap(([name, want]) => {
+        const got = declared.get(name)
+        if (got === want) return []
+        return [`  ${name}: controlScale.ts says ${want}, globals.css has ${got ?? "nothing"}`]
+    })
+}
 
 // --check: drift guard — fail (without writing) if the committed file is stale.
 if (process.argv.includes("--check")) {
@@ -317,13 +384,18 @@ if (process.argv.includes("--check")) {
     } catch {
         existing = null
     }
+    const drift = controlScaleDrift()
+    if (drift.length > 0) {
+        console.error(
+            `globals.css control scale has drifted from controlScale.ts:\n${drift.join("\n")}`,
+        )
+    }
     if (existing !== css) {
         console.error(
             "theme.generated.css is stale — run pnpm --filter @agenta/mobile generate:tokens",
         )
-        process.exit(1)
     }
-    process.exit(0)
+    process.exit(drift.length > 0 || existing !== css ? 1 : 0)
 }
 
 writeFileSync(OUT, css)

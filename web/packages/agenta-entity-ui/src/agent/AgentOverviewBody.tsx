@@ -3,7 +3,7 @@ import type {ReactNode} from "react"
 import {SessionListCard, type SessionListCardProps} from "@agenta/sessions-ui"
 import {PanelSurface} from "@agenta/ui/components/presentational"
 
-import {AgentConfigSummaryCard} from "./AgentConfigSummaryCard"
+import {AgentConfigSummaryCard, type AgentConfigSummaryCopy} from "./AgentConfigSummaryCard"
 import {AgentFilesCard} from "./AgentFilesCard"
 import {AgentOverviewLayout} from "./AgentOverviewLayout"
 import {NextTriggersSection} from "./NextTriggersSection"
@@ -28,10 +28,14 @@ export interface AgentOverviewBodyProps {
     onOpenRow: SessionListCardProps["onOpenRow"]
     menuFor?: SessionListCardProps["menuFor"]
     onMenuSelect?: SessionListCardProps["onMenuSelect"]
+    /** Persists a session rename; given it, a row renames in place from its menu. */
+    onRenameRow?: SessionListCardProps["onRenameRow"]
     /** Touch hosts keep the pin visible instead of revealing it on hover. */
     alwaysShowPin?: boolean
     /** Display names for the triggers section's bound-agent labels. */
     agentNames?: Map<string, string>
+    /** Overrides the config card's tools-row wording, for a host that names the concept its way. */
+    configCopy?: Partial<AgentConfigSummaryCopy>
 }
 
 /**
@@ -51,8 +55,10 @@ export const AgentOverviewBody = ({
     onOpenRow,
     menuFor,
     onMenuSelect,
+    onRenameRow,
     alwaysShowPin,
     agentNames,
+    configCopy,
 }: AgentOverviewBodyProps) => (
     <AgentOverviewLayout
         main={
@@ -72,6 +78,7 @@ export const AgentOverviewBody = ({
                         onOpenRow={onOpenRow}
                         menuFor={menuFor}
                         onMenuSelect={onMenuSelect}
+                        onRenameRow={onRenameRow}
                     />
                     {/* Co-equal with Sessions, not a filter of it: an automation run is one the
                         user configured but did not start. */}
@@ -88,13 +95,14 @@ export const AgentOverviewBody = ({
                         onOpenRow={onOpenRow}
                         menuFor={menuFor}
                         onMenuSelect={onMenuSelect}
+                        onRenameRow={onRenameRow}
                     />
                 </div>
             </>
         }
         rail={
             <PanelSurface className="flex flex-col gap-3">
-                <AgentConfigSummaryCard appId={agentId} onEdit={onEditConfig} />
+                <AgentConfigSummaryCard appId={agentId} onEdit={onEditConfig} copy={configCopy} />
                 <AgentFilesCard appId={agentId} />
                 {/* Scoped to this agent. Automation RUNS say what already happened; an agent
                     whose schedule quietly stopped looks identical there. */}

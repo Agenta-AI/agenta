@@ -45,7 +45,7 @@ function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>
                 <FileText size={14} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
                 <span className="text-[13px]">{file.fileName}</span>
                 <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                    Markdown · {file.wordCount.toLocaleString()} words
+                    {file.wordCount.toLocaleString()} words
                 </span>
             </div>
             <div className="relative">

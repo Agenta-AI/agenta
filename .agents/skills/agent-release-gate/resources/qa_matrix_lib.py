@@ -18,8 +18,47 @@ BASE = os.environ["AGENTA_BASE"]
 PROJECT = os.environ["AGENTA_PROJECT_ID"]
 KEY = os.environ["AGENTA_API_KEY"]
 
-MODEL = "haiku"
-PROVIDER = "anthropic"
+# Where turns are POSTED. The default is the deployment's own agent service, reached through
+# traefik at `{BASE}/services`, which is the URL the browser posts.
+#
+# DEVELOPMENT ONLY. `AGENTA_SERVICE_BASE` points the turn at an agent service run by hand, so a
+# fix can be gate-verified before it is deployed. It moves ONLY the turns: every API read and
+# write still goes to `AGENTA_BASE`, so the cell asserts against the real backend. A release run
+# must never set it — the result would describe a service nobody is running. It announces itself
+# on stderr at import and every cell records it in its result, so this can never be a quiet
+# substitution.
+SERVICE_BASE = os.environ.get("AGENTA_SERVICE_BASE") or f"{BASE}/services"
+
+if os.environ.get("AGENTA_SERVICE_BASE"):
+    print(
+        f"!! AGENTA_SERVICE_BASE is set: turns go to {SERVICE_BASE}, NOT to {BASE}/services.\n"
+        "!! This is a development override. A release result from this run is not a result "
+        "about the deployment.",
+        file=sys.stderr,
+    )
+
+# The default cell shape: Claude on the operator's own mounted subscription, local sandbox.
+# That combination is free on a dev box and it is what most cells here were written against.
+#
+# It is also a combination NO preview stage can serve, which is why every part of it is a knob.
+# A cloud stage refuses the local sandbox with a 403 naming the provider allow-list, and it has
+# no mounted operator subscription, so a cell left on the defaults dies with `runtime_provided
+# local run requires a mounted subscription` and says nothing about the release. During the
+# v0.117.0 release run that shape blocked the client-tool cell and the commit-approval script on
+# both stages until each was re-run with these overrides. Set them, change no assertion.
+#
+#   AGENTA_QA_MODEL / AGENTA_QA_PROVIDER   the model id and its provider
+#   AGENTA_QA_CONNECTION_MODE              `self_managed` (operator subscription) or `agenta`
+#                                          (the project's own vault connection)
+#   AGENTA_QA_CONNECTION_SLUG              the vault slug, needed for a custom provider
+#   AGENTA_QA_HARNESS                      `claude`, `pi_core` or `codex`
+#   AGENTA_QA_SANDBOX                      `local` or `daytona`
+MODEL = os.environ.get("AGENTA_QA_MODEL", "haiku")
+PROVIDER = os.environ.get("AGENTA_QA_PROVIDER", "anthropic")
+CONNECTION_MODE = os.environ.get("AGENTA_QA_CONNECTION_MODE", "self_managed")
+CONNECTION_SLUG = os.environ.get("AGENTA_QA_CONNECTION_SLUG") or None
+HARNESS_KIND = os.environ.get("AGENTA_QA_HARNESS", "claude")
+SANDBOX_KIND = os.environ.get("AGENTA_QA_SANDBOX", "local")
 
 # Harness-kind and model-id gotchas, found live during the platform-guidance discovery
 # verification (2026-08-06). Bake these in so nobody re-derives them the hard way:
@@ -69,14 +108,14 @@ def agent_config(
         "llm": {
             "model": MODEL,
             "provider": PROVIDER,
-            "connection": {"mode": "self_managed", "slug": None},
+            "connection": {"mode": CONNECTION_MODE, "slug": CONNECTION_SLUG},
             "extras": {},
         },
         "tools": tools or [],
         "mcps": [],
         "skills": [],
-        "harness": {"kind": "claude"},
-        "sandbox": {"kind": "local"},
+        "harness": {"kind": HARNESS_KIND},
+        "sandbox": {"kind": SANDBOX_KIND},
     }
 
 
@@ -94,14 +133,23 @@ def user_msg(text: str) -> dict:
     }
 
 
-def create_workflow(hexid: str, slug_prefix: str = "qa-matrix") -> tuple[str, str]:
+def create_workflow(
+    hexid: str, slug_prefix: str = "qa-matrix", name: str | None = None
+) -> tuple[str, str]:
+    """Create a workflow and its first variant. Returns (workflow_id, variant_id).
+
+    `name` sets the workflow's DISPLAY name, which is a fact the agent is told about itself: the
+    agent service reads it with `GET /workflows/{workflow_id}` and renders it into the turn
+    context. A cell that asserts on the agent's own name must set it here rather than accept the
+    default, so the expected string is one the model has never seen.
+    """
     r = api_call(
         "POST",
         "/workflows/",
         json={
             "workflow": {
                 "slug": f"{slug_prefix}-{hexid}",
-                "name": f"QA matrix {hexid}",
+                "name": name or f"QA matrix {hexid}",
                 "flags": {
                     "is_custom": True,
                     "is_evaluator": False,
@@ -360,13 +408,37 @@ def invoke(
     parameters: dict,
     references: dict,
     log: bool = True,
+    meta: dict | None = None,
 ) -> Turn:
-    url = f"{BASE}/services/agent/v0/invoke"
+    """One turn, posted to the URL the BROWSER posts to. Read the next paragraph before
+    assuming anything the API does for its own routes also happens here.
+
+    The URL is `{BASE}/services/agent/v0/invoke`, which traefik routes straight to the agent
+    service (`traefik.http.routers.services.rule=PathPrefix('/services/')`). That is correct and
+    deliberate: it is exactly what the playground posts, so every cell drives the product path.
+    The consequence is that NOTHING the API's invoke prelude does applies here. `_prepare_invoke`
+    serves the `/api` invoke routes only, so any field that prelude stamps on the request is
+    structurally ABSENT on this path. Do not write a cell that assumes an API-side stamp: it will
+    pass against a unit test of the prelude and prove nothing about the product.
+
+    That gap shipped once (#6661): the API stamped the per-turn session facts on
+    `request.meta.session_context`, the SDK and the runner both consumed them correctly, and no
+    playground turn ever carried them, because the stamp never ran. `matrix_n1_session_context.py`
+    is the cell that now covers it.
+
+    `meta` puts a `meta` object in the request body. On this path `meta` is CLIENT INPUT, so a
+    cell can forge whatever the API would otherwise stamp. Use it to prove the service refuses to
+    trust it, never to make a cell pass. Omitted entirely when None, which is the body every other
+    cell and the browser itself sends.
+    """
+    url = f"{SERVICE_BASE}/agent/v0/invoke"
     body = {
         "session_id": session_id,
         "references": references,
         "data": {"inputs": {"messages": messages}, "parameters": parameters},
     }
+    if meta is not None:
+        body["meta"] = meta
     headers = {
         "Authorization": f"ApiKey {KEY}",
         "Accept": "text/event-stream",

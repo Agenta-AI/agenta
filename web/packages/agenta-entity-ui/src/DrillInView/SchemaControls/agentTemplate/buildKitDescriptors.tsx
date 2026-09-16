@@ -112,6 +112,10 @@ const BUILD_KIT_EMBED_COPY: Record<string, BuildKitCopy> = {
         name: "Ask you a question",
         description: "Prompts you for details the agent needs before it can continue.",
     },
+    __ag__request_secret: {
+        name: "Ask you for a secret",
+        description: "Prompts you to set up a credential the agent needs, never pasted in chat.",
+    },
     __ag__build_an_agent: {
         name: "Guide to building agents",
         description: "Agenta's instructions for setting up and configuring an agent.",

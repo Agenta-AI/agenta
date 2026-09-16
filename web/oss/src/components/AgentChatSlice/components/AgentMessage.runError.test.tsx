@@ -45,6 +45,21 @@ describe("RunErrorBody", () => {
         expect(rendered).not.toContain("Add your key")
     })
 
+    it("offers Try again for an offline send that failed before acceptance", () => {
+        const rendered = text(
+            <RunErrorBody
+                text="Could not reach Agenta. Check your connection and retry."
+                stateKey="turn-offline"
+                transport
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("The agent run failed")
+        expect(rendered).toContain("Could not reach Agenta")
+        expect(rendered).toContain("Try again")
+    })
+
     it("hides Try again when no retry handler is wired (not the last turn, or busy)", () => {
         const rendered = text(
             <RunErrorBody
@@ -55,6 +70,55 @@ describe("RunErrorBody", () => {
         )
 
         expect(rendered).not.toContain("Try again")
+    })
+
+    it("offers Sign in again when the subscription's stored sign-in is dead", () => {
+        const rendered = text(
+            <RunErrorBody
+                text="The ChatGPT sign-in is no longer valid. Sign in again from AI providers."
+                stateKey="turn-sub-1"
+                code="subscription_login_required"
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("Sign in again")
+        // A new key would not fix this, and re-running the same dead sign-in would not either.
+        expect(rendered).not.toContain("Add your key")
+        expect(rendered).not.toContain("Try again")
+    })
+
+    it("offers no verb at all when the config names a connection that does not exist", () => {
+        // Signing in again cannot fix a name, and neither can re-running the same config, so
+        // the message stands on its own. `subscription_connection_missing` must never join
+        // the sign-in codes.
+        const rendered = text(
+            <RunErrorBody
+                text="No ChatGPT connection named 'chatgpt-personal'. Check the agent's model connection."
+                stateKey="turn-sub-3"
+                code="subscription_connection_missing"
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("No ChatGPT connection named")
+        expect(rendered).not.toContain("Sign in again")
+        expect(rendered).not.toContain("Try again")
+        expect(rendered).not.toContain("Add your key")
+    })
+
+    it("offers Try again when another session already refreshed the sign-in", () => {
+        const rendered = text(
+            <RunErrorBody
+                text="The ChatGPT sign-in was updated by another session. Try again."
+                stateKey="turn-sub-2"
+                code="subscription_login_refreshed"
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("Try again")
+        expect(rendered).not.toContain("Sign in again")
     })
 
     it("does not offer Try again for a non-transient failure", () => {

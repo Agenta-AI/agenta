@@ -29,11 +29,9 @@ shipped" summaries from a repo.
 - Where release notes are published: the docs page, a Notion database, or a Linear
   document. Offer these as an enum. First option: "Figure it out from what's connected."
 
-## Researchable context (ask, but the first option is "figure it out")
-- How the team releases: merge to main, GitHub releases, or release branches. The agent can
-  discover this by reading the repo. Enum first option: "Use your best judgment (I'll read
-  the repo)." Note in the description: handing this over is faster than the agent researching
-  it.
+## Researchable context (do not ask; figure it out and state the assumption)
+- How the team releases: read the repo for tags, release workflows, and long-lived release
+  branches. If that is inconclusive, assume merge to main and say so in your report.
 
 ## Explore first (read before proposing)
 1. discover_tools for the GitHub read tools (list merged PRs, get a PR).

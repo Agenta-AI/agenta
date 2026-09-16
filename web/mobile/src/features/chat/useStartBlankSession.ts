@@ -15,6 +15,9 @@ import {newId} from "@/lib/ids"
  *
  * The `+` controls used to route to the agent's overview instead, which is a different intent: it
  * shows the agent and its existing sessions rather than opening an empty one to type into.
+ *
+ * Blank means blank: a session that should open already running goes through
+ * `useStartTaskSession`, which rides the Home hand-off (`pendingTask`).
  */
 export const useStartBlankSession = (base: string) => {
     const router = useRouter()

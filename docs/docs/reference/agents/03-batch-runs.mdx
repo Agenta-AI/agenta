@@ -2,6 +2,7 @@
 title: "Batch runs"
 sidebar_label: "Batch runs"
 description: "Agenta has no batch endpoint for agents. Run an agent over many inputs by sending one invoke request per input."
+sidebar_position: 6
 ---
 
 Agenta has no endpoint that accepts a list of inputs and runs an agent once per entry. `POST /services/agent/v0/invoke` takes one message list and produces one turn. The request body carries `data.inputs` as a single object, not an array.
@@ -77,34 +78,33 @@ Field-by-field detail for the request and the response is in [Invoke an agent](/
 
 The `session_id` decides whether the runs share a conversation.
 
-| Pattern | Effect |
-|---|---|
-| A fresh `session_id` per input | Each input runs as its own conversation, with its own session folder. Nothing carries over. |
-| One `session_id` for every input, with the growing history in `data.inputs.messages` | One conversation. Each turn sees the previous ones, and the session folder persists across them. |
-| No `session_id` | The server mints one per request and returns it in `session_id` and in the `x-ag-session-id` response header. |
-
+| Pattern                                                                              | Effect                                                                                                        |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| A fresh `session_id` per input                                                       | Each input runs as its own conversation, with its own session folder. Nothing carries over.                   |
+| One `session_id` for every input, with the growing history in `data.inputs.messages` | One conversation. Each turn sees the previous ones, and the session folder persists across them.              |
+| No `session_id`                                                                      | The server mints one per request and returns it in `session_id` and in the `x-ag-session-id` response header. |
 
 ## What the client handles
 
-| Concern | Behaviour |
-|---|---|
-| Concurrency | There is no server-side queue for these requests. Bound the fan-out in your own code. |
-| Failures | Each run reports its own outcome in `status.code`. A failed run does not affect the others. |
-| Approvals | Under a `runner.permissions.default` of `ask` or `allow_reads`, a run can stop with `stop_reason: "paused"` and wait for an approval. A default of `allow` never pauses. See [Permissions](/concepts/permissions). |
-| Ordering | Concurrent runs complete in any order. |
+| Concern     | Behaviour                                                                                                                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Concurrency | There is no server-side queue for these requests. Bound the fan-out in your own code.                                                                                                                              |
+| Failures    | Each run reports its own outcome in `status.code`. A failed run does not affect the others.                                                                                                                        |
+| Approvals   | Under a `runner.permissions.default` of `ask` or `allow_reads`, a run can stop with `stop_reason: "paused"` and wait for an approval. A default of `allow` never pauses. See [Permissions](/concepts/permissions). |
+| Ordering    | Concurrent runs complete in any order.                                                                                                                                                                             |
 
 ## Evaluation runs
 
 Agenta has a separate fan-out engine for evaluations. An evaluation run takes a testset revision and a workflow revision, and invokes the workflow once per testcase, bounded by `data.concurrency.batch_size`. It stores each result and computes metrics.
 
-| Method and path | Purpose |
-|---|---|
-| `POST /api/simple/testsets/` | Create a testset and its rows in one call. The response carries the `revision_id`. |
-| `POST /api/simple/evaluations/` | Create an evaluation run. This also starts it. |
-| `GET /api/simple/evaluations/{evaluation_id}` | Read the run's status at `data.status`. |
-| `POST /api/simple/evaluations/{evaluation_id}/stop` | Stop a running evaluation. |
-| `POST /api/evaluations/results/query` | Read the per-testcase results. |
-| `POST /api/evaluations/metrics/query` | Read the run's metrics. |
+| Method and path                                     | Purpose                                                                            |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `POST /api/simple/testsets/`                        | Create a testset and its rows in one call. The response carries the `revision_id`. |
+| `POST /api/simple/evaluations/`                     | Create an evaluation run. This also starts it.                                     |
+| `GET /api/simple/evaluations/{evaluation_id}`       | Read the run's status at `data.status`.                                            |
+| `POST /api/simple/evaluations/{evaluation_id}/stop` | Stop a running evaluation.                                                         |
+| `POST /api/evaluations/results/query`               | Read the per-testcase results.                                                     |
+| `POST /api/evaluations/metrics/query`               | Read the run's metrics.                                                            |
 
 The run's steps are revision ids:
 
@@ -113,10 +113,10 @@ The run's steps are revision ids:
   "evaluation": {
     "name": "Ticket summaries",
     "data": {
-      "testset_steps": {"019d952f-0000-0000-0000-000000000010": "auto"},
-      "application_steps": {"019d952f-0000-0000-0000-000000000002": "auto"},
+      "testset_steps": { "019d952f-0000-0000-0000-000000000010": "auto" },
+      "application_steps": { "019d952f-0000-0000-0000-000000000002": "auto" },
       "repeats": 1,
-      "concurrency": {"batch_size": 10, "max_retries": 0, "retry_delay": 0}
+      "concurrency": { "batch_size": 10, "max_retries": 0, "retry_delay": 0 }
     }
   }
 }

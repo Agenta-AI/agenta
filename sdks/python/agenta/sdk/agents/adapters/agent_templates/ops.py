@@ -23,13 +23,13 @@ Slack or Discord channel since yesterday.
 - Source channel: which Slack (or Discord) channel to summarize. No default; the agent
   cannot proceed without it.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Destination channel: post the digest back into the source channel, or to a separate
-  #standup channel. Enum with default "Same channel as the one being summarized."
-- Post time: local time to send the digest. Enum with default "09:00 local"; the built-in
-  Other… option covers an exact custom time.
-- Local timezone: needed to convert the daily post time into a UTC cron. Description:
-  "e.g. America/New_York. Leave empty to use UTC."
+## Researchable context (do not ask; figure it out and state the assumption)
+- Destination channel: list the workspace's channels and use a dedicated #standup channel
+  when one exists. If there is none, post back into the source channel, and say so.
+- Post time: assume 09:00 local and state the assumption, so the person can move it in one
+  reply.
+- Local timezone: read it from the workspace or the channel's own settings. If that is
+  inconclusive, assume UTC, and say which timezone the cron runs on.
 
 ## Explore first (read before proposing)
 1. discover_tools for the channel-read tool (read channel messages) and the send-message
@@ -61,13 +61,12 @@ Output shape:
     - <person>: <what they did or asked>
     - <person>: <what they did or asked>
 
-## Verify
-1. test_run with a blunt message ("Summarize yesterday's activity in this channel") and read
-   the verdict and the tools line, not a 200. An incomplete verdict means rewrite the
-   instructions blunter and re-test.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the
-   real trigger test: the Play "Run" button on the schedule.
-3. Read back the posted digest to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted digest) before
+you call it verified. For a trigger, point them at the Test event button of a subscription
+or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, which channel it reads and posts to, the schedule
@@ -89,12 +88,11 @@ sent to a channel.
   otherwise.
 - Destination channel: which Slack (or Discord) channel to post the digest to. No default.
 
-## Researchable context (ask, defaulting to "figure it out")
-- What to include: new issues, commits, and PRs, or a subset. A multi-pick, so use
-  multi-select ({type: "array", items: {type: "string", enum: ["issues", "commits", "PRs"]}})
-  with default ["issues", "commits", "PRs"] (all three).
-- Digest times: local times to post, twice a day. Enum with default "09:00 and 17:00 local";
-  the built-in Other… option covers exact custom times.
+## Researchable context (do not ask; figure it out and state the assumption)
+- What to include: read the repo's recent activity, and include issues, commits, and PRs. If
+  a kind has no activity at all, drop it from the digest and say which kinds you kept.
+- Digest times: assume 09:00 and 17:00 local, and state the assumption. Read the local
+  timezone from the workspace settings, and assume UTC when that is inconclusive.
 
 ## Explore first (read before proposing)
 1. discover_tools for the repo-read tools (list issues, list commits, list pull requests)
@@ -129,13 +127,12 @@ Output shape:
     ### Commits
     - <message> (<sha>)
 
-## Verify
-1. test_run with a blunt message ("Post a digest of today's repo activity") and read the
-   verdict and the tools line, not a 200.
-2. This template needs two schedules (morning and evening). Fire an artificial trigger test
-   message for each, then ask the user to run the real trigger test: the Play "Run" button on
-   each schedule.
-3. Read back the posted digest to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted digest) before
+you call it verified. For a trigger, point them at the Test event button of a subscription
+or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, the repo and channel it is wired to, both schedules
@@ -156,12 +153,12 @@ mirroring issues, tickets, or records between two systems.
 - Destination: which tool and identifier to write mirrored records to (for example, a Notion
   database URL, a Confluence space). No default.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Sync cadence: polling on a schedule, or event-driven if the source supports a webhook.
-  Enum with default "Use your best judgment (hourly schedule is simplest and most
-  reliable)."
-- Field mapping: which source fields map to which destination properties. Enum with
-  default "Use your best judgment based on the destination's existing schema."
+## Researchable context (do not ask; figure it out and state the assumption)
+- Sync cadence: run `discover_triggers` to check whether the source publishes a usable event.
+  If it does not, assume an hourly schedule, which is the simplest and most reliable, and say
+  so.
+- Field mapping: read the destination's existing schema and map the source fields onto it by
+  name and type. State the mapping you chose, and name any source field you dropped.
 
 ## Explore first (read before proposing)
 1. discover_tools for the source-read tool (list issues) and the destination-write tool
@@ -192,13 +189,12 @@ the last run with the exact list tool, for each one check the destination for an
 mirrored record by the source id, then create it if missing or update it if changed with the
 exact write tool. Pin the source id and destination id.
 
-## Verify
-1. test_run with a blunt message ("Sync the latest issues now") and read the verdict and the
-   tools line, not a 200.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the
-   real trigger test: the Play "Run" button for a schedule, or the Lightning "Test event"
-   button if wired to a source webhook.
-3. Read back the destination record to confirm the write landed and was not duplicated.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the destination record, and
+check it was not duplicated) before you call it verified. For a trigger, point them at the
+Test event button of a subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, the source and destination it syncs, the schedule or
@@ -219,12 +215,11 @@ doc or channel.
 - Destination: which Notion page or database (or Slack channel) to publish the report to.
   No default.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Metrics scope: shipping activity only, or shipping plus product metrics from PostHog.
-  Enum with default "Use your best judgment: include PostHog only if it's connected,
-  otherwise shipping activity only."
-- Report time: enum with default "Monday 09:00 local"; the built-in Other… option covers a
-  custom time.
+## Researchable context (do not ask; figure it out and state the assumption)
+- Metrics scope: check what is connected. Include PostHog product metrics only when PostHog
+  is connected, and otherwise report shipping activity alone. Say which scope you wired.
+- Report time: assume Monday 09:00 local and state the assumption. Read the local timezone
+  from the workspace settings, and assume UTC when that is inconclusive.
 
 ## Explore first (read before proposing)
 1. discover_tools for the GitHub read tools (list merged PRs, list commits), the Linear read
@@ -258,13 +253,12 @@ Output shape:
     ### Product metrics (if connected)
     - <metric>: <value>
 
-## Verify
-1. test_run with a blunt message ("Compile this week's report now") and read the verdict and
-   the tools line, not a 200. Confirm it works both with and without the PostHog tool
-   present.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the
-   real trigger test: the Play "Run" button on the schedule.
-3. Read back the published report to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the published report)
+before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected (and which PostHog-based section is

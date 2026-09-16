@@ -13,6 +13,8 @@ export interface CatalogListRowProps {
     action?: ReactNode
     /** Tints the row, for the open state of an expandable description. */
     highlighted?: boolean
+    /** Extra classes on the row container (e.g. a membership tint). */
+    className?: string
     /** Expanded rows below the title, such as a connection chooser. */
     expansion?: ReactNode
 }
@@ -25,12 +27,13 @@ export function CatalogListRow({
     action,
     highlighted,
     expansion,
+    className,
 }: CatalogListRowProps) {
     return (
         <div
             className={`border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3 py-2.5 first:border-t-0 ${
                 highlighted ? "bg-[var(--ag-colorFillQuaternary)]" : ""
-            }`}
+            } ${className ?? ""}`}
         >
             {/* items-start, not items-center: the action must stay put while the row grows. */}
             <div className="flex items-start gap-2.5">

@@ -9,12 +9,14 @@ import {computeTextDiffLines} from "@agenta/ui/diff"
 
 import {PARAM_KEYS, readAgentConfig, stableStringify} from "./accessors"
 import {agentItemIdentity, type AgentItemKind} from "./identity"
+import {gatewayPermissionLabel, scalarKeyLabel, scalarValueLabel} from "./scalarLabels"
 import type {
     AgentConfigView,
     ChangeItem,
     ChangeSection,
     NormalizedTool,
     ScalarChange,
+    TextDiff,
     ToolFieldChange,
 } from "./types"
 
@@ -49,8 +51,61 @@ function toolProps(tool: NormalizedTool): Record<string, unknown> {
         : {}
 }
 
-function diffToolFields(before: NormalizedTool, after: NormalizedTool): ToolFieldChange[] {
+/** Permission field paths, so the row can name them instead of counting them as parameters. */
+const PERMISSION_DEFAULT = "permissions.default"
+const PERMISSION_TOOL_PREFIX = "permissions.tools."
+
+/** An integration's policy: its own default, plus whatever it overrides per tool. */
+function diffPolicyFields(before: NormalizedTool, after: NormalizedTool): ToolFieldChange[] {
+    if (!before.policy || !after.policy) return []
     const changes: ToolFieldChange[] = []
+    if (before.policy.default !== after.policy.default) {
+        changes.push({
+            field: PERMISSION_DEFAULT,
+            kind: "changed",
+            detail: `permission ${gatewayPermissionLabel(before.policy.default)} → ${gatewayPermissionLabel(after.policy.default)}`,
+        })
+    }
+    const names = new Set([...Object.keys(before.policy.tools), ...Object.keys(after.policy.tools)])
+    for (const name of [...names].sort()) {
+        const from = before.policy.tools[name]
+        const to = after.policy.tools[name]
+        if (from === to) continue
+        changes.push({
+            field: `${PERMISSION_TOOL_PREFIX}${name}`,
+            kind: !from ? "added" : !to ? "removed" : "changed",
+            detail: `${name}: ${gatewayPermissionLabel(from)} → ${gatewayPermissionLabel(to)}`,
+        })
+    }
+    return changes
+}
+
+/** Roots another check already reports, so the raw sweep does not double-count them. */
+const COVERED_TOOL_ROOTS = new Set(["description", "function", "policy", "parameters", "name"])
+
+/**
+ * Whatever moved that nothing above inspects — a builtin's option, a reference's version. Without
+ * this the row falls back to a bare "changed" and the reader has no idea where to look.
+ */
+function diffRawToolFields(before: NormalizedTool, after: NormalizedTool): ToolFieldChange[] {
+    if (!before.raw || !after.raw) return []
+    const b = flattenScalars(before.raw)
+    const a = flattenScalars(after.raw)
+    const changes: ToolFieldChange[] = []
+    for (const key of [...new Set([...Object.keys(b), ...Object.keys(a)])].sort()) {
+        if (COVERED_TOOL_ROOTS.has(key.split(".")[0])) continue
+        if (stableStringify(b[key]) === stableStringify(a[key])) continue
+        changes.push({
+            field: key,
+            kind: !(key in b) ? "added" : !(key in a) ? "removed" : "changed",
+            detail: `${scalarKeyLabel(key).toLowerCase()} changed`,
+        })
+    }
+    return changes
+}
+
+function diffToolFields(before: NormalizedTool, after: NormalizedTool): ToolFieldChange[] {
+    const changes: ToolFieldChange[] = [...diffPolicyFields(before, after)]
     if (before.description !== after.description) {
         changes.push({field: "description", kind: "changed", detail: "description changed"})
     }
@@ -72,15 +127,31 @@ function diffToolFields(before: NormalizedTool, after: NormalizedTool): ToolFiel
             changes.push({field: key, kind: "changed", detail: "changed"})
         }
     }
-    return changes
+    return [...changes, ...diffRawToolFields(before, after)]
 }
 
 function toolRowDetail(fields: ToolFieldChange[]): string | undefined {
+    const permissionDefault = fields.find((f) => f.field === PERMISSION_DEFAULT)
+    const perTool = fields.filter((f) => f.field.startsWith(PERMISSION_TOOL_PREFIX))
     const descChanged = fields.some((f) => f.field === "description")
-    const paramCount = fields.filter((f) => f.field !== "description").length
+    const others = fields.filter(
+        (f) =>
+            f.field !== "description" &&
+            f.field !== PERMISSION_DEFAULT &&
+            !f.field.startsWith(PERMISSION_TOOL_PREFIX),
+    )
+    const paramCount = others.length
+
+    // A lone policy change is worth spelling out — "permission Ask → Allow" says what a count cannot.
+    if (permissionDefault && !perTool.length && !descChanged && !paramCount) {
+        return permissionDefault.detail
+    }
     const parts: string[] = []
+    if (permissionDefault || perTool.length) parts.push("permissions")
     if (descChanged) parts.push("description")
-    if (paramCount) parts.push(paramCount === 1 ? "1 parameter" : `${paramCount} parameters`)
+    // One field is worth naming; several are only worth counting.
+    if (paramCount === 1) parts.push(others[0].field)
+    else if (paramCount) parts.push(`${paramCount} parameters`)
     // Fingerprint-based edit detection can flag a change in a field diffToolFields doesn't inspect
     // (or a nameless reference/builtin tool with no fields) — fall back to a generic label so the
     // "edited" badge is never left unexplained.
@@ -88,9 +159,19 @@ function toolRowDetail(fields: ToolFieldChange[]): string | undefined {
     return `${parts.join(" & ")} changed`
 }
 
-function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSection | null {
-    const localMap = new Map(local.tools.map((t) => [t.key, t]))
-    const remoteMap = new Map(remote.tools.map((t) => [t.key, t]))
+/**
+ * Diff one slice of the `tools` array. Subagents live in that same array but get their own
+ * section, mirroring the config panel — a `{type:"reference"}` entry is another agent, not a tool.
+ */
+function toolsSection(
+    id: "tools" | "subagents",
+    title: string,
+    noun: string,
+    localTools: NormalizedTool[],
+    remoteTools: NormalizedTool[],
+): ChangeSection | null {
+    const localMap = new Map(localTools.map((t) => [t.key, t]))
+    const remoteMap = new Map(remoteTools.map((t) => [t.key, t]))
 
     const added: NormalizedTool[] = []
     const removed: NormalizedTool[] = []
@@ -101,9 +182,8 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
         if (!prev) {
             added.push(tool)
         } else if (prev.fingerprint !== tool.fingerprint) {
-            // Field-level detail only for function tools; reference/builtin edits register with the
-            // generic "changed" detail (they have no function fields to itemize).
-            edited.push({tool, fields: tool.isFunction ? diffToolFields(prev, tool) : []})
+            // Every tool kind: a subagent has no params, but its description still diffs.
+            edited.push({tool, fields: diffToolFields(prev, tool)})
         }
     }
     for (const [key, tool] of remoteMap) {
@@ -113,11 +193,13 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
     const total = added.length + removed.length + edited.length
     if (total === 0) return null
 
+    // Inside Subagents the source ("Subagent") only repeats the header.
+    const sourceDetail = (t: NormalizedTool) => (id === "subagents" ? undefined : t.source)
     const items = [
         ...added.map((t) => ({
             id: t.key,
             label: t.label,
-            detail: t.source,
+            detail: sourceDetail(t),
             kind: "added" as const,
             rawKey: t.rawKey,
         })),
@@ -138,7 +220,7 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
         ...removed.map((t) => ({
             id: t.key,
             label: t.label,
-            detail: t.source,
+            detail: sourceDetail(t),
             kind: "removed" as const,
             rawKey: t.rawKey,
         })),
@@ -150,8 +232,9 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
     if (removed.length) tags.push({kind: "removed" as const, label: `${removed.length} removed`})
 
     return {
-        id: "tools",
-        title: "Tools",
+        id,
+        title,
+        noun,
         tags,
         totalCount: total,
         defaultCollapsed: total > 20,
@@ -159,27 +242,66 @@ function toolsSection(local: AgentConfigView, remote: AgentConfigView): ChangeSe
     }
 }
 
-function instructionsSection(
-    local: AgentConfigView,
-    remote: AgentConfigView,
-): ChangeSection | null {
-    if (local.instructions === remote.instructions) return null
-    const hunks = computeTextDiffLines(remote.instructions, local.instructions, {
-        enableFolding: true,
-    })
+/** A whole-body diff has no unchanged region to fold, so cap it before it floods the pane. */
+const ITEM_DIFF_LINES = 12
+
+function capHunks(diff: TextDiff): TextDiff {
+    if (diff.hunks.length <= ITEM_DIFF_LINES) return diff
+    const hidden = diff.hunks.length - ITEM_DIFF_LINES
+    return {
+        ...diff,
+        hunks: [
+            ...diff.hunks.slice(0, ITEM_DIFF_LINES),
+            {type: "fold", content: `… ${hidden} more ${hidden === 1 ? "line" : "lines"}`},
+        ] as TextDiff["hunks"],
+    }
+}
+
+/**
+ * A whole body arriving or leaving. Built directly rather than through the line differ: against an
+ * empty side that reports the empty string as its own removed line.
+ */
+function wholeBodyDiff(body: string, kind: "added" | "removed"): TextDiff {
+    const lines = body.split("\n")
+    return {
+        added: kind === "added" ? lines.length : 0,
+        removed: kind === "removed" ? lines.length : 0,
+        before: kind === "removed" ? body : "",
+        after: kind === "added" ? body : "",
+        hunks: lines.map((content) => ({type: kind, content})) as TextDiff["hunks"],
+    }
+}
+
+/** Folded prose diff plus its line counts — the shape both Instructions and skills render. */
+function buildTextDiff(before: string, after: string): TextDiff {
+    const hunks = computeTextDiffLines(before, after, {enableFolding: true})
     let added = 0
     let removed = 0
     for (const line of hunks) {
         if (line.type === "added") added++
         else if (line.type === "removed") removed++
     }
-    const label = added + removed <= 2 ? "Edited" : `+${added} / −${removed}`
+    return {added, removed, before, after, hunks}
+}
+
+function instructionsSection(
+    local: AgentConfigView,
+    remote: AgentConfigView,
+): ChangeSection | null {
+    if (local.instructions === remote.instructions) return null
+    const textDiff = buildTextDiff(remote.instructions, local.instructions)
+    const total = textDiff.added + textDiff.removed
     return {
         id: "instructions",
         title: "Instructions",
-        tags: [{kind: "edited", label}],
+        tags: [
+            {
+                kind: "edited",
+                label: total <= 2 ? "Edited" : `+${textDiff.added} / −${textDiff.removed}`,
+            },
+        ],
         totalCount: 1,
-        textDiff: {added, removed, before: remote.instructions, after: local.instructions, hunks},
+        textDiff,
     }
 }
 
@@ -193,10 +315,17 @@ function scalarSection(
     const changes: ScalarChange[] = []
     for (const key of [...new Set([...Object.keys(remoteMap), ...Object.keys(localMap)])].sort()) {
         if (stableStringify(remoteMap[key]) === stableStringify(localMap[key])) continue
+        const before = fmtScalar(remoteMap[key])
+        const after = fmtScalar(localMap[key])
         changes.push({
             key,
-            before: fmtScalar(remoteMap[key]),
-            after: fmtScalar(localMap[key]),
+            label: scalarKeyLabel(key),
+            // Stored values stay untouched: the config panel reads them back to say what a
+            // property was committed as, and a display string there would be a lie.
+            before,
+            after,
+            beforeLabel: scalarValueLabel(key, before, remoteMap[key]),
+            afterLabel: scalarValueLabel(key, after, localMap[key]),
             kind: !(key in remoteMap) ? "added" : !(key in localMap) ? "removed" : "changed",
         })
     }
@@ -224,9 +353,9 @@ function prefixed(
 }
 
 /**
- * Model & harness — the model identity (`llm.model`), all of `llm` (provider + connection/auth),
- * and the harness engine (`harness.kind`), mirroring the config panel's "Model & harness" control
- * section, which now owns connection-mode UI too.
+ * Model — the model identity (`llm.model`), all of `llm` (provider + connection/auth), and the
+ * harness engine (`harness.kind`), mirroring the config panel's "Model" section, which owns the
+ * harness and connection-mode UI too.
  */
 function modelHarnessBucket(v: AgentConfigView): Record<string, unknown> {
     const out: Record<string, unknown> = {}
@@ -239,7 +368,7 @@ function modelHarnessBucket(v: AgentConfigView): Record<string, unknown> {
 /**
  * Advanced — everything the config panel *artificially groups* under "Advanced", which lives in
  * several JSON locations: generation params, the runner/sandbox execution sections, and the
- * harness's non-`kind` knobs (e.g. permissions). `llm` in full belongs to Model & harness.
+ * harness's non-`kind` knobs (e.g. permissions). `llm` in full belongs to Model.
  */
 function advancedBucket(v: AgentConfigView): Record<string, unknown> {
     const out: Record<string, unknown> = {}
@@ -250,7 +379,52 @@ function advancedBucket(v: AgentConfigView): Record<string, unknown> {
         const {kind: _kind, ...rest} = v.harness
         Object.assign(out, prefixed("harness", rest))
     }
+    // Only for an agent template: on a prompt shape the unclaimed rest is another schema's
+    // plumbing, not settings a reader authored.
+    if (v.isAgentTemplate) Object.assign(out, flattenScalars(v.extra))
     return out
+}
+
+const entryField = (entry: unknown, field: string): string => {
+    if (!isPlainObj(entry)) return ""
+    const value = entry[field]
+    return typeof value === "string" ? value : ""
+}
+
+/**
+ * What an edited list entry changed. A skill carries prose — its SKILL.md `body` — so it gets the
+ * same hunk view Instructions does rather than a bare "edited" mark.
+ */
+/** The prose fields an entry names itself by; everything else is reported as a plain field. */
+const NAMED_ENTRY_FIELDS = new Set(["name", "description", "body"])
+
+function entryEdit(before: unknown, after: unknown): Pick<ChangeItem, "detail" | "textDiff"> {
+    const parts: string[] = []
+    if (entryField(before, "name") !== entryField(after, "name")) parts.push("name")
+    if (entryField(before, "description") !== entryField(after, "description")) {
+        parts.push("description")
+    }
+    const beforeBody = entryField(before, "body")
+    const afterBody = entryField(after, "body")
+    const bodyChanged = beforeBody !== afterBody
+    if (bodyChanged) parts.push("instructions")
+
+    // An MCP server has no prose at all — its edit is a url or a command, and naming the field is
+    // the difference between "edited" and knowing what to look at.
+    const beforeRest = isPlainObj(before) ? flattenScalars(before) : {}
+    const afterRest = isPlainObj(after) ? flattenScalars(after) : {}
+    for (const key of [
+        ...new Set([...Object.keys(beforeRest), ...Object.keys(afterRest)]),
+    ].sort()) {
+        if (NAMED_ENTRY_FIELDS.has(key.split(".")[0])) continue
+        if (stableStringify(beforeRest[key]) === stableStringify(afterRest[key])) continue
+        parts.push(scalarKeyLabel(key).toLowerCase())
+    }
+
+    return {
+        detail: parts.length ? `${parts.join(" & ")} changed` : undefined,
+        textDiff: bodyChanged ? capHunks(buildTextDiff(beforeBody, afterBody)) : undefined,
+    }
 }
 
 /** Humanize a list entry (mcp/skill) for its summary row. */
@@ -270,6 +444,12 @@ function entryLabel(entry: unknown): string {
  * {@link agentItemIdentity} (collision-free), while the row's display label comes from
  * {@link entryLabel} — so two id-less entries never collapse the way a shared label would.
  */
+interface ListEntry {
+    key: string
+    entry: unknown
+    index: number
+}
+
 function listSection(
     id: "mcps" | "skills",
     title: string,
@@ -277,24 +457,67 @@ function listSection(
     remote: unknown[],
 ): ChangeSection | null {
     const kind: AgentItemKind = id === "mcps" ? "mcp" : "skill"
-    const lMap = new Map(local.map((e, i) => [agentItemIdentity(kind, e, i), e] as const))
-    const rMap = new Map(remote.map((e, i) => [agentItemIdentity(kind, e, i), e] as const))
-    const added: [string, unknown][] = []
-    const removed: [string, unknown][] = []
-    const edited: [string, unknown][] = []
-    for (const [key, entry] of lMap) {
-        const prev = rMap.get(key)
-        if (prev === undefined) added.push([key, entry])
-        else if (stableStringify(prev) !== stableStringify(entry)) edited.push([key, entry])
+    const read = (list: unknown[]): ListEntry[] =>
+        list.map((entry, index) => ({key: agentItemIdentity(kind, entry, index), entry, index}))
+    const lEntries = read(local)
+    const rEntries = read(remote)
+    const lMap = new Map(lEntries.map((e) => [e.key, e]))
+    const rMap = new Map(rEntries.map((e) => [e.key, e]))
+
+    const added: ListEntry[] = []
+    const removed: ListEntry[] = []
+    const edited: {key: string; before: unknown; after: unknown}[] = []
+    for (const entry of lEntries) {
+        const prev = rMap.get(entry.key)
+        if (!prev) added.push(entry)
+        else if (stableStringify(prev.entry) !== stableStringify(entry.entry)) {
+            edited.push({key: entry.key, before: prev.entry, after: entry.entry})
+        }
     }
-    for (const [key, entry] of rMap) if (!lMap.has(key)) removed.push([key, entry])
+    for (const entry of rEntries) if (!lMap.has(entry.key)) removed.push(entry)
+
+    // Identity is the name, so renaming an entry in place would read as a removal plus an
+    // unrelated addition — and the body diff behind it would never be computed. Pair whatever is
+    // left over by the slot it occupies before concluding they are different entries.
+    for (let i = added.length - 1; i >= 0; i -= 1) {
+        const match = removed.findIndex((r) => r.index === added[i].index)
+        if (match === -1) continue
+        edited.push({key: added[i].key, before: removed[match].entry, after: added[i].entry})
+        removed.splice(match, 1)
+        added.splice(i, 1)
+    }
 
     const total = added.length + removed.length + edited.length
     if (total === 0) return null
 
-    const rows = (pairs: [string, unknown][], kindTag: ChangeItem["kind"]) =>
-        pairs.map(([key, entry]) => ({id: key, label: entryLabel(entry), kind: kindTag}))
-    const items = [...rows(added, "added"), ...rows(edited, "edited"), ...rows(removed, "removed")]
+    // An added skill showed only its name, which says nothing about what the agent gained. Its
+    // body is the skill, so it reads as an all-added diff — and a removal as an all-removed one.
+    const plain = (entries: ListEntry[], kindTag: ChangeItem["kind"]) =>
+        entries.map(({key, entry}) => {
+            const body = entryField(entry, "body")
+            const description = entryField(entry, "description")
+            return {
+                id: key,
+                label: entryLabel(entry),
+                kind: kindTag,
+                detail: description || undefined,
+                textDiff: body
+                    ? capHunks(wholeBodyDiff(body, kindTag === "added" ? "added" : "removed"))
+                    : undefined,
+            }
+        })
+    const editedRows = edited.map(({key, before, after}) => {
+        const beforeLabel = entryLabel(before)
+        const afterLabel = entryLabel(after)
+        return {
+            id: key,
+            // A rename is only legible as both names; one of them alone hides what happened.
+            label: beforeLabel === afterLabel ? afterLabel : `${beforeLabel} → ${afterLabel}`,
+            kind: "edited" as const,
+            ...entryEdit(before, after),
+        }
+    })
+    const items = [...plain(added, "added"), ...editedRows, ...plain(removed, "removed")]
     const tags = []
     if (added.length) tags.push({kind: "added" as const, label: `${added.length} added`})
     if (edited.length) tags.push({kind: "edited" as const, label: `${edited.length} edited`})
@@ -303,20 +526,23 @@ function listSection(
     return {id, title, tags, totalCount: total, defaultCollapsed: total > 20, items}
 }
 
+/** Subagents share the `tools` array with real tools; each section sees only its own kind. */
+const tools = (v: AgentConfigView) => v.tools.filter((t) => !t.isSubagent)
+const subagents = (v: AgentConfigView) => v.tools.filter((t) => t.isSubagent)
+
 export function classifyAgentChanges(localParams: unknown, remoteParams: unknown): ChangeSection[] {
     const local = readAgentConfig(localParams)
     const remote = readAgentConfig(remoteParams)
-    // Grouped to mirror the agent-template control sections (Model & harness, Instructions,
-    // Tools, MCP servers, Skills, Advanced) so nothing changed is dropped or split.
+    // The agent panel calls them Integrations; the prompt playground has plain tools.
+    const asAgent = local.isAgentTemplate || remote.isAgentTemplate
+    const [toolsTitle, toolsNoun] = asAgent ? ["Integrations", "integration"] : ["Tools", "tool"]
+    // Grouped to mirror the agent-template control sections (Model, Instructions,
+    // Tools, Subagents, MCP servers, Skills, Advanced) so nothing changed is dropped or split.
     return [
-        scalarSection(
-            "model",
-            "Model & harness",
-            modelHarnessBucket(local),
-            modelHarnessBucket(remote),
-        ),
+        scalarSection("model", "Model", modelHarnessBucket(local), modelHarnessBucket(remote)),
         instructionsSection(local, remote),
-        toolsSection(local, remote),
+        toolsSection("tools", toolsTitle, toolsNoun, tools(local), tools(remote)),
+        toolsSection("subagents", "Subagents", "subagent", subagents(local), subagents(remote)),
         listSection("mcps", "MCPs", local.mcps, remote.mcps),
         listSection("skills", "Skills", local.skills, remote.skills),
         scalarSection("params", "Advanced", advancedBucket(local), advancedBucket(remote)),

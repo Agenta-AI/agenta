@@ -96,7 +96,12 @@ class _CapturingBackend(Backend):
         secrets=None,
         trace=None,
         run_context=None,
+        turn_context=None,
         session_id=None,
+        detached=False,
+        turn_id=None,
+        project_id=None,
+        control_command_id=None,
         # Interface parity only; these tests assert on the redaction scope, not the wire.
         effective_parameters=None,
         gateway_policy=None,

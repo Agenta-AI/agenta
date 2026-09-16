@@ -5,12 +5,11 @@
  * Two host shapes, because the two apps show a session differently: the desktop opens it as a tab
  * on its agent's playground (`playgroundSessionPath`), the mobile app gives it a page of its own
  * (`sessionRoutePath`). Both name the session `session_id`.
- *
- * `session_id` and not `session`: the desktop app's URL layer owns `?session=` for the
- * observability session drawer and strips it off every route that isn't `/observability` or
- * `/sessions`, the playground included.
  */
-export const SESSION_QUERY_PARAM = "session_id"
+import {SESSION_QUERY_PARAM} from "@agenta/shared/utils"
+
+/** Re-exported from `@agenta/shared`, where the mobile gate's route map reads it too. */
+export {SESSION_QUERY_PARAM}
 
 /** `<base>/sessions/<id>` — the session's own page, on a host that routes to one. */
 export const sessionRoutePath = (base: string, sessionId: string): string =>

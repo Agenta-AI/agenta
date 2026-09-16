@@ -16,4 +16,5 @@ export interface SessionHeartbeatRequest {
     is_running?: boolean;
     name?: string | null;
     references?: AgentaApi.SessionReference[] | null;
+    release_owner?: boolean;
 }

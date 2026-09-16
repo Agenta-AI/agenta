@@ -42,7 +42,6 @@ export {defaultWidgetConfig} from "./widget"
 // Atoms
 export {
     isNewUserAtom,
-    navSimplifiedDefaultAtom,
     seenToursAtom,
     markTourSeenAtom,
     hasTourBeenSeenAtom,

@@ -33,7 +33,7 @@ Auth behavior in global setup:
 - If the frontend renders password auth, a password must be available (see below).
 - If the frontend renders OTP auth, Testmail envs must be available.
 
-Teardown cleans up the ephemeral project and model hub secrets created by the run.
+Teardown deletes the ephemeral project created by the run.
 
 ---
 

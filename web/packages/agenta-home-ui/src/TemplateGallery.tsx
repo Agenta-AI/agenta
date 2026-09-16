@@ -187,14 +187,15 @@ export const TemplateGallery = ({
                     className ? ` ${className}` : ""
                 }`}
             >
-                <nav className="flex shrink-0 flex-col gap-0.5 lg:w-[180px]">
+                {/* Chips that scroll sideways on a phone; the column returns at `lg`. */}
+                <nav className="flex shrink-0 flex-row gap-1.5 overflow-x-auto lg:w-[180px] lg:flex-col lg:gap-0.5 lg:overflow-visible">
                     {railItems.map((item) => (
                         <button
                             key={item.value}
                             type="button"
                             aria-current={item.value === category}
                             onClick={() => onCategoryChange(item.value)}
-                            className={`box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-colorPrimary ${
+                            className={`box-border flex shrink-0 cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-colorPrimary lg:w-full ${
                                 item.value === category
                                     ? "bg-colorFillSecondary text-colorText"
                                     : "bg-transparent text-colorTextSecondary hover:bg-colorFillQuaternary"

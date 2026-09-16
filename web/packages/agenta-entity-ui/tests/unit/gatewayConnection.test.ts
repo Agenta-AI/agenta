@@ -5,9 +5,8 @@
  * must NOT resolve `inherit`, a saved tool key the provider catalog dropped, and the connection
  * swap, which must replace the one entry the format allows rather than appending a second.
  */
-import {describe, expect, it} from "vitest"
-
 import {agentItemIdentity} from "@agenta/entities/workflow/commitDiff"
+import {describe, expect, it} from "vitest"
 
 import {
     partitionToolsByAccess,

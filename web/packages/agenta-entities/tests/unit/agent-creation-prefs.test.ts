@@ -2,6 +2,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     applyAgentCreationPrefs,
+    applyAgentModelSelection,
     ensureEnabledSandbox,
 } from "../../src/workflow/state/agentCreationPrefs"
 
@@ -54,6 +55,44 @@ describe("applyAgentCreationPrefs", () => {
             {version: 1, harness: "claude", model: "claude-opus-4"},
         )
         expect(result).toEqual({harness: {kind: "claude"}, llm: {model: "claude-opus-4"}})
+    })
+})
+
+describe("applyAgentModelSelection", () => {
+    describe.each(["pi_core", "claude", "codex"])("routing to %s", (harness) => {
+        it.each(["allow", "ask", "deny"])("preserves an existing %s policy", (policy) => {
+            const existing = {
+                harness: {kind: "pi_core", max_iterations: 10},
+                llm: {model: "old-model", temperature: 0.5},
+                runner: {permissions: {default: policy}},
+                tools: [{type: "builtin", name: "read"}],
+            }
+            const model = harness === "claude" ? "sonnet" : "gpt-5.5"
+            const provider = harness === "claude" ? "anthropic" : "openai"
+
+            const result = applyAgentModelSelection(existing, {
+                harness,
+                modelId: model,
+                provider,
+                mode: "agenta",
+                slug: provider,
+            })
+
+            expect(result).toEqual({
+                ...existing,
+                harness: {kind: harness, max_iterations: 10},
+                llm: {
+                    model,
+                    temperature: 0.5,
+                    provider,
+                    connection: {mode: "agenta", slug: provider},
+                },
+            })
+            expect(result.runner).toEqual({permissions: {default: policy}})
+            expect(existing.harness.kind).toBe("pi_core")
+            expect(existing.llm.model).toBe("old-model")
+            expect(existing.runner).toEqual({permissions: {default: policy}})
+        })
     })
 })
 

@@ -10,7 +10,7 @@
  * Design: docs/design/provider-connections-models/experience.md ("Provider connection card").
  */
 
-import type {LlmProvider} from "@agenta/shared/types"
+import type {LlmProvider, SubscriptionLoginFacts} from "@agenta/shared/types"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 
 import {
@@ -23,6 +23,11 @@ import {
     type CredentialValues,
 } from "./providerCatalog"
 import {PROVIDER_AUTH_REQUIREMENTS} from "./providerFields"
+import {
+    SUBSCRIPTION_PROVIDER_KIND,
+    subscriptionProviderFamily,
+    subscriptionProviderName,
+} from "./subscriptionConnections"
 import {
     PROVIDER_KINDS,
     SECRET_VALUE_FIELDS,
@@ -50,6 +55,8 @@ export interface ProviderConnection {
     secretKind: SecretKind
     /** Saved active models. `undefined` means "use Agenta's defaults"; `[]` means "offer none". */
     models?: string[]
+    /** Provider-supplied display names keyed by model id. */
+    modelNames?: Record<string, string>
     /** Saved harness policy. `undefined` means "any harness Agenta supports". */
     harnesses?: string[]
     createdAt?: string
@@ -63,9 +70,18 @@ export interface ProviderConnection {
     keyPreview?: string
     /** Server-enforced management policy. Manager-only rows may not be edited or deleted by users. */
     managementPolicy?: SecretManagementPolicy
+    /**
+     * Present only on a hosted subscription connection: how usable its stored sign-in is. Its
+     * absence is what tells every other surface this is an ordinary key connection.
+     */
+    subscription?: SubscriptionLoginFacts
     /** The row this was derived from — the mutations round-trip it. */
     source: LlmProvider
 }
+
+/** Whether a connection is a hosted subscription rather than a stored key. */
+export const isSubscriptionConnection = (connection: ProviderConnection): boolean =>
+    !!connection.subscription
 
 /** Normalize a stored provider label (kind, env name, or title) to a canonical vault kind. */
 const canonicalKind = (value: string | undefined): string => {
@@ -82,6 +98,28 @@ const canonicalKind = (value: string | undefined): string => {
  */
 export const toProviderConnections = (rows: LlmProvider[]): ProviderConnection[] =>
     rows.reduce<ProviderConnection[]>((acc, row) => {
+        if (row.type === SUBSCRIPTION_PROVIDER_KIND && row.id && row.subscription) {
+            const provider = row.subscription.provider
+            // The FAMILY is the kind, so the logo and every family-keyed lookup still resolve; the
+            // product name is what the user reads.
+            acc.push({
+                id: row.id,
+                slug: row.slug,
+                name: row.displayName || subscriptionProviderName(provider),
+                kind: subscriptionProviderFamily(provider),
+                title: subscriptionProviderName(provider),
+                secretKind: SUBSCRIPTION_PROVIDER_KIND as SecretKind,
+                models: row.models,
+                harnesses: row.harnesses,
+                createdAt: row.created_at,
+                // The vault holds a sign-in only once one has been stored; a pending row has none.
+                hasStoredCredential: row.subscription.loginState !== "pending_login",
+                managementPolicy: row.managementPolicy as SecretManagementPolicy | undefined,
+                subscription: row.subscription,
+                source: row,
+            })
+            return acc
+        }
         if (row.type !== SecretKind.ProviderKey && row.type !== SecretKind.CustomProvider) {
             return acc
         }
@@ -105,6 +143,7 @@ export const toProviderConnections = (rows: LlmProvider[]): ProviderConnection[]
             title,
             secretKind: row.type as SecretKind,
             models: row.models,
+            modelNames: row.modelNames,
             harnesses: row.harnesses,
             createdAt: row.created_at,
             // A readable record proves it by carrying the value; a write-only one only says so.
@@ -357,6 +396,8 @@ export const defaultNamePreview = (kind: string, connections: ProviderConnection
 /** One row of the card's Active models list. */
 export interface ModelOption {
     id: string
+    /** Provider-supplied display name. */
+    name?: string
     checked: boolean
     /** Part of Agenta's default set for this provider — tagged in the list. */
     isDefault: boolean
@@ -506,6 +547,7 @@ export const buildModelOptions = ({
     defaults = [],
     discovered = false,
     order,
+    names = {},
 }: {
     available: string[]
     checked: string[]
@@ -513,6 +555,7 @@ export const buildModelOptions = ({
     defaults?: string[]
     discovered?: boolean
     order?: string[]
+    names?: Record<string, string>
 }): ModelOption[] => {
     const availableSet = new Set(available)
     const checkedSet = new Set(checked)
@@ -527,6 +570,7 @@ export const buildModelOptions = ({
 
     return ids.map((id) => ({
         id,
+        ...(names[id] && names[id] !== id ? {name: names[id]} : {}),
         checked: checkedSet.has(id),
         isDefault: defaultSet.has(id),
         unavailable: discovered && !availableSet.has(id) && !manualSet.has(id),
@@ -543,6 +587,11 @@ export const buildModelOptions = ({
  * A standard API key is reachable when the harness lists the family; the credential-set kinds are
  * reachable when the harness consumes that deployment surface. The saved harness list is user
  * policy layered on top — this is the technical limit underneath it.
+ *
+ * Deliberately coarse for a deployment surface, because the surface does not name a family: an
+ * endpoint the harness can speak to at all passes here. Which family a connection under that
+ * surface is ASSUMED to speak, and therefore which harnesses it is offered under by default, is
+ * `effectiveHarnesses` in ./agentModelCandidates.
  */
 export const harnessSupportsProviderKind = (
     capabilities: HarnessCapabilityMap | null | undefined,
@@ -623,6 +672,8 @@ export interface ConnectionDraft {
     credential: CredentialValues
     /** The explicit list of checked models; `undefined` leaves the connection on Agenta's defaults. */
     models?: string[]
+    /** Provider-supplied display names for the selected models. */
+    modelNames?: Record<string, string>
     /** The explicit harness policy; `undefined` leaves it open to any harness Agenta supports. */
     harnesses?: string[]
 }
@@ -672,7 +723,14 @@ export const buildConnectionPayload = (
     const name = draft.name.trim()
     const key = (draft.credential.apiKey ?? "").trim()
     const policy = {
-        ...(draft.models ? {models: draft.models.map((slug) => ({slug}))} : {}),
+        ...(draft.models
+            ? {
+                  models: draft.models.map((slug) => ({
+                      slug,
+                      ...(draft.modelNames?.[slug] ? {extras: {name: draft.modelNames[slug]}} : {}),
+                  })),
+              }
+            : {}),
         ...(draft.harnesses ? {harnesses: draft.harnesses} : {}),
     }
 

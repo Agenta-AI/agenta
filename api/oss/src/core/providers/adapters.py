@@ -72,6 +72,7 @@ async def _probe_catalog(
     label: str,
     url: str,
     extract: Callable[[Any], List[str]],
+    extract_names: Optional[Callable[[Any], Dict[str, str]]] = None,
     headers: Optional[Dict[str, str]] = None,
     params: Optional[Dict[str, str]] = None,
     extensions: Optional[Dict[str, Any]] = None,
@@ -131,7 +132,9 @@ async def _probe_catalog(
         )
 
     try:
-        models = extract(response.json())
+        payload = response.json()
+        models = extract(payload)
+        model_names = extract_names(payload) if extract_names else {}
     except (AttributeError, KeyError, TypeError, ValueError):
         return ProbeOutcome(
             credential=credential,
@@ -140,7 +143,11 @@ async def _probe_catalog(
 
     return ProbeOutcome(
         credential=credential,
-        discovery=DiscoveryResult(status=DiscoveryStatus.FETCHED, models=models),
+        discovery=DiscoveryResult(
+            status=DiscoveryStatus.FETCHED,
+            models=models,
+            model_names=model_names,
+        ),
     )
 
 
@@ -153,8 +160,24 @@ def _ids(items: Any, key: str = "id") -> List[str]:
     ]
 
 
+def _names(items: Any, *, id_key: str = "id", name_key: str = "name") -> Dict[str, str]:
+    return {
+        str(item[id_key]): str(item[name_key])
+        for item in items
+        if isinstance(item, dict) and item.get(id_key) and item.get(name_key)
+    }
+
+
 def _openai_style(payload: Any) -> List[str]:
     return _ids(payload["data"])
+
+
+def _openai_style_names(payload: Any) -> Dict[str, str]:
+    return _names(payload["data"])
+
+
+def _anthropic_names(payload: Any) -> Dict[str, str]:
+    return _names(payload["data"], name_key="display_name")
 
 
 def _bare_list(payload: Any) -> List[str]:
@@ -187,6 +210,14 @@ def _gemini_models(payload: Any) -> List[str]:
     return names
 
 
+def _gemini_names(payload: Any) -> Dict[str, str]:
+    return {
+        str(item["name"]).removeprefix("models/"): str(item["displayName"])
+        for item in payload["models"]
+        if isinstance(item, dict) and item.get("name") and item.get("displayName")
+    }
+
+
 # --- adapters --------------------------------------------------------------- #
 
 
@@ -201,6 +232,7 @@ class ApiKeyCatalogAdapter:
     label: str
     url: str
     extract: Callable[[Any], List[str]]
+    extract_names: Optional[Callable[[Any], Dict[str, str]]] = None
     authorize: Callable[[str], Dict[str, str]] = _bearer
     parameterize: Optional[Callable[[str], Dict[str, str]]] = None
 
@@ -214,6 +246,7 @@ class ApiKeyCatalogAdapter:
             label=self.label,
             url=self.url,
             extract=self.extract,
+            extract_names=self.extract_names,
             headers=None if self.parameterize else self.authorize(key),
             params=self.parameterize(key) if self.parameterize else None,
         )
@@ -226,6 +259,7 @@ class PublicCatalogAdapter:
     label: str
     url: str
     extract: Callable[[Any], List[str]]
+    extract_names: Optional[Callable[[Any], Dict[str, str]]] = None
     authorize: Optional[Callable[[str], Dict[str, str]]] = _bearer
 
     async def probe(self, *, client, credentials) -> ProbeOutcome:
@@ -235,6 +269,7 @@ class PublicCatalogAdapter:
             label=self.label,
             url=self.url,
             extract=self.extract,
+            extract_names=self.extract_names,
             headers=self.authorize(key) if key and self.authorize else None,
             proves_credential=False,
         )
@@ -288,6 +323,7 @@ class OpenRouterAdapter:
             label=self.label,
             url=self.models_url,
             extract=_openai_style,
+            extract_names=_openai_style_names,
             headers=_bearer(key),
             proves_credential=False,
         )
@@ -433,6 +469,7 @@ _ADAPTERS: Dict[str, ProviderAdapter] = {
         label="Anthropic",
         url="https://api.anthropic.com/v1/models",
         extract=_openai_style,
+        extract_names=_anthropic_names,
         authorize=lambda key: {"x-api-key": key, "anthropic-version": "2023-06-01"},
     ),
     "openrouter": OpenRouterAdapter(),
@@ -440,6 +477,7 @@ _ADAPTERS: Dict[str, ProviderAdapter] = {
         label="Google Gemini",
         url="https://generativelanguage.googleapis.com/v1beta/models",
         extract=_gemini_models,
+        extract_names=_gemini_names,
         parameterize=lambda key: {"key": key},
     ),
     "mistral": ApiKeyCatalogAdapter(

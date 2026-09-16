@@ -2,8 +2,7 @@ import {useEffect} from "react"
 
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {HomePageSkeleton} from "@/features/home/states/HomePageSkeleton"
 import {projectHomeUrl} from "@/lib/context"
 
 /**
@@ -22,12 +21,7 @@ export const ProjectHomeRedirect = () => {
         void router.replace(projectHomeUrl({workspaceId, projectId}))
     }, [router.isReady, workspaceId, projectId])
 
-    return (
-        <>
-            <PageTitle />
-            <ScreenScaffold>
-                <p className="text-muted-foreground grow p-6 text-center text-xs">Loading…</p>
-            </ScreenScaffold>
-        </>
-    )
+    // The destination's own skeleton, so the forward is one continuous hold rather than a line
+    // of text that the home skeleton then replaces.
+    return <HomePageSkeleton />
 }
