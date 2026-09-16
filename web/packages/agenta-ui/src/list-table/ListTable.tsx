@@ -305,8 +305,14 @@ export const ListTable = <Row,>({
                                                         className={cn(
                                                             "group",
                                                             CARD_CHROME,
+                                                            // Lifts a touch on hover — a lighter
+                                                            // edge and a soft shadow — so the tile
+                                                            // reads as the thing about to open. A
+                                                            // shadow is nearly invisible on a dark
+                                                            // surface, so dark mode adds the fill
+                                                            // lift a row gets and a deeper shadow.
                                                             onOpenRow &&
-                                                                "cursor-pointer transition-colors hover:border-foreground/30",
+                                                                "cursor-pointer transition-[border-color,box-shadow,background-color] hover:border-foreground/30 hover:shadow-[0_3px_14px_rgb(0_0_0/0.07)] dark:hover:bg-accent/40 dark:hover:shadow-[0_4px_16px_rgb(0_0_0/0.5)]",
                                                             onOpenRow && FOCUS_RING,
                                                         )}
                                                     >
