@@ -13,11 +13,26 @@ import {useComposerAttachments} from "@agenta/chat/hooks"
 import {SendRefusedError} from "@agenta/chat/model"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
-import {afterEach, describe, expect, it} from "vitest"
+import {afterEach, beforeAll, describe, expect, it} from "vitest"
 
 import {Composer} from "@/features/chat/Composer"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
+
+beforeAll(() => {
+    // Lexical measures the DOM selection to decide whether to scroll the caret into view, and it
+    // measures a Range when the selection sits in a text node. jsdom implements no Range geometry,
+    // so that call throws from Lexical's own microtask, outside `act`, and escapes the case as an
+    // unhandled error even though every assertion passes.
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+        configurable: true,
+        value: () => new DOMRect(),
+    })
+    Object.defineProperty(Range.prototype, "getClientRects", {
+        configurable: true,
+        value: () => [],
+    })
+})
 
 let root: Root | undefined
 let host: HTMLDivElement | undefined
