@@ -224,8 +224,13 @@ export function useMcpConnectJourney({
                 window.location.assign(redirectUrl)
                 return
             }
-            popup.location.href = redirectUrl
-
+            // The watch goes on BEFORE the popup is pointed anywhere. A provider that answers
+            // without a consent screen — the mock does, and a provider that already holds a
+            // grant does too — can be back at the callback before the next statements run, and
+            // the completion it posts then arrives at a window with no listener on it. Nothing
+            // recovers from that: the poll only notices a CLOSED popup, which is a failure, so
+            // a missed success waits out the three-minute timeout with the connection already
+            // authorized behind it.
             stopWatch()
             stopWatchRef.current = watchOauthConsent({
                 popup,
@@ -242,6 +247,8 @@ export function useMcpConnectJourney({
                             : {type: "consent_failed", error},
                     ),
             })
+
+            popup.location.href = redirectUrl
         },
         [isCurrent, projectId, stopWatch],
     )

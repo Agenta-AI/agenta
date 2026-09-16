@@ -393,6 +393,36 @@ describe("the popup contract", () => {
         expect(setItem).not.toHaveBeenCalled()
     })
 
+    it("is listening before it sends the window anywhere", async () => {
+        // A provider that answers without a consent screen can be back at the callback before
+        // the next statement runs, and the completion it posts then lands on a window with no
+        // listener. Nothing recovers from that: the poll only notices a CLOSED popup, which is
+        // a failure, so a missed success waits out the three-minute timeout while the
+        // connection sits authorized behind it. The mock issuer has no consent screen.
+        const order: string[] = []
+        const listeners = vi.spyOn(window, "addEventListener").mockImplementation(((
+            type: string,
+        ) => {
+            if (type === "message") order.push("listening")
+        }) as never)
+        const popup = {
+            closed: false,
+            close: vi.fn(),
+            get location() {
+                return {
+                    set href(value: string) {
+                        if (value) order.push("navigated")
+                    },
+                }
+            },
+        } as never
+
+        await driveToConsent(popup)
+
+        expect(order).toEqual(["listening", "navigated"])
+        listeners.mockRestore()
+    })
+
     it("trusts only the origin that serves the callback", async () => {
         const listeners = vi.spyOn(window, "addEventListener")
         await mountJourney()
