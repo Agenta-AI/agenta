@@ -40,15 +40,12 @@ export const SkillCardBody = ({
         >
             {row.description || NO_DESCRIPTION}
         </span>
+        {/* Source on the left, date on the right — the card's two corners, the way the row's
+            columns read. */}
         <span className="mt-auto flex min-w-0 items-center gap-2 pt-1 text-[11.5px] text-placeholder">
             <span className="min-w-0 truncate">{row.sourceLabel}</span>
-            <span aria-hidden className="size-[3px] shrink-0 rounded-full bg-border" />
-            <span className="shrink-0">{lastUpdatedLabel(row.age)}</span>
-            {row.archived ? (
-                <span className="ml-auto">
-                    <SkillArchivedTag />
-                </span>
-            ) : null}
+            {row.archived ? <SkillArchivedTag /> : null}
+            <span className="ml-auto shrink-0">{lastUpdatedLabel(row.age)}</span>
         </span>
     </>
 )
