@@ -11,7 +11,7 @@ import {
     setSessionHeader,
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
-import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
+import {pinnedSessionIdsAtom, removeSessionPinAtom} from "@agenta/sessions/state"
 import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {atom, type Getter, type Setter} from "jotai"
@@ -513,6 +513,7 @@ export const adoptSessionAtomFamily = atomFamily((key: string) =>
 export const deleteSessionAtomFamily = atomFamily((key: string) =>
     atom(null, (get, set, id: string) => {
         const all = get(sessionsByAppAtom)
+        set(removeSessionPinAtom, id)
         set(sessionsByAppAtom, {...all, [key]: (all[key] ?? []).filter((s) => s.id !== id)})
 
         const open = currentOpenIds(get, key)
@@ -565,6 +566,7 @@ export const archiveSessionAtomFamily = atomFamily((key: string) =>
         const all = get(sessionsByAppAtom)
         const target = (all[key] ?? []).find((s) => s.id === id)
         if (!target) return
+        set(removeSessionPinAtom, id)
         set(sessionsByAppAtom, {
             ...all,
             [key]: (all[key] ?? []).map((s) => (s.id === id ? {...s, archived: true} : s)),

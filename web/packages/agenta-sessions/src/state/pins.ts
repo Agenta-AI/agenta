@@ -25,16 +25,34 @@ export const isSessionPinnedAtom = atom((get) => {
     return (sessionId: string) => pinned.has(sessionId)
 })
 
+export const removeSessionPinAtom = atom(null, (get, set, sessionId: string) => {
+    const projectId = get(projectIdAtom)
+    if (!projectId) return
+
+    const all = get(pinnedByProjectAtom)
+    const current = all[projectId] ?? []
+    const next = current.filter((id) => id !== sessionId)
+    if (next.length === current.length) return
+
+    set(pinnedByProjectAtom, {
+        ...all,
+        [projectId]: next,
+    })
+})
+
 export const toggleSessionPinAtom = atom(null, (get, set, sessionId: string) => {
     const projectId = get(projectIdAtom)
     if (!projectId) return
 
     const all = get(pinnedByProjectAtom)
     const current = all[projectId] ?? []
+    if (current.includes(sessionId)) {
+        set(removeSessionPinAtom, sessionId)
+        return
+    }
+
     set(pinnedByProjectAtom, {
         ...all,
-        [projectId]: current.includes(sessionId)
-            ? current.filter((id) => id !== sessionId)
-            : [sessionId, ...current],
+        [projectId]: [sessionId, ...current],
     })
 })

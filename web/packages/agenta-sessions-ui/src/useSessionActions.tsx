@@ -139,8 +139,13 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
         [isCached, localCache, projectId, queryClient],
     )
 
+    const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
+
     const setArchived = useCallback(
         async (target: SessionActionTarget) => {
+            if (!target.archived && pinnedSet.has(target.sessionId)) {
+                togglePin(target.sessionId)
+            }
             if (isCached(target)) {
                 await localCache?.setArchived(target)
             } else {
@@ -153,7 +158,7 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
             }
             revalidate()
         },
-        [isCached, localCache, projectId, revalidate],
+        [isCached, localCache, pinnedSet, projectId, revalidate, togglePin],
     )
 
     const remove = useCallback(
@@ -167,6 +172,9 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                 okText: "Delete",
                 okButtonProps: {danger: true},
                 onOk: async () => {
+                    if (pinnedSet.has(target.sessionId)) {
+                        togglePin(target.sessionId)
+                    }
                     if (isCached(target)) {
                         // AWAITED: the local verb fires the server call itself, and revalidating
                         // ahead of it refetches a list the row is still in — which puts the row
@@ -186,7 +194,7 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                 },
             })
         },
-        [isCached, localCache, projectId, revalidate],
+        [isCached, localCache, pinnedSet, projectId, revalidate, togglePin],
     )
 
     const copyShareLink = useCallback(
@@ -201,8 +209,6 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
         },
         [sharePathFor],
     )
-
-    const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
 
     /** The one menu every surface renders. `onOpen` is omitted where the session is already open. */
     const menuItems = useCallback(

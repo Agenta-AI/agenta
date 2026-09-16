@@ -14,6 +14,7 @@ import {createStore} from "jotai"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 import {projectIdAtom} from "@/oss/state/project"
+import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
 
 interface DeleteSessionRemoteArgs {
     sessionId: string
@@ -188,5 +189,17 @@ describe("archiveSessionAtomFamily", () => {
             projectId: "project-1",
         })
         expect(historyIds(store, scope)).toEqual(["young-c"])
+    })
+
+    it("clears the local pin when archiving a pinned session", async () => {
+        const scope = "archive-pinned"
+        const store = newStoreWithSession(scope, "pinned-a")
+
+        store.set(toggleSessionPinAtom, "pinned-a")
+        expect(store.get(pinnedSessionIdsAtom)).toContain("pinned-a")
+
+        await store.set(archiveSessionAtomFamily(scope), "pinned-a")
+
+        expect(store.get(pinnedSessionIdsAtom)).not.toContain("pinned-a")
     })
 })

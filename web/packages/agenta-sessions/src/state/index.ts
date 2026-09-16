@@ -16,7 +16,12 @@ export {
     type SessionScope,
     type SessionStatusFilter,
 } from "./filters"
-export {pinnedSessionIdsAtom, isSessionPinnedAtom, toggleSessionPinAtom} from "./pins"
+export {
+    pinnedSessionIdsAtom,
+    isSessionPinnedAtom,
+    removeSessionPinAtom,
+    toggleSessionPinAtom,
+} from "./pins"
 export {
     sessionTabScope,
     MAX_OPEN_SESSION_TABS,
