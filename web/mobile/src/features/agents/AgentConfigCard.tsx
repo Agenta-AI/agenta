@@ -1,7 +1,11 @@
 import {useMemo} from "react"
 
 import {composioLogo, PROVIDERS} from "@agenta/entities/workflow"
-import {agentConfigSummary, agentLatestRevisionAtomFamily} from "@agenta/entity-ui/agent"
+import {
+    agentConfigSummary,
+    agentLatestRevisionAtomFamily,
+    mcpSummaryDetail,
+} from "@agenta/entity-ui/agent"
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {LogoMarks} from "@agenta/ui/components/presentational"
 import {Cpu, FileText, GraduationCap, Plugs, Wrench} from "@phosphor-icons/react"
@@ -112,7 +116,10 @@ export const AgentConfigCard = ({
                         <AgentOverviewCardRow
                             icon={<Plugs size={ICON} />}
                             label="MCP servers"
-                            detail={summary.mcps ? `${summary.mcps} connected` : "Connect a server"}
+                            // The shared card's rule, not this fork's own wording: it said
+                            // "connected", which claims an authorized state no summary card
+                            // can know, and which the shared card was fixed away from.
+                            detail={mcpSummaryDetail(summary.mcps, {canEdit: true})}
                             onClick={onEdit}
                         />
                     ) : null}
