@@ -128,7 +128,7 @@ unsatisfiable once the client is regenerated.
 | M5 | `api/oss/src/core/gateways/llms/providers/mock/adapter.py:789-795` | Real | `b5382e95c6` | The text branch's content-block delta omits the index the tool-use branch carries. Mock adapter, registered only behind the mocks flag. Verified; its test fails without the fix. |
 | M6 | `clients/scripts/generate.sh:350` | Real | `ca6e7dbab0` | Generated-client Python floor raised above what the SDK and API declare, making an install on the older supported version unsatisfiable after regeneration. Verified: floor restored, client not regenerated, three packages agree. **Nothing runs the guard** — no workflow executes `clients/python/tests`. |
 | M7 | `api/oss/src/core/workflows/static_catalog.py:175-184` | Deferred | — | The schema shape would break strict function calling, but nothing in-tree feeds these schemas to a strict consumer. |
-| M8 | `api/oss/src/core/gateways/mcps/oauth/storage.py:344-355` | Real | `fa7b1fcc7e`, `8292c86fab`, `5861989ccf` | A missing key raises where a row came from another writer, and the provider lookup matches any OAuth-provider secret at the same issuer, so a user-created one turns re-registration into a server error. **Partly.** The raise is gone and a foreign row reads as unregistered, but the issuer-only fallback scan still matches any provider row at that issuer. **Partly.** The issuer scan now accepts only a row carrying a presentable registration, and its case discriminates. Both shadowing paths reproduced against the earlier fix are closed by `5861989ccf`: every registration this module writes carries a provenance mark, both the addressed lookup and the scan prefer a marked row in one pass, and an unmarked row no longer short-circuits from the address alone. Two limits stated below. |
+| M8 | `api/oss/src/core/gateways/mcps/oauth/storage.py:344-355` | Real | `fa7b1fcc7e`, `8292c86fab`, `5861989ccf`, `915f3be06a` | A missing key raises where a row came from another writer, and the provider lookup matches any OAuth-provider secret at the same issuer, so a user-created one turns re-registration into a server error. **Partly.** The raise is gone and a foreign row reads as unregistered, but the issuer-only fallback scan still matches any provider row at that issuer. **Partly.** The issuer scan now accepts only a row carrying a presentable registration, and its case discriminates. Both shadowing paths reproduced against the earlier fix are closed by `5861989ccf`: every registration this module writes carries a provenance mark, both the addressed lookup and the scan prefer a marked row in one pass, and an unmarked row no longer short-circuits from the address alone. Two limits stated below. |
 | M9 | `services/runner/src/engines/sandbox_agent/mount.ts:548` | Deferred | — | Default ports are not normalised when comparing authorities. The store endpoint is always port-qualified in practice and the failure is a loudly surfaced skipped mount. |
 | M10 | `sdks/python/agenta/sdk/middlewares/running/vault.py:494-496` | Real | `facf5097da`, `7d3428c9ca` | An agent request is inferred from the shape of a parameter named `agent`, so a non-agent workflow carrying that key runs with an empty vault. Needs a user-chosen parameter name to collide. **Partly**, as the commit concedes: a name-shaped heuristic narrowed, not a declared kind recorded. `{"agent": {}}` is now sent to the vault, and the key list duplicates the schema with no sync check. **Now closed** by `7d3428c9ca`: a subset test on the agent block, empty qualifies, a mixed block is refused, and the key list is pinned by reading the schema's own fields rather than restating them. Drift in either direction fails a case. |
 | M11 | `services/runner/src/tools/relay-watch.ts:130-142` | Real | `9e848417de`, `ad52aa0777` | The local relay source declares an abort signal and ignores it, so an abort is honoured only if the source is also closed. Bounded delay. **Not closed in effect.** The source now honours a signal, but the only caller passes none (`services/runner/src/tools/relay.ts:976`), so an abort still reaches neither source. The test supplies the signal the product never supplies. **Now closed in code** by `ad52aa0777`: the signal is wired through `run-turn.ts:1238`, the only production caller, and reaches the source at `relay.ts:987`. **The wiring is unguarded**: reverting that one argument leaves the whole runner unit project green at 3393 passed, so the case pins the source seam only, not the call site the residual was about. |
@@ -231,8 +231,20 @@ Two limits, both of which the commit states plainly rather than leaving to a rea
   two unmarked rows. That window closes on its own at the next write.
 
 **Verified:** 46 passed at the fix; pinned before it, the crafted-row case and the marking case fail.
-One coverage note: the address-slug path, which is the one this review reproduced, is closed in code
-but has no case of its own — the two discriminating cases cover the issuer-slug shadow and the mark.
+
+**The coverage gap is closed too**, at `915f3be06a`, and the case is built carefully. The earlier
+ones could not have covered this path: they build a storage with no callback address, so the address
+slug is never a candidate at all. The new case gives the storage its callback, puts a crafted row at
+the address slug and a marked registration at the issuer slug, and asserts both that the genuine one
+wins and that the address slug was actually read — so it cannot pass by the path never being taken.
+Pinned before the preference, it fails. Thirty-one cases pass at the fix.
+
+The reverse guard beside it, that a marked row at the address slug still beats an older issuer row,
+passes either way, because without the preference the address slug short-circuits and returns that
+row regardless. It is a non-regression guard rather than a discriminator, which is the right thing
+to have here and worth naming as what it is. On the substance I agree with it: the address slug is
+this deployment's current callback, and a grant bound to an older registration addresses that one
+directly through its own pin rather than through this search.
 
 ### Residuals still open
 
