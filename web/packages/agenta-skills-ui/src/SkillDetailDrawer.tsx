@@ -98,15 +98,6 @@ const toFormValue = (skill?: Record<string, unknown>): Record<string, unknown> =
 const ACTION_ROW =
     "box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:cursor-default disabled:opacity-50"
 
-/** First zod issue → one human line, mirroring the create drawer. */
-const firstIssue = (error: {issues: {path: PropertyKey[]; message: string}[]}): string => {
-    const issue = error.issues[0]
-    if (!issue) return "Invalid skill."
-    const path = issue.path.join(".")
-    const message = /Too small.*>=1/.test(issue.message) ? "is required" : issue.message
-    return path ? `${path} ${message}` : message
-}
-
 export function SkillDetailDrawer({
     open,
     onClose,
@@ -236,10 +227,8 @@ export function SkillDetailDrawer({
     const askToCommit = useCallback((content: Record<string, unknown>, defaultMessage: string) => {
         setAttempted(true)
         const parsed = skillContentSchema.safeParse(content)
-        if (!parsed.success) {
-            setError(firstIssue(parsed.error))
-            return
-        }
+        // The fields say what is missing or malformed; the footer keeps to what the server said.
+        if (!parsed.success) return
         setPending(parsed.data)
         setSaveMessage(defaultMessage)
         setError(null)

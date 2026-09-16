@@ -46,15 +46,6 @@ const toFormValue = (candidate: SkillScanCandidate): Record<string, unknown> => 
     files: candidate.skill.files,
 })
 
-/** First zod issue → one human line ("name is required"), not raw zod copy. */
-const firstIssue = (error: {issues: {path: PropertyKey[]; message: string}[]}): string => {
-    const issue = error.issues[0]
-    if (!issue) return "Invalid skill."
-    const path = issue.path.join(".")
-    const message = /Too small.*>=1/.test(issue.message) ? "is required" : issue.message
-    return path ? `${path} ${message}` : message
-}
-
 export function SkillCreateDrawer({
     open,
     onClose,
@@ -126,10 +117,8 @@ export function SkillCreateDrawer({
     const create = useCallback(async () => {
         setAttempted(true)
         const parsed = skillContentSchema.safeParse(value)
-        if (!parsed.success) {
-            setError(firstIssue(parsed.error))
-            return
-        }
+        // The fields say what is missing or malformed; the footer keeps to what the server said.
+        if (!parsed.success) return
         setBusy(true)
         setError(null)
         try {
