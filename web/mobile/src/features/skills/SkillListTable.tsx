@@ -99,10 +99,15 @@ export const SkillListTable = ({
         [],
     )
 
-    const groupActions = useCallback((group: SkillListGroup) => {
-        const ids = repositoryIds(group)
-        return ids.length ? <SkillSourceUpdateAction ids={ids} /> : null
-    }, [])
+    // Only a source group is one repository; ungrouped, the single run mixes sources.
+    const groupActions = useCallback(
+        (run: SkillListGroup) => {
+            if (group !== "source") return null
+            const ids = repositoryIds(run)
+            return ids.length ? <SkillSourceUpdateAction ids={ids} /> : null
+        },
+        [group],
+    )
 
     return (
         <ListTable

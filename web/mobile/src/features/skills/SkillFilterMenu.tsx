@@ -99,7 +99,7 @@ export const SkillFilterMenu = ({
 
     // The grouping and the view mode survive a reset: they are how the reader chose to read the
     // list, not what they narrowed it to.
-    const isDefault = isDefaultSkillFilters(view) && view.group === DEFAULT_SKILL_LIST_VIEW.group
+    const isDefault = isDefaultSkillFilters(view)
 
     return (
         <FilterMenu
@@ -112,7 +112,9 @@ export const SkillFilterMenu = ({
             // The view toggle beside it is 32; a 28px funnel between them read as a mistake.
             triggerClassName="size-8"
             active={!isDefaultSkillFilters(view)}
-            onReset={() => onChange({...DEFAULT_SKILL_LIST_VIEW, mode: view.mode})}
+            onReset={() =>
+                onChange({...DEFAULT_SKILL_LIST_VIEW, group: view.group, mode: view.mode})
+            }
             resetDisabled={isDefault}
         />
     )
