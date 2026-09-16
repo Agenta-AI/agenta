@@ -6,6 +6,7 @@ import {
     lastUpdatedLabel,
     NO_DESCRIPTION,
     provenanceLabel,
+    usedByLabel,
     type SkillGrouping,
     type SkillListRow,
 } from "./skillListView"
@@ -24,7 +25,7 @@ export const SkillRowCells = ({
     onOpen,
 }: {
     row: SkillListRow
-    /** A phone has no provenance column; the heading above already says it. */
+    /** A phone has no provenance or Used by column; the cells are dropped, not hidden. */
     narrow: boolean
     group: SkillGrouping
     onOpen: (row: SkillListRow) => void
@@ -63,6 +64,16 @@ export const SkillRowCells = ({
                 title={provenanceLabel(row, group)}
             >
                 {provenanceLabel(row, group)}
+            </span>
+        )}
+
+        {narrow ? null : (
+            <span
+                className={`block truncate text-[13px] ${
+                    row.usedByCount ? "text-muted-foreground" : "text-placeholder"
+                }`}
+            >
+                {usedByLabel(row.usedByCount)}
             </span>
         )}
 

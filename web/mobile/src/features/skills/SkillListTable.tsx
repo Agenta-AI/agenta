@@ -15,8 +15,8 @@ import {SkillSourceUpdateAction} from "./SkillSourceUpdateAction"
  * Identity takes twice the share of the reading columns; the kebab is fixed at the button's own
  * width so the reading columns keep their proportions.
  *
- * A phone drops Source rather than scrolling it off: the rows sit under a heading that already
- * names it, and Group by → Source puts it back for a reader who turned grouping off.
+ * A phone drops Source and Used by rather than scrolling them off: the rows sit under a heading
+ * that already names the source, and the drawer's header carries the usage.
  */
 const NAME_COLUMN: ListTableColumn = {key: "name", label: "Name", width: "minmax(160px,2fr)"}
 /** Grouped by source, the heading already names it, so the column names the author instead. */
@@ -25,6 +25,7 @@ const provenanceColumn = (group: SkillGrouping): ListTableColumn => ({
     label: group === "source" ? "Created by" : "Source",
     width: "minmax(120px,1fr)",
 })
+const USED_BY_COLUMN: ListTableColumn = {key: "usedBy", label: "Used by", width: "88px"}
 const updatedColumn = (width: string): ListTableColumn => ({
     key: "updated",
     label: "Last updated",
@@ -42,14 +43,15 @@ const ACTIONS_COLUMN: ListTableColumn = {
 const wideColumns = (group: SkillGrouping): ListTableColumn[] => [
     NAME_COLUMN,
     provenanceColumn(group),
+    USED_BY_COLUMN,
     updatedColumn("96px"),
     ACTIONS_COLUMN,
 ]
 const NARROW_COLUMNS: ListTableColumn[] = [NAME_COLUMN, updatedColumn("84px"), ACTIONS_COLUMN]
 
-/** Tailwind's `sm`. Below it Source goes; the minima then fit a 375px screen. */
+/** Tailwind's `sm`. Below it Source and Used by go; the minima then fit a 375px screen. */
 const WIDE_QUERY = "(min-width: 640px)"
-const WIDE_MIN_WIDTH = 420
+const WIDE_MIN_WIDTH = 520
 const NARROW_MIN_WIDTH = 320
 
 /** A group's rows all share one repository, so the first says whether it can be checked. */
