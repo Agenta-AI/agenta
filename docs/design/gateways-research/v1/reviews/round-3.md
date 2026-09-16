@@ -358,8 +358,9 @@ narrows exactly the case that was wrong and leaves the case that was right.
 The web reader returns null without a table and `new_tool_permission ?? "ask"` with one, and its
 discriminating case — a table beside `permission: allow` — is pinned in the entities suite. The
 editor's "Inherits" label derives directly from that resolver, so the rendered surface follows.
-**One gap worth naming:** no rendered case uses that discriminating shape. The label cases all use a
-table with no server permission beside it, where both the old and new expressions answer `ask`.
+That gap is closed at `dc9a6f4931`: a rendered case now uses the discriminating shape, a table
+beside a server permission of `allow`, and asserts the row reads "Inherits ask". Twenty-four cases
+pass. The label is now pinned where a person reads it, not only where it is computed.
 
 **My closure was wrong, and the reason is worth keeping.** I verified the adapter's ladder, read its
 tests, ran them, and pinned the pre-fix revision to watch seven cases fail. All of that was true and
@@ -525,6 +526,13 @@ job carries the expectation variable D77 introduced. On a plane-off preview the 
 green while covering nothing, which is D25's shape once more. Outside D77's recorded scope, so it is
 its own entry rather than a reopening.
 
+**Fixed at `64f2a8f72d`**, verified. The API gate now fails where the services one fails and skips
+only when the run says it expected a plane-off stack, using the same variable, the same vocabulary
+and the same default. The two copies are deliberate — separate packages, and a test-harness switch
+does not belong in the one library both import — and they are held together by a case that loads the
+services helper and compares both the resolved answer and the variable's own name, so a change to one
+that is not made to the other fails rather than drifts. Twenty-eight cases pass.
+
 ## The web batch's second half
 
 **The D86 residual is closed by `85bc6697d7`, and closed better than by restoring the field.** The
@@ -567,6 +575,20 @@ MCP: not a dialog defect at all, but a route change discarding the pane that hel
 both outcomes, so a refused navigation lets the person ask again rather than wedging the surface —
 and there is a case for exactly that, which is the half a naive guard would have missed. Three cases,
 mobile suite 235 passed. Live verification is with the QA agent.
+
+**The desktop half is `887e4d7f77`**, verified: the configuration-only panel was the last one keyed
+by the revision id, so an agent's self-commit tore it down and took the open drawer item with it. It
+now uses the same stable expression the split view had already been given for the same reason, which
+makes this a branch left behind by an earlier fix rather than a new mistake. `web/oss` passes 529
+with 1 skipped.
+
+**A corroboration worth recording, with one correction.** The acceptance suite does carry an
+allowance that would have masked this: `openNewMcpItem` reloads once and re-waits if the
+configuration panel never appears. Its comment attributes that to a development server serving a
+stale chunk id, not to a session teardown — so it is a reload allowance rather than the
+wait-for-session-URL it was described as. The substance holds and the specifics do not: a broad
+"try again" in a test is the shape that hides a defect whose symptom is a panel vanishing, whatever
+reason the comment gives for it.
 
 ## The fixes that hold
 
