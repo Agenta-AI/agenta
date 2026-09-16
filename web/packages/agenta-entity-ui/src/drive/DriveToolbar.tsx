@@ -93,14 +93,13 @@ const IconPill = ({value, options, onChange}: ToolbarMode) => (
     </Tabs>
 )
 
-/** The mode dropdown: the current option as its trigger, a check on the chosen item. */
+/** The mode dropdown: the current label as its trigger, a check on the chosen item. */
 const ModeMenu = ({value, options, onChange}: ToolbarMode) => {
     const current = options.find((o) => o.value === value) ?? options[0]
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" aria-label="View mode" className={ROW_TEXT_BTN}>
-                    {current.icon}
                     {current.label}
                     <CaretDown weight="bold" className="size-3 opacity-70" />
                 </Button>
