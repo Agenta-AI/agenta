@@ -118,6 +118,12 @@ Three items are outside the team's reach. Each blocks something in the gate.
 2. **Apply the Railway template.** The preview LLM-plane flag is committed but additive-first, so
    it reaches clones only once `apply.sh` converges the live template. Until then preview CI skips
    the cells that prove a gateway refusal reaches the caller with its code.
+
+   Those cells now FAIL rather than skip when the plane is off (D77), because a suite that reports
+   green while running nothing is the thing that record exists to stop. So the preview job carries
+   `AGENTA_TESTS_EXPECT_LLM_GATEWAY=off` in `.github/workflows/44-railway-tests.yml`, which says
+   out loud that this run expects a stack without the plane. **Delete that line when the template
+   apply lands**, or the preview goes on covering nothing and goes on saying so quietly.
 3. **Delete CodeRabbit's 2026-09-12 learning** against repository-wide path filters. It predates
    the branch-scoped approach and argues against the fix that got the review to run at all.
 
