@@ -23,7 +23,7 @@ export const SkillRowCells = ({
 }) => (
     <>
         <span className={`flex min-w-0 items-center gap-2 ${row.archived ? "opacity-60" : ""}`}>
-            <SkillAvatar origin={row.origin} />
+            <SkillAvatar origin={row.origin} slug={row.slug} />
             {/* Tight leading and a hairline gap: the frame's own row padding is fixed and
                 shared, so the two lines are where a row can give height back. */}
             <span className="flex min-w-0 flex-1 flex-col gap-px">

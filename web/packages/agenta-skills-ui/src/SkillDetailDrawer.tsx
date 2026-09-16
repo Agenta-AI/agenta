@@ -333,7 +333,7 @@ export function SkillDetailDrawer({
                     <CaretLeft size={16} />
                 </button>
             ) : null}
-            {skill ? <SkillAvatar origin={skill.origin} /> : null}
+            {skill ? <SkillAvatar origin={skill.origin} slug={skill.slug} /> : null}
             <span className="min-w-0 truncate font-mono text-sm font-medium">
                 {skill?.slug ?? ""}
             </span>
