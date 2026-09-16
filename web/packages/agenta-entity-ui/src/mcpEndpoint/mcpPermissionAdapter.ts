@@ -70,6 +70,15 @@ export function toCatalogTools(tools: McpAnnotatedTool[]): CatalogToolInfo[] {
     }))
 }
 
+/**
+ * The policy a server is added to an agent with.
+ *
+ * Written at the moment a connection is chosen, not left empty. An empty policy is not a neutral
+ * starting point on this wire: no `permission` MEANS "follows the agent's policy", so a server
+ * added without one would read back as a preset nobody picked. Every add path writes this.
+ */
+export const DEFAULT_MCP_POLICY: McpServerPolicy = {permission: "allow"}
+
 /** The saved MCP policy, as the drawer reads it. An absent value is `inherit` on both levels. */
 export function toGatewayPermissions(policy: McpServerPolicy): GatewayConnectionPermissions {
     return {

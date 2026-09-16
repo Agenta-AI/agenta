@@ -8,13 +8,17 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    DEFAULT_MCP_POLICY,
     fromGatewayPermissions,
     inheritOptionLabel,
     inheritedPermission,
     toCatalogTools,
     toGatewayPermissions,
 } from "../../src/mcpEndpoint/mcpPermissionAdapter"
-import {partitionToolsByAccess} from "../../src/DrillInView/SchemaControls/integrationPolicy"
+import {
+    integrationPermissionSummary,
+    partitionToolsByAccess,
+} from "../../src/DrillInView/SchemaControls/integrationPolicy"
 import type {McpServerPolicy} from "@agenta/entities/mcpEndpoint"
 
 const roundTrip = (policy: McpServerPolicy): McpServerPolicy =>
@@ -153,5 +157,19 @@ describe("the tool catalog the drawer lists", () => {
 
     it("leaves an absent hint absent rather than deciding it is false", () => {
         expect(toCatalogTools([{name: "mystery"}])[0].readOnly).toBeUndefined()
+    })
+})
+
+describe("the policy a server is added with", () => {
+    it("is Allow all, so a new server reads back as a preset somebody picked", () => {
+        // An empty policy is not a neutral start on this wire: no `permission` MEANS "follows the
+        // agent's policy", which reads back as a preset nobody chose.
+        expect(integrationPermissionSummary(toGatewayPermissions(DEFAULT_MCP_POLICY)).label).toBe(
+            "Allow all",
+        )
+    })
+
+    it("is not what an empty policy reads back as", () => {
+        expect(integrationPermissionSummary(toGatewayPermissions({})).label).not.toBe("Allow all")
     })
 })

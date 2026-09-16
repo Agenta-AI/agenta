@@ -10,6 +10,7 @@ export type {
 export {default as McpPermissionDrawer, mcpHealthLabel} from "./McpPermissionDrawer"
 export type {McpPermissionDrawerProps} from "./McpPermissionDrawer"
 export {
+    DEFAULT_MCP_POLICY,
     fromGatewayPermissions,
     inheritedPermission,
     inheritOptionLabel,

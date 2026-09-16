@@ -40,7 +40,7 @@ import {useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 import McpConnectJourney from "../../mcpEndpoint/McpConnectJourney"
-import {toGatewayPermissions} from "../../mcpEndpoint/mcpPermissionAdapter"
+import {DEFAULT_MCP_POLICY, toGatewayPermissions} from "../../mcpEndpoint/mcpPermissionAdapter"
 import McpPermissionDrawer from "../../mcpEndpoint/McpPermissionDrawer"
 
 import {integrationPermissionSummary} from "./integrationPolicy"
@@ -66,11 +66,15 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
         (endpoint: MCPEndpoint) => {
             if (!endpoint.slug) return
             const label = endpoint.name || endpoint.slug
+            const existing = readMcpPolicy(value)
             onChange({
                 ...value,
                 // Frozen here and not recomputed later: a rename must not rename tools.
                 name: toolPrefixFromName(label) ?? endpoint.slug,
                 connection: buildMcpConnectionRef(endpoint.slug),
+                // Only for an item that has none. Re-pointing a configured server at another
+                // connection must not throw away what its author already decided.
+                policy: Object.keys(existing).length ? existing : DEFAULT_MCP_POLICY,
             })
         },
         [onChange, value],
