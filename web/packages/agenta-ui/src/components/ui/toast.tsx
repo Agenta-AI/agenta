@@ -7,7 +7,7 @@ import {buttonVariants} from "./button"
 import {cn} from "./utils"
 
 /**
- * Toaster — Sonner drawn as shadcn's toast (bottom-right stack, expand on hover, swipe to
+ * Toaster — Sonner drawn as shadcn's toast (top-centre stack, expand on hover, swipe to
  * dismiss); `message.*` drives it. Sonner's own skin is off; the classes below are the look.
  */
 
@@ -43,9 +43,10 @@ const toastClassNames: NonNullable<NonNullable<ToasterProps["toastOptions"]>["cl
     ),
 }
 
-// shadcn's defaults; every one is a prop, so a host can move or resize the stack.
+// Top-centre by default: drawers and their action buttons live at the bottom right. Every
+// placement value is a prop, so a host can move or resize the stack.
 function Toaster({
-    position = "bottom-right",
+    position = "top-center",
     offset = 16,
     mobileOffset = 16,
     gap = 8,

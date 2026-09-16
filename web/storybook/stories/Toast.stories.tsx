@@ -11,7 +11,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The `@agenta/ui` Toaster (Sonner in the shadcn toast look) that every `message.*` call renders into. Toasts stack bottom-right, expand on hover and swipe to dismiss.",
+                    "The `@agenta/ui` Toaster (Sonner in the shadcn toast look) that every `message.*` call renders into. Toasts stack top-centre, expand on hover and swipe to dismiss.",
             },
         },
     },
