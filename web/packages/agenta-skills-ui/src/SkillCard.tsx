@@ -1,27 +1,43 @@
 /**
- * One registry card: `sk` square avatar tinted by origin (olive = project, gray = imported,
+ * One registry card: `sk` square avatar tinted by origin (olive = project, slate = imported,
  * ink + lightning = Agenta built-in), mono name, 2-line description, meta line.
  */
+import {AGENT_ICON_CHIP_CLASS, agentIconChipStyle} from "@agenta/ui/agent-icon"
 import {cn} from "@agenta/ui/styles"
 import {Lightning} from "@phosphor-icons/react"
 
 import type {SkillListItem} from "./types"
 
-const AVATAR_BY_ORIGIN: Record<SkillListItem["origin"], string> = {
-    project: "bg-[#6b7d3f] text-white",
-    imported: "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
-    builtin: "bg-[#1c2c3d] text-white",
+/** The origin's colour; the chip draws it the way an agent's icon chip does — ink on a tint
+ * derived from it, so it reads beside an agent's mark as the same kind of thing. */
+const COLOR_BY_ORIGIN: Record<SkillListItem["origin"], string> = {
+    project: "#6b7d3f",
+    imported: "#475569",
+    builtin: "#1c2c3d",
 }
 
-export function SkillAvatar({origin}: {origin: SkillListItem["origin"]}) {
+/** The mark's letters: the initials of the first two words of a kebab name ("shoot-demo-video"
+ * → "sd"), or the first two letters of a one-word name — so a column of marks tells names apart. */
+export const skillAvatarText = (slug: string): string => {
+    const parts = slug.split(/[-_ ]+/).filter(Boolean)
+    if (parts.length > 1) return (parts[0][0] + parts[1][0]).toLowerCase()
+    return (parts[0] ?? "sk").slice(0, 2).toLowerCase()
+}
+
+export function SkillAvatar({origin, slug}: {origin: SkillListItem["origin"]; slug?: string}) {
     return (
         <span
             className={cn(
                 "flex size-7 shrink-0 items-center justify-center rounded-md font-mono text-[11px] font-semibold",
-                AVATAR_BY_ORIGIN[origin],
+                AGENT_ICON_CHIP_CLASS,
             )}
+            style={agentIconChipStyle(COLOR_BY_ORIGIN[origin])}
         >
-            {origin === "builtin" ? <Lightning size={13} weight="fill" /> : "sk"}
+            {origin === "builtin" ? (
+                <Lightning size={13} weight="fill" />
+            ) : (
+                skillAvatarText(slug ?? "")
+            )}
         </span>
     )
 }
@@ -54,7 +70,7 @@ export function SkillCard({skill, onOpen}: SkillCardProps) {
             )}
         >
             <span className="flex min-w-0 items-center gap-2">
-                <SkillAvatar origin={skill.origin} />
+                <SkillAvatar origin={skill.origin} slug={skill.slug} />
                 <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
                     {skill.slug}
                 </span>

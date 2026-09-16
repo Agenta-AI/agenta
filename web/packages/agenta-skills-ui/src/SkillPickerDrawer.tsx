@@ -52,7 +52,7 @@ function SkillRow({
         <CatalogListRow
             // Membership tint: an added row reads as "on the agent" without moving anything.
             className={option.added ? "bg-[var(--ag-colorSuccessBg)]" : undefined}
-            leading={<SkillAvatar origin={option.origin} />}
+            leading={<SkillAvatar origin={option.origin} slug={option.slug} />}
             title={<span className="font-mono">{option.name || option.slug}</span>}
             titleSuffix={
                 <span className="flex shrink-0 items-center gap-1.5">

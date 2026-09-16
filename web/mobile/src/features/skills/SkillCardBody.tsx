@@ -20,7 +20,7 @@ export const SkillCardBody = ({
 }) => (
     <>
         <span className={`flex min-w-0 items-center gap-2 ${row.archived ? "opacity-60" : ""}`}>
-            <SkillAvatar origin={row.origin} />
+            <SkillAvatar origin={row.origin} slug={row.slug} />
             <span className="min-w-0 flex-1 truncate font-mono text-[13px] font-medium text-foreground">
                 {row.slug}
             </span>
