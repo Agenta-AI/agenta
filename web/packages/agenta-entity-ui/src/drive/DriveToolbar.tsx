@@ -33,11 +33,12 @@ import {
     HardDrive,
     LinkSimple,
     ListBullets,
+    MarkdownLogo,
     PencilSimple,
     SortAscending,
     SquaresFour,
     TextAa,
-    TextT,
+    TextAlignLeft,
     Trash,
     UploadSimple,
 } from "@phosphor-icons/react"
@@ -348,12 +349,12 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         {
                             value: "rendered",
                             label: "Markdown",
-                            icon: <TextAa className="size-3.5" />,
+                            icon: <MarkdownLogo className="size-3.5" />,
                         },
                         {
                             value: "source",
                             label: "Plain text",
-                            icon: <TextT className="size-3.5" />,
+                            icon: <TextAlignLeft className="size-3.5" />,
                         },
                     ]}
                 />
