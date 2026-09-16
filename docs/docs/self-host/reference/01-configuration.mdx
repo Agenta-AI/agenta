@@ -165,6 +165,25 @@ never by guessing at shape or entropy.
 - Safe default is unset. Leaving all four unset keeps prefix empty, suffix/blocklist/allowlist
   at their built-in defaults.
 
+## Agenta SDK errors
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE` | n/a (read directly by the SDK) | n/a |
+
+An invoke that fails answers with the failure's type, message and code, and the Python
+traceback goes to the service log. Set `AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE=true` to put the
+traceback in the response body as well, which is worth doing while you are running the service
+yourself and reading failures in your own browser instead of in the log. It defaults to `false`
+and is read on each call, so changing it needs no restart.
+
+:::warning
+The traceback exposes the service's internals to whoever called the route: absolute module
+paths, the service's own layout, and the source line of every frame between the route and the
+handler. The playground calls this route from a browser. Leave this off on any deployment other
+people can reach.
+:::
+
 ## Agenta services
 
 | Env var | env.py path | values.yaml path |
