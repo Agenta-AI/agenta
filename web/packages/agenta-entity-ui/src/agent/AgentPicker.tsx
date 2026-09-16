@@ -121,7 +121,6 @@ const AgentPickerRow = ({
     agent,
     density,
     selected,
-    inert = false,
     trailing,
     rowRef,
     onKeyDown,
@@ -130,8 +129,6 @@ const AgentPickerRow = ({
     agent: Workflow
     density: AgentPickerDensity
     selected: boolean
-    /** A fact, not a choice — a row that is already the answer and cannot be un-picked here. */
-    inert?: boolean
     /** Drawn where the check goes — a spinner while the pick is landing. */
     trailing?: React.ReactNode
     rowRef: (node: HTMLButtonElement | null) => void
@@ -145,12 +142,10 @@ const AgentPickerRow = ({
             type="button"
             role="option"
             aria-selected={selected}
-            aria-disabled={inert || undefined}
             onKeyDown={onKeyDown}
-            onClick={inert ? undefined : onSelect}
+            onClick={onSelect}
             className={[
-                "box-border flex w-full appearance-none items-center gap-2",
-                inert ? "cursor-default" : "cursor-pointer",
+                "box-border flex w-full cursor-pointer appearance-none items-center gap-2",
                 "rounded-control-sm border-0 px-2 py-1.5 text-left font-[inherit] text-[13px]",
                 "text-foreground outline-none transition-colors",
                 // The bound agent keeps a tint of its own, so "which one is this set to" survives
@@ -193,11 +188,6 @@ const AgentPickerRow = ({
 export interface AgentPickerPanelProps {
     /** The agents already chosen — each wears the tint and the check. */
     selectedIds: readonly string[]
-    /**
-     * A chosen row stays a fact rather than a toggle: it cannot be un-picked from here. For a
-     * surface that only ever ADDS (a skill joining agents), where un-ticking has no verb.
-     */
-    selectedInert?: boolean
     /** The row whose pick is still landing — it shows a spinner where its check will go. */
     pendingId?: string | null
     onSelect: (agentId: string) => void
@@ -216,7 +206,6 @@ export interface AgentPickerPanelProps {
  */
 export const AgentPickerPanel = ({
     selectedIds,
-    selectedInert = false,
     pendingId = null,
     onSelect,
     density = "compact",
@@ -349,7 +338,6 @@ export const AgentPickerPanel = ({
                                 agent={agent}
                                 density={density}
                                 selected={selected}
-                                inert={selected && selectedInert}
                                 trailing={
                                     pendingId === id ? (
                                         <Spinner size="small" className="shrink-0" />
