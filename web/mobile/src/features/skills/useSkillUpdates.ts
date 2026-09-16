@@ -65,7 +65,7 @@ export const useSkillUpdates = () => {
     const check = useCallback(
         async (ids: string[]) => {
             if (!ids.length) return
-            mark(ids.map((id) => [id, "checking"]))
+            mark(ids.map((id): [string, SkillUpdateStatus] => [id, "checking"]))
             const outcomes = await Promise.allSettled(
                 ids.map(async (id) => (await checkSkillUpdate({projectId, workflowId: id}))?.status),
             )
@@ -74,7 +74,7 @@ export const useSkillUpdates = () => {
                 outcome.status === "fulfilled" && outcome.value ? outcome.value : "check_failed",
             ])
             mark(
-                results.map(([id, status]) => [
+                results.map(([id, status]): [string, SkillUpdateStatus] => [
                     id,
                     status === "update_available"
                         ? "available"
@@ -105,7 +105,7 @@ export const useSkillUpdates = () => {
     const apply = useCallback(
         async (ids: string[]) => {
             if (!ids.length) return
-            mark(ids.map((id) => [id, "checking"]))
+            mark(ids.map((id): [string, SkillUpdateStatus] => [id, "checking"]))
             // allSettled, not all: one failure must not discard the successes, or the applied
             // skills stay queued and a second press re-applies them.
             const outcomes = await Promise.allSettled(
