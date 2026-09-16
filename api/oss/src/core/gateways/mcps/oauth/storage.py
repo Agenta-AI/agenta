@@ -17,6 +17,7 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
     UpdateSecretDTO,
 )
+from oss.src.core.gateways.mcps.oauth.registration import registration_covers
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthRegistrationUnresolvablePinError,
 )
@@ -340,6 +341,26 @@ class SecretsTokenStorage:
         slugs.append(_issuer_slug(self._issuer))
         return slugs
 
+    def _is_for_this_callback(self, provider: SecretResponseDTO) -> bool:
+        """Whether a stored registration is one for the callback this deployment sends.
+
+        A registration under RFC 7591 is bound to the redirect URIs it was created with,
+        so a row for another callback is not a candidate here however well provenanced it
+        is. Selecting one had a consequence beyond presenting the wrong client: the
+        connect path rejects its coverage and registers again, and that write lands on
+        the row for THIS callback, which is a row existing grants may already pin. A
+        marked registration left over from a previous public address could therefore
+        overwrite the registration that every working connection renews against (D66).
+
+        Rows for other callbacks are kept exactly where they are, because the grants
+        issued against them renew by presenting them. They are simply never selected and
+        never written over.
+        """
+        client_info = self._as_client_info(provider)
+        return client_info is not None and registration_covers(
+            client_info, redirect_uri=self.redirect_uri or ""
+        )
+
     async def _find_provider(
         self, *, current_address: bool = True
     ) -> Optional[Tuple[Optional[str], SecretResponseDTO]]:
@@ -369,9 +390,18 @@ class SecretsTokenStorage:
         # registration that the scan would have found below it.
         unmarked: Optional[Tuple[Optional[str], SecretResponseDTO]] = None
 
+        # Provenance orders the candidates; it does not widen them. Only a registration
+        # for the callback this deployment sends is a candidate at all, so a marked row
+        # for a previous address cannot displace the unmarked one this address's grants
+        # pin (D66). A caller resolving for no particular address keeps every candidate,
+        # which is what a grant that predates the reference needs.
+        this_callback_only = current_address and bool(self.redirect_uri)
+
         for slug in self._registration_slugs(current_address=current_address):
             provider = await self._provider_by_slug(slug)
             if provider is None or self._as_client_info(provider) is None:
+                continue
+            if this_callback_only and not self._is_for_this_callback(provider):
                 continue
             if _is_registration_we_wrote(provider):
                 return slug, provider
@@ -393,6 +423,8 @@ class SecretsTokenStorage:
                 or candidate.data.provider.issuer_url != target
                 or self._as_client_info(candidate) is None
             ):
+                continue
+            if this_callback_only and not self._is_for_this_callback(candidate):
                 continue
             if _is_registration_we_wrote(candidate):
                 return candidate.slug, candidate
@@ -536,8 +568,11 @@ class SecretsTokenStorage:
 
         existing = await self._provider_by_slug(slug)
         if existing is not None:
-            # Re-registering at the same address, so this replaces a client the
-            # authorization server has already forgotten us under, not one in use.
+            # Only ever the row for this callback, and only when the selection above it
+            # declined to reuse that row: a usable registration covering this callback is
+            # returned by `get_client_info` and never reaches a re-registration. What is
+            # left here is a row that cannot be presented at all — unreadable metadata, or
+            # another issuer's — which no grant can renew against either.
             await self._update(existing=existing, secret=secret)
             return
 

@@ -111,8 +111,10 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         # the record by hand, and the error the person saw was the authorization
         # server's, which says nothing about redirect URIs.
         #
-        # `set_client_info` writes under the same issuer-derived slug, so the fresh
-        # registration replaces the stale one rather than accumulating beside it.
+        # The fresh registration is written under a slug that includes this callback, so
+        # it accumulates BESIDE the stale one rather than replacing it: every grant
+        # already issued is bound to the old client, and its renewal presents that client
+        # (D66).
 
         # Register when the authorization server says it accepts registrations, and fall
         # back to the identity document only when it does not.

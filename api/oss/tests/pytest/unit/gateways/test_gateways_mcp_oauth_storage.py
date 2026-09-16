@@ -13,6 +13,7 @@ from uuid import UUID, uuid4
 import pytest
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
+from oss.src.core.gateways.mcps.oauth.registration import registration_covers
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthRegistrationUnresolvablePinError,
 )
@@ -440,7 +441,7 @@ def _provider_secret(*, issuer: str, slug: str) -> SecretResponseDTO:
                 extra={
                     "client_info": {
                         "client_id": "client-1",
-                        "redirect_uris": ["https://api.example.com/cb"],
+                        "redirect_uris": [_REDIRECT_URI],
                     },
                     "registered_by": "agenta-mcp-oauth",
                 },
@@ -450,6 +451,7 @@ def _provider_secret(*, issuer: str, slug: str) -> SecretResponseDTO:
 
 
 _ISSUER = "https://auth.example.com/"
+_REDIRECT_URI = "https://api.example.com/gateways/mcps/connect/callback"
 
 
 def _storage_over(vault) -> SecretsTokenStorage:
@@ -621,7 +623,7 @@ def _crafted_registration(*, issuer: str, slug: str) -> SecretResponseDTO:
                 extra={
                     "client_info": {
                         "client_id": "theirs",
-                        "redirect_uris": ["https://api.example.com/cb"],
+                        "redirect_uris": [_REDIRECT_URI],
                     }
                 },
             )
@@ -674,9 +676,6 @@ async def test_a_registration_written_before_the_marker_is_still_used():
     client_info = await _storage_over(vault).get_client_info()
 
     assert client_info is not None and client_info.client_id == "client-1"
-
-
-_REDIRECT_URI = "https://api.example.com/gateways/mcps/connect/callback"
 
 
 def _storage_at_an_address(vault) -> SecretsTokenStorage:
@@ -740,3 +739,195 @@ async def test_the_address_slug_still_wins_when_the_row_there_is_ours():
     assert client_info is not None and client_info.client_id == "current-address"
     # And it answered from the address, without decrypting the project (D14).
     assert vault.listings == 0
+
+
+# ---------------------------------------------------------------------------
+# D66: a registration existing grants pin is never selected against, nor written over
+# ---------------------------------------------------------------------------
+
+
+_CALLBACK_X = "https://old.example.com/gateways/mcps/connect/callback"
+_CALLBACK_Y = "https://new.example.com/gateways/mcps/connect/callback"
+
+
+def _addressed_storage(*, dao, project_id, issuer, redirect_uri, endpoint_id=None):
+    return SecretsTokenStorage(
+        vault_service=VaultService(secrets_dao=dao),
+        project_id=project_id,
+        server_url="https://mcp.acme.io/",
+        endpoint_id=endpoint_id or uuid4(),
+        authorization_server=issuer,
+        redirect_uri=redirect_uri,
+    )
+
+
+async def _row(dao, *, slug, project_id) -> SecretResponseDTO:
+    found = await dao.get_by_slug(secret_slug=slug, project_id=project_id)
+    assert found is not None, f"nothing stored at {slug}"
+    return found
+
+
+@pytest.mark.asyncio
+async def test_a_moved_callback_registers_beside_the_row_its_grants_pin():
+    """The design this seam is built on, stated as a case.
+
+    A registration is bound to the callback it was created with, and so are the tokens
+    issued through it. When the deployment's public address moves, the new registration
+    is a new row: the old one stays byte for byte where it is, and the connections that
+    already consented keep renewing against it.
+    """
+    dao = _FakeSecretsDAO()
+    project_id = uuid4()
+    endpoint_id = uuid4()
+    issuer = "https://auth.acme.io/"
+
+    at_x = _addressed_storage(
+        dao=dao,
+        project_id=project_id,
+        issuer=issuer,
+        redirect_uri=_CALLBACK_X,
+        endpoint_id=endpoint_id,
+    )
+    await at_x.set_client_info(
+        OAuthClientInformationFull(client_id="client-x", redirect_uris=[_CALLBACK_X])
+    )
+    slug_a = at_x.resolved_registration_slug
+    await at_x.set_tokens(OAuthToken(access_token="t", refresh_token="r"))
+    grant = await at_x.get_grant()
+    assert grant is not None and grant.client_registration_slug == slug_a
+
+    before = (await _row(dao, slug=slug_a, project_id=project_id)).model_dump_json()
+
+    # The public address moves. Row A is for a callback this deployment no longer sends,
+    # so it is not offered, and the registration written is a second row.
+    at_y = _addressed_storage(
+        dao=dao, project_id=project_id, issuer=issuer, redirect_uri=_CALLBACK_Y
+    )
+    assert await at_y.get_client_info() is None
+    await at_y.set_client_info(
+        OAuthClientInformationFull(client_id="client-y", redirect_uris=[_CALLBACK_Y])
+    )
+    slug_b = at_y.resolved_registration_slug
+    assert slug_b != slug_a
+    assert (await _row(dao, slug=slug_b, project_id=project_id)) is not None
+
+    # Row A is untouched...
+    after = (await _row(dao, slug=slug_a, project_id=project_id)).model_dump_json()
+    assert after == before, "the row the grant pins was rewritten"
+
+    # ...and the grant still renews by presenting the client it was issued against, even
+    # though the deployment now answers at a different callback.
+    renewing = _addressed_storage(
+        dao=dao,
+        project_id=project_id,
+        issuer=issuer,
+        redirect_uri=_CALLBACK_Y,
+        endpoint_id=endpoint_id,
+    )
+    for_grant = await renewing.get_client_info_for_grant(grant)
+    assert for_grant is not None and for_grant.client_id == "client-x"
+
+
+@pytest.mark.asyncio
+async def test_a_marked_registration_for_another_callback_does_not_displace_this_one():
+    """The defect itself, which is the M8 preference reaching across callbacks.
+
+    Row A is a registration for the callback this deployment sends and is what its grants
+    pin, but it predates the provenance marker. Row B is marked and was written after the
+    address moved, so it names a callback that is no longer in use. Preferring the marked
+    row returned B, the connect path found B did not cover the callback it would send,
+    and the re-registration that followed wrote over row A.
+    """
+    dao = _FakeSecretsDAO()
+    project_id = uuid4()
+    endpoint_id = uuid4()
+    issuer = "https://auth.acme.io/"
+
+    at_x = _addressed_storage(
+        dao=dao,
+        project_id=project_id,
+        issuer=issuer,
+        redirect_uri=_CALLBACK_X,
+        endpoint_id=endpoint_id,
+    )
+    await at_x.set_client_info(
+        OAuthClientInformationFull(client_id="client-x", redirect_uris=[_CALLBACK_X])
+    )
+    slug_a = at_x.resolved_registration_slug
+    await at_x.set_tokens(OAuthToken(access_token="t", refresh_token="r"))
+    grant = await at_x.get_grant()
+    assert grant is not None and grant.client_registration_slug == slug_a
+
+    # Row A predates the marker. Row B is marked, and sits where a caller that knew no
+    # callback address writes: the issuer's own slug.
+    row_a = await _row(dao, slug=slug_a, project_id=project_id)
+    row_a.data.provider.extra.pop("registered_by")
+    at_no_address = SecretsTokenStorage(
+        vault_service=VaultService(secrets_dao=dao),
+        project_id=project_id,
+        server_url="https://mcp.acme.io/",
+        endpoint_id=uuid4(),
+        authorization_server=issuer,
+    )
+    await at_no_address.set_client_info(
+        OAuthClientInformationFull(client_id="client-y", redirect_uris=[_CALLBACK_Y])
+    )
+    assert at_no_address.resolved_registration_slug == issuer_slug_for_test(issuer)
+
+    before = (await _row(dao, slug=slug_a, project_id=project_id)).model_dump_json()
+
+    # What the connect path does, with the predicate it actually uses.
+    connecting = _addressed_storage(
+        dao=dao,
+        project_id=project_id,
+        issuer=issuer,
+        redirect_uri=_CALLBACK_X,
+        endpoint_id=endpoint_id,
+    )
+    stored = await connecting.get_client_info()
+    assert stored is not None and stored.client_id == "client-x", (
+        "a registration for another callback was preferred"
+    )
+    if not registration_covers(stored, redirect_uri=_CALLBACK_X):
+        await connecting.set_client_info(
+            OAuthClientInformationFull(
+                client_id="client-fresh", redirect_uris=[_CALLBACK_X]
+            )
+        )
+
+    after = (await _row(dao, slug=slug_a, project_id=project_id)).model_dump_json()
+    assert after == before, "the row the grant pins was rewritten"
+
+    for_grant = await connecting.get_client_info_for_grant(grant)
+    assert for_grant is not None and for_grant.client_id == "client-x"
+
+
+@pytest.mark.asyncio
+async def test_a_grant_that_pins_nothing_still_resolves_across_callbacks():
+    """The filter is tied to resolving for the current address, and a grant written
+    before registrations were pinned has no address of its own: restricting its fallback
+    to the callback in use today would orphan it."""
+    dao = _FakeSecretsDAO()
+    project_id = uuid4()
+    issuer = "https://auth.acme.io/"
+
+    at_x = _addressed_storage(
+        dao=dao, project_id=project_id, issuer=issuer, redirect_uri=_CALLBACK_X
+    )
+    await at_x.set_client_info(
+        OAuthClientInformationFull(client_id="client-x", redirect_uris=[_CALLBACK_X])
+    )
+
+    at_y = _addressed_storage(
+        dao=dao, project_id=project_id, issuer=issuer, redirect_uri=_CALLBACK_Y
+    )
+    unpinned = OAuthGrantSettingsDTO(
+        server="https://mcp.acme.io/",
+        scopes=[],
+        access_token="t",
+        refresh_token="r",
+        endpoint_id=uuid4(),
+    )
+    for_grant = await at_y.get_client_info_for_grant(unpinned)
+
+    assert for_grant is not None and for_grant.client_id == "client-x"
