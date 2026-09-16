@@ -1,10 +1,8 @@
 import {useTypewriter} from "@agenta/chat/hooks"
 import ChatMarkdown from "@agenta/chat/markdown"
 import {chatFileResolver} from "@agenta/entity-ui/drive"
+import {Check, Copy} from "lucide-react"
 import type {IconMap} from "streamdown"
-
-import {CopiedLabelled} from "./CopiedLabelled"
-import {CopyLabelled} from "./CopyLabelled"
 
 /**
  * Streamdown's built-in classes assume a 14–30px type scale; the mobile app's base is 12px.
@@ -33,13 +31,14 @@ export const proseClassName = [
     // The actions' sticky frame is unlabelled: reach it as the header's sibling.
     "[&_[data-streamdown=code-block-header]+div]:-mt-7 [&_[data-streamdown=code-block-header]+div]:h-7 [&_[data-streamdown=code-block-header]+div]:top-0 [&_[data-streamdown=code-block-header]+div]:pr-1.5",
     "[&_[data-streamdown=code-block-actions]]:rounded-none [&_[data-streamdown=code-block-actions]]:border-0 [&_[data-streamdown=code-block-actions]]:bg-transparent [&_[data-streamdown=code-block-actions]]:p-0 [&_[data-streamdown=code-block-actions]]:backdrop-blur-none",
-    "[&_[data-streamdown=code-block-copy-button]]:flex [&_[data-streamdown=code-block-copy-button]]:h-[22px] [&_[data-streamdown=code-block-copy-button]]:items-center [&_[data-streamdown=code-block-copy-button]]:gap-1 [&_[data-streamdown=code-block-copy-button]]:rounded [&_[data-streamdown=code-block-copy-button]]:px-1.5 [&_[data-streamdown=code-block-copy-button]]:py-0 [&_[data-streamdown=code-block-copy-button]]:text-[11px] [&_[data-streamdown=code-block-copy-button]]:hover:bg-accent",
+    "[&_[data-streamdown=code-block-copy-button]]:flex [&_[data-streamdown=code-block-copy-button]]:size-[22px] [&_[data-streamdown=code-block-copy-button]]:items-center [&_[data-streamdown=code-block-copy-button]]:justify-center [&_[data-streamdown=code-block-copy-button]]:rounded [&_[data-streamdown=code-block-copy-button]]:p-0 [&_[data-streamdown=code-block-copy-button]]:hover:bg-accent",
     "[&_[data-streamdown=code-block-body]]:rounded-none [&_[data-streamdown=code-block-body]]:border-0 [&_[data-streamdown=code-block-body]]:bg-transparent [&_[data-streamdown=code-block-body]]:px-3 [&_[data-streamdown=code-block-body]]:py-2.5 [&_[data-streamdown=code-block-body]]:text-xs [&_[data-streamdown=code-block-body]]:leading-[18px]",
     "[&_[data-streamdown=table-wrapper]]:bg-muted",
 ].join(" ")
 
-// Module scope: one identity across streamed tokens.
-export const markdownIcons: Partial<IconMap> = {CopyIcon: CopyLabelled, CheckIcon: CopiedLabelled}
+/** The app's own glyph set on the fence's copy control — Streamdown's default is a different
+ * icon family. Module scope: one identity across streamed tokens. */
+export const markdownIcons: Partial<IconMap> = {CopyIcon: Copy, CheckIcon: Check}
 
 /**
  * Assistant message text rendered as markdown through the shared `ChatMarkdown` renderer, so
