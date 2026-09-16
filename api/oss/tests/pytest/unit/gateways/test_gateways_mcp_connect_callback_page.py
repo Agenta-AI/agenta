@@ -83,8 +83,20 @@ class TestTheBlockedPopupPath:
         # Path-only, one leading slash, no backslashes, and a length that cannot be a payload.
         assert 'remembered.charAt(0) === "/"' in fallback
         assert 'remembered.charAt(1) !== "/"' in fallback
-        assert 'remembered.indexOf("\\") === -1' in fallback
+        assert "remembered.indexOf(BACKSLASH) === -1" in fallback
         assert "remembered.length <= 2048" in fallback
+
+    def test_its_script_carries_no_backslash_it_could_choke_on(self):
+        page = _card()
+        script = page.split("<script>")[1].split("</script>")[0]
+
+        # This whole script is a Python template, so a backslash written into it arrives one
+        # escaping layer short: the check that refused a remembered path containing one ended
+        # up as a lone backslash before a quote, which swallowed it. The script stopped
+        # parsing, so NOTHING in it ran, no message to the opener, no return and no close, and
+        # the popup sat on a success card while the dialog behind it waited forever. The test
+        # that stood here asserted the hazard was PRESENT, and passed while it broke the flow.
+        assert chr(92) not in script
 
     def test_it_forgets_the_path_once_it_has_used_it(self):
         page = _card()

@@ -876,6 +876,11 @@ def _connect_card(
       // this page knows the deployment's origin and not which surface, workspace or project
       // the person came from. Same-origin deployments hand it back here; anywhere else the
       // storage is simply empty and the settings path below still lands them in the app.
+      // A backslash by its character code: this whole script is a Python template, and a
+      // literal one written here arrives as an escape that swallows the closing quote. It did:
+      // the script stopped parsing, nothing in it ran, and the popup sat on a success card
+      // while the dialog behind it waited for a message that was never posted.
+      const BACKSLASH = String.fromCharCode(92);
       let target = AGENTA_RETURN_PATH;
       try {{
         const remembered = window.sessionStorage.getItem(AGENTA_RETURN_PATH_KEY);
@@ -887,7 +892,7 @@ def _connect_card(
           remembered.length <= 2048 &&
           remembered.charAt(0) === "/" &&
           remembered.charAt(1) !== "/" &&
-          remembered.indexOf("\\") === -1
+          remembered.indexOf(BACKSLASH) === -1
         ) {{
           target = remembered;
         }}
