@@ -1297,6 +1297,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                           !readOnly &&
                           !draftInvalid
                       const publishing = publishingSkillIndex !== null
+                      // The publish sends the draft as it was pressed; an edit made meanwhile
+                      // would be thrown away when the row is swapped for the reference.
+                      const editorDisabled = readOnly || publishing
                       const publishAction = canPublish ? (
                           <TooltipProvider>
                               <Tooltip>
@@ -1368,13 +1371,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               }
                               jsonOnly={def.jsonOnly(draft)}
                               headerExtra={isSubagent ? subagentHeaderAction : undefined}
-                              disabled={readOnly}
+                              disabled={editorDisabled}
                               form={
                                   <Form
                                       key={`form-${itemKey}`}
                                       value={draft}
                                       onChange={(v) => setDraft(v)}
-                                      disabled={readOnly}
+                                      disabled={editorDisabled}
                                       // Save is inert while the draft is invalid, so there is
                                       // no press to wait for: an edited draft that is missing
                                       // a required field says so in the fields.
@@ -1387,7 +1390,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                       value={draft}
                                       onChange={(v) => setDraft(v as Record<string, unknown>)}
                                       onValidityChange={(valid) => setJsonInvalid(!valid)}
-                                      disabled={readOnly}
+                                      disabled={editorDisabled}
                                   />
                               }
                           />
