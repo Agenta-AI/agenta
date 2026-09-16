@@ -108,6 +108,8 @@ interface DrawerProps {
 
 export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
+    /** The panel element — what a confirm scoped to the drawer portals into. */
+    panelRef?: React.Ref<HTMLDivElement>
 }
 
 interface DrawerStyles {
@@ -121,6 +123,7 @@ interface DrawerStyles {
 export function EnhancedDrawer(props: EnhancedDrawerProps) {
     const {
         children,
+        panelRef,
         open,
         onClose,
         title,
@@ -216,6 +219,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     return (
         <Sheet open={open} onOpenChange={handleOpenChange}>
             <SheetContent
+                ref={panelRef}
                 side={side}
                 container={container}
                 className={cn(rootClassName, className, slotClassNames?.content)}
