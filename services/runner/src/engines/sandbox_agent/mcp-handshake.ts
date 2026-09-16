@@ -29,6 +29,7 @@ import { parseGatewayErrorDetail } from "../../gateway-error.ts";
 import {
   MCP_DISCOVERY_METHOD,
   MCP_PROTOCOL_VERSION,
+  PROTOCOL_HEADER_NAMES,
   readMcpResponseJson,
 } from "../../extensions/pi-mcp.ts";
 
@@ -139,11 +140,22 @@ function handshakeHeaders(server: ProbeInput): Record<string, string> {
   // negotiated by it: the transport spec has the client send the header only on requests that
   // follow initialization, naming the version the server returned. A server that enforces that
   // refuses this probe with a 400, so the probe would report every such server as unreachable.
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-    accept: "application/json, text/event-stream",
-    ...(server.connection.headers ?? {}),
-  };
+  //
+  // M19's screen, applied here too (D70). The configured headers go on FIRST and the protocol's
+  // own go on top, and a configured key is dropped by case-insensitive name rather than by exact
+  // match: HTTP header names are case-insensitive while a JS object's keys are not, so `accept`
+  // and `Accept` would both survive a spread and `fetch` would fold them into one comma-joined
+  // value. Spread the other way round, a server configuration that set `Accept`, `Content-Type`
+  // or `MCP-Protocol-Version` broke this probe in a way that reads as an unreachable server
+  // rather than as the configuration it is — and reported that server as failed before the
+  // client this probe exists to protect ever ran.
+  const headers: Record<string, string> = {};
+  for (const [name, value] of Object.entries(server.connection.headers ?? {})) {
+    if (PROTOCOL_HEADER_NAMES.has(name.toLowerCase())) continue;
+    headers[name] = value;
+  }
+  headers["content-type"] = "application/json";
+  headers.accept = "application/json, text/event-stream";
   for (const credential of server.connection.credentials ?? []) {
     if (credential.binding.kind === "header" && credential.value) {
       headers[credential.binding.name] = credential.value;

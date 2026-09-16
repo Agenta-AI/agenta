@@ -415,3 +415,117 @@ describe("the probe must not assert a protocol version it has not negotiated", (
     assert.equal(sent["X-AG-Credentials"], GATEWAY_CREDENTIAL);
   });
 });
+
+// D70. M19 stopped a configured header from replacing a protocol header in the Pi client, and the
+// probe that runs immediately before that client was left unscreened. The probe is the worse place
+// for it: it reports the server as FAILED, so the tools never register at all and the operator is
+// told the server is unreachable rather than misconfigured.
+
+describe("a configured header cannot replace a protocol header on the probe (D70)", () => {
+  /** The same server, with headers an author is free to set in a connection's configuration. */
+  function serverWithHeaders(headers: Record<string, string>) {
+    return {
+      ...server,
+      connection: { ...server.connection, headers },
+    };
+  }
+
+  it("keeps content negotiation whatever the configuration says", async () => {
+    let sent: Record<string, string> | undefined;
+    const failure = await probeMcpServerHandshake(
+      serverWithHeaders({
+        // Capitalised differently on purpose: header names are case-insensitive on the wire but
+        // an object's keys are not, so an exact-match screen would let both through and `fetch`
+        // would fold them into one comma-joined value.
+        Accept: "text/plain",
+        "Content-Type": "application/x-www-form-urlencoded",
+      }),
+      {
+        fetchImpl: async (_url, init) => {
+          sent = init?.headers as Record<string, string>;
+          return answer(okHandshake, { sessionId: "session-1" });
+        },
+      },
+    );
+
+    assert.equal(failure, undefined, "a healthy server still connects");
+    assert.ok(sent);
+    const names = Object.keys(sent).map((name) => name.toLowerCase());
+    assert.equal(
+      names.filter((name) => name === "accept").length,
+      1,
+      `exactly one accept must survive, got: ${names.join(", ")}`,
+    );
+    assert.equal(
+      names.filter((name) => name === "content-type").length,
+      1,
+      `exactly one content-type must survive, got: ${names.join(", ")}`,
+    );
+    assert.equal(sent.accept, "application/json, text/event-stream");
+    assert.equal(sent["content-type"], "application/json");
+  });
+
+  it("refuses to let a configuration assert a version initialize has not negotiated", async () => {
+    // The probe deliberately sends no version. A configured one would reach a spec-strict server
+    // as the very thing that server refuses, and this probe would report it unreachable.
+    let sent: Record<string, string> | undefined;
+    await probeMcpServerHandshake(
+      serverWithHeaders({ "MCP-Protocol-Version": "2026-07-28" }),
+      {
+        fetchImpl: async (_url, init) => {
+          sent = init?.headers as Record<string, string>;
+          return answer(okHandshake, { sessionId: "session-1" });
+        },
+      },
+    );
+
+    assert.ok(sent);
+    const names = Object.keys(sent).map((name) => name.toLowerCase());
+    assert.ok(
+      !names.includes("mcp-protocol-version"),
+      `no configured version may ride initialize, got: ${names.join(", ")}`,
+    );
+  });
+
+  it("refuses to let a configuration point the probe at someone else's session", async () => {
+    // The probe does carry a session id — the one the server ISSUED it on the handshake answer,
+    // on the request that follows. What must never ride is a configured value, which would point
+    // the request at a session this client was never given.
+    const sent: Record<string, string>[] = [];
+    await probeMcpServerHandshake(
+      serverWithHeaders({ "Mcp-Session-Id": "a-session-we-were-never-issued" }),
+      {
+        fetchImpl: async (_url, init) => {
+          sent.push(init?.headers as Record<string, string>);
+          return answer(okHandshake, { sessionId: "session-1" });
+        },
+      },
+    );
+
+    assert.ok(sent.length > 0, "the probe made its request");
+    for (const headers of sent) {
+      for (const [name, value] of Object.entries(headers)) {
+        if (name.toLowerCase() !== "mcp-session-id") continue;
+        assert.equal(
+          value,
+          "session-1",
+          "only the session the server issued may ride, never a configured one",
+        );
+      }
+    }
+  });
+
+  it("still carries a configured header that is none of the protocol's business", async () => {
+    let sent: Record<string, string> | undefined;
+    await probeMcpServerHandshake(serverWithHeaders({ "X-Tenant": "acme" }), {
+      fetchImpl: async (_url, init) => {
+        sent = init?.headers as Record<string, string>;
+        return answer(okHandshake, { sessionId: "session-1" });
+      },
+    });
+
+    assert.ok(sent);
+    assert.equal(sent["X-Tenant"], "acme");
+    assert.equal(sent["X-AG-Credentials"], GATEWAY_CREDENTIAL);
+  });
+});

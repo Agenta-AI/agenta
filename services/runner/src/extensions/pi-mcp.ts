@@ -106,12 +106,16 @@ export const PI_MCP_TIMEOUT_MARGIN_MS = 5_000;
 export const PI_MCP_CALL_TIMEOUT_MS = GATEWAY_MCP_BUDGET_MS + PI_MCP_TIMEOUT_MARGIN_MS;
 
 /**
- * Headers this client owns, lowercased for case-insensitive comparison (M19).
+ * Headers the MCP transport owns, lowercased for case-insensitive comparison (M19).
  *
  * `Mcp-Session-Id` is here too: it is the session the client itself opened, and a configured
  * value for it would point the request at a session the server never issued to us.
+ *
+ * Exported so the handshake probe screens by the same list rather than a copy of it (D70). A copy
+ * is how the probe and this client diverged over SSE framing, and the same divergence here means
+ * a configured header can break the probe or the client but not both, which is worse than either.
  */
-const PROTOCOL_HEADER_NAMES = new Set([
+export const PROTOCOL_HEADER_NAMES = new Set([
   "accept",
   "content-type",
   "mcp-protocol-version",
