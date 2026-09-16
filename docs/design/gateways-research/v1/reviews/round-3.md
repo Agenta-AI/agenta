@@ -246,6 +246,36 @@ against a real database.
 sat in a directory no workflow executed. It runs now, and the commit adds a case asserting that CI
 still names it, so the guard cannot quietly lose its runner a second time.
 
+## D71, the split-origin return — one reading fixed, one deferred
+
+`8afb5ef267`, verified. The finding had two readings and they turn out to deserve different answers.
+
+**The reading that was fixed is the one with a security shape.** The consent result is posted to the
+opener with an exact target origin, and a single configured value meant a deployment reachable at a
+second address delivered the result nowhere: the dialog waited out its timeout while the connection
+sat authorized behind it. The page now names every origin the deployment declares, published web URL
+first. A post whose target does not match the opener is simply not delivered, so this widens which of
+the deployment's own windows can be reached without widening who can read the message.
+
+Two properties I checked rather than took, because they are what separate this from a widening:
+
+- **The origins come from configuration, never from the request.** They are loaded from
+  `AGENTA_APP_ORIGINS` through the environment object; nothing in the callback path reads the Host
+  header. A page that trusted the address the browser arrived on would post to whatever a caller
+  wrote there, which would have turned a delivery fix into a disclosure.
+- **The API's own origin is not offered.** That is where the page is served from, not where the app
+  is, so a deployment publishing no app address still sends nobody anywhere.
+
+Eighteen cases pass; pinned before the fix, six fail, including the one that keeps the configured
+address first and the one that drops nonsense among declared origins.
+
+**The reading that was deferred is the remembered return path on a split-host deployment**, where
+the web app stores its route in its own storage and the API origin cannot read it. Deferred to an
+issue rather than fixed, and the argument holds: the shipped topology mounts the API under the app
+origin, so the path already returns there, and the fallback lands on the connections list rather than
+anywhere wrong. Worth being precise about what stays true — on a deployment that does split them, a
+blocked popup still loses the originating surface.
+
 ## The fixes that hold
 
 Codex's disposition table judged twenty-two earlier fixes at the code level and found the great
