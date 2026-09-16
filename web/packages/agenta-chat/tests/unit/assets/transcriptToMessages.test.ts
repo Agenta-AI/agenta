@@ -3,6 +3,7 @@ import type {
     SessionInteractionRowStates,
     SessionRecord,
 } from "@agenta/entities/session"
+import {findCustomMcpEndpoint, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {interactionStatesFromWatchEvent} from "@agenta/entities/session"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
 import type {UIMessage} from "ai"
@@ -1415,6 +1416,16 @@ describe("transcriptToMessages MCP server notices", () => {
         },
     }
 
+    /** The settings row this project holds for that server, as the card looks it up. */
+    const CONNECTED_ROW = {
+        id: "endpoint-1",
+        slug: "mock-mcp-slug",
+        name: "Mock MCP",
+        namespace: "custom",
+        auth_mode: "oauth",
+        data: {route: {base_url: "https://mcp.mock.test"}},
+    } as unknown as MCPEndpoint
+
     it("replays the notice as the same data part the live stream emits", () => {
         // The live egress projects the identical runner event through a field allow-list
         // (`_mcp_server_failed_part`). Replay has to produce the same payload, because the
@@ -1434,7 +1445,12 @@ describe("transcriptToMessages MCP server notices", () => {
         })
     })
 
-    it("keeps the reconnect endpoint, which is the only thing the reader can act on", () => {
+    it("keeps what the reader acts on: the connection, and that it needs authorizing", () => {
+        // The replayed notice has to carry enough to offer Connect. That is the SLUG and the
+        // authorization state, not the endpoint id the refusal also happens to carry: the card
+        // resolves the row from the slug through `findCustomMcpEndpoint`, so an id read straight
+        // off the wire was never the thing the affordance depends on (D86). The affordance
+        // itself is asserted end to end in `mcpNoticeReplayAction.render.test.tsx`.
         const messages = transcriptToMessages([record("r1", MCP_FAILED_PAYLOAD)], {})
         const parts = messages![0].parts as unknown as Record<string, unknown>[]
         const notice = readMcpServerNotice(
@@ -1442,7 +1458,9 @@ describe("transcriptToMessages MCP server notices", () => {
         )
         expect(notice?.needsAuthorization).toBe(true)
         expect(notice?.slug).toBe("mock-mcp-slug")
-        expect(notice?.endpointId).toBe("endpoint-1")
+        expect(findCustomMcpEndpoint([CONNECTED_ROW], notice?.slug ?? undefined)?.id).toBe(
+            "endpoint-1",
+        )
     })
 
     it("replaces the harness's 'No such tool available' card rather than sitting beside it", () => {
