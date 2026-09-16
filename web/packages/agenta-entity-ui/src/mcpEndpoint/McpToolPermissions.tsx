@@ -19,6 +19,8 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     clearPerToolPolicy,
+    gatewayRefusalCode,
+    gatewayRefusalMessage,
     isPerTool,
     isToolHidden,
     listMcpTools,
@@ -40,6 +42,10 @@ import {PermissionPolicySelect} from "../DrillInView/SchemaControls/agentTemplat
 export interface McpToolPermissionsProps {
     /** The connection whose tools these are. */
     slug?: string
+    /** What that connection is called, for anything a person reads. */
+    connectionName?: string
+    /** Offered when the tools cannot be read because the connection needs authorizing. */
+    onConnect?: () => void
     policy: McpServerPolicy
     onChange: (policy: McpServerPolicy) => void
     disabled?: boolean
@@ -63,10 +69,12 @@ type ToolsState =
     | {status: "idle"}
     | {status: "loading"}
     | {status: "ready"; tools: McpToolSummary[]}
-    | {status: "failed"; error: string}
+    | {status: "failed"; error: string; needsAuth: boolean}
 
 export default function McpToolPermissions({
     slug,
+    connectionName,
+    onConnect,
     policy,
     onChange,
     disabled,
@@ -89,12 +97,20 @@ export default function McpToolPermissions({
             setTools({status: "ready", tools})
         } catch (error) {
             if (shownFor.current !== slug) return
+            // The gateway's own sentence, with the harness marker taken out of it. What
+            // reached the screen before was "Authorization required for custom/<slug>
+            // ⟦agenta_code:auth_required⟧", which names a route and a code rather than the
+            // connection and what to do about it (QA-D3).
+            const needsAuth = gatewayRefusalCode(error) === "auth_required"
             setTools({
                 status: "failed",
-                error: (error as Error)?.message || "The tool list could not be read.",
+                needsAuth,
+                error: needsAuth
+                    ? `${connectionName || "This server"} is not connected yet, so its tools cannot be listed.`
+                    : gatewayRefusalMessage(error) || "The tool list could not be read.",
             })
         }
-    }, [projectId, slug])
+    }, [connectionName, projectId, slug])
 
     useEffect(() => {
         if (slug) void loadTools()
@@ -186,6 +202,7 @@ export default function McpToolPermissions({
                         policy={policy}
                         disabled={disabled}
                         onRetry={loadTools}
+                        onConnect={onConnect}
                         onSetTool={setTool}
                         inheritLabel={newToolPermission ?? "ask"}
                     />
@@ -254,11 +271,20 @@ interface ToolRowsProps {
     policy: McpServerPolicy
     disabled?: boolean
     onRetry: () => void
+    onConnect?: () => void
     onSetTool: (name: string, value: string) => void
     inheritLabel: McpPermission
 }
 
-const ToolRows = ({state, policy, disabled, onRetry, onSetTool, inheritLabel}: ToolRowsProps) => {
+const ToolRows = ({
+    state,
+    policy,
+    disabled,
+    onRetry,
+    onConnect,
+    onSetTool,
+    inheritLabel,
+}: ToolRowsProps) => {
     if (state.status === "loading") {
         return (
             <p className="m-0 text-xs text-[var(--ag-colorTextSecondary)]" role="status">
@@ -270,9 +296,17 @@ const ToolRows = ({state, policy, disabled, onRetry, onSetTool, inheritLabel}: T
         return (
             <div className="flex flex-col items-start gap-1">
                 <p className="m-0 text-xs text-[var(--ag-colorError)]">{state.error}</p>
-                <Button variant="ghost" onClick={onRetry}>
-                    Retry tools
-                </Button>
+                {/* The action that fixes it, where the problem is reported. Retrying a tool
+                    list on a server nobody has authorized only fails again. */}
+                {state.needsAuth && onConnect ? (
+                    <Button variant="ghost" disabled={disabled} onClick={onConnect}>
+                        Connect
+                    </Button>
+                ) : (
+                    <Button variant="ghost" onClick={onRetry}>
+                        Retry tools
+                    </Button>
+                )}
             </div>
         )
     }

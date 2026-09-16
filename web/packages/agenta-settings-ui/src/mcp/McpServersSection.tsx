@@ -66,10 +66,26 @@ export default function McpServersSection({
 
     const [connecting, setConnecting] = useState(false)
     const [reconnecting, setReconnecting] = useState<MCPEndpoint | null>(null)
-    const [viewing, setViewing] = useState<MCPEndpoint | null>(null)
+    /**
+     * Which connection is open, by identity rather than by value.
+     *
+     * Holding the row itself froze it at the moment it was clicked, so a disconnect updated
+     * the list underneath while the open connection went on reporting Ready and offering to
+     * disconnect again (QA-D2). The row is looked up fresh on every render instead.
+     */
+    const [viewingKey, setViewingKey] = useState<string | null>(null)
 
     const rows = useMemo(() => endpoints ?? [], [endpoints])
     const names = useMemo(() => rows.map((row) => row.name), [rows])
+    const rowKey = useCallback((record: MCPEndpoint) => record.id ?? record.slug ?? "", [])
+    const viewing = useMemo(
+        () => rows.find((row) => rowKey(row) === viewingKey) ?? null,
+        [rowKey, rows, viewingKey],
+    )
+    const setViewing = useCallback(
+        (record: MCPEndpoint | null) => setViewingKey(record ? rowKey(record) : null),
+        [rowKey],
+    )
 
     const openConnect = useCallback(() => {
         setReconnecting(null)
@@ -203,7 +219,7 @@ export default function McpServersSection({
                     columns={columns}
                     rows={rows}
                     loading={isPending}
-                    rowKey={(record) => record.id ?? record.slug ?? ""}
+                    rowKey={rowKey}
                     onRowClick={(record) => setViewing(record)}
                     actions={
                         readOnly

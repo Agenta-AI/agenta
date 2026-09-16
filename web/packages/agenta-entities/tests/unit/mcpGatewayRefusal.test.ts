@@ -1,7 +1,11 @@
 import {describe, expect, it} from "vitest"
 
 import {McpProtocolError} from "../../src/mcpEndpoint/core/mcpRpc"
-import {gatewayRefusalMessage, isNameTakenRefusal} from "../../src/mcpEndpoint/core/refusal"
+import {
+    gatewayRefusalCode,
+    gatewayRefusalMessage,
+    isNameTakenRefusal,
+} from "../../src/mcpEndpoint/core/refusal"
 
 describe("gatewayRefusalMessage", () => {
     it("returns the plain detail a refusal carries, not the transport's status line", () => {
@@ -94,5 +98,45 @@ describe("isNameTakenRefusal", () => {
         expect(isNameTakenRefusal(refusal("endpoint is not a custom OAuth target"))).toBe(false)
         expect(isNameTakenRefusal(new Error("Request failed with status code 409"))).toBe(false)
         expect(isNameTakenRefusal(null)).toBe(false)
+    })
+})
+
+describe("the harness code marker", () => {
+    const refusal = (detail: unknown) => ({response: {data: {detail}}})
+
+    it("never reaches the sentence a person reads", () => {
+        // Addressed to the runner, not to anyone looking at a screen (QA-D3).
+        expect(
+            gatewayRefusalMessage(
+                refusal("Authorization required for custom/acme ⟦agenta_code:auth_required⟧"),
+            ),
+        ).toBe("Authorization required for custom/acme")
+    })
+
+    it("is still readable as a code, so a caller can act on it", () => {
+        expect(
+            gatewayRefusalCode(
+                refusal("Authorization required for custom/acme ⟦agenta_code:auth_required⟧"),
+            ),
+        ).toBe("auth_required")
+    })
+
+    it("prefers the envelope's own code when there is one", () => {
+        expect(gatewayRefusalCode(refusal({code: "mcp_connection_name_taken", message: "x"}))).toBe(
+            "mcp_connection_name_taken",
+        )
+    })
+
+    it("strips it out of an envelope message too", () => {
+        expect(
+            gatewayRefusalMessage(
+                refusal({message: "Authorization required ⟦agenta_code:auth_required⟧"}),
+            ),
+        ).toBe("Authorization required")
+    })
+
+    it("says nothing when there is no code to read", () => {
+        expect(gatewayRefusalCode(refusal("plain refusal"))).toBeNull()
+        expect(gatewayRefusalCode(new Error("network"))).toBeNull()
     })
 })

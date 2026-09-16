@@ -29,9 +29,14 @@ import type {McpServerPolicy} from "@agenta/entities/mcpEndpoint"
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 
-const render = async (policy: McpServerPolicy, onChange = vi.fn(), slug = "acme") => {
+const render = async (
+    policy: McpServerPolicy,
+    onChange = vi.fn(),
+    slug = "acme",
+    extra: {connectionName?: string; onConnect?: () => void} = {},
+) => {
     await act(async () => {
-        root.render(createElement(McpToolPermissions, {slug, policy, onChange}))
+        root.render(createElement(McpToolPermissions, {slug, policy, onChange, ...extra}))
     })
     return onChange
 }
@@ -208,14 +213,71 @@ describe("rules for tools that are no longer advertised", () => {
     })
 })
 
+describe("when the server has not been authorized", () => {
+    const authRefusal = {
+        response: {
+            data: {
+                detail: "Authorization required for custom/acme ⟦agenta_code:auth_required⟧",
+            },
+        },
+    }
+
+    it("names the connection instead of a route and a code", async () => {
+        listMcpTools.mockRejectedValue(authRefusal)
+
+        await render({tool_permissions: {echo: "allow"}}, vi.fn(), "acme", {
+            connectionName: "Acme (prod)",
+        })
+
+        expect(text()).toContain("Acme (prod)")
+        expect(text()).not.toContain("agenta_code")
+        expect(text()).not.toContain("custom/acme")
+    })
+
+    it("offers the action that fixes it rather than a retry that cannot", async () => {
+        listMcpTools.mockRejectedValue(authRefusal)
+        const onConnect = vi.fn()
+
+        await render({tool_permissions: {echo: "allow"}}, vi.fn(), "acme", {
+            connectionName: "Acme (prod)",
+            onConnect,
+        })
+
+        const connect = [...host.querySelectorAll("button")].find(
+            (button) => button.textContent === "Connect",
+        )
+        expect(connect).toBeDefined()
+        expect(
+            [...host.querySelectorAll("button")].find((b) => b.textContent === "Retry tools"),
+        ).toBeUndefined()
+
+        await act(async () => {
+            connect!.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+        expect(onConnect).toHaveBeenCalled()
+    })
+})
+
 describe("when the tool list cannot be read", () => {
-    it("says so and offers to try again, without touching the policy", async () => {
-        listMcpTools.mockRejectedValue(new Error("The server did not answer."))
+    it("says so in the gateway's own words, and offers to try again", async () => {
+        listMcpTools.mockRejectedValue({
+            response: {data: {detail: {message: "The server did not answer."}}},
+        })
         const onChange = await render({tool_permissions: {echo: "allow"}})
 
         expect(text()).toContain("The server did not answer.")
         expect(text()).toContain("Retry tools")
         expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it("says something readable when the failure carries no sentence at all", async () => {
+        // A transport error's own message is "Request failed with status code 424", which is
+        // a number where a reason belongs, so it is not what gets shown.
+        listMcpTools.mockRejectedValue(new Error("Request failed with status code 424"))
+        await render({tool_permissions: {echo: "allow"}})
+
+        expect(text()).toContain("The tool list could not be read.")
+        expect(text()).not.toContain("status code 424")
     })
 })
 

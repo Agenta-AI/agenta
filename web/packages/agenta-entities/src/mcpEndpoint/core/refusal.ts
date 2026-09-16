@@ -18,8 +18,32 @@ interface Envelope {
     next_step?: unknown
 }
 
-const asText = (value: unknown): string | null =>
-    typeof value === "string" && value.trim() ? value.trim() : null
+/**
+ * The marker a typed gateway refusal carries for harness recovery, e.g.
+ * `⟦agenta_code:auth_required⟧`. It is addressed to the runner, not to a person, and it
+ * reached the screen verbatim beside a raw `custom/<slug>` (QA-D3).
+ */
+const CODE_MARKER = /\s*⟦agenta_code:([^⟧]+)⟧\s*/
+
+/** The refusal's code, from the envelope or from the marker in its message. */
+export const gatewayRefusalCode = (error: unknown): string | null => {
+    const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data?.detail
+    if (detail && typeof detail === "object") {
+        const code = (detail as {code?: unknown}).code
+        if (typeof code === "string" && code) return code
+    }
+    const message =
+        typeof detail === "string"
+            ? detail
+            : ((detail as {message?: unknown} | undefined)?.message as string | undefined)
+    return typeof message === "string" ? (message.match(CODE_MARKER)?.[1] ?? null) : null
+}
+
+const asText = (value: unknown): string | null => {
+    if (typeof value !== "string") return null
+    const withoutMarker = value.replace(CODE_MARKER, " ").trim()
+    return withoutMarker ? withoutMarker : null
+}
 
 export const gatewayRefusalMessage = (error: unknown): string | null => {
     const data = (error as {response?: {data?: {detail?: unknown; error?: unknown}}})?.response

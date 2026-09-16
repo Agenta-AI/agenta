@@ -161,6 +161,8 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
             <RailField label="Permissions" align="top">
                 <McpToolPermissions
                     slug={selected?.slug ?? undefined}
+                    connectionName={selected?.name || selected?.slug || undefined}
+                    onConnect={() => setConnecting(true)}
                     policy={readMcpPolicy(value)}
                     onChange={(policy) => onChange({...value, policy})}
                     disabled={disabled}
