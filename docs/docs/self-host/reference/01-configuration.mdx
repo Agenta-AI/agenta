@@ -36,6 +36,7 @@ This key has no env-var or `env.py` equivalent.
 |---|---|---|
 | `AGENTA_LICENSE` | `agenta.license` | `agenta.license` |
 | `AGENTA_WEB_URL` | `agenta.web_url` | `agenta.webUrl` |
+| `AGENTA_APP_ORIGINS` | `agenta.app_origins` | n/a |
 | `AGENTA_SERVICES_URL` | `agenta.services_url` | `agenta.servicesUrl` |
 | `AGENTA_API_URL` | `agenta.api_url` | `agenta.apiUrl` |
 | `AGENTA_API_INTERNAL_URL` | `agenta.api_internal_url` | `agenta.apiInternalUrl` |
@@ -47,6 +48,28 @@ This key has no env-var or `env.py` equivalent.
 `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `AGENTA_SERVICES_INTERNAL_KEY`, and `AGENTA_RUNNER_TOKEN`
 are required secrets: the examples ship them as `replace-me` and you must set a real value for
 each. See [Agent runner](#routing-and-authentication) for the runner token.
+
+`AGENTA_APP_ORIGINS` lists every other address your deployment's app answers on, comma separated.
+Set it only when there is more than one. A deployment reachable at a single address needs nothing
+here, and `AGENTA_WEB_URL` is always used first whether or not you set this.
+
+It matters for the MCP consent flow. When someone authorizes an MCP server, the page the provider
+returns to has to hand the result back to the window that opened it, and it can only do that by
+naming that window's address exactly. A deployment reachable at a tunnel and at a local address is
+two addresses, so listing only one means everyone using the other watches the `Connect` dialog wait
+out its three-minute timeout, even though the server was authorized and the connection is sitting
+there ready behind the dialog. Listing both addresses fixes that.
+
+Give origins only, with no path:
+
+```bash
+AGENTA_APP_ORIGINS=https://agenta.example.com,http://localhost:8680
+```
+
+Anything without a scheme and a host is ignored, and a repeat of `AGENTA_WEB_URL` is dropped rather
+than listed twice. Addresses have to be declared here rather than worked out from the request,
+because the address a browser used to reach the page is something the caller can set. The API's own
+address is never used, so a deployment that publishes no app address sends the result nowhere.
 
 `AGENTA_SERVICES_INTERNAL_KEY` proves to the API that a caller **is** the platform runtime (the
 Services container), as opposed to a browser or an ApiKey holder reaching the same public route.
