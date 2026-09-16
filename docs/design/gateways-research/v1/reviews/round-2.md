@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **1** | **8** | **6** | **23 closed, 4 part fixed, 15 open** |
+| **As this file is written** | **0** | **3** | **8** | **6** | **23 closed, 4 part fixed, 17 open** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -111,6 +111,8 @@ whether that fix was read against the finding and its test.
 | D54 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:273`, `engines/sandbox_agent/mcp-handshake.ts:142` | Fix, blocking | `d1055842db` | **yes**, code, tests, incl. pre-fix run |
 | QA-D6 | sanity QA | P2 | `web/packages/agenta-chat/src/model/error.ts` | Fix | `f84a90747b` | **yes**, code and its suite |
 | D55 | verification | P2 | `sdks/python/agenta/sdk/middlewares/running/normalizer.py:240-250` | **Pre-existing.** Record and route; not this release's to fix | | mechanism, code read |
+| D56 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:204` at HEAD | Fix, blocking a real upstream | pending | mechanism, code read |
+| D57 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:326` at HEAD | Fix, blocking after a downgrade | pending | mechanism, code read |
 | D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix: QA-D3's better wording cannot fire in production | | mechanism, both sites read |
 | D51 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:293` | Fix the assertion | | mechanism, both message strings compared |
 | D52 | verification | P3 | `hooks/useMcpConnectJourney.ts:179`, `McpConnectJourney.tsx:96` | Record the invariant or apply the check | | mechanism, seven await sites counted |
@@ -948,6 +950,31 @@ request and was last changed a week before this work began, so it is pre-existin
 regression here. It is worth a separate issue at the same severity the CodeQL finding carried, and
 the fix is the same shape: a typed error with an authored sentence, the traceback logged rather than
 returned.
+
+**D56. The Pi client strips event-stream framing only when the body opens with a data line.** At
+`pi-mcp.ts:204` the whole text is tested with `startsWith("data:")`, and only then are the data lines
+collected. A conforming event may open with `event:` or with an id, and a real upstream does: Linear
+leads with `event: message`. Such a body falls through as-is and is parsed as JSON, so every answer
+from that server reads as invalid JSON and the tools never arrive.
+
+**D57. The same client stamps its `_meta` envelope with its own version constant rather than the
+negotiated one.** At `:326` the protocol-version field is the module constant, not the value
+`initialize` returned. A server that agreed an older revision validates the envelope against that
+revision and refuses a newer one, so after any downgrade every request fails, starting with
+`tools/list`, which is the first.
+
+Both were found by a real-provider run rather than by a suite, and D57 is a residual of D54's own
+fix: that change recorded the negotiated version and used it on the header, and this second place
+that needs it kept the constant. A fix for both is in the working tree and not yet committed, so
+these entries exist to give the revisions a home.
+
+**This is the "obliging mocks" point a third time**, and at this point it is the most useful
+structural finding of the round. The mock answers plain JSON, never frames an event, never
+downgrades a version and never compresses. Four defects have now reached a person through that gap:
+the probe's decoding failure, the version asserted on initialize, and these two. Every one of them
+passed every mock cell. The real-server probe case, the completed real-model matrix and this Pi run
+are the only three things that have caught any of them, which is the argument for keeping all three
+in the gate rather than treating them as slow extras.
 
 ## Quality findings
 
