@@ -378,9 +378,13 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         await scenarios.then("the connection survives, asking to be authorized again", async () => {
             // Disconnecting takes the credential and leaves the connection, so one
             // Connect brings it back rather than making a new one.
+            //
+            // "Login expired", not the record's own "Needs authorization": a list says whether
+            // a connection works, and a revoked grant and a refused key are the same sentence
+            // to whoever is scanning the table.
             const row = connectionRow(page, name)
             await expect(row).toBeVisible()
-            await expect(row.getByText("Needs authorization")).toBeVisible({
+            await expect(row.getByText("Login expired")).toBeVisible({
                 timeout: 30000,
             })
         })

@@ -17,6 +17,7 @@
         "@agenta/oss": "workspace:*",
         "@agenta/playground": "workspace:*",
         "@agenta/playground-ui": "workspace:*",
+        "@agenta/settings-ui": "workspace:*",
         "@agenta/shared": "workspace:*",
         "@agenta/skills": "workspace:*",
         "@agenta/skills-ui": "workspace:*",

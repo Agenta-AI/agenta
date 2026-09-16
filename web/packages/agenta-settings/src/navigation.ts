@@ -85,7 +85,8 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "mcpEndpoints",
         scope: "project",
-        description: "Configure the MCP servers available to this project.",
+        description:
+            "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",
     },
     {
         key: "organizationGeneral",
