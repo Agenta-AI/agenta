@@ -66,6 +66,8 @@ export function SkillCreateDrawer({
     const [value, setValue] = useState<Record<string, unknown>>(EMPTY_SKILL)
     const [busy, setBusy] = useState(false)
     const [reading, setReading] = useState(false)
+    // The empty-field chrome waits for a Create press; a blank form is not yet a mistake.
+    const [attempted, setAttempted] = useState(false)
     const [parsedCount, setParsedCount] = useState<number | null>(null)
     const [error, setError] = useState<string | null>(null)
 
@@ -84,6 +86,7 @@ export function SkillCreateDrawer({
         if (open) {
             setValue(EMPTY_SKILL)
             setParsedCount(null)
+            setAttempted(false)
             setError(null)
         }
     }
@@ -121,6 +124,7 @@ export function SkillCreateDrawer({
     }, [open, upload])
 
     const create = useCallback(async () => {
+        setAttempted(true)
         const parsed = skillContentSchema.safeParse(value)
         if (!parsed.success) {
             setError(firstIssue(parsed.error))
@@ -204,6 +208,7 @@ export function SkillCreateDrawer({
                         disabled={busy}
                         // An upload arrives named; a blank form starts at its name.
                         autoFocusName={!upload}
+                        showMissing={attempted}
                     />
                 )}
             </div>

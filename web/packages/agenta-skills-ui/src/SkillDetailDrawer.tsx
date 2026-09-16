@@ -204,6 +204,7 @@ export function SkillDetailDrawer({
         setWasOpen(open)
         if (open) {
             setEditBaseId(null)
+            setAttempted(false)
             setSaveOpen(false)
             setSaveMessage("")
             setPending(null)
@@ -230,7 +231,10 @@ export function SkillDetailDrawer({
         setError(null)
     }, [headValue])
 
+    // The empty-field chrome waits for a Save press, as in the create drawer.
+    const [attempted, setAttempted] = useState(false)
     const askToCommit = useCallback((content: Record<string, unknown>, defaultMessage: string) => {
+        setAttempted(true)
         const parsed = skillContentSchema.safeParse(content)
         if (!parsed.success) {
             setError(firstIssue(parsed.error))
@@ -624,6 +628,7 @@ export function SkillDetailDrawer({
                                     value={draft}
                                     onChange={readOnly ? () => undefined : setDraft}
                                     disabled={readOnly || busy}
+                                    showMissing={attempted}
                                 />
                             </div>
                         )}
