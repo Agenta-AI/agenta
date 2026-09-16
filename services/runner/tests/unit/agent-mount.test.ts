@@ -277,9 +277,14 @@ describe("linkAgentFiles", () => {
   it("treats a concurrent symlink EEXIST as success", async () => {
     const logs: string[] = [];
     await linkAgentFiles("/tmp/run", "/tmp/run-agent", {
-      lstat: (async () => {
-        throw Object.assign(new Error("missing"), { code: "ENOENT" });
-      }) as unknown as typeof import("node:fs/promises").lstat,
+      lstat: (() => {
+        let checks = 0;
+        return (async () => {
+          if (++checks === 1) throw Object.assign(new Error("missing"), { code: "ENOENT" });
+          return { isSymbolicLink: () => true };
+        }) as unknown as typeof import("node:fs/promises").lstat;
+      })(),
+      readlink: (async () => "/tmp/run-agent") as unknown as typeof import("node:fs/promises").readlink,
       symlink: (async () => {
         throw Object.assign(new Error("exists"), { code: "EEXIST" });
       }) as unknown as typeof import("node:fs/promises").symlink,

@@ -111,13 +111,16 @@ export async function ensureDurableSymlink(
   try {
     await createLink(target, linkPath);
   } catch (err) {
-    // EEXIST after a clean (or unnecessary) unlink means a concurrent creator won the race: the
-    // link is there, which is all this promised. EEXIST after a FAILED unlink means something
-    // else entirely — the degraded entry this call exists to replace is still sitting on the
-    // path (a transient EBUSY/EACCES/EIO on the FUSE mount), so reporting success would leave
-    // the caller believing a 0-byte auth.json had been repaired when it had not.
+    // A concurrent creator may have won the path. Accept it only when it is the right link.
     if ((err as NodeJS.ErrnoException).code === "EEXIST" && !unlinkFailed) {
-      return "linked";
+      try {
+        const stats = await inspect(linkPath);
+        if (stats.isSymbolicLink() && (await readLink(linkPath)) === target) {
+          return "linked";
+        }
+      } catch {
+        // The entry changed again. Report failure so the caller can retry next turn.
+      }
     }
     log(`${label} link failed ${linkPath}: ${detail(err)}`);
     return "failed";

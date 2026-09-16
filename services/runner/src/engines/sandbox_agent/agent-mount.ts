@@ -3,7 +3,7 @@
  * See `docs/design/agent-workflows/projects/agent-mounts/plan.md`, decision D3.
  */
 
-import { cp, lstat, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { cp, lstat, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
@@ -193,19 +193,11 @@ async function freeNameIn(directory: string, name: string): Promise<string> {
 /**
  * Move one entry onto the agent mount.
  *
- * `rename` is the cheap path and almost never the one taken: the session drive and the agent drive
- * are two separate geesefs mounts, so the kernel answers EXDEV and the entry has to be copied and
- * then removed. The copy runs first and the removal only on its success, so an interrupted move
- * leaves a duplicate rather than a hole.
+ * Copy exclusively before removing the source. A rename could overwrite a destination created
+ * after name selection, while an exclusive copy reports EEXIST and lets the caller choose again.
+ * An interrupted copy leaves the source intact.
  */
 async function moveEntry(from: string, to: string): Promise<void> {
-  try {
-    await rename(from, to);
-    return;
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code !== "EXDEV" && code !== "EPERM" && code !== "ENOTSUP") throw err;
-  }
   await cp(from, to, { recursive: true, force: false, errorOnExist: true });
   await rm(from, { recursive: true, force: true });
 }
@@ -226,9 +218,19 @@ async function recoverAgentFilesDirectory(
 ): Promise<void> {
   const entries = await readdir(linkPath);
   for (const entry of entries) {
-    const destination = await freeNameIn(mountPath, entry);
-    await moveEntry(join(linkPath, entry), destination);
-    log(`${AGENT_FILES_LINK_NAME} recovered ${entry} -> ${destination}`);
+    let moved = false;
+    for (let attempt = 0; attempt < 1000; attempt += 1) {
+      const destination = await freeNameIn(mountPath, entry);
+      try {
+        await moveEntry(join(linkPath, entry), destination);
+        log(`${AGENT_FILES_LINK_NAME} recovered ${entry} -> ${destination}`);
+        moved = true;
+        break;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      }
+    }
+    if (!moved) throw new Error(`no free name for '${entry}' in ${mountPath}`);
   }
 }
 
@@ -241,9 +243,9 @@ export async function linkAgentFiles(
   cwd: string,
   mountPath: string,
   deps: LinkAgentFilesDeps = {},
-): Promise<void> {
+): Promise<boolean> {
   const log = deps.log ?? defaultLog;
-  await ensureDurableSymlink(
+  const outcome = await ensureDurableSymlink(
     join(cwd, AGENT_FILES_LINK_NAME),
     mountPath,
     AGENT_FILES_LINK_NAME,
@@ -254,6 +256,7 @@ export async function linkAgentFiles(
       log,
     },
   );
+  return outcome !== "failed";
 }
 
 export async function linkAgentFilesRemote(

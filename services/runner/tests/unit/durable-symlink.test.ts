@@ -116,9 +116,14 @@ describe("ensureDurableSymlink (injected failures)", () => {
       "/tmp/tgt",
       "thing",
       {
-        lstat: (async () => {
-          throw Object.assign(new Error("missing"), { code: "ENOENT" });
-        }) as never,
+        lstat: (() => {
+          let checks = 0;
+          return (async () => {
+            if (++checks === 1) throw Object.assign(new Error("missing"), { code: "ENOENT" });
+            return { isSymbolicLink: () => true };
+          }) as never;
+        })(),
+        readlink: (async () => "/tmp/tgt") as never,
         symlink: (async () => {
           throw Object.assign(new Error("exists"), { code: "EEXIST" });
         }) as never,
@@ -128,6 +133,17 @@ describe("ensureDurableSymlink (injected failures)", () => {
 
     assert.equal(outcome, "linked");
     assert.deepEqual(logs, []);
+  });
+
+  it("rejects EEXIST when a directory took the link path", async () => {
+    const outcome = await ensureDurableSymlink("/tmp/run/link", "/tmp/tgt", "thing", {
+      lstat: (async () => ({ isSymbolicLink: () => false })) as never,
+      symlink: (async () => {
+        throw Object.assign(new Error("exists"), { code: "EEXIST" });
+      }) as never,
+      log: SILENT,
+    });
+    assert.equal(outcome, "failed");
   });
 
   it("logs a symlink failure without throwing", async () => {
@@ -222,10 +238,14 @@ describe("ensureDurableSymlink (injected failures)", () => {
       "/tmp/tgt",
       "thing",
       {
-        lstat: (async () => ({
-          isSymbolicLink: () => false,
-          isDirectory: () => false,
-        })) as never,
+        lstat: (() => {
+          let checks = 0;
+          return (async () => ({
+            isSymbolicLink: () => ++checks > 1,
+            isDirectory: () => false,
+          })) as never;
+        })(),
+        readlink: (async () => "/tmp/tgt") as never,
         unlink: (async () => {}) as never,
         symlink: (async () => {
           throw Object.assign(new Error("exists"), { code: "EEXIST" });

@@ -1106,9 +1106,12 @@ export async function runTurn(
     // agent mount. They arrive one turn late instead of never, for one `lstat` per turn rather
     // than one per tool call on a FUSE mount.
     if (env.agentMountedPath && !plan.isDaytona) {
-      await linkAgentFiles(plan.workspace.cwd, env.agentMountedPath, {
+      const agentFilesReady = await linkAgentFiles(plan.workspace.cwd, env.agentMountedPath, {
         log: logger,
       });
+      if (!agentFilesReady) {
+        throw new Error("agent-files could not be linked to the durable agent mount");
+      }
     }
 
     // Non-Pi loopback tools use the correlation index; Pi's relay toolCallId is already exact.
