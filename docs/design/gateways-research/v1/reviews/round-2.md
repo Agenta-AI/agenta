@@ -112,7 +112,7 @@ whether that fix was read against the finding and its test.
 | QA-D6 | sanity QA | P2 | `web/packages/agenta-chat/src/model/error.ts` | Fix | `f84a90747b` | **yes**, code and its suite |
 | D55 | verification | P2 | `sdks/python/agenta/sdk/middlewares/running/normalizer.py:240-250` | **Fixed here, pre-existing on main.** Also OR89 | `abeb966b88` | **yes**, code, tests, incl. pre-fix run |
 | D56 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:204` at HEAD | Fix, blocking a real upstream | `a96b45c400` | **yes**, code and a mutation run |
-| D57 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:326` at HEAD | Fix, blocking after a downgrade | `a96b45c400` | **yes**, code and a mutation run |
+| D57 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:326` at HEAD | Fix, **superseded** by OR91's | `a96b45c400`, `005207efe7` | **yes**, both, each by mutation |
 | D58 | structural | P2 | `api/oss/src/core/gateways/mcps/providers/mock/` | **Closed.** The mock now enforces what a real server enforces | `14ef19e60b` | **yes**, code read, 1104 unit cases pass |
 | D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix: QA-D3's better wording cannot fire in production | | mechanism, both sites read |
 | D51 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:293` | Fix the assertion | | mechanism, both message strings compared |
@@ -984,7 +984,21 @@ that needs it kept the constant. A fix for both is in the working tree and not y
 these entries exist to give the revisions a home.
 
 **Both fixed** by `a96b45c400`, verified by mutating each half in turn: putting the leading-data
-test back fails three cases, and putting the version constant back into `_meta` fails one. The fix
+test back fails three cases, and putting the version constant back into `_meta` fails one.
+
+**D57's fix was then superseded, and the record should say so rather than leave two looking
+parallel.** `005207efe7` (OR91) removes the `_meta` envelope altogether. Changing its version from
+the client's constant to the negotiated one was a real improvement and still the wrong shape: the
+envelope itself is what a strict server validates, so stamping the right revision only moved the
+refusal, and a real upstream refused every post-initialize request carrying one. `_meta` is optional
+in every revision and nothing on either side of this client reads one back, which makes an envelope
+sent for politeness a refusal waiting to happen. Verified the same way: twenty-seven runner cases
+pass, and restoring the envelope fails the case that names it. The mock learned the rule too, scoped
+to the namespace the server owns so a client-owned key still passes — the same restraint D58 showed.
+
+Worth saying plainly: this review verified D57's fix by mutation and it held as a fix for what D57
+described. What it could not tell me is that the thing being corrected should not have been sent at
+all. A mutation proves a test discriminates; only a real server proved the shape was wrong. The fix
 for D56 is better than fixing the parser twice — the probe and the client now share one parser,
 which is what the divergence was. The probe had the correct rule and its own copy of it; the client
 had a copy that tested only the first line, so a server passed the probe and was then unreadable to
