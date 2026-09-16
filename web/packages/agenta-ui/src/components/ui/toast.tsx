@@ -17,8 +17,9 @@ const toastClassNames: NonNullable<NonNullable<ToasterProps["toastOptions"]>["cl
     toast: cn(
         "group/toast box-border flex w-full items-center gap-3 rounded-2xl border border-solid border-border bg-popover px-3.5 py-3 text-sm text-popover-foreground shadow-lg outline-none select-none",
         "[&[data-sonner-toast]:focus-visible]:border-ring [&[data-sonner-toast]:focus-visible]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
-        // Enter from below on shadcn's ease-out; leave quickly (Sonner unmounts 200ms in).
+        // Enter from the stack's edge on shadcn's ease-out; leave quickly (Sonner unmounts 200ms in).
         "[&[data-y-position=bottom]:not([data-mounted=true])]:[--y:translateY(150%)]",
+        "[&[data-y-position=top]:not([data-mounted=true])]:[--y:translateY(-150%)]",
         "[&[data-sonner-toast]:not([data-swiping=true])]:[transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms]",
         "[&[data-sonner-toast][data-removed=true][data-swiping=false]]:[transition:transform_200ms_ease-in,opacity_200ms]",
         // Toasts behind the front one show only their edge.
@@ -42,17 +43,28 @@ const toastClassNames: NonNullable<NonNullable<ToasterProps["toastOptions"]>["cl
     ),
 }
 
-function Toaster({style, toastOptions, ...props}: ToasterProps) {
+// shadcn's defaults; every one is a prop, so a host can move or resize the stack.
+function Toaster({
+    position = "bottom-right",
+    offset = 16,
+    mobileOffset = 16,
+    gap = 8,
+    visibleToasts = 3,
+    closeButton = true,
+    style,
+    toastOptions,
+    ...props
+}: ToasterProps) {
     return (
         <Sonner
             // Colors come from the tokens, so Sonner's dark skin (and its description color) stays off.
             theme="light"
-            position="bottom-right"
-            offset={16}
-            mobileOffset={16}
-            gap={8}
-            visibleToasts={3}
-            closeButton
+            position={position}
+            offset={offset}
+            mobileOffset={mobileOffset}
+            gap={gap}
+            visibleToasts={visibleToasts}
+            closeButton={closeButton}
             className="toaster group"
             icons={{
                 success: <CircleCheck />,

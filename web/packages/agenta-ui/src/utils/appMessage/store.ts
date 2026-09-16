@@ -113,8 +113,11 @@ function settleToast(key: ToastKey, handle: ToastHandle, withOnClose: boolean) {
     handle.settled = true
     if (handle.timer) clearTimeout(handle.timer)
     if (toastHandles.get(key) === handle) toastHandles.delete(key)
-    if (withOnClose) handle.onClose?.()
-    handle.resolve(true)
+    try {
+        if (withOnClose) handle.onClose?.()
+    } finally {
+        handle.resolve(true)
+    }
 }
 
 const toastByType: Record<NoticeType, typeof toast.info> = {
