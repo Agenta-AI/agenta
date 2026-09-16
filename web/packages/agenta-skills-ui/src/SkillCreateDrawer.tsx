@@ -1,12 +1,16 @@
 /**
- * Create-a-skill flow: the editor shell (SkillFormView), empty. Files arrive through the
- * editor's own rail — there is no separate upload mode.
+ * Create-a-skill flow: the editor shell (SkillFormView), empty — or prefilled from an
+ * `upload`, the scan of what the host's file picker returned. Nothing is created until Create.
  *
  * Connected on purpose: create + invalidation live here once; hosts pass `projectId`.
  */
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
-import {SkillFormView} from "@agenta/entity-ui/drill-in"
+import {
+    SkillFormView,
+    type SkillScanCandidate,
+    type SkillUploadScan,
+} from "@agenta/entity-ui/drill-in"
 import {createSkillWorkflow, skillContentSchema} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -17,6 +21,12 @@ export interface SkillCreateDrawerProps {
     open: boolean
     onClose: () => void
     projectId: string
+    /**
+     * A picked upload, still being read. The editor opens on what it finds: one skill fills the
+     * form; several fill it with the root one (or the first) and say so; none leaves it empty
+     * with the reason in the footer.
+     */
+    upload?: Promise<SkillUploadScan> | null
     /** Fires once per created skill — e.g. to also add it to the agent being edited. */
     onCreated?: (created: {
         slug: string
@@ -28,6 +38,13 @@ export interface SkillCreateDrawerProps {
 }
 
 const EMPTY_SKILL: Record<string, unknown> = {name: "", description: "", body: "", files: []}
+
+const toFormValue = (candidate: SkillScanCandidate): Record<string, unknown> => ({
+    name: candidate.skill.name ?? "",
+    description: candidate.skill.description ?? "",
+    body: candidate.skill.body,
+    files: candidate.skill.files,
+})
 
 /** First zod issue → one human line ("name is required"), not raw zod copy. */
 const firstIssue = (error: {issues: {path: PropertyKey[]; message: string}[]}): string => {
@@ -42,11 +59,14 @@ export function SkillCreateDrawer({
     open,
     onClose,
     projectId,
+    upload = null,
     onCreated,
     width = 960,
 }: SkillCreateDrawerProps) {
     const [value, setValue] = useState<Record<string, unknown>>(EMPTY_SKILL)
     const [busy, setBusy] = useState(false)
+    const [reading, setReading] = useState(false)
+    const [parsedCount, setParsedCount] = useState<number | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     // Closing only closes: a reset here would blank the drawer while its exit animation
@@ -63,9 +83,42 @@ export function SkillCreateDrawer({
         setWasOpen(open)
         if (open) {
             setValue(EMPTY_SKILL)
+            setParsedCount(null)
             setError(null)
         }
     }
+
+    // The upload is read once per open. A drawer closed mid-read ignores the late answer, and
+    // so does one reopened on a different upload.
+    useEffect(() => {
+        if (!open || !upload) return
+        let live = true
+        setReading(true)
+        upload
+            .then((scan) => {
+                if (!live) return
+                const root = scan.candidates.find((c) => c.dir === "") ?? scan.candidates[0]
+                if (!root) {
+                    setError("No SKILL.md found in the upload.")
+                    return
+                }
+                setValue(toFormValue(root))
+                setParsedCount(scan.fileCount)
+                if (scan.candidates.length > 1)
+                    setError(
+                        `${scan.candidates.length} skills found; the editor opened on ${root.dir || "the root one"}. Upload one skill at a time.`,
+                    )
+            })
+            .catch(() => {
+                if (live) setError("Couldn't read the upload.")
+            })
+            .finally(() => {
+                if (live) setReading(false)
+            })
+        return () => {
+            live = false
+        }
+    }, [open, upload])
 
     const create = useCallback(async () => {
         const parsed = skillContentSchema.safeParse(value)
@@ -104,7 +157,16 @@ export function SkillCreateDrawer({
             placement="right"
             width={width}
             destroyOnClose
-            title={<span className="text-sm font-medium">New skill</span>}
+            title={
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">New skill</span>
+                    {parsedCount != null ? (
+                        <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] font-normal tabular-nums text-[var(--ag-colorTextTertiary)]">
+                            {parsedCount} {parsedCount === 1 ? "file" : "files"} parsed
+                        </span>
+                    ) : null}
+                </div>
+            }
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
@@ -122,7 +184,7 @@ export function SkillCreateDrawer({
                         <Button variant="outline" onClick={close} disabled={busy}>
                             Cancel
                         </Button>
-                        <Button onClick={create} disabled={busy}>
+                        <Button onClick={create} disabled={busy || reading}>
                             {busy ? <Spinner size="small" /> : null}
                             Create skill
                         </Button>
@@ -131,7 +193,13 @@ export function SkillCreateDrawer({
             }
         >
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                <SkillFormView value={value} onChange={setValue} disabled={busy} />
+                {reading ? (
+                    <div className="flex h-full items-center justify-center">
+                        <Spinner size="small" />
+                    </div>
+                ) : (
+                    <SkillFormView value={value} onChange={setValue} disabled={busy} />
+                )}
             </div>
         </EnhancedDrawer>
     )

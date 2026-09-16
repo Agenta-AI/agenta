@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
+
 import {
     invalidateSkillsListCache,
     skillsListDataAtom,
@@ -134,8 +136,17 @@ export const SkillListScreen = ({
     const [importOpen, setImportOpen] = useState(false)
     const openImport = useCallback(() => setImportOpen(true), [])
     const closeImport = useCallback(() => setImportOpen(false), [])
+    // Write and Upload share the create drawer; Upload hands it the scan of what was picked.
     const [createOpen, setCreateOpen] = useState(false)
-    const openWrite = useCallback(() => setCreateOpen(true), [])
+    const [upload, setUpload] = useState<Promise<SkillUploadScan> | null>(null)
+    const openWrite = useCallback(() => {
+        setUpload(null)
+        setCreateOpen(true)
+    }, [])
+    const openUpload = useCallback((scan: Promise<SkillUploadScan>) => {
+        setUpload(scan)
+        setCreateOpen(true)
+    }, [])
     const closeCreate = useCallback(() => setCreateOpen(false), [])
 
     const emptyState = isLoading ? null : projectHasSkills || term ? (
@@ -182,6 +193,7 @@ export const SkillListScreen = ({
                                 </h1>
                                 <NewSkillMenuButton
                                     onWrite={openWrite}
+                                    onUpload={openUpload}
                                     onImport={openImport}
                                     className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
                                 />
@@ -225,7 +237,12 @@ export const SkillListScreen = ({
                 agentHref={agentHref}
             />
             <SkillImportDrawer open={importOpen} onClose={closeImport} projectId={projectId} />
-            <SkillCreateDrawer open={createOpen} onClose={closeCreate} projectId={projectId} />
+            <SkillCreateDrawer
+                open={createOpen}
+                onClose={closeCreate}
+                projectId={projectId}
+                upload={upload}
+            />
         </>
     )
 }

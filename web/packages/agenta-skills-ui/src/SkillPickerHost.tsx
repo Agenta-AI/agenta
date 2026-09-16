@@ -9,6 +9,7 @@
  */
 import {useCallback, useMemo, useState} from "react"
 
+import type {SkillUploadScan} from "@agenta/entity-ui/drill-in"
 import {projectIdAtom} from "@agenta/shared/state"
 import {
     buildSkillEmbedEntry as buildEntry,
@@ -99,10 +100,18 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
 
     // The `+ New skill ▾` paths: created/imported skills also land on this agent.
     const [createOpen, setCreateOpen] = useState(false)
+    const [upload, setUpload] = useState<Promise<SkillUploadScan> | null>(null)
     const [importOpen, setImportOpen] = useState(false)
     const createActions = useMemo(
         () => ({
-            onWrite: () => setCreateOpen(true),
+            onWrite: () => {
+                setUpload(null)
+                setCreateOpen(true)
+            },
+            onUpload: (scan: Promise<SkillUploadScan>) => {
+                setUpload(scan)
+                setCreateOpen(true)
+            },
             onImport: () => setImportOpen(true),
         }),
         [],
@@ -156,6 +165,7 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
                 open={createOpen}
                 onClose={() => setCreateOpen(false)}
                 projectId={projectId}
+                upload={upload}
                 onCreated={addCreated}
             />
             <SkillImportDrawer
