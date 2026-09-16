@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {HeightCollapse} from "@agenta/ui"
@@ -22,79 +22,132 @@ import {ActivityThoughtStep} from "./ActivityThoughtStep"
 import {ActivityToolStep} from "./ActivityToolStep"
 
 const ROW_PX = 22
-const ROLL_MS = 340
 const STEP_ENTER_MS = 360
 
-/** The live verb: a change rolls the old one up and out and the new one in from below. */
-const RollingLabel = ({text, shimmer}: {text: string; shimmer: boolean}) => {
-    const reduced = useReducedMotion()
-    const [rows, setRows] = useState<string[]>([text])
-    const [sliding, setSliding] = useState(false)
-    // Read by the effect without being a dependency, or it cancels its own frame.
-    const shownRef = useRef(text)
+const SWAP_MS = 150
+const SWAP_EASE = "ease-in-out"
+const SWAP_Y = 4
+const SWAP_BLUR = 2
 
-    useEffect(() => {
-        if (text === shownRef.current) return
-        const previous = shownRef.current
-        shownRef.current = text
-        if (reduced) {
-            setRows([text])
+/** The live line: a verb change lifts the old words out (up, fade, blur), swaps, then settles the
+ * new ones in from just below while the box eases to their width. A change that lands mid-swap
+ * waits for it, so the outgoing words always finish leaving. */
+const SwapLabel = ({
+    text,
+    suffix = "",
+    shimmer,
+}: {
+    text: string
+    /** The clock, riding inside the eased box; tabular digits keep a tick from moving anything. */
+    suffix?: string
+    shimmer: boolean
+}) => {
+    const reduced = useReducedMotion()
+    const [shown, setShown] = useState(text)
+    // Bumped per swap so the enter runs even when the words end up the same as before.
+    const [swapCount, setSwapCount] = useState(0)
+    const targetRef = useRef(text)
+    const busyRef = useRef(false)
+    const boxRef = useRef<HTMLSpanElement>(null)
+    const wordsRef = useRef<HTMLSpanElement>(null)
+    const enterRef = useRef(false)
+    const exitRef = useRef<Animation | null>(null)
+
+    // Exit the current words; the enter runs from the layout effect once the new ones are laid out.
+    const swap = () => {
+        const words = wordsRef.current
+        const box = boxRef.current
+        if (!words || !box || typeof words.animate !== "function") {
+            setShown(targetRef.current)
             return
         }
-        setRows([previous, text])
-        setSliding(false)
-        // Paint the pair at rest, then slide; the timer settles it if transitionend is swallowed.
-        const id = requestAnimationFrame(() => requestAnimationFrame(() => setSliding(true)))
-        const settle = setTimeout(() => {
-            setRows([text])
-            setSliding(false)
-        }, ROLL_MS + 120)
-        return () => {
-            cancelAnimationFrame(id)
-            clearTimeout(settle)
+        busyRef.current = true
+        box.style.width = `${box.offsetWidth}px`
+        const exit = words.animate(
+            [
+                {transform: "translateY(0)", opacity: 1, filter: "blur(0)"},
+                {transform: `translateY(-${SWAP_Y}px)`, opacity: 0, filter: `blur(${SWAP_BLUR}px)`},
+            ],
+            {duration: SWAP_MS, easing: SWAP_EASE, fill: "forwards"},
+        )
+        exitRef.current = exit
+        exit.finished
+            .then(() => {
+                enterRef.current = true
+                setShown(targetRef.current)
+                setSwapCount((count) => count + 1)
+            })
+            .catch(() => undefined)
+    }
+
+    useLayoutEffect(() => {
+        targetRef.current = text
+        if (text === shown || busyRef.current) return
+        if (reduced) {
+            setShown(text)
+            return
         }
-    }, [text, reduced])
+        swap()
+    }, [text, shown, reduced])
+
+    // The new words are in the DOM: ease the box to their width and settle them in from below.
+    useLayoutEffect(() => {
+        const words = wordsRef.current
+        const box = boxRef.current
+        if (!enterRef.current || !words || !box) return
+        enterRef.current = false
+        // The held exit frame hands over to the enter in the same paint.
+        exitRef.current?.cancel()
+        exitRef.current = null
+        const before = parseFloat(box.style.width)
+        box.style.width = ""
+        const after = box.offsetWidth
+        if (before && before !== after) {
+            box.style.width = `${after}px`
+            box.animate([{width: `${before}px`}, {width: `${after}px`}], {
+                duration: SWAP_MS,
+                easing: SWAP_EASE,
+            })
+        }
+        const enter = words.animate(
+            [
+                {transform: `translateY(${SWAP_Y}px)`, opacity: 0, filter: `blur(${SWAP_BLUR}px)`},
+                {transform: "translateY(0)", opacity: 1, filter: "blur(0)"},
+            ],
+            {duration: SWAP_MS, easing: SWAP_EASE},
+        )
+        enter.finished
+            .then(() => {
+                box.style.width = ""
+                busyRef.current = false
+                // Something else arrived while we were swapping: go again.
+                if (targetRef.current !== shown) swap()
+            })
+            .catch(() => undefined)
+    }, [shown, swapCount])
 
     return (
         <span
-            className="block shrink-0 overflow-hidden"
+            ref={boxRef}
+            className="flex max-w-[min(60vw,28ch)] shrink-0 items-center overflow-hidden"
             style={{height: ROW_PX}}
             aria-live="polite"
+            title={text}
         >
             <span
-                className={`block ${sliding ? "transition-transform duration-[340ms] ease-[cubic-bezier(.4,0,.2,1)]" : ""}`}
-                style={{transform: sliding ? `translateY(-${ROW_PX}px)` : undefined}}
-                onTransitionEnd={() => {
-                    setRows([text])
-                    setSliding(false)
-                }}
+                ref={wordsRef}
+                className={`block min-w-0 truncate ${shimmer ? LIVE_TEXT_CLASS : ""}`}
+                style={{height: ROW_PX, lineHeight: `${ROW_PX}px`}}
             >
-                {rows.map((row, i) => (
-                    <span
-                        key={`${i}-${row}`}
-                        className={`block whitespace-nowrap ${shimmer ? LIVE_TEXT_CLASS : ""}`}
-                        style={{height: ROW_PX, lineHeight: `${ROW_PX}px`}}
-                    >
-                        {row}
-                    </span>
-                ))}
+                {shown}
+            </span>
+            {/* `pre`: the leading space would otherwise collapse at the flex item's start. */}
+            <span className="shrink-0 whitespace-pre text-colorTextTertiary tabular-nums">
+                {suffix}
             </span>
         </span>
     )
 }
-
-/** Three dots bouncing after the line: the run is working. */
-const LiveDots = () => (
-    <span aria-hidden className="ml-1 inline-flex shrink-0 items-end gap-[3px] self-end pb-[5px]">
-        {[0, 1, 2].map((i) => (
-            <span
-                key={i}
-                className="size-1 rounded-full bg-colorTextTertiary motion-safe:animate-live-dot"
-                style={{animationDelay: `${i * 0.14}s`}}
-            />
-        ))}
-    </span>
-)
 
 /** A step arriving live unfolds in (height, rise, fade); the gap is its own padding so it unfolds too. */
 const StepReveal = ({
@@ -211,8 +264,8 @@ export const ActivityTimeline = ({
           ? null
           : Math.max(traced ?? 0, counted ?? 0)
     const files = useMemo(() => activityFiles(steps), [steps])
-    // Nothing in flight for a while: the runner reports a call only once its input is complete.
-    const idle = useHeldFor(live && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
+    // Nothing in flight for a while, before the first step too; each startup phase restarts the wait.
+    const idle = useHeldFor(live && !awaiting && !current, VERB_HOLD_MS, startupLabel)
     // The latest step reads live for as long as the run does.
     const liveTail = live && !awaiting
     // Only a step that lands on an already-mounted fold unfolds.
@@ -244,8 +297,9 @@ export const ActivityTimeline = ({
     if (live || awaiting) {
         title = (
             <>
-                <RollingLabel
+                <SwapLabel
                     shimmer={!awaiting}
+                    suffix={clock}
                     text={
                         awaiting
                             ? "Waiting for you"
@@ -256,11 +310,6 @@ export const ActivityTimeline = ({
                                 : liveVerb(current ?? lastAgentStep(steps), startupLabel, firstTurn)
                     }
                 />
-                {/* `pre`: the leading space would otherwise collapse at the flex item's start. */}
-                <span className="min-w-0 overflow-hidden text-ellipsis whitespace-pre text-colorTextTertiary">
-                    {clock}
-                </span>
-                {awaiting ? null : <LiveDots />}
             </>
         )
     } else {

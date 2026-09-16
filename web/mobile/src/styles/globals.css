@@ -289,7 +289,6 @@
     /* The live line's verb (activity fold, startup label): a light sweeps through the words. */
     --animate-text-shimmer: text-shimmer 2.4s linear infinite;
     /* The live line's three dots: each rises 3px and brightens in turn. */
-    --animate-live-dot: live-dot 1.25s ease-in-out infinite;
     /* Home's create-mode ring. The component lives in @agenta/home-ui, which ships no CSS. */
     --animate-composer-ring: composer-ring-spin 3s linear infinite;
     --animate-composer-ring-in: composer-ring-in 0.25s ease-out both;
@@ -431,18 +430,6 @@
     }
     to {
         background-position: -200% 0;
-    }
-}
-
-@keyframes live-dot {
-    0%,
-    100% {
-        opacity: 0.2;
-        transform: translateY(0);
-    }
-    40% {
-        opacity: 1;
-        transform: translateY(-3px);
     }
 }
 
