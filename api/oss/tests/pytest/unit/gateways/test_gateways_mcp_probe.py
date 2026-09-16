@@ -63,6 +63,16 @@ def _empty_host_allowlist(monkeypatch):
     )
 
 
+def _resolves_publicly(answer: bool):
+    """The address check, answering without a resolver. It is a coroutine now, because
+    the lookup it wraps is blocking and runs in a thread (M18)."""
+
+    async def _answer(_api_url: str) -> bool:
+        return answer
+
+    return _answer
+
+
 def _probe(handler, *, api_url: str = "https://agenta.example/api") -> MCPServerProbe:
     transport = httpx.MockTransport(handler)
     return MCPServerProbe(
@@ -294,8 +304,8 @@ async def test_an_issuer_offering_registration_reports_dynamic():
 async def test_a_deployment_the_issuer_cannot_reach_reports_unavailable(monkeypatch):
     """Said before consent rather than discovered at the point of no return."""
     monkeypatch.setattr(
-        "oss.src.core.gateways.mcps.probe.is_publicly_resolvable",
-        lambda _api_url: False,
+        "oss.src.core.gateways.mcps.probe.is_publicly_resolvable_async",
+        _resolves_publicly(False),
     )
 
     result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
@@ -309,8 +319,8 @@ async def test_a_publicly_resolvable_deployment_reports_the_metadata_document(
     monkeypatch,
 ):
     monkeypatch.setattr(
-        "oss.src.core.gateways.mcps.probe.is_publicly_resolvable",
-        lambda _api_url: True,
+        "oss.src.core.gateways.mcps.probe.is_publicly_resolvable_async",
+        _resolves_publicly(True),
     )
 
     result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
