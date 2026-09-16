@@ -136,7 +136,7 @@ export const DriveItemContextMenu = ({
             <ContextMenuTrigger asChild>
                 <div className={className}>{children}</div>
             </ContextMenuTrigger>
-            <ContextMenuContent onClick={stop}>
+            <ContextMenuContent onClick={stop} onCloseAutoFocus={(e) => e.preventDefault()}>
                 <ContextMenuItem onSelect={onOpen}>
                     {isFolder ? <FolderOpen size={14} /> : <ArrowSquareOut size={14} />}
                     {isFolder ? "Open folder" : "Open file"}

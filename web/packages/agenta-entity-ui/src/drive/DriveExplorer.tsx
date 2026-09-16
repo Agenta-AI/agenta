@@ -272,19 +272,25 @@ export function DriveExplorer({
             (folder === "" ? tree : (nodeByPath.get(folder)?.children ?? [])).map((n) => n.name),
         [tree, nodeByPath],
     )
-    // The entry being named in place: a new one in `folder`, or `path` renamed. The folder view
-    // that shows it is selected first, so the field is on screen.
+    // The entry being renamed in place. The folder view that shows it is selected first.
     const [nameEdit, setNameEdit] = useState<{
-        path: string | null
+        path: string
         kind: "folder" | "file"
-        folder: string
+        /** A folder created a moment ago and still empty: renamed by create + delete. */
+        fresh?: boolean
     } | null>(null)
+    // New folder / New file: created at once under an untitled name, then named in place.
     const startNew = useCallback(
-        (kind: "folder" | "file", folder: string) => {
+        async (kind: "folder" | "file", folder: string) => {
+            const name = newDriveName(kind, siblingsOf(folder))
+            const ok = await (kind === "folder"
+                ? writes.createFolder(folder, name)
+                : writes.createFile(folder, name))
+            if (!ok) return
             if (selectedPath !== folder) select(folder)
-            setNameEdit({path: null, kind, folder})
+            setNameEdit({path: joinPath(folder, name), kind, fresh: kind === "folder"})
         },
-        [selectedPath, select],
+        [siblingsOf, writes, selectedPath, select],
     )
 
     const editableFile = chrome && canWrite && !selectedIsFolder && !!selectedPath
@@ -313,28 +319,22 @@ export function DriveExplorer({
     const commitName = useCallback(
         async (name: string): Promise<boolean> => {
             if (!nameEdit) return false
-            const {path, kind, folder} = nameEdit
-            let ok: boolean
-            if (path === null) {
-                ok = await (kind === "folder"
-                    ? writes.createFolder(folder, name)
-                    : writes.createFile(folder, name))
-                if (ok) select(joinPath(folder, name))
-            } else {
-                if (editing && path === selectedPath) await saveDraft()
-                ok = await writes.rename(path, name)
-                if (ok && path === selectedPath) replaceSelection(joinPath(folder, name))
-            }
+            const {path, fresh} = nameEdit
+            if (editing && path === selectedPath) await saveDraft()
+            const ok = await (fresh
+                ? writes.renameEmptyFolder(path, name)
+                : writes.rename(path, name))
+            if (ok && path === selectedPath) replaceSelection(joinPath(parentOf(path), name))
             if (ok) setNameEdit(null)
             return ok
         },
-        [nameEdit, writes, editing, selectedPath, saveDraft, select, replaceSelection],
+        [nameEdit, writes, editing, selectedPath, saveDraft, replaceSelection],
     )
     const startRename = useCallback(
         (path: string) => {
             const folder = parentOf(path)
             if (selectedPath !== folder) select(folder)
-            setNameEdit({path, kind: nodeByPath.get(path)?.isFolder ? "folder" : "file", folder})
+            setNameEdit({path, kind: nodeByPath.get(path)?.isFolder ? "folder" : "file"})
         },
         [selectedPath, select, nodeByPath],
     )
@@ -348,12 +348,12 @@ export function DriveExplorer({
     )
     const nameEditView = useMemo<DriveNameEdit | null>(() => {
         if (!nameEdit) return null
-        const siblings = siblingsOf(nameEdit.folder)
-        const current = nameEdit.path === null ? undefined : nameOf(nameEdit.path)
+        const siblings = siblingsOf(parentOf(nameEdit.path))
+        const current = nameOf(nameEdit.path)
         return {
             path: nameEdit.path,
             kind: nameEdit.kind,
-            initial: current ?? newDriveName(nameEdit.kind, siblings),
+            initial: current,
             validate: (name) => validateDriveName(name, siblings, current),
             onCommit: commitName,
             onCancel: () => setNameEdit(null),
@@ -502,8 +502,8 @@ export function DriveExplorer({
                 actions={
                     canWrite
                         ? {
-                              onNewFolder: () => startNew("folder", selectedPath ?? ""),
-                              onNewFile: () => startNew("file", selectedPath ?? ""),
+                              onNewFolder: () => void startNew("folder", selectedPath ?? ""),
+                              onNewFile: () => void startNew("file", selectedPath ?? ""),
                               onUpload: staged.length ? commitStaged : openUploadPicker,
                               stagedCount: staged.length,
                           }

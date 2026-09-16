@@ -88,7 +88,7 @@ export const FileTile = ({
     />
 )
 
-/** The tile being named in place (a new entry, or a rename): the glyph over the name field. */
+/** The tile being renamed in place: the glyph over the name field. */
 export const DraftTile = ({edit, path}: {edit: DriveNameEdit; path: string}) => (
     <div className={`${TILE} bg-accent`}>
         {edit.kind === "folder" ? <FolderGlyphBox /> : <DriveTypeMark path={path} size="tile" />}

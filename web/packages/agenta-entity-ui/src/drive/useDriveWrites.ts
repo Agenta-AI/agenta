@@ -1,4 +1,4 @@
-/** The Files pane's write verbs bound to one drive: resolve the mount, run, refresh, toast. */
+/** The Files pane's write verbs bound to one drive: resolve the mount, run, refresh; a failure toasts. */
 import {useCallback, useMemo, useState} from "react"
 
 import {
@@ -31,7 +31,7 @@ export function useDriveWrites(drive: SessionDriveData) {
                 mount: NonNullable<SessionDriveData["mount"]>
                 path: string
             }) => Promise<void>,
-            success: string,
+            success?: string,
         ): Promise<boolean> => {
             const resolved = drive.resolveMount(presentedPath)
             if (!resolved?.mount) {
@@ -42,7 +42,7 @@ export function useDriveWrites(drive: SessionDriveData) {
             try {
                 await fn({mount: resolved.mount, path: resolved.path})
                 refreshMountListing(queryClient, projectId)
-                void message.success(success)
+                if (success) void message.success(success)
                 return true
             } catch (error) {
                 void message.error(error instanceof Error ? error.message : "Something went wrong")
@@ -56,43 +56,47 @@ export function useDriveWrites(drive: SessionDriveData) {
 
     const createFolder = useCallback(
         (folder: string, name: string) =>
-            run(
-                joinPath(folder, name),
-                ({mount, path}) => createMountFolder({mount, path, projectId}),
-                `Created ${name}`,
+            run(joinPath(folder, name), ({mount, path}) =>
+                createMountFolder({mount, path, projectId}),
             ),
         [run, projectId],
     )
     const createFile = useCallback(
         (folder: string, name: string) =>
-            run(
-                joinPath(folder, name),
-                ({mount, path}) => saveMountText({mount, path, projectId, text: ""}),
-                `Created ${name}`,
+            run(joinPath(folder, name), ({mount, path}) =>
+                saveMountText({mount, path, projectId, text: ""}),
             ),
         [run, projectId],
     )
     // Rename / duplicate: a copy into the same folder, with or without the source removed.
     const copyAs = useCallback(
-        (presentedPath: string, newName: string, removeSource: boolean, success: string) => {
+        (presentedPath: string, newName: string, removeSource: boolean) => {
             const sibling = joinPath(parentOf(presentedPath), newName)
             const toPath = drive.resolveMount(sibling)?.path ?? sibling
-            return run(
-                presentedPath,
-                ({mount, path}) => copyMountFile({mount, path, projectId, toPath, removeSource}),
-                success,
+            return run(presentedPath, ({mount, path}) =>
+                copyMountFile({mount, path, projectId, toPath, removeSource}),
             )
         },
         [drive, run, projectId],
     )
     const rename = useCallback(
-        (presentedPath: string, newName: string) =>
-            copyAs(presentedPath, newName, true, `Renamed to ${newName}`),
+        (presentedPath: string, newName: string) => copyAs(presentedPath, newName, true),
         [copyAs],
     )
+    // A just-created (empty) folder is renamed by creating the new one and dropping the old.
+    const renameEmptyFolder = useCallback(
+        (presentedPath: string, newName: string) => {
+            const folder = parentOf(presentedPath)
+            return run(joinPath(folder, newName), async ({mount, path}) => {
+                await createMountFolder({mount, path, projectId})
+                const old = drive.resolveMount(presentedPath)
+                if (old?.mount) await deleteMountPath({mount: old.mount, path: old.path, projectId})
+            })
+        },
+        [drive, run, projectId],
+    )
     const duplicate = useCallback(
-        (presentedPath: string, newName: string) =>
-            copyAs(presentedPath, newName, false, `Duplicated as ${newName}`),
+        (presentedPath: string, newName: string) => copyAs(presentedPath, newName, false),
         [copyAs],
     )
     const remove = useCallback(
@@ -129,7 +133,16 @@ export function useDriveWrites(drive: SessionDriveData) {
     )
 
     return useMemo(
-        () => ({busy, createFolder, createFile, rename, duplicate, remove, canDelete}),
-        [busy, createFolder, createFile, rename, duplicate, remove, canDelete],
+        () => ({
+            busy,
+            createFolder,
+            createFile,
+            rename,
+            renameEmptyFolder,
+            duplicate,
+            remove,
+            canDelete,
+        }),
+        [busy, createFolder, createFile, rename, renameEmptyFolder, duplicate, remove, canDelete],
     )
 }
