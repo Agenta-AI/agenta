@@ -195,6 +195,13 @@ export {
     emptyMediaVariants,
 } from "./empty"
 export {EmptyState, type EmptyStateProps} from "./empty-state"
+export {
+    IconTile,
+    iconTileVariants,
+    type IconTileProps,
+    type IconTileSize,
+    type IconTileTone,
+} from "./icon-tile"
 export {Label} from "./label"
 export {Field, fieldLabelVariants, type FieldProps} from "./field"
 export {
