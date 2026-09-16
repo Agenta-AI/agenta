@@ -13,6 +13,15 @@ export {
     getMcpConnectionStateLabel,
 } from "./connectionState"
 export type {McpConnectionState} from "./connectionState"
+export {
+    getMcpConnectionStatus,
+    getMcpConnectionStatusLabel,
+    readMcpConnectionHealth,
+    readMcpToolCount,
+} from "./connectionStatus"
+export type {McpConnectionHealth, McpConnectionStatus} from "./connectionStatus"
+export {PROBE_RESPONSE_BODY_LIMIT, readMcpProbeResponse} from "./probeResponse"
+export type {McpProbeResponse} from "./probeResponse"
 export type {
     MCPAuthMode,
     MCPConnectResponse,
@@ -55,10 +64,12 @@ export {
     startJourney,
     startReconnect,
 } from "./connectJourney"
+export {mcpToolDisplayName} from "./connectJourney"
 export type {
     McpJourneyEvent,
     McpJourneyState,
     McpJourneyStatus,
+    McpToolAnnotations,
     McpToolSummary,
 } from "./connectJourney"
 export {connectionNameProblem, hostnameLabel, suggestConnectionName} from "./connectionName"
@@ -83,5 +94,9 @@ export {
     toolPermissions,
 } from "./toolPolicy"
 export type {McpPermission, McpServerPolicy, McpToolFilterPolicy} from "./toolPolicy"
+export {fromGatewayPermissions, MCP_SUPPORTS_INHERIT, toGatewayPermissions} from "./policyAdapter"
+export type {GatewayConnectionPermissions} from "./policyAdapter"
+export {toCatalogTools} from "./toolCatalog"
+export type {McpCatalogTool} from "./toolCatalog"
 export {isSafeReturnPath, MCP_RETURN_PATH_KEY, rememberMcpReturnPath} from "./returnPath"
 export {filterMcpTools, TOOL_FILTER_THRESHOLD} from "./toolSearch"

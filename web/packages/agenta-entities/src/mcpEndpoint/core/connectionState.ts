@@ -4,6 +4,12 @@ import type {MCPEndpoint} from "./types"
 // record, while `flags.is_valid` is the latest gateway health result; neither a
 // dashboard refresh nor a reconnect should write a second state machine onto the
 // endpoint row.
+//
+// There is no fourth state for a server that is down, and one cannot be added here. The only
+// failure signal on the row is `flags.is_valid`, which the backend writes when a data-plane call
+// was REFUSED with the secret handle the row still holds. A server that never answered leaves it
+// untouched, so a state derived from it would call an expired login an unreachable host. The list
+// surfaces name that gap where they meet it, in `connectionStatus.ts`.
 export type McpConnectionState = "ready" | "needs_auth" | "needs_input"
 
 export const getMcpConnectionState = (endpoint: MCPEndpoint): McpConnectionState => {
