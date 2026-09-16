@@ -71,6 +71,14 @@ export interface McpPermissionDrawerProps {
     connectionState?: McpConnectionState
     /** The tool count the connection record carries, for the cases where the list cannot be read. */
     cachedToolCount?: number
+    /**
+     * Where the tool list comes from. Defaults to a live `tools/list` against the connection.
+     *
+     * A caller that already holds the list, or one rendering the drawer with no gateway behind it,
+     * supplies its own. The drawer's four-state machine and its discard-on-switch guard are the
+     * same either way.
+     */
+    loadTools?: (slug: string) => Promise<McpAnnotatedTool[]>
     policy: McpServerPolicy
     onChange: (policy: McpServerPolicy) => void
     /** Renew the login: the OAuth popup, or the key sheet. */
@@ -224,6 +232,7 @@ export default function McpPermissionDrawer({
     toolPrefix,
     connectionState = "ready",
     cachedToolCount,
+    loadTools: loadToolsFrom,
     policy,
     onChange,
     onReconnect,
@@ -246,7 +255,9 @@ export default function McpPermissionDrawer({
         shownFor.current = slug
         setTools({status: "loading"})
         try {
-            const listed = (await listMcpTools(slug, projectId)) as McpAnnotatedTool[]
+            const listed = loadToolsFrom
+                ? await loadToolsFrom(slug)
+                : ((await listMcpTools(slug, projectId)) as McpAnnotatedTool[])
             if (shownFor.current !== slug) return
             setTools({status: "ready", tools: listed})
         } catch (error) {
@@ -264,7 +275,7 @@ export default function McpPermissionDrawer({
                     : gatewayRefusalMessage(error) || "The tool list could not be read.",
             })
         }
-    }, [name, projectId, slug])
+    }, [loadToolsFrom, name, projectId, slug])
 
     useEffect(() => {
         if (!open) return
