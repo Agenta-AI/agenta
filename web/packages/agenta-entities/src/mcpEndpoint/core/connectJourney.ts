@@ -155,6 +155,10 @@ export function startReconnect(endpoint: {
 
 /** The states in which credentials are persisted and the connection is real. */
 const CONNECTED_STATES: ReadonlySet<McpJourneyStatus> = new Set([
+    // `saving` counts as connected because the credential exchange already happened, in the
+    // callback, server-side. From here the grant exists whatever this dialog does next, so a
+    // cancel that deleted the row would orphan a live grant at the provider (D29).
+    "saving",
     "connected",
     "discovering_tools",
     "tools_ready",
@@ -186,16 +190,21 @@ export const isBusy = (state: McpJourneyState): boolean => BUSY_STATES.has(state
 export const cancelDeletesEndpoint = (state: McpJourneyState): boolean =>
     state.createdHere && !!state.endpointId && !isConnected(state)
 
-/** Where a `retry` goes from each recoverable failure. */
+/**
+ * Where a `retry` goes from each recoverable failure.
+ *
+ * Only failures whose target state has a driver. `creating` and `verifying` are busy states
+ * that nothing re-invokes, so sending a retry there replaced the error with a permanent
+ * spinner and disabled both buttons (D30); those two are retried by calling the operation
+ * again, the way `check_failed` always was.
+ */
 const RETRY_TARGET: Partial<Record<McpJourneyStatus, McpJourneyStatus>> = {
     check_failed: "checking_url",
-    create_failed: "creating",
     scopes_failed: "discovering_scopes",
     // Back to the checklist, on the SAME pending row: retrying must not make a second
     // connection, and the scopes are the likeliest thing to change after a refusal.
     consent_cancelled: "choosing_scopes",
     consent_failed: "choosing_scopes",
-    verify_failed: "verifying",
 }
 
 export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): McpJourneyState {

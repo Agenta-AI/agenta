@@ -327,6 +327,24 @@ describe("choosing scopes", () => {
     })
 })
 
+describe("cancelling after consent has succeeded", () => {
+    it("deletes nothing, because the grant already exists", () => {
+        // The exchange happens in the callback, server-side. By `saving` the provider has
+        // issued the credential, so deleting the row here orphans it there.
+        const saved = run(...upToConsent(), {type: "consent_succeeded"})
+
+        expect(saved.status).toBe("saving")
+        expect(isConnected(saved)).toBe(true)
+        expect(cancelDeletesEndpoint(saved)).toBe(false)
+    })
+
+    it("still deletes a pending row that never got that far", () => {
+        const waiting = run(...upToConsent())
+
+        expect(cancelDeletesEndpoint(waiting)).toBe(true)
+    })
+})
+
 describe("cancelling", () => {
     it("deletes the pending row this journey made", () => {
         expect(cancelDeletesEndpoint(run(...upToConsent()))).toBe(true)
@@ -438,7 +456,9 @@ describe("manual authentication", () => {
 
         expect(failed.status).toBe("verify_failed")
         expect(isConnected(failed)).toBe(false)
-        expect(journeyReducer(failed, {type: "retry"}).status).toBe("verifying")
+        // The retry is the caller re-submitting the credential, not a transition: `verifying`
+        // is busy and nothing in the reducer drives it (D30).
+        expect(journeyReducer(failed, {type: "retry"})).toBe(failed)
     })
 })
 
@@ -486,6 +506,38 @@ describe("reconnecting a connection that authorizes with a key", () => {
         })
 
         expect(state.status).toBe("manual_auth")
+    })
+})
+
+describe("retrying a failure", () => {
+    it("moves only where something will drive it", () => {
+        // `creating` and `verifying` are busy states nothing re-invokes, so a retry that
+        // moved there replaced the error with a spinner that never resolved and disabled both
+        // buttons. Those two are retried by calling the operation again instead.
+        const createFailed = run(...beforeCreate("oauth"), {
+            type: "create_failed",
+            error: "x",
+        })
+        expect(journeyReducer(createFailed, {type: "retry"})).toBe(createFailed)
+
+        const verifyFailed = run(
+            ...upToCreated("unknown"),
+            {type: "verify_started"},
+            {type: "verify_failed", error: "x"},
+        )
+        expect(journeyReducer(verifyFailed, {type: "retry"})).toBe(verifyFailed)
+    })
+
+    it("still moves from the failures whose target has one", () => {
+        const checkFailed = run(
+            {type: "url_changed", url: URL},
+            {type: "submit_url"},
+            {type: "probe_failed", error: "x"},
+        )
+        expect(journeyReducer(checkFailed, {type: "retry"}).status).toBe("checking_url")
+
+        const scopesFailed = run(...upToCreated("oauth"), {type: "scopes_failed", error: "x"})
+        expect(journeyReducer(scopesFailed, {type: "retry"}).status).toBe("discovering_scopes")
     })
 })
 
