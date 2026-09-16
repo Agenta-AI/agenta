@@ -176,11 +176,18 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 const dialog = await startJourney(page, `${mockMcpBaseUrl}/`, name)
                 await dialog.getByRole("button", {name: "Continue"}).click()
 
-                // The server's refusal, carried back to the field the person can fix, and
-                // said once rather than twice.
-                const refusal = dialog.getByText("already uses this name")
+                // The SERVER's refusal, which is the one this case exists to exercise. The
+                // client refuses a collision it can see in its own list, and both sentences
+                // open the same way, so matching on the opening proves only that something
+                // refused: the case passed identically whether or not the request was ever
+                // made (D51). The next step is the server's alone.
+                const refusal = dialog.getByText(
+                    "Give this connection a name no other one in the project uses.",
+                )
                 await expect(refusal).toBeVisible({timeout: PROBE_MS})
-                await expect(refusal).toHaveCount(1)
+                // Said once rather than twice: the field error and a generic paragraph both
+                // rendering it is what D39 was about.
+                await expect(dialog.getByText("already uses this name")).toHaveCount(1)
             })
 
             await scenarios.then("the journey stays on the name step", async () => {

@@ -89,11 +89,14 @@ export function useMcpConnectJourney({
     /**
      * Which attempt the journey is on.
      *
-     * Every async step reads it before its await and checks it after. A step that comes back
-     * to a bumped generation belongs to an attempt nobody is waiting for any more: a cancel,
-     * or an unmount. Without it, work in flight installed itself afterwards — a watch holding
-     * a listener, an interval and a three-minute timeout on a dead attempt, or an endpoint row
-     * arriving after the cancel that was supposed to delete it (D34).
+     * Every async step reads it before its await and checks it after, on the answer and on
+     * the failure alike. A step that comes back to a bumped generation belongs to an attempt
+     * nobody is waiting for any more: a cancel, or an unmount. Without it, work in flight
+     * installed itself afterwards — a watch holding a listener, an interval and a three-minute
+     * timeout on a dead attempt, or an endpoint row arriving after the cancel that was
+     * supposed to delete it (D34). Two of the seven sites checked it and the rest did not,
+     * which is how a stale probe or a stale tool list could still answer for a journey that
+     * had moved on (D52).
      */
     const attemptRef = useRef(0)
     const stopWatchRef = useRef<(() => void) | null>(null)
@@ -115,14 +118,25 @@ export function useMcpConnectJourney({
         stopWatch()
     }, [stopWatch])
 
+    /**
+     * Whether the attempt a step started on is still the one the journey is on.
+     *
+     * Read before the await, checked after it, on both the answer and the failure: a step that
+     * comes back to a bumped generation belongs to an attempt nobody is waiting for, and what
+     * it has to say would land on top of whatever replaced it (D52).
+     */
+    const isCurrent = useCallback((attempt: number) => attemptRef.current === attempt, [])
+
     const setUrl = useCallback((url: string) => dispatch({type: "url_changed", url}), [])
     const setName = useCallback((name: string) => dispatch({type: "name_changed", name}), [])
 
     const submitUrl = useCallback(
         async (url: string) => {
+            const attempt = attemptRef.current
             dispatch({type: "submit_url"})
             try {
                 const response = await probeMcpUrl(url, projectId)
+                if (!isCurrent(attempt)) return
                 const probe = response.probe
                 if (!probe) throw new Error("The server could not be checked.")
                 if (!probe.reachable) {
@@ -142,13 +156,14 @@ export function useMcpConnectJourney({
                     }),
                 })
             } catch (error) {
+                if (!isCurrent(attempt)) return
                 dispatch({
                     type: "probe_failed",
                     error: gatewayRefusalMessage(error) || "The server could not be checked.",
                 })
             }
         },
-        [existingNames, projectId],
+        [existingNames, isCurrent, projectId],
     )
 
     /**
@@ -159,10 +174,13 @@ export function useMcpConnectJourney({
      */
     const discoverScopes = useCallback(
         async (endpointId: string) => {
+            const attempt = attemptRef.current
             try {
                 const result = await discoverMcpConnect(endpointId, projectId)
+                if (!isCurrent(attempt)) return
                 dispatch({type: "scopes_discovered", scopes: result.scopes_offered ?? []})
             } catch (error) {
+                if (!isCurrent(attempt)) return
                 dispatch({
                     type: "scopes_failed",
                     error:
@@ -171,7 +189,7 @@ export function useMcpConnectJourney({
                 })
             }
         },
-        [projectId],
+        [isCurrent, projectId],
     )
 
     /** Point an already-open popup at the provider, or report that it was blocked. */
@@ -180,7 +198,7 @@ export function useMcpConnectJourney({
             const attempt = attemptRef.current
             const result = await beginMcpConnect(endpointId, scopes, projectId)
 
-            if (attemptRef.current !== attempt) {
+            if (!isCurrent(attempt)) {
                 // The dialog closed while the authorization URL was being minted. Installing
                 // the watch now would hold a listener, an interval and a timeout on an
                 // attempt nobody is waiting for, which is the window OR67's own teardown
@@ -225,7 +243,7 @@ export function useMcpConnectJourney({
                     ),
             })
         },
-        [projectId, stopWatch],
+        [isCurrent, projectId, stopWatch],
     )
 
     /** Commit the name and take whichever authentication path the probe established. */
@@ -234,8 +252,8 @@ export function useMcpConnectJourney({
         const probe = state.probe
         const mode = AUTH_MODE_FOR_PROBE[probe?.auth.mode ?? "unknown"] ?? "none"
 
+        const attempt = attemptRef.current
         try {
-            const attempt = attemptRef.current
             let endpointId = endpointRef.current?.id
             let slug = endpointRef.current?.slug
 
@@ -257,7 +275,7 @@ export function useMcpConnectJourney({
                 endpointId = endpoint.id
                 slug = endpoint.slug
 
-                if (attemptRef.current !== attempt) {
+                if (!isCurrent(attempt)) {
                     // Cancelled while the create was in flight. The cancel found no row to
                     // delete, so this one would be left behind; delete it here instead.
                     void deleteMcpEndpoint(endpointId, projectId).catch(() => undefined)
@@ -277,6 +295,7 @@ export function useMcpConnectJourney({
                 dispatch({type: "verify_succeeded"})
             }
         } catch (error) {
+            if (!isCurrent(attempt)) return
             const refusal = gatewayRefusalMessage(error) || "The connection could not be saved."
             // A taken name is the one create failure the person can fix where they are
             // standing; everything else is a retry.
@@ -300,10 +319,12 @@ export function useMcpConnectJourney({
             const endpointId = endpointRef.current?.id
             if (!endpointId) return
             dispatch({type: "submit_scopes"})
+            const attempt = attemptRef.current
             try {
                 await driveConsent(popup, endpointId, state.scopesSelected)
             } catch (error) {
                 popup?.close()
+                if (!isCurrent(attempt)) return
                 dispatch({
                     type: "consent_failed",
                     error:
@@ -311,7 +332,7 @@ export function useMcpConnectJourney({
                 })
             }
         },
-        [driveConsent, state.scopesSelected],
+        [driveConsent, isCurrent, state.scopesSelected],
     )
 
     /** Start (or restart) scope discovery for the endpoint being connected. */
@@ -325,6 +346,7 @@ export function useMcpConnectJourney({
         async ({headerName, secretId}: {headerName: string; secretId: string}) => {
             const endpoint = endpointRef.current
             if (!endpoint) return
+            const attempt = attemptRef.current
             dispatch({type: "verify_started"})
             try {
                 await editMcpEndpoint(
@@ -351,8 +373,10 @@ export function useMcpConnectJourney({
                 // agent run fails, which is a long way from here.
                 await listMcpTools(endpoint.slug, projectId)
 
+                if (!isCurrent(attempt)) return
                 dispatch({type: "verify_succeeded"})
             } catch (error) {
+                if (!isCurrent(attempt)) return
                 dispatch({
                     type: "verify_failed",
                     error:
@@ -361,7 +385,7 @@ export function useMcpConnectJourney({
                 })
             }
         },
-        [projectId, state.name, state.url],
+        [isCurrent, projectId, state.name, state.url],
     )
 
     /** Connect a server that turned out to need nothing. */
@@ -379,11 +403,16 @@ export function useMcpConnectJourney({
     const finish = useCallback(async () => {
         const endpoint = endpointRef.current
         if (!endpoint) return
+        const attempt = attemptRef.current
         stopWatch()
         await refreshEndpoints()
+        // The grant is stored either way, so nothing is lost by saying nothing: the connection
+        // is in settings. Telling a form that was abandoned mid-refresh to select it would be
+        // the one outcome nobody asked for.
+        if (!isCurrent(attempt)) return
         dispatch({type: "saved"})
         onConnected?.({id: endpoint.id, slug: endpoint.slug, name: state.name.trim()})
-    }, [onConnected, refreshEndpoints, state.name, stopWatch])
+    }, [isCurrent, onConnected, refreshEndpoints, state.name, stopWatch])
 
     /**
      * Abandon the journey. Deletes the pending row it created, and nothing else: a
@@ -419,15 +448,19 @@ export function useMcpConnectJourney({
             dispatch({type: "tools_loaded", tools: []})
             return
         }
+        const attempt = attemptRef.current
         try {
-            dispatch({type: "tools_loaded", tools: await listMcpTools(slug, projectId)})
+            const tools = await listMcpTools(slug, projectId)
+            if (!isCurrent(attempt)) return
+            dispatch({type: "tools_loaded", tools})
         } catch (error) {
+            if (!isCurrent(attempt)) return
             dispatch({
                 type: "tools_failed",
                 error: gatewayRefusalMessage(error) || "The tool list could not be read.",
             })
         }
-    }, [projectId])
+    }, [isCurrent, projectId])
 
     const popupName = popupNameRef.current
     const expectsConsent = state.probe?.auth.mode === "oauth"

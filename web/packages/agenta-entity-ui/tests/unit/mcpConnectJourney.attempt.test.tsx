@@ -17,14 +17,21 @@ import {useMcpConnectJourney} from "@agenta/entities/mcpEndpoint"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {probeMcpUrl, createMcpEndpoint, deleteMcpEndpoint, beginMcpConnect, discoverMcpConnect} =
-    vi.hoisted(() => ({
-        probeMcpUrl: vi.fn(),
-        createMcpEndpoint: vi.fn(),
-        deleteMcpEndpoint: vi.fn(),
-        beginMcpConnect: vi.fn(),
-        discoverMcpConnect: vi.fn(),
-    }))
+const {
+    probeMcpUrl,
+    createMcpEndpoint,
+    deleteMcpEndpoint,
+    beginMcpConnect,
+    discoverMcpConnect,
+    listMcpTools,
+} = vi.hoisted(() => ({
+    probeMcpUrl: vi.fn(),
+    createMcpEndpoint: vi.fn(),
+    deleteMcpEndpoint: vi.fn(),
+    beginMcpConnect: vi.fn(),
+    discoverMcpConnect: vi.fn(),
+    listMcpTools: vi.fn(),
+}))
 
 vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
     ...(await importOriginal<typeof import("../../../agenta-entities/src/mcpEndpoint/api/api")>()),
@@ -33,6 +40,7 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     deleteMcpEndpoint,
     beginMcpConnect,
     discoverMcpConnect,
+    listMcpTools,
 }))
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test/api"}))
@@ -67,13 +75,34 @@ const settle = async () => {
     }
 }
 
-/** A promise this test resolves by hand, so an await can be held open. */
+/** A promise this test settles by hand, so an await can be held open. */
 const deferred = <T,>() => {
     let release!: (value: T) => void
-    const promise = new Promise<T>((resolve) => {
+    let reject!: (reason: unknown) => void
+    const promise = new Promise<T>((resolve, fail) => {
         release = resolve
+        reject = fail
     })
-    return {promise, release}
+    return {promise, release, reject}
+}
+
+/** The journey as a reconnect opens it: the connection is known before anything is asked. */
+const mountReconnectJourney = async () => {
+    const Probe = () => {
+        journey = useMcpConnectJourney({
+            reconnect: {
+                id: "mcp-1",
+                slug: "acme-7mx",
+                name: "Acme",
+                url: "https://mcp.acme.test/",
+                authMode: "oauth",
+            },
+        })
+        return null
+    }
+    await act(async () => {
+        root.render(createElement(Probe))
+    })
 }
 
 const fakePopup = () => ({closed: false, close: vi.fn(), location: {href: ""}}) as never
@@ -167,6 +196,118 @@ describe("cancelling while the authorization URL is being minted", () => {
         const messageListeners = listeners.mock.calls.filter(([type]) => type === "message")
         expect(messageListeners).toHaveLength(0)
         expect((popup as unknown as {close: ReturnType<typeof vi.fn>}).close).toHaveBeenCalled()
+    })
+})
+
+describe("a name the server refuses", () => {
+    it("shows the server's own sentence, next step and all", async () => {
+        // The client refuses a collision it can already see, and the two sentences open the
+        // same way. What tells them apart is the next step, which only the server writes, and
+        // it has to survive the trip from the envelope to the field (D51).
+        createMcpEndpoint.mockRejectedValue({
+            response: {
+                data: {
+                    detail: {
+                        code: "mcp_connection_name_taken",
+                        message:
+                            "Another connection in this project already uses this name; pick a different one.",
+                        next_step: "Give this connection a name no other one in the project uses.",
+                    },
+                },
+            },
+        })
+
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+
+        expect(journey.state.status).toBe("naming")
+        expect(journey.state.error).toBe(
+            "Another connection in this project already uses this name; pick a different one. " +
+                "Give this connection a name no other one in the project uses.",
+        )
+    })
+})
+
+describe("a step that comes back to an abandoned attempt", () => {
+    // Two of the seven awaits checked the generation and the other five did not, so a probe or
+    // a tool list that answered late still dispatched, on top of whatever the journey had moved
+    // on to (D52).
+    it("says nothing about a probe nobody is waiting for any more", async () => {
+        const probe = deferred<unknown>()
+        probeMcpUrl.mockReturnValue(probe.promise)
+
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        let submitted: Promise<void>
+        await act(async () => {
+            submitted = journey.submitUrl("https://mcp.acme.test/")
+        })
+        expect(journey.state.status).toBe("checking_url")
+
+        await act(async () => journey.abandonAttempt())
+        await act(async () => {
+            probe.release({
+                count: 1,
+                probe: {reachable: true, server_name: "Acme", auth: {mode: "none"}},
+            })
+            await submitted
+        })
+        await settle()
+
+        // The name step belongs to the attempt that was abandoned; arriving there now would
+        // hand the person a form for a connection they cancelled.
+        expect(journey.state.status).toBe("checking_url")
+    })
+
+    it("says nothing about a probe that failed for an attempt nobody is waiting for", async () => {
+        const probe = deferred<unknown>()
+        probeMcpUrl.mockReturnValue(probe.promise)
+
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        let submitted: Promise<void>
+        await act(async () => {
+            submitted = journey.submitUrl("https://mcp.acme.test/")
+        })
+
+        await act(async () => journey.abandonAttempt())
+        await act(async () => {
+            probe.reject(new Error("The server did not answer."))
+            await submitted.catch(() => undefined)
+        })
+        await settle()
+
+        // A failure is no more welcome than a success on a dead attempt: it would put an error
+        // under a dialog the person has already left.
+        expect(journey.state.status).toBe("checking_url")
+    })
+
+    it("does not fill a reconnected server's tool list after the dialog moved on", async () => {
+        const tools = deferred<unknown>()
+        listMcpTools.mockReturnValue(tools.promise)
+
+        await mountReconnectJourney()
+        let loaded: Promise<void>
+        await act(async () => {
+            loaded = journey.loadTools()
+        })
+
+        await act(async () => journey.abandonAttempt())
+        await act(async () => {
+            tools.release([{name: "echo"}])
+            await loaded
+        })
+        await settle()
+
+        expect(journey.state.status).not.toBe("tools_ready")
     })
 })
 
