@@ -114,7 +114,7 @@ unsatisfiable once the client is regenerated.
 | CR15 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectJourney.ts:182` | Data integrity | Real | `133f17c110` | See release blockers. Verified with D29 in round 2: `saving` counts as connected and the dialog is sealed across that window. |
 | CR16 | `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/McpServerFormView.tsx:108` | Stability | Not applicable | — | The list comes from the query route, which returns stored rows only, and the slug column is not nullable and carries a unique suffix at creation. The optional typing exists for synthesised builtin rows the list route emits. The select throws on an empty string, not on undefined, and the item is already disabled. |
 | CR17 | `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/itemKinds.tsx:132` | Correctness | Deferred | — | The inconsistency is real and such an item is refused by the SDK every run, but this form cannot mint the state: the prefix helper returns null for both reserved spellings and the fallback slug always carries a unique suffix. Only a legacy or hand-authored item reaches it. |
-| CR18 | `web/packages/agenta-entity-ui/src/mcpEndpoint/McpToolPermissions.tsx:270` | Correctness | Real | `23dc332d94` | See release blockers. |
+| CR18 | `web/packages/agenta-entity-ui/src/mcpEndpoint/McpToolPermissions.tsx:270` | Correctness | Real | `81efaa2ded` | See release blockers. Verified: clearing a hidden tool's permission is always allowed, and the editor lists stranded entries with a Remove. Its case fails without the fix. |
 | CR19 | `web/packages/agenta-entity-ui/src/secretProvider/ProviderConnectionCard.tsx:339` | Correctness | Not applicable | — | The probe never tests a protocol. It sends only the kind and provider, and the probe request model carries no protocol field. Protocol is a routing declaration joined at save; credential edits, which are what the probe measured, do clear it. |
 
 ## Minor findings
@@ -124,7 +124,7 @@ unsatisfiable once the client is regenerated.
 | M1 | `docs/docs/self-host/reference/01-configuration.mdx:818-819` | Deferred | — | "Both defaults are on" means the two allowed transports, but it sits under the MCP-on/LLM-off table and reads as a contradiction. One-line reword. |
 | M2 | `hosting/docker-compose/env.sh:334` | Real | `24af031a8f` | The printed start command omitted the prepared env file, so a custom output was silently ignored and the stack came up on the wrong ports. |
 | M3 | `hosting/docker-compose/env.sh:13` | Real | `47e2b884f5` | Path resolution aborted under `set -e` when the parent directory did not exist yet, before the `mkdir -p` that would have created it. |
-| M4 | `web/packages/agenta-entity-ui/src/mcpEndpoint/McpToolPermissions.tsx:77-93` | Real | `23dc332d94` | Neither call site captures the slug before awaiting the tool list, so switching connections mid-flight can render another server's tools. Mis-renders, does not mis-save. |
+| M4 | `web/packages/agenta-entity-ui/src/mcpEndpoint/McpToolPermissions.tsx:77-93` | Real | `81efaa2ded` | Neither call site captures the slug before awaiting the tool list, so switching connections mid-flight can render another server's tools. Mis-renders, does not mis-save. Verified: both tool-list fetchers bind an answer to the connection asked. The race case holds the first list in flight, which is the only ordering that reproduces it. |
 | M5 | `api/oss/src/core/gateways/llms/providers/mock/adapter.py:789-795` | Real | `b5382e95c6` | The text branch's content-block delta omits the index the tool-use branch carries. Mock adapter, registered only behind the mocks flag. Verified; its test fails without the fix. |
 | M6 | `clients/scripts/generate.sh:350` | Real | `ca6e7dbab0` | Generated-client Python floor raised above what the SDK and API declare, making an install on the older supported version unsatisfiable after regeneration. Verified: floor restored, client not regenerated, three packages agree. **Nothing runs the guard** — no workflow executes `clients/python/tests`. |
 | M7 | `api/oss/src/core/workflows/static_catalog.py:175-184` | Deferred | — | The schema shape would break strict function calling, but nothing in-tree feeds these schemas to a strict consumer. |
@@ -134,7 +134,7 @@ unsatisfiable once the client is regenerated.
 | M11 | `services/runner/src/tools/relay-watch.ts:130-142` | Real | `9e848417de` | The local relay source declares an abort signal and ignores it, so an abort is honoured only if the source is also closed. Bounded delay. **Not closed in effect.** The source now honours a signal, but the only caller passes none (`services/runner/src/tools/relay.ts:976`), so an abort still reaches neither source. The test supplies the signal the product never supplies. |
 | M12 | `services/runner/src/engines/sandbox_agent/pi-model-config.ts:300` | Deferred | — | The check accepts two credential modes while the error text still names one. Operator-facing string only, worth the two-line fix since it names the gateway path. |
 | M13 | `services/runner/src/engines/sandbox_agent/run-plan.ts:422-431` | Deferred | — | The Docker host alias counts as loopback, so a provider secret crosses plain HTTP over the bridge without the insecure-HTTP opt-in. Deliberate, documented, mirrored in the SDK, and host-local. Post-release hardening. |
-| M14 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectWatch.ts:95-103` | Real | `23dc332d94` | A trusted completion that omits the endpoint id settles whichever watcher is live. Origin is still checked, so not an auth bypass; it can show a spurious failure. |
+| M14 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectWatch.ts:95-103` | Real | `ee8486fd61` | A trusted completion that omits the endpoint id settles whichever watcher is live. Origin is still checked, so not an auth bypass; it can show a spurious failure. Verified: a completion naming no endpoint no longer settles a live watch, and the five lax cases that would have broken under the tightened guard were corrected rather than loosened. |
 | M15 | `api/oss/src/apis/fastapi/gateways/mcps/utils.py:20-27` | Real | `c9e65158f4` | See release blockers. Verified: both identifiers refuse rather than trim, and the refusal renders as an invalid request. Four cases fail without it. |
 | M16 | `api/pyproject.toml:14-16` | Real | `b3c8c57b69` | A version range guarded by a test asserting an exact version. A lock refresh turns CI red. Verified: pinned exactly and the lock is consistent (`uv lock --check` clean). Nothing guards the pin against being re-widened. |
 | M17 | `api/oss/src/core/gateways/mcps/providers/mock/adapter.py:103-106` | Deferred | — | An unvalidated sleep duration, in a provider that registers only behind the mocks flag and cannot be resolved with it off. |
@@ -176,6 +176,22 @@ than recording a declared kind, which its own commit message concedes.
 Suites at the verified revisions, with the exact commands in the run log: the runner unit project
 **3386 passed**; the API gateways and secrets unit suites **1279 passed** from a clean tree at the
 committed revision; the gateways integration directory **94 passed** against the dev stack.
+
+### The incremental review's own finding
+
+**N3 — an unresolvable pinned registration was answered as "no pin at all".** Fixed by
+`99b270da8d`, verified. A grant records which client the authorization server issued it to so a
+renewal can present that one; when the row behind that reference could not be read, the reader
+answered `None`, which is exactly what a grant carrying no pin answers, and the renewal read that as
+permission to present the deployment's identity document. The one substitution the pin exists to
+prevent was the one that happened, one line below a comment saying nothing can stand in for a
+registration that is gone. An unresolvable pin is now a typed refresh failure, which the data plane
+already turns into a reconnect that mints a fresh registration along with fresh tokens; a grant with
+no pin keeps the identity-document fallback, which is the legitimate path.
+
+Worth recording plainly: **this review read that code and missed it.** Verifying D24 I read the
+write path and the pinned branch, confirmed the slug was carried forward, and did not follow what
+the caller does with a `None`. CodeRabbit did.
 
 ### Residuals found while verifying
 
