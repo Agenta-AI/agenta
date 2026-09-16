@@ -38,7 +38,32 @@ API-only request: those prove the proxy, not the product path.
    `builtin/agenta/run` is not a mock route: it requires an invocation-scoped credential and is
    verified through an agent/runner run with an existing Agenta callback tool.
 
-4. To run the gateway **integration** suites from the host rather than inside the compose
+4. **The mock gateway addresses, once.** Four names contain the words "mock MCP gateway" and
+   they mean four different things. The two steps below set opposite values for one of them,
+   which is correct and reads like a contradiction, so here is the whole set first.
+
+   | Variable | What it means | Who sets it | Example |
+   | --- | --- | --- | --- |
+   | `AGENTA_MOCK_MCP_GATEWAY_URL` | The address **the API container** dials. A compose hostname and the mock's own listening port, which is fixed at 9092 and never moves. | The deployment's env file. A host-side **integration** run overrides it to loopback; an **acceptance** run must not. | `http://mock-mcp-gateway:9092` |
+   | `AGENTA_MOCK_MCP_GATEWAY_PORT` | The **host-published** port, which `env.sh` allocates per worktree so two stacks can run side by side. | `env.sh`, written into the stack's env file. | `14123` |
+   | `AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL` | An explicit override of the host-side address, for a stack that publishes the mock somewhere other than loopback. | The person running the suite, only when loopback is wrong. | `https://mock.example.test` |
+   | `AGENTA_MOCK_MCP_GATEWAY_PUBLIC_URL` | What the mock **issuer publishes itself as** during an OAuth round trip, so a browser can reach it. | The deployment, only for the browser consent flow. | the stack's public HTTPS address |
+
+   The LLM mock has the same first two names with `LLM` in place of `MCP`.
+
+   **On a stack allocated after CR8, set nothing.** `env.sh` writes
+   `AGENTA_MOCK_MCP_GATEWAY_PORT` into the stack's env file, and both test halves read it:
+   the Python suites through `mock_mcp_published_port()` in
+   `api/oss/tests/pytest/utils/mock_gateways.py` (D76), and the browser suite through
+   `web/oss/tests/playwright/acceptance/utils/mcpConnections.ts`. Both fall back to 9092 when
+   nothing allocated a port. Writing a port by hand is only for a stack that predates the
+   allocation, and writing the wrong one is silent: the suite dials whatever answers there.
+
+   The trap the two halves do not share is the **container** port. It is remapped onto by the
+   published one and is therefore fixed, so pointing `AGENTA_MOCK_MCP_GATEWAY_URL` at an
+   allocated port sends the API container somewhere nothing listens.
+
+5. To run the gateway **integration** suites from the host rather than inside the compose
    network, every backing service the suites touch has to be reachable by an address the host
    understands. The application defaults name compose hostnames, which is right for a container
    and unresolvable from outside it, so a host-side run needs all five of these:
@@ -47,13 +72,15 @@ API-only request: those prove the proxy, not the product path.
    export POSTGRES_URI_CORE="postgresql+asyncpg://<user>:<password>@127.0.0.1:<pg-port>/agenta_ee_core"
    export REDIS_URI_VOLATILE="redis://127.0.0.1:<volatile-port>/0"
    export REDIS_URI_DURABLE="redis://127.0.0.1:<durable-port>/0"
-   export AGENTA_MOCK_LLM_GATEWAY_URL="http://127.0.0.1:<mock-llm-port>"
-   export AGENTA_MOCK_MCP_GATEWAY_URL="http://127.0.0.1:<mock-mcp-port>"
+   export AGENTA_MOCK_LLM_GATEWAY_URL="http://127.0.0.1:<mock-llm-published-port>"
+   export AGENTA_MOCK_MCP_GATEWAY_URL="http://127.0.0.1:<mock-mcp-published-port>"
    export AGENTA_GATEWAYS_MOCKS_ENABLED=true
    export AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN=<the stack's token>
    ```
 
-   Take each port from `docker ps` for the stack. Postgres and the two mock upstreams are
+   The two mock ports here are the **published** ones from step 4, not 9092 and 9091.
+   Take each port from `docker ps` for the stack, or read
+   `AGENTA_MOCK_MCP_GATEWAY_PORT`/`AGENTA_MOCK_LLM_GATEWAY_PORT` out of its env file. Postgres and the two mock upstreams are
    published by the compose files; **Redis is not published by default** and a stack that wants
    host-side runs has to publish both instances in its local override, the way Postgres already
    is. Without the Redis addresses the symptom is misleading rather than obvious: the cache sits
@@ -70,10 +97,11 @@ API-only request: those prove the proxy, not the product path.
    out behind the deliberately slow `test_slow_model_hangs_past_a_short_client_timeout`. Add
    `-n0` for a deterministic result; the full directory passes serially every time.
 
-5. The **acceptance** layer wants the opposite of the integration layer on one point, and
-   getting it wrong makes the gateway suites look broken when they are not. Point the API at
-   the stack's direct address, and **leave the two mock-upstream variables unset** so they keep
-   their compose hostnames:
+6. The **acceptance** layer wants the opposite of the integration layer on exactly one
+   variable, and getting it wrong makes the gateway suites look broken when they are not.
+   Point the API at the stack's direct address, and **leave the two `..._GATEWAY_URL`
+   variables unset** so they keep their compose hostnames. If you ran step 5 in this shell,
+   unset them rather than opening a new one and forgetting:
 
    ```bash
    export AGENTA_API_URL="http://127.0.0.1:<traefik-port>/api"
@@ -81,11 +109,12 @@ API-only request: those prove the proxy, not the product path.
    export AGENTA_GATEWAYS_MOCKS_ENABLED=true
    export AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN=<the stack's token>
    export POSTGRES_URI_CORE=... POSTGRES_URI_TRACING=...   # as above
-   # do NOT export AGENTA_MOCK_LLM_GATEWAY_URL / AGENTA_MOCK_MCP_GATEWAY_URL here
+   unset AGENTA_MOCK_LLM_GATEWAY_URL AGENTA_MOCK_MCP_GATEWAY_URL   # step 5 sets these
    ```
 
-   The reason is the outbound guard. In the acceptance layer the *gateway* dials the mock, not
-   the test process, and the guard refuses loopback and private targets. Overriding those two
+   The reason is the outbound guard, and it is the same fact as the container port in step
+   4: in the acceptance layer the *gateway* dials the mock, not the test process, and the
+   guard refuses loopback and private targets. Overriding those two
    variables to `127.0.0.1` therefore tells the gateway to dial its own loopback, and the suite
    fails with `blocked target` and a spread of 424s that read like a product defect. Left at
    their compose hostnames the gateway resolves them in-network and the suites pass. Measured on
