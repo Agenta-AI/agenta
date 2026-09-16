@@ -5,13 +5,13 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {
     importSkillSource,
     scanSkillSource,
     type ScanCandidate,
     type SkillSourceImportResponse,
 } from "@agenta/skills"
-import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Alert, Button, Checkbox, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
