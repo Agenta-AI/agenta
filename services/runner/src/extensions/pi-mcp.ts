@@ -135,6 +135,15 @@ const PROTOCOL_HEADER_NAMES = new Set([
  */
 export const MCP_DISCOVERY_METHOD = "initialize";
 
+/**
+ * A page cap on `tools/list`, so a server that keeps handing back a cursor cannot hold the turn
+ * open before its first token. Well past any real catalogue; it is a stop, not a budget.
+ *
+ * The same cap and the same reasoning as the browser client's `MAX_TOOL_PAGES`
+ * (`web/packages/agenta-entities/src/mcpEndpoint/api/api.ts`).
+ */
+export const MCP_MAX_TOOL_PAGES = 20;
+
 export interface PiGatewayMcpServer {
   name: string;
   url: string;
@@ -500,18 +509,33 @@ class PiHttpMcpClient {
         ? initialized.protocolVersion
         : MCP_PROTOCOL_VERSION;
     await this.notify("notifications/initialized");
-    const result = await this.request("tools/list");
-    if (!isRecord(result) || !Array.isArray(result.tools)) {
-      throw new Error("MCP tools/list returned no tools array");
+
+    // `tools/list` is PAGINATED: a server that has more to list answers with a `nextCursor`, and
+    // the client asks again with it. Reading only the first page silently hid every tool past it,
+    // and hid it in the worst way — the model was simply never offered them, so the turn looked
+    // like a model that would not use a tool rather than a client that never advertised one
+    // (D69). The browser client already followed the cursor; this is the same wire.
+    const tools: PiMcpTool[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < MCP_MAX_TOOL_PAGES; page += 1) {
+      const result = await this.request("tools/list", cursor ? { cursor } : undefined);
+      if (!isRecord(result) || !Array.isArray(result.tools)) {
+        throw new Error("MCP tools/list returned no tools array");
+      }
+      for (const tool of result.tools) {
+        if (!isRecord(tool) || typeof tool.name !== "string") continue;
+        tools.push({
+          name: tool.name,
+          ...(typeof tool.description === "string" ? { description: tool.description } : {}),
+          ...(isRecord(tool.inputSchema) ? { inputSchema: tool.inputSchema } : {}),
+        });
+      }
+      const next = result.nextCursor;
+      // A cursor equal to the one just used is a server looping; stop rather than ask forever.
+      if (typeof next !== "string" || !next || next === cursor) break;
+      cursor = next;
     }
-    return result.tools.flatMap((tool): PiMcpTool[] => {
-      if (!isRecord(tool) || typeof tool.name !== "string") return [];
-      return [{
-        name: tool.name,
-        ...(typeof tool.description === "string" ? { description: tool.description } : {}),
-        ...(isRecord(tool.inputSchema) ? { inputSchema: tool.inputSchema } : {}),
-      }];
-    });
+    return tools;
   }
 
   call(name: string, args: unknown, signal?: AbortSignal): Promise<unknown> {

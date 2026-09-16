@@ -5,6 +5,7 @@ import {
   MCP_DISCOVERY_METHOD,
   MCP_PROTOCOL_VERSION,
   GATEWAY_MCP_BUDGET_MS,
+  MCP_MAX_TOOL_PAGES,
   PI_MCP_CALL_TIMEOUT_MS,
   PI_MCP_REQUEST_TIMEOUT_MS,
   parsePiGatewayMcpConfig,
@@ -1592,5 +1593,95 @@ describe("the bound and the cancellation cover the body, not just the headers (D
     controller.abort();
     assert.equal(await raceSettled(Promise.resolve(call)), "settled");
     assert.equal(bodyAborted, true, "the caller's cancellation must reach the body stream");
+  });
+});
+
+
+// D69. `tools/list` is paginated. This client read the first page and stopped, so every tool past
+// it was never advertised to the model — which reads as a model that will not use a tool rather
+// than as a client that never offered one. The browser client already followed the cursor.
+
+describe("tools/list pages are followed (D69)", () => {
+  /** A server whose catalogue is `pages` pages of one tool each. */
+  function pagedServer(pages: number, options: { loop?: boolean } = {}) {
+    const cursors: (string | undefined)[] = [];
+    const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body));
+      if (payload.id === undefined) return new Response("", { status: 202 });
+      let result: Record<string, unknown>;
+      if (payload.method === "tools/list") {
+        const cursor = payload.params?.cursor as string | undefined;
+        cursors.push(cursor);
+        const index = cursor ? Number(cursor) : 0;
+        result = {
+          tools: [{ name: `echo${index}`, inputSchema: { type: "object" } }],
+          ...(options.loop
+            ? { nextCursor: "stuck" }
+            : index + 1 < pages
+              ? { nextCursor: String(index + 1) }
+              : {}),
+        };
+      } else if (payload.method === "tools/call") {
+        result = { content: [{ type: "text", text: "ok" }] };
+      } else {
+        result = { protocolVersion: BUILTIN_NEGOTIATED_VERSION, capabilities: { tools: {} } };
+      }
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+    return { fetchImpl, cursors };
+  }
+
+  it("registers the tools on every page, not just the first", async () => {
+    const { fetchImpl, cursors } = pagedServer(3);
+    globalThis.fetch = fetchImpl;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+
+    assert.deepEqual(
+      pi.tools.map((tool: any) => tool.name),
+      ["mcp__mock__echo0", "mcp__mock__echo1", "mcp__mock__echo2"],
+    );
+    // The first request carries no cursor; each later one carries the previous answer's.
+    assert.deepEqual(cursors, [undefined, "1", "2"]);
+  });
+
+  it("asks for one page only when the server announces no more", async () => {
+    const { fetchImpl, cursors } = pagedServer(1);
+    globalThis.fetch = fetchImpl;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+
+    assert.equal(cursors.length, 1);
+    assert.deepEqual(pi.tools.map((tool: any) => tool.name), ["mcp__mock__echo0"]);
+  });
+
+  it("stops on a server that hands back the cursor it was just given", async () => {
+    const { fetchImpl, cursors } = pagedServer(1, { loop: true });
+    globalThis.fetch = fetchImpl;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+
+    assert.deepEqual(cursors, [undefined, "stuck"], "one repeat is enough to know it is stuck");
+    assert.ok(pi.tools.length > 0, "and what it did read is still registered");
+  });
+
+  it("stops at the page cap on a server whose catalogue never ends", async () => {
+    // A fresh cursor every time, so the repeated-cursor guard above never fires and only the cap
+    // ends this. Discovery runs before the turn's first token, so an unbounded loop here would
+    // hold the turn open rather than fail it.
+    const { fetchImpl, cursors } = pagedServer(Number.MAX_SAFE_INTEGER);
+    globalThis.fetch = fetchImpl;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+
+    assert.equal(cursors.length, MCP_MAX_TOOL_PAGES);
+    assert.equal(pi.tools.length, MCP_MAX_TOOL_PAGES);
   });
 });

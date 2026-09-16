@@ -94,8 +94,10 @@ async def test_tools_list_returns_all_three_tools():
     assert result.headers["content-type"] == "text/event-stream"
     assert result.body.decode().startswith("event: message\ndata: {")
     payload = _body(result)
-    names = {tool["name"] for tool in payload["result"]["tools"]}
-    assert names == {"echo", "fail", "slow"}
+    # One tool per page (D69): the catalogue is reached by following the cursor, not in one
+    # answer. `echo` is first for the reason the adapter's own comment gives.
+    assert [tool["name"] for tool in payload["result"]["tools"]] == ["echo"]
+    assert payload["result"]["nextCursor"] == "1"
     assert payload["result"]["resultType"] == "complete"
     assert payload["result"]["ttlMs"] == 300000
     assert payload["result"]["cacheScope"] == "public"
@@ -512,11 +514,7 @@ async def test_tools_list_sends_a_notification_before_its_result():
 
     # The answer, carrying the id of the request that asked.
     assert answer["id"] == 7
-    assert {tool["name"] for tool in answer["result"]["tools"]} == {
-        "echo",
-        "fail",
-        "slow",
-    }
+    assert [tool["name"] for tool in answer["result"]["tools"]] == ["echo"]
 
 
 @pytest.mark.asyncio
@@ -595,3 +593,64 @@ async def test_the_negotiated_version_is_accepted():
     )
 
     assert result.status_code == 200
+
+
+# D69. `tools/list` is paginated and this mock hands out one tool per page, so every cell of the
+# matrix follows a cursor. A client that read the first page and stopped advertised one tool of
+# three to the model and looked like a model that would not use a tool.
+
+
+@pytest.mark.asyncio
+async def test_the_whole_catalogue_is_reachable_by_following_the_cursor():
+    adapter = MockMCPAdapter()
+    names = []
+    cursor = None
+
+    for _ in range(10):
+        result = await adapter.relay(
+            route=_route(),
+            auth=_auth(),
+            context=MCPCallContext(method="tools/list"),
+            body=_rpc("tools/list", params={"cursor": cursor} if cursor else None),
+            headers=dict(NEGOTIATED),
+        )
+        page = _body(result)["result"]
+        names.extend(tool["name"] for tool in page["tools"])
+        cursor = page.get("nextCursor")
+        if not cursor:
+            break
+
+    assert names == ["echo", "fail", "slow"]
+
+
+@pytest.mark.asyncio
+async def test_the_last_page_announces_no_cursor():
+    """A cursor on the last page is how a client ends up asking forever."""
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="tools/list"),
+        body=_rpc("tools/list", params={"cursor": "2"}),
+        headers=dict(NEGOTIATED),
+    )
+
+    page = _body(result)["result"]
+    assert [tool["name"] for tool in page["tools"]] == ["slow"]
+    assert "nextCursor" not in page
+
+
+@pytest.mark.asyncio
+async def test_an_unreadable_cursor_restarts_rather_than_failing():
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="tools/list"),
+        body=_rpc("tools/list", params={"cursor": "not-a-number"}),
+        headers=dict(NEGOTIATED),
+    )
+
+    assert [tool["name"] for tool in _body(result)["result"]["tools"]] == ["echo"]

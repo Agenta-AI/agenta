@@ -314,14 +314,46 @@ def _check_meta_envelope(
     return _meta_envelope_refusal(request_id, reserved)
 
 
-def _tools_list_result() -> Dict[str, Any]:
-    return {
+#: `tools/list` is paginated, and this mock hands out one tool per page (D69).
+#:
+#: A single-page mock could not show a client that read the first page and stopped, which is what
+#: the Pi extension did: every tool past the first was never advertised to the model, and the turn
+#: read as a model that would not use a tool rather than as a client that never offered one. One
+#: tool per page is the smallest fixture that makes every cell of the matrix follow a cursor.
+#:
+#: `echo` is FIRST, and that is a compromise worth stating. Putting it last would make the matrix
+#: enforce cursor-following, since a client that stopped early could not reach the tool every cell
+#: calls. Measured: with `echo` last, the nine Pi and nine Claude cells pass and all nine Codex
+#: cells fail, because Codex's own MCP client does not follow `tools/list` pagination. That is a
+#: third-party limitation we cannot fix here, and holding the matrix red on it would hide every
+#: other regression. So the cells still exercise a multi-page `tools/list` on the request path,
+#: and the property "a client must reach the last page" is pinned in the Pi client's own unit
+#: tests (`services/runner/tests/unit/pi-gateway-mcp.test.ts`, D69) instead.
+_TOOLS_PER_PAGE = 1
+
+
+def _tools_list_result(params: Dict[str, Any]) -> Dict[str, Any]:
+    cursor = params.get("cursor") if isinstance(params, dict) else None
+    try:
+        start = int(cursor) if isinstance(cursor, str) and cursor else 0
+    except ValueError:
+        start = 0
+    start = max(0, min(start, len(_TOOLS)))
+    page = _TOOLS[start : start + _TOOLS_PER_PAGE]
+    nxt = start + len(page)
+
+    result: Dict[str, Any] = {
         "resultType": "complete",
-        "tools": _TOOLS,
+        "tools": page,
         "ttlMs": _CACHE_TTL_MS,
         "cacheScope": "public",
         "_meta": {"io.modelcontextprotocol/serverInfo": _SERVER_INFO},
     }
+    # Announced only when there IS another page: a cursor on the last page is how a client ends
+    # up asking forever, and a fixture should not teach a client to tolerate that.
+    if nxt < len(_TOOLS):
+        result["nextCursor"] = str(nxt)
+    return result
 
 
 class MockMCPAdapter(MCPUpstreamInterface):
@@ -376,7 +408,7 @@ class MockMCPAdapter(MCPUpstreamInterface):
         elif method == "server/discover":
             result = _discovery_result()
         elif method == "tools/list":
-            result = _tools_list_result()
+            result = _tools_list_result(payload.get("params") or {})
         elif method == "tools/call":
             result = await _dispatch_tool_call(payload.get("params") or {})
         else:
