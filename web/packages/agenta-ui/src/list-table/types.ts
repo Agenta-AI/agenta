@@ -36,7 +36,32 @@ export interface ListTableGroup<Row> {
 /** How the rows are drawn: cells under a column header, or cards in a grid. */
 export type ListTableView = "list" | "grid"
 
-export interface ListTableProps<Row> {
+/**
+ * The view and what draws it, tied together: asking for cards without saying what is in one
+ * is a type error, not a grid of empty tiles.
+ */
+export type ListTableViewProps<Row> =
+    | {
+          /**
+           * Same groups, same headings, same open and collapse — cards instead of rows.
+           * `"list"` by default, so a consumer that never asks for cards never sees them.
+           */
+          view?: "list"
+          renderCard?: (row: Row) => ReactNode
+      }
+    | {
+          view: "grid"
+          /**
+           * A card's CONTENTS. The frame owns the tile — border, radius, padding, hover, the
+           * open affordance — the way it owns a row's, so a consumer draws what is inside it
+           * and nothing else.
+           */
+          renderCard: (row: Row) => ReactNode
+      }
+
+export type ListTableProps<Row> = ListTableBaseProps<Row> & ListTableViewProps<Row>
+
+export interface ListTableBaseProps<Row> {
     /** The list view's columns. The grid view ignores them — a card has no columns. */
     columns: ListTableColumn[]
     groups: ListTableGroup<Row>[]
@@ -44,18 +69,6 @@ export interface ListTableProps<Row> {
     rowKey: (row: Row) => string
     /** The cells, in column order. The frame owns the grid; the consumer owns what is in it. */
     renderRow: (row: Row) => ReactNode
-    /**
-     * Same groups, same headings, same open and collapse — cards instead of rows. `"list"` by
-     * default, so a consumer that never asks for cards never sees them.
-     */
-    view?: ListTableView
-    /**
-     * A card's CONTENTS. The frame owns the tile — border, radius, padding, hover, the open
-     * affordance — the way it owns a row's, so a consumer draws what is inside it and nothing
-     * else. Required when `view` is `"grid"`: without it the tiles are empty, never a row's
-     * cells stacked, which would only look like a bug further away from its cause.
-     */
-    renderCard?: (row: Row) => ReactNode
     /**
      * The narrowest a card gets before the grid drops a column. Container-driven
      * (`auto-fill`), not breakpoint-driven: the same list sits in a phone, a pane and a page,
