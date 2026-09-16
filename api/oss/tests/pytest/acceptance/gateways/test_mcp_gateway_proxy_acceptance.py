@@ -146,10 +146,39 @@ def _call(gateway_api, slug, payload, *, headers=None):
     )
 
 
+def _delete_custom_endpoint(authed_api, endpoint) -> None:
+    """Best effort: a suite that cannot tidy up must not fail for it."""
+    authed_api("DELETE", f"/gateways/mcps/endpoints/{endpoint['id']}")
+
+
 @pytest.fixture(scope="class")
 def mock_mcp_endpoint(authed_api):
     """An endpoint with the default ALL tool policy, so nothing is filtered."""
-    return _create_custom_endpoint(authed_api)
+    endpoint = _create_custom_endpoint(authed_api)
+    yield endpoint
+    _delete_custom_endpoint(authed_api, endpoint)
+
+
+@pytest.fixture
+def custom_endpoint(authed_api):
+    """A connection for one case, removed when it ends.
+
+    This suite runs against a real deployment and used to leave every connection it made
+    behind. Unique slugs mean the litter never collides, so it cost tidiness rather than
+    correctness, but a dev deployment accumulates one set per run and someone reading the
+    settings screen has to tell them from theirs (P4).
+    """
+    created = []
+
+    def _make(**kwargs):
+        endpoint = _create_custom_endpoint(authed_api, **kwargs)
+        created.append(endpoint)
+        return endpoint
+
+    yield _make
+
+    for endpoint in created:
+        _delete_custom_endpoint(authed_api, endpoint)
 
 
 @pytest.mark.acceptance
@@ -203,9 +232,9 @@ class TestMCPGatewayProxyAcceptance:
         assert body["result"]["isError"] is True
 
     def test_tool_outside_the_policy_is_refused_before_the_upstream(
-        self, authed_api, gateway_api
+        self, custom_endpoint, gateway_api
     ):
-        endpoint = _create_custom_endpoint(authed_api, tools={"allowlist": ["echo"]})
+        endpoint = custom_endpoint(tools={"allowlist": ["echo"]})
 
         response = _call(
             gateway_api,
@@ -221,8 +250,8 @@ class TestMCPGatewayProxyAcceptance:
         assert response.status_code == 403, response.text
         assert response.json()["error"]["data"]["cause"] == "tool_not_allowed"
 
-    def test_an_include_policy_filters_the_listing(self, authed_api, gateway_api):
-        endpoint = _create_custom_endpoint(authed_api, tools={"allowlist": ["echo"]})
+    def test_an_include_policy_filters_the_listing(self, custom_endpoint, gateway_api):
+        endpoint = custom_endpoint(tools={"allowlist": ["echo"]})
 
         # The body is rewritten by the filter here, so a relayed content-length would be
         # stale and the framing has to survive the rewrite.
