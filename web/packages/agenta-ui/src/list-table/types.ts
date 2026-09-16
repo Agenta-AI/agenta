@@ -33,13 +33,39 @@ export interface ListTableGroup<Row> {
     rows: Row[]
 }
 
+/** How the rows are drawn: cells under a column header, or cards in a grid. */
+export type ListTableView = "list" | "grid"
+
 export interface ListTableProps<Row> {
+    /** The list view's columns. The grid view ignores them — a card has no columns. */
     columns: ListTableColumn[]
     groups: ListTableGroup<Row>[]
     /** Stable per row — the frame keys on it and reports it back for collapse and clicks. */
     rowKey: (row: Row) => string
     /** The cells, in column order. The frame owns the grid; the consumer owns what is in it. */
     renderRow: (row: Row) => ReactNode
+    /**
+     * Same groups, same headings, same open and collapse — cards instead of rows. `"list"` by
+     * default, so a consumer that never asks for cards never sees them.
+     */
+    view?: ListTableView
+    /**
+     * A card's CONTENTS. The frame owns the tile — border, radius, padding, hover, the open
+     * affordance — the way it owns a row's, so a consumer draws what is inside it and nothing
+     * else. Required when `view` is `"grid"`.
+     */
+    renderCard?: (row: Row) => ReactNode
+    /**
+     * The narrowest a card gets before the grid drops a column. Container-driven
+     * (`auto-fill`), not breakpoint-driven: the same list sits in a phone, a pane and a page,
+     * and only its own width says how many cards fit.
+     */
+    cardMinWidth?: number
+    /**
+     * Drawn at a group heading's right edge, in both views — a per-group action ("Update 2
+     * skills"). A sibling of the collapse button, never inside it.
+     */
+    groupActions?: (group: ListTableGroup<Row>) => ReactNode
     /** Opening a row. Absent ⇒ rows are not clickable and take no focus. */
     onOpenRow?: (row: Row) => void
     /** Wrap the finished row element (a `ContextMenuTrigger asChild`, say). Identity by default. */
