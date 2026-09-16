@@ -13,6 +13,9 @@ from uuid import UUID, uuid4
 import pytest
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
+from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthRegistrationUnresolvablePinError,
+)
 from oss.src.core.gateways.mcps.oauth.storage import (
     SecretsTokenStorage,
     _issuer_slug as issuer_slug_for_test,
@@ -531,18 +534,22 @@ async def test_a_provider_row_without_usable_registration_reads_as_unregistered(
 
 
 @pytest.mark.asyncio
-async def test_a_grants_registration_reads_as_unregistered_too_rather_than_raising():
-    """Same row, reached by the renewal path instead of the connect path."""
+async def test_a_pinned_row_that_is_not_a_usable_registration_refuses_the_renewal():
+    """Same unusable row, reached by the renewal path instead of the connect path.
+
+    The connect path treats it as no registration and makes a fresh one. The renewal
+    path cannot: this grant names that registration, so an unreadable one is the end of
+    the road rather than a reason to present a different client (N3).
+    """
     secret = _foreign_provider_secret(issuer=_ISSUER, extra={})
     vault = _CountingVault(by_slug={secret.slug: secret}, listed=[secret])
 
-    resolved = await _storage_over(vault).get_client_info_for_grant(
-        OAuthGrantSettingsDTO(
-            server="https://mcp.example.com/",
-            scopes=["read"],
-            issuer=_ISSUER,
-            client_registration_slug=secret.slug,
+    with pytest.raises(MCPOAuthRegistrationUnresolvablePinError):
+        await _storage_over(vault).get_client_info_for_grant(
+            OAuthGrantSettingsDTO(
+                server="https://mcp.example.com/",
+                scopes=["read"],
+                issuer=_ISSUER,
+                client_registration_slug=secret.slug,
+            )
         )
-    )
-
-    assert resolved is None

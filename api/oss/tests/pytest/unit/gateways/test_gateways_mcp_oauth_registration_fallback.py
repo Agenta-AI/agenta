@@ -17,6 +17,10 @@ from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.registration import client_metadata_url
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
+from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthRefreshFailedError,
+    MCPOAuthRegistrationUnresolvablePinError,
+)
 from oss.src.core.gateways.mcps.oauth.storage import (
     SecretsTokenStorage,
     registration_slug,
@@ -466,7 +470,7 @@ def test_registration_covers_accepts_any_of_several_registered_callbacks():
 # --- D6: a re-registration must not strand the grants the old client holds -------- #
 
 
-def _client_binding_as_handler(*, registrations: list):
+def _client_binding_as_handler(*, registrations: list, refresh_attempts: list = None):
     """An authorization server that issues a distinct client per registration and refuses
     a refresh presented by a client it did not issue those tokens to.
 
@@ -498,6 +502,9 @@ def _client_binding_as_handler(*, registrations: list):
             form = dict(parse_qs(request.content.decode()))
             presented = form.get("client_id", [""])[0]
             if form.get("grant_type", [""])[0] == "refresh_token":
+                if refresh_attempts is not None:
+                    # Which client identity was actually put on the wire.
+                    refresh_attempts.append(presented)
                 handle = form.get("refresh_token", [""])[0]
                 owner = issued_to.get(handle)
                 if owner != presented:
@@ -727,7 +734,7 @@ async def test_a_pin_naming_a_deleted_registration_is_still_carried_forward():
         authorization_server=f"{_AS_BASE}/",
     )
 
-    assert (
+    with pytest.raises(MCPOAuthRegistrationUnresolvablePinError):
         await storage.get_client_info_for_grant(
             OAuthGrantSettingsDTO(
                 server=_SERVER_URL,
@@ -736,8 +743,9 @@ async def test_a_pin_naming_a_deleted_registration_is_still_carried_forward():
                 client_registration_slug="oauth-provider-does-not-exist",
             )
         )
-        is None
-    )
+
+    # Recorded before the refusal, so a write that follows still says which client these
+    # tokens belong to rather than silently unpinning them.
     assert storage.resolved_registration_slug == "oauth-provider-does-not-exist"
 
 
@@ -830,4 +838,84 @@ async def test_a_grant_whose_registration_is_gone_gets_no_substitute():
         client_registration_slug="oauth-provider-does-not-exist",
     )
 
-    assert await storage.get_client_info_for_grant(stored) is None
+    # Refused, not answered `None`. `None` is what a grant carrying no pin at all says,
+    # and the renewal reads that as permission to present the deployment's identity
+    # document — the substitute this case exists to rule out (N3).
+    with pytest.raises(MCPOAuthRegistrationUnresolvablePinError):
+        await storage.get_client_info_for_grant(stored)
+
+
+@pytest.mark.asyncio
+async def test_a_renewal_whose_pinned_registration_is_gone_asks_for_a_reconnect():
+    """N3, through the renewal rather than at the reader.
+
+    The reader answered `None` for a pin it could not resolve, which is what a grant
+    carrying no pin at all answers, and the renewal reads that as permission to present
+    the deployment's own identity document. So the one substitution the pin exists to
+    prevent was the one that happened, and the authorization server refused the refresh
+    with an error about an unknown client.
+
+    A refresh failure instead, which the data plane already turns into the reconnect
+    that mints a fresh registration along with fresh tokens.
+    """
+    registrations: list = []
+    dao = _FakeSecretsDAO()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+
+    refresh_attempts: list = []
+    service, _dao, _attempts = _service(
+        resolve=lambda _h: ["10.0.0.5"],
+        dao=dao,
+        handler=_client_binding_as_handler(
+            registrations=registrations, refresh_attempts=refresh_attempts
+        ),
+    )
+    await _connect(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+
+    storage = _grant_storage(dao, project_id=project_id, endpoint_id=endpoint_id)
+    stored = await storage.get_grant()
+    assert stored is not None and stored.client_registration_slug
+
+    # The registration goes, and the grant still names it.
+    registration = _stored_registration(dao)
+    # The DAO holds `(project_id, record)` pairs, so the record is the second element;
+    # filtering the pairs themselves deleted nothing and left the case proving nothing.
+    dao.records = [pair for pair in dao.records if pair[1] is not registration]
+    # Aged through a storage carrying the grant's own issuer, because a renewal refuses a
+    # grant that does not record who issued it and would stop before reading any
+    # registration at all.
+    aging = _grant_storage(
+        dao,
+        project_id=project_id,
+        endpoint_id=endpoint_id,
+        authorization_server=stored.issuer,
+    )
+    # And carrying the pin, because `write_tokens` persists whatever the storage last
+    # resolved: a fresh one writes `None` there and would quietly unpin the grant, which
+    # is the D24 defect and would leave this case testing the unpinned path instead.
+    aging.resolved_registration_slug = stored.client_registration_slug
+    await aging.write_tokens(
+        OAuthToken(
+            access_token=stored.access_token,
+            token_type="Bearer",
+            expires_in=-3600,
+            refresh_token=stored.refresh_token,
+            scope=" ".join(stored.scopes) if stored.scopes else None,
+        )
+    )
+
+    exchanges_before = len(registrations)
+    with pytest.raises(MCPOAuthRefreshFailedError):
+        await service.refresh_grant(
+            project_id=project_id, endpoint_id=endpoint_id, server_url=_SERVER_URL
+        )
+
+    # And it refused without presenting anything. This is the assertion that separates
+    # the fix from the defect: answering `None` also ended in a refresh failure, because
+    # the authorization server rejected the substituted client — but it rejected it
+    # AFTER the deployment's identity document had been put on the wire as the client
+    # for somebody else's tokens. Nothing reaches the token endpoint now.
+    assert refresh_attempts == []
+    assert len(registrations) == exchanges_before

@@ -17,6 +17,9 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
     UpdateSecretDTO,
 )
+from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthRegistrationUnresolvablePinError,
+)
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.types import SecretSlugConflict
@@ -422,9 +425,20 @@ class SecretsTokenStorage:
             # which client these tokens belong to, and is the honest thing to keep.
             self.resolved_registration_slug = slug
             provider = await self._provider_by_slug(slug)
-            # Nothing else can stand in for a registration that is gone: any other client
-            # at this issuer was never issued these tokens.
-            return self._as_client_info(provider) if provider is not None else None
+            client_info = (
+                self._as_client_info(provider) if provider is not None else None
+            )
+            if client_info is None:
+                # Refused rather than answered `None`. Nothing else can stand in for a
+                # registration that is gone — any other client at this issuer was never
+                # issued these tokens — but answering `None` said exactly what a grant
+                # with no pin at all says, and the renewal then substituted the
+                # deployment's identity document, which is the substitution the line
+                # above forbids (N3).
+                raise MCPOAuthRegistrationUnresolvablePinError(
+                    server_url=self.server_url, registration_slug=slug
+                )
+            return client_info
         found = await self._find_provider(current_address=False)
         if found is None:
             return None

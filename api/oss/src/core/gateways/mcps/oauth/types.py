@@ -73,6 +73,31 @@ class MCPOAuthRefreshFailedError(GatewaysError):
         )
 
 
+class MCPOAuthRegistrationUnresolvablePinError(MCPOAuthRefreshFailedError):
+    """The grant names a client registration that is gone or no longer usable.
+
+    A grant records which client the authorization server issued it to, so a renewal can
+    present that one. When the row behind that reference cannot be read, there is nothing
+    to fall back to: any other client at the same issuer was never issued these tokens,
+    and the deployment's own identity document least of all, so presenting either gets
+    the refresh refused with an error about a client rather than about a credential.
+
+    A refresh failure rather than its own kind of problem, because the outcome for the
+    person is the one a refresh failure already produces: the connection needs consenting
+    to again, which mints a fresh registration along with fresh tokens (N3).
+    """
+
+    def __init__(self, *, server_url: str, registration_slug: str):
+        self.registration_slug = registration_slug
+        super().__init__(
+            server_url=server_url,
+            detail=(
+                "the client registration this authorization was issued against is no "
+                "longer available, so it cannot be renewed; connect again"
+            ),
+        )
+
+
 class MCPOAuthIssuerChangedError(MCPOAuthRefreshFailedError):
     """The MCP server now names an authorization server other than the one that issued
     the stored grant, so the refresh token is not presented at all.
