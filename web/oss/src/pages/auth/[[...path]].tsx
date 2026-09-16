@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useState, type ReactNode} from "react"
 
-import {firstQueryValue} from "@agenta/auth"
+import {firstQueryValue, shouldShowRegionSelector} from "@agenta/auth"
 import {AuthShell, useSignInFlow} from "@agenta/auth-ui"
 import ProtectedRoute from "@agenta/oss/src/components/ProtectedRoute/ProtectedRoute"
 import {
@@ -33,7 +33,6 @@ import "@/oss/lib/auth/configureAuthPackage"
 import {getAgentaApiUrl, getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {getDisplayFontUrl, getEffectiveAuthConfig} from "@/oss/lib/helpers/dynamicEnv"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
-import {shouldShowRegionSelector} from "@/oss/lib/helpers/region"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {orgsAtom} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
