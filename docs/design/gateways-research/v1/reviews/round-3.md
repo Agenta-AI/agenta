@@ -328,10 +328,16 @@ fix, seven fail, all of them unnamed-tool combinations.
 This is the fourth finding in this candidate where the same policy was read differently in two
 places, after D37, D57 and D63. Three of the four resolved toward the runner.
 
-One residual, noted rather than filed: the file now carries two mirrors of the runner's resolver,
-and the original still encodes the superseded ladder on its last line. It is unreachable for the
-matrix it serves, because a named tool answers before that line, so it is a stale copy rather than a
-wrong answer — worth deleting when someone is next in there.
+The residual this review noted — two mirrors of the runner's resolver in one file, the older of them
+still encoding the superseded ladder — is closed at `2ad4d45a36`, verified. There is one mirror now,
+and it takes the table's presence separately from the tool, because the runner's opt-in is what the
+policy declared rather than what this tool matched. That distinction is the whole finding, so having
+it in the mirror's signature is what keeps the copy honest.
+
+Checked rather than assumed: restoring the old adapter ladder now fails seven cases **through the
+single mirror**, where before the cleanup those cases were carried by a second one. One hundred and
+eighty-five pass. A mirror that disagrees with the thing it mirrors is how D88 started, so it was
+worth the small commit.
 
 ## The rest of the runner batch
 
