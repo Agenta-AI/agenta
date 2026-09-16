@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **1** | **6** | **6** | **21 closed, 3 part fixed, 13 open** |
+| **As this file is written** | **0** | **1** | **7** | **6** | **21 closed, 4 part fixed, 14 open** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -106,7 +106,8 @@ whether that fix was read against the finding and its test.
 | D46 | D38 residual | P3 | `api/oss/src/core/gateways/mcps/oauth/client.py:273` | Fix with D38's bound | `ae87c4f5f4` | **yes**, code and one discriminating test; two of the three do not discriminate |
 | D47 | verification | P3 | `api/oss/src/core/gateways/egress.py:113`, [qa.md](../qa.md) | Fix the collision or document it | `b92db4946a` | **yes**, 1061 passed with the preconditions exported |
 | D48 | verification | P2 | `mcpConnectJourney.tools.test.tsx:79`, `mcpConnectJourney.reconnect.test.tsx:66` | Fix: cover the wiring, not only the hook | `bc96498688` | **yes**, code and suites run |
-| D49 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:77`, `:122` | Fix landed for the flake; **not verifiable** while the suite cannot authenticate | `3fe16196a3` | code only, eight runs attempted |
+| D49 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:77`, `:122` | Fix landed; the flake it names is gone on two identical runs | `3fe16196a3` | **partly**, six of seven twice; see D53 |
+| D53 | verification | P2 | the deployment's mock gateway configuration | The OAuth case cannot run on this stack | | mechanism, both mock addresses probed |
 | D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix: QA-D3's better wording cannot fire in production | | mechanism, both sites read |
 | D51 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:293` | Fix the assertion | | mechanism, both message strings compared |
 | D52 | verification | P3 | `hooks/useMcpConnectJourney.ts:179`, `McpConnectJourney.tsx:96` | Record the invariant or apply the check | | mechanism, seven await sites counted |
@@ -150,6 +151,7 @@ revision before the fix, so the predicted failure is watched rather than assumed
 | QA-D3 | `08325a21eb` | 17 passed | 4 failed, 13 passed |
 | QA-D5 | `461b8d150c` | 8 passed | 6 failed, 2 passed |
 | CodeRabbit N3 | `99b270da8d` | see coderabbit-pass-1.md | — |
+| D29, D30, D31 in a browser | — | 6 of 7 over the tunnel, twice | the seventh is D53, not a defect |
 
 The pre-fix failures are the predicted ones in every case. D24's headline case comes back with the
 grant's `client_registration_slug` set to nothing after the first renewal, where the pinned slug
@@ -769,6 +771,19 @@ alone. And the manual gate step D25 settled on is, at this moment, unrunnable, w
 version of the same point: the only guard for three P1 fixes is a suite that flakes about half the
 time when it runs and cannot start at all when the stack shifts under it.
 
+**Resolved, and the flake with it.** The suite had stopped because the deployment was switched back
+to its tunnel addresses: the browser bundle points at the tunnel's API, so a run against the local
+address is refused by the browser at sign-up before any case begins. Pointed at the tunnel, the
+suite runs. `3fe16196a3` separates the compile budget from the probe budget and tolerates a
+navigation abort, and on two full runs the result was identical — six passed, one failed, the same
+case for the same reason both times. Deterministic is what this finding asked for; the earlier
+pattern was a different case failing on each run.
+
+Two qualifications. Two other tunnel runs ended with nothing executed, both on
+`net::ERR_NETWORK_CHANGED` while loading the application's own assets, which is the tunnel rather
+than the suite. And the seventh case is **D53**, so the browser evidence covers the connect,
+naming, duplicate, two-connections, remove and tool-list cases, and not the OAuth one.
+
 ## The UI QA round-2 findings
 
 Recorded here because their fixes were verified in the same pass. The findings themselves come from
@@ -839,6 +854,21 @@ await with no check, and are benign only because the component unmounts the hook
 an invariant nothing asserts, and one a host would naturally break by keeping the body mounted and
 toggling `open`, which is what the D48 render test does to the component. Either apply the check at
 the remaining sites or record the unmount as the load-bearing invariant it now is.
+
+**D53. The OAuth case cannot run on this stack, and the reason is configuration rather than code.**
+With no host-resolver mapping the suite refuses by design, naming the variable to re-run with. With
+the mapping set, the case gets further and fails at the probe: the dialog never says the server uses
+OAuth, so discovery did not establish it. The mock itself is healthy — both its compose address and
+its new public tunnel path answer the unauthenticated handshake with the 401 challenge the flow
+starts from. What the API container has is the mocks flag set and **no mock gateway URL variables at
+all**, and those are what the egress boundary builds its exemption from, so the deployment cannot
+dial the mock's OAuth surface even though the mock is serving it.
+
+This is the same shape as D47 and D25 a third time: the suite's correctness depends on deployment
+variables that nothing in the repository sets, and the symptom is a test failure that reads like a
+product defect. The consent page being public at the tunnel now also means the host-resolver
+requirement may no longer apply, and the suite still demands it, which is worth settling in the same
+change.
 
 ## Quality findings
 
