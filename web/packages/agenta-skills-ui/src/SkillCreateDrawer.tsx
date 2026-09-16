@@ -198,7 +198,13 @@ export function SkillCreateDrawer({
                         <Spinner size="small" />
                     </div>
                 ) : (
-                    <SkillFormView value={value} onChange={setValue} disabled={busy} />
+                    <SkillFormView
+                        value={value}
+                        onChange={setValue}
+                        disabled={busy}
+                        // An upload arrives named; a blank form starts at its name.
+                        autoFocusName={!upload}
+                    />
                 )}
             </div>
         </EnhancedDrawer>
