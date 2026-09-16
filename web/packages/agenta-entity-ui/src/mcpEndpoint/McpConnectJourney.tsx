@@ -542,7 +542,10 @@ export function McpConnectSheet({
                         <HintedField
                             label="Server URL"
                             required
-                            hint={URL_HELP}
+                            // Dropped once the check has failed: the box below says what is
+                            // wrong with this address, and the line explaining what the
+                            // field is for is no longer the thing to read.
+                            hint={screen === "url" ? URL_HELP : null}
                             hintId="mcp-url-help"
                         >
                             <Input

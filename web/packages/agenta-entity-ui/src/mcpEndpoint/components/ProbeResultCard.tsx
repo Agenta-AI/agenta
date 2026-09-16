@@ -44,7 +44,9 @@ export const ProbeResultCard = ({url, mode, onChange}: ProbeResultCardProps) => 
                 {url}
             </span>
             <span className="flex items-center gap-1 text-xs text-colorTextSecondary">
-                <CheckCircle size={13} className="shrink-0 text-colorSuccess" />
+                {/* Inherits the line's colour, as the design draws it: the finding is what
+                    the glyph marks, not a status of its own. */}
+                <CheckCircle size={13} className="shrink-0" />
                 {SUMMARY[mode]}
             </span>
         </div>

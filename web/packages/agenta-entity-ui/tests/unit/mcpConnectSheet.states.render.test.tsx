@@ -199,6 +199,9 @@ describe("C2, the address refused", () => {
             "Couldn't reach this server. No MCP response from mcp.internal.acme.dev. Check the address and that the server speaks HTTP transport. Private-network servers must be reachable from Agenta.",
         )
         expect(button("Try again")).toBeDefined()
+        // The line explaining what the field is for has had its turn. What to read now is
+        // the box saying why this address did not work.
+        expect(text()).not.toContain("Agenta checks it and detects")
     })
 
     it("offers the raw answer only when the check carried one", async () => {
