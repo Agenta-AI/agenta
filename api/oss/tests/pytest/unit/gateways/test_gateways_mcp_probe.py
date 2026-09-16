@@ -400,3 +400,92 @@ async def test_a_server_that_trickles_forever_does_not_hold_the_worker(monkeypat
     assert "in time" in result.problem.message
     # The deadline, not the ten-second inactivity timeout.
     assert elapsed < 5
+
+
+# ---------------------------------------------------------------------------
+# D46: the same bounds on the branch a 401 takes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_metadata_document_larger_than_a_document_is_not_read():
+    """Discovery's URLs are attacker-influenced too: the protected-resource location
+    arrives in the server's own challenge. A candidate that answers with megabytes is
+    skipped like any other unusable one."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/.well-known/"):
+            return httpx.Response(
+                200,
+                headers={"content-type": "application/json"},
+                content=b"x" * (512 * 1024),
+            )
+        return httpx.Response(
+            401,
+            json={"error": "invalid_token"},
+            headers={
+                "WWW-Authenticate": (
+                    "Bearer resource_metadata="
+                    '"https://mcp.acme.io/.well-known/oauth-protected-resource"'
+                )
+            },
+        )
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.reachable is True
+    assert result.problem is not None
+    assert result.problem.cause == "auth_undiscoverable"
+
+
+@pytest.mark.asyncio
+async def test_a_metadata_document_within_the_cap_is_still_read():
+    result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
+
+    assert result.reachable is True
+    assert result.problem is None
+    assert result.auth is not None
+    assert result.auth.mode is MCPProbeAuthMode.OAUTH
+
+
+@pytest.mark.asyncio
+async def test_a_server_whose_metadata_trickles_forever_is_reported_not_awaited(
+    monkeypatch,
+):
+    """Discovery walks several candidates, each with its own inactivity timeout, so
+    without an elapsed bound the 401 branch could outlast the branch that never reaches
+    it."""
+    import oss.src.core.gateways.mcps.probe as probe_module
+
+    monkeypatch.setattr(probe_module, "_DEADLINE_SECONDS", 0.3)
+
+    async def trickle():
+        while True:
+            yield b" "
+            await asyncio.sleep(0.02)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/.well-known/"):
+            return httpx.Response(
+                200, headers={"content-type": "application/json"}, content=trickle()
+            )
+        return httpx.Response(
+            401,
+            json={"error": "invalid_token"},
+            headers={
+                "WWW-Authenticate": (
+                    "Bearer resource_metadata="
+                    '"https://mcp.acme.io/.well-known/oauth-protected-resource"'
+                )
+            },
+        )
+
+    started = time.monotonic()
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+    elapsed = time.monotonic() - started
+
+    assert result.reachable is True
+    assert result.problem is not None
+    assert result.problem.cause == "auth_undiscoverable"
+    assert "in time" in result.problem.message
+    assert elapsed < 5

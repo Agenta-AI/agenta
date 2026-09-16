@@ -280,7 +280,22 @@ class MCPServerProbe:
     async def _challenged(self, *, server_url: str) -> MCPServerProbeResult:
         """A server that refused the anonymous handshake. Ask it how to authorize."""
         try:
-            discovery = await self.oauth_client.discover(server_url=server_url)
+            # The same elapsed bound the handshake has. Discovery walks several
+            # candidate URLs, each with its own inactivity timeout, so without this the
+            # 401 branch could outlast the branch that never reaches it (D46).
+            async with asyncio.timeout(_DEADLINE_SECONDS):
+                discovery = await self.oauth_client.discover(server_url=server_url)
+        except TimeoutError:
+            return MCPServerProbeResult(
+                reachable=True,
+                problem=MCPProbeProblem(
+                    cause="auth_undiscoverable",
+                    message=(
+                        "The server requires authorization but did not finish "
+                        "publishing its OAuth configuration in time."
+                    ),
+                ),
+            )
         except MCPOAuthDiscoveryError as e:
             # The server wants something. It did not say what in a form we support, and a
             # 401 alone is not evidence of an API key, so the journey offers its manual

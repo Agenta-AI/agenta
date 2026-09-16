@@ -36,8 +36,16 @@ from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthTokenExchangeError,
 )
 from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 _TIMEOUT_SECONDS = 15.0
+
+# A metadata document is a small JSON object: RFC 8414's authorization-server metadata and
+# RFC 9728's protected-resource metadata are both a handful of fields. Generous against
+# that, and small enough that a candidate URL cannot spend the process's memory.
+_MAX_METADATA_BYTES = 256 * 1024
 
 
 def _authorization_base_url(url: str) -> str:
@@ -292,11 +300,42 @@ class MCPOAuthClient:
         except EgressRefusedError:
             return None
         try:
-            return await client.get(
-                target.url, headers=target.headers, extensions=target.extensions
+            response = await client.send(
+                client.build_request(
+                    "GET",
+                    target.url,
+                    headers=target.headers,
+                    extensions=target.extensions,
+                ),
+                stream=True,
             )
         except httpx.RequestError:
             return None
+
+        # Read with a cap rather than buffering whatever arrives. Every URL reaching here
+        # is attacker-influenced, and a metadata document is a small JSON object, so a
+        # response that exceeds this is not one however it is framed. Skipped like any
+        # other unusable candidate, which the walk above already knows how to do (D46).
+        try:
+            body = bytearray()
+            async for chunk in response.aiter_bytes():
+                body.extend(chunk)
+                if len(body) > _MAX_METADATA_BYTES:
+                    log.warning(
+                        "[gateways] discovery candidate exceeded the metadata size cap",
+                        url=target.original_url,
+                    )
+                    return None
+        except httpx.RequestError:
+            return None
+        finally:
+            await response.aclose()
+
+        return httpx.Response(
+            status_code=response.status_code,
+            headers=response.headers,
+            content=bytes(body),
+        )
 
     async def discover(self, *, server_url: str) -> MCPOAuthDiscovery:
         async with self._client() as client:
