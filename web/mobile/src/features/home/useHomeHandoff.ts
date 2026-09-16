@@ -2,13 +2,14 @@ import {useCallback, useState} from "react"
 
 import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
 import {markSessionFresh} from "@agenta/chat/state"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {newId} from "@/lib/ids"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 
+import {lastStartedAgentIdAtom, rememberStartedAgentAtom} from "./lastStartedAgent"
 import {stashPendingTaskAtom, takePendingTaskAtom} from "./pendingTask"
 
 /**
@@ -20,9 +21,12 @@ import {stashPendingTaskAtom, takePendingTaskAtom} from "./pendingTask"
  * to upload against before the session exists. Creating an agent reuses that same id, so a file
  * staged before "+ New" was pressed still rides along.
  */
-export const useHomeHandoff = (base: string) => {
+export const useHomeHandoff = (base: string, projectId: string) => {
     const router = useRouter()
     const stash = useSetAtom(stashPendingTaskAtom)
+    const rememberAgent = useSetAtom(rememberStartedAgentAtom)
+    // The agent the last chat here was started with; `HomeFocus` falls back past a stale one.
+    const preferredAgentId = useAtomValue(lastStartedAgentIdAtom(projectId))
     const dropPendingTask = useSetAtom(takePendingTaskAtom)
     const newAgent = useNewAgentAction(base)
     const [sessionId] = useState(() => {
@@ -48,6 +52,9 @@ export const useHomeHandoff = (base: string) => {
         async ({agentId, text}: {agentId: string; text: string}) => {
             const {staged, parts} = stagedParts()
             stash({sessionId, task: {agentId, text, parts}})
+            // Remembered on the start, not the pick: the next visit should open on the agent a
+            // chat was actually begun with, and a pick that was then abandoned is not that.
+            rememberAgent({projectId, agentId})
             setStarting(true)
             // Cleared BEFORE the navigation. The chat route seeds its own tray from the
             // per-session store on mount, and `router.push` resolves only after that mount — a
@@ -69,7 +76,17 @@ export const useHomeHandoff = (base: string) => {
                 return
             }
         },
-        [attachments, base, dropPendingTask, router, sessionId, stagedParts, stash],
+        [
+            attachments,
+            base,
+            dropPendingTask,
+            projectId,
+            rememberAgent,
+            router,
+            sessionId,
+            stagedParts,
+            stash,
+        ],
     )
 
     const onCreateFromPrompt = useCallback(
@@ -97,5 +114,11 @@ export const useHomeHandoff = (base: string) => {
         [attachments, newAgent, sessionId, stagedParts],
     )
 
-    return {attachments, onStartTask, onCreateFromPrompt, sending: starting || newAgent.creating}
+    return {
+        attachments,
+        preferredAgentId,
+        onStartTask,
+        onCreateFromPrompt,
+        sending: starting || newAgent.creating,
+    }
 }

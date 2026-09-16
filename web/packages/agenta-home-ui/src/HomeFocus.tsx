@@ -4,6 +4,7 @@ import type {useComposerAttachments} from "@agenta/chat/hooks"
 import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
+import {resolveBoundAgentId} from "./boundAgent"
 import {HomeEntityList, type HomeListAgent, type HomeListTab} from "./HomeEntityList"
 import {HomeGreeting} from "./HomeGreeting"
 import {HomeTaskComposer} from "./HomeTaskComposer"
@@ -24,6 +25,11 @@ export interface HomeFocusProps {
     className?: string
     title?: string
     agents: HomeListAgent[]
+    /**
+     * The agent the composer binds before anyone chooses — the host's memory of the last one a
+     * chat was started with. Falls back to the head of the roster when absent or no longer listed.
+     */
+    preferredAgentId?: string | null
     /** The starter catalogue, from the host — the same list its templates route renders. */
     templates: AgentStarterTemplate[]
     /** The attachment engine; the host owns its rollout flag and scope. */
@@ -60,6 +66,7 @@ export const HomeFocus = ({
     className,
     title = "What should we work on?",
     agents,
+    preferredAgentId,
     templates,
     attachments,
     onStartTask,
@@ -86,14 +93,9 @@ export const HomeFocus = ({
         bindingChoice ?? (hasAgents ? {kind: "agent", id: null} : {kind: "new"})
     const inputRef = useRef<RichChatInputHandle | null>(null)
 
-    // Resolved ONCE, here, because the composer's dock and the list's check are the same fact. A
-    // stale id (an agent archived under the page) falls back rather than naming something gone.
+    // Resolved ONCE, here, because the composer's dock and the list's check are the same fact.
     const boundAgentId =
-        binding.kind !== "agent"
-            ? null
-            : ((binding.id && agents.some((agent) => agent.id === binding.id)
-                  ? binding.id
-                  : agents[0]?.id) ?? null)
+        binding.kind !== "agent" ? null : resolveBoundAgentId(agents, binding.id, preferredAgentId)
 
     /**
      * Put the caret in the composer, and a seed with it.
