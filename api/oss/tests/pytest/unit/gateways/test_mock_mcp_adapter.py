@@ -4,6 +4,7 @@ Nothing running: the adapter is exercised as a plain Python object.
 """
 
 import json
+import re
 import time
 
 import pytest
@@ -31,10 +32,41 @@ NEGOTIATED = {"mcp-protocol-version": "2026-07-28"}
 
 
 def _body(result: MCPRelayResult) -> dict:
-    """The JSON of an answer, whether it arrived plain or inside an SSE event."""
+    """The answer to the request, whether it arrived plain or inside an SSE stream.
+
+    The stream may carry a notification before the answer (D63), so this selects the last
+    event carrying a `result` or an `error` rather than joining every `data:` line. A helper
+    that joined them is exactly the defect D63 found in the client, and a test helper with
+    the bug in it cannot notice the bug.
+    """
     text = result.body.decode().strip()
-    data = [line[5:].strip() for line in text.splitlines() if line.startswith("data:")]
-    return json.loads("\n".join(data) if data else text)
+    frames = []
+    for event in re.split(r"\r?\n\r?\n", text):
+        data = [
+            line[5:].strip() for line in event.splitlines() if line.startswith("data:")
+        ]
+        payload = "\n".join(data) if data else event.strip()
+        if payload:
+            frames.append(payload)
+    for frame in reversed(frames):
+        parsed = json.loads(frame)
+        if "result" in parsed or "error" in parsed:
+            return parsed
+    return json.loads(frames[-1])
+
+
+def _events(result: MCPRelayResult) -> list[dict]:
+    """Every JSON-RPC payload in an answer, in order, notifications included."""
+    text = result.body.decode().strip()
+    out = []
+    for event in re.split(r"\r?\n\r?\n", text):
+        data = [
+            line[5:].strip() for line in event.splitlines() if line.startswith("data:")
+        ]
+        payload = "\n".join(data) if data else event.strip()
+        if payload:
+            out.append(json.loads(payload))
+    return out
 
 
 def _rpc(method: str, *, params=None, request_id=1) -> bytes:
@@ -447,3 +479,59 @@ async def test_a_client_owned_meta_key_passes_through():
 
     assert result.status_code == 200
     assert _body(result)["result"]["isError"] is False
+
+
+# D63. The transport lets a server send notifications before the response to a request. A client
+# that joined every `data:` line got two JSON documents separated by a newline, parsed nothing,
+# reported no tools and dropped the server. A single-event mock could never show that, so the one
+# SSE-framed method sends a notification first and every cell in the matrix now carries it.
+
+
+@pytest.mark.asyncio
+async def test_tools_list_sends_a_notification_before_its_result():
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="tools/list"),
+        body=_rpc("tools/list", request_id=7),
+        headers=dict(NEGOTIATED),
+    )
+
+    events = _events(result)
+    assert len(events) == 2, events
+    prelude, answer = events
+
+    # The notification: a method, no id, and nothing owed to any request. That is what a client
+    # has to recognise and skip.
+    assert prelude["method"] == "notifications/message"
+    assert "id" not in prelude
+    assert "result" not in prelude and "error" not in prelude
+
+    # The answer, carrying the id of the request that asked.
+    assert answer["id"] == 7
+    assert {tool["name"] for tool in answer["result"]["tools"]} == {
+        "echo",
+        "fail",
+        "slow",
+    }
+
+
+@pytest.mark.asyncio
+async def test_the_notification_precedes_the_answer_on_the_wire():
+    """Order matters: a reader that took the LAST data line would pass either way, and a reader
+    that took the FIRST would pass only on the order no real server guarantees."""
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="tools/list"),
+        body=_rpc("tools/list"),
+        headers=dict(NEGOTIATED),
+    )
+
+    text = result.body.decode()
+    assert text.index("notifications/message") < text.index('"tools"')
+    assert text.count("event: message") == 2

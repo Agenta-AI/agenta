@@ -198,27 +198,72 @@ interface JsonRpcResponse {
   error?: { code?: number; message?: string };
 }
 
+/** One SSE event's payload: its `data:` lines joined, as the transport specifies. */
+function eventPayload(event: string): string {
+  const dataLines = event
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("data:"))
+    .map((line) => line.slice(5).trim());
+  return dataLines.length > 0 ? dataLines.join("\n") : event.trim();
+}
+
+function parseObjectOrNull(text: string): Record<string, unknown> | null {
+  if (!text) return null;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * The JSON body of a Streamable HTTP answer, which may arrive as plain JSON or as an SSE event.
+ * The JSON body of a Streamable HTTP answer, which may arrive as plain JSON or as an SSE stream.
  *
  * Exported so the handshake probe reads a server's answer exactly as the client that follows it
  * will; two parsers meant a server could pass the probe and be unreadable to the client.
  *
- * ANY `data:` line means SSE, not just a leading one. A conforming event may open with `event:`
- * or an id — a real upstream (Linear) opens with `event: message` — and testing only the first
- * character called such a server's every answer invalid JSON.
+ * Three transport facts decide this, and each one has cost us a server:
+ *
+ *  - ANY `data:` line means SSE, not just a leading one. A conforming event may open with `event:`
+ *    or an id, and a real upstream (Linear) opens with `event: message`, so testing only the first
+ *    character called such a server's every answer invalid JSON.
+ *  - A stream may carry MORE THAN ONE event. The transport lets a server send notifications
+ *    (progress, logging) before the response, and joining every `data:` line in the body produced
+ *    two JSON documents separated by a newline, which parses as nothing: the client then reported
+ *    no tools and dropped the server (D63).
+ *  - The answer to THIS request is the frame whose `id` matches it. A notification carries no id
+ *    and no `result`/`error`, which is what distinguishes it, but two in-flight requests can share
+ *    a stream and only the id tells them apart.
+ *
+ * `id` is optional because the handshake probe reads a body it did not number. Without one this
+ * takes the last frame carrying a result or an error, which is what the browser client
+ * (`web/packages/agenta-entities/src/mcpEndpoint/core/mcpRpc.ts`) does. When nothing in the body
+ * qualifies, the whole text is returned so the caller's parse failure names the real body.
  */
-export function readMcpResponseJson(raw: string): string {
+export function readMcpResponseJson(raw: string, id?: number | string): string {
   const text = raw.trim();
-  const dataLines = text
-    .split(/\r?\n/)
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).trim());
-  return dataLines.length > 0 ? dataLines.join("\n") : text;
+  if (!text) return text;
+
+  const frames = text.split(/\r?\n\r?\n/).map(eventPayload).filter(Boolean);
+  // One frame is the ordinary case (a plain JSON body, or a single event) and must behave exactly
+  // as it did before: returned whole, so a malformed body reaches the caller's error message
+  // rather than being silently dropped as "no frame carried a result".
+  if (frames.length <= 1) return frames[0] ?? text;
+
+  let anyAnswer: string | undefined;
+  for (let index = frames.length - 1; index >= 0; index -= 1) {
+    const parsed = parseObjectOrNull(frames[index]);
+    // A notification: no result, no error, nothing owed to any request. Skip it.
+    if (!parsed || !("result" in parsed || "error" in parsed)) continue;
+    if (id === undefined || parsed.id === id) return frames[index];
+    anyAnswer ??= frames[index];
+  }
+  return anyAnswer ?? text;
 }
 
-function readJsonResponse(raw: string): JsonRpcResponse {
-  const json = readMcpResponseJson(raw);
+function readJsonResponse(raw: string, id?: number | string): JsonRpcResponse {
+  const json = readMcpResponseJson(raw, id);
   try {
     const parsed = JSON.parse(json);
     if (!isRecord(parsed)) throw new Error("response is not an object");
@@ -336,9 +381,10 @@ class PiHttpMcpClient {
     // this client has no reason to send; the same requests without `_meta` succeed. Send the
     // caller's params and nothing else. The mock upstream enforces this rule too, so the cell
     // matrix fails rather than the next real server.
+    const id = this.nextId++;
     const response = await this.post({
       jsonrpc: "2.0",
-      id: this.nextId++,
+      id,
       method,
       params: isRecord(params) ? params : {},
     }, signal);
@@ -347,7 +393,9 @@ class PiHttpMcpClient {
     }
     const sessionId = response.headers.get("mcp-session-id");
     if (sessionId) this.sessionId = sessionId;
-    const payload = readJsonResponse(await response.text());
+    // The id is handed to the reader so a stream carrying notifications, or another request's
+    // answer, resolves to THIS request's frame rather than to whatever arrived last.
+    const payload = readJsonResponse(await response.text(), id);
     if (payload.error) {
       throw new PiMcpRequestError(payload.error.message ?? `MCP ${method} failed`, response.status);
     }

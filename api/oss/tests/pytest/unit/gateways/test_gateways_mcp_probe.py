@@ -191,6 +191,53 @@ async def test_a_handshake_framed_as_one_sse_event_is_still_read():
 
 
 @pytest.mark.asyncio
+async def test_a_handshake_behind_a_notification_is_still_read():
+    """D63. The transport lets a server send notifications before the response to a request.
+
+    The probe is the third client speaking this wire, after the Pi extension and the browser.
+    Reading the last `data:` line happened to survive a notification sent FIRST and would have
+    failed on one sent after, so all three now select the last frame carrying a result or error.
+    """
+    notification = json.dumps(
+        {"jsonrpc": "2.0", "method": "notifications/message", "params": {"level": "info"}}
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            content=(
+                f"event: message\ndata: {notification}\n\n"
+                f"event: message\ndata: {json.dumps(_INITIALIZE_RESULT)}\n\n"
+                f"event: message\ndata: {notification}\n\n"
+            ).encode(),
+        )
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.reachable is True
+    assert result.server_name == "Acme Tools"
+    assert result.auth.mode is MCPProbeAuthMode.NONE
+
+
+@pytest.mark.asyncio
+async def test_a_stream_carrying_only_notifications_is_not_a_handshake():
+    """Nothing answered the request, so this is not a server that shook hands."""
+    notification = json.dumps({"jsonrpc": "2.0", "method": "notifications/message"})
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            content=f"event: message\ndata: {notification}\n\n".encode(),
+        )
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.server_name is None
+
+
+@pytest.mark.asyncio
 async def test_a_challenged_server_reports_oauth_and_the_scopes_it_offers():
     result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
 

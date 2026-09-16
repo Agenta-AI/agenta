@@ -22,6 +22,7 @@ a credential into a form that may have no use for it.
 
 import asyncio
 import json
+import re
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -126,11 +127,28 @@ def _initialize_request() -> bytes:
     ).encode()
 
 
+def _event_payload(event: str) -> str:
+    """One SSE event's payload: its `data:` lines joined, as the transport specifies."""
+    data_lines = [
+        line[len("data:") :].strip()
+        for line in event.splitlines()
+        if line.startswith("data:")
+    ]
+    return "\n".join(data_lines) if data_lines else event.strip()
+
+
 def _initialize_result(response: httpx.Response) -> Optional[Dict[str, Any]]:
     """The handshake's `result`, or `None` when the body is not one.
 
-    A Streamable HTTP server may answer the handshake as a single SSE event rather than a
-    JSON body, so the payload is read out of the last `data:` line when it is.
+    A Streamable HTTP server may answer the handshake as an SSE stream rather than a JSON
+    body, and that stream may carry MORE THAN ONE event: the transport lets a server send
+    notifications before the response. So the answer is the last event carrying a `result`
+    or an `error`, not the last event and not every `data:` line joined together (D63).
+
+    Reading the last line alone happened to work against a notification sent FIRST and would
+    have failed against one sent after, or against a payload split across two `data:` lines.
+    The same selection is made by the Pi client's `readMcpResponseJson` and by the browser
+    client's `readJsonRpcPayload`; this is the third of the three and must agree with them.
     """
     body = response.content
     if not body:
@@ -138,14 +156,26 @@ def _initialize_result(response: httpx.Response) -> Optional[Dict[str, Any]]:
 
     media_type = (response.headers.get("content-type") or "").split(";")[0].strip()
     if media_type == "text/event-stream":
-        data_lines = [
-            line[len("data:") :].strip()
-            for line in body.decode("utf-8", "replace").splitlines()
-            if line.startswith("data:")
+        text = body.decode("utf-8", "replace").strip()
+        frames = [
+            payload
+            for payload in (
+                _event_payload(event) for event in re.split(r"\r?\n\r?\n", text)
+            )
+            if payload
         ]
-        if not data_lines:
+        answer = None
+        for frame in frames:
+            try:
+                parsed = json.loads(frame)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            # A notification carries neither, and is owed to no request.
+            if isinstance(parsed, dict) and ("result" in parsed or "error" in parsed):
+                answer = frame
+        if answer is None:
             return None
-        body = data_lines[-1].encode()
+        body = answer.encode()
 
     try:
         payload = json.loads(body)

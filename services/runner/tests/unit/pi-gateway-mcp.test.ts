@@ -8,6 +8,7 @@ import {
   parsePiGatewayMcpConfig,
   piGatewayMcpServersFromWire,
   piMcpToolName,
+  readMcpResponseJson,
   registerPiGatewayMcpTools,
   serializePiGatewayMcpConfig,
 } from "../../src/extensions/pi-mcp.ts";
@@ -1199,5 +1200,121 @@ describe("a real upstream's answers, as they actually arrive", () => {
     assert.ok(call, "the tool call must reach the upstream");
     assert.equal(call.params.name, "echo");
     assert.deepEqual(call.params.arguments, { marker: "X" });
+  });
+});
+
+
+// D63. The transport lets a server send notifications before the response to a request, and both
+// independent reviewers found this by executing it: joining every `data:` line produced two JSON
+// documents separated by a newline, which parses as nothing, so `discover()` threw and the whole
+// server was dropped as a failed handshake. The browser client
+// (`web/packages/agenta-entities/src/mcpEndpoint/core/mcpRpc.ts`) already read the stream frame by
+// frame; this is the same wire and the two clients must agree about it.
+
+describe("the shared SSE reader takes the frame that answers the request (D63)", () => {
+  const notification = (method: string) =>
+    `event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", method, params: {} })}\n\n`;
+  const answer = (id: number, result: unknown) =>
+    `event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", id, result })}\n\n`;
+
+  it("skips a notification sent before the result", () => {
+    const body = notification("notifications/message") + answer(4, { tools: [] });
+
+    const parsed = JSON.parse(readMcpResponseJson(body, 4));
+
+    assert.equal(parsed.id, 4);
+    assert.deepEqual(parsed.result, { tools: [] });
+  });
+
+  it("skips a notification sent after the result, which taking the last frame would not", () => {
+    // The mock sends its notification first. A reader that simply took the last frame would pass
+    // every cell here and still fail against a server that sends one afterwards, which the
+    // transport equally permits.
+    const body = answer(5, { tools: [{ name: "echo" }] }) + notification("notifications/progress");
+
+    const parsed = JSON.parse(readMcpResponseJson(body, 5));
+
+    assert.equal(parsed.id, 5);
+  });
+
+  it("picks this request's answer when another request's shares the stream", () => {
+    const body = answer(1, { first: true }) + answer(2, { second: true });
+
+    assert.deepEqual(JSON.parse(readMcpResponseJson(body, 1)).result, { first: true });
+    assert.deepEqual(JSON.parse(readMcpResponseJson(body, 2)).result, { second: true });
+  });
+
+  it("takes the last answering frame when the caller numbered nothing, as the probe does", () => {
+    const body = notification("notifications/message") + answer(9, { tools: [] });
+
+    assert.equal(JSON.parse(readMcpResponseJson(body)).id, 9);
+  });
+
+  it("reads a JSON-RPC error frame, not only a result", () => {
+    const body =
+      notification("notifications/message") +
+      `event: message\ndata: ${JSON.stringify({
+        jsonrpc: "2.0",
+        id: 3,
+        error: { code: -32602, message: "no" },
+      })}\n\n`;
+
+    assert.equal(JSON.parse(readMcpResponseJson(body, 3)).error.message, "no");
+  });
+
+  it("still reads a plain JSON body and a single event, unchanged", () => {
+    assert.deepEqual(JSON.parse(readMcpResponseJson('{"jsonrpc":"2.0","id":1,"result":{}}', 1)), {
+      jsonrpc: "2.0",
+      id: 1,
+      result: {},
+    });
+    assert.deepEqual(JSON.parse(readMcpResponseJson(answer(1, { ok: true }), 1)).result, {
+      ok: true,
+    });
+  });
+
+  it("returns the body whole when no frame answers, so the parse error names it", () => {
+    // Otherwise an unreadable body and a body carrying only notifications would reach the caller
+    // as the same silence, and the message an operator reads would name neither.
+    assert.equal(readMcpResponseJson("not json at all", 1), "not json at all");
+  });
+});
+
+describe("a server that sends a notification before its tool list (D63)", () => {
+  it("registers its tools instead of being dropped as a failed handshake", async () => {
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body));
+      if (payload.id === undefined) return new Response("", { status: 202 });
+      const result =
+        payload.method === "tools/list"
+          ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
+          : payload.method === "tools/call"
+            ? { content: [{ type: "text", text: "ok" }] }
+            : { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {} } };
+      const body =
+        `event: message\ndata: ${JSON.stringify({
+          jsonrpc: "2.0",
+          method: "notifications/message",
+          params: { level: "info", data: "working" },
+        })}\n\n` +
+        `event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", id: payload.id, result })}\n\n`;
+      return new Response(body, {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    const logs: string[] = [];
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), (m) => logs.push(m), allowAll);
+
+    assert.deepEqual(
+      pi.tools.map((tool: any) => tool.name),
+      ["mcp__mock__echo"],
+      `the server's tools must register; log: ${logs.join(" | ")}`,
+    );
+
+    const out = await pi.tools[0].execute("call-1", { marker: "X" });
+    assert.ok(JSON.stringify(out).includes("ok"), `the call must return the result: ${JSON.stringify(out)}`);
   });
 });

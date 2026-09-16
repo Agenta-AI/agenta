@@ -87,10 +87,28 @@ _TOOLS = [
 _SSE_FRAMED_METHODS = frozenset({"tools/list"})
 
 
+#: The notification the SSE-framed answer is preceded by (D63).
+#:
+#: The transport lets a server send notifications before the response to a request, and a client
+#: that joined every `data:` line in the body got two JSON documents separated by a newline, which
+#: parses as nothing: it reported no tools and dropped the server. A single-event mock could never
+#: show that, so the one SSE-framed method sends a real notification first. `notifications/message`
+#: is the logging notification every MCP server may emit at any time, and it carries no `id`,
+#: which is exactly what a client has to notice.
+_PRELUDE_NOTIFICATION = {
+    "jsonrpc": "2.0",
+    "method": "notifications/message",
+    "params": {"level": "info", "data": "listing tools"},
+}
+
+
 def _relay_result(response: Dict[str, Any], *, method: str = "") -> MCPRelayResult:
     """One JSON-RPC response out, so both mock tiers emit byte-identical bodies."""
     if method in _SSE_FRAMED_METHODS:
-        frame = f"event: message\ndata: {json.dumps(response)}\n\n"
+        frame = (
+            f"event: message\ndata: {json.dumps(_PRELUDE_NOTIFICATION)}\n\n"
+            f"event: message\ndata: {json.dumps(response)}\n\n"
+        )
         return MCPRelayResult(
             status_code=200,
             headers={"content-type": "text/event-stream"},
