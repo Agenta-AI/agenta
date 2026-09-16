@@ -269,7 +269,10 @@ export const ListTable = <Row,>({
                                                     FOCUS_RING,
                                                 )}
                                             >
-                                                <span>{group.label}</span>
+                                                {/* A heading names a run, it does not wrap: a
+                                                    long repository truncates so the group's
+                                                    action keeps its place on the right. */}
+                                                <span className="truncate">{group.label}</span>
                                                 <ChevronDown
                                                     size={12}
                                                     aria-hidden
@@ -280,7 +283,7 @@ export const ListTable = <Row,>({
                                                 />
                                             </button>
                                         ) : (
-                                            <p className="m-0 text-[13px] text-muted-foreground">
+                                            <p className="m-0 min-w-0 truncate text-[13px] text-muted-foreground">
                                                 {group.label}
                                             </p>
                                         )}
