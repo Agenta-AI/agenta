@@ -11,10 +11,26 @@ import {
     type ScanCandidate,
     type SkillSourceImportResponse,
 } from "@agenta/skills"
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Checkbox, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
+import {Alert, Button, Checkbox, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 import {CheckCircle, GitBranch, WarningCircle} from "@phosphor-icons/react"
+
+/**
+ * The server's own sentence for a failed scan — `body.detail.message`, then its next step —
+ * rather than the Fern error's message, which is the status code and the raw JSON body.
+ */
+const scanFailure = (err: unknown): string | null => {
+    const body = (err as {body?: unknown})?.body
+    const message = body ? extractApiErrorMessage(body) : null
+    const nextStep =
+        body && typeof body === "object" && "detail" in body
+            ? (body as {detail?: {next_step?: unknown}}).detail?.next_step
+            : undefined
+    if (message) return typeof nextStep === "string" ? `${message} ${nextStep}` : message
+    return err instanceof Error && err.message ? err.message : null
+}
 
 export interface SkillImportDrawerProps {
     open: boolean
@@ -99,9 +115,7 @@ export function SkillImportDrawer({
             setStep("select")
         } catch (err) {
             setError(
-                err instanceof Error && err.message
-                    ? `Scan failed: ${err.message}`
-                    : "Scan failed. Check the URL and that the repository is public.",
+                scanFailure(err) ?? "Scan failed. Check the URL and that the repository is public.",
             )
         } finally {
             setBusy(false)
@@ -346,10 +360,13 @@ export function SkillImportDrawer({
                 ) : null}
 
                 {error ? (
-                    <span className="flex items-start gap-1.5 text-xs text-[var(--ag-colorError)]">
-                        <WarningCircle size={14} className="mt-px shrink-0" />
-                        {error}
-                    </span>
+                    <Alert
+                        type="error"
+                        showIcon
+                        message={error}
+                        // The icon says it failed; the sentence reads in body ink, as a sentence.
+                        className="text-foreground [&_[data-slot=alert-title]]:font-normal"
+                    />
                 ) : null}
             </div>
         </EnhancedDrawer>
