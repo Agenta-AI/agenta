@@ -2,10 +2,10 @@
 
 ## Active review findings
 
-The record runs OR36 to OR86, fifty-one findings: forty-four closed, six open and one withdrawn.
+The record runs OR36 to OR87, fifty-two findings: forty-five closed, six open and one withdrawn.
 Every number in that range is present. Entries numbered below OR36 predate the record and are
-all closed. Recounted from the headings on 2026-09-15, after several findings closed the same
-day.
+all closed. Recounted from the headings on 2026-09-16, after several findings closed on that day
+and the one before it.
 
 Six findings are open: OR63, OR65, OR66, OR68, OR76 and OR81. OR67 closed on 2026-09-15
 with the connect dialog's watch teardown. OR69 heads this section but counts as neither open nor
@@ -351,6 +351,67 @@ The relay stays out of it. Nothing in `providers/passthrough/adapter.py` should 
 a future reader who reaches for that shortcut should read the OR49 record first.
 
 ## Closed review record
+
+### OR87. An endpoint saved with no key, because it needs none, is never offered to an agent — CLOSED, by asking whether the connection needs a credential rather than whether it has one
+
+Found in UI QA round 2 as QA-D5, where it blocked the agent-turn scenario, and reported as an
+observation because the harness-and-protocol pairing rules looked like the likelier explanation.
+They were not involved. Severity P2. **Pre-existing on main, not introduced by this branch.**
+
+An OpenAI-compatible endpoint may be saved with no API key. That is the product's own position,
+stated twice in the same file: `REQUIRED_FIELDS_BY_KIND` lists only `apiBaseUrl` for the kind,
+above the comment "An OpenAI-compatible endpoint may legitimately be open; its URL is the
+credential's address" (`web/packages/agenta-entities/src/secret/core/providerCatalog.ts:124`),
+and the key field is relabelled "API key — if the endpoint requires one" (`:142`). The QA run
+saved exactly such a connection, and the providers table reported it as `1 of 1 active`.
+
+The agent's model picker took the opposite position. `connectionCandidates` dropped every
+connection holding no stored secret (`agentModelCandidates.ts:322` on `origin/main`), so the
+endpoint produced no routes and never became selectable. The banner is not a second defect: the
+connect-a-model gate is `candidateCount === 0` once its sources resolve
+(`web/packages/agenta-chat/src/hooks/useAgentModelKeyStatus.ts:56`), so the empty picker and
+"Add your model provider key to run this agent" are one fact — the agent asking for a key the
+card calls optional, with nothing on screen explaining why the provider just saved does not apply.
+
+The chain is short and was walked against the running stack rather than read: the API stores the
+row with `value_status.configured` false, which becomes `hasKey` false at
+`secret/core/transforms.ts:99`, then `hasStoredCredential` false in `connections.ts`, then the
+skip. Everything behind the frontend considered that connection ready — the LLM gateway registrar
+had registered it as an ACTIVE endpoint with `provider_key` `anthropic` and the model in its
+allowlist. Feeding the stored row through the real transform and the real builder returns no
+candidates; flipping `value_status.configured` alone returns exactly one, on the `claude` harness
+with provider `anthropic`, which also disposes of the pairing theory: Anthropic Messages with
+Claude Code is the correct pairing and it resolves.
+
+**Pre-existing.** The skip arrived with `86ae64dabc` ("fix(agents): resolve runnable model
+defaults consistently", 2026-08-24), which is an ancestor of `origin/main`, and both contradicting
+sites stand unchanged on `origin/main` today: the gate at `agentModelCandidates.ts:322` and the
+keyless-custom field configuration at `providerCatalog.ts:118-142`. Nothing on this branch causes
+it. The branch's own protocol work is not implicated, because the QA run declared a protocol
+explicitly and a declared protocol changes which harness is offered, never whether any is.
+
+**Closed 2026-09-16.** The gate now skips a connection that has nothing stored unless it is a kind
+that needs nothing stored: `connectionRunsWithoutCredential` in `secret/core/connections.ts`,
+consulted at `agentModelCandidates.ts:299`. It is false for every kind whose credential is the
+point, whether required outright (a provider key, Azure, Vertex) or as one of its alternative auth
+sets, which it reads from `PROVIDER_AUTH_REQUIREMENTS` rather than restating the rule; and it
+still requires the record to carry whatever else its kind requires, so an endpoint with no address
+is not offered either. A widening only — the original condition is untouched and gained a second
+disjunct, so nothing offered before this change stops being offered.
+
+What it does not claim: that a keyless run then succeeds. If the endpoint does need a key, the run
+fails with the upstream's own 401, which is what the card's wording already implies and better
+than never offering the connection.
+
+Proven by `web/packages/agenta-entities/tests/unit/openEndpointCandidates.test.ts`, which drives
+the vault row the demo stack actually stored for this report through `transformSecret`,
+`toProviderConnections` and `buildAgentModelCandidates`, and through
+`resolveAgentModelCandidateSources` — the state layer the page itself uses, so the assertion is
+the banner's own rule rather than a restatement of the fix. Three of its eight cases fail against
+the unfixed gate. The kind-by-kind cases pin the other direction: a keyless provider key, Azure,
+Vertex and Bedrock row all stay out of the picker.
+
+---
 
 ### OR86. A stored credential reaches the caller inside a transport-error message — CLOSED, by classifying a transport failure instead of quoting it
 
