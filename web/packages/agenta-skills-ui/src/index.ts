@@ -26,6 +26,7 @@ export {SkillImportDrawer, type SkillImportDrawerProps} from "./SkillImportDrawe
 export {SkillCreateDrawer, type SkillCreateDrawerProps} from "./SkillCreateDrawer"
 export {useSkillCreateEntry} from "./useSkillCreateEntry"
 export {SkillDetailDrawer, type SkillDetailDrawerProps} from "./SkillDetailDrawer"
+export {SkillAgentPicker} from "./SkillAgentPicker"
 export {SkillPickerHost} from "./SkillPickerHost"
 export {SkillDetailHost} from "./SkillDetailHost"
 export {SourceRefreshButton} from "./SourceRefreshButton"
