@@ -1,11 +1,11 @@
 export {default as McpAddServerDrawer} from "./McpAddServerDrawer"
 export type {McpAddServerDrawerProps, McpConnectionOption} from "./McpAddServerDrawer"
-export {ConnectionListRow} from "./components/ConnectionListRow"
-export type {ConnectionListRowProps} from "./components/ConnectionListRow"
 export {
+    ConnectionListRow,
     NoticeBox,
     ProbeResultCard,
     ShowResponsePanel,
+    type ConnectionListRowProps,
     type NoticeBoxProps,
     type ProbeResultCardProps,
     type ProbeResultMode,
