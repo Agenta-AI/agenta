@@ -76,6 +76,33 @@ def registration_covers(
     )
 
 
+# RFC 6598 shared address space, the one range this guard blocks that Python does not.
+#
+# `ipaddress` answers False to every predicate below for an address in this range and does
+# not carry it in its private-networks table, so a target resolving into it read as public
+# and was dialled with the caller's credential attached. The range is in everyday use for
+# cloud pod and service networks and for some mesh VPNs, and a gateway endpoint URL is
+# supplied by the tenant, so reaching one of those is the feature rather than an
+# administrator's misconfiguration (P10).
+#
+# The same range is added to every other copy of this predicate and to the generated table
+# the runner loads. They are held together by the vector fixture in
+# `sdks/python/oss/tests/pytest/unit/golden/ssrf_guard_vectors.json`, which every one of
+# them is asserted against, so a copy that misses it fails rather than diverges quietly.
+_SHARED_ADDRESS_SPACE = ipaddress.ip_network("100.64.0.0/10")
+
+
+def _in_shared_address_space(ip: ipaddress._BaseAddress) -> bool:
+    """Whether an address is RFC 6598 space, IPv4-mapped IPv6 included.
+
+    Unwrapped the way `ipaddress` unwraps for its own predicates, so `::ffff:100.64.0.1` is
+    judged as the IPv4 address it carries.
+    """
+    embedded = getattr(ip, "ipv4_mapped", None)
+    candidate = embedded if embedded is not None else ip
+    return candidate.version == 4 and candidate in _SHARED_ADDRESS_SPACE
+
+
 def _is_public_ip(ip: ipaddress._BaseAddress) -> bool:
     return not (
         ip.is_private
@@ -84,6 +111,7 @@ def _is_public_ip(ip: ipaddress._BaseAddress) -> bool:
         or ip.is_reserved
         or ip.is_multicast
         or ip.is_unspecified
+        or _in_shared_address_space(ip)
     )
 
 

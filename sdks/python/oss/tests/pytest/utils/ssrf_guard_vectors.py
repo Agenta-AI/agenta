@@ -1,7 +1,8 @@
 """Generator for the cross-language SSRF-guard fixtures.
 
-Two artifacts, both derived from Python's own `ipaddress` module — the ground truth,
-independent of both `agenta.sdk.utils.net` and the TypeScript guard:
+Two artifacts, both derived from Python's own `ipaddress` module plus the one range this
+policy adds to it (`SHARED_ADDRESS_SPACE` below) — the ground truth, independent of both
+`agenta.sdk.utils.net` and the TypeScript guard:
 
 - `generate_ranges()`: the collapsed CIDR tables (private + reserved + multicast, per
   address family) that `services/runner/src/tools/ssrf-guard.ts` loads at runtime instead
@@ -19,6 +20,31 @@ in one language without updating the other flips a label and turns a test red.
 import ipaddress
 from pathlib import Path
 from typing import Dict, List
+
+# RFC 6598 shared address space, which the guard blocks and Python does not.
+#
+# `ipaddress` answers False to all six predicates for an address in this range and does not
+# carry it in its private-networks table, so a target resolving into it read as public. The
+# range is in everyday use for cloud pod and service networks and for some mesh VPNs, and an
+# MCP endpoint URL is supplied by the tenant, so reaching one of those is the feature rather
+# than an administrator's misconfiguration (P10).
+#
+# This is the one place the policy departs from `ipaddress`, and it is stated here because
+# this module is what every plane's table and fixture is generated from: adding it to a guard
+# without adding it here flips a label and turns that guard's own tests red.
+SHARED_ADDRESS_SPACE = ipaddress.ip_network("100.64.0.0/10")
+
+
+def in_shared_address_space(ip: ipaddress._BaseAddress) -> bool:
+    """Whether an address is RFC 6598 space, IPv4-mapped IPv6 included.
+
+    Unwrapped the way `ipaddress` unwraps for its own predicates, so `::ffff:100.64.0.1` is
+    judged as the IPv4 address it carries rather than as an unremarkable IPv6 one.
+    """
+    embedded = getattr(ip, "ipv4_mapped", None)
+    candidate = embedded if embedded is not None else ip
+    return candidate.version == 4 and candidate in SHARED_ADDRESS_SPACE
+
 
 RANGES_PATH = (
     Path(__file__).parents[6]
@@ -39,6 +65,7 @@ def generate_ranges() -> Dict[str, List[str]]:
         v4._reserved_network,
         v4._multicast_network,
     ]
+    v4_networks.append(SHARED_ADDRESS_SPACE)
     v6 = ipaddress._IPv6Constants
     v6_networks = (
         list(v6._private_networks)
@@ -61,7 +88,7 @@ HOSTS: List[str] = [
     "10.255.255.255",
     "9.255.255.255",
     "11.0.0.0",
-    # 100.64.0.0/10 (shared address space — NOT blocked)
+    # 100.64.0.0/10 (RFC 6598 shared address space)
     "100.64.0.0",
     "100.64.0.1",
     "100.127.255.255",
@@ -152,6 +179,7 @@ HOSTS: List[str] = [
     "::ffff:169.254.169.254",
     "::ffff:93.184.216.34",
     "0:0:0:0:0:ffff:10.0.0.1",
+    "::ffff:100.64.0.1",
     # public IPv6
     "2001:4860:4860::8888",
 ]
@@ -168,6 +196,7 @@ def generate_vectors() -> List[Dict[str, object]]:
             or ip.is_reserved
             or ip.is_multicast
             or ip.is_unspecified
+            or in_shared_address_space(ip)
         )
         vectors.append({"host": host, "blocked": blocked})
     return vectors

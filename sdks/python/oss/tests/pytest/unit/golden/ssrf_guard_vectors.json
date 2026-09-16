@@ -29,15 +29,15 @@
   },
   {
     "host": "100.64.0.0",
-    "blocked": false
+    "blocked": true
   },
   {
     "host": "100.64.0.1",
-    "blocked": false
+    "blocked": true
   },
   {
     "host": "100.127.255.255",
-    "blocked": false
+    "blocked": true
   },
   {
     "host": "100.63.255.255",
@@ -317,6 +317,10 @@
   },
   {
     "host": "0:0:0:0:0:ffff:10.0.0.1",
+    "blocked": true
+  },
+  {
+    "host": "::ffff:100.64.0.1",
     "blocked": true
   },
   {
