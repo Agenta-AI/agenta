@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 from oss.tests.pytest.acceptance.gateways.conftest import skip_without_llm_gateway
+from oss.tests.pytest.utils.mock_gateways import mock_mcp_container_url
 from oss.tests.pytest.acceptance.gateways.mock_matrix import (
     CredentialOwner,
     GATEWAY_MOCK_CASES,
@@ -33,9 +34,7 @@ _UPSTREAM_TOKEN = os.getenv("AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN")
 _LLM_MOCK_URL = os.getenv(
     "AGENTA_MOCK_LLM_GATEWAY_URL", "http://mock-llm-gateway:9091/v1"
 )
-_MCP_MOCK_URL = os.getenv(
-    "AGENTA_MOCK_MCP_GATEWAY_URL", "http://mock-mcp-gateway:9092/"
-)
+_MCP_MOCK_URL = f"{mock_mcp_container_url()}/"
 _PROFILE_HEADER = "x-agenta-mock-profile"
 
 pytestmark = [

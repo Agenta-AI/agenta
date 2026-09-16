@@ -41,16 +41,19 @@ from oss.src.core.gateways.mcps.oauth.registration import (
     client_metadata_url,
     is_publicly_resolvable,
 )
+from oss.tests.pytest.utils.mock_gateways import (
+    mock_mcp_container_url,
+    mock_mcp_published_url,
+)
 
 BASE_TIMEOUT = 60
 
 _MOCKS_ENABLED = os.getenv("AGENTA_GATEWAYS_MOCKS_ENABLED", "").lower() == "true"
 
 # The same container as seen from the host, which is where a browser — and this test —
-# stands. The dev compose files publish the mock on this port.
-_PUBLISHED_MOCK_URL = os.getenv(
-    "AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL", "http://localhost:9092"
-).rstrip("/")
+# stands. The published port is allocated per worktree, so it is read rather than written
+# down: a stack given a different one used to dial 9092 regardless (D76).
+_PUBLISHED_MOCK_URL = mock_mcp_published_url()
 
 # The OAuth-protected MCP surface. `/` stays unauthenticated for every other suite.
 _OAUTH_MCP_PATH = "/oauth/mcp"
@@ -90,7 +93,7 @@ def _published_base() -> Optional[str]:
 _MCP_MOCK_URL = (
     os.getenv("AGENTA_MOCK_MCP_GATEWAY_URL")
     or _published_base()
-    or "http://mock-mcp-gateway:9092"
+    or mock_mcp_container_url()
 ).rstrip("/")
 
 _OAUTH_MCP_URL = f"{_MCP_MOCK_URL}{_OAUTH_MCP_PATH}"

@@ -13,6 +13,8 @@ from uuid import uuid4
 
 import pytest
 
+from oss.tests.pytest.utils.mock_gateways import mock_mcp_container_url
+
 
 _MOCKS_ENABLED = os.getenv("AGENTA_GATEWAYS_MOCKS_ENABLED", "").lower() == "true"
 
@@ -30,8 +32,9 @@ pytestmark = [
     ),
 ]
 
-# Mock MCP upstream base URL; it uses Streamable HTTP JSON at the root path.
-_MOCK_BASE_URL = "http://mock-mcp-gateway:9092/"
+# Mock MCP upstream base URL; it uses Streamable HTTP JSON at the root path. The API
+# container is what dials it, so this is the in-network address and not the published one.
+_MOCK_BASE_URL = f"{mock_mcp_container_url()}/"
 
 
 def _assert_ok(response):

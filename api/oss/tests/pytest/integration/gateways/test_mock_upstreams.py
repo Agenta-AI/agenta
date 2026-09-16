@@ -15,6 +15,10 @@ import httpx
 import pytest
 
 from oss.src.utils.env import env
+from oss.tests.pytest.utils.mock_gateways import (
+    mock_llm_published_port,
+    mock_mcp_published_port,
+)
 
 
 def _reachable(host: str, port: int) -> bool:
@@ -26,24 +30,27 @@ def _reachable(host: str, port: int) -> bool:
 
 
 @lru_cache(maxsize=2)
-def _resolve(url: str, default_port: int) -> Optional[str]:
+def _resolve(url: str, published_port: int) -> Optional[str]:
     """The compose service name in-network, else the published loopback port.
 
     Both dev compose files publish these on 127.0.0.1, so a host-side run reaches the
     same containers without the env var having to lie to the API container, which needs
     the service name.
+
+    The two ports are different numbers. The container listens on a fixed one and compose
+    maps a per-worktree allocation onto it, so reusing the container port for the loopback
+    probe made this suite dial 9092 on a stack that had been given another (D76).
     """
     parsed = urlparse(url)
-    port = parsed.port or default_port
-    if parsed.hostname and _reachable(parsed.hostname, port):
+    if parsed.hostname and _reachable(parsed.hostname, parsed.port or published_port):
         return url
-    if _reachable("127.0.0.1", port):
-        return f"http://127.0.0.1:{port}"
+    if _reachable("127.0.0.1", published_port):
+        return f"http://127.0.0.1:{published_port}"
     return None
 
 
-_LLM_URL = _resolve(env.mock_gateways.llm_url, 9091)
-_MCP_URL = _resolve(env.mock_gateways.mcp_url, 9092)
+_LLM_URL = _resolve(env.mock_gateways.llm_url, mock_llm_published_port())
+_MCP_URL = _resolve(env.mock_gateways.mcp_url, mock_mcp_published_port())
 
 pytestmark = [
     pytest.mark.integration,

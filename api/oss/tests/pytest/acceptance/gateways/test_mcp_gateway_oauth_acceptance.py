@@ -13,13 +13,12 @@ from typing import Any
 import pytest
 
 from oss.tests.pytest.acceptance.gateways.mock_matrix import unique_slug
+from oss.tests.pytest.utils.mock_gateways import mock_mcp_container_url
 
 
 _MOCKS_ENABLED = os.getenv("AGENTA_GATEWAYS_MOCKS_ENABLED", "").lower() == "true"
 _UPSTREAM_TOKEN = os.getenv("AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN")
-_MCP_MOCK_URL = os.getenv(
-    "AGENTA_MOCK_MCP_GATEWAY_URL", "http://mock-mcp-gateway:9092/"
-)
+_MCP_MOCK_URL = f"{mock_mcp_container_url()}/"
 
 pytestmark = [
     pytest.mark.acceptance,
