@@ -372,10 +372,15 @@ connections list, after a refusal as well as after a success, and the line promi
 will close is shown only to the window that can actually close. The misleading comment in the hook
 is corrected rather than left to mislead the next reader.
 
-**The return route was checked, not assumed.** The page sends the tab to `/settings?tab=mcpEndpoints`
-on the app's own origin, and that bare route resolves: it renders a redirect component that rewrites
-to the workspace and project scoped settings path and carries the query string with it, so the tab
-lands on the MCP tab rather than on a 404.
+**The return route was checked, not assumed** — and half of what I said about it was wrong, which is
+recorded here rather than quietly corrected. The page sends the tab to `/settings?tab=mcpEndpoints`
+on the app's own origin. That bare route does resolve: it renders a redirect that rewrites to the
+workspace and project scoped path and carries the query string with it, so nobody lands on a 404.
+The scoped page does read the `tab` parameter. What I asserted beyond that, that the person arrives
+on the MCP tab, does not hold today: the tab resolver falls back to the default when the named tab
+is not currently visible to it, so the return lands on Preferences. A returning person is inside the
+app with their connection saved, which is what D27 was about, and one click from the right tab. The
+web agent is fixing the resolution.
 
 **D28. Manual authentication reports success without contacting the server.**
 `submitManualCredential` saves the secret reference and dispatches `verify_succeeded`
@@ -869,6 +874,27 @@ variables that nothing in the repository sets, and the symptom is a test failure
 product defect. The consent page being public at the tunnel now also means the host-resolver
 requirement may no longer apply, and the suite still demands it, which is worth settling in the same
 change.
+
+## Two findings from outside this review, verified here
+
+**CodeQL's `py/stack-trace-exposure` — fixed by `73befe23f0`, verified.** The LLM proxy rendered an
+exception's own text for anything the body parser raised, and that arm catches every `ValueError`:
+a decoder names the offset it choked on, an encoding error quotes the offending bytes, and anything
+else reaching that point is not about the request at all. The parser now raises a typed body error
+carrying a stable cause and a sentence this code wrote, the proxy shows that sentence and nothing
+else, and an exception it did not author is logged by class and answered with a fixed line. A caller
+keeps the feedback that made a refusal actionable: no model named, a non-boolean stream, and a body
+that is not JSON each still say so.
+
+It is the same shape as D1's classifier, applied one layer up, and the commit closes the MCP plane's
+identical arm in the same change rather than leaving a known instance of a pattern it had just
+flagged. Pinned before the fix, three cases fail — an unrelated error reaching the LLM body, a
+malformed body quoting the decoder, and an unrelated error reaching the JSON-RPC body — and the
+whole set is **132 passed** at the fix.
+
+**The real-model matrix is complete**, recorded at `72368cd612`: nine of nine, with Codex's row now
+run against a real model and the recipes for both routes written down. That is the evidence the
+release gate wanted and this review never had: every case I ran against a model ran against a mock.
 
 ## Quality findings
 
