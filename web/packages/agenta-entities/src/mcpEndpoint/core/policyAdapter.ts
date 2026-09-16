@@ -43,7 +43,7 @@ import {
  *
  * Structurally the `GatewayConnectionPermissions` declared in `@agenta/entity-ui`'s `toolUtils.ts`,
  * restated here because the dependency runs the other way: entity-ui imports this package. The two
- * are assignable in both directions and `mcpToolGroups.test.ts` in entity-ui holds them to it, so a
+ * are assignable in both directions and `mcpPolicyShapes.test.ts` in entity-ui holds them to it, so a
  * field added to one and not the other fails a test rather than diverging quietly.
  */
 export interface GatewayConnectionPermissions {
