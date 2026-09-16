@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **0** | **9** | **5** | **13 closed, 2 part fixed, 14 open. No P1 remains** |
+| **As this file is written** | **0** | **0** | **7** | **5** | **16 closed, 2 part fixed, 12 open. No P1 remains** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -84,8 +84,8 @@ whether that fix was read against the finding and its test.
 | D24 | Codex | P1 | `api/oss/src/core/gateways/mcps/oauth/storage.py:366`, `:222`, `oauth/service.py:456`, `:483` | Fix, blocking. Re-opens D6 | `98e1ddb6e4` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D25 | reviewer 2 | P1 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:106`, `:297` | Fix or record, blocking the gate | `8b7b1c6cd1` | **yes**, run by this review, and run again against a dead port |
 | D26 | reviewer 2 | P1 | `mcp-connect.ts:190`, `:219`, `:236` | Fix with D22 | `cd9e6f2c16`, `8b7b1c6cd1` | **yes**, 7 of 7 green on a run by this review |
-| D27 | both | P2 | `hooks/useMcpConnectJourney.ts:160`, `api/oss/src/apis/fastapi/gateways/mcps/router.py:889` | Fix | | mechanism, both sites |
-| D28 | both | P2 | `hooks/useMcpConnectJourney.ts:274-295` | Fix | | mechanism, code |
+| D27 | both | P2 | `hooks/useMcpConnectJourney.ts:160`, `api/oss/src/apis/fastapi/gateways/mcps/router.py:889` | Fix | `9aa07f51a5` | **yes**, code, tests, incl. pre-fix run and the return route checked |
+| D28 | both | P2 | `hooks/useMcpConnectJourney.ts:274-295` | Fix | `2019858a58` | **yes**, code and tests, suites run |
 | D29 | reviewer 2 | P2 | `core/connectJourney.ts:181`, `hooks/useMcpConnectJourney.ts:331`, `McpConnectJourney.tsx:117` | Fix | | mechanism, code |
 | D30 | reviewer 2 | P2 | `core/connectJourney.ts:185` | Fix | | mechanism, code |
 | D31 | both | P2 | `hooks/useMcpConnectJourney.ts:220`, `McpConnectJourney.tsx:104`, `router.py:541-554` | **Part fixed.** API half done; the duplicate call is the web half | `cb3a277fdc` | **yes** for the API half, code and tests |
@@ -105,7 +105,8 @@ whether that fix was read against the finding and its test.
 | D45 | reviewer 2 | P3 | `core/connectionName.ts:69` | Fix | | mechanism, code |
 | D46 | D38 residual | P3 | `api/oss/src/core/gateways/mcps/oauth/client.py:273` | Fix with D38's bound | `ae87c4f5f4` | **yes**, code and one discriminating test; two of the three do not discriminate |
 | D47 | verification | P3 | `api/oss/src/core/gateways/egress.py:113`, [qa.md](../qa.md) | Fix the collision or document it | `b92db4946a` | **yes**, 1061 passed with the preconditions exported |
-| D48 | verification | P2 | `mcpConnectJourney.tools.test.tsx:79`, `mcpConnectJourney.reconnect.test.tsx:66` | Fix: cover the wiring, not only the hook | | mechanism, imports checked, suites run |
+| D48 | verification | P2 | `mcpConnectJourney.tools.test.tsx:79`, `mcpConnectJourney.reconnect.test.tsx:66` | Fix: cover the wiring, not only the hook | `bc96498688` | **yes**, code and suites run |
+| D49 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:77`, `:122` | Fix the flake | | mechanism, five runs |
 | Q1 | both | P2 | `McpConnectJourney.tsx:98-106`, `hooks/useMcpConnectJourney.ts:189` | Quality, altitude. The root of D22, D23, D29, D30, D31 and D34 | | mechanism, code |
 | Q2 | both | P2 | `McpConnectionDetail.tsx:66-83`, `McpToolPermissions.tsx:77-93` | Quality, reuse and efficiency | | mechanism, code |
 | Q3 | reviewer 2 | P3 | `McpConnectionDetail.tsx:74`, `McpToolPermissions.tsx:85` | Quality, reuse. **Closed by D32's fix** | `8079441042` | **yes**, code |
@@ -136,6 +137,8 @@ revision before the fix, so the predicted failure is watched rather than assumed
 | D32, D35, D36 | `8079441042`, `acdf1de2e4`, `7ee965e435` | 797 + 547 + 1846 passed | asserted behaviour the old code cannot produce; the shell half run both ways |
 | D46 | `ae87c4f5f4` | 20 passed | 1 hung until killed, 2 passed either way |
 | D47 | `b92db4946a` | 1061 passed with the preconditions exported | 2 failed, 74 passed |
+| D27 | `9aa07f51a5` | 7 passed | 6 failed, 1 passed |
+| D28, D48 | `2019858a58`, `bc96498688` | 802 passed in the entity UI package | structurally discriminating, see D48 |
 
 The pre-fix failures are the predicted ones in every case. D24's headline case comes back with the
 grant's `client_registration_slug` set to nothing after the first renewal, where the pinned slug
@@ -195,6 +198,9 @@ ephemeral project around the run.
 **The failure path was run too**, by pointing the published mock address at a dead port: one failure
 in `beforeAll` at 0 ms carrying the sentence that names what to start, and the remaining six
 skipped, rather than seven timeouts of a minute each.
+
+**Five runs, not one.** The recorded pass above is the first; D49 records what the other four
+showed, which is that this suite fails about half the time for reasons unrelated to any change.
 
 **It is deliberately not in CI**, and the judgement is sound. The Railway job points at a deployed
 preview that runs no mock container, so enabling it there would fail for a missing fixture rather
@@ -346,6 +352,18 @@ configuration gone. Mobile browsers and in-app webviews block popups far more ag
 desktop, and `/m` is the production default. Fix: give the callback a top-level return when there
 is no opener, and correct the comment either way.
 
+**Fixed** by `9aa07f51a5`, verified. The page can now tell its two situations apart, which it
+could not before: a popup, which has an opener and may close itself, and a tab the app navigated
+because the popup was blocked, which has neither. The second gets sent back to the app's
+connections list, after a refusal as well as after a success, and the line promising that the tab
+will close is shown only to the window that can actually close. The misleading comment in the hook
+is corrected rather than left to mislead the next reader.
+
+**The return route was checked, not assumed.** The page sends the tab to `/settings?tab=mcpEndpoints`
+on the app's own origin, and that bare route resolves: it renders a redirect component that rewrites
+to the workspace and project scoped settings path and carries the query string with it, so the tab
+lands on the MCP tab rather than on a 404.
+
 **D28. Manual authentication reports success without contacting the server.**
 `submitManualCredential` saves the secret reference and dispatches `verify_succeeded`
 unconditionally (`hooks/useMcpConnectJourney.ts:274-295`), though the state is called `verifying`
@@ -355,6 +373,20 @@ Recovery is also OAuth-only: `router.py:525` refuses a reconnect for a non-OAuth
 offered action cannot repair an API-key connection. Fix: reuse the probe with the credential
 attached, or perform one handshake through the data plane, and let `verify_failed` carry the
 refusal.
+
+**Fixed** by `2019858a58`, verified, and it takes the second option by reusing the client D32 had
+just made correct: saving the credential is followed by one authenticated handshake through the
+gateway, so a wrong header name or a wrong secret is refused by the server while the person is still
+standing in the step called Verify. The refusal carries the upstream's own wording.
+
+The second half of the finding goes with it. `startReconnect` now routes by what the connection
+actually uses: scope discovery for an OAuth connection, the credential step for a key, so the
+Reconnect offered on a key-authenticated connection repairs it instead of earning the route's
+refusal that it is not an OAuth target.
+
+One consequence worth knowing: verification is a `tools/list`, so a server that accepts the
+credential but refuses to list tools would read as a rejected credential. That is the safer
+direction and it is a narrow case, but it is not the same question.
 
 **D29. A cancel between consent and the refetch deletes the connection just authorized.**
 `cancelDeletesEndpoint` is true whenever the row was created here and `isConnected` is false
@@ -662,6 +694,44 @@ would catch either regressing is the acceptance suite D25 is about. Until D25 la
 undone by a refactor with every unit suite green. The fix is small: render the component in one case
 per finding and assert the consequence — that a connected journey leaves `discovering_tools` without
 anyone calling `loadTools`, and that closing and reopening the section starts at URL entry.
+
+**Fixed** by `bc96498688`, verified, and it is exactly the two cases this asked for. Both render the
+real dialog through its portal and touch only the controls a person touches. The first connects a
+server and asserts the tool list was read and the count is on screen, with nothing in the test having
+called the loader, so the dialog's own effect has to; the second toggles `open` through a host that
+keeps the component rendered, the way the settings section does, and asserts the URL field is back
+and empty. Each fails if its driver is removed, which is the property the earlier suites lacked: the
+test now asserts a consequence rather than performing the step.
+
+**D49. The suite that is now the only guard fails about half the time.** Five runs of
+`mcp-connect` against the same stack, with the same command, while verifying the fixes above:
+
+| Run | Result |
+| --- | --- |
+| 1 | 7 passed |
+| 2 | 5 passed, 2 failed |
+| 3 | 7 passed |
+| 4 | 6 passed, 1 failed |
+| 5 | 6 passed, 1 failed |
+
+Two distinct failure modes, and neither is an assertion about product behaviour. In run 4 the first
+case waited the full thirty seconds for the name field after submitting the URL and never saw it,
+taking 36 seconds to fail where the passing runs complete that case in six; the first case pays for
+the settings route compiling on a development stack, and the wait is on a locator that also depends
+on a probe round trip. In run 5 the OAuth case failed inside `openSettings` with
+`net::ERR_ABORTED; maybe frame was detached?` on a navigation, which is what a `goto` issued while
+another navigation is still settling looks like.
+
+**Why this is worth a finding rather than a note.** D25's answer was that this suite is a manual gate
+step, deliberately not in CI, and the release status says so. A manual step that fails for reasons
+unrelated to the change teaches the person running it to re-run until green, and a gate people
+re-run until green is not a gate. It is also the only guard for D22, D23 and D26.
+
+**Suggested fix.** Warm the settings route once before the first case, so the first probe is not
+also paying for a compile; give the step that waits on the probe its own longer timeout, since it is
+the one wait that spans a server round trip; and make `openSettings` tolerate an aborted navigation
+rather than failing the case on it. None of that weakens an assertion, which is the thing not to
+trade away here.
 
 ## Quality findings
 
