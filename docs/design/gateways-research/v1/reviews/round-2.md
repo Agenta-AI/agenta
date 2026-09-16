@@ -407,6 +407,11 @@ again replaces the error with a permanent spinner. `check_failed` and the three 
 fine, because the component re-calls their operation directly. This is the same shape as D22 and the
 same fix pattern applies.
 
+**Fixed** by `133f17c110`, verified. Both failures are gone from the retry table, so a retry no
+longer moves to a state nothing drives, and each is retried by calling its operation again, the way
+the URL step always was. That is the local form of what Q1 asks for: every busy state now has
+exactly one driver.
+
 **D31. Every OAuth connect discovers scopes twice, and discovery writes the whole endpoint row
 back.** `submitName` awaits `discoverScopes` itself (`hooks/useMcpConnectJourney.ts:220-222`), and
 the `endpoint_created` transition it dispatched first has already moved the status to
@@ -426,8 +431,12 @@ merged into the row as it stands inside the transaction that holds the row lock,
 writes can carry a stale credential handle or a stale flag. The fix goes a level deeper than the
 suggestion: the helper that built these full replacements is deleted, and with no callers left no
 route can express a credential lifecycle change as a row replacement at all. That closes the class
-rather than the instance. **The duplicate call is still open**, in the web layer, where the finding
-also placed it.
+rather than the instance. **The web half is fixed** by `23dc332d94`, verified: the direct call in `submitName` is gone, and
+the transition it already dispatched leaves the component's effect as the single owner of scope
+discovery. Its test is worth noting for the reason its own docstring gives — the first two versions
+passed with the defect reintroduced, because an instantly-resolving stub let the direct call finish
+before React re-rendered, so the duplicate was unobservable. Holding discovery in flight while
+counting is what makes it discriminate, and it is also what a real network does.
 
 **A coverage gap worth closing with it.** The new write has no test against a real database. Both
 new cases install a fake store that merges by construction (`test_gateways_mcp_service.py`,
@@ -734,6 +743,17 @@ also paying for a compile; give the step that waits on the probe its own longer 
 the one wait that spans a server round trip; and make `openSettings` tolerate an aborted navigation
 rather than failing the case on it. None of that weakens an assertion, which is the thing not to
 trade away here.
+
+**It has since stopped running at all.** Four later attempts, after the stack was redeployed, ended
+in `0 passed, 0 failed, 0 skipped`: the global setup times out waiting for the redirect after
+sign-up, and the browser sits on the sign-in page reporting that no response was captured. The
+deployment itself answers — the API's sign-up route returns 200 to a direct call, and the web
+container compiles and serves its pages — so this is the browser-side authentication flow rather
+than the fixes under review. Two consequences. The browser evidence for D29, D30 and D31's web half
+is not obtainable while this holds, and those three are recorded on their code and their unit suites
+alone. And the manual gate step D25 settled on is, at this moment, unrunnable, which is a sharper
+version of the same point: the only guard for three P1 fixes is a suite that flakes about half the
+time when it runs and cannot start at all when the stack shifts under it.
 
 ## Quality findings
 
