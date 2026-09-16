@@ -33,8 +33,9 @@ _HANDSHAKE = [
 ]
 
 
-#: Post-initialization requests carry the negotiated version; `initialize` must not.
-NEGOTIATED = {"mcp-protocol-version": "2026-07-28"}
+#: Post-initialization requests carry the version the server NEGOTIATED, which this mock
+#: answers regardless of the client's offer (D64); `initialize` must not carry one at all.
+NEGOTIATED = {"mcp-protocol-version": "2025-03-26"}
 
 
 def _headers_for(method: str) -> dict:

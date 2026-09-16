@@ -26,9 +26,10 @@ def _auth() -> MCPDirectAuth:
     return MCPDirectAuth(secret=None)
 
 
-#: Every request but `initialize` must carry the negotiated version, so the default headers for
-#: these cases carry it. The rule itself is asserted by its own cases at the bottom of the file.
-NEGOTIATED = {"mcp-protocol-version": "2026-07-28"}
+#: Every request but `initialize` must carry the version the server NEGOTIATED, which this mock
+#: answers with whatever the client offered (D64), so the default headers for these cases carry
+#: it. The rule itself is asserted by its own cases at the bottom of the file.
+NEGOTIATED = {"mcp-protocol-version": "2025-03-26"}
 
 
 def _body(result: MCPRelayResult) -> dict:
@@ -115,7 +116,7 @@ async def test_discovery_advertises_the_current_protocol():
     payload = json.loads(result.body)
     assert payload["result"] == {
         "resultType": "complete",
-        "supportedVersions": ["2026-07-28"],
+        "supportedVersions": ["2025-03-26"],
         "capabilities": {"tools": {}},
         "_meta": {
             "io.modelcontextprotocol/serverInfo": {
@@ -213,10 +214,10 @@ async def test_initialize_completes_the_handshake():
     assert result.status_code == 200
     payload = json.loads(result.body)
     assert payload["id"] == 1
-    # The client's own version comes back: a fixture accepts whatever version it is opened
-    # with, because rejecting one is a real server's job.
+    # The SERVER's revision comes back, not the client's offer: this mock speaks one revision and
+    # negotiates a client that offers a newer one down to it, the way a real server does (D64).
     assert payload["result"] == {
-        "protocolVersion": "2025-06-18",
+        "protocolVersion": "2025-03-26",
         "capabilities": {"tools": {}},
         "serverInfo": {"name": "agenta-mock-mcp", "version": "0.1.0"},
     }
@@ -234,7 +235,7 @@ async def test_initialize_without_a_version_uses_the_pinned_one():
         headers={},  # initialize negotiates the version; it must not assert one
     )
 
-    assert json.loads(result.body)["result"]["protocolVersion"] == "2026-07-28"
+    assert json.loads(result.body)["result"]["protocolVersion"] == "2025-03-26"
 
 
 @pytest.mark.asyncio
@@ -328,7 +329,7 @@ async def test_initialize_carrying_a_version_header_is_refused():
         route=_route(),
         auth=_auth(),
         context=MCPCallContext(method="initialize"),
-        body=_rpc("initialize", params={"protocolVersion": "2026-07-28"}),
+        body=_rpc("initialize", params={"protocolVersion": "2025-06-18"}),
         headers=dict(NEGOTIATED),
     )
 
@@ -337,7 +338,7 @@ async def test_initialize_carrying_a_version_header_is_refused():
     assert payload["error"]["code"] == -32020
     assert "headers and body disagree" in payload["error"]["message"]
     assert "MCP-Protocol-Version" in payload["error"]["message"]
-    assert payload["error"]["data"]["mismatch"]["header"] == "2026-07-28"
+    assert payload["error"]["data"]["mismatch"]["header"] == "2025-03-26"
 
 
 @pytest.mark.asyncio
@@ -444,15 +445,15 @@ async def test_initialize_may_carry_a_meta_envelope():
         body=_rpc(
             "initialize",
             params={
-                "protocolVersion": "2026-07-28",
-                "_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"},
+                "protocolVersion": "2025-06-18",
+                "_meta": {"io.modelcontextprotocol/protocolVersion": "2025-06-18"},
             },
         ),
         headers={},
     )
 
     assert result.status_code == 200
-    assert _body(result)["result"]["protocolVersion"] == "2026-07-28"
+    assert _body(result)["result"]["protocolVersion"] == "2025-03-26"
 
 
 @pytest.mark.asyncio
@@ -535,3 +536,62 @@ async def test_the_notification_precedes_the_answer_on_the_wire():
     text = result.body.decode()
     assert text.index("notifications/message") < text.index('"tools"')
     assert text.count("event: message") == 2
+
+
+# D64. One product shipped three MCP clients naming two different revisions, and a mock that
+# echoed the client's own offer back could never show the difference between the version a client
+# OFFERS and the version a server ANSWERS. This mock now speaks one revision, older than the one
+# the clients offer, so the downgrade runs in every cell.
+
+
+@pytest.mark.asyncio
+async def test_initialize_negotiates_a_newer_offer_down():
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="initialize"),
+        body=_rpc("initialize", params={"protocolVersion": "2026-07-28"}),
+        headers={},
+    )
+
+    assert _body(result)["result"]["protocolVersion"] == "2025-03-26"
+
+
+@pytest.mark.asyncio
+async def test_a_later_request_must_name_the_negotiated_version_not_the_offered_one():
+    """The defect a real upstream found: a client that echoes what it ASKED for rather than what
+    it was ANSWERED. A mock checking only that the header exists cannot tell those apart."""
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="tools/list"),
+        body=_rpc("tools/list"),
+        headers={"mcp-protocol-version": "2025-06-18"},  # what the client offered
+    )
+
+    assert result.status_code == 400
+    payload = _body(result)
+    assert payload["error"]["code"] == -32020
+    assert (
+        "which is not the 2025-03-26 this server negotiated"
+        in payload["error"]["message"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_negotiated_version_is_accepted():
+    adapter = MockMCPAdapter()
+
+    result = await adapter.relay(
+        route=_route(),
+        auth=_auth(),
+        context=MCPCallContext(method="tools/list"),
+        body=_rpc("tools/list"),
+        headers={"mcp-protocol-version": "2025-03-26"},
+    )
+
+    assert result.status_code == 200

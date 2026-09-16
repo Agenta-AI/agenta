@@ -199,7 +199,11 @@ async def test_a_handshake_behind_a_notification_is_still_read():
     failed on one sent after, so all three now select the last frame carrying a result or error.
     """
     notification = json.dumps(
-        {"jsonrpc": "2.0", "method": "notifications/message", "params": {"level": "info"}}
+        {
+            "jsonrpc": "2.0",
+            "method": "notifications/message",
+            "params": {"level": "info"},
+        }
     )
 
     def handler(_request: httpx.Request) -> httpx.Response:

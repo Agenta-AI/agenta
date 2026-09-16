@@ -45,7 +45,19 @@ from oss.src.core.gateways.policy.dtos import ResolvedSecret
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.utils.env import env
 
-_PROTOCOL_VERSION = "2026-07-28"  # pinned per MCPCallContext's own docstring
+#: The one MCP revision this mock speaks, and therefore the one it answers `initialize` with
+#: whatever the client offered (D64).
+#:
+#: Deliberately OLDER than the revision the clients offer (`2025-06-18`), so every cell in the
+#: matrix exercises the downgrade path: the server names a revision the client did not ask for,
+#: and every request after the handshake has to carry the server's value rather than the client's.
+#: That path existed untested until a real upstream took it and broke three things at once.
+#:
+#: This is where the fixture stops imitating our own builtin server
+#: (`providers/agenta/adapter.py`), which echoes the client's version back. Imitating it here
+#: would mean the negotiated version always equalled the offered one and the client could confuse
+#: the two forever. A fixture's job is to be the awkward server; do not "fix" this to echo.
+_PROTOCOL_VERSION = "2025-03-26"
 _METHOD_NOT_FOUND = -32601  # JSON-RPC 2.0
 _INVALID_REQUEST = (
     -32020
@@ -149,16 +161,18 @@ async def _dispatch_tool_call(params: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _initialize_result(params: Dict[str, Any]) -> Dict[str, Any]:
-    """The handshake answer, with the client's own protocol version echoed back.
+    """The handshake answer, naming the one revision this server speaks (D64).
 
-    A mock accepts whatever version the client opens with. Pinning ours here would make the
-    mock reject clients by version, which is a real server's job and never a fixture's.
+    A client OFFERS a revision and the server ANSWERS with one it supports, which may be older.
+    This mock supports exactly one, so it always answers that, and a client offering anything
+    else is negotiated down rather than refused. Refusing by version would be a real server's
+    judgement and never a fixture's; answering our own is just what a server does.
+
+    The client's offer is read only to keep the refusal below honest about what it was given.
     """
-    requested = params.get("protocolVersion")
+    del params  # the offer does not change the answer; see the docstring
     return {
-        "protocolVersion": (
-            requested if isinstance(requested, str) and requested else _PROTOCOL_VERSION
-        ),
+        "protocolVersion": _PROTOCOL_VERSION,
         "capabilities": {"tools": {}},
         "serverInfo": _SERVER_INFO,
     }
@@ -230,6 +244,17 @@ def _check_version_header(
             f"a {method} request was sent without the MCP-Protocol-Version header "
             "negotiated by initialize",
             None,
+        )
+    if present != _PROTOCOL_VERSION:
+        # The value, not just the presence (D64). This server negotiated DOWN, so a client that
+        # echoes back what it OFFERED rather than what it was ANSWERED sends the wrong revision
+        # here. That is the exact defect a real upstream found in production, and a mock that
+        # checked only presence could not tell the two apart.
+        return _version_header_refusal(
+            request_id,
+            f"a {method} request named MCP-Protocol-Version {present}, which is not the "
+            f"{_PROTOCOL_VERSION} this server negotiated at initialize",
+            present,
         )
     return None
 

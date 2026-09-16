@@ -30,6 +30,12 @@ afterEach(() => {
  * gateway turns its `ValueError` into a non-2xx, not a JSON-RPC error. Written as the narrow set
  * it is, so a client that opens with anything else fails here exactly as it failed in production.
  */
+/**
+ * The revision this stand-in ANSWERS, deliberately older than the one the client offers, so every
+ * case using it exercises the downgrade rather than an echo (D64).
+ */
+const BUILTIN_NEGOTIATED_VERSION = "2025-03-26";
+
 function builtinAdapterFetch(
   options: { onRequest?: (method: string) => void } = {},
 ) {
@@ -40,7 +46,7 @@ function builtinAdapterFetch(
     const result =
       payload.method === "initialize"
         ? {
-            protocolVersion: payload.params?.protocolVersion ?? "2026-07-28",
+            protocolVersion: BUILTIN_NEGOTIATED_VERSION,
             capabilities: { tools: {} },
             serverInfo: { name: "agenta-builtin-mcp", version: "0.1.0" },
           }
@@ -135,27 +141,35 @@ describe("Pi gateway MCP extension", () => {
       const headers = new Headers(init?.headers);
       requests.push({ method: payload.method, headers });
       const result =
-        payload.method === "tools/list"
+        payload.method === "initialize"
           ? {
-              tools: [
-                {
-                  name: "echo",
-                  description: "echo",
-                  inputSchema: { type: "object" },
-                },
-              ],
+              // Answered, and answered OLDER than the client offered, so what follows tests the
+              // negotiated value rather than the client's own fallback (D64).
+              protocolVersion: BUILTIN_NEGOTIATED_VERSION,
+              capabilities: { tools: {} },
+              serverInfo: { name: "agenta-builtin-mcp", version: "0.1.0" },
             }
-          : payload.method === "tools/call"
+          : payload.method === "tools/list"
             ? {
-                content: [
-                  { type: "text", text: payload.params.arguments.marker },
+                tools: [
+                  {
+                    name: "echo",
+                    description: "echo",
+                    inputSchema: { type: "object" },
+                  },
                 ],
               }
-            : {
-                resultType: "complete",
-                supportedVersions: ["2026-07-28"],
-                capabilities: { tools: {} },
-              };
+            : payload.method === "tools/call"
+              ? {
+                  content: [
+                    { type: "text", text: payload.params.arguments.marker },
+                  ],
+                }
+              : {
+                  resultType: "complete",
+                  supportedVersions: [BUILTIN_NEGOTIATED_VERSION],
+                  capabilities: { tools: {} },
+                };
       return new Response(
         JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
         {
@@ -202,11 +216,15 @@ describe("Pi gateway MCP extension", () => {
       ),
     );
     // Not on `initialize`, which negotiates the version, and the agreed one on everything after.
+    // This stand-in negotiates DOWN, so the value asserted here is one the client never offered:
+    // a client echoing its own constant would pass against a server that echoed back and fail
+    // here, which is the whole point of the case (D64).
+    assert.notEqual(BUILTIN_NEGOTIATED_VERSION, MCP_PROTOCOL_VERSION);
     assert.ok(
       requests.every((request) =>
         request.method === MCP_DISCOVERY_METHOD
           ? request.headers.get("mcp-protocol-version") === null
-          : request.headers.get("mcp-protocol-version") === "2026-07-28",
+          : request.headers.get("mcp-protocol-version") === BUILTIN_NEGOTIATED_VERSION,
       ),
     );
   });
@@ -1316,5 +1334,54 @@ describe("a server that sends a notification before its tool list (D63)", () => 
 
     const out = await pi.tools[0].execute("call-1", { marker: "X" });
     assert.ok(JSON.stringify(out).includes("ok"), `the call must return the result: ${JSON.stringify(out)}`);
+  });
+});
+
+// D64. One product shipped three MCP clients naming two revisions: this one said 2026-07-28 while
+// the browser client and the backend probe said 2025-06-18. A server was therefore told three
+// different things about the wire by one product, and a mock whose strictness was derived from one
+// client certified nothing about the other two.
+
+describe("the revision this client offers (D64)", () => {
+  it("is the one the browser client and the backend probe also offer", () => {
+    // Kept in step by hand across three languages, so the value is asserted here rather than
+    // left to a reader to notice. The other two are
+    // `web/packages/agenta-entities/src/mcpEndpoint/core/mcpRpc.ts` (MCP_PROTOCOL_VERSION) and
+    // `api/oss/src/core/gateways/mcps/probe.py` (_PROTOCOL_VERSION).
+    assert.equal(MCP_PROTOCOL_VERSION, "2025-06-18");
+  });
+
+  it("is what initialize offers, while later requests carry what the server answered", async () => {
+    const offered: (string | undefined)[] = [];
+    const headers: (string | null)[] = [];
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body));
+      offered.push(payload.params?.protocolVersion);
+      headers.push(new Headers(init?.headers).get("mcp-protocol-version"));
+      if (payload.id === undefined) return new Response("", { status: 202 });
+      const result =
+        payload.method === "tools/list"
+          ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
+          : payload.method === "tools/call"
+            ? { content: [{ type: "text", text: "ok" }] }
+            : { protocolVersion: BUILTIN_NEGOTIATED_VERSION, capabilities: { tools: {} } };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+
+    // The offer is ours and rides the handshake body only.
+    assert.equal(offered[0], MCP_PROTOCOL_VERSION);
+    assert.equal(headers[0], null);
+    // Everything after carries the server's answer, which is not what we offered.
+    assert.ok(headers.slice(1).length > 0, "there are later requests to check");
+    assert.ok(
+      headers.slice(1).every((value) => value === BUILTIN_NEGOTIATED_VERSION),
+      `later requests must carry the negotiated revision, got ${headers.slice(1).join(", ")}`,
+    );
   });
 });

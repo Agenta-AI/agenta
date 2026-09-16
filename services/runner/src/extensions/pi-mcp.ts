@@ -33,7 +33,26 @@ export type PiMcpToolGate = (
   request: PiMcpGateRequest,
 ) => Promise<{ allowed: boolean; reason: string }>;
 
-export const MCP_PROTOCOL_VERSION = "2026-07-28";
+/**
+ * The MCP revision this client OFFERS at `initialize`. A server is free to answer an older one
+ * it supports, and `negotiatedVersion` is what every request after the handshake then carries.
+ *
+ * One value, shared by all three clients this product ships: this one, the browser client
+ * (`web/packages/agenta-entities/src/mcpEndpoint/core/mcpRpc.ts`) and the backend probe
+ * (`api/oss/src/core/gateways/mcps/probe.py`). They disagreed until D64 — this client claimed
+ * `2026-07-28` while the other two claimed `2025-06-18` — which meant one product told the same
+ * server three different things about the wire, and a mock's strictness derived from one client
+ * certified nothing about the other two.
+ *
+ * `2025-06-18` is the revision we picked, and the reason is that a client should claim only what
+ * it implements. The later revisions add requirements to the request envelope that none of these
+ * three clients implements or reads back, and claiming a revision we do not satisfy is what OR91
+ * cost us against a real server: it validated our envelope against the revision we NAMED and
+ * refused every request. Claiming the revision whose requirements we do meet makes that removal
+ * correct rather than merely convenient. Raise this only alongside the work that implements what
+ * the newer revision asks for, in all three clients at once.
+ */
+export const MCP_PROTOCOL_VERSION = "2025-06-18";
 
 /**
  * How long any one request from this client may take (CR10).
