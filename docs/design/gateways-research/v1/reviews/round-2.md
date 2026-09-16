@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **2** | **12** | **5** | **4 closed, 1 fixed pending a run, 23 open** |
+| **As this file is written** | **0** | **1** | **12** | **5** | **5 closed, 2 fixed pending a run, 21 open** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -80,7 +80,7 @@ whether that fix was read against the finding and its test.
 | ID | Src | Sev | Evidence | Disposition | Fix rev | Verified |
 | --- | --- | --- | --- | --- | --- | --- |
 | D22 | both | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectJourney.ts:311`, `web/packages/agenta-entity-ui/src/mcpEndpoint/McpConnectJourney.tsx:263` | Fix, blocking | `cd9e6f2c16` | **yes**, code and spec; suite run still owed |
-| D23 | both | P1 | `web/packages/agenta-settings-ui/src/mcp/McpServersSection.tsx:247`, `hooks/useMcpConnectJourney.ts:75` | Fix, blocking | | mechanism, code |
+| D23 | both | P1 | `web/packages/agenta-settings-ui/src/mcp/McpServersSection.tsx:247`, `hooks/useMcpConnectJourney.ts:75` | Fix, blocking | `40ed49f5a1` | **yes**, code and spec; browser run owed (D25) |
 | D24 | Codex | P1 | `api/oss/src/core/gateways/mcps/oauth/storage.py:366`, `:222`, `oauth/service.py:456`, `:483` | Fix, blocking. Re-opens D6 | `98e1ddb6e4` | **yes**, code, tests, suite run, incl. pre-fix run |
 | D25 | reviewer 2 | P1 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:106`, `:297` | Fix or record, blocking the gate | | mechanism, repo-wide grep |
 | D26 | reviewer 2 | P1 | `mcp-connect.ts:190`, `:219`, `:236` | Fix with D22 | `cd9e6f2c16` | **partly**, code read; suite run still owed |
@@ -108,10 +108,11 @@ whether that fix was read against the finding and its test.
 | Q3 | reviewer 2 | P3 | `McpConnectionDetail.tsx:74`, `McpToolPermissions.tsx:85` | Quality, reuse | | mechanism, code |
 | Q4 | Codex | P3 | `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx:212` | Quality, simplification | | **not verified** |
 
-**Two findings still block the release: D23 and D25.** D22, D24, D33 and D37 are fixed and
-verified, and D26 is fixed pending a recorded run. D23 makes the journey unrepeatable and reconnect
-impossible. D25 is the reason none of this was caught before the review: the only end-to-end suite
-has never run in CI, and its gating variables are set nowhere in the repository.
+**One finding still blocks the release: D25.** D22, D24, D33 and D37 are fixed and verified, and
+D23 and D26 are fixed pending a recorded run. D25 is the reason none of this was caught before the
+review, and it is now also the reason two of the fixes cannot be shown to hold: the only end-to-end
+suite has never run in CI, its gating variables are set nowhere in the repository, and it is the
+only thing that guards D22, D23 and D26.
 
 ## Verifying the fixes
 
@@ -123,6 +124,7 @@ revision before the fix, so the predicted failure is watched rather than assumed
 | Finding | Fix | At the fix | Pinned before it |
 | --- | --- | --- | --- |
 | D22, D26 | `cd9e6f2c16` | code and spec read | acceptance run still owed (D25) |
+| D23 | `40ed49f5a1` | code and spec read | acceptance run still owed (D25) |
 | D24 | `98e1ddb6e4` | 16 passed | 3 failed, 13 passed |
 | D33 | `dd8f6066e3` | 23 passed | 3 failed, 20 passed |
 | D37 | `341a9c16c6` | 122 passed | 28 failed, 94 passed |
@@ -213,8 +215,25 @@ hook, so the hook's state survives every close.
 instead of restoring the one that was picked. A second Connect MCP reopens the dialog holding the
 previous attempt's state. Only a page reload resets it.
 
-**Suggested fix.** Mount a fresh controller per attempt, keyed by project and selected connection,
-or give the hook an explicit reset the open handler calls.
+**Fixed** by `40ed49f5a1`, verified by reading. The component is now a wrapper that renders nothing
+while closed, so the body holding the hook unmounts and every opening constructs a new journey. The
+wrapper takes the smaller of the two fixes suggested here and is the better one: a host cannot
+forget to reset, because there is nothing left to reset. Both hosts that kept the component mounted
+while toggling `open` are covered by the one change, and the early return precedes every hook, so
+the hook order is unaffected. One cosmetic consequence: the dialog no longer animates out, because
+it is gone rather than hidden.
+
+The spec was hardened alongside it, and the three changes answer the weakest assertions this round
+raised. The journey is addressed as the dialog containing its own test id rather than "the last
+dialog", which was landing on the connection detail drawer; `finishJourney` now asserts the
+connected text before clicking, and asserts the dialog reaches a count of zero rather than merely
+being hidden, which is the assertion that fails if this fix regresses; and the OAuth case gained the
+close it was missing, so its later steps no longer run behind an open dialog.
+
+**The guard is real and does not run.** That count-of-zero assertion, and the three cases that open
+the journey twice, are the only automated protection this fix has: no unit test mounts the journey
+at all (D40), and the suite that does is the one D25 is about. Until D25 lands, a regression here
+returns silently.
 
 ### D24. The first token refresh erases the client-registration pin the D6 fix added — P1
 
