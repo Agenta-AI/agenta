@@ -40,7 +40,7 @@ import {useAtomValue} from "jotai"
 
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 import McpConnectJourney from "../../mcpEndpoint/McpConnectJourney"
-import McpToolPermissions from "../../mcpEndpoint/McpToolPermissions"
+import McpPermissionDrawer from "../../mcpEndpoint/McpPermissionDrawer"
 
 export interface McpServerFormViewProps {
     value: Record<string, unknown>
@@ -51,6 +51,7 @@ export interface McpServerFormViewProps {
 export function McpServerFormView({value, onChange, disabled}: McpServerFormViewProps) {
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
     const [connecting, setConnecting] = useState(false)
+    const [permissionsOpen, setPermissionsOpen] = useState(false)
 
     const endpoints = useMemo(() => endpointsQuery.data ?? [], [endpointsQuery.data])
     const selectedSlug = readMcpConnectionSlug(value)
@@ -158,15 +159,19 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                 </RailField>
             ) : null}
 
-            <RailField label="Permissions" align="top">
-                <McpToolPermissions
-                    slug={selected?.slug ?? undefined}
-                    connectionName={selected?.name || selected?.slug || undefined}
-                    onConnect={() => setConnecting(true)}
-                    policy={readMcpPolicy(value)}
-                    onChange={(policy) => onChange({...value, policy})}
-                    disabled={disabled}
-                />
+            <RailField label="Permissions" align="center">
+                {/* A link out, not the editor inline. The per-tool table is the densest
+                    surface in the feature and it was nested two panels deep inside the
+                    shallowest one; it is now one destination that the rail row reaches
+                    directly too, so setting permissions is one navigation either way. */}
+                <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={disabled || !selected?.slug}
+                    onClick={() => setPermissionsOpen(true)}
+                >
+                    Set permissions
+                </Button>
             </RailField>
 
             {legacy ? (
@@ -182,6 +187,20 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                 <p className="m-0 text-xs text-[var(--ag-colorError)]">
                     That prefix is reserved. Rename the connection and select it again.
                 </p>
+            ) : null}
+
+            {permissionsOpen ? (
+                <McpPermissionDrawer
+                    open
+                    onClose={() => setPermissionsOpen(false)}
+                    slug={selected?.slug ?? undefined}
+                    connectionName={selected?.name || selected?.slug || undefined}
+                    toolPrefix={prefix || undefined}
+                    policy={readMcpPolicy(value)}
+                    onChange={(policy) => onChange({...value, policy})}
+                    onReconnect={() => setConnecting(true)}
+                    disabled={disabled}
+                />
             ) : null}
 
             {connecting ? (
