@@ -2,7 +2,13 @@ import {SkillAvatar} from "@agenta/skills-ui"
 
 import {SkillActionsMenu} from "./SkillActionsMenu"
 import {SkillArchivedTag} from "./SkillArchivedTag"
-import {lastUpdatedLabel, NO_DESCRIPTION, type SkillListRow} from "./skillListView"
+import {
+    lastUpdatedLabel,
+    NO_DESCRIPTION,
+    provenanceLabel,
+    type SkillGrouping,
+    type SkillListRow,
+} from "./skillListView"
 import {SkillUpdateCell} from "./SkillUpdateCell"
 
 /**
@@ -14,11 +20,13 @@ import {SkillUpdateCell} from "./SkillUpdateCell"
 export const SkillRowCells = ({
     row,
     narrow,
+    group,
     onOpen,
 }: {
     row: SkillListRow
-    /** A phone has no Source column; the heading above already says it. */
+    /** A phone has no provenance column; the heading above already says it. */
     narrow: boolean
+    group: SkillGrouping
     onOpen: (row: SkillListRow) => void
 }) => (
     <>
@@ -50,8 +58,11 @@ export const SkillRowCells = ({
         </span>
 
         {narrow ? null : (
-            <span className="block truncate text-[13px] text-muted-foreground" title={row.sourceLabel}>
-                {row.sourceLabel}
+            <span
+                className="block truncate text-[13px] text-muted-foreground"
+                title={provenanceLabel(row, group)}
+            >
+                {provenanceLabel(row, group)}
             </span>
         )}
 

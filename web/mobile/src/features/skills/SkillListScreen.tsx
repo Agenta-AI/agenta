@@ -27,6 +27,8 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {useAgentOwners} from "../agents/useAgentOwners"
+
 import {SkillFilterMenu} from "./SkillFilterMenu"
 import {
     DEFAULT_SKILL_LIST_VIEW,
@@ -67,6 +69,9 @@ export const SkillListScreen = ({
     const projectSkills = useAtomValue(skillsListDataAtom)
     const [search, setSearch] = useAtom(skillsSearchAtom)
     const setShowArchived = useSetAtom(skillsShowArchivedAtom)
+    // One cached request, shared with the agents roster: a row names its author under a source
+    // heading, and cannot from an id alone.
+    const {ownerNames} = useAgentOwners({workspaceId, projectId})
 
     // Grouping and the view mode are how a reader chose to read the list; the filters are a
     // question they were asking at the time, so only the first two survive a reload.
@@ -85,13 +90,17 @@ export const SkillListScreen = ({
     // The registry query already took the search, so every row here matches it. The shared
     // sections do the item mapping — provenance, age, origin — so a row and the desktop's card
     // describe a skill the same way; this screen only re-cuts them.
-    const rows = useMemo<SkillListRow[]>(
-        () =>
-            buildRegistrySections(projectSkills)
-                .sections.flatMap((section) => section.skills)
-                .map(toSkillListRow),
-        [projectSkills],
-    )
+    const rows = useMemo<SkillListRow[]>(() => {
+        // The sections drop the raw item, and the author id lives only there.
+        const creators = new Map(
+            projectSkills.map((item) => [item.workflow_id ?? item.id ?? "", item.created_by_id]),
+        )
+        return buildRegistrySections(projectSkills)
+            .sections.flatMap((section) => section.skills)
+            .map((item) =>
+                toSkillListRow(item, ownerNames.get(creators.get(item.id) ?? "")?.trim() ?? ""),
+            )
+    }, [ownerNames, projectSkills])
     const repositories = useMemo(() => listRepositories(rows), [rows])
     const groups = useMemo(() => deriveSkillList(rows, view), [rows, view])
 
@@ -148,6 +157,7 @@ export const SkillListScreen = ({
         <SkillListTable
             groups={groups}
             view={view.mode}
+            group={view.group}
             isLoading={isLoading}
             onOpen={openRow}
             empty={emptyState}
