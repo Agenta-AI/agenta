@@ -1171,6 +1171,74 @@ class MCPGatewayService:
         return GatewayOutcome(status_code=result.status_code)
 
 
+def _content_type(result: MCPRelayResult) -> str:
+    for name, value in (result.headers or {}).items():
+        if name.lower() == "content-type":
+            return value.split(";")[0].strip().lower()
+    return ""
+
+
+def _filtered_tool_payload(
+    payload: Any, tools: MCPToolFilter
+) -> Optional[Dict[str, Any]]:
+    """One JSON-RPC payload with its tool entries filtered, or None if it is not a
+    tool list. Whole entries only; a surviving one is never renamed."""
+    if not isinstance(payload, dict):
+        return None
+    listed = (payload.get("result") or {}).get("tools")
+    if not isinstance(listed, list):
+        return None
+
+    filtered = dict(payload)
+    filtered["result"] = {
+        **payload["result"],
+        "tools": [
+            entry
+            for entry in listed
+            if isinstance(entry, dict) and tools.allows(str(entry.get("name")))
+        ],
+    }
+    return filtered
+
+
+def _filter_event_stream(body: bytes, tools: MCPToolFilter) -> Optional[bytes]:
+    """The same filter over a body framed as an event stream.
+
+    A Streamable HTTP server may answer `tools/list` as one or more SSE events rather
+    than a JSON document, and the transport allows it to send a notification before the
+    response. So the tool list is found by looking at each `data:` payload rather than by
+    taking the last one, and only the frame that carries it is rewritten.
+
+    Everything else is returned exactly as it arrived: event names, ids, blank lines,
+    ordering and line endings. A `data:` line that is not a JSON document on its own —
+    a payload split across several lines, which this does not join — is left untouched
+    rather than guessed at.
+    """
+    rewritten = False
+    lines = body.split(b"\n")
+
+    for index, raw in enumerate(lines):
+        line = raw[:-1] if raw.endswith(b"\r") else raw
+        ending = b"\r" if raw.endswith(b"\r") else b""
+        if not line.startswith(b"data:"):
+            continue
+
+        data = line[len(b"data:") :].strip()
+        try:
+            payload = json.loads(data)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+
+        filtered = _filtered_tool_payload(payload, tools)
+        if filtered is None:
+            continue
+
+        lines[index] = b"data: " + json.dumps(filtered).encode() + ending
+        rewritten = True
+
+    return b"\n".join(lines) if rewritten else None
+
+
 def _filter_tool_list(
     *, result: MCPRelayResult, tools: MCPToolFilter
 ) -> MCPRelayResult:
@@ -1178,31 +1246,37 @@ def _filter_tool_list(
     renames a surviving one; an unconstrained filter passes the response through
     untouched. Scoped strictly to `tools/list`'s own JSON-RPC shape — never applied
     to resources/list or prompts/list, whose entries a tool filter says nothing
-    about."""
+    about.
+
+    Both framings, because a Streamable HTTP server chooses. Reading the body with a
+    JSON decoder alone meant an event-framed list failed to parse and was returned whole
+    (D62): a person restricted a connection to three tools and the model was offered
+    everything the server had. Execution is refused separately, so what that cost was
+    the catalogue, not unauthorised calls.
+    """
     if tools.allowlist is None and tools.denylist is None:
         return result
-
-    try:
-        payload = json.loads(result.body) if result.body else None
-    except (json.JSONDecodeError, TypeError):
+    if not result.body:
         return result
 
-    if not isinstance(payload, dict):
-        return result
-    listed = (payload.get("result") or {}).get("tools")
-    if not isinstance(listed, list):
-        return result
+    body: Optional[bytes] = None
+    if _content_type(result) == "text/event-stream":
+        body = _filter_event_stream(result.body, tools)
+    else:
+        try:
+            payload = json.loads(result.body)
+        except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
+            payload = None
+        filtered = _filtered_tool_payload(payload, tools)
+        body = json.dumps(filtered).encode() if filtered is not None else None
 
-    payload["result"]["tools"] = [
-        entry
-        for entry in listed
-        if isinstance(entry, dict) and tools.allows(str(entry.get("name")))
-    ]
+    if body is None:
+        return result
 
     return MCPRelayResult(
         status_code=result.status_code,
         headers=result.headers,
-        body=json.dumps(payload).encode(),
+        body=body,
     )
 
 

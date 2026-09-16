@@ -2292,3 +2292,122 @@ async def test_a_rename_onto_a_name_another_connection_answers_to_is_refused():
             ),
         )
     assert first.name == "Acme Notion"
+
+
+# ---------------------------------------------------------------------------
+# D62: the same filter against a server that frames its tool list
+# ---------------------------------------------------------------------------
+
+
+def _framed_tools_list_result(
+    names: List[str], *, notification_first: bool = False
+) -> MCPRelayResult:
+    """A `tools/list` answered as an event stream, which is what a Streamable HTTP
+    server may send and what this candidate's own mock now sends."""
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "tools": [{"name": n, "description": n, "inputSchema": {}} for n in names]
+        },
+    }
+    frames = []
+    if notification_first:
+        # The transport permits a notification ahead of the response.
+        frames.append(
+            "event: message\r\n"
+            'data: {"jsonrpc": "2.0", "method": "notifications/progress"}\r\n\r\n'
+        )
+    frames.append(f"event: message\r\ndata: {json.dumps(payload)}\r\n\r\n")
+
+    return MCPRelayResult(
+        status_code=200,
+        headers={"content-type": "text/event-stream"},
+        body="".join(frames).encode(),
+    )
+
+
+def _tools_in(result: MCPRelayResult) -> set:
+    """The tool names a caller reads back, whichever framing was used."""
+    body = result.body.decode()
+    if "data:" in body:
+        payloads = [
+            json.loads(line[len("data:") :].strip())
+            for line in body.splitlines()
+            if line.startswith("data:")
+        ]
+        payload = next(p for p in payloads if isinstance(p.get("result"), dict))
+    else:
+        payload = json.loads(body)
+    return {tool["name"] for tool in payload["result"]["tools"]}
+
+
+async def _framed_relay(dao, adapter):
+    return await _relay_service(
+        mcp_endpoints_dao=dao, adapters={"http": adapter}
+    ).relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=MCPCallContext(method="tools/list"),
+        body=b"{}",
+        headers={},
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_framed_tool_list_is_filtered_like_any_other():
+    """The filter read the body with a JSON decoder and returned it unchanged when that
+    failed, so a restricted connection advertised everything the server had."""
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao, tools=MCPToolFilter(allowlist=["a", "b"]))
+    adapter = MockUpstreamAdapter(result=_framed_tools_list_result(["a", "b", "c"]))
+
+    result = await _framed_relay(dao, adapter)
+
+    assert _tools_in(result) == {"a", "b"}
+
+
+@pytest.mark.asyncio
+async def test_a_notification_before_the_framed_list_does_not_hide_it():
+    """The response is found by looking at each frame rather than taking the last one,
+    because the transport lets a server speak before it answers."""
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao, tools=MCPToolFilter(denylist=["c"]))
+    adapter = MockUpstreamAdapter(
+        result=_framed_tools_list_result(["a", "b", "c"], notification_first=True)
+    )
+
+    result = await _framed_relay(dao, adapter)
+
+    assert _tools_in(result) == {"a", "b"}
+    # And the frame it did not rewrite is still there, unchanged.
+    assert "notifications/progress" in result.body.decode()
+
+
+@pytest.mark.asyncio
+async def test_a_framed_body_keeps_its_framing_after_filtering():
+    """The caller asked an event stream and must get one back, or its client cannot
+    read the answer at all."""
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao, tools=MCPToolFilter(allowlist=["a"]))
+    adapter = MockUpstreamAdapter(result=_framed_tools_list_result(["a", "b"]))
+
+    result = await _framed_relay(dao, adapter)
+
+    body = result.body.decode()
+    assert body.startswith("event: message\r\n")
+    assert body.endswith("\r\n\r\n")
+    assert "data: " in body
+
+
+@pytest.mark.asyncio
+async def test_an_unconstrained_connection_leaves_a_framed_body_byte_identical():
+    dao = MockMCPEndpointsDAO()
+    await _custom_endpoint(dao, tools=MCPToolFilter())
+    sent = _framed_tools_list_result(["a", "b", "c"])
+    adapter = MockUpstreamAdapter(result=sent)
+
+    result = await _framed_relay(dao, adapter)
+
+    assert result.body == sent.body
