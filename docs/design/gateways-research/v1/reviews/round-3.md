@@ -53,9 +53,10 @@ watches. Neither reviewer found a P0.
 ## What blocks the release
 
 **Five findings, and two of them are the same mistake in different places: a client that reads only
-the shape it was shown.**
+the shape it was shown.** Two are now fixed and verified — **D62** and **D66** — leaving D63, D64
+and D65, all three in the runner's MCP client.
 
-### D62. A connection's tool filter silently does nothing against a server that frames its tool list
+### D62. A connection's tool filter silently does nothing against a server that frames its tool list — FIXED at `419fcafdbf`
 
 `api/oss/src/core/gateways/mcps/service.py:1186`
 
@@ -73,6 +74,17 @@ frame `tools/list` as an event stream, which was the right fix for the client-si
 also silently ended the one path that exercised this filter. No test feeds a framed body to it; the
 only case uses plain JSON, a shape no real upstream produces. Verified: the filter code, the mock's
 framing, and the absence of any framed case.
+
+**Fixed** by `419fcafdbf`, verified. The filter now reads every `data:` payload of an event stream
+and rewrites only the frame that carries the tool list, finding it by inspecting each payload rather
+than by taking the last one — so a notification sent before the response does not hide it, which is
+**D63**'s shape handled here rather than repeated. Everything else in the body is returned exactly as
+it arrived, and a surviving entry is never renamed. Seventy cases pass; pinned before the fix, the
+framed case and the notification-before-the-list case both fail.
+
+Worth noting what the second case means: this filter now handles the multi-event shape that the
+runner's own parser still does not, so two places in the same release read the same wire with
+different competence. That is D63, and it is still open.
 
 ### D63. The runner's shared parser cannot read a conforming multi-event response
 
@@ -113,7 +125,7 @@ the turn, and a raised per-endpoint timeout is silently overridden. The second r
 driving the real registration against a fetch answering inside the gateway's budget: rejected at
 10001 ms.
 
-### D66. M8's provenance preference can replace a registration that existing grants still need
+### D66. M8's provenance preference can replace a registration that existing grants still need — FIXED at `b592bd8cc4`
 
 `api/oss/src/core/gateways/mcps/oauth/storage.py:397`, `:537` — **Codex's, and not reproduced here.**
 
@@ -125,6 +137,19 @@ executing the selection method with that arrangement.
 
 This is the fourth finding at this seam. Each one has been the next layer of the same mistake, and
 that is the argument for treating the next fix here as a design change rather than another patch.
+
+**Fixed** by `b592bd8cc4`, verified, and it is the design change rather than another patch. Coverage
+now decides candidacy and provenance only orders what is left: a registration is a candidate only if
+it covers the callback this deployment sends, so a marked row left from a previous address cannot
+displace the unmarked one this address's grants pin. Rows for other callbacks are kept exactly where
+they are, never selected and never written over, because the grants issued against them renew by
+presenting them. A caller resolving for no particular address keeps every candidate, which is what a
+grant predating the reference needs.
+
+Fifty-one cases pass. Pinned before the fix, two fail: a marked registration for another callback
+displacing this one, and a moved callback registering beside the row its grants pin. The second is
+Codex's scenario end to end, which is the one I had not reproduced myself; it is reproduced now, by
+the fix's own case failing without it.
 
 ## Found during the round and already closed
 
