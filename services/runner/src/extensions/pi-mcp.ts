@@ -48,6 +48,19 @@ export const MCP_PROTOCOL_VERSION = "2026-07-28";
 export const PI_MCP_REQUEST_TIMEOUT_MS = 10_000;
 
 /**
+ * Headers this client owns, lowercased for case-insensitive comparison (M19).
+ *
+ * `Mcp-Session-Id` is here too: it is the session the client itself opened, and a configured
+ * value for it would point the request at a session the server never issued to us.
+ */
+const PROTOCOL_HEADER_NAMES = new Set([
+  "accept",
+  "content-type",
+  "mcp-protocol-version",
+  "mcp-session-id",
+]);
+
+/**
  * The method every MCP client on this runner opens a connection with, and the one every MCP
  * server on this runner answers: `initialize`, the specification's handshake.
  *
@@ -202,12 +215,21 @@ class PiHttpMcpClient {
     message: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<Response> {
-    const headers: Record<string, string> = {
-      Accept: "application/json, text/event-stream",
-      "Content-Type": "application/json",
-      "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
-      ...this.server.headers,
-    };
+    // M19. The user's headers go on FIRST and the protocol's own go on top, so a configured
+    // header cannot replace `Accept`, `Content-Type` or `MCP-Protocol-Version`. Spread the other
+    // way round, a server config that set any of the three broke `initialize` in a way that reads
+    // as a gateway bug rather than as the configuration it is. Case matters too: HTTP header names
+    // are case-insensitive but a JS object's keys are not, so `accept` and `Accept` would both
+    // survive the spread and `fetch` would fold them into one comma-joined value; the user's keys
+    // are dropped by case-insensitive name rather than by exact match.
+    const headers: Record<string, string> = {};
+    for (const [name, value] of Object.entries(this.server.headers ?? {})) {
+      if (PROTOCOL_HEADER_NAMES.has(name.toLowerCase())) continue;
+      headers[name] = value;
+    }
+    headers.Accept = "application/json, text/event-stream";
+    headers["Content-Type"] = "application/json";
+    headers["MCP-Protocol-Version"] = MCP_PROTOCOL_VERSION;
     if (this.sessionId) headers["Mcp-Session-Id"] = this.sessionId;
     const controller = new AbortController();
     const abort = (): void => controller.abort();
