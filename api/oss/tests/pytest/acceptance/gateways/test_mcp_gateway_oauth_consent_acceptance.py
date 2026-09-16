@@ -103,6 +103,25 @@ def _on_api_host(browser: "_Browser", url: str) -> str:
     return f"{browser.api_url}{_CALLBACK_PATH}?{parsed.query}"
 
 
+def _deployment_api_url(browser: "_Browser") -> str:
+    """The API URL the DEPLOYMENT names itself by, not the one this process drives.
+
+    They differ whenever a stack answers on two addresses, which a tunnelled one does. The
+    identity-document branch is decided by the deployment's own value — the document has to
+    be fetchable by an authorization server — so gating on the caller's address would make
+    this suite skip on a stack that takes the branch, and assert a refusal that never comes.
+
+    Read from the identity document itself, whose redirect URI the gateway builds from that
+    same value, so there is nothing here to drift out of step with the code.
+    """
+    document = _assert_ok(
+        browser.api("GET", "/gateways/mcps/oauth/client-metadata.json")
+    )
+    redirect = str(document["redirect_uris"][0])
+    assert redirect.endswith(_CALLBACK_PATH), redirect
+    return redirect[: -len(_CALLBACK_PATH)]
+
+
 def _is_loopback(url: str) -> bool:
     return (urlparse(url).hostname or "").lower() in ("127.0.0.1", "localhost", "::1")
 
@@ -561,7 +580,8 @@ def test_an_issuer_offering_no_registration_names_us_by_identity_document(
     assert discovered.status_code == 200, discovered.text
     assert discovered.json()["scopes_offered"]
 
-    if not is_publicly_resolvable(browser.api_url):
+    deployment_api_url = _deployment_api_url(browser)
+    if not is_publicly_resolvable(deployment_api_url):
         refused = browser.api(
             "POST",
             f"/gateways/mcps/endpoints/{unregistered_oauth_endpoint['id']}/connect",
@@ -570,7 +590,7 @@ def test_an_issuer_offering_no_registration_names_us_by_identity_document(
         assert refused.status_code == 424, refused.text
         pytest.skip(
             "the identity-document branch needs a publicly resolvable https API URL; "
-            f"this deployment is reached at {browser.api_url}, so the gateway has no "
+            f"this deployment names itself {deployment_api_url}, so the gateway has no "
             "document an authorization server could fetch and refuses, as asserted above"
         )
 
@@ -578,7 +598,7 @@ def test_an_issuer_offering_no_registration_names_us_by_identity_document(
     query = parse_qs(urlparse(redirect_url).query)
     # The client names itself with the URL of the document it serves, not with an id an
     # authorization server issued, because this issuer issues none.
-    assert query["client_id"] == [client_metadata_url(api_url=browser.api_url)]
+    assert query["client_id"] == [client_metadata_url(api_url=deployment_api_url)]
 
     authorized = requests.get(
         _on_host(redirect_url), allow_redirects=False, timeout=BASE_TIMEOUT
