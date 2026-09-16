@@ -23,7 +23,7 @@ Start from `Settings` in the sidebar, then `MCPs`, and click `Connect MCP`. You 
 
    **The server uses OAuth.** The dialog reads "This server uses OAuth. Continuing opens its authorization page." `Continue` lists the permissions the server offers, one checkbox each, under "Choose which permissions to grant". Clear any you do not want to grant, then click `Authorize`. The provider's consent page opens in a new window. Complete it there, and the dialog carries on by itself.
 
-   If your browser blocks the new window, consent opens in the tab you were already on. That is common on phones and inside apps that embed a browser. The connection is still created. You may land somewhere other than where you started, so go to `Settings > MCPs` to check that it is there, and reopen the agent you were configuring.
+   If your browser blocks the new window, consent opens in the tab you were already on. That is common on phones and inside apps that embed a browser. Agenta shows "Taking you back to Agenta..." and returns you to the page you started from, after a refusal as well as after a grant. You do lose whatever else you had open in that tab, so reopen the agent you were configuring.
 
    **The server needs no authentication.** The dialog reads "This server needs no authentication." Click `Continue`.
 
@@ -55,9 +55,11 @@ In the agent's **MCPs** section, open the server and find `Permissions`.
 
 To hand the whole server back to one decision, click `Use the server permission instead`. That clears every per-tool rule you set.
 
+On a server with eight tools or more, a `Filter N tools` box sits above the list. It matches a tool's name and its description, so you can search for what a tool does rather than for what it is called. A query that matches nothing reads "No tool here matches that", which tells you the query found nothing rather than that the server stopped offering tools. The box only narrows what you are looking at, and it changes no rule. Shorter lists have no box.
+
 Two kinds of row behave differently:
 
-- A tool that the server's tool filter hides reads "Hidden by this server's tool filter" and its control is disabled. A hidden tool is never offered to the model, so it needs no permission. The filter itself is a configuration field, described in [MCP servers](/reference/agents/mcp-servers).
+- A tool that the server's tool filter hides reads "Hidden by this server's tool filter" and its control is disabled. A hidden tool is never offered to the model, so it needs no permission. That filter is a configuration field and not the search box above it, and it is described in [MCP servers](/reference/agents/mcp-servers).
 - A rule for a tool the server has stopped advertising appears under "Rules for tools this server no longer advertises". Agenta keeps it, because a server can drop a tool and bring it back, and a dropped rule would let it return under the default from step 2. Click `Remove` to discard the rule on purpose.
 
 :::note
@@ -79,7 +81,7 @@ Run `Connect MCP` again with the same URL. Agenta suggests a name that does not 
 Open `Settings > MCPs` and click the row.
 
 - **Rename.** Edit `Name` and click `Save name`. Agents keep using the connection under its existing reference, so a rename changes nothing about what they run.
-- **Tools.** The drawer lists the tools the server exposes. The list is read-only. What an agent may call is set in that agent's configuration.
+- **Tools.** The drawer lists the tools the server exposes, with the same `Filter N tools` box once there are eight or more. The list is read-only. What an agent may call is set in that agent's configuration.
 - **Disconnect.** Offered on a connected OAuth server only, because it is the stored grant that it drops. The connection, its name, and its URL stay. Agents using it stop working until it is connected again, and one `Connect` restores it. A server that needs no authentication, or one that authenticates with a header key, has nothing to drop and offers `Remove` alone.
 - **Remove.** Deletes the connection. Agents configured to use it stop working, and connecting the same server again later creates a new connection that those agents do not reference.
 - **Reconnect.** Repairs whichever way the connection authenticates. On an OAuth connection it re-reads the permissions the server offers and takes you back through consent. On a key-authenticated one it reopens the credential step so you can supply the header and secret again.
