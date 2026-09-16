@@ -167,11 +167,18 @@ export const ListTable = <Row,>({
                     isGrid ? (
                         // Card-shaped, in the real grid: a mark, a name and two lines of description,
                         // so the cards arrive into the slots the skeleton was already holding.
-                        <div aria-hidden className="grid gap-3" style={{gridTemplateColumns: cardGrid}}>
+                        <div
+                            aria-hidden
+                            className="grid gap-3"
+                            style={{gridTemplateColumns: cardGrid}}
+                        >
                             {Array.from({length: skeletonRows}, (_, tile) => (
                                 <div key={tile} className={CARD_CHROME}>
                                     <div className="flex items-center gap-2">
-                                        <SkeletonBlock active className="size-7 shrink-0 rounded-md" />
+                                        <SkeletonBlock
+                                            active
+                                            className="size-7 shrink-0 rounded-md"
+                                        />
                                         <SkeletonBlock active className="h-4 w-1/2 rounded" />
                                     </div>
                                     <SkeletonBlock active className="h-3.5 w-full rounded" />
@@ -209,7 +216,9 @@ export const ListTable = <Row,>({
                                                 // not a hair less: a thinner bar reads as a rule
                                                 // between rows rather than as text on its way.
                                                 "h-5 rounded",
-                                                SKELETON_WIDTHS[(row + index) % SKELETON_WIDTHS.length],
+                                                SKELETON_WIDTHS[
+                                                    (row + index) % SKELETON_WIDTHS.length
+                                                ],
                                                 // A control column holds an icon, not a phrase.
                                                 column.srOnly && "w-full",
                                             )}
@@ -254,7 +263,8 @@ export const ListTable = <Row,>({
                                             "flex items-center gap-2 pb-1.5 pt-3.5",
                                             // Stuck directly under the column header, so a long
                                             // run still says which group you are reading.
-                                            stickyHeader && `sticky ${headingTop} z-10 bg-background`,
+                                            stickyHeader &&
+                                                `sticky ${headingTop} z-10 bg-background`,
                                         )}
                                     >
                                         {group.label === null ? null : onToggleGroup ? (
@@ -287,7 +297,11 @@ export const ListTable = <Row,>({
                                                 {group.label}
                                             </p>
                                         )}
-                                        {actions ? <span className="ml-auto flex shrink-0 items-center">{actions}</span> : null}
+                                        {actions ? (
+                                            <span className="ml-auto flex shrink-0 items-center">
+                                                {actions}
+                                            </span>
+                                        ) : null}
                                     </div>
                                 )}
 
@@ -296,7 +310,10 @@ export const ListTable = <Row,>({
                                         // Cards sit on the content edge — none of a row's bleed:
                                         // a tile that reached past its track would overflow the
                                         // `auto-fill` columns it was measured into.
-                                        <div className="grid gap-3 pb-2" style={{gridTemplateColumns: cardGrid}}>
+                                        <div
+                                            className="grid gap-3 pb-2"
+                                            style={{gridTemplateColumns: cardGrid}}
+                                        >
                                             {rows.map((row) => {
                                                 const tile = (
                                                     <div
@@ -323,7 +340,9 @@ export const ListTable = <Row,>({
                                                 // drive's context-menu trigger is) to leave the
                                                 // tile a grid item of its own.
                                                 return wrapRow ? (
-                                                    <Fragment key={rowKey(row)}>{wrapRow(row, tile)}</Fragment>
+                                                    <Fragment key={rowKey(row)}>
+                                                        {wrapRow(row, tile)}
+                                                    </Fragment>
                                                 ) : (
                                                     tile
                                                 )
@@ -352,7 +371,8 @@ export const ListTable = <Row,>({
                                                     "group grid w-full items-center gap-3 rounded-md border-0 bg-transparent text-left",
                                                     rowPad,
                                                     "-mx-3 w-[calc(100%+1.5rem)] px-3",
-                                                    onOpenRow && "cursor-pointer hover:bg-accent/60",
+                                                    onOpenRow &&
+                                                        "cursor-pointer hover:bg-accent/60",
                                                     onOpenRow && FOCUS_RING,
                                                 )}
                                                 style={{gridTemplateColumns: grid}}

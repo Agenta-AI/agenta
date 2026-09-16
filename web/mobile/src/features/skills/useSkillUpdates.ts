@@ -114,7 +114,9 @@ export const useSkillUpdates = () => {
             }
             if (failed.length)
                 message.error(
-                    failed.length === 1 ? "Couldn't update 1 skill" : `Couldn't update ${failed.length} skills`,
+                    failed.length === 1
+                        ? "Couldn't update 1 skill"
+                        : `Couldn't update ${failed.length} skills`,
                 )
         },
         [mark, projectId],

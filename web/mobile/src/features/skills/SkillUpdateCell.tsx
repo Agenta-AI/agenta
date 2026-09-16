@@ -11,7 +11,13 @@ import {useSkillUpdates, useSkillUpdateStatus} from "./useSkillUpdates"
  * `compact` is the row's form — an icon at the kebab's own size, so the actions column stays one
  * width whether or not a row has something to update. A card has room for the word.
  */
-export const SkillUpdateCell = ({workflowId, compact = false}: {workflowId: string; compact?: boolean}) => {
+export const SkillUpdateCell = ({
+    workflowId,
+    compact = false,
+}: {
+    workflowId: string
+    compact?: boolean
+}) => {
     const status = useSkillUpdateStatus(workflowId)
     const {apply} = useSkillUpdates()
 
@@ -45,7 +51,10 @@ export const SkillUpdateCell = ({workflowId, compact = false}: {workflowId: stri
         )
     if (status === "updated")
         return compact ? (
-            <span className="flex size-6 items-center justify-center text-muted-foreground" title="Updated">
+            <span
+                className="flex size-6 items-center justify-center text-muted-foreground"
+                title="Updated"
+            >
                 <CheckCircle aria-label="Updated" className="size-4" />
             </span>
         ) : (

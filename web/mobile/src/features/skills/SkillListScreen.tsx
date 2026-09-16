@@ -21,16 +21,13 @@ import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
+import {useAgentOwners} from "../agents/useAgentOwners"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {useAgentOwners} from "../agents/useAgentOwners"
-
 import {SkillFilterMenu} from "./SkillFilterMenu"
+import {SkillListTable} from "./SkillListTable"
 import {
     DEFAULT_SKILL_LIST_VIEW,
     deriveSkillList,
@@ -40,10 +37,12 @@ import {
     type SkillListRow,
     type SkillListView,
 } from "./skillListView"
-import {SkillListTable} from "./SkillListTable"
 import {SkillsEmpty} from "./states/SkillsEmpty"
 import {SkillsError} from "./states/SkillsError"
 import {SkillsNoMatch} from "./states/SkillsNoMatch"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 /** The page column, shared with agents and automations, so the nav entries line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`

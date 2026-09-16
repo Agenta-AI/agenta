@@ -262,50 +262,50 @@ export function SkillImportDrawer({
                         <div className="flex flex-col gap-1.5 text-xs">
                             <span className="font-medium">Skills found · {candidates.length}</span>
                             <div className="flex flex-col gap-1">
-                            {candidates.map((candidate) => {
-                                const path = candidate.path_in_repo
-                                const name = candidate.skill?.name ?? path
-                                const imported = alreadyImported.has(path)
-                                return (
-                                    <label
-                                        key={path}
-                                        className={`box-border flex items-start gap-2.5 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] p-2.5 ${
-                                            candidate.valid && !imported
-                                                ? "cursor-pointer hover:border-[var(--ag-colorBorder)]"
-                                                : "opacity-60"
-                                        }`}
-                                    >
-                                        <Checkbox
-                                            // A 16px box at /m's control radius reads as a
-                                            // circle, and a circle says "pick one".
-                                            className="mt-0.5 rounded"
-                                            checked={selected.has(path)}
-                                            disabled={!candidate.valid || imported || busy}
-                                            onCheckedChange={() => toggle(path)}
-                                        />
-                                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                            <span className="flex min-w-0 items-center gap-1.5">
-                                                <span className="min-w-0 truncate font-mono text-xs font-medium">
-                                                    {name}
-                                                </span>
-                                                {imported ? (
-                                                    <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
-                                                        Already imported
+                                {candidates.map((candidate) => {
+                                    const path = candidate.path_in_repo
+                                    const name = candidate.skill?.name ?? path
+                                    const imported = alreadyImported.has(path)
+                                    return (
+                                        <label
+                                            key={path}
+                                            className={`box-border flex items-start gap-2.5 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] p-2.5 ${
+                                                candidate.valid && !imported
+                                                    ? "cursor-pointer hover:border-[var(--ag-colorBorder)]"
+                                                    : "opacity-60"
+                                            }`}
+                                        >
+                                            <Checkbox
+                                                // A 16px box at /m's control radius reads as a
+                                                // circle, and a circle says "pick one".
+                                                className="mt-0.5 rounded"
+                                                checked={selected.has(path)}
+                                                disabled={!candidate.valid || imported || busy}
+                                                onCheckedChange={() => toggle(path)}
+                                            />
+                                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                                <span className="flex min-w-0 items-center gap-1.5">
+                                                    <span className="min-w-0 truncate font-mono text-xs font-medium">
+                                                        {name}
                                                     </span>
-                                                ) : null}
+                                                    {imported ? (
+                                                        <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                                            Already imported
+                                                        </span>
+                                                    ) : null}
+                                                </span>
+                                                <span className="line-clamp-1 text-xs text-[var(--ag-colorTextSecondary)]">
+                                                    {imported
+                                                        ? "Already in this project — check for updates to pick up upstream changes."
+                                                        : candidate.valid
+                                                          ? (candidate.skill?.description ??
+                                                            "No description.")
+                                                          : issueText(candidate.issues)}
+                                                </span>
                                             </span>
-                                            <span className="line-clamp-1 text-xs text-[var(--ag-colorTextSecondary)]">
-                                                {imported
-                                                    ? "Already in this project — check for updates to pick up upstream changes."
-                                                    : candidate.valid
-                                                      ? (candidate.skill?.description ??
-                                                        "No description.")
-                                                      : issueText(candidate.issues)}
-                                            </span>
-                                        </span>
-                                    </label>
-                                )
-                            })}
+                                        </label>
+                                    )
+                                })}
                             </div>
                         </div>
 

@@ -37,7 +37,14 @@ import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
-import {Button, Spinner, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {
+    Button,
+    Spinner,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {
     Cpu,
     FileText,

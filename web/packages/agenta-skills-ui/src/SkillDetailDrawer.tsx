@@ -146,7 +146,6 @@ export function SkillDetailDrawer({
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-
     // Archive keeps the slug reserved; the registry hides the skill until unarchived. Its
     // confirm covers the drawer, not the window: the question is about what the drawer shows.
     const [panel, setPanel] = useState<HTMLDivElement | null>(null)
@@ -379,7 +378,11 @@ export function SkillDetailDrawer({
                                         onMouseLeave={scheduleCloseAgents}
                                         className={cn(ACTION_ROW, agentsOpen && "bg-accent")}
                                     >
-                                        <Plus aria-hidden size={14} className="text-muted-foreground" />
+                                        <Plus
+                                            aria-hidden
+                                            size={14}
+                                            className="text-muted-foreground"
+                                        />
                                         <span className="flex-1">Add to agent</span>
                                     </button>
                                 </PopoverAnchor>
@@ -556,73 +559,73 @@ export function SkillDetailDrawer({
                     },
                 }}
                 footer={
-                        <div className="flex items-center justify-between gap-3">
-                            {error ? (
-                                <span className="flex min-w-0 items-start gap-1.5 text-xs text-[var(--ag-colorError)]">
-                                    <WarningCircle size={14} className="mt-px shrink-0" />
-                                    <span className="min-w-0">{error}</span>
-                                </span>
-                            ) : (
-                                <span />
-                            )}
-                            <span className="flex shrink-0 items-center gap-2">
-                                {archiveError ? (
-                                    <span className="text-xs text-[var(--ag-colorError)]">
-                                        {archiveError}
-                                    </span>
-                                ) : null}
-                                {/* Always present, so the footer never changes shape under
-                                    the reader; inert until the draft differs from the head. */}
-                                {readOnly ? null : (
-                                    <>
-                                        <Button
-                                            variant="outline"
-                                            onClick={discard}
-                                            disabled={busy || !dirty}
-                                        >
-                                            Discard
-                                        </Button>
-                                        <Button
-                                            onClick={() => askToCommit(draft, "")}
-                                            disabled={busy || !dirty}
-                                        >
-                                            Save changes
-                                        </Button>
-                                    </>
-                                )}
+                    <div className="flex items-center justify-between gap-3">
+                        {error ? (
+                            <span className="flex min-w-0 items-start gap-1.5 text-xs text-[var(--ag-colorError)]">
+                                <WarningCircle size={14} className="mt-px shrink-0" />
+                                <span className="min-w-0">{error}</span>
                             </span>
-                        </div>
+                        ) : (
+                            <span />
+                        )}
+                        <span className="flex shrink-0 items-center gap-2">
+                            {archiveError ? (
+                                <span className="text-xs text-[var(--ag-colorError)]">
+                                    {archiveError}
+                                </span>
+                            ) : null}
+                            {/* Always present, so the footer never changes shape under
+                                    the reader; inert until the draft differs from the head. */}
+                            {readOnly ? null : (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        onClick={discard}
+                                        disabled={busy || !dirty}
+                                    >
+                                        Discard
+                                    </Button>
+                                    <Button
+                                        onClick={() => askToCommit(draft, "")}
+                                        disabled={busy || !dirty}
+                                    >
+                                        Save changes
+                                    </Button>
+                                </>
+                            )}
+                        </span>
+                    </div>
                 }
             >
-                    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
-                        {isBuiltin ? (
-                            <div className="flex flex-col gap-2 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-4 text-xs">
-                                <span className="font-mono font-medium">{skill?.slug}</span>
-                                <span className="text-[var(--ag-colorTextSecondary)]">
-                                    {skill?.description || "No description."}
-                                </span>
-                                <span className="text-[var(--ag-colorTextTertiary)]">
-                                    Built-in skills are maintained by Agenta and cannot be edited.
-                                </span>
-                            </div>
-                        ) : revisionsQuery.isPending ? (
-                            <div className="flex flex-1 items-center justify-center">
-                                <Spinner size="small" />
-                            </div>
-                        ) : (
-                            // No overflow of its own: the rail bleeds 16px past this box to meet
-                            // the header and footer rules, and a clipping box here cut it short.
-                            // The editor scrolls; the outer wrapper clips at its padding edge.
-                            <div className="min-h-0 flex-1">
-                                <SkillFormView
-                                    value={draft}
-                                    onChange={readOnly ? () => undefined : setDraft}
-                                    disabled={readOnly || busy}
-                                    showMissing={attempted}
-                                />
-                            </div>
-                        )}
-                    </div>
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
+                    {isBuiltin ? (
+                        <div className="flex flex-col gap-2 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-4 text-xs">
+                            <span className="font-mono font-medium">{skill?.slug}</span>
+                            <span className="text-[var(--ag-colorTextSecondary)]">
+                                {skill?.description || "No description."}
+                            </span>
+                            <span className="text-[var(--ag-colorTextTertiary)]">
+                                Built-in skills are maintained by Agenta and cannot be edited.
+                            </span>
+                        </div>
+                    ) : revisionsQuery.isPending ? (
+                        <div className="flex flex-1 items-center justify-center">
+                            <Spinner size="small" />
+                        </div>
+                    ) : (
+                        // No overflow of its own: the rail bleeds 16px past this box to meet
+                        // the header and footer rules, and a clipping box here cut it short.
+                        // The editor scrolls; the outer wrapper clips at its padding edge.
+                        <div className="min-h-0 flex-1">
+                            <SkillFormView
+                                value={draft}
+                                onChange={readOnly ? () => undefined : setDraft}
+                                disabled={readOnly || busy}
+                                showMissing={attempted}
+                            />
+                        </div>
+                    )}
+                </div>
             </EnhancedDrawer>
 
             {/* An alert, not a dialog: it asks one question and offers no other way out. */}
