@@ -665,3 +665,78 @@ them in turn, which is the useful part of this cell:
 
 A cell that shows `detail` absent should check all three before assuming the gateway stopped sending
 the requirement; the API half is easy to confirm on its own with the `tools/call` above.
+
+### The harness matrix suite, and the nine cells that were passing without testing anything
+
+`services/oss/tests/pytest/acceptance/test_agent_gateway_route.py` is the release gate's harness
+matrix: three harnesses crossed with three mock LLM gateway namespaces and three mock MCP gateway
+namespaces, twenty-seven cells, each asserting that the assistant's final message is exactly
+`mock MCP echo: <marker>`. Its own comment says that string "proves discovery and invocation rather
+than merely prompt echoing".
+
+For the nine Codex cells it proved neither, and had not for as long as the suite has existed.
+
+**What the suite did at `6df148cb39`.** Green, 27/27 — and nine of those were false. The mock named
+the echo tool `mcp__mock-mcp__echo` on the Responses protocol, which is Claude's spelling; Codex has
+no such tool and answers `unsupported call: mcp__mock-mcp__echo`. The round-trip check then accepted
+that refusal as a success, because it asked only whether the marker appeared anywhere in the body
+(it does — in the user prompt) and whether any tool result existed (it did — the refusal). Run
+against the baseline helpers directly:
+
+```
+$ git show 6df148cb39:.../mock/adapter.py > old_adapter.py   # then call its helpers
+marker found                  : MCP-ACCEPTANCE-codex-abc123def456
+has tool result               : True
+BASELINE: echo 'succeeded'    : True
+```
+
+So the assertion passed on a call that never left the sandbox. Tightening that check
+(`_contains_successful_mcp_echo_result` now looks for the marker INSIDE a tool result) is what
+turned the nine cells red, and red was the correct reading.
+
+**Why they stayed red after the Codex call shape was fixed.** Reading the tool name out of the
+harness's own catalog is the right primary source, and it works — but a Responses request that
+carries no catalog has nothing to read, and the Codex fallback had been removed on the grounds that
+every value tried for it had been a guess. With neither source, the mock had no tool to call, so it
+answered with the turn's own text and the suite saw the session preamble:
+
+```
+E       assert '## This sess...e its result.' == 'mock MCP ech...-3ca33cf2726d'
+E         - mock MCP echo: MCP-ACCEPTANCE-codex-3ca33cf2726d
+E         + ## This session
+E         + Current facts for this turn:
+E         + This is the first turn of the session.Use the echo tool with marker ...
+```
+
+The fallback is now restored with the pair that was MEASURED rather than guessed — namespace
+`mcp__mock_mcp`, tool `echo`, the two halves apart on the wire because that is how
+`ResponseItem::FunctionCall` carries them. A catalog, when the request has one, still wins.
+
+**What was not the cause,** checked because all three were plausible: the D2/D10 ambiguity refusal
+is not reachable here (every cell configures exactly one server, `mock-mcp`, so no two candidates
+can match), and the Pi handshake-overlap refactor is not implicated (all nine Pi cells were green
+throughout). Both were suspects worth eliminating rather than assuming.
+
+**Result.** 27 passed, 0 failed, in 322s, with every cell reaching the mock MCP server for real:
+
+```
+$ cd services && AGENTA_API_URL=... AGENTA_AUTH_KEY=... AGENTA_GATEWAYS_MOCKS_ENABLED=true \
+    AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN=... \
+    uv run --no-sync python -m pytest oss/tests/pytest/acceptance/test_agent_gateway_route.py -q
+...........................                                              [100%]
+27 passed in 322.66s (0:05:22)
+```
+
+The Codex snapshot question this turned on is answered by the result itself. Codex connects its MCP
+servers asynchronously at session start, so the tool catalog on the model request can be taken
+before the connection completes — twelve tools, no `mcp__mock_mcp` namespace among them — while the
+server IS registered by the time the model's call is dispatched. That is why a fallback is needed
+at all, and why reading the catalog alone is not enough: the catalog is a snapshot, the dispatch is
+later. Had the tool still been missing at dispatch, the cell would have failed with
+`mock MCP tool call failed` rather than the preamble, and the fix would have belonged in the suite
+(wait for registration) rather than in the adapter.
+
+**Do not read a green row here as proof on its own.** This suite asserts one string, and that
+string was reachable for nine cells without any tool call for as long as the suite existed. When a
+row here matters, read it beside the gateway's own request log the way the cells in this section
+do: a `tools/call` is a POST to the MCP route that lands after the model call.

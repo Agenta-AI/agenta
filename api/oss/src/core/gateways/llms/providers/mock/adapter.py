@@ -258,20 +258,25 @@ def _echo_tool_ref(body: bytes) -> EchoToolRef | None:
     return matched
 
 
-#: The fallback when a harness sends no tool catalog in the request, which the ACP harnesses do
-#: when they configure remote MCP servers at session start. Only Claude's spelling is MEASURED —
-#: it is what `mcp__<server>__<tool>` renders to and what the live Messages cell exercises. Codex
-#: is deliberately absent: its spelling was twice guessed wrong, and a wrong entry here is worse
-#: than none, because it sends a call for a tool the harness does not have and the cell fails for a
-#: reason that looks like the product. Add it only once a live run has printed it (the debug line
-#: in `_echo_tool_name`), and pin it with a case in `test_mock_llm_adapter.py`.
-MCP_ECHO_TOOL_BY_PROTOCOL: Dict[LLMProtocol, str] = {
-    LLMProtocol.MESSAGES: f"mcp__{MCP_ECHO_SERVER_NAME}__{MCP_ECHO_TOOL}",
+#: Codex renders a remote MCP server as a namespace whose name is `mcp__` plus the server name with
+#: every character outside `[A-Za-z0-9_]` rewritten to `_`, and keeps the tool's own name inside it.
+#: Measured from a live Codex catalog on 2026-09-15 and pinned in `test_mock_llm_adapter.py`.
+_CODEX_NAMESPACE = "mcp__" + re.sub(r"[^A-Za-z0-9_]", "_", MCP_ECHO_SERVER_NAME)
+
+#: The fallback when a harness sends no tool catalog in the request to read the name from. Both
+#: entries are MEASURED, not guessed — an earlier Codex entry was guessed twice and wrong both
+#: times, which is worse than none because it calls a tool the harness does not have and the cell
+#: then fails for a reason that looks like the product.
+#:
+#: Reading the catalog stays the primary path; this only covers a request that carries none.
+MCP_ECHO_TOOL_BY_PROTOCOL: Dict[LLMProtocol, EchoToolRef] = {
+    LLMProtocol.MESSAGES: (None, f"mcp__{MCP_ECHO_SERVER_NAME}__{MCP_ECHO_TOOL}"),
+    LLMProtocol.RESPONSES: (_CODEX_NAMESPACE, MCP_ECHO_TOOL),
 }
 
 
-def _default_mcp_echo_tool(protocol: LLMProtocol) -> str | None:
-    """The echo tool name for a harness whose request carried no tool catalog to read."""
+def _default_mcp_echo_tool(protocol: LLMProtocol) -> EchoToolRef | None:
+    """The echo tool reference for a harness whose request carried no tool catalog to read."""
     return MCP_ECHO_TOOL_BY_PROTOCOL.get(protocol)
 
 
@@ -463,11 +468,13 @@ class MockLLMAdapter(LLMUpstreamInterface):
 
         content = _last_message_content(body)
         marker = _mcp_marker(body)
-        # `_default_mcp_echo_tool` answers None for a protocol with no measured spelling,
-        # which is the same "no tool to call" the catalog lookup reports.
-        tool_namespace, tool_name = _echo_tool_ref(body) or (
-            None,
-            _default_mcp_echo_tool(context.protocol),
+        # Read the harness's own spelling from the catalog; fall back only when it sent none.
+        # `_default_mcp_echo_tool` answers None for a protocol with no measured spelling, which is
+        # the same "no tool to call" the catalog lookup reports.
+        tool_namespace, tool_name = (
+            _echo_tool_ref(body)
+            or _default_mcp_echo_tool(context.protocol)
+            or (None, None)
         )
         has_tool_result = _contains_tool_result(body)
         needs_tool_call = bool(marker and tool_name and not has_tool_result)
