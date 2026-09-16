@@ -52,7 +52,6 @@ export function SkillImportDrawer({
     const [repoUrl, setRepoUrl] = useState("")
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [commitSha, setCommitSha] = useState<string | null>(null)
     const [candidates, setCandidates] = useState<ScanCandidate[]>([])
     const [alreadyImported, setAlreadyImported] = useState<Set<string>>(new Set())
     const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -63,7 +62,6 @@ export function SkillImportDrawer({
         setRepoUrl("")
         setBusy(false)
         setError(null)
-        setCommitSha(null)
         setCandidates([])
         setAlreadyImported(new Set())
         setSelected(new Set())
@@ -87,7 +85,6 @@ export function SkillImportDrawer({
                 setError("No skills found in this repository.")
                 return
             }
-            setCommitSha(response.commit_sha ?? null)
             setCandidates(found)
             const already = new Set(response.already_imported_paths ?? [])
             setAlreadyImported(already)
@@ -224,11 +221,6 @@ export function SkillImportDrawer({
                     <>
                         <div className="flex items-center gap-2 text-xs text-[var(--ag-colorTextSecondary)]">
                             <span className="min-w-0 flex-1 truncate font-mono">{repoUrl}</span>
-                            {commitSha ? (
-                                <span className="shrink-0 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-1 font-mono text-[10px]">
-                                    {commitSha}
-                                </span>
-                            ) : null}
                         </div>
 
                         <div className="flex flex-col gap-1">
@@ -259,14 +251,6 @@ export function SkillImportDrawer({
                                                 {imported ? (
                                                     <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
                                                         Already imported
-                                                    </span>
-                                                ) : null}
-                                                {candidate.valid ? (
-                                                    <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px font-mono text-[10px] text-[var(--ag-colorTextTertiary)]">
-                                                        SKILL.md
-                                                        {candidate.skill?.files?.length
-                                                            ? ` +${candidate.skill.files.length}`
-                                                            : ""}
                                                     </span>
                                                 ) : null}
                                             </span>
