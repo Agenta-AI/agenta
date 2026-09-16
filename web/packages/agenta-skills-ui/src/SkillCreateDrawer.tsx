@@ -185,7 +185,11 @@ export function SkillCreateDrawer({
             }
             close()
         } catch (err) {
-            setError(err instanceof Error && err.message ? `Import failed: ${err.message}` : "Import failed.")
+            setError(
+                err instanceof Error && err.message
+                    ? `Import failed: ${err.message}`
+                    : "Import failed.",
+            )
         } finally {
             // A partial batch still created skills — the list must show them.
             if (createdAny) invalidateSkillsListCache()
@@ -273,7 +277,9 @@ export function SkillCreateDrawer({
                                             {candidate.skill.name || candidate.dir || "unnamed"}
                                         </span>
                                         <span className="line-clamp-1 text-[var(--ag-colorTextSecondary)]">
-                                            {candidate.skill.description || candidate.dir || "No description"}
+                                            {candidate.skill.description ||
+                                                candidate.dir ||
+                                                "No description"}
                                         </span>
                                     </span>
                                 </label>

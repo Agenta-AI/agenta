@@ -42,10 +42,34 @@ interface Item {
 }
 
 const ITEMS: Item[] = [
-    {id: "1", name: "ai-slop-cleaner", description: "Run an anti-slop cleanup workflow", source: "This project", updated: "12h ago"},
-    {id: "2", name: "compare-to-reference", description: "Measure a finished reel against the reference it was meant to match", source: "acme/demo", updated: "10h ago"},
-    {id: "3", name: "shoot-still", description: "Capture one region of a running app as a 4K image", source: "acme/demo", updated: "10h ago"},
-    {id: "4", name: "intro-reel", description: "Make a ~15s launch-film intro for a product feature", source: "acme/demo", updated: "10h ago"},
+    {
+        id: "1",
+        name: "ai-slop-cleaner",
+        description: "Run an anti-slop cleanup workflow",
+        source: "This project",
+        updated: "12h ago",
+    },
+    {
+        id: "2",
+        name: "compare-to-reference",
+        description: "Measure a finished reel against the reference it was meant to match",
+        source: "acme/demo",
+        updated: "10h ago",
+    },
+    {
+        id: "3",
+        name: "shoot-still",
+        description: "Capture one region of a running app as a 4K image",
+        source: "acme/demo",
+        updated: "10h ago",
+    },
+    {
+        id: "4",
+        name: "intro-reel",
+        description: "Make a ~15s launch-film intro for a product feature",
+        source: "acme/demo",
+        updated: "10h ago",
+    },
 ]
 
 const COLUMNS: ListTableColumn[] = [
@@ -73,7 +97,9 @@ const renderRow = (row: Item) => (
 
 const renderCard = (row: Item) => (
     <>
-        <span className="truncate font-mono text-[13px] font-medium text-foreground">{row.name}</span>
+        <span className="truncate font-mono text-[13px] font-medium text-foreground">
+            {row.name}
+        </span>
         <span className="line-clamp-3 text-[12.5px] text-muted-foreground">{row.description}</span>
         <span className="mt-auto pt-2 text-[11.5px] text-placeholder">
             {row.source} · {row.updated}
@@ -101,7 +127,9 @@ const Frame = ({
                 search={search}
                 onSearchChange={setSearch}
                 searchPlaceholder="Search…"
-                actions={<ListTableViewToggle value={view} onChange={setView} className="ml-auto" />}
+                actions={
+                    <ListTableViewToggle value={view} onChange={setView} className="ml-auto" />
+                }
             />
             <ListTable
                 columns={COLUMNS}
@@ -131,7 +159,11 @@ const Frame = ({
                               ) : null
                         : undefined
                 }
-                empty={<p className="py-10 text-center text-[13px] text-muted-foreground">Nothing here.</p>}
+                empty={
+                    <p className="py-10 text-center text-[13px] text-muted-foreground">
+                        Nothing here.
+                    </p>
+                }
             />
         </div>
     )
