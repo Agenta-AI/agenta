@@ -118,8 +118,8 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
                 // The probe reached the server and read what it needs, so the journey says
                 // so before asking for anything else.
-                await expect(dialog.getByText("needs no authentication")).toBeVisible()
-                await dialog.getByRole("button", {name: "Continue"}).click()
+                await expect(dialog.getByText("Reachable · no sign-in needed")).toBeVisible()
+                await dialog.getByRole("button", {name: "Connect", exact: true}).click()
                 await finishJourney(page)
             })
 
@@ -146,10 +146,10 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 async () => {
                     await page.getByRole("button", {name: "Connect MCP"}).first().click()
                     const dialog = journeyDialog(page)
-                    await dialog.getByLabel("MCP server URL").fill(`${mockMcpBase()}/`)
+                    await dialog.getByLabel("Server URL").fill(`${mockMcpBase()}/`)
                     await dialog.getByRole("button", {name: "Continue"}).click()
 
-                    const nameField = dialog.getByLabel("Connection name")
+                    const nameField = dialog.getByLabel("Name", {exact: true})
                     await expect(nameField).toBeVisible({timeout: 30000})
                     // serverInfo.name from the handshake, not the hostname fallback.
                     await expect(nameField).toHaveValue("agenta-mock-mcp")
@@ -177,7 +177,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
 
             await scenarios.when("the user submits that name", async () => {
                 const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
-                await dialog.getByRole("button", {name: "Continue"}).click()
+                await dialog.getByRole("button", {name: "Connect", exact: true}).click()
 
                 // The SERVER's refusal, which is the one this case exists to exercise. The
                 // client refuses a collision it can see in its own list, and both sentences
@@ -195,8 +195,8 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
 
             await scenarios.then("the journey stays on the name step", async () => {
                 const dialog = journeyDialog(page)
-                await expect(dialog.getByLabel("Connection name")).toBeVisible()
-                await expect(dialog.getByLabel("Connection name")).toHaveValue(name)
+                await expect(dialog.getByLabel("Name", {exact: true})).toBeVisible()
+                await expect(dialog.getByLabel("Name", {exact: true})).toHaveValue(name)
                 await dialog.getByRole("button", {name: "Cancel"}).click()
             })
         },
@@ -214,7 +214,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         await scenarios.when("the user connects the same URL twice", async () => {
             for (const name of [first, second]) {
                 const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
-                await dialog.getByRole("button", {name: "Continue"}).click()
+                await dialog.getByRole("button", {name: "Connect", exact: true}).click()
                 await finishJourney(page)
                 await expect(connectionRow(page, name)).toBeVisible({timeout: 30000})
             }
@@ -235,7 +235,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         await scenarios.given("a connected server", async () => {
             await openSettings(page, basePath)
             const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
-            await dialog.getByRole("button", {name: "Continue"}).click()
+            await dialog.getByRole("button", {name: "Connect", exact: true}).click()
             await finishJourney(page)
             await expect(
                 connectionRow(page, name).getByText("Connected", {exact: true}),
@@ -264,7 +264,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             // action would produce a 400 on a row that reads as connected.
             const other = uniqueName("No auth MCP")
             const dialog = await startJourney(page, `${mockMcpBase()}/`, other)
-            await dialog.getByRole("button", {name: "Continue"}).click()
+            await dialog.getByRole("button", {name: "Connect", exact: true}).click()
             await finishJourney(page)
             const row = connectionRow(page, other)
             await expect(row.getByText("Connected", {exact: true})).toBeVisible({timeout: 30000})
@@ -281,7 +281,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         await scenarios.given("a connected server", async () => {
             await openSettings(page, basePath)
             const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
-            await dialog.getByRole("button", {name: "Continue"}).click()
+            await dialog.getByRole("button", {name: "Connect", exact: true}).click()
             await finishJourney(page)
             await expect(
                 connectionRow(page, name).getByText("Connected", {exact: true}),
@@ -328,23 +328,28 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             await openSettings(page, basePath)
         })
 
+        // Opened by the Connect press below and awaited two steps later, which is the point
+        // of this case: the window is opened inside the tap, before the row exists and
+        // before the authorization URL has been minted, because a browser refuses one
+        // opened after a promise has resolved.
+        let popupPromise: Promise<Page>
+
         await scenarios.when("the user connects the protected surface", async () => {
             const dialog = await startJourney(page, `${mockMcpBase()}${mcpOauthPath}`, name)
-            // Discovery read the challenge, so the journey knows it is OAuth before the
-            // person commits to anything.
-            await expect(dialog.getByText("uses OAuth")).toBeVisible()
-            await dialog.getByRole("button", {name: "Continue"}).click()
+            // The check read the challenge, so the sheet knows it is OAuth before the person
+            // commits to anything.
+            await expect(dialog.getByText("Reachable · signs in with OAuth")).toBeVisible()
+            popupPromise = page.waitForEvent("popup")
+            await dialog.getByRole("button", {name: "Connect", exact: true}).click()
         })
 
-        await scenarios.and("the user grants the offered scopes", async () => {
-            const dialog = journeyDialog(page)
-            await expect(dialog.getByText("Choose which permissions to grant.")).toBeVisible({
-                timeout: 30000,
-            })
-            await expect(dialog.getByText("tools:call", {exact: true})).toBeVisible()
+        await scenarios.and("the provider's window completes the sign-in", async () => {
+            // Nobody is asked which scopes to grant: everything the server offered is asked
+            // for, because which of them to grant is the server's business.
+            await expect(
+                journeyDialog(page).getByText("Choose which permissions to grant."),
+            ).toHaveCount(0)
 
-            const popupPromise = page.waitForEvent("popup")
-            await dialog.getByRole("button", {name: "Authorize"}).click()
             const popup = await popupPromise
             await expect(popup.getByText("The MCP server is connected.")).toBeVisible({
                 timeout: 30000,
