@@ -1,4 +1,6 @@
 // The `+ New skill ▾` menu, shared by every creation entry point; no default-click action.
+// Its rows read like the New agent menu's: a tinted tile, a name, a one-line description.
+import {AGENT_ICON_CHIP_CLASS, agentIconChipStyle} from "@agenta/ui/agent-icon"
 import {cn} from "@agenta/ui/styles"
 import {
     Button,
@@ -8,6 +10,10 @@ import {
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
 import {CaretDown, GitBranch, PencilSimple, Plus} from "@phosphor-icons/react"
+
+/** The tiles' colours: the project skill's olive for writing, the palette's blue for a repo. */
+const WRITE_COLOR = "#6b7d3f"
+const IMPORT_COLOR = "#1668DC"
 
 export interface NewSkillMenuButtonProps {
     onWrite: () => void
@@ -38,14 +44,42 @@ export function NewSkillMenuButton({
                     <CaretDown size={12} className="opacity-70" />
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="max-w-[320px]">
                 <DropdownMenuItem onSelect={onWrite} disabled={availability?.write === false}>
-                    <PencilSimple size={14} />
-                    Write from scratch
+                    <span
+                        aria-hidden
+                        className={cn(
+                            "flex size-7 shrink-0 items-center justify-center rounded-md",
+                            AGENT_ICON_CHIP_CLASS,
+                        )}
+                        style={agentIconChipStyle(WRITE_COLOR)}
+                    >
+                        <PencilSimple size={15} />
+                    </span>
+                    <span className="flex min-w-0 flex-col py-0.5">
+                        <span className="truncate text-sm text-colorText">Write from scratch</span>
+                        <span className="truncate text-xs text-colorTextTertiary">
+                            Start with an empty SKILL.md and write it here
+                        </span>
+                    </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={onImport} disabled={availability?.import === false}>
-                    <GitBranch size={14} />
-                    Import from a repo…
+                    <span
+                        aria-hidden
+                        className={cn(
+                            "flex size-7 shrink-0 items-center justify-center rounded-md",
+                            AGENT_ICON_CHIP_CLASS,
+                        )}
+                        style={agentIconChipStyle(IMPORT_COLOR)}
+                    >
+                        <GitBranch size={15} />
+                    </span>
+                    <span className="flex min-w-0 flex-col py-0.5">
+                        <span className="truncate text-sm text-colorText">Import from a repo</span>
+                        <span className="truncate text-xs text-colorTextTertiary">
+                            Scan a public GitHub repository for SKILL.md folders
+                        </span>
+                    </span>
                 </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
