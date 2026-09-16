@@ -53,8 +53,8 @@ watches. Neither reviewer found a P0.
 ## What blocks the release
 
 **Five findings, and two of them are the same mistake in different places: a client that reads only
-the shape it was shown.** Two are now fixed and verified — **D62** and **D66** — leaving D63, D64
-and D65, all three in the runner's MCP client.
+the shape it was shown. All five are now fixed and verified**, along with every P2 and P3 this round
+raised except the deferrals named below. Nothing from round 3 blocks the release.
 
 ### D62. A connection's tool filter silently does nothing against a server that frames its tool list — FIXED at `419fcafdbf`
 
@@ -86,7 +86,7 @@ Worth noting what the second case means: this filter now handles the multi-event
 runner's own parser still does not, so two places in the same release read the same wire with
 different competence. That is D63, and it is still open.
 
-### D63. The runner's shared parser cannot read a conforming multi-event response
+### D63. The runner's shared parser cannot read a conforming multi-event response — FIXED at `e246098149`
 
 `services/runner/src/extensions/pi-mcp.ts:211`
 
@@ -101,7 +101,14 @@ clients this release ships now disagree about the same wire — which is D56's l
 layer down: sharing one parser fixed the divergence between the probe and the Pi client, and left
 this one.
 
-### D64. The three clients advertise two different protocol revisions
+**Fixed** by `e246098149`, verified, and it goes further than the finding asked. The stream is parsed
+event by event and the frame taken is the one whose id matches the request, rather than the last one
+that happens to carry a result — so a notification **after** the answer is skipped too, and two
+requests sharing a stream cannot take each other's replies. The same defect was fixed one layer down
+in the API probe, which had been taking the last `data:` line. Six cases fail pinned before the fix,
+including the two the finding did not name.
+
+### D64. The three clients advertise two different protocol revisions — FIXED at `e7c6665701`
 
 `services/runner/src/extensions/pi-mcp.ts:36` says `2026-07-28`; the browser client
 (`web/packages/agenta-entities/src/mcpEndpoint/core/mcpRpc.ts:21`) and the backend probe
@@ -113,7 +120,18 @@ one the Pi client claims. **That half is not established here** — the specific
 read — but the internal disagreement needs no external source: one product, three clients, two
 claims about the wire, and a mock whose new strictness was derived from one of them.
 
-### D65. The Pi client's ten-second bound overrides the gateway's own thirty-second budget
+**Fixed** by `e7c6665701`, verified: all three now offer `2025-06-18`, so only the Pi client moved,
+and the mock negotiates down rather than refusing.
+
+**The call to move down rather than up is the right one, and worth recording as a decision.** A
+client should claim only what it implements. The later revisions add requirements to the request
+envelope that none of these three implements or reads back, and claiming a revision we do not
+satisfy is exactly what OR91 cost us against a real server, which validated our envelope against the
+revision we had *named*. Choosing the revision whose requirements we meet makes that removal correct
+rather than merely convenient. Implementing the newer envelope is a larger change across three
+clients with no evidence of need behind it.
+
+### D65. The Pi client's ten-second bound overrides the gateway's own thirty-second budget — FIXED at `3dc7be51bc`
 
 `services/runner/src/extensions/pi-mcp.ts:48`, against
 `api/oss/src/core/gateways/mcps/providers/http/adapter.py:27`
@@ -124,6 +142,17 @@ that takes between ten and thirty seconds — an ordinary search against a real 
 the turn, and a raised per-endpoint timeout is silently overridden. The second reviewer proved it by
 driving the real registration against a fetch answering inside the gateway's budget: rejected at
 10001 ms.
+
+**Fixed** by `3dc7be51bc`, verified. The handshake keeps its short bound, which is a liveness check
+and should stay one, and a tool call is bounded by a constant mirroring the gateway's own upstream
+budget, with a comment naming the file to raise alongside it. The client refuses any URL that is not
+a gateway route on this deployment, so there is exactly one peer to budget for, which is what makes
+the mirrored constant honest rather than a guess.
+
+**One residual, documented in the code and deferred:** an endpoint whose stored timeout is raised
+above the gateway default is still capped, because nothing carries that stored value to the runner.
+Closing it is a wire-contract change. The deferral is right for this release and the residual is
+real — a per-endpoint timeout above the default does not take effect for a Pi tool call.
 
 ### D66. M8's provenance preference can replace a registration that existing grants still need — FIXED at `b592bd8cc4`
 
@@ -303,6 +332,27 @@ One residual, noted rather than filed: the file now carries two mirrors of the r
 and the original still encodes the superseded ladder on its last line. It is unreachable for the
 matrix it serves, because a named tool answers before that line, so it is a stale copy rather than a
 wrong answer — worth deleting when someone is next in there.
+
+## The rest of the runner batch
+
+**D67 — the response body is read inside the bounded region** (`1d95a9c931`). The timer and the
+caller's abort listener used to be released when the headers arrived, leaving the body read watched
+by nothing, so an upstream that answered and then stalled held the call and a cancelled turn could
+not end it. One case fails pinned before the fix, and its own comment says which shape it is written
+against.
+
+**D69 — the tool-list cursor is followed, bounded twice** (`54b482dd02`). Pi requested one page and
+ignored the cursor, so an author could configure a tool in the editor that Pi never registered. It
+now follows pages, stops if a server hands back the cursor it was just given, and stops at the same
+page cap the browser client uses. Three cases fail pinned before the fix, one for each of those
+three behaviours.
+
+**D91 — Codex's own MCP client does not follow tool-list pagination.** Measured while fixing D69, and
+recorded as a known limitation rather than a defect of this product: a paginated catalogue exposes
+only its first page to a Codex agent, and that is the harness's behaviour, not the gateway's. It is
+numbered so it is not rediscovered as a gateway bug. The mock matrix keeps its probe tool on the
+first page and says why, which is the right accommodation: measure what we can control, and document
+what we cannot.
 
 ## The fixes that hold
 
