@@ -26,6 +26,30 @@ Connect MCP -> URL + suggested editable name -> Continue
   -> No authentication required -> Verify -> Connected
 ```
 
+### Observed behaviour worth a product decision
+
+Step 5 above describes one ending. As built, the journey has two, and which one a person meets
+depends on where they started it.
+
+**From settings**, the dialog stays open after the connection exists. It goes on to tool discovery
+and shows what the server offers, so the journey ends with the person seeing what they just
+connected.
+
+**From an agent's configuration**, the dialog closes the moment the connection exists. The
+configuration form takes the new connection, selects it, and the person carries on configuring the
+agent. Tool discovery never renders, so the tool list is not shown at this entry point at all. It
+is reachable afterwards, from the connection's entry in settings.
+
+The difference is not an accident of timing: the host decides. Both hosts are handed the connection
+at the same moment, and the agent form's handler selects it and unmounts the dialog, while the
+settings handler only refreshes its list and lets the journey continue.
+
+**Deliberate for now.** Someone adding a server mid-configuration is in the middle of another task,
+and a tool list they did not ask for is an interruption they have to dismiss before getting back to
+it. The argument the other way is real too: the tools are what the connection is for, and never
+showing them at the entry point where an agent's permissions are about to be set is a strange place
+to stay silent. Decide it on evidence from people using both paths rather than now.
+
 ## Name discovery
 
 MCP initialization can report serverInfo.name, but an authenticated server may not allow initialization until after OAuth. Metadata may be absent or unhelpful, and a server name does not identify the connected account. Use a hostname fallback before consent. After discovery, improve only an untouched suggestion; never overwrite a name the user edited. Generate a unique stable slug using existing platform rules once, independently of subsequent label changes. Two accounts need distinct selectable labels, even when both suggest the same server name.
