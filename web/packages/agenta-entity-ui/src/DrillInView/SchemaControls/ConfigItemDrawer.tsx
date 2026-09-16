@@ -144,7 +144,9 @@ export function ConfigItemDrawer({
             }
             extra={headerExtra ?? null}
             footer={
-                <div className="flex min-w-0 items-center justify-between gap-3">
+                // w-full, or the sheet's own end-justified footer keeps this row hugging the
+                // actions and a left-hand note lands beside Cancel.
+                <div className="flex w-full min-w-0 items-center justify-between gap-3">
                     {footerNote ? (
                         <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
                             {footerNote}
