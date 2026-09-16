@@ -245,6 +245,11 @@ export default function McpServersSection({
             )}
 
             <McpConnectJourney
+                // A new controller per attempt. The component unmounts itself while closed,
+                // which covers open/close; the key covers the other way in, where a reconnect
+                // is chosen while one is already open and the hook would otherwise keep the
+                // endpoint it was mounted with.
+                key={reconnecting?.id ?? "new"}
                 open={connecting}
                 onClose={closeConnect}
                 existingNames={names}
