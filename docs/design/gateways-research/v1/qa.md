@@ -70,6 +70,45 @@ API-only request: those prove the proxy, not the product path.
    out behind the deliberately slow `test_slow_model_hangs_past_a_short_client_timeout`. Add
    `-n0` for a deterministic result; the full directory passes serially every time.
 
+5. The **acceptance** layer wants the opposite of the integration layer on one point, and
+   getting it wrong makes the gateway suites look broken when they are not. Point the API at
+   the stack's direct address, and **leave the two mock-upstream variables unset** so they keep
+   their compose hostnames:
+
+   ```bash
+   export AGENTA_API_URL="http://127.0.0.1:<traefik-port>/api"
+   export AGENTA_AUTH_KEY=<the stack's admin key>
+   export AGENTA_GATEWAYS_MOCKS_ENABLED=true
+   export AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN=<the stack's token>
+   export POSTGRES_URI_CORE=... POSTGRES_URI_TRACING=...   # as above
+   # do NOT export AGENTA_MOCK_LLM_GATEWAY_URL / AGENTA_MOCK_MCP_GATEWAY_URL here
+   ```
+
+   The reason is the outbound guard. In the acceptance layer the *gateway* dials the mock, not
+   the test process, and the guard refuses loopback and private targets. Overriding those two
+   variables to `127.0.0.1` therefore tells the gateway to dial its own loopback, and the suite
+   fails with `blocked target` and a spread of 424s that read like a product defect. Left at
+   their compose hostnames the gateway resolves them in-network and the suites pass. Measured on
+   one candidate: the loopback overrides gave 15 failures across the acceptance layer, and
+   removing them gave 42 passed and 6 failed in `acceptance/gateways/` with no errors.
+
+   `hosting/docker-compose/test.sh` does not solve this. It runs host-side like any other run,
+   and because it sources the stack's env file it points the tests at whatever `AGENTA_API_URL`
+   that file names. On a tunnelled stack that is the public HTTPS URL, and a whole suite through
+   the tunnel collapses into TLS EOF errors under load: the same directory gave 8 failed, 24
+   passed and 19 errors that way, all of them transport.
+
+   The six `test_mcp_gateway_oauth_consent_acceptance.py` failures that remain are a genuine
+   configuration conflict, not flakiness, and they cannot be cleared from the test side. The
+   mock issuer publishes itself under `AGENTA_MOCK_MCP_GATEWAY_PUBLIC_URL` so that a browser can
+   finish a consent round trip, while the gateway dials it in-network; discovery compares the
+   two and refuses the mismatch. One mock configuration cannot satisfy both the browser flow and
+   the API-level consent tests at once, so decide which one a given stack is for.
+
+   **CI remains the sweep of record for the acceptance layer.** It runs against a preview
+   deployment where the API, the mocks and the test runner share one address space, so none of
+   the above applies there.
+
 ## Dashboard procedure
 
 Use the dashboard's managed-agent creation and run flow. For each harness available in the
