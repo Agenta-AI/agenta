@@ -2,10 +2,12 @@
  * Skill detail — the drawer a registry card opens (artboards 2/2b), one shell with the
  * editor anatomy throughout:
  *
- * - Read-only by default, always showing the head. USED BY chips sit under the header
- *   line. Revision history is deliberately not surfaced: versioning stays under the hood.
- * - `Edit skill` turns the same drawer editable; Save opens the blast-radius dialog (5b) —
- *   the explicit replacement for silent auto-commit — then commits.
+ * - Editable as soon as the head loads, always showing the head. USED BY chips sit under
+ *   the header line. Revision history is deliberately not surfaced: versioning stays under
+ *   the hood.
+ * - A changed draft grows Discard / Save; Save opens the blast-radius dialog (5b) — the
+ *   explicit replacement for silent auto-commit — then commits.
+ * - The skill's own verbs — Add to agent, Archive / Restore — live in the header's kebab.
  *
  * Connected on purpose (like the create drawer): revisions/usage load and the commit live
  * here once; hosts pass `projectId` and the card's list item.
@@ -28,6 +30,14 @@ import {
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
     Checkbox,
     Dialog,
@@ -37,22 +47,29 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
     Input,
     Spinner,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from "@agenta/ui/ui"
 import {
+    Archive,
+    ArrowUUpLeft,
     CaretDown,
     CaretLeft,
+    DotsThreeVertical,
+    Info,
     Lightning,
-    PencilSimple,
     Plus,
     WarningCircle,
 } from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 
-import {SkillAvatar} from "./SkillCard"
 import {SkillSaveBlastRadius} from "./SkillSaveBlastRadius"
 import type {SkillListItem, SkillUsageRef} from "./types"
 
@@ -127,7 +144,6 @@ export function SkillDetailDrawer({
             })),
         [usageQuery.data],
     )
-    const [editing, setEditing] = useState(false)
     const [draft, setDraft] = useState<Record<string, unknown>>({})
     const [saveOpen, setSaveOpen] = useState(false)
     const [saveMessage, setSaveMessage] = useState("")
@@ -182,12 +198,18 @@ export function SkillDetailDrawer({
     // REVISION flag, so a plain workflows/query cannot filter by it.
     const roster = useAtomValue(agentWorkflowsListQueryStateAtom)
 
+    /** The revision the draft started from — the concurrency base. Captured when the
+     * draft is SEEDED, because a background refetch can move `head` while the drawer is
+     * open, and committing against a base the author never saw is exactly what the check
+     * exists to prevent. */
+    const [editBaseId, setEditBaseId] = useState<string | null>(null)
+
     // Fresh state per open — closing only closes, so the exit animation keeps its frame.
     const [wasOpen, setWasOpen] = useState(false)
     if (open !== wasOpen) {
         setWasOpen(open)
         if (open) {
-            setEditing(false)
+            setEditBaseId(null)
             setSaveOpen(false)
             setSaveMessage("")
             setPending(null)
@@ -201,17 +223,21 @@ export function SkillDetailDrawer({
 
     // Version numbers are deliberately not surfaced, so the drawer always shows the head.
 
-    /** The revision this edit started from — the concurrency base. Captured on
-     * ENTRY, because a background refetch can move `head` while the drawer is
-     * open, and committing against a base the author never saw is exactly what
-     * the check exists to prevent. */
-    const [editBaseId, setEditBaseId] = useState<string | null>(null)
-    const startEdit = useCallback(() => {
-        setDraft(toFormValue(head?.skill))
-        setEditBaseId(head?.id ?? null)
-        setEditing(true)
+    // The form is editable from the start: the draft seeds from the head once per open (and
+    // again after a commit, which clears the base), never over an edit in progress.
+    if (head && editBaseId === null) {
+        setDraft(toFormValue(head.skill))
+        setEditBaseId(head.id)
+    }
+    const headValue = useMemo(() => toFormValue(head?.skill), [head])
+    const dirty = useMemo(
+        () => editBaseId !== null && JSON.stringify(draft) !== JSON.stringify(headValue),
+        [draft, editBaseId, headValue],
+    )
+    const discard = useCallback(() => {
+        setDraft(headValue)
         setError(null)
-    }, [head])
+    }, [headValue])
 
     const askToCommit = useCallback((content: Record<string, unknown>, defaultMessage: string) => {
         const parsed = skillContentSchema.safeParse(content)
@@ -243,7 +269,7 @@ export function SkillDetailDrawer({
             await revisionsQuery.refetch()
             setSaveOpen(false)
             setPending(null)
-            setEditing(false)
+            // Clearing the base reseeds the draft from the head the refetch just brought.
             setEditBaseId(null)
         } catch (err) {
             setError(
@@ -316,10 +342,80 @@ export function SkillDetailDrawer({
         [head, onClose, projectId, selectedAgents, skill, usageQuery],
     )
 
-    const formValue = useMemo(
-        () => (editing ? draft : toFormValue(head?.skill)),
-        [draft, editing, head],
-    )
+    // Read-only where there is nothing to write to: a built-in, or a skill that is put away.
+    const readOnly = isBuiltin || Boolean(skill?.archived)
+
+    // The skill's own verbs, at the header's right — a kebab, because none of these is a thing to
+    // do often and one of them puts the skill away.
+    const actions =
+        step === "detail" && !isBuiltin && skill ? (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Skill actions"
+                        disabled={busy || archiveBusy}
+                    >
+                        <DotsThreeVertical aria-hidden className="size-4" weight="bold" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[200px]">
+                    {skill.archived ? (
+                        <DropdownMenuItem onSelect={() => void runUnarchive()}>
+                            <ArrowUUpLeft aria-hidden size={14} />
+                            Restore
+                        </DropdownMenuItem>
+                    ) : (
+                        <>
+                            <DropdownMenuItem
+                                disabled={!head}
+                                onSelect={() => setStep("agents")}
+                            >
+                                <Plus aria-hidden size={14} />
+                                Add to agent
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                variant="destructive"
+                                onSelect={() => setArchiveOpen(true)}
+                            >
+                                <Archive aria-hidden size={14} />
+                                Archive
+                            </DropdownMenuItem>
+                        </>
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        ) : null
+
+    // Provenance sits behind an info mark beside the name: a reader who wants to know where a
+    // skill came from hovers; the header stays one line.
+    const provenance = skill?.source ? (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button
+                        type="button"
+                        aria-label="Where this skill came from"
+                        className="box-border inline-flex shrink-0 cursor-help items-center border-0 bg-transparent p-0 font-[inherit] text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorText)]"
+                    >
+                        <Info size={14} aria-hidden />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="start">
+                    <span className="flex flex-col gap-0.5">
+                        <span>
+                            Imported from <span className="font-mono">{skill.source.label}</span>
+                        </span>
+                        {skill.source.detached ? (
+                            <span className="opacity-80">Modified locally — no longer synced</span>
+                        ) : null}
+                    </span>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    ) : null
 
     const title = (
         <div className="flex min-w-0 items-center gap-2">
@@ -333,10 +429,10 @@ export function SkillDetailDrawer({
                     <CaretLeft size={16} />
                 </button>
             ) : null}
-            {skill ? <SkillAvatar origin={skill.origin} slug={skill.slug} /> : null}
             <span className="min-w-0 truncate font-mono text-sm font-medium">
                 {skill?.slug ?? ""}
             </span>
+            {provenance}
             {isBuiltin ? (
                 <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-[var(--ag-colorTextTertiary)]">
                     <Lightning size={10} weight="fill" />
@@ -351,39 +447,6 @@ export function SkillDetailDrawer({
         </div>
     )
 
-    // Provenance rides the HEADER as a subtitle line, so the body keeps its full height.
-    const titleWithSource = skill?.source ? (
-        <div className="flex min-w-0 flex-col gap-0.5">
-            {title}
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-normal text-[var(--ag-colorTextSecondary)]">
-                {skill.source.repoUrl ? (
-                    <a
-                        href={skill.source.repoUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-mono text-[var(--ag-colorTextSecondary)] underline decoration-[var(--ag-colorBorder)] underline-offset-2 hover:text-[var(--ag-colorText)] hover:decoration-[var(--ag-colorText)]"
-                    >
-                        {skill.source.label}
-                    </a>
-                ) : (
-                    <span className="font-mono">{skill.source.label}</span>
-                )}
-                {skill.source.commitSha ? (
-                    <span className="rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px font-mono text-[10px]">
-                        {skill.source.commitSha.slice(0, 7)}
-                    </span>
-                ) : null}
-                {skill.source.detached ? (
-                    <span className="rounded bg-[var(--ag-colorWarningBg)] px-1.5 py-px text-[10px] text-[var(--ag-colorWarningText)]">
-                        modified locally — no longer synced
-                    </span>
-                ) : null}
-            </div>
-        </div>
-    ) : (
-        title
-    )
-
     return (
         <>
             <EnhancedDrawer
@@ -394,7 +457,8 @@ export function SkillDetailDrawer({
                 // Compact for the pick-agents step, wide for the editor; the resize animates.
                 width={step === "agents" ? agentsWidth : width}
                 destroyOnClose
-                title={titleWithSource}
+                title={title}
+                extra={actions}
                 styles={{
                     body: {
                         padding: 0,
@@ -460,65 +524,30 @@ export function SkillDetailDrawer({
                                 <span />
                             )}
                             <span className="flex shrink-0 items-center gap-2">
-                                {editing ? (
+                                {archiveError ? (
+                                    <span className="text-xs text-[var(--ag-colorError)]">
+                                        {archiveError}
+                                    </span>
+                                ) : null}
+                                {/* Always present, so the footer never changes shape under
+                                    the reader; inert until the draft differs from the head. */}
+                                {readOnly ? null : (
                                     <>
                                         <Button
                                             variant="outline"
-                                            onClick={() => {
-                                                setEditing(false)
-                                                setError(null)
-                                            }}
-                                            disabled={busy}
+                                            onClick={discard}
+                                            disabled={busy || !dirty}
                                         >
-                                            Cancel
+                                            Discard
                                         </Button>
                                         <Button
                                             onClick={() => askToCommit(draft, "")}
-                                            disabled={busy}
+                                            disabled={busy || !dirty}
                                         >
                                             Save changes
                                         </Button>
                                     </>
-                                ) : skill?.archived ? (
-                                    <>
-                                        {archiveError ? (
-                                            <span className="text-xs text-[var(--ag-colorError)]">
-                                                {archiveError}
-                                            </span>
-                                        ) : null}
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => void runUnarchive()}
-                                            disabled={archiveBusy}
-                                        >
-                                            {archiveBusy ? <Spinner size="small" /> : null}
-                                            Unarchive
-                                        </Button>
-                                    </>
-                                ) : !isBuiltin ? (
-                                    <>
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => setArchiveOpen(true)}
-                                            disabled={busy}
-                                            className="text-[var(--ag-colorError)]"
-                                        >
-                                            Archive
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => setStep("agents")}
-                                            disabled={busy || !head}
-                                        >
-                                            <Plus size={14} />
-                                            Add to agent
-                                        </Button>
-                                        <Button onClick={startEdit} disabled={busy || !head}>
-                                            <PencilSimple size={14} />
-                                            Edit skill
-                                        </Button>
-                                    </>
-                                ) : null}
+                                )}
                             </span>
                         </div>
                     )
@@ -611,7 +640,7 @@ export function SkillDetailDrawer({
                     </div>
                 ) : (
                     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
-                        {!editing && usedBy.length ? (
+                        {usedBy.length ? (
                             <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                                 <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                                     Used by
@@ -647,9 +676,9 @@ export function SkillDetailDrawer({
                         ) : (
                             <div className="min-h-0 flex-1 overflow-y-auto">
                                 <SkillFormView
-                                    value={formValue}
-                                    onChange={editing ? setDraft : () => undefined}
-                                    disabled={!editing || busy}
+                                    value={draft}
+                                    onChange={readOnly ? () => undefined : setDraft}
+                                    disabled={readOnly || busy}
                                 />
                             </div>
                         )}
@@ -657,39 +686,44 @@ export function SkillDetailDrawer({
                 )}
             </EnhancedDrawer>
 
-            <Dialog
+            {/* An alert, not a dialog: it asks one question and offers no other way out. */}
+            <AlertDialog
                 open={archiveOpen}
                 onOpenChange={(next) => {
                     if (!next && !archiveBusy) setArchiveOpen(false)
                 }}
             >
-                <DialogContent className="sm:max-w-[440px]">
-                    <DialogHeader>
-                        <DialogTitle>Archive {skill?.slug}</DialogTitle>
-                    </DialogHeader>
-                    <div className="flex flex-col gap-3 text-xs text-[var(--ag-colorTextSecondary)]">
-                        {usedBy.length ? (
-                            <div className="flex items-start gap-1.5 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-[var(--ag-colorWarningText)]">
-                                <WarningCircle size={14} className="mt-px shrink-0" />
-                                <span>
-                                    {usedBy.length}{" "}
-                                    {usedBy.length === 1
-                                        ? "agent still references"
-                                        : "agents still reference"}{" "}
-                                    this skill — runs will fail to resolve it until it is unarchived
-                                    or removed from the config.
-                                </span>
-                            </div>
-                        ) : null}
-                        <p className="m-0">
-                            The skill disappears from the registry (find it again with Show
-                            archived). Its name stays reserved, and unarchiving restores it with its
-                            full history.
-                        </p>
-                        {archiveError ? (
-                            <span className="text-[var(--ag-colorError)]">{archiveError}</span>
-                        ) : null}
-                        <div className="flex items-center justify-end gap-2">
+                <AlertDialogContent
+                    className="sm:max-w-[440px]"
+                    onEscapeKeyDown={(event) => {
+                        if (archiveBusy) event.preventDefault()
+                    }}
+                >
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Archive {skill?.slug}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            The skill leaves the registry and agents can no longer run it. Its name
+                            stays reserved, and restoring it brings back its full history.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {usedBy.length ? (
+                        <div className="flex items-start gap-1.5 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
+                            <WarningCircle size={14} className="mt-px shrink-0" />
+                            <span>
+                                {usedBy.length}{" "}
+                                {usedBy.length === 1
+                                    ? "agent still references"
+                                    : "agents still reference"}{" "}
+                                this skill — runs will fail to resolve it until it is restored or
+                                removed from the config.
+                            </span>
+                        </div>
+                    ) : null}
+                    {archiveError ? (
+                        <p className="m-0 text-xs text-[var(--ag-colorError)]">{archiveError}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
                             <Button
                                 variant="outline"
                                 onClick={() => setArchiveOpen(false)}
@@ -697,14 +731,25 @@ export function SkillDetailDrawer({
                             >
                                 Cancel
                             </Button>
-                            <Button onClick={() => void runArchive()} disabled={archiveBusy}>
+                        </AlertDialogCancel>
+                        {/* preventDefault keeps the alert open: it closes itself on success and
+                            stays for the error otherwise. */}
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={archiveBusy}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void runArchive()
+                                }}
+                            >
                                 {archiveBusy ? <Spinner size="small" /> : null}
                                 Archive skill
                             </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             {/* Radix Dialog, not EnhancedModal: /m renders this drawer and antd is banned there. */}
             <Dialog
