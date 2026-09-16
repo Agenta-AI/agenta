@@ -1,0 +1,263 @@
+---
+title: "Back up and restore agent files"
+sidebar_label: "Back up agent files"
+description: "Protect the object store that holds agent and session files: confirm bucket versioning, undo an accidental delete, snapshot the bundled SeaweedFS volume, and restore from a snapshot."
+slug: /self-host/agent-execution/back-up-agent-files
+sidebar_position: 6
+---
+
+[Agent files and session files](/concepts/files-and-knowledge) live in an S3-compatible object
+store, not in Postgres. This page sets up the two protections that store needs and shows how to
+use each one when something is deleted.
+
+The two protections cover different failures. Bucket versioning keeps the old body of every object
+a delete or an overwrite touches, so you can bring it back until the retention window closes. It
+does nothing if you lose the disk or the Docker volume, because every version lives there too. A
+volume backup covers that case. Set up both.
+
+## 1. Check which store you are on
+
+Read `AGENTA_STORE_ENDPOINT_URL` in your env file:
+
+| Value | Store | Versioning | Volume backup |
+| --- | --- | --- | --- |
+| `http://seaweedfs:8333` | The bundled SeaweedFS | On at API startup, 30 days | You set it up, see step 4 |
+| Empty | AWS S3 | You enable it, see [If you use AWS S3](#aws) | Your provider's |
+| Anything else | Your own MinIO, R2, or other S3 | You enable it | Yours |
+
+Steps 2 to 5 are for the bundled SeaweedFS. Steps 2 and 3 also work against any S3-compatible
+store once versioning is on there.
+
+## 2. Confirm versioning is on
+
+The API enables versioning on the bundled bucket every time it starts, and installs one lifecycle
+rule named `agenta-noncurrent-version-expiration` that expires noncurrent versions after
+`AGENTA_STORE_VERSION_RETENTION_DAYS` days. The default is 30. Set it to `0` to turn the whole
+thing off, and recreate the `api` service after changing it.
+
+Compose publishes the store on loopback at port 8333 (`AGENTA_STORE_PORT`). Check the bucket with
+the admin key from your env file:
+
+```bash
+AWS_ACCESS_KEY_ID=<AGENTA_STORE_ACCESS_KEY> \
+AWS_SECRET_ACCESS_KEY=<AGENTA_STORE_SECRET_KEY> \
+aws --endpoint-url http://127.0.0.1:8333 \
+  s3api get-bucket-versioning --bucket agenta-store
+```
+
+A bucket with versioning on answers:
+
+```json
+{
+    "Status": "Enabled"
+}
+```
+
+An empty response means versioning is off. Check the API startup logs for
+`Store bucket version retention ensure failed`.
+
+:::warning Two things versioning does not cover
+Versioning is not retroactive. Anything deleted before it was turned on is gone.
+
+It also only sees writes that go through the S3 gateway. Agenta always writes through it, but a
+delete you make in the SeaweedFS filer UI or API skips versioning and is final.
+:::
+
+## 3. Undo an accidental delete
+
+`hosting/scripts/restore_store_objects.py` reads the version history of a key prefix and puts
+objects back. It writes nothing until you pass `--apply`.
+
+Object keys are laid out as `mounts/<project-id>/<mount-id>/<path>`, with your
+`AGENTA_STORE_NAMESPACE` in front if you set one. Start by listing one project's history:
+
+```bash
+export AWS_ACCESS_KEY_ID=<AGENTA_STORE_ACCESS_KEY>
+export AWS_SECRET_ACCESS_KEY=<AGENTA_STORE_SECRET_KEY>
+
+uv run hosting/scripts/restore_store_objects.py \
+  --endpoint-url http://127.0.0.1:8333 \
+  --bucket agenta-store \
+  --prefix mounts/019d952f-0000-0000-0000-000000000000/
+```
+
+Each key prints its versions and delete markers, newest first, and the last line counts how many
+keys are currently deleted. Use the printed paths to narrow the prefix to the drive you care
+about. Listing a whole bucket of several hundred thousand objects takes minutes, so narrow it
+before you go further.
+
+Pick one of the two recovery modes:
+
+- `--undelete` removes the delete markers created at or after a moment. The newest surviving
+  version of each key becomes current again. Use it when files were deleted.
+- `--restore-as-of` copies back whichever version was current at a moment. Use it when files were
+  overwritten as well as deleted, or when you want a whole prefix back the way it looked.
+
+To undo a delete that happened at 08:00 UTC this morning, dry run first:
+
+```bash
+uv run hosting/scripts/restore_store_objects.py \
+  --endpoint-url http://127.0.0.1:8333 \
+  --bucket agenta-store \
+  --prefix mounts/019d952f-0000-0000-0000-000000000000/019d9530-0000-0000-0000-000000000000/ \
+  --undelete --since 2026-09-10T08:00:00Z
+```
+
+Read the `would remove` lines, then repeat the command with `--apply`.
+
+To put a drive back the way it looked yesterday at 18:00 UTC:
+
+```bash
+uv run hosting/scripts/restore_store_objects.py \
+  --endpoint-url http://127.0.0.1:8333 \
+  --bucket agenta-store \
+  --prefix mounts/019d952f-0000-0000-0000-000000000000/019d9530-0000-0000-0000-000000000000/ \
+  --restore-as-of 2026-09-09T18:00:00Z
+```
+
+Again, read the `would restore` lines, then add `--apply`.
+
+## 4. Back up the SeaweedFS volume
+
+SeaweedFS keeps its volume files and filer metadata in one Docker volume, `seaweed-data`, mounted
+at `/data` in the container. Compose prefixes it with the project name, so the default volume is
+`agenta-oss-gh_seaweed-data`. Confirm yours and note the host path:
+
+```bash
+docker volume ls | grep seaweed-data
+```
+
+The script below snapshots that path nightly. Each run hard-links unchanged files against the
+previous snapshot with `rsync --link-dest`, so a snapshot costs only the bytes that changed. It
+refuses to run when free space is low, and it deletes snapshots older than `RETENTION_DAYS`.
+
+Save it as `/usr/local/sbin/agenta-store-backup.sh`, edit the four settings at the top, and make
+it executable with `chmod +x`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+SOURCE="/var/lib/docker/volumes/agenta-oss-gh_seaweed-data/_data"
+DEST_ROOT="/backups/agenta-store"
+MIN_FREE_GB=60
+RETENTION_DAYS=14
+
+LOG="$DEST_ROOT/backup.log"
+SNAPSHOT_GLOB='.*/[0-9]{8}-[0-9]{4}'
+
+mkdir -p "$DEST_ROOT"
+exec 9>"$DEST_ROOT/.backup.lock"
+flock -n 9 || exit 0   # a previous run is still going
+
+log() { echo "$(date -Is) $*" >>"$LOG"; }
+fail() { log "ERROR: $*"; exit 1; }
+
+if [ ! -d "$SOURCE" ]; then fail "volume not found: $SOURCE"; fi
+
+avail_gb=$(( $(df --output=avail -k "$DEST_ROOT" | tail -1 | tr -d ' ') / 1024 / 1024 ))
+if [ "$avail_gb" -lt "$MIN_FREE_GB" ]; then
+  fail "only ${avail_gb}GB free, need ${MIN_FREE_GB}GB"
+fi
+
+snapshot="$DEST_ROOT/$(date '+%Y%m%d-%H%M')"
+if [ -e "$snapshot" ]; then fail "snapshot already exists: $snapshot"; fi
+
+previous=$(find "$DEST_ROOT" -mindepth 1 -maxdepth 1 -type d \
+  -regextype posix-extended -regex "$SNAPSHOT_GLOB" | sort | tail -1)
+
+link_dest=()
+if [ -n "$previous" ]; then link_dest=(--link-dest="$previous"); fi
+
+mkdir -p "$snapshot"
+if ! rsync -aH --stats "${link_dest[@]}" "$SOURCE"/ "$snapshot"/ >>"$LOG" 2>&1; then
+  rm -rf "$snapshot"
+  fail "rsync failed, removed incomplete snapshot $snapshot"
+fi
+log "snapshot complete: $snapshot ($(du -sh "$snapshot" | cut -f1))"
+touch "$snapshot"
+
+find "$DEST_ROOT" -mindepth 1 -maxdepth 1 -type d \
+  -regextype posix-extended -regex "$SNAPSHOT_GLOB" \
+  -mtime +"$RETENTION_DAYS" -exec rm -rf {} +
+log "pruned snapshots older than ${RETENTION_DAYS} days"
+```
+
+Run it once by hand to take the first full copy, then schedule it. Put this in
+`/etc/cron.d/agenta-store-backup` to run it at 03:30 every night:
+
+```text
+30 3 * * * root /usr/local/sbin/agenta-store-backup.sh
+```
+
+:::warning A running store gives a crash-consistent copy
+The script copies the volume while SeaweedFS keeps writing to it, so a snapshot is only as good as
+what the store can recover from after a power cut. For production, stop the container around the
+copy instead:
+
+```bash
+docker stop agenta-oss-gh-seaweedfs-1
+/usr/local/sbin/agenta-store-backup.sh
+docker start agenta-oss-gh-seaweedfs-1
+```
+
+Agent runs fail while the store is down, so pick a window with no traffic.
+:::
+
+On Kubernetes, the Helm chart runs SeaweedFS as a StatefulSet with a `seaweed-data`
+PersistentVolumeClaim. Snapshot that claim with your cluster's volume snapshot tooling rather than
+with the script above.
+
+## 5. Restore from a volume snapshot
+
+This replaces the whole store with the snapshot's point in time. Every project and every drive
+rolls back together. To recover one drive, use the version history in step 3 instead.
+
+1. List your snapshots and pick one:
+
+   ```bash
+   ls /backups/agenta-store/
+   ```
+
+2. Stop the store so nothing writes to the volume during the copy:
+
+   ```bash
+   docker stop agenta-oss-gh-seaweedfs-1
+   ```
+
+3. Copy the snapshot back over the live volume. This deletes anything the snapshot does not
+   contain:
+
+   ```bash
+   sudo rsync -aH --delete \
+     /backups/agenta-store/20260910-0330/ \
+     /var/lib/docker/volumes/agenta-oss-gh_seaweed-data/_data/
+   ```
+
+4. Start the store and confirm it comes back healthy:
+
+   ```bash
+   docker start agenta-oss-gh-seaweedfs-1
+   docker logs --tail 20 agenta-oss-gh-seaweedfs-1
+   ```
+
+## If you use AWS S3 {#aws}
+
+Agenta never changes versioning or lifecycle on a bucket you own, so enable both yourself:
+
+```bash
+aws s3api put-bucket-versioning --bucket <bucket> \
+  --versioning-configuration Status=Enabled
+
+aws s3api put-bucket-lifecycle-configuration --bucket <bucket> \
+  --lifecycle-configuration '{"Rules":[{"ID":"agenta-noncurrent-version-expiration",
+    "Filter":{"Prefix":""},"Status":"Enabled",
+    "NoncurrentVersionExpiration":{"NoncurrentDays":30},
+    "AbortIncompleteMultipartUpload":{"DaysAfterInitiation":7}}]}'
+```
+
+Step 3 then works against the bucket. Drop `--endpoint-url` and pass your AWS credentials.
+
+S3 already stores objects across availability zones, so you do not need the volume backup in step
+4. For a copy outside the bucket, use [AWS Backup](https://docs.aws.amazon.com/aws-backup/latest/devguide/s3-backups.html)
+or [cross-region replication](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html).
