@@ -19,7 +19,11 @@ import {message, modal} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-export function useDriveWrites(drive: SessionDriveData) {
+export function useDriveWrites(
+    drive: SessionDriveData,
+    /** The delete confirm stays inside this element (the pane) rather than covering the window. */
+    getContainer?: () => HTMLElement | null,
+) {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const queryClient = useAtomValue(queryClientAtom)
     const [busy, setBusy] = useState(false)
@@ -105,6 +109,7 @@ export function useDriveWrites(drive: SessionDriveData) {
                 const name = nameOf(presentedPath)
                 modal.confirm({
                     centered: true,
+                    getContainer,
                     title: isFolder ? "Delete folder" : "Delete file",
                     content: isFolder
                         ? `"${name}"${itemCount ? ` and its ${itemCountLabel(itemCount)}` : " and everything in it"} will be permanently deleted.`
@@ -123,7 +128,7 @@ export function useDriveWrites(drive: SessionDriveData) {
                     onCancel: () => resolve(false),
                 })
             }),
-        [run, projectId],
+        [run, projectId, getContainer],
     )
 
     /** Mount roots (the root, `agent-files/`) never offer Delete. */
