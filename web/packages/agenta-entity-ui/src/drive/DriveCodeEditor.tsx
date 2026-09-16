@@ -26,7 +26,7 @@ const editorLanguage = (path: string): CodeLanguage => {
     }
 }
 
-export interface DriveCodeEditorProps {
+interface DriveCodeEditorProps {
     mount: Mount | null
     path: string
     loading: boolean

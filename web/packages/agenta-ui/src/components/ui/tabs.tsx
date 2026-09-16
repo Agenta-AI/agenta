@@ -11,7 +11,7 @@ import {cn} from "./utils"
  * active segment. antd mapping: items→TabsTrigger/TabsContent, activeKey→value, onChange→onValueChange.
  */
 
-export type TabsListVariant = "line" | "pill"
+type TabsListVariant = "line" | "pill"
 
 // The list tells its triggers which look they wear, so a call-site sets the variant once.
 const TabsVariantContext = React.createContext<TabsListVariant>("line")

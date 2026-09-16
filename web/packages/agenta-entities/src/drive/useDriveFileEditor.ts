@@ -27,7 +27,7 @@ import {
 import {refreshMountListing, saveMountText} from "./driveWrites"
 
 /** Idle time after the last edit before the draft writes. */
-export const DRIVE_AUTOSAVE_DELAY_MS = 1500
+const DRIVE_AUTOSAVE_DELAY_MS = 1500
 /** How long "Saved" stays up after a write. */
 const SAVED_FLASH_MS = 2000
 /** Above these a file opens read-only (272 KB of JS: 2.7 s to open, 260 ms per keystroke). */

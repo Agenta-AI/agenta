@@ -6,7 +6,7 @@ import {MarkdownEditor} from "../DrillInView/SchemaControls/MarkdownEditor"
 
 import {DriveEditorPlaceholder, useDriveSaveKey} from "./DriveEditorFrame"
 
-export interface DriveMarkdownEditorProps {
+interface DriveMarkdownEditorProps {
     mount: Mount | null
     path: string
     mode: DriveEditorMode
