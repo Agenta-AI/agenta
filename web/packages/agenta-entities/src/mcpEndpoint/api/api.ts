@@ -11,7 +11,7 @@ import {
     McpProtocolError,
     readToolPage,
 } from "../core/mcpRpc"
-import {gatewayRefusalMessage} from "../core/refusal"
+import {gatewayRefusalCode, gatewayRefusalMessage} from "../core/refusal"
 import type {
     MCPConnectResponse,
     MCPEndpointCreate,
@@ -146,12 +146,21 @@ export const queryMcpEndpoints = async (projectId?: string): Promise<MCPEndpoint
  */
 const MAX_TOOL_PAGES = 20
 
-/** The reason a data-plane call failed, in the words of whoever refused it. */
+/**
+ * The reason a data-plane call failed, in the words of whoever refused it.
+ *
+ * The gateway's cause travels with it. Everything about the response is lost at the throw, and
+ * a caller that wants to OFFER something needs to know which refusal this was: a connection
+ * nobody has authorized wants a Connect button rather than a Retry that will fail again (D50).
+ */
 const relayFailure = (error: unknown, method: string): McpProtocolError => {
     if (error instanceof McpProtocolError) return error
     const body = (error as {response?: {data?: unknown}} | null | undefined)?.response?.data
     const stated = gatewayRefusalMessage(error) ?? jsonRpcErrorMessage(body)
-    return new McpProtocolError(stated ?? `The server did not answer ${method}.`)
+    return new McpProtocolError(
+        stated ?? `The server did not answer ${method}.`,
+        gatewayRefusalCode(error),
+    )
 }
 
 /**

@@ -24,7 +24,7 @@ vi.mock("jotai", async (importOriginal) => ({
 }))
 
 import McpToolPermissions from "../../src/mcpEndpoint/McpToolPermissions"
-import type {McpServerPolicy} from "@agenta/entities/mcpEndpoint"
+import {McpProtocolError, type McpServerPolicy} from "@agenta/entities/mcpEndpoint"
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -214,13 +214,14 @@ describe("rules for tools that are no longer advertised", () => {
 })
 
 describe("when the server has not been authorized", () => {
-    const authRefusal = {
-        response: {
-            data: {
-                detail: "Authorization required for custom/acme ⟦agenta_code:auth_required⟧",
-            },
-        },
-    }
+    // The error the tool-list client actually throws. It used to be stubbed with an
+    // axios-shaped object, which that function cannot produce: the response is read and
+    // discarded at the throw, so both cases below passed against a shape that never reaches
+    // them and neither half could fire in front of a person (D50).
+    const authRefusal = new McpProtocolError(
+        "Authorization required for custom/acme",
+        "auth_required",
+    )
 
     it("names the connection instead of a route and a code", async () => {
         listMcpTools.mockRejectedValue(authRefusal)

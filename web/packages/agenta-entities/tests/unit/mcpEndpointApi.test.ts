@@ -2,6 +2,9 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 
 import {axios} from "@agenta/shared/api"
 
+import {McpProtocolError} from "../../src/mcpEndpoint/core/mcpRpc"
+import {gatewayRefusalCode} from "../../src/mcpEndpoint/core/refusal"
+
 import {
     beginMcpConnect,
     discoverMcpConnect,
@@ -327,6 +330,71 @@ describe("listMcpTools", () => {
         await expect(listMcpTools("acme", "project-1")).rejects.toThrow(
             "The MCP gateway is disabled on this deployment.",
         )
+    })
+
+    it("carries the gateway's cause on the failure it raises, not just the sentence", async () => {
+        // This is the refusal a person meets on the connection they have not authorized yet:
+        // 409, no `detail`, the cause stated structurally in the JSON-RPC envelope and repeated
+        // into the message as a marker. Everything about the response is lost at the throw, so
+        // whatever the caller wants to OFFER has to travel on the error itself (D50).
+        const refused = Object.assign(new Error("Request failed with status code 409"), {
+            response: {
+                data: {
+                    jsonrpc: "2.0",
+                    id: null,
+                    error: {
+                        code: -32000,
+                        message:
+                            "Authorization required for custom/acme ⟦agenta_code:auth_required⟧",
+                        data: {cause: "auth_required", requirement: {state: "needs_auth"}},
+                    },
+                },
+            },
+        })
+        server({
+            initialize: handshake(),
+            "notifications/initialized": {data: ""},
+            "tools/list": refused,
+        })
+
+        const failure = await listMcpTools("acme", "project-1").catch((error: unknown) => error)
+
+        expect(failure).toBeInstanceOf(McpProtocolError)
+        expect((failure as McpProtocolError).code).toBe("auth_required")
+        expect(gatewayRefusalCode(failure)).toBe("auth_required")
+        // The marker is for the runner; it has no business in a sentence anyone reads.
+        expect((failure as McpProtocolError).message).toBe("Authorization required for custom/acme")
+    })
+
+    it("carries the cause of a refusal the server answered 200 with", async () => {
+        server({
+            initialize: handshake(),
+            "notifications/initialized": {data: ""},
+            "tools/list": {
+                data: {
+                    jsonrpc: "2.0",
+                    id: 3,
+                    error: {
+                        code: -32000,
+                        message: "This connection needs authorization.",
+                        data: {cause: "auth_required"},
+                    },
+                },
+            },
+        })
+
+        const failure = await listMcpTools("acme", "project-1").catch((error: unknown) => error)
+
+        expect((failure as McpProtocolError).code).toBe("auth_required")
+    })
+
+    it("names no cause when nothing refused, so a dead server is not read as an unauthorized one", async () => {
+        server({initialize: new Error("Network Error")})
+
+        const failure = await listMcpTools("acme", "project-1").catch((error: unknown) => error)
+
+        expect(failure).toBeInstanceOf(McpProtocolError)
+        expect((failure as McpProtocolError).code).toBeNull()
     })
 
     it("refuses to read an unanswerable conversation as a server with no tools", async () => {

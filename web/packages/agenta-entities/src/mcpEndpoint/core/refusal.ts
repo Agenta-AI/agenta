@@ -11,7 +11,7 @@
  * Nothing here invents copy. It returns what the server wrote, or `null` so the caller
  * keeps whatever wording it already had.
  */
-import {McpProtocolError} from "./mcpRpc"
+import {jsonRpcErrorCause, McpProtocolError} from "./mcpRpc"
 
 interface Envelope {
     message?: unknown
@@ -46,9 +46,26 @@ const findCodeMarker = (value: string): {start: number; end: number; code: strin
     return {start: open, end: close + MARKER_CLOSE.length, code: value.slice(codeStart, close)}
 }
 
-/** The refusal's code, from the envelope or from the marker in its message. */
+/**
+ * The refusal's code, wherever the plane that refused happens to state it.
+ *
+ * Three places, because there are three ways a refusal reaches a caller and a caller asking
+ * "why" should not have to know which one it got (D50):
+ *
+ * - the control plane's typed envelope, `detail.code`;
+ * - the data plane's JSON-RPC envelope, `error.data.cause`, which carries no `detail` at all;
+ * - a failure this package's own MCP client already read and raised, which kept the cause
+ *   because the response it came in did not survive the throw.
+ *
+ * The marker inside a message is the last resort, for a sender that kept the sentence and
+ * dropped the structure around it.
+ */
 export const gatewayRefusalCode = (error: unknown): string | null => {
-    const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data?.detail
+    if (error instanceof McpProtocolError) return error.code
+
+    const data = (error as {response?: {data?: {detail?: unknown; error?: unknown}}})?.response
+        ?.data
+    const detail = data?.detail
     if (detail && typeof detail === "object") {
         const code = (detail as {code?: unknown}).code
         if (typeof code === "string" && code) return code
@@ -57,7 +74,16 @@ export const gatewayRefusalCode = (error: unknown): string | null => {
         typeof detail === "string"
             ? detail
             : ((detail as {message?: unknown} | undefined)?.message as string | undefined)
-    return typeof message === "string" ? (findCodeMarker(message)?.code ?? null) : null
+    if (typeof message === "string") {
+        const marked = findCodeMarker(message)?.code
+        if (marked) return marked
+    }
+
+    const cause = jsonRpcErrorCause(data)
+    if (cause) return cause
+
+    const rpcMessage = (data?.error as {message?: unknown} | undefined)?.message
+    return typeof rpcMessage === "string" ? (findCodeMarker(rpcMessage)?.code ?? null) : null
 }
 
 const asText = (value: unknown): string | null => {

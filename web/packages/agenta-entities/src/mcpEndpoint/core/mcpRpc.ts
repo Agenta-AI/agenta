@@ -33,9 +33,22 @@ export const MCP_PROTOCOL_VERSION_HEADER = "MCP-Protocol-Version"
  * message is the server's own wording wherever it wrote one.
  */
 export class McpProtocolError extends Error {
-    constructor(message: string) {
+    /**
+     * The gateway's own cause for the refusal, when one refused it: `auth_required`,
+     * `endpoint_inactive`, `tool_not_allowed`. Null when the failure was the server's rather
+     * than the gateway's, or when nothing named a cause.
+     *
+     * Carried on the error because the response it came in does not survive the throw, and a
+     * caller deciding what to OFFER a person needs the cause, not the sentence: a connection
+     * nobody has authorized wants a Connect button, and a server that is merely down wants a
+     * Retry. Reading it back out of the message would mean parsing prose (D50).
+     */
+    readonly code: string | null
+
+    constructor(message: string, code: string | null = null) {
         super(message)
         this.name = "McpProtocolError"
+        this.code = code
     }
 }
 
@@ -109,6 +122,20 @@ export const jsonRpcErrorMessage = (data: unknown): string | null => {
 }
 
 /**
+ * The gateway's cause for a JSON-RPC refusal, from `error.data.cause`.
+ *
+ * The gateway states it structurally there; the same word is repeated into the message as a
+ * marker for harnesses that keep nothing but the message. Read the structure.
+ */
+export const jsonRpcErrorCause = (data: unknown): string | null => {
+    const payload = readJsonRpcPayload(data)
+    const error = payload?.error
+    if (!isRecord(error)) return null
+    const cause = (error.data as {cause?: unknown} | undefined)?.cause
+    return typeof cause === "string" && cause ? cause : null
+}
+
+/**
  * The `result` of a call, or a raised `McpProtocolError`.
  *
  * `method` names the call in the raised message, because "initialize" failing and
@@ -121,9 +148,9 @@ export const jsonRpcResult = (data: unknown, method: string): Record<string, unk
     }
 
     const failure = jsonRpcErrorMessage(payload)
-    if (failure) throw new McpProtocolError(failure)
+    if (failure) throw new McpProtocolError(failure, jsonRpcErrorCause(payload))
     if (payload.error) {
-        throw new McpProtocolError(`The server refused ${method}.`)
+        throw new McpProtocolError(`The server refused ${method}.`, jsonRpcErrorCause(payload))
     }
 
     if (!isRecord(payload.result)) {
