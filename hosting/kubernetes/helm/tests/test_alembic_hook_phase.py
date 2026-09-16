@@ -208,7 +208,9 @@ def main() -> int:
         "serviceAccount.name=migration-runner",
     ]
     for is_upgrade in (False, True):
-        external_sa_docs = render(EXTERNAL_DB + PRE + EXTERNAL_SA, is_upgrade=is_upgrade)
+        external_sa_docs = render(
+            EXTERNAL_DB + PRE + EXTERNAL_SA, is_upgrade=is_upgrade
+        )
         external_sa_job = migration_job(external_sa_docs)
         # create=false means the chart renders NO ServiceAccount, under any
         # name. Checking only for FULLNAME would pass a chart that created
