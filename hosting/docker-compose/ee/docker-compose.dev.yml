@@ -929,7 +929,7 @@ services:
             AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
             AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN: ${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}
         ports:
-            - "127.0.0.1:9091:9091"
+            - "127.0.0.1:${AGENTA_MOCK_LLM_GATEWAY_PORT:-9091}:9091"
         networks:
             - agenta-network
         # === LIFECYCLE ============================================ #
@@ -978,7 +978,7 @@ services:
             AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
             AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN: ${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}
         ports:
-            - "127.0.0.1:9092:9092"
+            - "127.0.0.1:${AGENTA_MOCK_MCP_GATEWAY_PORT:-9092}:9092"
         networks:
             - agenta-network
         # === LIFECYCLE ============================================ #
