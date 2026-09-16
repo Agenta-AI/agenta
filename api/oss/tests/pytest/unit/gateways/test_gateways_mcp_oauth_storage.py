@@ -402,6 +402,7 @@ class _CountingVault:
         self._listed = listed or []
         self.slug_reads: list = []
         self.listings = 0
+        self.written: list = []
 
     async def get_secret_by_slug(self, *, secret_slug, project_id):
         self.slug_reads.append(secret_slug)
@@ -411,8 +412,19 @@ class _CountingVault:
         self.listings += 1
         return list(self._listed)
 
+    async def create_secret(self, *, project_id, create_secret_dto):
+        self.written.append(create_secret_dto)
+        return SecretResponseDTO(
+            id=uuid4(),
+            slug=create_secret_dto.slug,
+            kind=create_secret_dto.secret.kind,
+            data=create_secret_dto.secret.data.model_dump(exclude_none=True),
+            header=create_secret_dto.header,
+        )
+
 
 def _provider_secret(*, issuer: str, slug: str) -> SecretResponseDTO:
+    """A registration this module wrote, which is what carries the provenance mark."""
     return SecretResponseDTO(
         id=uuid4(),
         slug=slug,
@@ -428,7 +440,8 @@ def _provider_secret(*, issuer: str, slug: str) -> SecretResponseDTO:
                     "client_info": {
                         "client_id": "client-1",
                         "redirect_uris": ["https://api.example.com/cb"],
-                    }
+                    },
+                    "registered_by": "agenta-mcp-oauth",
                 },
             )
         ),
@@ -576,6 +589,86 @@ async def test_a_hand_made_row_does_not_hide_the_real_registration_beside_it():
             _provider_secret(issuer=_ISSUER, slug="legacy-oauth-provider"),
         ]
     )
+
+    client_info = await _storage_over(vault).get_client_info()
+
+    assert client_info is not None and client_info.client_id == "client-1"
+
+
+# ---------------------------------------------------------------------------
+# M8: provenance, not shape
+# ---------------------------------------------------------------------------
+
+
+def _crafted_registration(*, issuer: str, slug: str) -> SecretResponseDTO:
+    """A provider row shaped exactly like a registration, written by somebody else.
+
+    The shape filter cannot tell this from one this module wrote: it carries a valid
+    `client_info`, so it reads back as usable client information.
+    """
+    return SecretResponseDTO(
+        id=uuid4(),
+        slug=slug,
+        kind=SecretKind.OAUTH_PROVIDER,
+        header=Header(name="Looks official"),
+        data=OAuthProviderDTO(
+            provider=OAuthProviderSettingsDTO(
+                client_id="theirs",
+                client_secret="placeholder-client-secret",
+                issuer_url=issuer,
+                scopes=[],
+                extra={
+                    "client_info": {
+                        "client_id": "theirs",
+                        "redirect_uris": ["https://api.example.com/cb"],
+                    }
+                },
+            )
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_crafted_row_at_the_issuer_slug_loses_to_a_genuine_registration():
+    """The case the shape filter could not close. Both rows read back as usable client
+    information, so only provenance separates them."""
+    genuine = _provider_secret(issuer=_ISSUER, slug="agenta-written")
+    crafted = _crafted_registration(issuer=_ISSUER, slug=issuer_slug_for_test(_ISSUER))
+    vault = _CountingVault(by_slug={crafted.slug: crafted}, listed=[crafted, genuine])
+
+    client_info = await _storage_over(vault).get_client_info()
+
+    assert client_info is not None
+    assert client_info.client_id == "client-1", "the crafted row was preferred"
+
+
+@pytest.mark.asyncio
+async def test_a_registration_this_module_wrote_carries_its_mark():
+    """The marker has to be written, or preferring it selects nothing."""
+    vault = _CountingVault()
+    storage = _storage_over(vault)
+
+    await storage.set_client_info(
+        OAuthClientInformationFull(
+            redirect_uris=["https://api.example.com/cb"], client_id="ours"
+        )
+    )
+
+    assert vault.written, "no registration was written"
+    extra = vault.written[-1].secret.data.provider.extra
+    assert extra["registered_by"] == "agenta-mcp-oauth"
+    # And the registration itself is still there beside the mark.
+    assert extra["client_info"]["client_id"] == "ours"
+
+
+@pytest.mark.asyncio
+async def test_a_registration_written_before_the_marker_is_still_used():
+    """Requiring the mark would orphan every registration written before it existed, and
+    orphaning one means registering a fresh client at a server that may rate limit it
+    while the grants bound to the old one stop refreshing."""
+    legacy = _provider_secret(issuer=_ISSUER, slug=issuer_slug_for_test(_ISSUER))
+    legacy.data.provider.extra.pop("registered_by")
+    vault = _CountingVault(by_slug={legacy.slug: legacy}, listed=[legacy])
 
     client_info = await _storage_over(vault).get_client_info()
 

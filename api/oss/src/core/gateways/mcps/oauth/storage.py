@@ -69,6 +69,31 @@ def grant_slug(endpoint_id: UUID) -> str:
     return get_slug_from_name_and_id("oauth-grant", endpoint_id)
 
 
+# Written on every registration this module creates, and preferred by both the lookup and
+# the scan when more than one row could answer.
+#
+# A registration is addressed by a slug derived from the issuer and this deployment's
+# callback, and an OAuth-provider secret is something a person can create through the
+# vault's own surface. So "a provider row at this address naming this issuer" also
+# describes a row nothing here wrote, and both paths took the first one they found: the
+# lookup returned whatever sat at the slug, and the scan checked only that the row was
+# shaped like a registration, which a crafted blob is too (M8).
+#
+# Provenance rather than shape, and preferred rather than required. Requiring it would
+# orphan every registration written before this marker existed, and orphaning a
+# registration means re-registering a client at a server that may rate limit it while the
+# grants bound to the old one stop refreshing — the D6 harm, caused by the fix for a
+# lesser one. A marked row wins wherever both exist, and an unmarked one is still used
+# when it is all there is, gaining the marker the next time it is written.
+_REGISTERED_BY_KEY = "registered_by"
+_REGISTERED_BY = "agenta-mcp-oauth"
+
+
+def _is_registration_we_wrote(provider: SecretResponseDTO) -> bool:
+    settings = provider.data.provider
+    return (settings.extra or {}).get(_REGISTERED_BY_KEY) == _REGISTERED_BY
+
+
 def _issuer_slug(issuer_url: str) -> str:
     """Where a registration lived before it was addressed per callback address.
 
@@ -338,24 +363,43 @@ class SecretsTokenStorage:
         exist (M8). A row only counts if it actually carries a registration this client
         could present, which a hand-made one does not.
         """
+        # One pass over every candidate, taking the first this module wrote and keeping
+        # the best unmarked one in case there is nothing better. Both paths used to take
+        # the first row they found, so a row placed at the address slug beat a genuine
+        # registration that the scan would have found below it.
+        unmarked: Optional[Tuple[Optional[str], SecretResponseDTO]] = None
+
         for slug in self._registration_slugs(current_address=current_address):
             provider = await self._provider_by_slug(slug)
-            if provider is not None:
+            if provider is None or self._as_client_info(provider) is None:
+                continue
+            if _is_registration_we_wrote(provider):
                 return slug, provider
+            if unmarked is None:
+                unmarked = (slug, provider)
 
+        # An unmarked row does NOT answer yet: a row placed at the address slug is
+        # exactly how a crafted one shadows a genuine registration, so the rest has to be
+        # looked at before preferring it. That costs the project listing D14 removed, and
+        # only in this case: a marked row returned above, and every write marks, so this
+        # is the deployment registered before the marker existed and only until its
+        # registration is next written. D14's read was on the relay path; this one is on
+        # connect and on a renewal that predates the grant's own pin.
         target = self._issuer
         secrets = await self.vault_service.list_secrets(project_id=self.project_id)
-        found = next(
-            (
-                s
-                for s in secrets
-                if s.kind == SecretKind.OAUTH_PROVIDER
-                and s.data.provider.issuer_url == target
-                and self._as_client_info(s) is not None
-            ),
-            None,
-        )
-        return (found.slug, found) if found is not None else None
+        for candidate in secrets:
+            if (
+                candidate.kind != SecretKind.OAUTH_PROVIDER
+                or candidate.data.provider.issuer_url != target
+                or self._as_client_info(candidate) is None
+            ):
+                continue
+            if _is_registration_we_wrote(candidate):
+                return candidate.slug, candidate
+            if unmarked is None:
+                unmarked = (candidate.slug, candidate)
+
+        return unmarked
 
     @staticmethod
     def _as_client_info(
@@ -470,7 +514,8 @@ class SecretsTokenStorage:
             extra={
                 "client_info": client_info.model_dump(
                     mode="json", exclude={"client_secret"}
-                )
+                ),
+                _REGISTERED_BY_KEY: _REGISTERED_BY,
             },
         )
         secret = SecretDTO(
