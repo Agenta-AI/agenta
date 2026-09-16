@@ -740,3 +740,74 @@ later. Had the tool still been missing at dispatch, the cell would have failed w
 string was reachable for nine cells without any tool call for as long as the suite existed. When a
 row here matters, read it beside the gateway's own request log the way the cells in this section
 do: a `tools/call` is a POST to the MCP route that lands after the model call.
+
+### Claude Code on a real model, without Anthropic credit (OpenRouter)
+
+Every Claude row above runs on the mock LLM, because this deployment has no Anthropic credit. That
+is enough to test the gate, and not enough to test the gate against a model that decides for
+itself. This cell closes that gap using OpenRouter, and needs no new code: it is a provider row.
+
+**Why it works.** Claude Code speaks the Anthropic Messages protocol, and the runner already points
+it at our LLM gateway. OpenRouter serves an Anthropic-compatible Messages endpoint at
+`https://openrouter.ai/api/v1/messages` — verified directly before wiring anything:
+
+```
+$ curl -s -o /dev/null -w '%{http_code}' -X POST https://openrouter.ai/api/v1/messages \
+    -H 'x-api-key: <key>' -H 'anthropic-version: 2023-06-01' -H 'Content-Type: application/json' \
+    -d '{"model":"anthropic/claude-haiku-4.5","max_tokens":32,
+         "messages":[{"role":"user","content":"Reply with exactly: PONG"}]}'
+200
+# body: {"type":"message","role":"assistant","content":[{"type":"text","text":"PONG"}], ...}
+```
+
+So no translation layer is needed. The gateway's `anthropic` provider_key already relays MESSAGES
+to `<base_url>/messages` (`passthrough/routing.py`, `_PROTOCOL_PATHS`) and authenticates with a
+bare `x-api-key` header (`passthrough/auth.py`) — which is exactly the shape OpenRouter accepts.
+
+**The provider row.** A `custom_provider` secret holding the OpenRouter key, plus one LLM gateway
+endpoint:
+
+| Field | Value |
+| --- | --- |
+| `provider_key` | `anthropic` |
+| `deployment_kind` | `custom` |
+| `data.route.base_url` | `https://openrouter.ai/api/v1` |
+| `data.models.allowlist` | `["anthropic/claude-haiku-4.5"]` — the cheapest Claude on OpenRouter |
+
+and an agent whose `llm` is `{model: "anthropic/claude-haiku-4.5", provider: "anthropic",
+connection: {mode: "agenta", slug: <slug>}}`. The MCP server is the same builtin mock route the
+rest of this section uses, at `permission: "ask"`.
+
+**Result: PASS.** Turn 1 raises the gate and parks; turn 2 approves, the tool runs, and the model
+writes its own sentence about the result:
+
+```
+turn 1 (ask)      finish=other
+  frames  ... reasoning-start, reasoning-delta x21, reasoning-end,
+              tool-input-available, tool-approval-request ...
+  tool_call mcp__mock-mcp__echo input={"marker": "MCP-ACCEPTANCE-O"}
+  APPROVAL toolCallId=toolu_bdrk_01FZtmveykdJitWx97nkMxmH
+
+turn 2 (approved) finish=stop
+  outcome toolu_bdrk_01EqMG1QAr4Zp3d5u1gxJW5h -> available: {"marker": "MCP-ACCEPTANCE-O"}
+  text='Done. The echo tool returned the marker MCP-ACCEPTANCE-O.'
+```
+
+```
+POST /api/gateways/mcps/builtin/mock/mock                      200   handshake + tools/list
+POST /api/gateways/llms/custom/or-claude-.../v1/messages       200   the model, via OpenRouter
+POST /api/gateways/mcps/builtin/mock/mock                      200   tools/call, after approval
+POST /api/gateways/llms/custom/or-claude-.../v1/messages       200
+```
+
+Three things here are impossible on the mock and are what make this cell worth having: the
+`reasoning-*` frames are a real model thinking, the `toolu_bdrk_*` call ids are real Anthropic ids,
+and the closing sentence is the model's own prose rather than the mock's fixed
+`mock MCP echo: <marker>` string. A cell that ends in that fixed string proves the plumbing; this
+one proves a model chose the tool, read its result, and reported it.
+
+**Cost and secret handling.** `anthropic/claude-haiku-4.5` is the cheapest Claude on OpenRouter and
+one cell is two short turns. The key lives in `~/.agenta-qa-secrets.env` on the QA box, is read
+into the run from there, and is stored as an ordinary project secret — it appears in no committed
+file, no log line, and no assertion.
+
