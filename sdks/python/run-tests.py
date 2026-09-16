@@ -21,6 +21,74 @@ TYPES = {
 }
 
 
+# pytest options whose value is the NEXT argument rather than part of it.
+#
+# A value is not a test target. `--basetemp /tmp/x` and `--ignore some/dir` both end in a
+# token containing a slash, and the target check below saw one and concluded the caller had
+# named what to run: the resolved license and layer directories were dropped, pytest fell
+# back to the `testpaths` in its own config, and the run silently covered something else
+# (P11, P12).
+#
+# Explicit rather than inferred, because pytest also has plenty of flags that take no value
+# and a positional after one of those IS a target. An option written `--opt=value` carries
+# its own value and never reaches this set.
+_VALUE_OPTIONS = frozenset(
+    {
+        "-c",
+        "-k",
+        "-m",
+        "-n",
+        "-o",
+        "-p",
+        "-r",
+        "-W",
+        "--basetemp",
+        "--capture",
+        "--color",
+        "--confcutdir",
+        "--cov",
+        "--cov-report",
+        "--deselect",
+        "--dist",
+        "--durations",
+        "--durations-min",
+        "--html",
+        "--ignore",
+        "--ignore-glob",
+        "--import-mode",
+        "--junit-xml",
+        "--junitxml",
+        "--log-cli-level",
+        "--log-file",
+        "--maxfail",
+        "--numprocesses",
+        "--override-ini",
+        "--rootdir",
+        "--tb",
+        "--timeout",
+    }
+)
+
+
+def _positional_arguments(args) -> list:
+    """The forwarded arguments that are not options and not an option's value."""
+    positionals = []
+    expecting_value = False
+    for arg in args:
+        if expecting_value:
+            expecting_value = False
+            continue
+        if arg.startswith("-"):
+            expecting_value = "=" not in arg and arg in _VALUE_OPTIONS
+            continue
+        positionals.append(arg)
+    return positionals
+
+
+def _looks_like_a_test_target(arg: str) -> bool:
+    return arg.endswith(".py") or "/" in arg or "::" in arg
+
+
 def _split_marker_expression(args):
     """Pull the caller's own `-m` out of the forwarded arguments.
 
@@ -298,8 +366,7 @@ def run_tests(
         list(pytest_args or ())
     )
     has_test_target = any(
-        not arg.startswith("-") and (arg.endswith(".py") or "/" in arg or "::" in arg)
-        for arg in forwarded_args
+        _looks_like_a_test_target(arg) for arg in _positional_arguments(forwarded_args)
     )
     test_dirs = _resolve_test_dirs(license, layer)
     if not has_test_target and not test_dirs:

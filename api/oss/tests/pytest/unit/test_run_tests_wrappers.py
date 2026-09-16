@@ -109,3 +109,53 @@ def test_the_attached_spellings_are_read_too(wrapper, spelling):
 
     assert len(_marker_expressions(cmd)) == 1, cmd
     assert "acceptance" in _marker_expressions(cmd)[0]
+
+
+# ---------------------------------------------------------------------------
+# P11/P12: an option's value is not a test target
+# ---------------------------------------------------------------------------
+
+
+_LAYER_DIR = "oss/tests/pytest/unit"
+
+
+def test_an_option_value_does_not_replace_the_resolved_directories(wrapper):
+    """`--basetemp /tmp/x` ends in a token with a slash in it. The wrapper read that as
+    the caller naming what to run, dropped the license and layer directories, and pytest
+    fell back to the `testpaths` in its own config: a different suite, reported green."""
+    cmd = wrapper("--layer", "unit", "--", "--basetemp", "/tmp/agenta-wrapper-case")
+
+    assert _LAYER_DIR in cmd, cmd
+
+
+def test_a_path_valued_option_is_not_a_target_either(wrapper):
+    """`--ignore` and `--deselect` take paths that look exactly like targets. Reading one
+    as a target both loses the scoping and turns an exclusion into the whole run."""
+    cmd = wrapper("--layer", "unit", "--", "--ignore", f"{_LAYER_DIR}/gateways")
+
+    assert _LAYER_DIR in cmd, cmd
+
+
+def test_an_actual_test_target_still_replaces_them(wrapper):
+    """The behaviour the confusion was hiding inside: naming a file runs that file."""
+    target = f"{_LAYER_DIR}/test_nothing_here.py"
+    cmd = wrapper("--layer", "unit", "--", target)
+
+    assert target in cmd
+    assert _LAYER_DIR not in cmd, cmd
+
+
+def test_a_node_id_still_replaces_them(wrapper):
+    target = f"{_LAYER_DIR}/test_nothing_here.py::test_case"
+    cmd = wrapper("--layer", "unit", "--", target)
+
+    assert target in cmd
+    assert _LAYER_DIR not in cmd, cmd
+
+
+def test_an_option_with_its_value_attached_is_not_a_target(wrapper):
+    """A guard rather than a repair: this spelling was already safe, and it must stay so
+    now that the option table decides which next token to skip."""
+    cmd = wrapper("--layer", "unit", "--", "--basetemp=/tmp/agenta-wrapper-case")
+
+    assert _LAYER_DIR in cmd, cmd
