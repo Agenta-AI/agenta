@@ -9,7 +9,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {CaretDown, GitBranch, PencilSimple, Plus} from "@phosphor-icons/react"
+import {GitBranch, PencilSimple, Plus} from "@phosphor-icons/react"
 
 /** The tiles' colours: the project skill's olive for writing, the palette's blue for a repo. */
 const WRITE_COLOR = "#6b7d3f"
@@ -41,7 +41,6 @@ export function NewSkillMenuButton({
                 <Button variant={variant} disabled={disabled} className={cn("gap-1.5", className)}>
                     <Plus size={14} />
                     New skill
-                    <CaretDown size={12} className="opacity-70" />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-w-[320px]">
