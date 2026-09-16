@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from oss.tests.pytest.acceptance.gateways.conftest import skip_without_llm_gateway
+from oss.tests.pytest.acceptance.gateways.conftest import require_llm_gateway
 from oss.tests.pytest.acceptance.gateways.mcp_session import (
     assert_ok,
     listed_tools,
@@ -182,7 +182,7 @@ def provisioned_gateway_mock_case(
     # Per row, not per module: the MCP half of the matrix ships on and must keep running on a
     # deployment that has the LLM plane switched off, which is the shape of this release.
     if case.plane is GatewayPlane.LLM:
-        skip_without_llm_gateway(llm_gateway_plane)
+        require_llm_gateway(llm_gateway_plane)
     cleanup: list[tuple[str, str]] = []
     name: str | None = None
     try:
