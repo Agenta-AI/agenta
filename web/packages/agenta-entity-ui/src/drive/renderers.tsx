@@ -16,8 +16,16 @@ import {fetchMountFileBlob} from "@agenta/entities/drive"
 import {humanSize} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
-import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
-import {Segmented, Skeleton} from "@agenta/ui/ui"
+import {
+    Button,
+    Empty,
+    EmptyContent,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+    Segmented,
+    Skeleton,
+} from "@agenta/ui/ui"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -83,33 +91,6 @@ const Inset = ({children, flush}: {children: React.ReactNode; flush?: boolean}) 
     </div>
 )
 
-const CenterCard = ({
-    icon,
-    title,
-    action,
-}: {
-    icon?: React.ReactNode
-    title: string
-    action?: React.ReactNode
-}) => (
-    <Inset>
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
-            {icon ?? <FileDashed size={26} className="text-colorTextQuaternary" />}
-            <div className="text-xs font-medium">{title}</div>
-            {action}
-        </div>
-    </Inset>
-)
-
-const DownloadAction = ({mount, path}: {mount: Mount | null; path: string}) => {
-    const download = useDriveDownload(mount, path)
-    return (
-        <Button icon={<DownloadSimple size={13} />} onClick={download}>
-            Download to open
-        </Button>
-    )
-}
-
 /** The honest fallback: no registry match (or an over-cap file) → name it, offer Download. */
 export const DownloadCard = ({
     mount,
@@ -119,7 +100,27 @@ export const DownloadCard = ({
     mount: Mount | null
     path: string
     title?: string
-}) => <CenterCard title={title} action={<DownloadAction mount={mount} path={path} />} />
+}) => {
+    const download = useDriveDownload(mount, path)
+    return (
+        <Inset>
+            <Empty className="flex-1 gap-2 p-6">
+                <EmptyHeader className="gap-1">
+                    <EmptyMedia variant="icon">
+                        <FileDashed size={26} />
+                    </EmptyMedia>
+                    <EmptyTitle className="text-xs">{title}</EmptyTitle>
+                </EmptyHeader>
+                <EmptyContent>
+                    <Button variant="outline" size="sm" onClick={download}>
+                        <DownloadSimple />
+                        Download to open
+                    </Button>
+                </EmptyContent>
+            </Empty>
+        </Inset>
+    )
+}
 
 // ---- Text-family bodies (content endpoint) --------------------------------------------------
 
