@@ -2,7 +2,7 @@
 
 import html as html_lib
 import json
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -756,6 +756,42 @@ def _json_for_inline_script(value: Any) -> str:
     return json.dumps(value).replace("<", "\\u003c")
 
 
+def _origin_of(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    parsed = urlsplit(url)
+    if not (parsed.scheme and parsed.netloc):
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def _app_origins(agenta_url: Optional[str]) -> List[str]:
+    """Every origin this deployment's app is served from, best first.
+
+    The consent result is posted to the opener with an exact target origin, which is what
+    keeps it from reaching a window that merely happens to be open. One configured value
+    therefore decided that a deployment reachable at a second address delivered the result
+    nowhere at all: the dialog waited out its timeout while the connection sat authorized
+    behind it. So every origin the deployment declares is offered, and the page names each
+    in turn — a post whose target does not match the opener is simply not delivered, so
+    this widens which of the deployment's own windows can be reached without widening who
+    can read the message (D71).
+
+    Declared, never inferred from the request: the address the browser used to reach this
+    page comes from the Host header, and a page that trusted it would post to whatever a
+    caller wrote there. The API's own origin is not offered either — it is where this page
+    is served from, not where the app is — so a deployment that publishes no app address
+    still sends nobody anywhere.
+    """
+    candidates = [agenta_url, *env.agenta.app_origins]
+    origins: List[str] = []
+    for candidate in candidates:
+        origin = _origin_of(candidate)
+        if origin and origin not in origins:
+            origins.append(origin)
+    return origins
+
+
 def _connect_card(
     *,
     success: bool,
@@ -767,12 +803,10 @@ def _connect_card(
     directly. Posts `mcp:oauth:connected` to
     `window.opener` so a popup-driven dashboard reacts without polling."""
     safe_error = html_lib.escape(error) if error else None
-    agenta_origin = None
-    if agenta_url:
-        parsed = urlsplit(agenta_url)
-        if parsed.scheme and parsed.netloc:
-            agenta_origin = f"{parsed.scheme}://{parsed.netloc}"
+    origins = _app_origins(agenta_url)
+    agenta_origin = origins[0] if origins else None
     agenta_post_message_origin_js = _json_for_inline_script(agenta_origin)
+    agenta_app_origins_js = _json_for_inline_script(origins)
 
     payload: Dict[str, Any] = {"type": "mcp:oauth:connected", "success": success}
     if error:
@@ -852,6 +886,7 @@ def _connect_card(
   </div>
   <script>
     const AGENTA_POST_MESSAGE_ORIGIN = {agenta_post_message_origin_js};
+    const AGENTA_APP_ORIGINS = {agenta_app_origins_js};
     const AGENTA_OAUTH_COMPLETE = {oauth_complete_message_js};
     const AGENTA_RETURN_PATH = {agenta_return_path_js};
     const AGENTA_RETURN_PATH_KEY = {agenta_return_path_key_js};
@@ -862,7 +897,13 @@ def _connect_card(
     if (opened) {{
       // The popup path: the dashboard is listening, and a window a script opened may close
       // itself.
-      window.opener.postMessage(AGENTA_OAUTH_COMPLETE, AGENTA_POST_MESSAGE_ORIGIN);
+      // Once per origin this deployment serves its app from. A post whose target origin
+      // does not match the opener is discarded by the browser without being delivered, so
+      // naming several reaches the window the person is actually in without letting any
+      // other window read the result.
+      AGENTA_APP_ORIGINS.forEach(function (origin) {{
+        window.opener.postMessage(AGENTA_OAUTH_COMPLETE, origin);
+      }});
       const autoReturn = document.getElementById("auto-return-text");
       if (AGENTA_SUCCESS && autoReturn) {{ autoReturn.hidden = false; }}
       if (AGENTA_SUCCESS) {{ setTimeout(function () {{ window.close(); }}, 3000); }}

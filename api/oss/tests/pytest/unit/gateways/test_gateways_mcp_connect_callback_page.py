@@ -130,3 +130,88 @@ class TestWhenTheDeploymentPublishesNoAppUrl:
             "window.opener.postMessage" in page
         )  # present, but behind the origin check
         assert "if (opened)" in page
+
+
+# ---------------------------------------------------------------------------
+# D71: a deployment served at more than one address
+# ---------------------------------------------------------------------------
+
+
+class TestEveryAppOriginTheDeploymentDeclares:
+    """`postMessage` delivers nothing unless its target names the opener's exact origin.
+    With one configured address, everyone reaching the app at any other one had the
+    consent result delivered nowhere: the dialog waited out its timeout while the
+    connection sat authorized behind it."""
+
+    def test_a_second_declared_origin_is_offered_too(self, monkeypatch):
+        monkeypatch.setattr(
+            "oss.src.apis.fastapi.gateways.mcps.router.env.agenta.app_origins",
+            ["http://localhost:8680"],
+        )
+
+        page = _card()
+
+        assert AGENTA_URL in page
+        assert "http://localhost:8680" in page
+        # Posted once per origin, each still naming its target exactly.
+        assert "AGENTA_APP_ORIGINS.forEach" in page
+        assert "window.opener.postMessage(AGENTA_OAUTH_COMPLETE, origin)" in page
+
+    def test_the_configured_app_address_still_comes_first(self, monkeypatch):
+        """The others are additions, not replacements: the tab-return fallback sends one
+        person to one place, and that stays the address the deployment publishes."""
+        monkeypatch.setattr(
+            "oss.src.apis.fastapi.gateways.mcps.router.env.agenta.app_origins",
+            ["http://localhost:8680"],
+        )
+
+        page = _card()
+
+        assert f'const AGENTA_POST_MESSAGE_ORIGIN = "{AGENTA_URL}";' in page
+
+    def test_an_origin_is_never_offered_twice(self, monkeypatch):
+        monkeypatch.setattr(
+            "oss.src.apis.fastapi.gateways.mcps.router.env.agenta.app_origins",
+            [AGENTA_URL, f"{AGENTA_URL}/w/ws-1"],
+        )
+
+        page = _card()
+
+        offered = page.split("const AGENTA_APP_ORIGINS = ")[1].split(";")[0]
+        assert offered.count(AGENTA_URL) == 1, offered
+
+    def test_a_declared_origin_is_reduced_to_an_origin(self, monkeypatch):
+        """A path on a declared address would make every post target a string no window
+        ever has, which is the failure this exists to remove rather than repeat."""
+        monkeypatch.setattr(
+            "oss.src.apis.fastapi.gateways.mcps.router.env.agenta.app_origins",
+            ["http://localhost:8680/settings?tab=mcpEndpoints"],
+        )
+
+        page = _card()
+        offered = page.split("const AGENTA_APP_ORIGINS = ")[1].split(";")[0]
+
+        assert "http://localhost:8680" in offered
+        assert "settings" not in offered
+
+    def test_nonsense_among_the_declared_origins_is_dropped(self, monkeypatch):
+        monkeypatch.setattr(
+            "oss.src.apis.fastapi.gateways.mcps.router.env.agenta.app_origins",
+            ["not-a-url", "", "http://localhost:8680"],
+        )
+
+        page = _card()
+        offered = page.split("const AGENTA_APP_ORIGINS = ")[1].split(";")[0]
+
+        assert "not-a-url" not in offered
+        assert "http://localhost:8680" in offered
+
+    def test_a_deployment_that_declares_nothing_is_unchanged(self, monkeypatch):
+        monkeypatch.setattr(
+            "oss.src.apis.fastapi.gateways.mcps.router.env.agenta.app_origins", []
+        )
+
+        page = _card()
+        offered = page.split("const AGENTA_APP_ORIGINS = ")[1].split(";")[0]
+
+        assert offered == f'["{AGENTA_URL}"]'

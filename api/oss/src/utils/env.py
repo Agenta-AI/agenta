@@ -756,6 +756,18 @@ class AgentaConfig(BaseModel):
     services_url: str = os.getenv("AGENTA_SERVICES_URL") or "http://localhost/services"
     api_url: str = os.getenv("AGENTA_API_URL") or "http://localhost/api"
     api_internal_url: str | None = os.getenv("AGENTA_API_INTERNAL_URL")
+    # Every origin this deployment's app is served from, beyond `web_url`.
+    #
+    # The OAuth callback page posts the consent result to its opener and is refused
+    # unless it names that window's exact origin, so a deployment reachable at more than
+    # one address had the completion delivered nowhere for everyone not using the one
+    # configured address: the dialog waited out its timeout on a connection that was
+    # already authorized. One value cannot describe a deployment behind both a tunnel and
+    # a local address, which is the ordinary shape of a test or preview stack (D71).
+    #
+    # Declared rather than inferred: the page could read the address the browser used to
+    # reach it, but that comes from the Host header, which the caller sets.
+    app_origins: list[str] = _load_csv_env_list("AGENTA_APP_ORIGINS")
 
     auth_key: str = os.getenv("AGENTA_AUTH_KEY") or "replace-me"
     crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
