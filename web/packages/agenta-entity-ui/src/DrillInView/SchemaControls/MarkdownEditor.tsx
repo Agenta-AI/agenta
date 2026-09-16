@@ -73,6 +73,8 @@ export interface MarkdownEditorProps {
     /** Controlled view. When set, the toggle calls `onViewChange` instead of local state. */
     view?: MarkdownView
     onViewChange?: (view: MarkdownView) => void
+    /** Fires once the Lexical editor has taken the requested view (the first paint may precede it). */
+    onViewApplied?: () => void
     /** Read-only when false (e.g. a Preview pane). @default true */
     editable?: boolean
     /** Drop the built-in filename/toggle header (the host supplies its own chrome). */
@@ -96,19 +98,19 @@ export interface MarkdownEditorProps {
  * handles updates, and a post-paint `requestAnimationFrame` re-dispatch covers the initial-mount
  * race where this effect can fire before the descendant MarkdownPlugin registers the command.
  */
-function MarkdownViewSync({enabled}: {enabled: boolean}) {
+function MarkdownViewSync({enabled, onApplied}: {enabled: boolean; onApplied?: () => void}) {
     const [editor] = useLexicalComposerContext()
 
     useLayoutEffect(() => {
-        editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
-    }, [editor, enabled])
+        if (editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)) onApplied?.()
+    }, [editor, enabled, onApplied])
 
     useEffect(() => {
         const frame = requestAnimationFrame(() => {
-            editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
+            if (editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)) onApplied?.()
         })
         return () => cancelAnimationFrame(frame)
-    }, [editor, enabled])
+    }, [editor, enabled, onApplied])
 
     return null
 }
@@ -136,6 +138,7 @@ export function MarkdownEditor({
     defaultView = "source",
     view,
     onViewChange,
+    onViewApplied,
     editable = true,
     hideHeader = false,
     bordered = true,
@@ -390,7 +393,7 @@ export function MarkdownEditor({
             ) : (
                 body
             )}
-            <MarkdownViewSync enabled={markdownView} />
+            <MarkdownViewSync enabled={markdownView} onApplied={onViewApplied} />
             <CodeHighlightSync />
             {/* Source view wraps the whole document in one markdown CodeNode — its picker is
                 meaningless there, so the menu is for author-inserted blocks in rich text only. */}

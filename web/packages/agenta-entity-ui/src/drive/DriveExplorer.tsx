@@ -13,7 +13,6 @@ import {
     driveNavAction,
     filterDriveTree,
     isEditableTarget,
-    isMarkdownPath,
     joinPath,
     nameOf,
     newDriveName,
@@ -44,6 +43,7 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import {driveRootLabel} from "./DriveBreadcrumb"
+import {DriveEditorSkeleton} from "./DriveEditorFrame"
 import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
 import {DriveEmptyState, DriveErrorState} from "./DriveExplorerStates"
 import {DriveFilePreview} from "./DriveFilePreview"
@@ -68,16 +68,18 @@ import {useUploadReveal} from "./useUploadReveal"
 
 export type {DriveId, DriveScope} from "@agenta/entities/drive"
 
-// The Lexical graph loads only when an editable file opens.
+// The Lexical graph loads only when an editable file opens; the body is a skeleton meanwhile.
 const DriveMarkdownEditor = dynamic(
     () => import("./DriveMarkdownEditor").then((m) => m.DriveMarkdownEditor),
-    {ssr: false},
+    {ssr: false, loading: () => <DriveEditorSkeleton lines={7} />},
 )
 const DriveCodeEditor = dynamic(() => import("./DriveCodeEditor").then((m) => m.DriveCodeEditor), {
     ssr: false,
+    loading: () => <DriveEditorSkeleton lines={8} />,
 })
-/** The kinds the code editor takes; markdown has its own editor. */
-const CODE_EDIT_KINDS = new Set<DriveFileKind>(["code", "json", "text", "html"])
+/** The kinds the code editor takes; markdown and plain text share the prose editor. */
+const CODE_EDIT_KINDS = new Set<DriveFileKind>(["code", "json", "html"])
+const PROSE_KINDS = new Set<DriveFileKind>(["markdown", "text"])
 
 const noop = () => undefined
 /** The rail's static root row. */
@@ -296,15 +298,15 @@ export function DriveExplorer({
     )
 
     const editableFile = chrome && canWrite && !selectedIsFolder && !!selectedPath
+    const selectedKind = resolveDriveFileKind(selectedPath ?? "")
     // Over the caps a file opens read-only.
-    const markdownKind = editableFile && isMarkdownPath(selectedPath)
-    const codeKind =
-        editableFile && !markdownKind && CODE_EDIT_KINDS.has(resolveDriveFileKind(selectedPath))
+    const markdownKind = editableFile && PROSE_KINDS.has(selectedKind)
+    const codeKind = editableFile && CODE_EDIT_KINDS.has(selectedKind)
     const editableMarkdown = markdownKind && (selectedFileSize ?? 0) <= DRIVE_MARKDOWN_EDIT_CAP
     const editableCode = codeKind && (selectedFileSize ?? 0) <= DRIVE_CODE_EDIT_CAP
     const tooLargeToEdit = (markdownKind || codeKind) && !editableMarkdown && !editableCode
     // An editable HTML file shows its source or the rendered document (row 2 switches).
-    const htmlKind = editableCode && resolveDriveFileKind(selectedPath) === "html"
+    const htmlKind = editableCode && selectedKind === "html"
     const [htmlView, setHtmlView] = useState<"source" | "preview">("source")
     const htmlPreview = htmlKind && htmlView === "preview"
     const editing = editableMarkdown || editableCode
@@ -597,6 +599,7 @@ export function DriveExplorer({
                 />
             ) : editableMarkdown ? (
                 <DriveMarkdownEditor
+                    key={`${selectedMount?.id ?? ""}/${selectedMountPath}`}
                     mount={selectedMount}
                     path={selectedMountPath}
                     mode={editorMode}

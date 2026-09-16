@@ -18,6 +18,14 @@ export const useDriveSaveKey = (onSave: () => void) =>
         [onSave],
     )
 
+export const DriveEditorSkeleton = ({lines}: {lines: number}) => (
+    <div className="flex flex-col gap-2 p-5">
+        {Array.from({length: lines}).map((_, i) => (
+            <Skeleton key={i} className="h-4 w-full" />
+        ))}
+    </div>
+)
+
 /** The download fallback on a failed read, else a skeleton. */
 export const DriveEditorPlaceholder = ({
     mount,
@@ -35,9 +43,5 @@ export const DriveEditorPlaceholder = ({
             <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
         </div>
     ) : (
-        <div className="flex flex-col gap-2 p-5">
-            {Array.from({length: lines}).map((_, i) => (
-                <Skeleton key={i} className="h-4 w-full" />
-            ))}
-        </div>
+        <DriveEditorSkeleton lines={lines} />
     )
