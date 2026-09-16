@@ -43,9 +43,6 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             // Names the tab "Usage & Billing" rather than "Usage" — this surface can now change
             // a subscription, not only report against one.
             billingEnabled,
-            // This app lists no MCP endpoints tab at all (see AVAILABLE_SETTINGS_TABS), but the
-            // flag is read from the same place the desktop reads it so the two cannot disagree
-            // if the tab is ported here later.
             canShowMcpEndpoints: mcpGatewayEnabled,
             canShowTools: toolsEnabled,
             canViewApiKeys: true,
