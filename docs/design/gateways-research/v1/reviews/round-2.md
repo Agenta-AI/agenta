@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **0** | **4** | **6** | **33 closed, 5 part fixed, 10 open. No P1 remains** |
+| **As this file is written** | **0** | **0** | **4** | **6** | **34 closed, 5 part fixed, 10 open. No P1 remains** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -116,6 +116,7 @@ whether that fix was read against the finding and its test.
 | D58 | structural | P2 | `api/oss/src/core/gateways/mcps/providers/mock/` | **Closed.** The mock now enforces what a real server enforces | `14ef19e60b` | **yes**, code read, 1104 unit cases pass |
 | D59 | r3-D2 residual | P3 | `web/packages/agenta-entities/src/session/core/schema.ts` | **Deferred**, with a stated closure | n/a | mechanism, schema read |
 | D60 | verification | P2 | `web/oss/tests/playwright/acceptance/playground/mcp-agent-config.ts:359` | **Closed.** The spec expected the wrong thing | `fec5c1fdcc` | **yes**, three runs; the case passes in all three |
+| D61 | web agent's tallies | P1 | `api/oss/src/apis/fastapi/gateways/mcps/router.py` | **Closed.** A regression from r3-D1 | `5c67a2e871` | **yes**, code and 12 cases |
 | D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix | `4ee17eab78` | **yes**, both mechanisms, code and cases |
 | D51 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:293` | Fix the assertion | `1dfece1e66` | **yes**, code; the suite could not run |
 | D52 | verification | P3 | `hooks/useMcpConnectJourney.ts:179`, `McpConnectJourney.tsx:96` | Fix: the check is applied, not the invariant recorded | `1dfece1e66` | **yes**, code and 33 cases |
@@ -1136,6 +1137,31 @@ at something real; it just pointed at the test rather than the product, which is
 asked for the symptom rather than asserting a defect. And the product behaviour it uncovered is
 worth stating on its own: the two entry points deliberately end differently, and only one of them
 has anything left to press.
+
+**D61. The r3-D1 fix shipped a callback script that did not parse — closed by `5c67a2e871`.** The
+page's inline script is rendered from a Python template, so a literal backslash written into it
+arrives one escaping layer short. The check that refused a remembered path containing one became a
+lone backslash before a quote, which swallowed the quote. The script stopped parsing, so nothing in
+it ran: no message to the opener, no return, no close. The popup sat on a success card while the
+dialog behind it waited for a message that was never posted. The fix takes the backslash by its
+character code, which removes the escaping layer entirely rather than adding another one to it.
+
+**The test that shipped with r3-D1 asserted the hazard was present.** It matched the exact broken
+expression in the template text, so it passed while the flow it was written to protect was dead. The
+replacement asserts an invariant instead — no backslash anywhere in the emitted script — which is
+the right shape: it cannot be satisfied by the bug it exists to catch.
+
+**And this one got past me.** I verified r3-D1 and reported its seven cases passing. Every one of
+them asserts on the template's text or on the path it builds, and none asks whether what comes out
+is valid JavaScript, so a green suite was consistent with a script that never ran. Reading the
+assertions told me they were about path building, which was true and not enough. The lesson is the
+one this round keeps returning to from a new angle: a test over a generated artefact has to exercise
+the artefact, not the generator's output as a string.
+
+**A correction to my own D27 note.** I recorded that the returning tab lands on Preferences because
+the tab resolver drops a parameter it cannot show. That reading was wrong: what I saw was mobile's
+deliberate fallback while the plane was off, not a defect in the resolver. The return path itself is
+sound, and r3-D1 plus this fix are what make it work end to end.
 
 ## Quality findings
 
