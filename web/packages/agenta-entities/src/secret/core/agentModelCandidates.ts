@@ -1,5 +1,6 @@
 import {
     bareModelId,
+    connectionRunsWithoutCredential,
     customRouteFamily,
     CUSTOM_KIND,
     harnessSupportsProviderKind,
@@ -291,7 +292,13 @@ const connectionCandidates = ({
             )
             continue
         }
-        if (!connection.hasStoredCredential) continue
+        // A connection with nothing stored cannot run — unless it is a kind that needs nothing
+        // stored. An open OpenAI-compatible endpoint is saved deliberately without a key, is
+        // registered as an active gateway endpoint, and was still never offered here, so the
+        // agent showed "Add your model provider key" for a key the card calls optional.
+        if (!connection.hasStoredCredential && !connectionRunsWithoutCredential(connection)) {
+            continue
+        }
         const harnesses = effectiveHarnesses(connection, capabilities, harnessIds)
         const ids = connectionModelIds(connection, capabilities)
         if (!harnesses.length || !ids.length) continue

@@ -337,6 +337,33 @@ export const hasRequiredCredential = (
     return fields.some((field) => filled(field.key))
 }
 
+/**
+ * Whether a connection that holds no secret is nonetheless complete.
+ *
+ * True only for a kind that requires no secret material at all, and only once that kind's own
+ * required fields are there. The OpenAI-compatible endpoint is the one such kind: its base URL
+ * is the address and its key is conditional, which the card states in the field's own label
+ * ("API key — if the endpoint requires one") and in `REQUIRED_FIELDS_BY_KIND`. A self-hosted
+ * gateway that authorizes by network position is a complete connection with nothing to store.
+ *
+ * Every other kind requires a secret, as a required field (`apiKey`, `vertexCredentials`) or as
+ * one of its alternative auth sets (Bedrock), so this stays false for all of them and a
+ * keyless row of those kinds remains unusable.
+ */
+export const connectionRunsWithoutCredential = (connection: ProviderConnection): boolean => {
+    const {kind} = connection
+    if (PROVIDER_AUTH_REQUIREMENTS[kind]) return false
+    if (secretKindForProviderKind(kind) === SecretKind.ProviderKey) return false
+
+    const secretFields = new Set<string>(SECRET_VALUE_FIELDS)
+    const fields = credentialFieldsForKind(kind)
+    if (fields.some((field) => field.required && secretFields.has(field.key))) return false
+
+    // The kind needs no secret; the record still needs whatever else the kind requires, which
+    // for an endpoint is the address there is otherwise nothing to dial.
+    return hasRequiredCredential(kind, credentialValuesFor(connection), [])
+}
+
 /** A key rendered as `sk-••••9Qa`: enough to tell two keys apart, never enough to use one. */
 export const maskSecret = (value: string): string =>
     value.length <= 8
