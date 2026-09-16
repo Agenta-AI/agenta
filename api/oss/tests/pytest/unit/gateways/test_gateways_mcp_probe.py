@@ -16,6 +16,8 @@ import gzip
 import json
 import time
 
+import socket
+
 import httpx
 import pytest
 
@@ -671,3 +673,89 @@ async def test_a_body_that_cannot_be_decoded_is_a_result_not_a_crash():
 
     assert result.problem is not None
     assert result.reachable is False
+
+
+# ---------------------------------------------------------------------------
+# D80: a refused connection and an unreadable answer are not the same failure
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_refused_connection_names_the_transport_that_refused_it():
+    """The real-server acceptance case has to ask the DEPLOYMENT whether it can reach the
+    internet, and `cause` alone cannot tell it: every transport failure is `unreachable`."""
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused")
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.problem is not None
+    assert result.problem.cause == "unreachable"
+    assert result.problem.transport == "connect_error"
+
+
+@pytest.mark.asyncio
+async def test_an_unreadable_answer_is_not_reported_as_a_refused_connection():
+    """The regression that case exists for. The gateway reached the server and could not
+    read what it sent, which must not read as "this deployment has no network"."""
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "application/json", "content-encoding": "gzip"},
+            content=b"this was never gzip",
+        )
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.problem is not None
+    assert result.problem.cause == "unreachable"
+    assert result.problem.transport == "transport_error"
+    assert result.problem.transport != "connect_error"
+
+
+@pytest.mark.asyncio
+async def test_a_problem_that_no_transport_produced_names_none():
+    """`transport` is set only when a transport failure produced the problem, so a caller
+    branching on it is never told a story about the network that is not true."""
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="hello from a web server")
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.problem is not None
+    assert result.problem.cause == "not_an_mcp_server"
+    assert result.problem.transport is None
+
+
+@pytest.mark.asyncio
+async def test_a_name_that_does_not_resolve_says_so(monkeypatch):
+    """How a machine with no outbound network fails: at the name, before any connection.
+    It is the answer a runner has to be able to act on, and the address checks refuse a
+    blocked target with the same coarse cause."""
+
+    def _getaddrinfo(host, *_args, **_kwargs):
+        raise socket.gaierror("Name or service not known")
+
+    monkeypatch.setattr("oss.src.core.webhooks.utils.socket.getaddrinfo", _getaddrinfo)
+
+    result = await _probe(_open_server()).probe(server_url=_SERVER_URL)
+
+    assert result.problem is not None
+    assert result.problem.cause == "address_refused"
+    assert result.problem.transport == "unresolvable"
+
+
+@pytest.mark.asyncio
+async def test_a_blocked_address_names_no_transport(resolves_to):
+    """The gateway declining to dial is a decision, not a network condition. Reading it as
+    one would let an acceptance suite skip itself over a refusal it should have failed on."""
+    resolves_to("127.0.0.1")
+
+    result = await _probe(_open_server()).probe(server_url=_SERVER_URL)
+
+    assert result.problem is not None
+    assert result.problem.cause == "address_refused"
+    assert result.problem.transport is None

@@ -93,6 +93,15 @@ class MCPProbeProblem(BaseModel):
 
     cause: str
     message: str
+    # How the outbound attempt failed, when it failed rather than answered: a cause from
+    # `classify_transport_error`'s closed vocabulary, or `unresolvable` for a name that never
+    # resolved. `cause` is deliberately coarse — a person connecting a server is
+    # told "unreachable" whether the address refused the connection or answered something
+    # unreadable — but those two are not the same thing to anything that has to decide
+    # whether the deployment has outbound access at all. The real-server acceptance case
+    # skips on a connection that never opened and fails on an answer that could not be read,
+    # and without this it could only tell them apart by matching the sentence above (D80).
+    transport: Optional[str] = None
 
 
 class MCPProbeAuth(BaseModel):
@@ -268,6 +277,7 @@ class MCPServerProbe:
                         if failure is not None
                         else "The server's answer could not be read."
                     ),
+                    transport=failure.cause if failure is not None else None,
                 )
             )
 
@@ -279,6 +289,11 @@ class MCPServerProbe:
                 problem=MCPProbeProblem(
                     cause="address_refused",
                     message=e.relay_detail,
+                    # A name that did not resolve is how a deployment with no outbound
+                    # network fails first, before any connection is attempted. A refusal
+                    # by the address checks is a different thing entirely and names no
+                    # transport, so nothing can read it as an absent network.
+                    transport="unresolvable" if e.unresolvable else None,
                 )
             )
 
@@ -304,6 +319,7 @@ class MCPServerProbe:
                         "The server did not finish answering in time. It may be "
                         "responding too slowly to be usable."
                     ),
+                    transport="timeout",
                 )
             )
         except httpx.RequestError as e:
@@ -314,6 +330,7 @@ class MCPServerProbe:
                 problem=MCPProbeProblem(
                     cause="unreachable",
                     message=f"The server did not answer. {failure.detail}",
+                    transport=failure.cause,
                 )
             )
 

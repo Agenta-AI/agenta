@@ -11,15 +11,18 @@ This is the case that would have caught it. It needs a deployment with outbound 
 access, which is why it is acceptance rather than unit, and it needs no credential and no
 consent: the probe is the unauthenticated step that asks a server how to authorize.
 
-Set `AGENTA_ACCEPTANCE_REAL_MCP_URL` to point it elsewhere. It skips rather than fails
-when the network is unavailable, because a firewalled runner is not a broken gateway.
+Set `AGENTA_ACCEPTANCE_REAL_MCP_URL` to point it elsewhere. It skips rather than fails when
+the network is unavailable, because a firewalled deployment is not a broken gateway — and
+the deployment is what has to be asked. This process reached the server over its own
+network, which in CI is a different machine from the one running the API, so a runner with
+internet and a container without it ran the case and failed, and a runner without internet
+skipped a case the container could have run (D80).
 """
 
 from __future__ import annotations
 
 import os
 
-import httpx
 import pytest
 
 
@@ -31,21 +34,21 @@ _REAL_MCP_URL = os.getenv(
 pytestmark = [pytest.mark.acceptance]
 
 
-def _reachable(url: str) -> bool:
-    try:
-        with httpx.Client(timeout=10.0) as client:
-            client.get(url)
-        return True
-    except httpx.HTTPError:
-        return False
+# A connection that never opened, as the deployment's own egress classifies it. These say
+# the API container has no route to the server, which is a firewall rather than a defect.
+# `unresolvable` leads because a machine with no outbound network fails at the name.
+#
+# Everything else is a failure on purpose, and `transport_error` most of all: an answer the
+# gateway received and could not read is precisely the regression this case exists for, and
+# it arrives under the same coarse `unreachable` cause as a refused connection. A refusal by
+# the address checks names no transport at all and so is a failure too, which is right: the
+# gateway declining to dial a real public server is a defect in the gateway.
+_NO_ROUTE = frozenset({"unresolvable", "connect_error", "proxy_error", "timeout"})
 
 
 @pytest.mark.acceptance
 def test_the_probe_discovers_oauth_on_a_real_server(authed_api):
     """A compressed answer from a real server has to survive the capped read."""
-    if not _reachable(_REAL_MCP_URL):
-        pytest.skip(f"{_REAL_MCP_URL} is not reachable from this runner")
-
     response = authed_api(
         "POST", "/gateways/mcps/endpoints/probe", json={"url": _REAL_MCP_URL}
     )
@@ -53,6 +56,13 @@ def test_the_probe_discovers_oauth_on_a_real_server(authed_api):
     # The 500 this case exists for.
     assert response.status_code == 200, response.text
     probe = response.json()["probe"]
+
+    problem = probe.get("problem") or {}
+    if problem.get("transport") in _NO_ROUTE:
+        pytest.skip(
+            f"the deployment under test has no route to {_REAL_MCP_URL} "
+            f"({problem.get('transport')}): {problem.get('message')}"
+        )
 
     # `problem` is omitted rather than null when there is none.
     assert probe.get("problem") is None, probe.get("problem")
