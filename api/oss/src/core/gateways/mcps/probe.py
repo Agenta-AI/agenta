@@ -293,7 +293,13 @@ class MCPServerProbe:
                     # network fails first, before any connection is attempted. A refusal
                     # by the address checks is a different thing entirely and names no
                     # transport, so nothing can read it as an absent network.
-                    transport="unresolvable" if e.unresolvable else None,
+                    transport=(
+                        "unresolvable"
+                        if e.unresolvable
+                        else "saturated"
+                        if e.saturated
+                        else None
+                    ),
                 )
             )
 

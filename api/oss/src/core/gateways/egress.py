@@ -33,6 +33,7 @@ narrow exemptions in :func:`exempt_hosts`, not by disabling the guard.
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from time import monotonic
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, Callable, Dict, Mapping, Optional, Set
@@ -57,13 +58,22 @@ class EgressRefusedError(ValueError):
 
     A `ValueError` so a caller that already handles the resolver's own refusals keeps
     working. `unresolvable` separates a DNS typo from a security rejection without anyone
-    matching on the message text.
+    matching on the message text, and `saturated` separates both from the gateway having
+    had no resolver thread free, which says nothing about the address at all (D83).
     """
 
-    def __init__(self, *, url: str, detail: str, unresolvable: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        url: str,
+        detail: str,
+        unresolvable: bool = False,
+        saturated: bool = False,
+    ) -> None:
         self.url = url
         self.detail = detail
         self.unresolvable = unresolvable
+        self.saturated = saturated
         super().__init__(detail)
 
     @property
@@ -72,7 +82,9 @@ class EgressRefusedError(ValueError):
 
         Mirrors the runner (`services/runner/src/engines/sandbox_agent/mcp.ts`).
         """
-        return self.detail if self.unresolvable else f"blocked target: {self.detail}"
+        if self.unresolvable or self.saturated:
+            return self.detail
+        return f"blocked target: {self.detail}"
 
 
 @dataclass(frozen=True)
@@ -152,10 +164,20 @@ def _pin_to_resolved_address(url: str, address: str) -> tuple[str, str]:
 # is the part the first attempt at this overstated (M18).
 #
 # A pool of our own contains that: stuck resolutions can exhaust these threads and nothing
-# else. When they do, the wait below fires while queueing rather than while resolving, and
-# the caller is told the address could not be resolved in time — which is true, and is the
-# same refusal a resolver that never answers produces.
+# else.
+#
+# But the wait is then two waits, and they are two different failures. One bound covering
+# both charged the queue to the resolution: with every thread busy, a request whose address
+# resolves in a millisecond was told "the address could not be resolved in time", which is
+# a sentence about the address and an answer nobody can act on. The operator's problem is
+# that the gateway is saturated, and nothing said so (D83).
+#
+# So there are two bounds. The first is how long a resolution may wait for a thread, and
+# running out of it frees the queue slot and refuses as a busy gateway. The second is how
+# long the resolution itself may take once it starts, and it starts counting then, so a
+# slow resolver is judged on its own time rather than on somebody else's.
 _RESOLVER_THREADS = 8
+_RESOLVE_QUEUE_TIMEOUT_SECONDS = 1.0
 _RESOLVE_TIMEOUT_SECONDS = 5.0
 
 _resolver_pool: Optional[ThreadPoolExecutor] = None
@@ -170,23 +192,68 @@ def _resolver_executor() -> ThreadPoolExecutor:
     return _resolver_pool
 
 
+class ResolverTimeout(TimeoutError):
+    """A resolution that did not finish, and which of the two waits ran out.
+
+    A `TimeoutError` because every caller already handles one; `saturated` is what they
+    read to tell "no thread was free" from "the resolver did not answer".
+    """
+
+    def __init__(self, *, saturated: bool, waited: float) -> None:
+        self.saturated = saturated
+        self.waited = waited
+        super().__init__(
+            "no resolver thread became free in time"
+            if saturated
+            else "the resolution did not finish in time"
+        )
+
+
 async def resolve_offloaded(
     resolve: Callable[[], Any],
     *,
     timeout: Optional[float] = None,
 ) -> Any:
-    """Run one blocking resolution off the event loop, with a bound on the wait.
+    """Run one blocking resolution off the event loop, with a bound on each wait.
 
-    Raises `TimeoutError` when the bound fires. Every caller turns that into its own
-    refusal, because what "could not resolve in time" means differs: a relay cannot
-    proceed, and the registration check has a conservative answer it can give.
+    Raises :class:`ResolverTimeout` when either bound fires. Every caller turns that into
+    its own refusal, because what "could not resolve in time" means differs: a relay
+    cannot proceed, and the registration check has a conservative answer it can give.
     """
     loop = asyncio.get_running_loop()
     # Read here rather than bound as a default, so the module constant is the value in
     # force and a case can pin it without rewriting the signature.
     bound = _RESOLVE_TIMEOUT_SECONDS if timeout is None else timeout
-    async with asyncio.timeout(bound):
-        return await loop.run_in_executor(_resolver_executor(), resolve)
+    queue_bound = _RESOLVE_QUEUE_TIMEOUT_SECONDS
+    queued_at = monotonic()
+
+    began: asyncio.Future = loop.create_future()
+
+    def _run() -> Any:
+        # From the worker thread, so it marks the moment queueing ended rather than the
+        # moment the work was submitted.
+        loop.call_soon_threadsafe(lambda: began.done() or began.set_result(monotonic()))
+        return resolve()
+
+    running = loop.run_in_executor(_resolver_executor(), _run)
+
+    try:
+        async with asyncio.timeout(queue_bound):
+            await asyncio.shield(began)
+    except TimeoutError:
+        # Nothing has run, so the slot is still queued and giving it back is the one
+        # useful thing left to do: a caller that gave up must not leave work behind that
+        # occupies a thread the next caller is waiting for.
+        running.cancel()
+        raise ResolverTimeout(saturated=True, waited=monotonic() - queued_at) from None
+
+    try:
+        async with asyncio.timeout(bound):
+            return await running
+    except TimeoutError:
+        raise ResolverTimeout(
+            saturated=False, waited=monotonic() - began.result()
+        ) from None
 
 
 async def open_egress(
@@ -231,14 +298,30 @@ async def open_egress(
         # Refused rather than awaited. This runs on the relay path every gateway call
         # takes, and it had no bound at all: one address whose resolver hangs held a
         # request open for as long as the resolver did (M18).
+        saturated = getattr(exc, "saturated", False)
         log.warning(
             "[gateways] resolving an upstream address timed out",
-            timeout=_RESOLVE_TIMEOUT_SECONDS,
+            timeout=(
+                _RESOLVE_QUEUE_TIMEOUT_SECONDS
+                if saturated
+                else _RESOLVE_TIMEOUT_SECONDS
+            ),
+            # Which wait ran out, and for how long. Saturation is an operator's problem
+            # with the deployment, not the caller's with the address, and the two used to
+            # be reported with the same sentence (D83).
+            saturated=saturated,
+            waited=round(getattr(exc, "waited", 0.0), 3),
+            resolver_threads=_RESOLVER_THREADS,
         )
         raise EgressRefusedError(
             url=url,
-            detail="the address could not be resolved in time",
-            unresolvable=True,
+            detail=(
+                "the gateway had no resolver free in time"
+                if saturated
+                else "the address could not be resolved in time"
+            ),
+            unresolvable=not saturated,
+            saturated=saturated,
         ) from exc
     except ValueError as exc:
         message = str(exc)

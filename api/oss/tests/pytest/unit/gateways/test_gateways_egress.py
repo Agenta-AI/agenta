@@ -29,6 +29,7 @@ import pytest
 
 from types import SimpleNamespace
 
+import oss.src.core.gateways.egress as egress
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
     classify_transport_error,
@@ -911,5 +912,151 @@ class TestResolutionIsBoundedOnTheRelayPath:
         )
 
         target = await open_egress("https://example.com/mcp")
+
+        assert target.pinned_address == PUBLIC_ADDRESS
+
+
+# ---------------------------------------------------------------------------
+# D83: the wait for a thread and the wait for an answer are two different failures
+# ---------------------------------------------------------------------------
+
+
+class TestQueueingIsNotChargedToTheResolution:
+    """One bound covered both waits, so a saturated gateway told the caller its address
+    could not be resolved in time. That is a sentence about the address, and the address
+    was fine: what ran out was threads."""
+
+    @staticmethod
+    def _occupy_every_thread(monkeypatch, released: threading.Event) -> list:
+        """Fill the resolver pool, so the next caller can only queue."""
+        holding = []
+
+        def hold(*_args, **_kwargs):
+            holding.append(1)
+            released.wait(timeout=30)
+            return PUBLIC_ADDRESS
+
+        monkeypatch.setattr("oss.src.core.gateways.egress.resolve_validated_ip", hold)
+        return holding
+
+    @pytest.mark.asyncio
+    async def test_a_gateway_with_no_free_thread_says_so(self, monkeypatch):
+        released = threading.Event()
+        holding = self._occupy_every_thread(monkeypatch, released)
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress._RESOLVE_QUEUE_TIMEOUT_SECONDS", 0.2
+        )
+        # Generous, so only the queue bound can fire.
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress._RESOLVE_TIMEOUT_SECONDS", 30.0
+        )
+
+        occupiers = [
+            asyncio.create_task(open_egress(f"https://busy{n}.example.com/mcp"))
+            for n in range(egress._RESOLVER_THREADS)
+        ]
+        try:
+            while len(holding) < egress._RESOLVER_THREADS:
+                await asyncio.sleep(0.01)
+
+            with pytest.raises(EgressRefusedError) as excinfo:
+                await open_egress("https://queued.example.com/mcp")
+        finally:
+            released.set()
+            await asyncio.gather(*occupiers, return_exceptions=True)
+
+        # The defect: this used to be `unresolvable`, which is a claim about the name.
+        assert excinfo.value.saturated is True
+        assert excinfo.value.unresolvable is False
+        assert "resolver" in excinfo.value.detail
+        # And an adapter still shows it plainly rather than as a blocked target.
+        assert not excinfo.value.relay_detail.startswith("blocked target")
+
+    @pytest.mark.asyncio
+    async def test_a_caller_that_gave_up_queueing_frees_its_slot(self, monkeypatch):
+        """A refusal that leaves the work queued hands the next caller a thread that is
+        already spoken for, which is how one slow resolver becomes a queue that never
+        drains."""
+        released = threading.Event()
+        ran: list = []
+
+        def resolve(*_args, **_kwargs):
+            ran.append(threading.current_thread().name)
+            released.wait(timeout=30)
+            return PUBLIC_ADDRESS
+
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress.resolve_validated_ip", resolve
+        )
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress._RESOLVE_QUEUE_TIMEOUT_SECONDS", 0.2
+        )
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress._RESOLVE_TIMEOUT_SECONDS", 30.0
+        )
+
+        occupiers = [
+            asyncio.create_task(open_egress(f"https://busy{n}.example.com/mcp"))
+            for n in range(egress._RESOLVER_THREADS)
+        ]
+        try:
+            while len(ran) < egress._RESOLVER_THREADS:
+                await asyncio.sleep(0.01)
+
+            with pytest.raises(EgressRefusedError):
+                await open_egress("https://queued.example.com/mcp")
+
+            # The threads are still held, so nothing new may have started.
+            await asyncio.sleep(0.1)
+            assert len(ran) == egress._RESOLVER_THREADS
+        finally:
+            released.set()
+            await asyncio.gather(*occupiers, return_exceptions=True)
+
+        # And once they are free, the abandoned work is not sitting there to run.
+        await asyncio.sleep(0.1)
+        assert len(ran) == egress._RESOLVER_THREADS, (
+            "the abandoned resolution still ran"
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_resolutions_own_bound_starts_when_it_starts(self, monkeypatch):
+        """The point of two bounds. A resolution that begins late still gets its full
+        allowance, so a busy moment does not condemn an address that answers normally."""
+        released = threading.Event()
+        holding: list = []
+
+        def resolve(*_args, **_kwargs):
+            if len(holding) < egress._RESOLVER_THREADS:
+                holding.append(1)
+                released.wait(timeout=30)
+            return PUBLIC_ADDRESS
+
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress.resolve_validated_ip", resolve
+        )
+        # Longer than the resolution's own bound, so a single combined bound would have
+        # been spent on queueing before the work even started.
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress._RESOLVE_QUEUE_TIMEOUT_SECONDS", 5.0
+        )
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress._RESOLVE_TIMEOUT_SECONDS", 0.5
+        )
+
+        occupiers = [
+            asyncio.create_task(open_egress(f"https://busy{n}.example.com/mcp"))
+            for n in range(egress._RESOLVER_THREADS)
+        ]
+        while len(holding) < egress._RESOLVER_THREADS:
+            await asyncio.sleep(0.01)
+
+        queued = asyncio.create_task(open_egress("https://patient.example.com/mcp"))
+        # Held back for longer than the resolution is ever allowed to take.
+        await asyncio.sleep(1.0)
+        released.set()
+
+        target = await queued
+        await asyncio.gather(*occupiers, return_exceptions=True)
 
         assert target.pinned_address == PUBLIC_ADDRESS
