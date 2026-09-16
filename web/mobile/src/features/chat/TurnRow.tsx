@@ -393,6 +393,11 @@ const TurnRowInner = ({
                 content={hasBubbleContent ? content : failureNote}
                 header={attachments}
             />
+            {!turn.isUser && turn.isStreamingTurn && turn.status.hasContent && (
+                <div className="flex items-center gap-2 self-start">
+                    <ChatTypingDots />
+                </div>
+            )}
             {/* Keep the debug trace action visible on touch devices while the inspector flag is
                 enabled. The normal toolbar stays quiet until hover or keyboard focus. */}
             <div
