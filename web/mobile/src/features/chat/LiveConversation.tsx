@@ -78,6 +78,12 @@ import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
  * mobile's detached resume path; after it fires, the records change and the watch relay's
  * `revalidate()` folds the resumed turn in.
  */
+/** The caret is in a field that is not ours — leave it there. */
+const isTypingElsewhere = (active: Element | null): boolean =>
+    active instanceof HTMLElement &&
+    active !== document.body &&
+    (active.isContentEditable || active.tagName === "INPUT" || active.tagName === "TEXTAREA")
+
 export const LiveConversation = ({
     entityId,
     sessionId,
@@ -216,6 +222,19 @@ export const LiveConversation = ({
         input?.setMarkdown(cancelEdit())
         input?.focus()
     }, [cancelEdit])
+
+    // Landing on a session — a new one from `+` or the shortcut, or a switch to an existing one —
+    // puts the caret in the composer, once it can take input. Not while the caret is already in
+    // some other field: a self-commit remounts this screen mid-edit in the config pane.
+    const disabled = conversation.isHydrating || modelBlocked
+    useEffect(() => {
+        if (disabled) return
+        const frame = requestAnimationFrame(() => {
+            if (isTypingElsewhere(document.activeElement)) return
+            composerRef.current?.focus()
+        })
+        return () => cancelAnimationFrame(frame)
+    }, [disabled, sessionId])
 
     // Keep Home tasks session-scoped until admission; failures require an explicit retry.
     const pendingTasks = useAtomValue(pendingTasksAtom)
@@ -810,7 +829,7 @@ export const LiveConversation = ({
                             onSteer={({text, parts, stagedFiles}) =>
                                 conversation.steer({text, parts, stagedFiles})
                             }
-                            disabled={conversation.isHydrating || modelBlocked}
+                            disabled={disabled}
                             placeholder={
                                 modelBlocked ? "Connect a model to start chatting…" : undefined
                             }
