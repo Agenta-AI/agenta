@@ -216,6 +216,38 @@ byte-for-byte unchanged on the candidate, and a re-run of the read-only cell aft
 exactly as before, with one sandbox POST and no `tools/list` behind it. Both defects above are open,
 and the agent path to a real provider stays unproven until the parse is fixed.
 
+## LLM plane off-mode
+
+The release ships the MCP gateway and keeps the new LLM gateway off. This section is the evidence
+for the second half of that sentence, which is the claim most likely to be taken on trust.
+
+`AGENTA_LLM_GATEWAY_ENABLED` defaults to false. With it off, a project's model runs have to work
+exactly as they did before the gateway existed. That claim spans two codebases and neither half
+proves it alone: the API refuses the resolve call, and the agent SDK has to read that refusal and
+resolve from the project's vault key instead. So the suite drives the real SDK resolver against a
+real deployment over a real socket rather than mocking either side.
+
+**Run and passing.** Four of four on 2026-09-15, against the integrated EE development stack while
+that deployment still had the flag unset and the plane therefore off by default. The same run of the
+whole gateway acceptance directory reported **23 passed and 20 skipped**, the skips being exactly
+the LLM-plane suites and the LLM rows of the mock matrix, with every MCP suite still passing.
+
+That pair is the release's central claim shown rather than argued: model runs keep working with the
+plane off, and the MCP gateway serves regardless.
+
+To repeat it, point it at a deployment with the plane off:
+
+```bash
+cd api && AGENTA_API_URL=<api> AGENTA_AUTH_KEY=<key> \
+    pytest oss/tests/pytest/acceptance/gateways -m acceptance -k llm_gateway_disabled
+```
+
+The suite skips itself on a deployment that has the plane on, so it is safe to leave in any suite
+run. That is also why it does not appear in the counts elsewhere in this document: the permission
+cells further down route their model through a custom gateway endpoint and need the plane on, so
+this stack was switched after the run above. A deployment cannot produce both sets of evidence at
+once, and the off-mode run has to come first.
+
 ## Dashboard procedure
 
 Use the dashboard's managed-agent creation and run flow. For each harness available in the
