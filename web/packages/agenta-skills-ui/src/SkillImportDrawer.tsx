@@ -3,7 +3,7 @@
  * pick → import → summary. Connected on purpose: scan/import/invalidation live here once
  * instead of in every host; the hosts pass only `projectId` and open/close.
  */
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     importSkillSource,
@@ -41,6 +41,14 @@ export function SkillImportDrawer({
     width = 480,
 }: SkillImportDrawerProps) {
     const [step, setStep] = useState<Step>("url")
+    // The URL field takes the caret a frame after the drawer opens: the sheet's own focus lands
+    // on its content wrapper first, which beats the input's `autoFocus`.
+    const urlInput = useRef<HTMLInputElement>(null)
+    useEffect(() => {
+        if (!open || step !== "url") return
+        const frame = requestAnimationFrame(() => urlInput.current?.focus())
+        return () => cancelAnimationFrame(frame)
+    }, [open, step])
     const [repoUrl, setRepoUrl] = useState("")
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -197,7 +205,7 @@ export function SkillImportDrawer({
                     <label className="flex flex-col gap-1.5 text-xs">
                         <span className="font-medium">Repository URL</span>
                         <Input
-                            autoFocus
+                            ref={urlInput}
                             value={repoUrl}
                             onChange={(e) => setRepoUrl(e.target.value)}
                             onKeyDown={(e) => {
