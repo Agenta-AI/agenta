@@ -7,12 +7,13 @@ This guide walks you through deploying Agenta EE with Docker Compose. It covers 
 Use `hosting/docker-compose/env.sh` to create a worktree-specific EE environment. It writes
 `hosting/docker-compose/ee/.env.ee.worktree`, a small non-secret allocation file containing the
 Compose project name and every host-bound port in `docker-compose.dev.yml`: Postgres, Traefik
-HTTP, and the Traefik dashboard. It then copies the source environment file and merges that
-allocation into `hosting/docker-compose/ee/.env.ee.dev`. The allocation also updates the public
-web, API, and services URLs to use the worktree's Traefik port.
+HTTP, the Traefik dashboard, and the two mock gateways. It then copies the source environment
+file and merges that allocation into `hosting/docker-compose/ee/.env.ee.dev`. The allocation
+also updates the public web, API, and services URLs to use the worktree's Traefik port.
 
-Choose a unique worktree name. The script automatically finds three free host ports in the
-`10000:19999` range; use `--port-offset` or explicit ports when you need a fixed allocation.
+Choose a unique worktree name. The script automatically finds five free host ports in the
+`10000:19999` range, or six with `--with-store-port`; use `--port-offset` or explicit ports
+when you need a fixed allocation. Size any range you reserve for a stack off that count.
 For example, from a new worktree:
 
 ```bash
@@ -31,10 +32,12 @@ bash hosting/docker-compose/run.sh --ee --dev \
 
 `env.sh` follows `run.sh`'s target selectors: `--ee|--oss`, `--dev|--gh`, `--local`, and
 `--ssl`. Use the same selectors for both commands. GH-derived stages also receive a unique
-loopback object-store port in addition to Postgres, Traefik HTTP, and the Traefik dashboard.
+loopback object-store port in addition to Postgres, Traefik HTTP, the Traefik dashboard and
+the two mock gateways.
 
 Use `--port-range START:END` to change the automatic range. Use `--port-offset`, or
-`--postgres-port`, `--http-port`, and `--traefik-ui-port`, when the ports must be fixed. Use
+`--postgres-port`, `--http-port`, `--traefik-ui-port`, and `--store-port`, when the ports
+must be fixed. Use
 `--public-host` or `--public-scheme` when the generated URLs should not use the source's
 `TRAEFIK_DOMAIN`/`TRAEFIK_PROTOCOL` (or `localhost`/`http`). Use `env.sh allocate` and `env.sh
 merge` when allocation and merging need to run independently.
