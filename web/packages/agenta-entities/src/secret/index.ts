@@ -129,6 +129,7 @@ export {
     bareModelId,
     customRouteFamily,
     declaredEndpointProtocol,
+    initialEndpointProtocol,
     credentialStatusLine,
     harnessSummary,
     manualModelPlaceholderForKind,

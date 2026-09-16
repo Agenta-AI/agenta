@@ -103,6 +103,7 @@ export {
     buildConnectionPayload,
     customRouteFamily,
     declaredEndpointProtocol,
+    initialEndpointProtocol,
     soleAgentHarnessProviderFamily,
     buildModelOptions,
     modelDisplayOrder,
