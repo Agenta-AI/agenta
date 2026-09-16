@@ -65,6 +65,12 @@ export interface SkillFormViewProps {
     disabled?: boolean
     /** Replaces the upload drop zone at the rail bottom (e.g. a versions card in detail mode). */
     railBottomSlot?: ReactNode
+    /**
+     * The Name field takes the caret on mount — a frame late, so a drawer's own focus on its
+     * wrapper has already landed. For a form that opens empty, where the name is the first thing
+     * to type.
+     */
+    autoFocusName?: boolean
 }
 
 /** Which file the right pane is editing: the pinned SKILL.md body, or a `files[]` entry by index. */
@@ -186,8 +192,20 @@ function readRailWidth(): number {
     return RAIL_DEFAULT
 }
 
-export function SkillFormView({value, onChange, disabled, railBottomSlot}: SkillFormViewProps) {
+export function SkillFormView({
+    value,
+    onChange,
+    disabled,
+    railBottomSlot,
+    autoFocusName = false,
+}: SkillFormViewProps) {
     const skill = (value ?? {}) as Record<string, unknown>
+    const nameInput = useRef<HTMLInputElement>(null)
+    useEffect(() => {
+        if (!autoFocusName) return
+        const frame = requestAnimationFrame(() => nameInput.current?.focus())
+        return () => cancelAnimationFrame(frame)
+    }, [autoFocusName])
     const files: SkillFileEntry[] = Array.isArray(skill.files)
         ? (skill.files as SkillFileEntry[])
         : []
@@ -500,6 +518,7 @@ export function SkillFormView({value, onChange, disabled, railBottomSlot}: Skill
                     }
                 >
                     <Input
+                        ref={nameInput}
                         value={name}
                         onChange={(e) => {
                             setNameTouched(true)
