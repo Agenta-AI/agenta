@@ -1,13 +1,18 @@
 /**
- * The agent picker's panel, bound to one skill: which agents already run it (ticked and inert)
- * and a tick that adds it to another. Connected on purpose, like the drawers: the usage query,
- * the add call and the invalidation live here once, so the detail drawer's flyout and a list
- * row's popover are the same control.
+ * The agent picker's panel, bound to one skill: the agents that run it are ticked, a tick adds
+ * it to another, and un-ticking takes it back off. Connected on purpose, like the drawers: the
+ * usage query, the two commits and the invalidation live here once, so the detail drawer's
+ * flyout and a list row's popover are the same control.
  */
 import {useCallback, useMemo, useState} from "react"
 
 import {AgentPickerPanel} from "@agenta/entity-ui/agent"
-import {addSkillToAgents, buildSkillEmbedEntry, querySkillReferencedBy} from "@agenta/skills"
+import {
+    addSkillToAgents,
+    buildSkillEmbedEntry,
+    querySkillReferencedBy,
+    removeSkillFromAgents,
+} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {message} from "@agenta/ui/app-message"
 import {useQuery} from "@tanstack/react-query"
@@ -40,49 +45,54 @@ export function SkillAgentPicker({
     )
 
     // One agent at a time: the tick is the action, and the row's spinner is its progress.
+    // Each is one commit on the agent, so un-ticking is a real undo, not a hidden edit.
     const [pendingId, setPendingId] = useState<string | null>(null)
-    const add = useCallback(
+    const toggle = useCallback(
         async (agentWorkflowId: string) => {
+            const remove = usedByIds.includes(agentWorkflowId)
             setPendingId(agentWorkflowId)
             try {
-                const entry = buildSkillEmbedEntry({
-                    slug: skill.slug,
-                    workflowId: skill.id,
-                    name: skill.name,
-                    description: skill.description,
-                    mode: "latest",
-                }) as unknown as Record<string, unknown>
-                const outcome = await addSkillToAgents({
-                    projectId,
-                    agentWorkflowIds: [agentWorkflowId],
-                    entry,
-                    message: `Add skill ${skill.slug}`,
-                })
-                if (outcome.failed.length) {
-                    message.error(`Couldn't add to that agent: ${outcome.failed[0].error}`)
-                    return
-                }
+                const outcome = remove
+                    ? await removeSkillFromAgents({
+                          projectId,
+                          agentWorkflowIds: [agentWorkflowId],
+                          slug: skill.slug,
+                          message: `Remove skill ${skill.slug}`,
+                      })
+                    : await addSkillToAgents({
+                          projectId,
+                          agentWorkflowIds: [agentWorkflowId],
+                          entry: buildSkillEmbedEntry({
+                              slug: skill.slug,
+                              workflowId: skill.id,
+                              name: skill.name,
+                              description: skill.description,
+                              mode: "latest",
+                          }) as unknown as Record<string, unknown>,
+                          message: `Add skill ${skill.slug}`,
+                      })
+                if (outcome.failed.length) throw new Error(outcome.failed[0].error)
                 await usageQuery.refetch()
                 invalidateSkillsListCache()
             } catch (err) {
+                const verb = remove ? "remove from" : "add to"
                 message.error(
                     err instanceof Error && err.message
-                        ? `Couldn't add to that agent: ${err.message}`
-                        : "Couldn't add to that agent",
+                        ? `Couldn't ${verb} that agent: ${err.message}`
+                        : `Couldn't ${verb} that agent`,
                 )
             } finally {
                 setPendingId(null)
             }
         },
-        [projectId, skill, usageQuery],
+        [projectId, skill, usageQuery, usedByIds],
     )
 
     return (
         <AgentPickerPanel
             selectedIds={usedByIds}
-            selectedInert
             pendingId={pendingId}
-            onSelect={(id) => void add(id)}
+            onSelect={(id) => void toggle(id)}
         />
     )
 }
