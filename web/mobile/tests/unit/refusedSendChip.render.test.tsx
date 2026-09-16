@@ -9,6 +9,7 @@
 // so replacing it with a hardcoded string left every suite green.
 import {act} from "react"
 
+import {useComposerAttachments} from "@agenta/chat/hooks"
 import {SendRefusedError} from "@agenta/chat/model"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -35,6 +36,22 @@ const settle = async () => {
     }
 }
 
+/**
+ * The composer takes its attachments state from the caller, so the harness holds the real hook
+ * the way the conversation screen does. The rejection this case reads is written to that state.
+ */
+const ComposerHarness = ({onSend}: {onSend: () => Promise<never>}) => {
+    const attachments = useComposerAttachments({sessionId: "session-1"})
+    return (
+        <Composer
+            entityId="revision-1"
+            sessionId="session-1"
+            attachments={attachments}
+            onSend={onSend}
+        />
+    )
+}
+
 /** Mount the composer with a send that refuses the way the invoke lane does. */
 const mountWithRefusal = async (error: unknown) => {
     host = document.createElement("div")
@@ -43,11 +60,7 @@ const mountWithRefusal = async (error: unknown) => {
     await act(async () => {
         root!.render(
             <Provider store={createStore()}>
-                <Composer
-                    entityId="revision-1"
-                    sessionId="session-1"
-                    onSend={() => Promise.reject(error)}
-                />
+                <ComposerHarness onSend={() => Promise.reject(error)} />
             </Provider>,
         )
     })
