@@ -5,9 +5,9 @@ import {SessionTabRail, withShortcutKey} from "@agenta/sessions-ui"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {SidebarSimple} from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
-import {PanelLeft, PanelRight, PanelRightClose} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -128,8 +128,8 @@ export const SessionTabs = ({
                                 onClick={() => setConfigCollapsed(false)}
                                 className="h-7 w-7 shrink-0 p-0"
                             >
-                                {/* The files pane's glyph, mirrored: both are panes off the chat. */}
-                                <PanelLeft size={14} />
+                                {/* Hollow: the pane is off screen. ConfigPane's hide button fills it. */}
+                                <SidebarSimple size={14} />
                             </Button>
                         </SimpleTooltip>
                     ) : undefined
@@ -164,11 +164,12 @@ export const SessionTabs = ({
                                 onClick={toggleFiles}
                                 className={`h-7 w-7 shrink-0 p-0 max-md:hidden ${filesOpen ? "text-foreground" : "text-muted-foreground"}`}
                             >
-                                {filesOpen ? (
-                                    <PanelRightClose size={14} />
-                                ) : (
-                                    <PanelRight size={14} />
-                                )}
+                                {/* Phosphor draws the panel on the left; the files pane is on the right. */}
+                                <SidebarSimple
+                                    size={14}
+                                    weight={filesOpen ? "fill" : "regular"}
+                                    className="-scale-x-100"
+                                />
                             </Button>
                         </SimpleTooltip>
                     </>
