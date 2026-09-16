@@ -2,7 +2,6 @@ export {
     NoticeBox,
     ProbeResultCard,
     ShowResponsePanel,
-    MAX_RESPONSE_CHARACTERS,
     type NoticeBoxProps,
     type ProbeResultCardProps,
     type ProbeResultMode,

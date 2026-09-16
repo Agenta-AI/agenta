@@ -2,9 +2,10 @@
  * The raw answer behind a failed check, for the person who has to fix the server.
  *
  * Collapsed by default because it is debugging material, not an explanation: the sentence
- * above it already says what went wrong. The body is cut at 300 characters, because what is
- * on the other end of the address is whatever answered, and a megabyte of HTML in a dialog
- * helps nobody.
+ * above it already says what went wrong. The body is cut to the data layer's own limit,
+ * because what is on the other end of the address is whatever answered, and a megabyte of
+ * HTML in a dialog helps nobody. The reader cuts it too; this is the same constant, so the
+ * panel cannot be the place a longer body gets through.
  *
  * It renders only when there IS a body. The probe does not return one today
  * (`api/oss/src/core/gateways/mcps/probe.py` keeps the status and the sentence and drops the
@@ -13,10 +14,8 @@
  */
 import {useState} from "react"
 
+import {PROBE_RESPONSE_BODY_LIMIT} from "@agenta/entities/mcpEndpoint"
 import {Button} from "@agenta/ui/ui"
-
-/** As much of the answer as is worth reading in a 480 pixel dialog. */
-export const MAX_RESPONSE_CHARACTERS = 300
 
 export interface ShowResponsePanelProps {
     /** The status line, when the answer had one. */
@@ -43,7 +42,7 @@ export const ShowResponsePanel = ({statusLine, body}: ShowResponsePanelProps) =>
                     data-testid="mcp-probe-response"
                     className="m-0 mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-control-sm bg-colorFillTertiary p-2 font-mono text-[11px] leading-normal text-colorTextSecondary"
                 >
-                    {[statusLine, body.slice(0, MAX_RESPONSE_CHARACTERS)]
+                    {[statusLine, body.slice(0, PROBE_RESPONSE_BODY_LIMIT)]
                         .filter(Boolean)
                         .join("\n")}
                 </pre>

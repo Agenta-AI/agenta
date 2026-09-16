@@ -201,6 +201,30 @@ describe("C2, the address refused", () => {
         expect(button("Try again")).toBeDefined()
     })
 
+    it("offers the raw answer only when the check carried one", async () => {
+        // The probe returns a cause and a sentence and no body, so the control is absent
+        // everywhere in the product today. It appears the moment a response is carried,
+        // which is the seam the data layer left for it.
+        await open(failed("unreachable", "No MCP response from mcp.internal.acme.dev."))
+        expect(button("Show response")).toBeUndefined()
+
+        const carried = failed("unreachable", "No MCP response.")
+        await open(
+            state({
+                ...carried,
+                probe: {
+                    ...carried.probe!,
+                    problem: {
+                        cause: "unreachable",
+                        message: "No MCP response.",
+                        response: {status: "502 Bad Gateway", body: "upstream refused"},
+                    } as NonNullable<NonNullable<McpJourneyState["probe"]>["problem"]>,
+                },
+            }),
+        )
+        expect(button("Show response")).toBeDefined()
+    })
+
     it("says something else when the address answered and was not a server", async () => {
         // Advice about reachability is wrong here: the address was reached. Both causes
         // wearing one headline is how a person is sent to check a firewall that is fine.

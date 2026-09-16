@@ -39,6 +39,7 @@ import {
 import {
     connectionNameProblem,
     isBusy,
+    readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
     type McpConnectJourney as McpConnectJourneyApi,
@@ -65,7 +66,7 @@ import {useAtomValue} from "jotai"
 
 import {CreateSecretDrawer} from "../secret"
 
-import {NoticeBox, ProbeResultCard, type ProbeResultMode} from "./components"
+import {NoticeBox, ProbeResultCard, ShowResponsePanel, type ProbeResultMode} from "./components"
 
 export interface McpConnectJourneyProps {
     open: boolean
@@ -508,6 +509,7 @@ export function McpConnectSheet({
     // project's vault: every other screen would be asking a question it has no field for.
     const secretChosen = screen === "api_key" && !!selectedSecretId()
     const host = hostOf(state.url)
+    const probeResponse = readMcpProbeResponse(state.probe?.problem)
 
     /** The one error that belongs to a field rather than to the screen. */
     const nameError = state.status === "naming" ? (nameProblem ?? state.error) : null
@@ -568,7 +570,15 @@ export function McpConnectSheet({
                             {state.error ? withMonoHost(state.error, host) : null}{" "}
                             {state.probe?.problem?.cause === "not_an_mcp_server"
                                 ? null
-                                : UNREACHABLE_ADVICE}
+                                : UNREACHABLE_ADVICE}{" "}
+                            {/* Only where the check carried an answer to show, which the
+                                probe does not do today. See `readMcpProbeResponse`. */}
+                            {probeResponse ? (
+                                <ShowResponsePanel
+                                    statusLine={probeResponse.status}
+                                    body={probeResponse.body}
+                                />
+                            ) : null}
                         </InlineError>
                     ) : null}
 

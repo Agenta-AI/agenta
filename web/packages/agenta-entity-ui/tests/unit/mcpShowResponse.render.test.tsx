@@ -12,10 +12,9 @@ import {act, createElement} from "react"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {
-    MAX_RESPONSE_CHARACTERS,
-    ShowResponsePanel,
-} from "../../src/mcpEndpoint/components/ShowResponsePanel"
+import {PROBE_RESPONSE_BODY_LIMIT} from "@agenta/entities/mcpEndpoint"
+
+import {ShowResponsePanel} from "../../src/mcpEndpoint/components/ShowResponsePanel"
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -78,10 +77,10 @@ describe("the probe's raw answer", () => {
     it("cuts the body at three hundred characters", async () => {
         // Whatever answered is whatever is on the other end of an address someone typed.
         // A megabyte of it in a 480 pixel dialog helps nobody and scrolls the buttons away.
-        await render({body: "x".repeat(MAX_RESPONSE_CHARACTERS + 50)})
+        await render({body: "x".repeat(PROBE_RESPONSE_BODY_LIMIT + 50)})
         await toggle()
 
-        expect(panel()?.textContent).toHaveLength(MAX_RESPONSE_CHARACTERS)
+        expect(panel()?.textContent).toHaveLength(PROBE_RESPONSE_BODY_LIMIT)
     })
 
     it("shows the body alone when there was no status line", async () => {
