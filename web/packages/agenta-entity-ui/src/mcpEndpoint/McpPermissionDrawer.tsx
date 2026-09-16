@@ -121,6 +121,10 @@ function LoginExpiredBanner({
             type="warning"
             showIcon
             className="shrink-0 border-colorWarningBorder bg-colorWarningBg"
+            // `mcpServerNoticeCopy` in @agenta/chat carries these two sentences for the
+            // transcript, minus the third: entity-ui cannot import chat, so the copy is shared by
+            // convention. Change one and change the other. It drops "Permissions below are kept"
+            // on purpose, because that points at controls a transcript does not have.
             message={`${connectionName} needs a new sign-in.`}
             description="Its tools fail until someone in the project reconnects. Permissions below are kept."
             action={
