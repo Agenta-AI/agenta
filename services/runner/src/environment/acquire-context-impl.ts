@@ -93,6 +93,9 @@ export function createAcquireContext(
     get runtimeRemount() {
       return environment.runtimeRemount;
     },
+    get daemonMountNamespaceIsolated() {
+      return environment.daemonMountNamespaceIsolated;
+    },
   };
 
   const context: AcquireContext = {
@@ -185,6 +188,9 @@ export function createAcquireContext(
     // --- runtime-owned handles -------------------------------------------------------- //
     setRuntimeRemount(remount) {
       environment.runtimeRemount = remount;
+    },
+    markDaemonMountViewStale() {
+      environment.daemonMountViewStale = true;
     },
     setRunAgentDir(dir) {
       environment.runAgentDir = dir;

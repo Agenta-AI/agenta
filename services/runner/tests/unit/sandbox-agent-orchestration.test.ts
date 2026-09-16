@@ -38,6 +38,10 @@ import {
 import { mountStorage } from "../../src/engines/sandbox_agent/mount.ts";
 import { withSandboxGoneReport } from "../../src/engines/sandbox_agent/acp-fetch.ts";
 import { SANDBOX_GONE_MESSAGE } from "../../src/engines/sandbox_agent/errors.ts";
+import {
+  canCreateMountNamespace,
+  resetMountNamespaceProbe,
+} from "../../src/engines/sandbox_agent/session-mount-namespace.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
 import { appendPlatformGuidance } from "../../src/engines/sandbox_agent/system-prompt-appendix.ts";
 import { platformGuidanceAppendix } from "../../src/engines/sandbox_agent/platform-guidance.ts";
@@ -1339,86 +1343,123 @@ describe("runSandboxAgent orchestration", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("re-signs, remounts, and retries local workspace prep on durable cwd ENOTCONN", async () => {
-    const { calls, deps } = fakeHarness();
-    const seenMountAccessKeys: string[] = [];
-    let signCalls = 0;
-    let mountCalls = 0;
-    let workspaceCalls = 0;
-    let mountCallsBeforeFirstWorkspace = 0;
-    let cleanupCalls = 0;
+  it.each([
+    [false, false],
+    [true, false],
+    [true, true],
+  ])(
+    "recovers acquisition ENOTCONN with isolated=%s persistent=%s",
+    async (isolated, persistent) => {
+      resetMountNamespaceProbe();
+      canCreateMountNamespace(() => isolated);
+      const { calls, deps } = fakeHarness();
+      const seenMountAccessKeys: string[] = [];
+      let signCalls = 0;
+      let mountCalls = 0;
+      let workspaceCalls = 0;
+      let mountCallsBeforeFirstWorkspace = 0;
+      let cleanupCalls = 0;
 
-    deps.signSessionMountCredentials = (async () => {
-      signCalls += 1;
-      return {
-        endpoint: "http://seaweedfs:8333",
-        region: "us-east-1",
-        bucket: "agenta-store",
-        prefix: "mounts/proj-1/mount-1",
-        accessKey: `AK-${signCalls}`,
-        secretKey: `SK-${signCalls}`,
-        sessionToken: `TOK-${signCalls}`,
-      };
-    }) as any;
-    deps.mountStorage = (async (_cwd: string, creds: any) => {
-      mountCalls += 1;
-      seenMountAccessKeys.push(creds.accessKey);
-      return true;
-    }) as any;
-    deps.unmountStorage = (async () => true) as any;
-    deps.prepareWorkspace = (async ({ plan }: any) => {
-      workspaceCalls += 1;
-      if (workspaceCalls === 1) {
-        mountCallsBeforeFirstWorkspace = mountCalls;
-        const err = new Error("ENOTCONN: Transport endpoint is not connected");
-        (err as Error & { code?: string }).code = "ENOTCONN";
-        throw err;
-      }
-      calls.workspacePlan = plan;
-      return {
-        cleanup: async () => {
-          cleanupCalls += 1;
-        },
-      };
-    }) as any;
+      deps.signSessionMountCredentials = (async () => {
+        signCalls += 1;
+        return {
+          endpoint: "http://seaweedfs:8333",
+          region: "us-east-1",
+          bucket: "agenta-store",
+          prefix: "mounts/proj-1/mount-1",
+          accessKey: `AK-${signCalls}`,
+          secretKey: `SK-${signCalls}`,
+          sessionToken: `TOK-${signCalls}`,
+        };
+      }) as any;
+      deps.mountStorage = (async (_cwd: string, creds: any) => {
+        mountCalls += 1;
+        seenMountAccessKeys.push(creds.accessKey);
+        return true;
+      }) as any;
+      deps.unmountStorage = (async () => true) as any;
+      deps.prepareWorkspace = (async ({ plan }: any) => {
+        workspaceCalls += 1;
+        if (workspaceCalls === 1 || persistent) {
+          mountCallsBeforeFirstWorkspace = mountCalls;
+          const err = new Error(
+            "ENOTCONN: Transport endpoint is not connected",
+          );
+          (err as Error & { code?: string }).code = "ENOTCONN";
+          throw err;
+        }
+        calls.workspacePlan = plan;
+        return {
+          cleanup: async () => {
+            cleanupCalls += 1;
+          },
+        };
+      }) as any;
 
-    const result = await runSandboxAgent(
-      {
-        harness: "claude",
-        sessionId: "sess-1",
-        telemetry: {
-          exporters: {
-            otlp: {
-              headers: { authorization: "ApiKey run" },
+      const result = await runSandboxAgent(
+        {
+          harness: "claude",
+          sessionId: "sess-1",
+          telemetry: {
+            exporters: {
+              otlp: {
+                headers: { authorization: "ApiKey run" },
+              },
             },
           },
-        },
-        messages: [{ role: "user", content: "hello" }],
-      } as AgentRunRequest,
-      undefined,
-      undefined,
-      deps,
-    );
+          messages: [{ role: "user", content: "hello" }],
+        } as AgentRunRequest,
+        undefined,
+        undefined,
+        deps,
+      );
 
-    assert.equal(result.ok, true);
-    assert.equal(signCalls, 2, "initial sign + re-sign after ENOTCONN");
-    assert.equal(mountCalls, 2, "initial mount + remount after ENOTCONN");
-    assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
-    assert.equal(
-      mountCallsBeforeFirstWorkspace,
-      1,
-      "local durable cwd is mounted before first workspace write",
-    );
-    assert.equal(workspaceCalls, 2, "workspace prep is retried once");
-    assert.equal(
-      calls.createSessionOptions.cwd,
-      "/var/lib/agenta/mounts/proj-1/mount-1",
-    );
-    assert.equal(cleanupCalls, 1);
-  });
+      if (persistent) {
+        assert.equal(result.ok, false);
+        assert.equal(workspaceCalls, 2, "only one cold rebuild is allowed");
+        assert.equal(
+          calls.sandboxDestroyed,
+          2,
+          "both failed daemons are destroyed",
+        );
+        return;
+      }
+      assert.equal(result.ok, true);
+      assert.equal(
+        calls.sandboxDestroyed,
+        isolated ? 2 : 1,
+        "isolated recovery destroys the stale daemon before rebuilding",
+      );
+      assert.equal(signCalls, 2, "initial sign + re-sign after ENOTCONN");
+      assert.equal(mountCalls, 2, "initial mount + remount after ENOTCONN");
+      assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
+      assert.equal(
+        mountCallsBeforeFirstWorkspace,
+        1,
+        "local durable cwd is mounted before first workspace write",
+      );
+      assert.equal(workspaceCalls, 2, "workspace prep is retried once");
+      assert.equal(
+        calls.createSessionOptions.cwd,
+        "/var/lib/agenta/mounts/proj-1/mount-1",
+      );
+      assert.equal(cleanupCalls, 1);
+    },
+  );
 
-  it("re-signs and remounts when an ACP event reports durable cwd ENOTCONN during prompt", async () => {
-    const { deps } = fakeHarness({
+  it("rebuilds instead of remounting when an ACP event reports durable cwd ENOTCONN during prompt", async () => {
+    // BEHAVIOUR CHANGED WITH PER-SESSION MOUNT ISOLATION. This case used to assert the in-place
+    // repair: re-sign, remount, and carry on. A cwd under the shared durable root now gets an
+    // isolated daemon, which holds a BIND of the mount it started with in its own namespace. A
+    // remount here would replace the mount in the RUNNER's namespace only; `--propagation private`
+    // keeps it from reaching the daemon, the harness keeps reading the dead mount, and the
+    // one-shot remount budget is gone — a bricked session that looks repaired in the log. So the
+    // repair must not be attempted at all, and the session is marked for a cold rebuild.
+    //
+    // The in-place repair is still the right fix for a daemon that shares the runner's namespace,
+    // and it still runs there: see the sibling `#5692` case (its cwd is a tmpdir, so isolation
+    // refuses) and `tests/unit/session-mount-namespace.test.ts`.
+    const { deps, logs } = fakeHarness({
       promptEvents: [
         {
           payload: {
@@ -1466,6 +1507,12 @@ describe("runSandboxAgent orchestration", () => {
       unmountCalls += 1;
     }) as any;
 
+    // Whether a mount namespace can be created is MEASURED against the host, and a test
+    // process holds no CAP_SYS_ADMIN. Seed the cached probe so this test asserts the ENOTCONN
+    // routing it is about, rather than the privileges of whatever machine runs it.
+    resetMountNamespaceProbe();
+    canCreateMountNamespace(() => true);
+
     const result = await runSandboxAgent(
       {
         harness: "claude",
@@ -1485,22 +1532,20 @@ describe("runSandboxAgent orchestration", () => {
     );
 
     assert.equal(result.ok, true);
-    assert.equal(
-      signCalls,
-      2,
-      "initial sign + one capped runtime re-sign after ENOTCONN",
+    assert.ok(
+      logs.some((message) =>
+        message.includes("per-session mount isolation ON"),
+      ),
+      "the cwd is under the shared durable root, so this daemon must be isolated",
     );
-    assert.equal(
-      mountCalls,
-      2,
-      "initial mount + one capped runtime remount after ENOTCONN",
+    assert.equal(signCalls, 1, "the initial sign, and no runtime re-sign");
+    assert.equal(mountCalls, 1, "the initial mount, and no runtime remount");
+    assert.deepEqual(seenMountAccessKeys, ["AK-1"]);
+    assert.ok(
+      logs.some((message) => message.includes("isolated mount namespace")),
+      "the operator must be told WHY this session rebuilds instead of repairing",
     );
-    assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
-    assert.equal(
-      unmountCalls,
-      1,
-      "cleanup waits for runtime remount before unmount",
-    );
+    assert.equal(unmountCalls, 1, "cleanup still unmounts exactly once");
   });
 
   it("re-materializes the codex subscription auth link on a mid-session durable cwd remount (#5692)", async () => {

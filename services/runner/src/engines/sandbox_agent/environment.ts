@@ -169,6 +169,10 @@ import {
   sessionContinuityStore,
 } from "./session-continuity.ts";
 import { mountExpiryMs, projectScopeFor } from "./session-identity.ts";
+import {
+  planSessionMountNamespace,
+  SESSION_MOUNT_ROOT_ENV_VAR,
+} from "./session-mount-namespace.ts";
 import { teardownDisposition, type TeardownReason } from "./teardown.ts";
 import {
   cleanup as cleanupWorkspace,
@@ -354,6 +358,18 @@ export async function acquireEnvironment(
       );
       if (!result.ok && result.lease) lease = result.lease;
       if (
+        !result.ok &&
+        result.staleMountView &&
+        attempt < 2 &&
+        !signal?.aborted
+      ) {
+        presignedMount = undefined;
+        process.stderr.write(
+          "[sandbox-agent] disconnected isolated mount; rebuilding local environment\n",
+        );
+        continue;
+      }
+      if (
         result.ok ||
         !result.stuckSubstitution ||
         attempt >= STUCK_ACQUIRE_ATTEMPTS ||
@@ -394,6 +410,7 @@ type AcquireAttemptResult =
       errorCode?: RunErrorCode;
       stuckSubstitution?: boolean;
       lease?: DaytonaSecretLease;
+      staleMountView?: boolean;
     };
 
 /**
@@ -724,6 +741,33 @@ async function acquireEnvironmentOnce(
       await mountLocalAgentCwd();
       throwIfAcquireAborted(signal);
     }
+    // Per-session mount isolation, decided AFTER both mounts and BEFORE the freeze. Both halves
+    // of that position are load-bearing: the script binds mountpoints that must already exist, and
+    // the four variables it reads are daemon env, which `freezeDaemonEnv` closes to writes. The
+    // COMMITTED paths are what it plans against — a mount that failed leaves them unset, and
+    // binding a path that was never mounted is exactly the mis-bind the plan refuses to make.
+    const mountNamespacePlan = planSessionMountNamespace({
+      daemonBinary: binaryPath,
+      mountedCwd: ctx.env.mountedCwd,
+      agentMountedPath: ctx.env.agentMountedPath,
+      isDaytona: plan.isDaytona,
+    });
+    if (mountNamespacePlan) {
+      for (const [name, value] of Object.entries(mountNamespacePlan.env)) {
+        ctx.writeDaemonEnv(name, value);
+      }
+      // Tell the ENOTCONN repair path that an in-place remount can no longer reach this daemon.
+      environment.daemonMountNamespaceIsolated = mountNamespacePlan.isolates;
+      // The script's own fail-open warning goes to the daemon's stderr, which the sandbox-agent
+      // library does not surface, so this line is the ONLY place an operator learns that a
+      // boundary they rely on is not being enforced. Say it per run, where it is actionable.
+      logger(
+        mountNamespacePlan.isolates
+          ? `per-session mount isolation ON: the daemon sees only its own drive, with ` +
+              `${mountNamespacePlan.env[SESSION_MOUNT_ROOT_ENV_VAR]} covered`
+          : `per-session mount isolation OFF: ${mountNamespacePlan.isolationSkipped}`,
+      );
+    }
     // INVARIANT 1: the provider takes `env` and `piExtEnv` BY REFERENCE and hands them to the
     // daemon, after which the daemon environment is fixed. Every local mount had to land above
     // this line. From here a `writeDaemonEnv` is a programming-order bug and throws.
@@ -732,7 +776,7 @@ async function acquireEnvironmentOnce(
       (deps.buildSandboxProvider ?? buildSandboxProvider)(
         plan.sandboxId,
         env,
-        binaryPath,
+        mountNamespacePlan?.binaryPath ?? binaryPath,
         piExtEnv,
         plan.credentials.modelEnvironment,
         plan.sandboxPermission,
@@ -1181,6 +1225,14 @@ async function acquireEnvironmentOnce(
     } catch (err) {
       if (
         !plan.isDaytona &&
+        environment.daemonMountNamespaceIsolated &&
+        isTransportEndpointDisconnected(err)
+      ) {
+        environment.daemonMountViewStale = true;
+        throw err;
+      }
+      if (
+        !plan.isDaytona &&
         environment.mountCreds &&
         isTransportEndpointDisconnected(err) &&
         (await reSignAndRemountLocalCwd())
@@ -1572,7 +1624,12 @@ async function acquireEnvironmentOnce(
         ...(retainedLease ? { lease: retainedLease } : {}),
       };
     }
-    return { ok: false, error, errorCode: classified.code };
+    return {
+      ok: false,
+      error,
+      errorCode: classified.code,
+      staleMountView: environment.daemonMountViewStale,
+    };
   }
 }
 

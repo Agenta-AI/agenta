@@ -166,3 +166,27 @@ revision's config, so these are rarely hit.
 pnpm install
 echo '{"harness":"pi","sandbox":"local","messages":[{"role":"user","content":"Hi"}]}' | pnpm run run:cli
 ```
+
+## Local session mount isolation
+
+Local sessions use a private mount namespace to hide other sessions' durable drives.
+This limits accidental filesystem damage; processes, networking, and runner IPC paths
+remain shared. Use a separate sandbox such as Daytona for untrusted execution.
+
+`AGENTA_RUNNER_MOUNT_ISOLATION=auto` (the default) preserves compatibility: if the host
+cannot create the namespace, the runner logs the exposure and continues without mount
+isolation. Set `AGENTA_RUNNER_MOUNT_ISOLATION=required` on deployments that must refuse
+local sessions without isolation. This also refuses local sessions without a durable
+mount. Daytona sessions do not use this local policy.
+
+The published image drops root through its entrypoint, including when CMD is overridden.
+It carries SYS_ADMIN only if the container permits the grant. Operator-UID containers
+keep their UID and attempt a user namespace. Every local daemon requires the privilege
+removal script and `setpriv`; missing either prevents local execution. A disconnected
+isolated mount during workspace preparation destroys the daemon and retries acquisition
+once. A second failure is returned to the caller.
+
+Run the container checks from this directory with
+`sh tests/integration/mount-namespace-container.sh <runner-image>`.
+They exercise actual UID changes, capability removal, and sibling-drive visibility
+in disposable containers. They require Docker and permission to add SYS_ADMIN.
