@@ -371,6 +371,34 @@ in `open-reviews.md`.
 
 ---
 
+## CU21. Give the per-tool MCP policy one owner
+
+**What.** A server's policy is four fields, `permission`, `tool_permissions`, `new_tool_permission`
+and the `tools` filter, and four places read them and work out what a tool is allowed:
+`sdks/python/agenta/sdk/agents/mcp/resolver.py` resolving the configuration,
+`sdks/python/agenta/sdk/agents/adapters/claude_settings.py` rendering native Claude rules,
+`services/runner/src/mcp-permission.ts` taking the policy off the wire, and the Pi gate in
+`services/runner/src/extensions/pi-mcp.ts`. Each holds its own idea of the ladder. None of them owns
+it, and nothing compares them.
+
+**Why it is worth doing.** Four findings in this candidate were the same defect: one policy read
+differently in two places. D37, D57, D63 and D88. Three resolved toward the runner, and D88 says why
+that is the right direction rather than a coin toss: the gate is the authoritative side and the
+adapter's job is to describe it, not to decide differently. D88 also shows what this costs when it
+goes unnoticed. The adapter consulted the whole-server permission for a tool the table did not name
+and the runner deliberately did not, so a server set to `allow` beside any per-tool table ran an
+unnamed tool unapproved under Claude while the same saved configuration raised a gate under Pi. The
+divergence ran in the unsafe direction, and it survived because the test matrices crossed every
+combination of decisions and then only ever asked about the one tool the table named. A fifth
+instance is a matter of time while four readers each carry their own copy.
+
+**Done.** One reader owns the ladder and the other three describe it rather than deciding for
+themselves, and a single matrix of policies and tools runs through every reader in one test,
+asserting they answer alike. That test is the part that matters: the divergence D88 found was
+invisible to four separate suites that each passed against their own reader.
+
+---
+
 ---
 
 ## What is not on this list
