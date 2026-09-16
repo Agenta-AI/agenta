@@ -238,3 +238,18 @@ describe("McpAddServerDrawer while the registry is in flight", () => {
         expect(text()).not.toContain("No servers match")
     })
 })
+
+describe("McpAddServerDrawer on a phone", () => {
+    it("is a bottom sheet below the breakpoint and a right-edge drawer above it", async () => {
+        // The one prop that makes a configuration panel correct in both apps, and the reason
+        // the mobile app needs no drawer of its own. The geometry itself is measured in a
+        // browser; what this pins is that the drawer asks for the responsive side at all, the
+        // way the permission drawer beside it does.
+        await render()
+
+        const panel = document.querySelector('[role="dialog"]')
+        expect(panel, "no drawer panel").not.toBeNull()
+        expect(panel!.className).toContain("bottom-0")
+        expect(panel!.className).toContain("lg:right-0")
+    })
+})
