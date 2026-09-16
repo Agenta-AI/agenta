@@ -168,53 +168,44 @@ two model calls back to back with no POST between them. Point it at the team a p
 Do not substitute a quiet-looking real team for a scratch one. "Least recently updated" is not the
 same as "nobody will see it".
 
-### The agent path does not reach these tools yet
+### The agent path, through a Pi agent run
 
-Everything above is the relay answering a client written for this document. An agent run is a
-different client, and it does not get there. A turn configured with the current shape, a `name`, a
-`connection` of `{"type": "gateway", "namespace": "custom", "slug": ...}` and a `policy`, on a Pi
-harness with a real model, never offers the server's tools to the model. Asked to name every tool it
-has, the agent lists the seven Pi builtins and nothing else. Asked to list teams, it answers that no
-tool for that provider is available, which is true.
+Fixed and evidenced. An earlier revision of this section recorded the opposite, because the Pi
+extension's MCP client could not read a reply that leads with an `event:` line and dropped the
+server as a failed handshake. The parse now goes through a shared helper that reads any `data:`
+line, and the client sends the protocol revision `initialize` negotiated. Both cells below are real
+provider runs, read from the gateway's request log rather than from what the model said.
 
-Neither the gateway nor the configuration shape is the problem. In the API access log for the turn's
-own window, the sandbox makes exactly one POST to the relay route and it answers 200. Nothing
-follows it: no `notifications/initialized`, no `tools/list`, no `tools/call`. The same route answers
-a hand-written `initialize` and `tools/list` with 200 in the same minute.
+| Cell | Permission | Answer | `tools/call` per turn | Verdict |
+| --- | --- | --- | --- | --- |
+| ask, approved | `ask` | approve | `[0, 1]` | PASS |
+| ask, denied | `ask` | deny | `[0, 0]` | PASS |
 
-Two defects, in the order a fix meets them.
+Both runs open the same way, and that opening is the fix working: `initialize` 200, a second
+`initialize` 200 from the client behind the probe, `notifications/initialized` 202, then `tools/list`
+200. Four discovery requests where there used to be one followed by silence. The model is offered
+the server's tools and calls one by its gateway-qualified name rather than guessing.
 
-The Pi extension's MCP client cannot read an SSE reply that leads with `event:`. `readJsonResponse`
-in `services/runner/src/extensions/pi-mcp.ts` strips SSE framing only when the body starts with
-`data:`. A real server's reply starts with `event: message`, so the whole frame goes to `JSON.parse`
-and throws. `discover()` fails on its first request, the server is dropped as a failed handshake,
-and no tool is registered. The compose mock answers plain JSON, which is why every mock cell in this
-document passes and this one does not. The runner's own handshake probe in
-`services/runner/src/engines/sandbox_agent/mcp-handshake.ts` already reads any `data:` line, so the
-probe reports the server connected while the client that follows it cannot read a word of the reply.
+**Approved.** Turn one raises the gate and sends nothing upstream. Turn two carries the approval,
+and the `tools/call` POST lands on the relay route at 200, sitting between the two model calls. The
+tool returns the workspace's real teams, five of them, and the model reports them back. So the
+approval path reaches a real provider and real data comes back.
 
-Behind that one, the same client stamps every request's `_meta` with the protocol version it was
-built against rather than the version `initialize` negotiated. Replaying the client's exact sequence
-by hand gets `initialize` 200 and `notifications/initialized` 202, then `tools/list` 400: the server
-applies the newer revision's rules because the envelope claims that revision, and refuses the request
-for a companion capability field the client never sends. Fixing the parse alone moves the failure
-here.
+**Denied.** Turn one raises the gate on the same tool. The denial is answered, the run completes,
+and the two model calls sit back to back with **no MCP POST between them**. The model is told the
+call was refused and will stay refused, and it stops rather than reshaping the call. Four discovery
+requests, zero `tools/call`. A rejected call performed no upstream request, against a real server.
 
-Permissions could not be exercised, so treat both cells as unrun. At `ask`, no MCP approval gate was
-raised, because no MCP tool was offered; the only gate in the run belonged to the harness's own shell
-tool. At `deny`, no `tools/call` reached the route, which is true and proves nothing, because there
-was nothing to deny.
+That pair is what this section could not show before: per-tool permission enforced end to end
+against a real provider, with the difference between approve and deny visible as one line in the
+log rather than as a claim about the model's behaviour.
+
+Both cells used a read tool. The authorised write is still not run, for the reason in the previous
+subsection: the workspace has no scratch team.
 
 One thing that looks like a defect and is not: a sandbox-origin line in the API access log carries
 the `/api` prefix twice. That is the access log printing the application's root path in front of the
 request path. The sandbox dials the single-prefix URL, and both spellings answer 200.
-
-**Rechecked and still present.** The runner fix that removed the protocol-version header from
-`initialize` cleared a different failure, the one that made the handshake answer 400 at all, and it
-is genuinely fixed: the probe now returns 200. It does not touch the parse. `readJsonResponse` is
-byte-for-byte unchanged on the candidate, and a re-run of the read-only cell after that fix behaves
-exactly as before, with one sandbox POST and no `tools/list` behind it. Both defects above are open,
-and the agent path to a real provider stays unproven until the parse is fixed.
 
 ## LLM plane off-mode
 
