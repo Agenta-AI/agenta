@@ -1368,6 +1368,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                       value={draft}
                                       onChange={(v) => setDraft(v)}
                                       disabled={readOnly}
+                                      // Save is inert while the draft is invalid, so there is
+                                      // no press to wait for: an edited draft that is missing
+                                      // a required field says so in the fields.
+                                      showMissing={!draftUnchanged && draftInvalid}
                                   />
                               }
                               json={
