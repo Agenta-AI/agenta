@@ -114,7 +114,7 @@ whether that fix was read against the finding and its test.
 | D56 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:204` at HEAD | Fix, blocking a real upstream | `a96b45c400` | **yes**, code and a mutation run |
 | D57 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:326` at HEAD | Fix, **superseded** by OR91's | `a96b45c400`, `005207efe7` | **yes**, both, each by mutation |
 | D58 | structural | P2 | `api/oss/src/core/gateways/mcps/providers/mock/` | **Closed.** The mock now enforces what a real server enforces | `14ef19e60b` | **yes**, code read, 1104 unit cases pass |
-| D59 | r3-D2 residual | P3 | `web/packages/agenta-entities/src/session/core/schema.ts` | **Deferred**, with a stated closure | n/a | mechanism, schema read |
+| D59 | r3-D2 residual | P3 | `web/packages/agenta-chat/src/assets/transcriptToMessages.ts` | **Closed**, and my diagnosis of it was wrong | `ccb260af96` | **yes**, code, 66 cases, pre-fix file checked |
 | D60 | verification | P2 | `web/oss/tests/playwright/acceptance/playground/mcp-agent-config.ts:359` | **Closed.** The spec expected the wrong thing | `fec5c1fdcc` | **yes**, three runs; the case passes in all three |
 | D61 | web agent's tallies | P1 | `api/oss/src/apis/fastapi/gateways/mcps/router.py` | **Closed.** A regression from r3-D1 | `5c67a2e871` | **yes**, code and 12 cases |
 | D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix | `4ee17eab78` | **yes**, both mechanisms, code and cases |
@@ -1065,11 +1065,23 @@ it: the record kinds it carries are the tool, frame and lifecycle ones, and noth
 reload replays the turn without the sentence and without the Connect action, and a shared session
 drops the part at the transport, leaving the reader back at the bare tool error the fix removed.
 
-**Closure:** a backend session record type for MCP server notices, replayed the way tool records
-already are. Deferred rather than fixed here because it is a schema change on both sides for a
-surface that is correct while the turn is on screen, which is when a person acts on it. Not a
-release blocker, and recorded so that "the notice is missing after a reload" is a known gap rather
-than a new bug report.
+**Closed by `ccb260af96`, and the diagnosis above is wrong in the part that mattered.** I inferred
+from one file — the durable event schema, which does not enumerate the type — that the backend does
+not persist the notice, and deferred the finding on the strength of it being a schema change on both
+sides. The backend persists it already. What was missing was a case in the browser's replay:
+`transcriptToMessages.applyEvent` had no arm for the record, so a reload rebuilt the transcript
+without it, and because the adopted transcript replaces the streamed messages seconds after a turn
+settles, the notice also vanished from a turn still on screen — which is UI QA round 4's D2, the
+symptom I had recorded as merely a reload gap.
+
+The fix rebuilds the part through the same five-field allow-list the live path applies, so the
+replayed notice cannot carry more than the streamed one. Sixty-six cases pass, and the pre-fix file
+has no occurrence of the record type at all, so the case is new rather than adjusted.
+
+**The lesson is mine to take.** "The schema does not name it" was evidence about one layer, and I
+reported it as a fact about the system. A deferral resting on a claim I had checked in one file is
+how a live defect gets recorded as an acceptable gap: the notice was not missing after a reload, it
+was missing seconds after every turn.
 
 ## The last six web fixes
 
