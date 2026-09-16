@@ -112,4 +112,11 @@ export const controlScale = {
         "field-lg": ["16px", {lineHeight: "1.5"}] as [string, {lineHeight: string}],
         "badge-md": ["12px", {lineHeight: "1.8666666666666667"}] as [string, {lineHeight: string}],
     },
+    // The project monospace face. `font-mono` resolved to Tailwind's stock stack, while the real
+    // code face was hard coded in three stylesheets, so a mono run in a component and a mono run
+    // in a stylesheet were different fonts. Theme-invariant, so it lives here and not in palette.ts.
+    // web/mobile declares the same list as `--font-mono`; `pnpm tokens:check` compares the two.
+    fontFamily: {
+        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "Monaco", "monospace"],
+    },
 }

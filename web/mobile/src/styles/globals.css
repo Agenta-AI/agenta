@@ -122,6 +122,20 @@
     --color-colorErrorBg: var(--colorErrorBg);
     --color-colorErrorBorder: var(--colorErrorBorder);
     --color-colorInfoBorder: var(--colorInfoBorder);
+    /* The rest of the status vocabulary the shared surfaces paint with. Unmapped, Tailwind v4
+       generates no rule at all: a refused field kept its ordinary text colour here while /w
+       painted it red, and the server tile had no fill. */
+    --color-colorErrorText: var(--colorErrorText);
+    --color-colorInfoBg: var(--colorInfoBg);
+    --color-colorWarningBorder: var(--colorWarningBorder);
+    --color-colorSuccessBorder: var(--colorSuccessBorder);
+    --color-colorBgBase: var(--colorBgBase);
+    /* The tinted panel surface and the single hero action per screen. Both had a value on /w
+       and no class on either side. */
+    --color-surface-paper: var(--ag-surface-paper);
+    --color-hero-action: var(--hero-action-bg);
+    --color-hero-action-hover: var(--hero-action-hover-bg);
+    --color-hero-action-foreground: var(--hero-action-text);
     /* Portaled overlays + status dots. The kit's Tooltip paints bg-colorBgSpotlight /
        text-colorTextLightSolid and its DropdownMenu bg-colorSplit separators; with these
        unmapped a tooltip rendered as bare text on no background. */
@@ -139,9 +153,16 @@
     /* antd's popup shadow (boxShadowSecondary), off the shared token layer — `shadow-overlay` is
        what every kit overlay (dropdown, popover, tooltip) elevates with. */
     --shadow-overlay: var(--ag-boxShadowSecondary);
+    /* The other two elevation steps the kit uses: `shadow-dialog` on modal content and
+       `shadow-tertiary` on cards. Both existed on /w only, so a shared card read flat here. */
+    --shadow-dialog: var(--ag-boxShadowSecondary);
+    --shadow-tertiary: var(--ag-boxShadowTertiary);
     /* `font-portal` re-declares the app font on portaled content, which escapes the app's font
        scope. Mobile has no custom face, so that is the default sans stack. */
     --font-portal: var(--font-sans);
+    /* The project code face. Same literals as oss/src/styles/theme/controlScale.ts, which
+       `pnpm tokens:check` compares against. */
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace;
     /* @agenta/ui control scale (tailwind v4 sizing reads the spacing namespace). Literals are
        copied from oss/src/styles/theme/controlScale.ts and verified by `pnpm tokens:check`. */
     --spacing-control-check: 16px;
