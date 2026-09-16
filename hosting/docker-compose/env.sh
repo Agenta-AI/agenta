@@ -347,7 +347,10 @@ prepare() {
     fi
     local -a merge_args=(--base "$source_file" --overrides "$overrides_file" --output "$output_file" --force)
     merge "${merge_args[@]}"
-    printf '\nStart it with:\n  bash hosting/docker-compose/run.sh --%s --%s\n' "$license" "$image_mode"
+    # Name the file that was just written. Without it the command starts whichever env file
+    # the edition defaults to, silently ignoring a --output that pointed somewhere else.
+    printf '\nStart it with:\n  bash hosting/docker-compose/run.sh --%s --%s --env-file %s\n' \
+        "$license" "$image_mode" "$(basename "$output_file")"
 }
 
 command="prepare"
