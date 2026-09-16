@@ -14,7 +14,6 @@ import {describe, expect, it} from "vitest"
 
 import {unwrapToolUseError} from "../../../src/assets/toolFormat"
 import {
-    endpointIdFromConnectPath,
     isExplainedByMcpNotice,
     mcpServerNotices,
     mcpServerNoticeSentence,
@@ -69,11 +68,8 @@ describe("readMcpServerNotice", () => {
         const notice = readMcpServerNotice(AUTH_NOTICE)
         expect(notice).not.toBeNull()
         expect(notice?.serverName).toBe("mock-mcp")
-        expect(notice?.code).toBe("auth_required")
         expect(notice?.needsAuthorization).toBe(true)
-        expect(notice?.target).toBe("custom/or85-oauth-8c3491eb")
         expect(notice?.slug).toBe("or85-oauth-8c3491eb")
-        expect(notice?.endpointId).toBe("ep-42")
     })
 
     it("never carries the runner's machine-addressed marker into the stated message", () => {
@@ -86,7 +82,6 @@ describe("readMcpServerNotice", () => {
         const notice = readMcpServerNotice(UNREACHABLE_NOTICE)
         expect(notice?.needsAuthorization).toBe(false)
         expect(notice?.slug).toBeNull()
-        expect(notice?.endpointId).toBeNull()
         expect(notice?.statedMessage).toBe(
             "MCP server acme failed to connect: handshake_unreachable",
         )
@@ -98,13 +93,10 @@ describe("readMcpServerNotice", () => {
         }
     })
 
-    it("reads the path and target helpers on their own", () => {
+    it("reads the target helper on its own", () => {
         expect(slugFromMcpTarget("custom/acme")).toBe("acme")
         expect(slugFromMcpTarget("acme")).toBe("acme")
         expect(slugFromMcpTarget(null)).toBeNull()
-        expect(endpointIdFromConnectPath("/gateways/mcps/endpoints/abc-1/connect")).toBe("abc-1")
-        expect(endpointIdFromConnectPath("/gateways/mcps/endpoints/connect")).toBeNull()
-        expect(endpointIdFromConnectPath(null)).toBeNull()
     })
 })
 

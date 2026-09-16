@@ -1,15 +1,9 @@
-export {
-    buildTrustedOrigins,
-    isTrustedOauthConnectedMessage,
-    MCP_OAUTH_CONNECTED,
-} from "./connectMessage"
+export {buildTrustedOrigins, isTrustedOauthConnectedMessage} from "./connectMessage"
 export type {McpOauthCompletionMessage} from "./connectMessage"
 export {
     CONSENT_CLOSED_MESSAGE,
     CONSENT_FAILED_MESSAGE,
-    CONSENT_POLL_MS,
     CONSENT_TIMEOUT_MESSAGE,
-    CONSENT_TIMEOUT_MS,
     watchOauthConsent,
 } from "./connectWatch"
 export type {OauthConsentTarget, OauthConsentTimers, WatchOauthConsentOptions} from "./connectWatch"
@@ -41,12 +35,7 @@ export type {
     MCPServerProbe,
     MCPToolFilter,
 } from "./types"
-export {
-    gatewayRefusalCode,
-    gatewayRefusalMessage,
-    isNameTakenRefusal,
-    MCP_NAME_TAKEN_CODE,
-} from "./refusal"
+export {gatewayRefusalCode, gatewayRefusalMessage, isNameTakenRefusal} from "./refusal"
 export {
     jsonRpcErrorMessage,
     jsonRpcResult,
@@ -76,7 +65,6 @@ export {connectionNameProblem, hostnameLabel, suggestConnectionName} from "./con
 export {
     buildMcpConnectionRef,
     isLegacyMcpItem,
-    MAX_TOOL_PREFIX_LENGTH,
     readMcpConnectionSlug,
     RESERVED_TOOL_PREFIX,
     toolPrefixFromName,

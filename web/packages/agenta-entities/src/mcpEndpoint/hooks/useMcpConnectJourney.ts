@@ -492,7 +492,6 @@ export function useMcpConnectJourney({
             cancel,
             retry,
             retryTools,
-            stopWatch,
             abandonAttempt,
         }),
         [
@@ -509,7 +508,6 @@ export function useMcpConnectJourney({
             skipAuthentication,
             startScopeDiscovery,
             state,
-            stopWatch,
             submitManualCredential,
             submitName,
             submitScopes,

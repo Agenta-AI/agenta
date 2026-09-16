@@ -5,7 +5,6 @@ export {
     disconnectMcpEndpoint,
     discoverMcpConnect,
     editMcpEndpoint,
-    listMcpEndpoints,
     listMcpTools,
     probeMcpUrl,
     queryMcpEndpoints,

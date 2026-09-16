@@ -29,18 +29,10 @@ export const MCP_AUTH_REQUIRED_CODE = "auth_required"
 export interface McpServerNotice {
     /** The server as the agent's configuration names it (`mock-mcp`). */
     serverName: string
-    /** The runner's reason class for the handshake failure (`handshake_http_error`). */
-    reasonCode: string | null
-    /** The gateway refusal's failure class, when the handshake body carried one. */
-    code: string | null
     /** The refusal's own sentence, marker stripped; the runner's line when there was no refusal. */
     statedMessage: string | null
-    /** `custom/<slug>`, the connection the requirement names. */
-    target: string | null
-    /** The slug half of `target`, which resolves to the endpoint row. */
+    /** The slug the requirement's target names, which resolves to the endpoint row. */
     slug: string | null
-    /** The endpoint id in `requirement.connect.endpoint`, when the remedy rode the refusal. */
-    endpointId: string | null
     /** This server is disconnected and reconnecting is what fixes it. */
     needsAuthorization: boolean
 }
@@ -61,15 +53,6 @@ export const slugFromMcpTarget = (target: string | null): string | null => {
     return slug.trim() ? slug : null
 }
 
-/** `/gateways/mcps/endpoints/<id>/connect` → `<id>`. */
-export const endpointIdFromConnectPath = (path: string | null): string | null => {
-    if (!path) return null
-    const segments = path.split("/").filter(Boolean)
-    const at = segments.lastIndexOf("endpoints")
-    const id = at >= 0 ? segments[at + 1] : undefined
-    return id && id !== "connect" ? id : null
-}
-
 /** Read one `data-mcp-server-failed` payload. Returns `null` for anything that is not one. */
 export const readMcpServerNotice = (data: unknown): McpServerNotice | null => {
     const record = asRecord(data)
@@ -84,17 +67,11 @@ export const readMcpServerNotice = (data: unknown): McpServerNotice | null => {
     const refusal = detail ? gatewayRefusalMessage(shaped) : null
 
     const requirement = asRecord(asRecord(detail?.details)?.requirement)
-    const target = readString(requirement?.target)
-    const connectPath = readString(asRecord(requirement?.connect)?.endpoint)
 
     return {
         serverName,
-        reasonCode: readString(record?.reasonCode),
-        code,
         statedMessage: refusal ?? readString(record?.message),
-        target,
-        slug: slugFromMcpTarget(target),
-        endpointId: endpointIdFromConnectPath(connectPath),
+        slug: slugFromMcpTarget(readString(requirement?.target)),
         needsAuthorization:
             code === MCP_AUTH_REQUIRED_CODE || readString(requirement?.state) === "needs_auth",
     }
