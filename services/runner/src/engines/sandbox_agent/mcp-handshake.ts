@@ -139,10 +139,13 @@ function readJsonRpc(raw: string): Record<string, unknown> | undefined {
 }
 
 function handshakeHeaders(server: ProbeInput): Record<string, string> {
+  // No `mcp-protocol-version` here. This request IS the `initialize`, and the version is
+  // negotiated by it: the transport spec has the client send the header only on requests that
+  // follow initialization, naming the version the server returned. A server that enforces that
+  // refuses this probe with a 400, so the probe would report every such server as unreachable.
   const headers: Record<string, string> = {
     "content-type": "application/json",
     accept: "application/json, text/event-stream",
-    "mcp-protocol-version": MCP_PROTOCOL_VERSION,
     ...(server.connection.headers ?? {}),
   };
   for (const credential of server.connection.credentials ?? []) {

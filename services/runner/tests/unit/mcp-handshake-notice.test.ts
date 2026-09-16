@@ -388,3 +388,30 @@ describe("the probe never follows a redirect (CR9)", () => {
     assert.equal(release!.init.redirect, "manual");
   });
 });
+
+describe("the probe must not assert a protocol version it has not negotiated", () => {
+  it("sends no mcp-protocol-version header on the initialize it opens with", async () => {
+    // A spec-strict server (Linear, among others) answers a 400 when `initialize` carries the
+    // header, because the version is what `initialize` negotiates. The probe would then report
+    // every such server as unreachable and its tools would never register. Mock servers do not
+    // check, which is why only a live upstream surfaced it.
+    let sent: Record<string, string> | undefined;
+    const failure = await probeMcpServerHandshake(server, {
+      fetchImpl: async (_url, init) => {
+        sent = init?.headers as Record<string, string>;
+        return answer(okHandshake, { sessionId: "session-1" });
+      },
+    });
+
+    assert.equal(failure, undefined, "a healthy server connects");
+    assert.ok(sent, "the probe made its request");
+    const names = Object.keys(sent).map((name) => name.toLowerCase());
+    assert.ok(
+      !names.includes("mcp-protocol-version"),
+      `initialize must carry no protocol version, got: ${names.join(", ")}`,
+    );
+    // The rest of the handshake is unchanged: content negotiation and the credential still ride.
+    assert.equal(sent["content-type"], "application/json");
+    assert.equal(sent["X-AG-Credentials"], GATEWAY_CREDENTIAL);
+  });
+});

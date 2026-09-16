@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   MCP_DISCOVERY_METHOD,
+  MCP_PROTOCOL_VERSION,
   PI_MCP_REQUEST_TIMEOUT_MS,
   parsePiGatewayMcpConfig,
   piGatewayMcpServersFromWire,
@@ -199,10 +200,12 @@ describe("Pi gateway MCP extension", () => {
           "short-lived-gateway-token",
       ),
     );
+    // Not on `initialize`, which negotiates the version, and the agreed one on everything after.
     assert.ok(
-      requests.every(
-        (request) =>
-          request.headers.get("mcp-protocol-version") === "2026-07-28",
+      requests.every((request) =>
+        request.method === MCP_DISCOVERY_METHOD
+          ? request.headers.get("mcp-protocol-version") === null
+          : request.headers.get("mcp-protocol-version") === "2026-07-28",
       ),
     );
   });
@@ -876,7 +879,11 @@ describe("a configured header cannot replace a protocol header (M19)", () => {
     for (const headers of seen) {
       assert.equal(headers.Accept, "application/json, text/event-stream");
       assert.equal(headers["Content-Type"], "application/json");
-      assert.equal(headers["MCP-Protocol-Version"], "2026-07-28");
+      // Present only once initialize has agreed one, and never the configured value.
+      assert.ok(
+        headers["MCP-Protocol-Version"] === undefined ||
+          headers["MCP-Protocol-Version"] === "2026-07-28",
+      );
       // No lowercase twin survives to be folded in beside the real one.
       assert.equal(headers.accept, undefined);
       assert.equal(headers["mcp-protocol-version"], undefined);
@@ -995,5 +1002,91 @@ describe("the Pi MCP client's own SSRF posture (CR9)", () => {
       },
     ]);
     assert.equal(servers.length, 1);
+  });
+});
+
+describe("the protocol version is negotiated, not asserted", () => {
+  /** Every request the client made, in order, as (method, header) pairs. */
+  function recordingFetch(
+    seen: Array<{ method?: string; version?: string }>,
+    serverVersion = "2025-11-25",
+  ) {
+    return (async (_url: string | URL | Request, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body));
+      const headers = init?.headers as Record<string, string>;
+      const version = Object.entries(headers ?? {}).find(
+        ([name]) => name.toLowerCase() === "mcp-protocol-version",
+      )?.[1];
+      seen.push({ method: payload.method, ...(version ? { version } : {}) });
+      if (payload.id === undefined) return new Response("", { status: 202 });
+      const result =
+        payload.method === "tools/list"
+          ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
+          : payload.method === "tools/call"
+            ? { content: [{ type: "text", text: "ok" }] }
+            : { protocolVersion: serverVersion, capabilities: { tools: {} } };
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as unknown as typeof fetch;
+  }
+
+  it("sends no MCP-Protocol-Version on initialize, then the version the server chose", async () => {
+    // A server that enforces the transport rule answers `initialize` with 400 when the header is
+    // present, because the client cannot know the version before the server names it. Real
+    // upstreams do enforce it; the mock adapter does not, which is why only a live server caught
+    // this.
+    const seen: Array<{ method?: string; version?: string }> = [];
+    globalThis.fetch = recordingFetch(seen);
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+    await pi.tools[0].execute("call-1", { marker: "X" });
+
+    const initialize = seen.find((entry) => entry.method === MCP_DISCOVERY_METHOD);
+    assert.ok(initialize, "the client opened with initialize");
+    assert.equal(
+      initialize.version,
+      undefined,
+      "initialize must carry no negotiated version",
+    );
+
+    const afterInitialize = seen.slice(seen.indexOf(initialize) + 1);
+    assert.ok(afterInitialize.length > 0, "there are later requests to check");
+    for (const entry of afterInitialize) {
+      assert.equal(
+        entry.version,
+        "2025-11-25",
+        `${entry.method} must carry the version the server chose`,
+      );
+    }
+  });
+
+  it("falls back to the client's own version when the server names none", async () => {
+    const seen: Array<{ method?: string; version?: string }> = [];
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body));
+      const headers = init?.headers as Record<string, string>;
+      const version = Object.entries(headers ?? {}).find(
+        ([name]) => name.toLowerCase() === "mcp-protocol-version",
+      )?.[1];
+      seen.push({ method: payload.method, ...(version ? { version } : {}) });
+      if (payload.id === undefined) return new Response("", { status: 202 });
+      const result =
+        payload.method === "tools/list"
+          ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
+          : { capabilities: { tools: {} } };
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+
+    const toolsList = seen.find((entry) => entry.method === "tools/list");
+    assert.equal(toolsList?.version, MCP_PROTOCOL_VERSION);
   });
 });

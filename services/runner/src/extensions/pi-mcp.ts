@@ -237,6 +237,9 @@ class PiHttpMcpClient {
   private nextId = 1;
   private sessionId: string | undefined;
 
+  /** The version `initialize` agreed on. Unset until then, and that is what gates the header. */
+  private negotiatedVersion: string | undefined;
+
   constructor(private readonly server: PiGatewayMcpServer) {}
 
   /**
@@ -249,6 +252,13 @@ class PiHttpMcpClient {
     message: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<Response> {
+    // The protocol version is NEGOTIATED, so it cannot be asserted before `initialize` answers.
+    // The transport spec says the client sends `MCP-Protocol-Version` on requests AFTER
+    // initialization, carrying the version the server returned; on `initialize` itself there is
+    // nothing to send, because the client does not yet know what the server speaks. Servers that
+    // enforce this refuse an `initialize` carrying the header with a 400 whose message reads as a
+    // client/server version disagreement, which is how a real upstream failed while every mock
+    // (which does not check) passed.
     // M19. The user's headers go on FIRST and the protocol's own go on top, so a configured
     // header cannot replace `Accept`, `Content-Type` or `MCP-Protocol-Version`. Spread the other
     // way round, a server config that set any of the three broke `initialize` in a way that reads
@@ -263,7 +273,9 @@ class PiHttpMcpClient {
     }
     headers.Accept = "application/json, text/event-stream";
     headers["Content-Type"] = "application/json";
-    headers["MCP-Protocol-Version"] = MCP_PROTOCOL_VERSION;
+    if (this.negotiatedVersion) {
+      headers["MCP-Protocol-Version"] = this.negotiatedVersion;
+    }
     if (this.sessionId) headers["Mcp-Session-Id"] = this.sessionId;
     const controller = new AbortController();
     const abort = (): void => controller.abort();
@@ -327,11 +339,17 @@ class PiHttpMcpClient {
   }
 
   async discover(): Promise<PiMcpTool[]> {
-    await this.request(MCP_DISCOVERY_METHOD, {
+    const initialized = await this.request(MCP_DISCOVERY_METHOD, {
       protocolVersion: MCP_PROTOCOL_VERSION,
       capabilities: {},
       clientInfo: { name: "agenta-pi-extension", version: "1" },
     });
+    // Echo back what the server chose, not what we asked for: a server is free to answer an
+    // older version it supports, and every later request must name the one actually in force.
+    this.negotiatedVersion =
+      isRecord(initialized) && typeof initialized.protocolVersion === "string"
+        ? initialized.protocolVersion
+        : MCP_PROTOCOL_VERSION;
     await this.notify("notifications/initialized");
     const result = await this.request("tools/list");
     if (!isRecord(result) || !Array.isArray(result.tools)) {
