@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **1** | **7** | **7** | **28 closed, 4 part fixed, 15 open** |
+| **As this file is written** | **0** | **0** | **4** | **6** | **32 closed, 5 part fixed, 10 open. No P1 remains** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -107,7 +107,7 @@ whether that fix was read against the finding and its test.
 | D47 | verification | P3 | `api/oss/src/core/gateways/egress.py:113`, [qa.md](../qa.md) | Fix the collision or document it | `b92db4946a` | **yes**, 1061 passed with the preconditions exported |
 | D48 | verification | P2 | `mcpConnectJourney.tools.test.tsx:79`, `mcpConnectJourney.reconnect.test.tsx:66` | Fix: cover the wiring, not only the hook | `bc96498688` | **yes**, code and suites run |
 | D49 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:77`, `:122` | Fix landed; the flake it names is gone on two identical runs | `3fe16196a3` | **partly**, six of seven twice; see D53 |
-| D53 | verification | P2 | the deployment's mock gateway configuration | The OAuth case cannot run on this stack | | mechanism, both mock addresses probed |
+| D53 | verification | P2 | the deployment's mock gateway configuration | Fix: the spec dials the mock at its published address | `d50739d927` | **partly**, the playground ran for the first time |
 | D54 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:273`, `engines/sandbox_agent/mcp-handshake.ts:142` | Fix, blocking | `d1055842db` | **yes**, code, tests, incl. pre-fix run |
 | QA-D6 | sanity QA | P2 | `web/packages/agenta-chat/src/model/error.ts` | Fix | `f84a90747b` | **yes**, code and its suite |
 | D55 | verification | P2 | `sdks/python/agenta/sdk/middlewares/running/normalizer.py:240-250` | **Fixed here, pre-existing on main.** Also OR89 | `abeb966b88` | **yes**, code, tests, incl. pre-fix run |
@@ -115,9 +115,9 @@ whether that fix was read against the finding and its test.
 | D57 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:326` at HEAD | Fix, **superseded** by OR91's | `a96b45c400`, `005207efe7` | **yes**, both, each by mutation |
 | D58 | structural | P2 | `api/oss/src/core/gateways/mcps/providers/mock/` | **Closed.** The mock now enforces what a real server enforces | `14ef19e60b` | **yes**, code read, 1104 unit cases pass |
 | D59 | r3-D2 residual | P3 | `web/packages/agenta-entities/src/session/core/schema.ts` | **Deferred**, with a stated closure | n/a | mechanism, schema read |
-| D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix: QA-D3's better wording cannot fire in production | | mechanism, both sites read |
-| D51 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:293` | Fix the assertion | | mechanism, both message strings compared |
-| D52 | verification | P3 | `hooks/useMcpConnectJourney.ts:179`, `McpConnectJourney.tsx:96` | Record the invariant or apply the check | | mechanism, seven await sites counted |
+| D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix | `4ee17eab78` | **yes**, both mechanisms, code and cases |
+| D51 | verification | P2 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:293` | Fix the assertion | `1dfece1e66` | **yes**, code; the suite could not run |
+| D52 | verification | P3 | `hooks/useMcpConnectJourney.ts:179`, `McpConnectJourney.tsx:96` | Fix: the check is applied, not the invariant recorded | `1dfece1e66` | **yes**, code and 33 cases |
 | Q1 | both | P2 | `McpConnectJourney.tsx:98-106`, `hooks/useMcpConnectJourney.ts:189` | Quality, altitude. The root of D22, D23, D29, D30, D31 and D34 | | mechanism, code |
 | Q2 | both | P2 | `McpConnectionDetail.tsx:66-83`, `McpToolPermissions.tsx:77-93` | Quality, reuse and efficiency | | mechanism, code |
 | Q3 | reviewer 2 | P3 | `McpConnectionDetail.tsx:74`, `McpToolPermissions.tsx:85` | Quality, reuse. **Closed by D32's fix** | `8079441042` | **yes**, code |
@@ -1068,6 +1068,46 @@ already are. Deferred rather than fixed here because it is a schema change on bo
 surface that is correct while the turn is on screen, which is when a person acts on it. Not a
 release blocker, and recorded so that "the notice is missing after a reload" is a known gap rather
 than a new bug report.
+
+## The last six web fixes
+
+**D50 is closed by `4ee17eab78`, and it closes both mechanisms rather than the visible one.** The
+refusal reader now reads the JSON-RPC envelope's cause as well as the older `detail` shape, and the
+tool-list client carries the parsed cause onto the typed error it throws, so the editor's own
+unchanged call finally answers. Carrying the code rather than re-parsing the sentence is the right
+choice, and the comment says why: a caller deciding what to offer needs the cause, not the prose. Two
+cases assert it end to end, driving the client against a refusing gateway and checking both the
+error's own code and the reader's answer, including an envelope that names its cause without a
+marker. I read those rather than ran a mutation: a copied package cannot resolve its workspace
+links, so the mutation I wanted was not available, and the cases would each fail with the cause
+dropped.
+
+**D51 and D52 are closed by `1dfece1e66`.** The duplicate-name case now asserts the sentence only the
+server sends, with the reason written into the test: both refusals open the same way, so matching the
+opening proved only that something refused, and the case passed whether or not the request was made.
+It also keeps D39's point, asserting the refusal appears once rather than twice. D52 took the
+larger option, applying the attempt check at every await rather than recording the unmount as a
+load-bearing invariant, which is the answer that survives someone later changing how the host mounts
+the dialog. Thirty-three cases pass.
+
+**r3-D1 (`c82e131791`) returns a blocked-popup authorization to the scoped page it started on**,
+which is the half my own D27 verification got wrong: the query survived the redirect and the tab
+parameter was read, but the resolver dropped it, so the return landed on Preferences. Seven cases
+cover the path building.
+
+**The CodeQL regular-expression fix (`d4a6eab93a`) reads the marker in one pass.** Its own case,
+"reads a hostile message in a moment, not in an afternoon", is the one that matters, and the two
+beside it pin the edges — a marker mid-sentence leaves one space, and a marker carrying no code
+leaves the sentence alone rather than eating it.
+
+**The tool filter (`a3ac5f33b0`) is a feature rather than a fix**, and the only thing worth checking
+was that filtering the view cannot change the policy. It does not: the filter narrows what is
+listed, and the stale-entry section and the write path are untouched.
+
+**D53 is part closed.** The spec now dials the mock at its published address, and the playground
+suite ran for the first time on this stack: two of three cases passed. The third is discussed below.
+The connect suite still could not start, on the tunnel's sign-up request rather than anything in the
+suite.
 
 ## Quality findings
 
