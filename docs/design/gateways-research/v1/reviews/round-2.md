@@ -110,7 +110,7 @@ whether that fix was read against the finding and its test.
 | D53 | verification | P2 | the deployment's mock gateway configuration | The OAuth case cannot run on this stack | | mechanism, both mock addresses probed |
 | D54 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:273`, `engines/sandbox_agent/mcp-handshake.ts:142` | Fix, blocking | `d1055842db` | **yes**, code, tests, incl. pre-fix run |
 | QA-D6 | sanity QA | P2 | `web/packages/agenta-chat/src/model/error.ts` | Fix | `f84a90747b` | **yes**, code and its suite |
-| D55 | verification | P2 | `sdks/python/agenta/sdk/middlewares/running/normalizer.py:240-250` | **Pre-existing.** Record and route; not this release's to fix | | mechanism, code read |
+| D55 | verification | P2 | `sdks/python/agenta/sdk/middlewares/running/normalizer.py:240-250` | **Fixed here, pre-existing on main** | pending | mechanism, code read |
 | D56 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:204` at HEAD | Fix, blocking a real upstream | pending | mechanism, code read |
 | D57 | real-provider QA | P1 | `services/runner/src/extensions/pi-mcp.ts:326` at HEAD | Fix, blocking after a downgrade | pending | mechanism, code read |
 | D50 | verification | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/refusal.ts:29`, `api/api.ts:150` | Fix: QA-D3's better wording cannot fire in production | | mechanism, both sites read |
@@ -945,11 +945,13 @@ path still has them. QA-D6's fix means no Agenta surface displays it, which is t
 behaviour and is not a mitigation: the bytes still reach any browser, extension or proxy on the
 request.
 
-**Not this release's to fix, and recorded so it is not lost.** The file is untouched by this pull
-request and was last changed a week before this work began, so it is pre-existing rather than a
-regression here. It is worth a separate issue at the same severity the CodeQL finding carried, and
-the fix is the same shape: a typed error with an authored sentence, the traceback logged rather than
-returned.
+**Pre-existing on main, and being fixed here anyway.** The file is untouched by this pull request
+and was last changed a week before this work began, so it is not a regression from this work. It is
+being closed in this pull request regardless, which is the right call while the same class is fresh
+and the shape of the fix is already established one directory over: a typed error with an authored
+sentence, and the traceback logged rather than returned. The record will carry its revision when it
+lands, marked as fixed here rather than introduced here, so a later reader does not read this
+release as the cause.
 
 **D56. The Pi client strips event-stream framing only when the body opens with a data line.** At
 `pi-mcp.ts:204` the whole text is tested with `startsWith("data:")`, and only then are the data lines
