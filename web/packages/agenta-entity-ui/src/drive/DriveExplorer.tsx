@@ -3,14 +3,16 @@
  * (folder grid / list, the editors, or a preview). Its own module so hosts `next/dynamic`-import
  * it. A composition root: every concern lives in a sibling hook.
  */
-import {type ReactNode, useCallback, useMemo, useRef, useState} from "react"
+import {type KeyboardEvent, type ReactNode, useCallback, useMemo, useRef, useState} from "react"
 
 import {looksLikeFilePath} from "@agenta/entities/drive"
 import {type DriveId, type DriveScope} from "@agenta/entities/drive"
 import {type DroppedFile} from "@agenta/entities/drive"
 import {
     type DriveFileKind,
+    driveNavAction,
     filterDriveTree,
+    isEditableTarget,
     isMarkdownPath,
     joinPath,
     parentOf,
@@ -415,6 +417,24 @@ export function DriveExplorer({
         focusTreeRow,
     })
 
+    // The pane-wide chords: history, up a level, and Esc off an open file (see driveNavKeys).
+    const onNavKeyDown = useCallback(
+        (e: KeyboardEvent<HTMLDivElement>) => {
+            if (e.defaultPrevented) return
+            const action = driveNavAction({...e, editable: isEditableTarget(e.target)})
+            if (!action) return
+            if (action === "back" && !canGoBack) return
+            if (action === "forward" && !canGoForward) return
+            if ((action === "up" || action === "close") && !selectedPath) return
+            if (action === "close" && selectedIsFolder) return
+            e.preventDefault()
+            if (action === "back") goBack()
+            else if (action === "forward") goForward()
+            else select(parentOf(selectedPath ?? ""))
+        },
+        [canGoBack, canGoForward, selectedPath, selectedIsFolder, goBack, goForward, select],
+    )
+
     // Row 2's read-side actions: copy path (none at the root), download (file, folder zip, or all).
     const onCopyCurrentPath = selectedPath ? () => copyText(selectedPath, "Path copied") : undefined
     const onDownloadCurrent =
@@ -721,7 +741,9 @@ export function DriveExplorer({
                             e.target.value = ""
                         }}
                     />
-                    <div className="flex min-h-0 flex-1 flex-col">{body}</div>
+                    <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onNavKeyDown}>
+                        {body}
+                    </div>
                     <DriveNameDialog
                         request={nameRequest}
                         busy={writes.busy}

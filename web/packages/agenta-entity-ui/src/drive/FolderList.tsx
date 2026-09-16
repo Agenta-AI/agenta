@@ -1,5 +1,5 @@
 /** The Files pane's list view: the shared {@link ListTable} over a folder's children. */
-import {useCallback, useMemo} from "react"
+import {type KeyboardEvent, useCallback, useMemo} from "react"
 
 import {
     type DriveTreeNode,
@@ -88,6 +88,22 @@ export const FolderList = ({
         },
         [onDownload, selectedPath],
     )
+    // ↑ / ↓ / Home / End move focus between the rows; Enter / Space open (the row's own handler).
+    const onKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
+        if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return
+        const rows = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="button"]')]
+        if (!rows.length) return
+        e.preventDefault()
+        const cur = rows.indexOf(document.activeElement as HTMLElement)
+        const next =
+            e.key === "Home"
+                ? 0
+                : e.key === "End"
+                  ? rows.length - 1
+                  : Math.min(Math.max(cur + (e.key === "ArrowDown" ? 1 : -1), 0), rows.length - 1)
+        rows[next]?.focus()
+        rows[next]?.scrollIntoView({block: "nearest"})
+    }, [])
     const wrapRow = useCallback(
         (n: DriveTreeNode, row: React.ReactNode) => (
             <DriveItemContextMenu
@@ -107,7 +123,7 @@ export const FolderList = ({
     return (
         // The top inset sits outside the scroller so rows don't scroll through it.
         <div className="flex min-h-0 flex-1 flex-col pt-2">
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6" onKeyDown={onKeyDown}>
                 <ListTable
                     columns={COLUMNS}
                     groups={groups}

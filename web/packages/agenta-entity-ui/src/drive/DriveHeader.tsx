@@ -3,7 +3,7 @@
  * the tree toggle · an optional close. Actions on the path live in row 2 ({@link DriveToolbar}).
  */
 import {type DriveId} from "@agenta/entities/drive"
-import {shortcutAria} from "@agenta/shared/utils"
+import {getShortcut, shortcutAria, shortcutText} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
     Button,
@@ -133,7 +133,8 @@ export const DriveHeader = ({
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Back"
-                title="Back"
+                title={`Back (${shortcutText(getShortcut("drive.back")!)})`}
+                aria-keyshortcuts={shortcutAria("drive.back")}
                 disabled={!canGoBack}
                 onClick={onBack}
                 className={ROW_ICON_BTN}
@@ -144,7 +145,8 @@ export const DriveHeader = ({
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Forward"
-                title="Forward"
+                title={`Forward (${shortcutText(getShortcut("drive.forward")!)})`}
+                aria-keyshortcuts={shortcutAria("drive.forward")}
                 disabled={!canGoForward}
                 onClick={onForward}
                 className={ROW_ICON_BTN}
