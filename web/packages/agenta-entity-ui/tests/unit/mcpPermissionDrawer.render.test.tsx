@@ -360,6 +360,29 @@ describe("D3 — one tool overridden", () => {
         expect(labelled("Default permission")?.textContent).toContain("Custom · 1 override")
     })
 
+    it("takes the preset the person picked rather than snapping back to Allow all", async () => {
+        // What decision 38 leaves after one override on an Allow all server: the floor sits beside
+        // the server permission. Picking the preset whose saved value is the absence used to clear
+        // the floor alone and return, handing the governing slot back to `allow`, so the select
+        // read "Allow all" and every tool still ran unapproved after a pick that asked for the
+        // opposite. mcpPolicyAdapter.test.ts walks the same three steps at the adapter.
+        const afterOverride: McpServerPolicy = {
+            permission: "allow",
+            tool_permissions: {delete_issue: "deny"},
+            new_tool_permission: "allow",
+        }
+        const onChange = await render({policy: afterOverride})
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+
+        expect(onChange).toHaveBeenCalledWith({})
+
+        await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
+
+        expect(labelled("Default permission")?.textContent).toContain("Ask for write and delete")
+        expect(labelled("Default permission")?.textContent).not.toContain("Allow all")
+    })
+
     it("turns the affected group's summary to mixed and the untouched one to the floor", async () => {
         await render({policy: custom})
 

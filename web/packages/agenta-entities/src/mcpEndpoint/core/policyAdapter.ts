@@ -115,8 +115,14 @@ export function fromGatewayPermissions(
     if (permissions.default === toGatewayPermissions(next).default) return next
 
     if (isPerTool(next)) {
-        if (permissions.default === "inherit") delete next.new_tool_permission
-        else next.new_tool_permission = permissions.default
+        if (permissions.default === "inherit") {
+            delete next.new_tool_permission
+            // Clearing the floor can hand the server permission back the governing slot, which
+            // happens whenever the table went with it. Leaving it behind turned a pick of "ask
+            // for write and delete" into the "allow" it was meant to replace, and the select
+            // read back "Allow all" while the person had asked for the opposite.
+            if (!isPerTool(next)) delete next.permission
+        } else next.new_tool_permission = permissions.default
         return next
     }
 

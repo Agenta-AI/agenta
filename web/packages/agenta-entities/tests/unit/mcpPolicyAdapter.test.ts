@@ -84,6 +84,30 @@ describe("fromGatewayPermissions", () => {
         expect("permission" in next).toBe(false)
     })
 
+    it("clears the server permission when clearing the floor hands it back the governing slot", () => {
+        // The sequence a person walks: pick Allow all, override one tool, then pick the preset
+        // that saves inherit. Step two writes the floor beside the server permission, which is
+        // decision 38 and is pinned below. Step three used to clear the floor and return before
+        // the line that clears the permission, so `allow` governed again, the select read back
+        // "Allow all", and every tool still ran unapproved after a pick that asked for the
+        // opposite.
+        const allowAll = fromGatewayPermissions({default: "allow", tools: {}}, {})
+        const withOverride = fromGatewayPermissions(
+            {default: "allow", tools: {search_issues: "deny"}},
+            allowAll,
+        )
+        expect(withOverride).toEqual({
+            permission: "allow",
+            tool_permissions: {search_issues: "deny"},
+            new_tool_permission: "allow",
+        })
+
+        const askWrites = fromGatewayPermissions({default: "inherit", tools: {}}, withOverride)
+
+        expect(askWrites).toEqual({})
+        expect(toGatewayPermissions(askWrites).default).toBe("inherit")
+    })
+
     it("clears a tool's entry rather than writing inherit on it", () => {
         const next = fromGatewayPermissions(
             {default: "ask", tools: {create_issue: "inherit", list_teams: "deny"}},
