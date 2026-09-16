@@ -1,54 +1,80 @@
 import * as React from "react"
 
-import {CircleCheck, Info, LoaderCircle, OctagonX, TriangleAlert} from "lucide-react"
+import {CircleCheck, Info, LoaderCircle, OctagonX, TriangleAlert, X} from "lucide-react"
 import {Toaster as Sonner, type ToasterProps} from "sonner"
 
+import {buttonVariants} from "./button"
+import {cn} from "./utils"
+
 /**
- * Toaster — shadcn's Sonner toaster, themed through the token bridge; `message.*` drives it.
- * The theme is read off the `.dark` class on <html> instead of next-themes.
+ * Toaster — Sonner drawn as shadcn's toast (bottom-right stack, expand on hover, swipe to
+ * dismiss); `message.*` drives it. Sonner's own skin is off; the classes below are the look.
  */
 
-const readTheme = (): "light" | "dark" =>
-    typeof document !== "undefined" && document.documentElement.classList.contains("dark")
-        ? "dark"
-        : "light"
-
-const useDocumentTheme = () => {
-    const [theme, setTheme] = React.useState<"light" | "dark">("light")
-    React.useEffect(() => {
-        setTheme(readTheme())
-        const observer = new MutationObserver(() => setTheme(readTheme()))
-        observer.observe(document.documentElement, {attributes: true, attributeFilter: ["class"]})
-        return () => observer.disconnect()
-    }, [])
-    return theme
+// Sonner's stylesheet is injected at runtime, so ties on specificity go to it: the state
+// selectors below carry `[data-sonner-toast]` to win.
+const toastClassNames: NonNullable<NonNullable<ToasterProps["toastOptions"]>["classNames"]> = {
+    toast: cn(
+        "group/toast box-border flex w-full items-center gap-3 rounded-2xl border border-solid border-border bg-popover p-4 text-sm text-popover-foreground shadow-lg outline-none select-none",
+        "[&[data-sonner-toast]:focus-visible]:border-ring [&[data-sonner-toast]:focus-visible]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
+        // Enter from below on shadcn's ease-out; leave quickly (Sonner unmounts 200ms in).
+        "[&[data-y-position=bottom]:not([data-mounted=true])]:[--y:translateY(150%)]",
+        "[&[data-sonner-toast]:not([data-swiping=true])]:[transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms]",
+        "[&[data-sonner-toast][data-removed=true][data-swiping=false]]:[transition:transform_200ms_ease-in,opacity_200ms]",
+        // Toasts behind the front one show only their edge.
+        "[&[data-sonner-toast]>*]:[transition:opacity_250ms_cubic-bezier(0.22,1,0.36,1)]",
+        "[&[data-expanded=false][data-front=false]>*]:opacity-0",
+    ),
+    // `relative size-4`: Sonner centers the loading icon absolutely inside this box.
+    icon: "relative flex size-4 shrink-0 items-center justify-center [&_svg]:pointer-events-none [&_svg]:size-4",
+    // `min-h-7` keeps a close-less (loading) toast as tall as the others.
+    content: "flex min-h-7 min-w-0 flex-1 flex-col justify-center gap-1",
+    title: "text-sm font-medium",
+    description: "text-sm text-muted-foreground",
+    actionButton: cn(buttonVariants({variant: "outline", size: "sm"}), "shrink-0"),
+    cancelButton: cn(buttonVariants({variant: "outline", size: "sm"}), "shrink-0"),
+    // Sonner renders the close button first; `order-last` seats it after the actions.
+    closeButton: cn(
+        buttonVariants({variant: "ghost", size: "icon-sm"}),
+        "relative order-last shrink-0 text-muted-foreground after:absolute after:-inset-2 after:content-[''] hover:text-foreground",
+    ),
 }
 
-function Toaster({style, ...props}: ToasterProps) {
-    const theme = useDocumentTheme()
+function Toaster({style, toastOptions, ...props}: ToasterProps) {
     return (
         <Sonner
-            theme={theme}
-            position="top-center"
+            // Colors come from the tokens, so Sonner's dark skin (and its description color) stays off.
+            theme="light"
+            position="bottom-right"
+            offset={16}
+            mobileOffset={16}
+            gap={8}
+            visibleToasts={3}
+            closeButton
             className="toaster group"
-            // Status-coloured icons: most toasts are one line, so the colour carries the type.
             icons={{
-                success: <CircleCheck className="size-4 text-colorSuccess" />,
-                info: <Info className="size-4 text-info" />,
-                warning: <TriangleAlert className="size-4 text-colorWarning" />,
-                error: <OctagonX className="size-4 text-colorError" />,
-                loading: <LoaderCircle className="size-4 animate-spin text-info" />,
+                success: <CircleCheck />,
+                info: <Info />,
+                warning: <TriangleAlert />,
+                error: <OctagonX className="text-error" />,
+                loading: <LoaderCircle className="animate-spin" />,
+                close: <X />,
+            }}
+            toastOptions={{
+                unstyled: true,
+                ...toastOptions,
+                classNames: {...toastClassNames, ...toastOptions?.classNames},
+                // Sonner's stack rule reads this token raw: it becomes `1 - index * 0.1`, shadcn's scale.
+                style: {
+                    "--scale": "var(--toasts-before) * 0.1 + 1",
+                    ...toastOptions?.style,
+                } as React.CSSProperties,
             }}
             style={
                 {
-                    // Sonner's `--normal-*` hooks on the shared palette layer; the font is stated
-                    // because the stack mounts outside the app's font wrapper.
-                    "--normal-bg": "var(--ag-colorBgElevated)",
-                    "--normal-text": "var(--ag-colorText)",
-                    // The secondary border matches shadcn's neutral-200; the primary reads too heavy.
-                    "--normal-border": "var(--ag-colorBorderSecondary)",
-                    // shadcn's `var(--radius)`: 10px on both apps.
-                    "--border-radius": "10px",
+                    // shadcn's `max-w-sm` viewport; the font is stated because the stack mounts
+                    // outside the app's font wrapper.
+                    "--width": "24rem",
                     fontFamily:
                         "var(--font-inter, var(--font-sans, var(--ant-font-family, system-ui, sans-serif)))",
                     ...style,

@@ -160,6 +160,7 @@ function openMessage(args: ArgsProps): MessageType {
         // antd counts seconds and `0` means sticky; Sonner counts ms and `Infinity` is sticky.
         duration: duration > 0 ? duration * 1000 : Infinity,
         icon: args.icon ?? undefined,
+        action: args.action,
         className: args.className,
         style: args.style,
         onDismiss: () => settleToast(key, handle, true),
