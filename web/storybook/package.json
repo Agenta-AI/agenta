@@ -5,7 +5,7 @@
     "description": "Storybook workbench for the antd → @agenta/ui migration. Renders real @agenta/* components behind the real app providers so antd and @agenta/ui versions can be compared side by side.",
     "scripts": {
         "storybook": "storybook dev -p 6006",
-        "build-storybook": "storybook build -o storybook-static",
+        "build-storybook": "NODE_OPTIONS=--max-old-space-size=8192 storybook build -o storybook-static",
         "lint": "eslint --config ../eslint.config.mjs stories/ .storybook/ parity/ --max-warnings 0",
         "vrt": "node parity/vrt.mjs",
         "a11y": "node parity/a11y.mjs"
