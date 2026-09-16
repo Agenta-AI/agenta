@@ -27,11 +27,15 @@ Start from `Settings` in the sidebar, then `MCPs`, and click `Connect MCP`. You 
 
    **The server uses OAuth.** The dialog reads "This server uses OAuth. Continuing opens its authorization page." `Continue` lists the permissions the server offers, one checkbox each, under "Choose which permissions to grant". Clear any you do not want to grant, then click `Authorize`. The provider's consent page opens in a new window. Complete it there, and the dialog carries on by itself.
 
+   If your browser blocks the new window, consent opens in the tab you were already on. That is common on phones and inside apps that embed a browser. Agenta shows "Taking you back to Agenta..." when consent finishes and returns you to the connections list, whether you granted access or refused it. You lose whatever you had open in the app, so reopen the agent you were configuring afterwards.
+
    **The server needs no authentication.** The dialog reads "This server needs no authentication." Click `Continue`.
 
-   **Agenta could not tell.** The dialog repeats what the server said and offers a credential step. Enter the `Header name` the server expects, such as `x-api-key`, then pick the `Project secret` that holds the key. If the project has no secrets yet, click `Create secret` in that list to make one without leaving the dialog. Click `Save credential`. If the server in fact needs nothing, click `Connect without authentication` instead.
+   **Agenta could not tell.** The dialog repeats what the server said and offers a credential step. Enter the `Header name` the server expects, such as `x-api-key`, then pick the `Project secret` that holds the key. If the project has no secrets yet, click `Create secret` in that list to make one without leaving the dialog. Click `Save credential`. Agenta then calls the server once with that credential, so a wrong header name or a wrong key fails here rather than during an agent run. If the server in fact needs nothing, click `Connect without authentication` instead.
 
 4. The dialog reads `Connected` and reports how many tools it found. Click `Done`.
+
+Any step that fails offers `Try again`, which repeats that step rather than starting over. The one point you cannot leave is the moment after consent while Agenta saves the connection: the dialog closes neither on `Escape`, nor on a click outside it, nor on its close button, because the provider has already issued the credential and abandoning it there would strand the grant. It moves on by itself.
 
 {/* TODO(mcp-release): screenshot or short recording of the Connect MCP dialog, from the URL step through Connected. */}
 
@@ -80,18 +84,23 @@ Open `Settings > MCPs` and click the row.
 
 - **Rename.** Edit `Name` and click `Save name`. Agents keep using the connection under its existing reference, so a rename changes nothing about what they run.
 - **Tools.** The drawer lists the tools the server exposes. The list is read-only. What an agent may call is set in that agent's configuration.
-- **Disconnect.** Drops the stored authorization and keeps the connection, its name, and its URL. Agents using it stop working until it is connected again, and one `Connect` restores it.
+- **Disconnect.** Offered on a connected OAuth server only, because it is the stored grant that it drops. The connection, its name, and its URL stay. Agents using it stop working until it is connected again, and one `Connect` restores it. A server that needs no authentication, or one that authenticates with a header key, has nothing to drop and offers `Remove` alone.
 - **Remove.** Deletes the connection. Agents configured to use it stop working, and connecting the same server again later creates a new connection that those agents do not reference.
+- **Reconnect.** Repairs whichever way the connection authenticates. On an OAuth connection it re-reads the permissions the server offers and takes you back through consent. On a key-authenticated one it reopens the credential step so you can supply the header and secret again.
 
 ## Troubleshooting
 
 **The status reads `Needs authorization`.** The consent flow was abandoned, or the grant was revoked or has expired. Open the row and click `Connect` to authorize it again. The connection keeps its name and every agent reference.
 
+**The status reads `Needs input`.** A key-authenticated connection has no usable credential. Click `Connect` on the row, which reopens the credential step rather than sending you to a consent page.
+
 **`Another connection in this project already uses this name.`** Names are compared after every character outside letters, digits, and underscores is replaced with an underscore, so `Acme Tools` and `Acme-Tools` count as the same name. Pick a name that differs by more than punctuation.
 
-**Connected, but the tool list failed.** The credentials were saved. Click `Retry tools`. There is no need to authorize again.
+**Connected, but the tool list failed.** Agenta shows the server's own wording for the refusal. The credentials were saved, so click `Retry tools` and do not authorize again.
 
-**`This server exposes no tools yet.`** The server answered with an empty tool list. That is not a connection failure.
+**`This server exposes no tools yet.`** The server answered with an empty tool list, and that is a real answer rather than a failed conversation. A server Agenta cannot read reports its own error instead, as above.
+
+**The credential step says verification failed.** The server refused the credential Agenta sent it. Check the `Header name` against the server's documentation, and check that the project secret holds the right key. Click `Try again` to send it again once you have corrected either one.
 
 ## Next
 
