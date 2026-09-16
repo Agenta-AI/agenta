@@ -6,6 +6,7 @@
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {FileText, GraphIcon, Plugs, Robot} from "@phosphor-icons/react"
 
+import {SKILL_NAME_PATTERN} from "../skillName"
 import {parseGatewayEntry, type ToolObj} from "../toolUtils"
 
 /** How a config-item row presents itself: avatar, name + description, and type tags. */
@@ -282,6 +283,25 @@ export function staticEmbedName(skill: Record<string, unknown>): string | undefi
     const refs = asObj(asObj(skill["@ag.embed"])?.["@ag.references"])
     const wfName = asObj(refs?.workflow)?.name ?? asObj(refs?.workflow_revision)?.name
     return typeof wfName === "string" && wfName ? wfName : undefined
+}
+
+/**
+ * The name a skill is invoked by: the SKILL.md `name` the runner materializes it under, NOT the
+ * registry slug. A registry skill's slug carries a random suffix (`review-pr-3f2a`) that only
+ * keeps the workflow unique; its embed's sibling `name` is the skill's own name.
+ *
+ * An embed with no usable name falls back to its slug only when that slug is itself shaped like a
+ * skill name. Agenta's built-in slugs (`__ag__…`, the older `_agenta.…`) never are, and the only
+ * built-in entries saved without a name point at the retired getting-started stub, so those get
+ * no command at all rather than a slug nobody should type.
+ */
+export function skillCommandName(skill: unknown): string | undefined {
+    const s = asObj(skill)
+    if (!s) return undefined
+    const name = isEmbedRefSkill(s) ? staticEmbedName(s) : s.name
+    if (typeof name === "string" && SKILL_NAME_PATTERN.test(name)) return name
+    const slug = isEmbedRefSkill(s) ? staticEmbedSlug(s) : undefined
+    return slug && SKILL_NAME_PATTERN.test(slug) ? slug : undefined
 }
 
 /** A pinned revision's version, when the embed references a `workflow_revision`. */
