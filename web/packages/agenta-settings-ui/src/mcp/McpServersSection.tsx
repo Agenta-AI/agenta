@@ -22,7 +22,11 @@ import {
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
-import {McpConnectJourney, McpConnectionDetail} from "@agenta/entity-ui/mcpEndpoint"
+import {
+    McpConnectJourney,
+    McpConnectionDetail,
+    McpPermissionDrawer,
+} from "@agenta/entity-ui/mcpEndpoint"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {Button, DataTable, EmptyState, IconTile, type DataTableColumn} from "@agenta/ui/ui"
@@ -97,6 +101,8 @@ export default function McpServersSection({
      * disconnect again (QA-D2). The row is looked up fresh on every render instead.
      */
     const [viewingKey, setViewingKey] = useState<string | null>(null)
+    /** "View tools", tracked by key for the same reason as the connection above. */
+    const [toolsKey, setToolsKey] = useState<string | null>(null)
 
     const rows = useMemo(() => endpoints ?? [], [endpoints])
     const names = useMemo(() => rows.map((row) => row.name), [rows])
@@ -108,6 +114,10 @@ export default function McpServersSection({
     const setViewing = useCallback(
         (record: MCPEndpoint | null) => setViewingKey(record ? rowKey(record) : null),
         [rowKey],
+    )
+    const viewingTools = useMemo(
+        () => rows.find((row) => rowKey(row) === toolsKey) ?? null,
+        [rowKey, rows, toolsKey],
     )
 
     /**
@@ -326,7 +336,7 @@ export default function McpServersSection({
                                   {
                                       key: "view-tools",
                                       label: "View tools",
-                                      onClick: () => setViewing(record),
+                                      onClick: () => setToolsKey(rowKey(record)),
                                   },
                                   {
                                       key: "rename",
@@ -366,6 +376,25 @@ export default function McpServersSection({
                         : null
                 }
                 onConnected={() => void refresh()}
+            />
+
+            {/*
+                "View tools" is the agent's permission drawer with nothing to set: the header,
+                the groups and the rows, no selects and no footer (decision 23). A Settings row
+                belongs to no agent, so there is no policy to read or write here — the empty
+                policy and the ignored `onChange` say that, and `readOnly` makes it true rather
+                than merely unused.
+            */}
+            <McpPermissionDrawer
+                open={Boolean(viewingTools)}
+                onClose={() => setToolsKey(null)}
+                slug={viewingTools?.slug ?? undefined}
+                connectionName={viewingTools?.name || viewingTools?.slug || undefined}
+                connectionState={viewingTools ? getMcpConnectionState(viewingTools) : undefined}
+                policy={{}}
+                onChange={() => undefined}
+                onReconnect={viewingTools ? () => openReconnect(viewingTools) : undefined}
+                readOnly
             />
 
             <McpConnectionDetail

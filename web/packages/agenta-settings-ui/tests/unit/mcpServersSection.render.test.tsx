@@ -42,6 +42,27 @@ vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
                 <span data-testid="detail-secret">{endpoint.secret_id ?? "none"}</span>
             </div>
         ) : null,
+    // The drawer itself is WP4's and has its own suite; what this file pins is how Settings
+    // opens it, which is the read-only mode and no agent to remove the server from.
+    McpPermissionDrawer: ({
+        open,
+        slug,
+        readOnly,
+        onRemove,
+    }: {
+        open: boolean
+        slug?: string
+        readOnly?: boolean
+        onRemove?: () => void
+    }) =>
+        open ? (
+            <div
+                data-testid="mcp-permission-drawer"
+                data-slug={slug}
+                data-readonly={String(Boolean(readOnly))}
+                data-has-remove={String(onRemove !== undefined)}
+            />
+        ) : null,
 }))
 
 const setters = vi.hoisted(() => ({remove: vi.fn(), refresh: vi.fn()}))
@@ -264,6 +285,54 @@ describe("the row menu", () => {
         show([MEMORY])
         openRowMenu("Memory")
         expect(screen.getByRole("menuitem", {name: "Disconnect"})).toBeTruthy()
+    })
+})
+
+describe("viewing a connection's tools", () => {
+    it("opens the permission drawer with nothing to set", () => {
+        show([LINEAR])
+        openRowMenu("Linear")
+        act(() => {
+            fireEvent.click(screen.getByRole("menuitem", {name: "View tools"}))
+        })
+        const drawer = screen.getByTestId("mcp-permission-drawer")
+        expect(drawer.getAttribute("data-slug")).toBe("linear")
+        expect(drawer.getAttribute("data-readonly")).toBe("true")
+        // A Settings row belongs to no agent, so there is nothing to detach it from and the
+        // footer's "Remove from agent" link must not be offered.
+        expect(drawer.getAttribute("data-has-remove")).toBe("false")
+    })
+
+    it("is a different surface from Rename, not the same drawer twice", () => {
+        show([LINEAR])
+        openRowMenu("Linear")
+        act(() => {
+            fireEvent.click(screen.getByRole("menuitem", {name: "View tools"}))
+        })
+        expect(screen.queryByTestId("mcp-connection-detail")).toBeNull()
+    })
+
+    it("opens the rename drawer for Rename", () => {
+        show([LINEAR])
+        openRowMenu("Linear")
+        act(() => {
+            fireEvent.click(screen.getByRole("menuitem", {name: "Rename"}))
+        })
+        expect(screen.getByTestId("mcp-connection-detail")).toBeTruthy()
+        expect(screen.queryByTestId("mcp-permission-drawer")).toBeNull()
+    })
+
+    it("follows the row by key, so a disconnect does not leave it open on a dead one", () => {
+        const {rerender} = show([LINEAR])
+        openRowMenu("Linear")
+        act(() => {
+            fireEvent.click(screen.getByRole("menuitem", {name: "View tools"}))
+        })
+        expect(screen.getByTestId("mcp-permission-drawer")).toBeTruthy()
+
+        state.query = {data: [], isPending: false}
+        rerender(<McpServersSection confirm={confirmSpy} />)
+        expect(screen.queryByTestId("mcp-permission-drawer")).toBeNull()
     })
 })
 
