@@ -36,6 +36,18 @@ export type PiMcpToolGate = (
 export const MCP_PROTOCOL_VERSION = "2026-07-28";
 
 /**
+ * How long any one request from this client may take (CR10).
+ *
+ * `fetch` has no timeout of its own, so without this a server that accepts the connection and
+ * then says nothing hangs the call forever. `discover()` runs inside `before_agent_start`, whose
+ * failure branch catches rejections and not hangs, so an unbounded handshake there stalls the
+ * whole turn before its first token. Matched to the runner's own handshake probe
+ * (`MCP_HANDSHAKE_PROBE_TIMEOUT_MS`), which already had a bound, so the two agree on how long a
+ * server gets to answer.
+ */
+export const PI_MCP_REQUEST_TIMEOUT_MS = 10_000;
+
+/**
  * The method every MCP client on this runner opens a connection with, and the one every MCP
  * server on this runner answers: `initialize`, the specification's handshake.
  *
@@ -180,7 +192,16 @@ class PiHttpMcpClient {
 
   constructor(private readonly server: PiGatewayMcpServer) {}
 
-  private post(message: Record<string, unknown>): Promise<Response> {
+  /**
+   * One request, bounded by `PI_MCP_REQUEST_TIMEOUT_MS` and by the caller's own signal when it
+   * has one (CR10). Both abort the same request: the timeout is the floor nobody has to remember,
+   * and the caller's signal is how a cancelled tool call stops waiting on a server that is simply
+   * slow rather than broken.
+   */
+  private async post(
+    message: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<Response> {
     const headers: Record<string, string> = {
       Accept: "application/json, text/event-stream",
       "Content-Type": "application/json",
@@ -188,11 +209,22 @@ class PiHttpMcpClient {
       ...this.server.headers,
     };
     if (this.sessionId) headers["Mcp-Session-Id"] = this.sessionId;
-    return fetch(this.server.url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(message),
-    });
+    const controller = new AbortController();
+    const abort = (): void => controller.abort();
+    if (signal?.aborted) controller.abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+    const timer = setTimeout(abort, PI_MCP_REQUEST_TIMEOUT_MS);
+    try {
+      return await fetch(this.server.url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(message),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+    }
   }
 
   /**
@@ -208,7 +240,11 @@ class PiHttpMcpClient {
     }
   }
 
-  private async request(method: string, params?: unknown): Promise<unknown> {
+  private async request(
+    method: string,
+    params?: unknown,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
     const response = await this.post({
       jsonrpc: "2.0",
       id: this.nextId++,
@@ -217,7 +253,7 @@ class PiHttpMcpClient {
         ...(isRecord(params) ? params : {}),
         _meta: { "io.modelcontextprotocol/protocolVersion": MCP_PROTOCOL_VERSION },
       },
-    });
+    }, signal);
     if (!response.ok) {
       throw new PiMcpRequestError(`MCP ${method} failed (${response.status})`, response.status);
     }
@@ -251,8 +287,8 @@ class PiHttpMcpClient {
     });
   }
 
-  call(name: string, args: unknown): Promise<unknown> {
-    return this.request("tools/call", { name, arguments: args ?? {} });
+  call(name: string, args: unknown, signal?: AbortSignal): Promise<unknown> {
+    return this.request("tools/call", { name, arguments: args ?? {} }, signal);
   }
 }
 
@@ -438,10 +474,16 @@ export async function registerPiGatewayMcpTools(
         async execute(
           toolCallId: string,
           params: unknown,
-          _signal?: unknown,
+          signal?: unknown,
           _onUpdate?: unknown,
           ctx?: unknown,
         ) {
+          // Pi hands the turn's abort signal in this slot. It used to be ignored, so a cancelled
+          // turn still sat waiting on the upstream (CR10). Narrowed rather than cast, because the
+          // positional contract is upstream's and a future arity change must degrade to "no
+          // signal" instead of throwing here.
+          const abortSignal =
+            signal instanceof AbortSignal ? signal : undefined;
           // Gate BEFORE the upstream call: only an allow reaches the server. A deny surfaces as
           // the tool's own result text, so the model loop continues rather than dying.
           const { allowed, reason } = await gate({
@@ -458,7 +500,7 @@ export async function registerPiGatewayMcpTools(
               details: { server: serverName, tool: upstreamTool },
             };
           }
-          const result = await client.call(upstreamTool, params);
+          const result = await client.call(upstreamTool, params, abortSignal);
           return {
             content: [{ type: "text", text: JSON.stringify(result) }],
             details: { server: serverName, tool: upstreamTool },

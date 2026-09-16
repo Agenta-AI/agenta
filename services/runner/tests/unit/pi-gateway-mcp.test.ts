@@ -634,3 +634,104 @@ describe("Pi MCP permissions", () => {
     );
   });
 });
+
+describe("the Pi MCP client bounds its own requests (CR10)", () => {
+  it("aborts a server that accepts the connection and never answers", async () => {
+    // `fetch` has no timeout of its own, and `discover()` runs inside `before_agent_start`, whose
+    // failure branch catches rejections and not hangs. So an unbounded handshake stalls the whole
+    // turn before its first token rather than costing one server's tools.
+    let seen: AbortSignal | undefined;
+    globalThis.fetch = (async (_url: string, init: any) => {
+      seen = init?.signal;
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () =>
+          reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+        );
+      });
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    const logs: string[] = [];
+    const registration = registerPiGatewayMcpTools(
+      pi,
+      oneServerConfig(),
+      (message) => logs.push(message),
+      allowAll,
+    );
+    // Do not wait out the real bound; prove the request carries one that can fire.
+    assert.ok(seen === undefined || seen instanceof AbortSignal);
+    seen?.dispatchEvent?.(new Event("abort"));
+    await registration;
+
+    assert.deepEqual(pi.tools, [], "a server that never answers registers no tools");
+    assert.ok(
+      logs.some((line) => line.includes("failed its handshake")),
+      "and the operator is told which server it was",
+    );
+  });
+
+  it("passes the turn's abort signal through to the upstream tool call", async () => {
+    // Pi hands the signal in the third positional slot; it used to be ignored, so a cancelled
+    // turn still sat waiting on the upstream.
+    const signals: (AbortSignal | undefined)[] = [];
+    globalThis.fetch = (async (_url: string, init: any) => {
+      signals.push(init?.signal);
+      const payload = JSON.parse(String(init?.body));
+      if (payload.id === undefined) return new Response("", { status: 202 });
+      const result =
+        payload.method === "tools/list"
+          ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
+          : payload.method === "tools/call"
+            ? { content: [{ type: "text", text: "ok" }] }
+            : { protocolVersion: "2026-07-28", capabilities: { tools: {} } };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+    const turnSignal = new AbortController().signal;
+    await pi.tools[0].execute("call-1", { marker: "X" }, turnSignal);
+
+    // Every request carries a signal, and none of them is the raw turn signal: the client
+    // composes it with its own timeout so either can abort the request.
+    assert.ok(signals.length > 0);
+    assert.ok(signals.every((signal) => signal instanceof AbortSignal));
+    assert.ok(signals.every((signal) => signal !== turnSignal));
+  });
+
+  it("aborts the upstream call when the turn is already cancelled", async () => {
+    // Methods that actually completed a round trip, so the assertion can say what did NOT.
+    const completed: string[] = [];
+    globalThis.fetch = (async (_url: string, init: any) => {
+      const payload = JSON.parse(String(init?.body));
+      if (init?.signal?.aborted) {
+        throw Object.assign(new Error("aborted"), { name: "AbortError" });
+      }
+      completed.push(payload.method ?? "?");
+      if (payload.id === undefined) return new Response("", { status: 202 });
+      const result =
+        payload.method === "tools/list"
+          ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
+          : { protocolVersion: "2026-07-28", capabilities: { tools: {} } };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+    const controller = new AbortController();
+    controller.abort();
+
+    await assert.rejects(() =>
+      pi.tools[0].execute("call-1", { marker: "X" }, controller.signal),
+    );
+    // Registration completed its handshake earlier; the cancelled call never reached the server.
+    assert.ok(completed.includes("tools/list"));
+    assert.ok(!completed.includes("tools/call"));
+  });
+});
