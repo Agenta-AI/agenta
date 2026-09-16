@@ -6,8 +6,8 @@
         "node": "24.x"
     },
     "scripts": {
-        "dev": "next dev",
-        "build": "next build && cp -r public/. .next/standalone/mobile/public && cp -r .next/static .next/standalone/mobile/.next",
+        "dev": "node ../oss/scripts/copy-pdf-worker.mjs public && next dev",
+        "build": "node ../oss/scripts/copy-pdf-worker.mjs public && next build && cp -r public/. .next/standalone/mobile/public && cp -r .next/static .next/standalone/mobile/.next",
         "start": "next start",
         "lint": "eslint src tests && pnpm run tokens:check",
         "lint:fix": "eslint src tests --fix",

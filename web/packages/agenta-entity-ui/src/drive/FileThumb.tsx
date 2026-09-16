@@ -174,3 +174,76 @@ export const FileThumb = memo(
         (a.file.size ?? 0) === (b.file.size ?? 0) &&
         a.staticThumb === b.staticThumb,
 )
+
+const MEDIA_KINDS = new Set<DriveFileKind>(["image", "video", "pdf"])
+
+/** The grid tile's 56px preview for a media file (image / video / pdf) — the same downscaled,
+ * size-capped thumbnails as {@link FileThumb}; text and code keep their type mark (no fetch). */
+export const DriveTileThumb = memo(function DriveTileThumb({
+    mount,
+    path,
+    size,
+    fallback,
+}: {
+    mount: Mount | null
+    /** Mount-relative path. */
+    path: string
+    size: number
+    /** Drawn while nothing has resolved, or when the kind has no preview. */
+    fallback: React.ReactNode
+}) {
+    const projectId = useAtomValue(projectIdAtom)
+    const [failed, setFailed] = useState(false)
+    const kind = resolveDriveFileKind(path)
+    const isImage = kind === "image" && size <= IMG_CAP
+    const isPdf = kind === "pdf" && size > 0 && size <= PDF_CAP
+    const isVideo = kind === "video"
+    const imgUrl = useThumbnail(mount, path, "image", isImage && !failed)
+    const pdfUrl = useThumbnail(mount, path, "pdf", isPdf && !failed)
+    const directUrl = mountFileDownloadUrl(mount, path, projectId)
+    if (!MEDIA_KINDS.has(kind) || failed) return <>{fallback}</>
+
+    const box =
+        "flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-colorFillTertiary"
+    if (isImage && imgUrl)
+        return (
+            <span className={box}>
+                <img
+                    src={imgUrl}
+                    alt=""
+                    onError={() => setFailed(true)}
+                    className="h-full w-full object-cover"
+                />
+            </span>
+        )
+    if (isPdf && pdfUrl)
+        return (
+            <span className={box}>
+                <img
+                    src={pdfUrl}
+                    alt=""
+                    className="h-full w-full bg-white object-cover object-top"
+                />
+            </span>
+        )
+    if (isVideo && directUrl)
+        return (
+            <span className={box}>
+                <video
+                    src={`${directUrl}#t=0.1`}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    onError={() => setFailed(true)}
+                    className="h-full w-full object-cover"
+                />
+            </span>
+        )
+    return (isImage && !imgUrl) || (isPdf && !pdfUrl) ? (
+        <span className={box}>
+            <span className="h-full w-full animate-pulse bg-colorFillSecondary" />
+        </span>
+    ) : (
+        <>{fallback}</>
+    )
+})

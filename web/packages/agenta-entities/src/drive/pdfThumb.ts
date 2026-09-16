@@ -12,11 +12,17 @@
 type PdfjsModule = typeof import("pdfjs-dist")
 
 let pdfjsPromise: Promise<PdfjsModule> | null = null
+let workerSrc = "/pdf.worker.min.mjs"
+
+/** A host served under a base path (`/m`) points this at its own copy of the worker. */
+export const setPdfWorkerSrc = (src: string) => {
+    workerSrc = src
+}
 
 async function loadPdfjs(): Promise<PdfjsModule> {
     if (!pdfjsPromise) {
         pdfjsPromise = import("pdfjs-dist").then((pdfjs) => {
-            pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
+            pdfjs.GlobalWorkerOptions.workerSrc = workerSrc
             return pdfjs
         })
     }

@@ -326,6 +326,8 @@ export const FolderView = ({
                                                         node={n}
                                                         selected={n.path === selectedPath}
                                                         onOpen={open}
+                                                        mount={drive.resolveMount(n.path)?.mount}
+                                                        mountPath={drive.resolveMount(n.path)?.path}
                                                     />
                                                 )}
                                             </DriveItemContextMenu>
