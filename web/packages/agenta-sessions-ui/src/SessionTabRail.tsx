@@ -28,18 +28,27 @@ import {
     useSessionCardList,
     useSessionTabOrderSeed,
     useSessionTabRows,
-    type SessionTabCloseTargets,
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
-import {ArrowLineRightIcon, PencilSimpleIcon, XIcon, XSquareIcon} from "@phosphor-icons/react"
+import {PencilSimpleIcon, XIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import InlineRenameInput from "./InlineRenameInput"
 import {type SessionMenuEntry} from "./menu"
-import {withShortcutKey} from "./menuShortcut"
+import {
+    CLOSE,
+    CLOSE_OTHERS,
+    CLOSE_RIGHT,
+    closeEntries,
+    MOVE_LEFT,
+    MOVE_RIGHT,
+    moveEntries,
+    unlistedTabCloseIds,
+    unlistedTabMenu,
+} from "./railTabMenu"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
@@ -302,52 +311,6 @@ const RailTab = ({
     )
 }
 
-/**
- * The rail's own menu verbs, appended to the host's. Reserved keys, handled here and never
- * forwarded — the host knows nothing about tab order.
- *
- * They exist because touch cannot drag: a long press opens this very menu (see SessionTabDragItem),
- * so moving a tab by hand has to be sayable in words too. They are equally the keyboard path.
- */
-const MOVE_LEFT = "__rail-move-left"
-const MOVE_RIGHT = "__rail-move-right"
-
-/** Chrome's tab-close verbs, likewise reserved and handled here. */
-const CLOSE = "__rail-close"
-const CLOSE_OTHERS = "__rail-close-others"
-const CLOSE_RIGHT = "__rail-close-right"
-
-const closeEntries = (targets: SessionTabCloseTargets): SessionMenuEntry[] => [
-    {type: "divider"},
-    {
-        key: CLOSE,
-        label: withShortcutKey("Close", "session.close"),
-        icon: <XIcon size={14} />,
-        disabled: !targets.closable,
-    },
-    {
-        key: CLOSE_OTHERS,
-        label: "Close other tabs",
-        icon: <XSquareIcon size={14} />,
-        disabled: targets.others.length === 0,
-    },
-    {
-        key: CLOSE_RIGHT,
-        label: "Close tabs to the right",
-        icon: <ArrowLineRightIcon size={14} />,
-        disabled: targets.toRight.length === 0,
-    },
-]
-
-const moveEntries = (index: number, count: number): SessionMenuEntry[] =>
-    count < 2
-        ? []
-        : [
-              {type: "divider"},
-              {key: MOVE_LEFT, label: "Move left", disabled: index === 0},
-              {key: MOVE_RIGHT, label: "Move right", disabled: index === count - 1},
-          ]
-
 /** Moves the id at `index` one slot in `direction`, returning the new order. */
 const moved = (ids: string[], index: number, direction: -1 | 1): string[] => {
     const target = index + direction
@@ -365,8 +328,9 @@ const IDLE_STATUS = sessionRowStatusMeta("idle")
 
 /**
  * A session held open whose row has not landed yet — a session created here, before the by-id
- * fetch sees it. There is no row view-model behind it, so it offers no menu and no rename; closing
- * goes through the host's bulk close so the active chip can go too (the host routes to a survivor).
+ * fetch sees it. There is no row view-model behind it, so the server verbs (rename, archive,
+ * pin) are off the table; the TAB verbs are not, and a chip with no menu at all read as the menu
+ * being broken (#6379). Closing goes through the host's bulk close so the active chip can go too.
  */
 const UnlistedTab = ({
     id,
@@ -375,6 +339,8 @@ const UnlistedTab = ({
     divided,
     onSelect,
     onClose,
+    menu,
+    onMenuSelect,
 }: {
     id: string
     title: string
@@ -382,43 +348,47 @@ const UnlistedTab = ({
     divided?: boolean
     onSelect?: (sessionId: string) => void
     onClose?: () => void
+    menu?: SessionMenuEntry[]
+    onMenuSelect?: (key: string) => void
 }) => {
     const ref = useRevealWhenActive(active)
     return (
         <div ref={ref} className={clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)}>
-            <SessionTab
-                active={active}
-                label={title}
-                onSelect={() => onSelect?.(id)}
-                statusDot={
-                    <SimpleTooltip title={IDLE_STATUS.label}>
-                        <span
-                            aria-label={IDLE_STATUS.label}
-                            className={clsx(
-                                "h-1.5 w-1.5 shrink-0 rounded-full",
-                                IDLE_STATUS.dotClassName,
-                            )}
-                        />
-                    </SimpleTooltip>
-                }
-                renderActions={
-                    onClose
-                        ? () => (
-                              <button
-                                  type="button"
-                                  aria-label={`Close ${title}`}
-                                  onClick={(event) => {
-                                      event.stopPropagation()
-                                      onClose()
-                                  }}
-                                  className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                              >
-                                  <XIcon size={12} />
-                              </button>
-                          )
-                        : undefined
-                }
-            />
+            <SessionRowContextMenu entries={menu} onSelect={onMenuSelect}>
+                <SessionTab
+                    active={active}
+                    label={title}
+                    onSelect={() => onSelect?.(id)}
+                    statusDot={
+                        <SimpleTooltip title={IDLE_STATUS.label}>
+                            <span
+                                aria-label={IDLE_STATUS.label}
+                                className={clsx(
+                                    "h-1.5 w-1.5 shrink-0 rounded-full",
+                                    IDLE_STATUS.dotClassName,
+                                )}
+                            />
+                        </SimpleTooltip>
+                    }
+                    renderActions={
+                        onClose
+                            ? () => (
+                                  <button
+                                      type="button"
+                                      aria-label={`Close ${title}`}
+                                      onClick={(event) => {
+                                          event.stopPropagation()
+                                          onClose()
+                                      }}
+                                      className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                  >
+                                      <XIcon size={12} />
+                                  </button>
+                              )
+                            : undefined
+                    }
+                />
+            </SessionRowContextMenu>
         </div>
     )
 }
@@ -595,6 +565,12 @@ export const SessionTabRail = ({
                           active={tab.id === activeSessionId}
                           divided={rows.length > 0 || index > 0}
                           onSelect={onSelectUnlisted}
+                          // Only the tab verbs, and only when the host can land a close.
+                          menu={onCloseMany ? unlistedTabMenu(closeTabs, tab.id) : undefined}
+                          onMenuSelect={(key) => {
+                              const ids = unlistedTabCloseIds(key, closeTabs, tab.id)
+                              if (ids) onCloseMany?.(ids, renderedIds)
+                          }}
                           // The host owns where a close lands, so it takes the active chip's
                           // close; without a host handler only a chip you are not on can go.
                           onClose={
