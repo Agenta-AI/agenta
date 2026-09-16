@@ -36,7 +36,11 @@ type Flow = ReturnType<typeof useGatewayConnectFlow>
 
 const target = {plane: "mcp" as const, name: "acme-notion"}
 
-const connection = (flags: Record<string, boolean>) => ({id: "conn-1", flags})
+/** A connection row as the query answers with it: an identity, and the two liveness flags. */
+const connection = (
+    flags: Record<string, boolean>,
+    identity: {slug?: string; integration_key?: string} = {slug: target.name},
+) => ({id: "conn-1", ...identity, flags})
 
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -116,11 +120,40 @@ describe("closing the shared catalog drawer", () => {
         expect(settle.mock.calls[0][0].output).toEqual({connected: true, target})
     })
 
-    it("asks about this target, not about the catalog as a whole", async () => {
+    it("reports connected when the target is named by its integration key instead", async () => {
+        queryToolConnections.mockResolvedValue({
+            count: 1,
+            connections: [
+                connection({is_active: true, is_valid: true}, {integration_key: target.name}),
+            ],
+        })
         await mount()
         await openAndCloseCatalog()
 
-        expect(queryToolConnections).toHaveBeenCalledWith({integration_key: "acme-notion"})
+        expect(settle.mock.calls[0][0].output).toEqual({connected: true, target})
+    })
+
+    it("answers about this target, not about whatever else the project has connected", async () => {
+        // The defect this pins: a live connection to something the person happened to set up
+        // while the catalog was open used to settle THIS tool as connected, and the agent then
+        // called a tool that is still refused.
+        queryToolConnections.mockResolvedValue({
+            count: 1,
+            connections: [
+                connection(
+                    {is_active: true, is_valid: true},
+                    {slug: "someone-elses-slack", integration_key: "slack"},
+                ),
+            ],
+        })
+        await mount()
+        await openAndCloseCatalog()
+
+        expect(settle.mock.calls[0][0].output).toEqual({
+            connected: false,
+            target,
+            reason: "cancelled",
+        })
     })
 
     it("reports not connected when the connection exists but is no longer valid", async () => {

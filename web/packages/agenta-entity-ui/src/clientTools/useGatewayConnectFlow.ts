@@ -72,11 +72,32 @@ export const resolveCustomMcpEndpoint = (
     return endpoints?.find((e) => e.namespace === "custom" && e.slug === target.name) ?? null
 }
 
-/** Whether a connections list holds one that is usable right now. */
-export const hasLiveConnection = (connections: ToolConnection[] | undefined): boolean =>
-    (connections ?? []).some(
-        (connection) => isConnectionActive(connection) && isConnectionValid(connection),
-    )
+/**
+ * The connection a gateway target names, or `null` when the list holds none.
+ *
+ * `target.name` is the server as the agent's configuration spells it, and that spelling lands in
+ * two different key spaces: a connection created against a catalog integration keeps the
+ * integration key as its slug, while one the person named themselves carries a slug of its own.
+ * Both are checked, because the question this answers is "is THIS target connected" — an answer
+ * about some other connection in the same project is not an answer to it.
+ */
+export const findTargetConnection = (
+    connections: ToolConnection[] | undefined,
+    target: GatewayTarget,
+): ToolConnection | null =>
+    (connections ?? []).find(
+        (connection) =>
+            connection.slug === target.name || connection.integration_key === target.name,
+    ) ?? null
+
+/** Whether the target's own connection is in the list and usable right now. */
+export const isTargetConnected = (
+    connections: ToolConnection[] | undefined,
+    target: GatewayTarget,
+): boolean => {
+    const connection = findTargetConnection(connections, target)
+    return !!connection && isConnectionActive(connection) && isConnectionValid(connection)
+}
 
 export const useGatewayConnectFlow = (
     target: GatewayTarget,
@@ -124,10 +145,15 @@ export const useGatewayConnectFlow = (
         // No cleanup cancels this: another widget sharing the drawer atom can reopen it while
         // the read is in flight, and dropping the answer there would leave the tool unsettled
         // for good. `finish` is already single-shot.
-        void queryToolConnections({integration_key: target.name})
+        //
+        // Asked unfiltered and matched here, rather than narrowed by `integration_key`: the
+        // target's name is only sometimes an integration key, and a filter on the wrong key
+        // space answers "nothing" about a connection that exists. The project's connection
+        // list is what the settings surface already reads, so this is one request either way.
+        void queryToolConnections()
             .then((response) => {
                 finish(
-                    hasLiveConnection(response.connections)
+                    isTargetConnected(response.connections, target)
                         ? gatewayConnectedOutput(target)
                         : gatewayCancelledOutput(target),
                 )
