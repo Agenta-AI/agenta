@@ -26,7 +26,7 @@ import {filesDrawerStagedAtomFamily, resolveQuickLookPath} from "./index"
 // Heavy body — loaded lazily on first open (the split unmounts the pane while collapsed).
 const DriveExplorer = dynamic(() => import("./DriveExplorer").then((m) => m.DriveExplorer), {
     ssr: false,
-    loading: () => <DriveExplorerSkeleton withChrome mirrored />,
+    loading: () => <DriveExplorerSkeleton withChrome mirrored showTree={false} />,
 })
 
 // The pane's open flag belongs to the chat PANEL (keyed by the app scope), not to one session:

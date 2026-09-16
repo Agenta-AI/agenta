@@ -14,7 +14,13 @@ const file = (name: string, size = 0, modifiedAt?: number): DriveTreeNode => ({
 const folder = (name: string): DriveTreeNode => ({name, path: name, isFolder: true, children: []})
 
 describe("sortDriveEntries", () => {
-    const entries = [file("b.md", 10, 5), folder("zeta"), file("a.md", 30, 1), folder("alpha"), file("c.md", 20)]
+    const entries = [
+        file("b.md", 10, 5),
+        folder("zeta"),
+        file("a.md", 30, 1),
+        folder("alpha"),
+        file("c.md", 20),
+    ]
 
     it("folders come first, alpha within each group, by name", () => {
         expect(sortDriveEntries(entries, "name").map((n) => n.name)).toEqual([

@@ -327,7 +327,7 @@ export function MarkdownToolbar({disabled = false, layout = "default"}: Markdown
         <div
             className={
                 layout === "inline"
-                    ? "flex min-w-0 flex-nowrap items-center gap-0.5 overflow-hidden"
+                    ? "flex min-w-0 flex-nowrap items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                     : "flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden"
             }
         >

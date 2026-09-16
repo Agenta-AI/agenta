@@ -179,14 +179,26 @@ export const fileTypeLabel = (path: string): string => {
     return EXT_LABELS[ext] ?? ext.toUpperCase()
 }
 
+// Chips for extensions too long for the mark.
+const EXT_CHIPS: Record<string, string> = {
+    graphql: "GQL",
+    svelte: "SVLT",
+    ndjson: "NDJSON",
+    dockerfile: "DOCKER",
+    makefile: "MAKE",
+    justfile: "JUST",
+}
+
 /** Short chip text for the type mark ("MD", "JSON", "PY"); "FILE" for an unknown kind. */
 export const fileTypeChip = (path: string): string => {
     if (isMarkdownPath(path)) return path.toLowerCase().endsWith(".mdx") ? "MDX" : "MD"
     const leaf = leafOf(path)
-    if (CODE_NAMES[leaf]) return leaf === "dockerfile" ? "DOCKER" : "MAKE"
+    if (CODE_NAMES[leaf]) return EXT_CHIPS[leaf] ?? "CODE"
     const ext = leaf.includes(".") ? (leaf.split(".").pop() ?? "") : ""
-    if (!ext || ext.length > 5) return resolveDriveFileKind(path) === "other" ? "FILE" : "TXT"
-    return ext.toUpperCase()
+    if (EXT_CHIPS[ext]) return EXT_CHIPS[ext]
+    if (ext && ext.length <= 5) return ext.toUpperCase()
+    const kind = resolveDriveFileKind(path)
+    return kind === "text" ? "TXT" : kind === "other" ? "FILE" : kind.toUpperCase().slice(0, 5)
 }
 
 /** Semantic colour family for a kind — the design's chip palette maps 1:1 onto the theme's

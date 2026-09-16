@@ -17,7 +17,11 @@ export const seedDriveDraft = (text: string): DriveDraft => ({
     value: text,
 })
 
-const stripTrailingNewlines = (text: string) => text.replace(/\n+$/, "")
+const stripTrailingNewlines = (text: string) => {
+    let end = text.length
+    while (end > 0 && text[end - 1] === "\n") end--
+    return text.slice(0, end)
+}
 
 /** The editor emitted text. */
 export const applyDriveDraftChange = (draft: DriveDraft, text: string): DriveDraft => {

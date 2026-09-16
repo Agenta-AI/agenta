@@ -1,8 +1,10 @@
 import {useTypewriter} from "@agenta/chat/hooks"
 import ChatMarkdown from "@agenta/chat/markdown"
 import {chatFileResolver} from "@agenta/entity-ui/drive"
-import {Check, Copy} from "lucide-react"
 import type {IconMap} from "streamdown"
+
+import {CopiedLabelled} from "./CopiedLabelled"
+import {CopyLabelled} from "./CopyLabelled"
 
 /**
  * Streamdown's built-in classes assume a 14–30px type scale; the mobile app's base is 12px.
@@ -36,19 +38,7 @@ export const proseClassName = [
     "[&_[data-streamdown=table-wrapper]]:bg-muted",
 ].join(" ")
 
-/** The fence's copy control with a word beside the glyph (module scope: one identity across tokens). */
-const CopyLabelled = ({size = 14}: {size?: number}) => (
-    <>
-        <Copy size={size} aria-hidden />
-        <span>Copy</span>
-    </>
-)
-const CopiedLabelled = ({size = 14}: {size?: number}) => (
-    <>
-        <Check size={size} aria-hidden />
-        <span>Copied</span>
-    </>
-)
+// Module scope: one identity across streamed tokens.
 export const markdownIcons: Partial<IconMap> = {CopyIcon: CopyLabelled, CheckIcon: CopiedLabelled}
 
 /**
