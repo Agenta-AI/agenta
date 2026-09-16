@@ -32,9 +32,10 @@ narrow exemptions in :func:`exempt_hosts`, not by disabling the guard.
 """
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, Dict, Mapping, Optional, Set
+from typing import Any, Callable, Dict, Mapping, Optional, Set
 from urllib.parse import urlparse, urlunparse
 
 import httpx
@@ -141,6 +142,53 @@ def _pin_to_resolved_address(url: str, address: str) -> tuple[str, str]:
     return pinned_url, host_header
 
 
+# Name resolution runs on a pool of this module's own, not the loop's default one.
+#
+# `asyncio.to_thread` hands work to the executor the event loop shares with every other
+# offloaded call in the process. `getaddrinfo` blocks with no timeout of its own, so a
+# resolver that stops answering parks a worker there for as long as the operating system
+# takes to give up, and enough of them starve work that has nothing to do with the
+# gateway. Bounding the wait releases the coroutine and does not release the worker, which
+# is the part the first attempt at this overstated (M18).
+#
+# A pool of our own contains that: stuck resolutions can exhaust these threads and nothing
+# else. When they do, the wait below fires while queueing rather than while resolving, and
+# the caller is told the address could not be resolved in time — which is true, and is the
+# same refusal a resolver that never answers produces.
+_RESOLVER_THREADS = 8
+_RESOLVE_TIMEOUT_SECONDS = 5.0
+
+_resolver_pool: Optional[ThreadPoolExecutor] = None
+
+
+def _resolver_executor() -> ThreadPoolExecutor:
+    global _resolver_pool
+    if _resolver_pool is None:
+        _resolver_pool = ThreadPoolExecutor(
+            max_workers=_RESOLVER_THREADS, thread_name_prefix="gateway-resolver"
+        )
+    return _resolver_pool
+
+
+async def resolve_offloaded(
+    resolve: Callable[[], Any],
+    *,
+    timeout: Optional[float] = None,
+) -> Any:
+    """Run one blocking resolution off the event loop, with a bound on the wait.
+
+    Raises `TimeoutError` when the bound fires. Every caller turns that into its own
+    refusal, because what "could not resolve in time" means differs: a relay cannot
+    proceed, and the registration check has a conservative answer it can give.
+    """
+    loop = asyncio.get_running_loop()
+    # Read here rather than bound as a default, so the module constant is the value in
+    # force and a case can pin it without rewriting the signature.
+    bound = _RESOLVE_TIMEOUT_SECONDS if timeout is None else timeout
+    async with asyncio.timeout(bound):
+        return await loop.run_in_executor(_resolver_executor(), resolve)
+
+
 async def open_egress(
     url: str,
     *,
@@ -171,7 +219,7 @@ async def open_egress(
         # getaddrinfo blocks, and both relay planes are on the request path. The flag is
         # read per call, not captured at import, so an operator's value is the one in force
         # and a test can pin it.
-        address = await asyncio.to_thread(
+        address = await resolve_offloaded(
             partial(
                 resolve_validated_ip,
                 url,
@@ -179,6 +227,19 @@ async def open_egress(
                 label="Upstream URL",
             )
         )
+    except TimeoutError as exc:
+        # Refused rather than awaited. This runs on the relay path every gateway call
+        # takes, and it had no bound at all: one address whose resolver hangs held a
+        # request open for as long as the resolver did (M18).
+        log.warning(
+            "[gateways] resolving an upstream address timed out",
+            timeout=_RESOLVE_TIMEOUT_SECONDS,
+        )
+        raise EgressRefusedError(
+            url=url,
+            detail="the address could not be resolved in time",
+            unresolvable=True,
+        ) from exc
     except ValueError as exc:
         message = str(exc)
         raise EgressRefusedError(

@@ -1,12 +1,14 @@
 """Choose between OAuth client-identity documents and dynamic registration."""
 
-import asyncio
 import ipaddress
 import socket
+from functools import partial
 from typing import Callable, List
 from urllib.parse import urlparse
 
 from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata
+
+from oss.src.core.gateways.egress import resolve_offloaded
 
 from oss.src.utils.logging import get_module_logger
 
@@ -95,9 +97,13 @@ async def is_publicly_resolvable_async(
 
     `socket.getaddrinfo` is a blocking call with no timeout of its own, and both callers
     are coroutines, so a slow or unreachable resolver stalled every request the worker
-    was serving rather than the one that asked (M18). The lookup goes to a thread, and
-    the wait is bounded so a resolver that never answers costs one coroutine rather than
-    a worker.
+    was serving rather than the one that asked (M18). The lookup goes to the gateway's
+    own resolver pool, and the wait is bounded.
+
+    Bounding the wait releases the coroutine, not the thread: the resolution keeps
+    running until the operating system gives up on it. That is why the pool is the
+    gateway's own rather than the loop's shared default one, where those threads would
+    have been taken from everything else in the process.
 
     A timeout answers `False`, which is what an unresolvable address already answers.
     Both callers read `False` as "this deployment cannot name itself to an authorization
@@ -105,10 +111,10 @@ async def is_publicly_resolvable_async(
     unusable — the same conservative reading a genuine resolution failure gets.
     """
     try:
-        async with asyncio.timeout(timeout):
-            return await asyncio.to_thread(
-                is_publicly_resolvable, api_url, resolve=resolve
-            )
+        return await resolve_offloaded(
+            partial(is_publicly_resolvable, api_url, resolve=resolve),
+            timeout=timeout,
+        )
     except TimeoutError:
         log.warning(
             "[gateways] resolving this deployment's own address timed out",

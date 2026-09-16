@@ -17,7 +17,10 @@ relax it. Webhook delivery keeps its own permissive default, and the gateway no 
 it.
 """
 
+import asyncio
 import json
+import threading
+import time
 from typing import List, Optional
 from unittest.mock import AsyncMock, patch
 
@@ -800,3 +803,113 @@ class TestClassifyTransportError:
         ):
             failure = classify_transport_error(kind(secret))
             assert secret not in failure.detail
+
+
+# ---------------------------------------------------------------------------
+# M18 residual: the relay path's own resolution is bounded, on our own threads
+# ---------------------------------------------------------------------------
+
+
+class TestResolutionIsBoundedOnTheRelayPath:
+    """`open_egress` runs the same blocking resolution every gateway call goes through,
+    and it had no bound at all: one address whose resolver hangs held a request open for
+    as long as the resolver did."""
+
+    @pytest.mark.asyncio
+    async def test_a_resolver_that_never_answers_refuses_instead_of_waiting(
+        self, monkeypatch
+    ):
+        released = threading.Event()
+
+        def hang(*_args, **_kwargs):
+            released.wait(timeout=30)
+            return PUBLIC_ADDRESS
+
+        monkeypatch.setattr("oss.src.core.gateways.egress.resolve_validated_ip", hang)
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress._RESOLVE_TIMEOUT_SECONDS", 0.2
+        )
+
+        started = time.monotonic()
+        try:
+            with pytest.raises(EgressRefusedError) as excinfo:
+                await open_egress("https://slow.example.com/mcp")
+        finally:
+            released.set()
+        elapsed = time.monotonic() - started
+
+        # Told apart from a security rejection, so an adapter reports it as an address
+        # problem rather than a blocked target.
+        assert excinfo.value.unresolvable is True
+        assert "in time" in excinfo.value.detail
+        assert elapsed < 5
+
+    @pytest.mark.asyncio
+    async def test_the_loop_keeps_serving_while_a_resolution_is_stuck(
+        self, monkeypatch
+    ):
+        released = threading.Event()
+        ticks = 0
+
+        def hang(*_args, **_kwargs):
+            released.wait(timeout=30)
+            return PUBLIC_ADDRESS
+
+        monkeypatch.setattr("oss.src.core.gateways.egress.resolve_validated_ip", hang)
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress._RESOLVE_TIMEOUT_SECONDS", 0.3
+        )
+
+        async def keep_working():
+            nonlocal ticks
+            for _ in range(5):
+                await asyncio.sleep(0.01)
+                ticks += 1
+
+        async def refused():
+            with pytest.raises(EgressRefusedError):
+                await open_egress("https://slow.example.com/mcp")
+
+        try:
+            await asyncio.gather(refused(), keep_working())
+        finally:
+            released.set()
+
+        assert ticks == 5
+
+    @pytest.mark.asyncio
+    async def test_resolution_does_not_run_on_the_loops_shared_executor(
+        self, monkeypatch
+    ):
+        """A blocked resolution must not take threads from everything else in the
+        process, which is what `asyncio.to_thread` would have done."""
+        default_pool_threads: list = []
+        resolver_threads: list = []
+
+        def resolve(*_args, **_kwargs):
+            resolver_threads.append(threading.current_thread().name)
+            return PUBLIC_ADDRESS
+
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress.resolve_validated_ip", resolve
+        )
+
+        await open_egress("https://example.com/mcp")
+        await asyncio.to_thread(
+            lambda: default_pool_threads.append(threading.current_thread().name)
+        )
+
+        assert resolver_threads and resolver_threads[0].startswith("gateway-resolver")
+        assert default_pool_threads
+        assert resolver_threads[0] != default_pool_threads[0]
+
+    @pytest.mark.asyncio
+    async def test_an_address_that_resolves_promptly_is_unaffected(self, monkeypatch):
+        monkeypatch.setattr(
+            "oss.src.core.gateways.egress.resolve_validated_ip",
+            lambda *_a, **_kw: PUBLIC_ADDRESS,
+        )
+
+        target = await open_egress("https://example.com/mcp")
+
+        assert target.pinned_address == PUBLIC_ADDRESS
