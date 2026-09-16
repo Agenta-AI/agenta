@@ -1,18 +1,27 @@
-/** Render the gateway-target connection widget. */
+/**
+ * The `request_connection` widget for a GATEWAY TARGET: a model provider the LLM plane refused,
+ * or an MCP server the tool plane refused. The sibling `ConnectToolWidget` answers the other
+ * shape of the same tool, an external integration named by key.
+ *
+ * It lives in this package, next to that sibling, rather than in the desktop app, because both
+ * apps render one client-tool set: a widget only the desktop registers is a feature /m never
+ * shows, and the surfaces it opens (the provider drawer, the MCP connect journey, the tool
+ * catalog) are package-level and already mounted on both. It is styled with the shared kit for
+ * the same reason.
+ */
 import {providerConnectionsAtom} from "@agenta/entities/secret"
-import {McpConnectJourney} from "@agenta/entity-ui/mcpEndpoint"
-import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
 import {
     isInteractionEndedOutput,
     type ClientToolWidgetProps as ClientToolHandlerProps,
 } from "@agenta/shared/clientTools"
+import {Button} from "@agenta/ui/ui"
 import {CheckCircle, Plugs, Spinner, Warning} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import {useGatewayConnectFlow, type GatewayTarget} from "./useGatewayConnectFlow"
+import {McpConnectJourney} from "../mcpEndpoint"
+import {ProviderDrawer} from "../secretProvider"
 
-const {Text} = Typography
+import {useGatewayConnectFlow, type GatewayTarget} from "./useGatewayConnectFlow"
 
 const ChipRow = ({icon, children}: {icon: React.ReactNode; children: React.ReactNode}) => (
     <div className="flex min-w-0 items-center gap-2 py-1">
@@ -47,9 +56,9 @@ const GatewayConnectToolWidget = ({
         return (
             <>
                 <ChipRow icon={<Spinner size={13} className="animate-spin text-colorPrimary" />}>
-                    <Text type="secondary" className="!text-xs">
+                    <span className="truncate text-xs text-colorTextSecondary">
                         Connecting {label}…
-                    </Text>
+                    </span>
                 </ChipRow>
                 {target.plane === "llm" ? (
                     <ProviderDrawer
@@ -88,9 +97,9 @@ const GatewayConnectToolWidget = ({
         if (isInteractionEndedOutput(meta.output)) {
             return (
                 <ChipRow icon={<Plugs size={13} className="text-colorTextTertiary" />}>
-                    <Text type="secondary" className="!text-xs !text-colorTextTertiary">
+                    <span className="truncate text-xs text-colorTextTertiary">
                         Connection request ended
-                    </Text>
+                    </span>
                 </ChipRow>
             )
         }
@@ -100,29 +109,29 @@ const GatewayConnectToolWidget = ({
                 <ChipRow
                     icon={<CheckCircle size={13} weight="fill" className="text-colorSuccess" />}
                 >
-                    <Text className="!text-xs">{label} connected</Text>
+                    <span className="truncate text-xs text-colorText">{label} connected</span>
                 </ChipRow>
             )
         }
         return (
             <ChipRow icon={<Warning size={13} weight="fill" className="text-colorWarning" />}>
-                <Text type="secondary" className="!text-xs">
+                <span className="truncate text-xs text-colorTextSecondary">
                     Connection not completed
-                </Text>
+                </span>
             </ChipRow>
         )
     }
 
     return (
         <ChipRow icon={<Plugs size={13} className="text-colorPrimary" />}>
-            <Text className="!text-xs">
+            <span className="truncate text-xs text-colorText">
                 Connect {label} ({planeLabel})
-            </Text>
-            <div className="ml-auto flex items-center gap-1.5">
-                <Button type="text" size="small" onClick={decline}>
+            </span>
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                <Button variant="ghost" size="sm" onClick={decline} className="px-2">
                     Not now
                 </Button>
-                <Button type="primary" size="small" onClick={runConnect}>
+                <Button size="sm" onClick={runConnect}>
                     Connect
                 </Button>
             </div>

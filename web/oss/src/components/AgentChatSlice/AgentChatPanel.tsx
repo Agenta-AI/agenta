@@ -38,8 +38,6 @@ import {SessionFilesPane, useSessionFilesPane} from "@/oss/components/Drives/Ses
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import {projectIdAtom} from "@/oss/state/project"
 
-import "./components/clientTools/registry"
-
 import {shouldCancelRunOnClose} from "./assets/closeSessionCancel"
 // Direct file import — the barrel would statically pull the inspector drawer into this chunk.
 import {ConversationSkeleton, SessionBarSkeleton} from "./components/AgentChatSkeleton"

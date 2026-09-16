@@ -30,7 +30,7 @@ vi.mock("@agenta/entities/gatewayTool", () => ({
 
 vi.mock("@agenta/entities/mcpEndpoint", () => ({mcpEndpointsQueryAtom: endpointsAtom}))
 
-const {useGatewayConnectFlow} = await import("./useGatewayConnectFlow")
+const {useGatewayConnectFlow} = await import("../../src/clientTools/useGatewayConnectFlow")
 
 type Flow = ReturnType<typeof useGatewayConnectFlow>
 

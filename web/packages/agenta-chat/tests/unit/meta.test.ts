@@ -11,7 +11,7 @@ import type {ToolUIPart} from "ai"
 import {describe, expect, it} from "vitest"
 
 import {
-    ConnectToolWidget,
+    ConnectRequestWidget,
     ElicitationWidget,
     clientToolWidgets,
 } from "@agenta/entity-ui/clientTools"
@@ -94,11 +94,15 @@ describe("resolveClientToolHandler", () => {
         expect(resolveClientToolHandler(clientToolMeta(part))).toBe(ElicitationWidget)
     })
 
+    // `request_connection` answers two different asks — an integration key or a gateway target —
+    // and which surface opens is decided inside `ConnectRequestWidget`, on the input. Dispatch
+    // still has one entry per axis; splitting it here instead would make the gateway surface
+    // reachable only from a host that registered it, which is how /m came to be without one.
     it("still resolves the connect widget on both axes", () => {
         const part = toolPart({type: "tool-request_connection", state: "input-available"})
-        expect(resolveClientToolHandler(clientToolMeta(part))).toBe(ConnectToolWidget)
+        expect(resolveClientToolHandler(clientToolMeta(part))).toBe(ConnectRequestWidget)
         expect(resolveClientToolHandler(clientToolMeta(part, renderMapFor("connect")))).toBe(
-            ConnectToolWidget,
+            ConnectRequestWidget,
         )
     })
 

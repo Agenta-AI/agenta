@@ -11,7 +11,7 @@ import {
     gatewayTargetLabel,
     parseGatewayTarget,
     resolveCustomMcpEndpoint,
-} from "./useGatewayConnectFlow"
+} from "../../src/clientTools/useGatewayConnectFlow"
 
 describe("parseGatewayTarget", () => {
     it("parses a valid llm-plane target", () => {
