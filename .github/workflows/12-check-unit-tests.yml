@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'web/**'
+      - 'web/storybook/**'
       - 'sdks/python/**'
       - 'api/**'
       - 'services/**'
@@ -138,6 +139,67 @@ jobs:
             web/packages/*/test-results/junit.xml
           check_name: Application Web Unit Test Results
           comment_mode: off
+
+  run-storybook-build:
+    # web/storybook sits outside the turbo build graph: it has ~200 stories and its own
+    # lint/build scripts, but nothing in CI type-checked or built it, so a story could
+    # break silently. Its build task is not wired through `turbo run build` on purpose:
+    # storybook depends on @agenta/oss (for fixtures), so turbo's generic `^build` would
+    # pull in a full `next build` of the OSS app, which no CI job runs today and this
+    # workflow has no env set up for. Run the package's own scripts directly instead.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes web
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Node.js
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable Corepack
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: corepack enable
+
+      - name: Cache pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Set up pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Install dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web
+        run: pnpm install
+
+      - name: Lint the Storybook package
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web
+        run: pnpm --filter @agenta/storybook lint
+
+      - name: Build the Storybook
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web
+        run: pnpm --filter @agenta/storybook build-storybook
 
   run-sdk-unit-tests:
     if: |
