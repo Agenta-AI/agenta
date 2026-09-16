@@ -58,16 +58,19 @@ drop_privileges_and_exec() {
             --no-new-privs \
             "$AGENTA_SESSION_DAEMON_BINARY" "$@"
     fi
-    echo "[session-mount-namespace] WARNING: setpriv is not installed in this image, so the agent keeps this process's capabilities and can undo its own mount isolation." >&2
-    exec "$AGENTA_SESSION_DAEMON_BINARY" "$@"
+    echo "[session-mount-namespace] ERROR: setpriv is required to remove agent capabilities." >&2
+    exit 1
 }
 
 # Arriving here means no namespace was created, so nothing is half-built and the daemon can still
 # run exactly as it did before this script existed.
 fail_open() {
-    # Never refuse to run a session because isolation is unavailable: a self-hoster on a kernel or
-    # host policy that forbids this must still get a working runner. Say so once, loudly and in
-    # full, because the alternative is a silent downgrade of a boundary someone is relying on.
+    # Auto mode preserves compatibility with restricted hosts and reports the exposure.
+    # Required mode refuses the downgrade, including a failure after the runner probe.
+    if [ "${AGENTA_RUNNER_MOUNT_ISOLATION:-auto}" = "required" ]; then
+        echo "[session-mount-namespace] ERROR: required isolation unavailable: $1" >&2
+        exit 1
+    fi
     reason="$1"
     shift
     echo "[session-mount-namespace] WARNING: starting WITHOUT per-session mount isolation: $reason" >&2
@@ -156,9 +159,9 @@ fi
 # Claude Code refuses --dangerously-skip-permissions when it believes it is root.
 current_user="$(id -u)"
 current_group="$(id -g)"
-if unshare --user --map-user="$current_user" --map-group="$current_group" \
+if unshare --user --keep-caps --map-user="$current_user" --map-group="$current_group" \
     --mount --propagation private true 2>/dev/null; then
-    exec unshare --user --map-user="$current_user" --map-group="$current_group" \
+    exec unshare --user --keep-caps --map-user="$current_user" --map-group="$current_group" \
         --mount --propagation private "$0" "$@"
 fi
 

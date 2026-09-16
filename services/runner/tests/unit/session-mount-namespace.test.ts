@@ -172,10 +172,11 @@ describe("planSessionMountNamespace: the run this runner does not wrap at all", 
     assert.equal(plan({ daemonBinary: undefined }), null);
   });
 
-  it("leaves the run alone when the script is not in the image", () => {
-    // A partial deployment must still run sessions; spawning a missing file as the daemon would
-    // fail every run on that host.
-    assert.equal(plan({ scriptExists: () => false }), null);
+  it("refuses a local daemon when the privilege-drop script is missing", () => {
+    assert.throws(
+      () => plan({ scriptExists: () => false }),
+      /privilege-drop script/,
+    );
   });
 });
 
@@ -377,6 +378,31 @@ describe("ENOTCONN: an isolated daemon is rebuilt, never remounted in place", ()
       signCount(),
       1,
       "the cwd credential is re-signed exactly once",
+    );
+  });
+});
+
+describe("required isolation policy", () => {
+  it("rejects unavailable isolation", () => {
+    assert.throws(
+      () => plan({ isolationPolicy: "required", canIsolate: () => false }),
+      /Required local mount isolation/,
+    );
+  });
+  it("passes the required policy into the namespace builder", () => {
+    assert.equal(
+      plan({ isolationPolicy: "required" })?.env.AGENTA_RUNNER_MOUNT_ISOLATION,
+      "required",
+    );
+  });
+  it("does not impose local isolation requirements on Daytona", () => {
+    assert.equal(
+      plan({
+        isDaytona: true,
+        isolationPolicy: "required",
+        canIsolate: () => false,
+      }),
+      null,
     );
   });
 });

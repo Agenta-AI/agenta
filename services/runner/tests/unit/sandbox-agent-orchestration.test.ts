@@ -1343,83 +1343,109 @@ describe("runSandboxAgent orchestration", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("re-signs, remounts, and retries local workspace prep on durable cwd ENOTCONN", async () => {
-    const { calls, deps } = fakeHarness();
-    const seenMountAccessKeys: string[] = [];
-    let signCalls = 0;
-    let mountCalls = 0;
-    let workspaceCalls = 0;
-    let mountCallsBeforeFirstWorkspace = 0;
-    let cleanupCalls = 0;
+  it.each([
+    [false, false],
+    [true, false],
+    [true, true],
+  ])(
+    "recovers acquisition ENOTCONN with isolated=%s persistent=%s",
+    async (isolated, persistent) => {
+      resetMountNamespaceProbe();
+      canCreateMountNamespace(() => isolated);
+      const { calls, deps } = fakeHarness();
+      const seenMountAccessKeys: string[] = [];
+      let signCalls = 0;
+      let mountCalls = 0;
+      let workspaceCalls = 0;
+      let mountCallsBeforeFirstWorkspace = 0;
+      let cleanupCalls = 0;
 
-    deps.signSessionMountCredentials = (async () => {
-      signCalls += 1;
-      return {
-        endpoint: "http://seaweedfs:8333",
-        region: "us-east-1",
-        bucket: "agenta-store",
-        prefix: "mounts/proj-1/mount-1",
-        accessKey: `AK-${signCalls}`,
-        secretKey: `SK-${signCalls}`,
-        sessionToken: `TOK-${signCalls}`,
-      };
-    }) as any;
-    deps.mountStorage = (async (_cwd: string, creds: any) => {
-      mountCalls += 1;
-      seenMountAccessKeys.push(creds.accessKey);
-      return true;
-    }) as any;
-    deps.unmountStorage = (async () => true) as any;
-    deps.prepareWorkspace = (async ({ plan }: any) => {
-      workspaceCalls += 1;
-      if (workspaceCalls === 1) {
-        mountCallsBeforeFirstWorkspace = mountCalls;
-        const err = new Error("ENOTCONN: Transport endpoint is not connected");
-        (err as Error & { code?: string }).code = "ENOTCONN";
-        throw err;
-      }
-      calls.workspacePlan = plan;
-      return {
-        cleanup: async () => {
-          cleanupCalls += 1;
-        },
-      };
-    }) as any;
+      deps.signSessionMountCredentials = (async () => {
+        signCalls += 1;
+        return {
+          endpoint: "http://seaweedfs:8333",
+          region: "us-east-1",
+          bucket: "agenta-store",
+          prefix: "mounts/proj-1/mount-1",
+          accessKey: `AK-${signCalls}`,
+          secretKey: `SK-${signCalls}`,
+          sessionToken: `TOK-${signCalls}`,
+        };
+      }) as any;
+      deps.mountStorage = (async (_cwd: string, creds: any) => {
+        mountCalls += 1;
+        seenMountAccessKeys.push(creds.accessKey);
+        return true;
+      }) as any;
+      deps.unmountStorage = (async () => true) as any;
+      deps.prepareWorkspace = (async ({ plan }: any) => {
+        workspaceCalls += 1;
+        if (workspaceCalls === 1 || persistent) {
+          mountCallsBeforeFirstWorkspace = mountCalls;
+          const err = new Error(
+            "ENOTCONN: Transport endpoint is not connected",
+          );
+          (err as Error & { code?: string }).code = "ENOTCONN";
+          throw err;
+        }
+        calls.workspacePlan = plan;
+        return {
+          cleanup: async () => {
+            cleanupCalls += 1;
+          },
+        };
+      }) as any;
 
-    const result = await runSandboxAgent(
-      {
-        harness: "claude",
-        sessionId: "sess-1",
-        telemetry: {
-          exporters: {
-            otlp: {
-              headers: { authorization: "ApiKey run" },
+      const result = await runSandboxAgent(
+        {
+          harness: "claude",
+          sessionId: "sess-1",
+          telemetry: {
+            exporters: {
+              otlp: {
+                headers: { authorization: "ApiKey run" },
+              },
             },
           },
-        },
-        messages: [{ role: "user", content: "hello" }],
-      } as AgentRunRequest,
-      undefined,
-      undefined,
-      deps,
-    );
+          messages: [{ role: "user", content: "hello" }],
+        } as AgentRunRequest,
+        undefined,
+        undefined,
+        deps,
+      );
 
-    assert.equal(result.ok, true);
-    assert.equal(signCalls, 2, "initial sign + re-sign after ENOTCONN");
-    assert.equal(mountCalls, 2, "initial mount + remount after ENOTCONN");
-    assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
-    assert.equal(
-      mountCallsBeforeFirstWorkspace,
-      1,
-      "local durable cwd is mounted before first workspace write",
-    );
-    assert.equal(workspaceCalls, 2, "workspace prep is retried once");
-    assert.equal(
-      calls.createSessionOptions.cwd,
-      "/var/lib/agenta/mounts/proj-1/mount-1",
-    );
-    assert.equal(cleanupCalls, 1);
-  });
+      if (persistent) {
+        assert.equal(result.ok, false);
+        assert.equal(workspaceCalls, 2, "only one cold rebuild is allowed");
+        assert.equal(
+          calls.sandboxDestroyed,
+          2,
+          "both failed daemons are destroyed",
+        );
+        return;
+      }
+      assert.equal(result.ok, true);
+      assert.equal(
+        calls.sandboxDestroyed,
+        isolated ? 2 : 1,
+        "isolated recovery destroys the stale daemon before rebuilding",
+      );
+      assert.equal(signCalls, 2, "initial sign + re-sign after ENOTCONN");
+      assert.equal(mountCalls, 2, "initial mount + remount after ENOTCONN");
+      assert.deepEqual(seenMountAccessKeys, ["AK-1", "AK-2"]);
+      assert.equal(
+        mountCallsBeforeFirstWorkspace,
+        1,
+        "local durable cwd is mounted before first workspace write",
+      );
+      assert.equal(workspaceCalls, 2, "workspace prep is retried once");
+      assert.equal(
+        calls.createSessionOptions.cwd,
+        "/var/lib/agenta/mounts/proj-1/mount-1",
+      );
+      assert.equal(cleanupCalls, 1);
+    },
+  );
 
   it("rebuilds instead of remounting when an ACP event reports durable cwd ENOTCONN during prompt", async () => {
     // BEHAVIOUR CHANGED WITH PER-SESSION MOUNT ISOLATION. This case used to assert the in-place

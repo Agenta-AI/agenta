@@ -358,6 +358,18 @@ export async function acquireEnvironment(
       );
       if (!result.ok && result.lease) lease = result.lease;
       if (
+        !result.ok &&
+        result.staleMountView &&
+        attempt < 2 &&
+        !signal?.aborted
+      ) {
+        presignedMount = undefined;
+        process.stderr.write(
+          "[sandbox-agent] disconnected isolated mount; rebuilding local environment\n",
+        );
+        continue;
+      }
+      if (
         result.ok ||
         !result.stuckSubstitution ||
         attempt >= STUCK_ACQUIRE_ATTEMPTS ||
@@ -398,6 +410,7 @@ type AcquireAttemptResult =
       errorCode?: RunErrorCode;
       stuckSubstitution?: boolean;
       lease?: DaytonaSecretLease;
+      staleMountView?: boolean;
     };
 
 /**
@@ -1212,6 +1225,14 @@ async function acquireEnvironmentOnce(
     } catch (err) {
       if (
         !plan.isDaytona &&
+        environment.daemonMountNamespaceIsolated &&
+        isTransportEndpointDisconnected(err)
+      ) {
+        environment.daemonMountViewStale = true;
+        throw err;
+      }
+      if (
+        !plan.isDaytona &&
         environment.mountCreds &&
         isTransportEndpointDisconnected(err) &&
         (await reSignAndRemountLocalCwd())
@@ -1603,7 +1624,12 @@ async function acquireEnvironmentOnce(
         ...(retainedLease ? { lease: retainedLease } : {}),
       };
     }
-    return { ok: false, error, errorCode: classified.code };
+    return {
+      ok: false,
+      error,
+      errorCode: classified.code,
+      staleMountView: environment.daemonMountViewStale,
+    };
   }
 }
 

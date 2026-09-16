@@ -32,10 +32,16 @@ target_group="$(id -gn "$target_user")"
 # --inh-caps is required for --ambient-caps: a capability can only be made ambient while it is in
 # both the permitted and the inheritable set. Only SYS_ADMIN is carried; everything else is
 # dropped by the uid change.
+# Probe the exact grant in a disposable child. A root container may lack SYS_ADMIN.
+if ! setpriv --reuid="$target_user" --regid="$target_group" --init-groups \
+    --inh-caps=-all,+sys_admin --ambient-caps=-all,+sys_admin true 2>/dev/null; then
+    exec setpriv --reuid="$target_user" --regid="$target_group" --init-groups \
+        --inh-caps=-all --ambient-caps=-all "$@"
+fi
 exec setpriv \
     --reuid="$target_user" \
     --regid="$target_group" \
     --init-groups \
-    --inh-caps=+sys_admin \
-    --ambient-caps=+sys_admin \
+    --inh-caps=-all,+sys_admin \
+    --ambient-caps=-all,+sys_admin \
     "$@"

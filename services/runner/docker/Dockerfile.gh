@@ -181,4 +181,5 @@ USER root
 
 # Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the
 # container runs as a non-root host uid.
-CMD ["scripts/runner-entrypoint.sh", "node", "node_modules/.bin/tsx", "src/server.ts"]
+ENTRYPOINT ["/app/scripts/runner-entrypoint.sh", "node"]
+CMD ["node_modules/.bin/tsx", "src/server.ts"]

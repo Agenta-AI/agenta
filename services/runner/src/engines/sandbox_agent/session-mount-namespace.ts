@@ -86,6 +86,7 @@ export interface SessionMountNamespaceInput {
   /** The COMMITTED agent mountpoint, when this run has one. */
   agentMountedPath: string | undefined;
   isDaytona: boolean;
+  isolationPolicy?: "auto" | "required";
   /** Overridable for tests; defaults to the script shipped with the package. */
   scriptPath?: string;
   /** Overridable for tests; defaults to a real filesystem check. */
@@ -148,6 +149,7 @@ function probeMountNamespace(): boolean {
   const group = `${process.getgid?.() ?? 0}`;
   return attempt([
     "--user",
+    "--keep-caps",
     `--map-user=${user}`,
     `--map-group=${group}`,
     "--mount",
@@ -230,19 +232,33 @@ export function planSessionMountNamespace(
   if (!input.daemonBinary) return null;
 
   const scriptPath = input.scriptPath ?? SESSION_MOUNT_NAMESPACE_SCRIPT;
-  // A partial deployment (an image built before the script existed) must still run sessions rather
-  // than spawn a missing file as the daemon.
+  // Never bypass the mandatory capability drop, even in a partial deployment.
   const scriptExists = input.scriptExists ?? existsSync;
-  if (!scriptExists(scriptPath)) return null;
+  if (!scriptExists(scriptPath)) {
+    throw new Error("Local session privilege-drop script is missing");
+  }
 
   const isolation = planIsolation(input);
   const isolates = typeof isolation !== "string";
+  const policy =
+    input.isolationPolicy ??
+    process.env.AGENTA_RUNNER_MOUNT_ISOLATION ??
+    "auto";
+  if (policy !== "auto" && policy !== "required") {
+    throw new Error("AGENTA_RUNNER_MOUNT_ISOLATION must be auto or required");
+  }
+  if (policy === "required" && !isolates) {
+    throw new Error(`Required local mount isolation unavailable: ${isolation}`);
+  }
 
   return {
     binaryPath: scriptPath,
     isolates,
     ...(isolates ? {} : { isolationSkipped: isolation as string }),
     env: {
+      ...(policy === "required"
+        ? { AGENTA_RUNNER_MOUNT_ISOLATION: policy }
+        : {}),
       [SESSION_DAEMON_BINARY_ENV_VAR]: input.daemonBinary,
       [SESSION_MOUNT_ISOLATION_ENV_VAR]: isolates ? "1" : "0",
       ...(isolates

@@ -88,7 +88,7 @@ function run(
   args: string[],
   env: Record<string, string>,
 ): void {
-  execFileSync("sh", [script, ...args], {
+  execFileSync("/bin/sh", [script, ...args], {
     env: {
       PATH: `${binDir}:${process.env.PATH ?? "/usr/bin:/bin"}`,
       ...env,
@@ -114,8 +114,8 @@ describe("runner-entrypoint.sh: a capability without the uid", () => {
       "must take that user's own group",
     );
     assert.ok(argv.includes("--init-groups"));
-    assert.ok(argv.includes("--inh-caps=+sys_admin"));
-    assert.ok(argv.includes("--ambient-caps=+sys_admin"));
+    assert.ok(argv.includes("--inh-caps=-all,+sys_admin"));
+    assert.ok(argv.includes("--ambient-caps=-all,+sys_admin"));
     assert.deepEqual(argvOf("daemon"), ["serve"]);
   });
 
@@ -146,6 +146,79 @@ describe("runner-entrypoint.sh: a capability without the uid", () => {
       () => argvOf("setpriv"),
       "setpriv must not run without a target user",
     );
+    assert.deepEqual(argvOf("daemon"), ["serve"]);
+  });
+});
+
+describe("startup regression coverage", () => {
+  it("drops the uid even when the capability grant is refused", () => {
+    writeStub("id", `case "$1" in -u) echo 0 ;; -gn) echo somegroup ;; esac`);
+    writeStub(
+      "setpriv",
+      `case "$*" in *+sys_admin*) exit 1 ;; esac
+for arg in "$@"; do echo "$arg" >> "${workDir}/setpriv.argv"; done
+while [ $# -gt 0 ]; do case "$1" in --*) shift ;; *) break ;; esac; done
+exec "$@"`,
+    );
+    run(ENTRYPOINT, ["someuser", join(binDir, "daemon"), "serve"], {});
+    assert.ok(argvOf("setpriv").includes("--reuid=someuser"));
+    assert.ok(argvOf("setpriv").includes("--ambient-caps=-all"));
+    assert.deepEqual(argvOf("daemon"), ["serve"]);
+  });
+
+  it("refuses a session if setpriv is missing", () => {
+    rmSync(join(binDir, "setpriv"));
+    assert.throws(() =>
+      run(PRELUDE, [], {
+        PATH: binDir,
+        AGENTA_SESSION_DAEMON_BINARY: join(binDir, "daemon"),
+      }),
+    );
+    assert.throws(() => argvOf("daemon"));
+  });
+
+  it("refuses a session if capability removal fails", () => {
+    writeStub("setpriv", "exit 1");
+    assert.throws(() =>
+      run(PRELUDE, [], {
+        AGENTA_SESSION_DAEMON_BINARY: join(binDir, "daemon"),
+      }),
+    );
+    assert.throws(() => argvOf("daemon"));
+  });
+
+  it("refuses the namespace fallback when isolation is required", () => {
+    writeStub("unshare", "exit 1");
+    assert.throws(() =>
+      run(PRELUDE, [], {
+        AGENTA_SESSION_DAEMON_BINARY: join(binDir, "daemon"),
+        AGENTA_SESSION_MOUNT_ISOLATION: "1",
+        AGENTA_RUNNER_MOUNT_ISOLATION: "required",
+        AGENTA_SESSION_MOUNT_ROOT: workDir,
+        AGENTA_SESSION_MOUNT_KEEP_PATHS: join(workDir, "drive"),
+      }),
+    );
+    assert.throws(() => argvOf("daemon"));
+  });
+
+  it("preserves namespace capabilities through the nonzero uid exec", () => {
+    writeStub("id", `echo 1000`);
+    writeStub(
+      "unshare",
+      `case "$1" in --user) ;; *) exit 1 ;; esac
+for arg in "$@"; do echo "$arg" >> "${workDir}/unshare.argv"; done
+case "$*" in *--keep-caps*) ;; *) exit 1 ;; esac
+while [ $# -gt 0 ]; do case "$1" in --propagation) shift 2 ;; --*) shift ;; *) break ;; esac; done
+exec "$@"`,
+    );
+    run(PRELUDE, ["serve"], {
+      AGENTA_SESSION_DAEMON_BINARY: join(binDir, "daemon"),
+      AGENTA_SESSION_MOUNT_ISOLATION: "1",
+      AGENTA_SESSION_MOUNT_ROOT: join(workDir, "mounts"),
+      AGENTA_SESSION_MOUNT_KEEP_PATHS: join(workDir, "mounts/p/m"),
+    });
+    assert.ok(argvOf("unshare").includes("--keep-caps"));
+    assert.ok(argvOf("setpriv").includes("--ambient-caps=-all"));
     assert.deepEqual(argvOf("daemon"), ["serve"]);
   });
 });
