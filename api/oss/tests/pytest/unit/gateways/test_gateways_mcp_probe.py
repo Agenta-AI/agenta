@@ -11,7 +11,9 @@ throughout rather than once: it sends no credential, and it sends no tool call.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 
 import httpx
 import pytest
@@ -314,3 +316,87 @@ async def test_a_publicly_resolvable_deployment_reports_the_metadata_document(
     result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
 
     assert result.auth.registration is MCPProbeRegistration.METADATA
+
+
+# ---------------------------------------------------------------------------
+# D38: the probe bounds what it reads and how long it waits
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_server_that_answers_with_more_than_a_handshake_is_not_read_whole():
+    """The address is tenant data, so the size of what comes back was the server's
+    choice: the body was buffered entirely before anything looked at it."""
+    oversized = b"x" * (2 * 1024 * 1024)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, headers={"content-type": "application/json"}, content=oversized
+        )
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.reachable is True
+    assert result.problem is not None
+    assert result.problem.cause == "not_an_mcp_server"
+    assert "more data" in result.problem.message
+
+
+@pytest.mark.asyncio
+async def test_a_handshake_just_under_the_cap_is_still_read():
+    """The cap must be generous against a real handshake, which is a few kilobytes."""
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "acme", "version": "1.0"},
+            # Padding, well inside the cap.
+            "instructions": "x" * 200_000,
+        },
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "application/json"},
+            content=json.dumps(payload).encode(),
+        )
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.reachable is True
+    assert result.problem is None
+    assert result.server_name == "acme"
+
+
+@pytest.mark.asyncio
+async def test_a_server_that_trickles_forever_does_not_hold_the_worker(monkeypatch):
+    """httpx's timeout is an inactivity timeout, so a server sending one byte just
+    inside it keeps a worker occupied for as long as it likes. The deadline is elapsed
+    time, which is the only thing that bounds that."""
+    import oss.src.core.gateways.mcps.probe as probe_module
+
+    monkeypatch.setattr(probe_module, "_DEADLINE_SECONDS", 0.3)
+
+    async def trickle():
+        while True:
+            yield b" "
+            await asyncio.sleep(0.02)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, headers={"content-type": "application/json"}, content=trickle()
+        )
+
+    started = time.monotonic()
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+    elapsed = time.monotonic() - started
+
+    assert result.reachable is False
+    assert result.problem is not None
+    assert result.problem.cause == "unreachable"
+    assert "in time" in result.problem.message
+    # The deadline, not the ten-second inactivity timeout.
+    assert elapsed < 5
