@@ -101,6 +101,18 @@ beforeEach(() => {
     fetchMock.mockReset()
 })
 
+/**
+ * The fresh run's response is held open on purpose and released at the end of each case. A
+ * failing assertion returns before that call, so the release is also registered here: a leaked
+ * open stream fails the cases that follow instead of the one that caused it.
+ */
+let releaseFreshResponse: (() => void) | null = null
+
+afterEach(() => {
+    releaseFreshResponse?.()
+    releaseFreshResponse = null
+})
+
 afterEach(cleanup)
 
 interface PendingInput {
@@ -276,7 +288,13 @@ const setupRunningElsewhereAdmission = async ({
         if (requestCount === 1) {
             const body = new ReadableStream({
                 start(controller) {
-                    closeFreshResponse = () => controller.close()
+                    let closed = false
+                    closeFreshResponse = () => {
+                        if (closed) return
+                        closed = true
+                        controller.close()
+                    }
+                    releaseFreshResponse = closeFreshResponse
                 },
             })
             return new Response(body, {status: 200})
@@ -767,7 +785,9 @@ describe("useServerSessionInputs", () => {
                 }),
             },
         })
-        act(() => inputRef.current?.setMarkdown("keep this draft"))
+        await act(async () => {
+            await inputRef.current?.setMarkdown("keep this draft")
+        })
         fireEvent.click(await screen.findByRole("button", {name: "Queue"}))
 
         await screen.findByTitle("Message wasn't sent — No model provider is configured.")
