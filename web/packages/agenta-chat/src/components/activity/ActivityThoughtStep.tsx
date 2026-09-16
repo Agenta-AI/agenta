@@ -33,7 +33,7 @@ export const ActivityThoughtStep = ({
             <StepRow open={open} onToggle={() => setOpen((v) => !v)}>
                 <ActivityNode icon="brain" />
                 <span
-                    className={`min-w-0 max-w-[44ch] truncate text-sm text-colorTextSecondary transition-colors group-hover/row:text-colorText ${
+                    className={`min-w-0 max-w-[44ch] truncate text-sm text-colorText transition-colors group-hover/row:text-colorTextSecondary ${
                         live || streaming ? LIVE_TEXT_CLASS : ""
                     }`}
                 >
