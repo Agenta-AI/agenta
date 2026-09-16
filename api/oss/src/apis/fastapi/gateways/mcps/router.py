@@ -30,8 +30,6 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayEndpointNamespace
 from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
-    MCPEndpointEdit,
-    MCPEndpointFlags,
     MCPOAuthData,
 )
 from oss.src.core.gateways.mcps.providers.agenta.entitlement import (
@@ -70,47 +68,6 @@ def _guard_custom_endpoint_url(*, url: Optional[str]) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"endpoint.data.route.base_url is invalid: {e}",
         ) from e
-
-
-def _as_edit(
-    endpoint: MCPEndpoint,
-    *,
-    secret_id: Optional[UUID] = None,
-    clear_secret_id: bool = False,
-) -> MCPEndpointEdit:
-    """Create an editable copy of an endpoint.
-
-    A new grant revalidates the endpoint. The data plane marks one invalid when its
-    stored authorization expires and cannot be renewed (OR55); reconnecting is the cure,
-    and carrying that flag forward would leave the endpoint refusing calls it can now
-    serve.
-
-    `clear_secret_id` exists because `secret_id=None` already means "leave the handle
-    alone", which is what every caller that is not writing a grant wants. Disconnecting
-    needs the other thing, and the two cannot share one argument.
-    """
-    # Both handle writes revalidate. Clearing one is valid rather than invalid: nothing is
-    # wrong with the endpoint, it simply has no authorization now, and `_connection_state`
-    # reads a missing handle as "connect" on its own. Marking it invalid would say the
-    # credential died.
-    flags = (
-        MCPEndpointFlags(is_active=endpoint.flags.is_active, is_valid=True)
-        if clear_secret_id or secret_id is not None
-        else endpoint.flags
-    )
-    return MCPEndpointEdit(
-        id=endpoint.id,
-        name=endpoint.name,
-        description=endpoint.description,
-        auth_mode=endpoint.auth_mode,
-        secret_id=None if clear_secret_id else (secret_id or endpoint.secret_id),
-        data=endpoint.data,
-        # Carried, not defaulted. The edit mapping assigns both unconditionally, so a
-        # builder that omits them nulls whatever the connection was created with (D3).
-        tags=endpoint.tags,
-        meta=endpoint.meta,
-        flags=flags,
-    )
 
 
 class MCPGatewayRouter:
@@ -541,16 +498,16 @@ class MCPGatewayRouter:
         if body.scopes is None:
             discovery = await self.oauth_connect_service.discover(server_url=server_url)
 
-            endpoint.data.oauth = MCPOAuthData(
-                resource=discovery.resource,
-                authorization_server=discovery.authorization_server,
-                scopes_offered=discovery.scopes_offered,
-            )
-            await self.service.edit_endpoint(
+            await self.service.cache_endpoint_discovery(
                 project_id=scope.project_id,
                 user_id=scope.user_id,
                 #
-                endpoint=_as_edit(endpoint),
+                endpoint_id=endpoint.id,
+                oauth=MCPOAuthData(
+                    resource=discovery.resource,
+                    authorization_server=discovery.authorization_server,
+                    scopes_offered=discovery.scopes_offered,
+                ),
             )
 
             return MCPConnectResponse(count=1, scopes_offered=discovery.scopes_offered)

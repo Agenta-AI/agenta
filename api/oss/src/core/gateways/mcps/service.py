@@ -30,6 +30,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointData,
     MCPEndpointRoute,
     MCPEndpointEdit,
+    MCPOAuthData,
     MCPEndpointQuery,
     MCPRelayAuth,
     MCPResolvedRoute,
@@ -331,6 +332,24 @@ class MCPGatewayService:
             #
             endpoint_id=endpoint_id,
             secret_id=secret_id,
+        )
+
+    async def cache_endpoint_discovery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        oauth: MCPOAuthData,
+    ) -> Optional[MCPEndpoint]:
+        """Record what discovery learned. See the DAO."""
+        return await self.mcp_endpoints_dao.cache_endpoint_discovery(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            endpoint_id=endpoint_id,
+            oauth=oauth,
         )
 
     async def edit_endpoint(

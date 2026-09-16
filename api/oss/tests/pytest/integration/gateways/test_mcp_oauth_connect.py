@@ -58,6 +58,17 @@ class _EndpointStore:
         self.endpoint = MCPEndpoint.model_validate(endpoint.model_dump())
         return self.endpoint
 
+    async def cache_endpoint_discovery(
+        self, *, project_id, user_id, endpoint_id, oauth
+    ):
+        # Discovery metadata only, merged into the row rather than replacing it (D31).
+        if endpoint_id != self.endpoint.id:
+            return None
+        self.endpoint = self.endpoint.model_copy(
+            update={"data": self.endpoint.data.model_copy(update={"oauth": oauth})}
+        )
+        return self.endpoint
+
     async def bind_endpoint_secret(
         self, *, project_id, user_id, endpoint_id, secret_id
     ):

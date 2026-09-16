@@ -417,6 +417,7 @@ def test_mcp_relay_result_and_ports():
             # snapshot (D3).
             "bind_endpoint_secret",
             "invalidate_endpoint_secret",
+            "cache_endpoint_discovery",
             "delete_endpoint",
             "query_endpoints",
         }

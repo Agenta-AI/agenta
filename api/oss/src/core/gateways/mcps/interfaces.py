@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.gateways.mcps.dtos import (
+    MCPOAuthData,
     MCPCallContext,
     MCPEndpoint,
     MCPEndpointCreate,
@@ -103,6 +104,25 @@ class MCPEndpointsDAOInterface(ABC):
         reconfigured during, so writing back what it read would undo a concurrent
         change, and invalidating without looking would condemn a credential a reconnect
         has already replaced (D21).
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def cache_endpoint_discovery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        oauth: "MCPOAuthData",
+    ) -> Optional[MCPEndpoint]:
+        """Record what discovery learned about a connection's authorization server.
+
+        Its own write for the same reason a credential transition has one: the connect
+        route used to replay the whole row from the snapshot it had read before making an
+        outbound call, carrying that snapshot's `secret_id` and flags back over whatever
+        had happened meanwhile (D31).
         """
         raise NotImplementedError
 

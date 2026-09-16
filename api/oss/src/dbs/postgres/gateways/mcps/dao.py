@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
 from oss.src.core.gateways.mcps.dtos import (
+    MCPOAuthData,
     MCPEndpoint,
     MCPEndpointCreate,
     MCPEndpointEdit,
@@ -266,6 +267,36 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
                 return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
 
             self._set_is_valid(dbe, False)
+            self._stamp(dbe, user_id)
+
+            await session.commit()
+            await session.refresh(dbe)
+
+            return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
+
+    @suppress_exceptions()
+    async def cache_endpoint_discovery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        oauth: MCPOAuthData,
+    ) -> Optional[MCPEndpoint]:
+        async with self.engine.session() as session:
+            dbe = await self._locked(
+                session, project_id=project_id, endpoint_id=endpoint_id
+            )
+            if dbe is None:
+                return None
+
+            # One key of the stored data, merged into whatever the row holds now rather
+            # than into the copy the caller read before it dialled out (D31).
+            data = dict(dbe.data or {})
+            data["oauth"] = oauth.model_dump(mode="json", exclude_none=True)
+            dbe.data = data
+            flag_modified(dbe, "data")
             self._stamp(dbe, user_id)
 
             await session.commit()
