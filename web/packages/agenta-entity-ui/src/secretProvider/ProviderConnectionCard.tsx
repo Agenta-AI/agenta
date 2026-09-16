@@ -24,13 +24,13 @@ import {
     credentialFieldsForKind,
     credentialStatusLine,
     credentialValuesFor,
-    declaredEndpointProtocol,
     DEFAULT_ENDPOINT_PROTOCOL,
     defaultNamePreview,
     doneState,
     endpointProtocolFieldForKind,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    initialEndpointProtocol,
     manualModelPlaceholderForKind,
     modelDisplayOrder,
     probeProviderMutationAtom,
@@ -150,11 +150,12 @@ const ProviderConnectionCard = ({
     // `null` means "not chosen yet" — the defaults apply until the user touches the list.
     const [checkedModels, setCheckedModels] = useState<string[] | null>(connection?.models ?? null)
     const [harnesses, setHarnesses] = useState<string[] | null>(connection?.harnesses ?? null)
-    // Only the kinds that declare one carry it. A record that declares none opens on the form's
-    // default, and saving it is what turns that default into a declaration.
+    // Only the kinds that declare one carry it. `null` is "this record declares none", which a
+    // save leaves alone: a new connection declares the default, an existing one declares what it
+    // already did, and nothing but the control itself turns silence into a declaration.
     const protocolField = useMemo(() => endpointProtocolFieldForKind(kind), [kind])
-    const [protocol, setProtocol] = useState<LlmEndpointProtocol>(
-        declaredEndpointProtocol(connection?.protocol) ?? DEFAULT_ENDPOINT_PROTOCOL,
+    const [protocol, setProtocol] = useState<LlmEndpointProtocol | null>(
+        initialEndpointProtocol(connection),
     )
 
     // The card is remounted per provider by its key in the drawer, but a Settings row click can
@@ -172,7 +173,7 @@ const ProviderConnectionCard = ({
         setManualModels([])
         setCheckedModels(connection?.models ?? null)
         setHarnesses(connection?.harnesses ?? null)
-        setProtocol(declaredEndpointProtocol(connection?.protocol) ?? DEFAULT_ENDPOINT_PROTOCOL)
+        setProtocol(initialEndpointProtocol(connection))
     }, [connection, storedCredential])
 
     // A saved write-only record returns no values, so its secret fields arrive empty every time.
@@ -355,7 +356,10 @@ const ProviderConnectionCard = ({
                     kind,
                     name,
                     credential,
-                    ...(protocolField ? {protocol} : {}),
+                    // Omitted for a record that declares no protocol, which keeps it undeclared:
+                    // sending the control's displayed default would narrow a gateway nobody
+                    // described, and an Anthropic-compatible one would lose every Claude Code row.
+                    ...(protocolField && protocol ? {protocol} : {}),
                     modelNames: Object.fromEntries(
                         modelOptions.flatMap((option) =>
                             option.checked && option.name ? [[option.id, option.name]] : [],
@@ -504,7 +508,9 @@ const ProviderConnectionCard = ({
                         <Segmented
                             size="sm"
                             options={protocolField.options}
-                            value={protocol}
+                            // An undeclared record shows the default without having declared it;
+                            // pressing an option is what makes the statement.
+                            value={protocol ?? DEFAULT_ENDPOINT_PROTOCOL}
                             onChange={(next) => changeProtocol(next as LlmEndpointProtocol)}
                         />
                     </div>

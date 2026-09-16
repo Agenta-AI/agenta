@@ -12,6 +12,7 @@ import {
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    initialEndpointProtocol,
     modelDisplayOrder,
     nextConnectionName,
     probeFailureMessage,
@@ -580,6 +581,29 @@ describe("declaredEndpointProtocol", () => {
     it("reports a declared protocol as itself", () => {
         expect(declaredEndpointProtocol("openai")).toBe("openai")
         expect(declaredEndpointProtocol("anthropic")).toBe("anthropic")
+    })
+})
+
+describe("initialEndpointProtocol", () => {
+    it("declares the default for a connection being created", () => {
+        // The person is describing an endpoint as they create it, so the control they see is
+        // the statement they are making.
+        expect(initialEndpointProtocol(null)).toBe("openai")
+        expect(initialEndpointProtocol(undefined)).toBe("openai")
+    })
+
+    it("keeps what an existing record declared", () => {
+        expect(initialEndpointProtocol({protocol: "anthropic"})).toBe("anthropic")
+        expect(initialEndpointProtocol({protocol: "openai"})).toBe("openai")
+    })
+
+    it("leaves a record that declared nothing declaring nothing", () => {
+        // A record written before the field existed made no statement about its wire format.
+        // Opening it on the default is what used to turn a name-only edit into a declaration,
+        // and a declared `openai` takes an Anthropic-compatible gateway out of Claude's models.
+        expect(initialEndpointProtocol({})).toBeNull()
+        expect(initialEndpointProtocol({protocol: null})).toBeNull()
+        expect(initialEndpointProtocol({protocol: "grpc"})).toBeNull()
     })
 })
 

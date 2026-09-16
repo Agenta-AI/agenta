@@ -22,7 +22,7 @@ import {
     toProviderCredentials,
     type CredentialValues,
 } from "./providerCatalog"
-import {PROVIDER_AUTH_REQUIREMENTS} from "./providerFields"
+import {DEFAULT_ENDPOINT_PROTOCOL, PROVIDER_AUTH_REQUIREMENTS} from "./providerFields"
 import {
     SUBSCRIPTION_PROVIDER_KIND,
     subscriptionProviderFamily,
@@ -634,6 +634,22 @@ export const declaredEndpointProtocol = (
     protocol === LlmEndpointProtocol.Anthropic || protocol === LlmEndpointProtocol.Openai
         ? protocol
         : null
+
+/**
+ * What the protocol control starts on, which is also what a save may declare.
+ *
+ * A new connection starts on the form's default and declares it: the person is describing an
+ * endpoint as they create it, and the control they see is the statement they are making.
+ *
+ * An existing record starts on what it declared, and one that declared nothing keeps declaring
+ * nothing. Reading the default into it would turn a name-only edit into a statement about the
+ * wire format — the narrowing `declaredEndpointProtocol` exists to avoid, applied by accident
+ * to a record whose owner never touched the control.
+ */
+export const initialEndpointProtocol = (
+    connection: {protocol?: string | null} | null | undefined,
+): LlmEndpointProtocol | null =>
+    connection ? declaredEndpointProtocol(connection.protocol) : DEFAULT_ENDPOINT_PROTOCOL
 
 /**
  * Whether a harness can technically drive this provider kind.
