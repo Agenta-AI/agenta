@@ -5,6 +5,7 @@ The mocks run as compose services and can fail or hang on demand through real HT
 Needs the compose stack up; skips with a reason when it is not.
 """
 
+import json
 import socket
 from functools import lru_cache
 from typing import Optional
@@ -51,6 +52,86 @@ pytestmark = [
         reason="mock gateway services not reachable — deploy the compose stack",
     ),
 ]
+
+
+async def _negotiated_mcp_headers(client: httpx.AsyncClient) -> dict:
+    """Handshake with the mock MCP server and return the headers a session must then send.
+
+    The mock enforces the protocol version the way a conforming server does: every request
+    after `initialize` must carry `MCP-Protocol-Version`, and it must be the version the
+    server actually negotiated rather than the one the client asked for (D54). These cases
+    used to send neither, and passed only because the mock was obliging.
+
+    Read from the handshake rather than written down here, so a mock that negotiates a
+    different version keeps these cases honest instead of pinning a string that has to be
+    updated in two places.
+    """
+    handshake = await client.post(
+        "/",
+        json={
+            "jsonrpc": "2.0",
+            "id": 0,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "agenta-tests", "version": "0"},
+            },
+        },
+    )
+    assert handshake.status_code == 200, handshake.text
+    negotiated = handshake.json()["result"]["protocolVersion"]
+    return {"MCP-Protocol-Version": negotiated}
+
+
+def _jsonrpc_result(response: httpx.Response) -> dict:
+    """The JSON-RPC result, whichever framing the server chose.
+
+    A Streamable HTTP server may answer a single request as an event stream, and may send
+    notifications before the response, so the answer is the frame carrying this id rather
+    than the body or the last frame. The mock does exactly that now (D54, D62/D63), and
+    these cases used to assume one plain JSON object.
+    """
+    body = response.text
+    if "data:" not in body:
+        return response.json()["result"]
+    payloads = [
+        json.loads(line[len("data:") :].strip())
+        for line in body.splitlines()
+        if line.startswith("data:")
+    ]
+    answers = [p for p in payloads if isinstance(p.get("result"), dict)]
+    assert answers, body
+    return answers[-1]["result"]
+
+
+async def _every_listed_tool(client: httpx.AsyncClient, headers: dict) -> set:
+    """Every tool the server offers, following its pagination.
+
+    The mock pages one tool at a time on purpose. A caller that reads only the first page
+    sees one tool and calls it the catalogue, which is what a gateway must not do.
+    """
+    names: set = set()
+    cursor = None
+    for request_id in range(1, 20):
+        params = {"cursor": cursor} if cursor else {}
+        response = await client.post(
+            "/",
+            json={
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "tools/list",
+                "params": params,
+            },
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
+        result = _jsonrpc_result(response)
+        names.update(tool["name"] for tool in result.get("tools", []))
+        cursor = result.get("nextCursor")
+        if not cursor:
+            return names
+    raise AssertionError("the mock paginated further than any real catalogue would")
 
 
 class TestMockUpstreams:
@@ -104,18 +185,12 @@ class TestMockUpstreams:
 
     async def test_tools_list_returns_three_tools_and_get_delete_are_405(self):
         async with httpx.AsyncClient(base_url=_MCP_URL) as client:
-            listed = await client.post(
-                "/", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
-            )
-            got = await client.get("/")
-            deleted = await client.delete("/")
+            headers = await _negotiated_mcp_headers(client)
+            listed = await _every_listed_tool(client, headers)
+            got = await client.get("/", headers=headers)
+            deleted = await client.delete("/", headers=headers)
 
-        assert listed.status_code == 200, listed.text
-        assert {tool["name"] for tool in listed.json()["result"]["tools"]} == {
-            "echo",
-            "fail",
-            "slow",
-        }
+        assert listed == {"echo", "fail", "slow"}
         assert got.status_code == 405
         assert deleted.status_code == 405
 
@@ -129,8 +204,9 @@ class TestMockUpstreams:
                     "method": "tools/call",
                     "params": {"name": "fail"},
                 },
+                headers=await _negotiated_mcp_headers(client),
             )
 
         # A tool failure is a protocol-level result, not a transport error.
         assert response.status_code == 200, response.text
-        assert response.json()["result"]["isError"] is True
+        assert _jsonrpc_result(response)["isError"] is True
