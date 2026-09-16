@@ -11,61 +11,75 @@ An MCP server gives your agent tools it can call. You connect the server once to
 Have these ready:
 
 - **The server's HTTP URL**, such as `https://mcp.example.com`. Agenta connects over HTTP. It does not start local processes over stdio.
-- **A header name and key**, only if the server authenticates with a header rather than OAuth. You can save the key as a project secret without leaving the connect dialog.
+- **A header name and key**, only if the server authenticates with a header rather than OAuth. You can save the key as a project secret without leaving the connect sheet.
 
 ## Connect the server
 
-Start from `Settings` in the sidebar, then `MCPs`, and click `Connect MCP`. You can also start from an agent: open the **MCPs** section of its **Configuration** column, click `Add MCP server`, then click `Connect MCP` in the `Connection` list. Both entry points run the same dialog.
+Start from `Settings` in the sidebar, then `MCPs`, and click `Connect MCP`. You can also start from an agent: open the **MCP servers** section of its **Configuration** column and click the plus on that section. That opens the `Add MCP server` drawer, which lists the connections the project already has. Click `Connect server` there. Both entry points open the same `Connect MCP server` sheet.
 
-1. Enter the address under `MCP server URL` and click `Continue`. Agenta contacts the server to check that it is reachable and to see how it authenticates.
-2. Check the suggested `Name` and edit it if you want. The name labels this connection everywhere you pick it, and it must be unique in the project. Click `Continue`.
-3. What comes next depends on what the server reported.
+1. Enter the address under `Server URL` and click `Continue`. Agenta contacts the server to check that it is reachable and to detect whether it needs OAuth, an API key, or nothing.
+2. Agenta reports what it found and asks for a name. Check the suggested `Name` and edit it if you want. The name labels this connection everywhere you pick it, it must be unique in the project, and it sets the tool prefix the model sees.
+3. What you do next depends on what the server reported.
 
-   **The server uses OAuth.** The dialog reads "This server uses OAuth. Continuing opens its authorization page." `Continue` lists the permissions the server offers, one checkbox each, under "Choose which permissions to grant". Clear any you do not want to grant, then click `Authorize`. The provider's consent page opens in a new window. Complete it there, and the dialog carries on by itself.
+   **`Reachable · signs in with OAuth`.** Click `Connect`. The provider's authorization page opens in a new window. Complete it there, and the sheet carries on by itself. Agenta does not ask you to choose scopes. The server decides what it grants.
 
-   If your browser blocks the new window, consent opens in the tab you were already on. That is common on phones and inside apps that embed a browser. Agenta shows "Taking you back to Agenta..." and returns you to the page you started from, after a refusal as well as after a grant. You do lose whatever else you had open in that tab, so reopen the agent you were configuring.
+   **`Reachable · needs an API key`.** Agenta prefills `Header` with `Authorization`, and you can edit it to whatever the server expects, such as `x-api-key`. Pick the `Project secret` that holds the key. If the project has no secrets yet, click `Create secret` in that list to make one without leaving the sheet. Click `Connect`. Agenta calls the server once with that credential, so a wrong header or a wrong key fails here rather than during an agent run. If the server turns out to need nothing, click `Connect without authentication` instead.
 
-   **The server needs no authentication.** The dialog reads "This server needs no authentication." Click `Continue`.
+   **`Reachable · no sign-in needed`.** The sheet asks only for a name. Click `Connect`.
 
-   **Agenta could not tell.** The dialog repeats what the server said and offers a credential step. Enter the `Header name` the server expects, such as `x-api-key`, then pick the `Project secret` that holds the key. If the project has no secrets yet, click `Create secret` in that list to make one without leaving the dialog. Click `Save credential`. Agenta then calls the server once with that credential, so a wrong header name or a wrong key fails here rather than during an agent run. If the server in fact needs nothing, click `Connect without authentication` instead.
+4. The sheet reads `Connected` and reports how many tools it found. Click `Done`.
 
-4. The dialog reads `Connected` and reports how many tools it found. Click `Done`.
+Started from an agent, the connection is added to that agent when you click `Done`, and its permission drawer opens so you can decide what the agent may run. Started from `Settings`, a new row appears in the table.
 
-Any step that fails offers `Try again`, which repeats that step rather than starting over. The one point you cannot leave is the moment after consent while Agenta saves the connection: the dialog closes neither on `Escape`, nor on a click outside it, nor on its close button, because the provider has already issued the credential and abandoning it there would strand the grant. It moves on by itself.
+A step that fails keeps what you typed and offers `Try again`, which repeats that step rather than starting over. `Change` on the result card takes you back to the URL field with the address kept. While Agenta waits for the provider, `Cancel` returns you to the name step with the name you chose, and the sign-in you abandoned is discarded.
 
-{/* TODO(mcp-release): screenshot or short recording of the Connect MCP dialog, from the URL step through Connected. */}
+If your browser blocks the new window, consent opens in the tab you were already on. That is common on phones and inside apps that embed a browser. Agenta returns you to the page you started from, after a refusal as well as after a grant. You do lose whatever else you had open in that tab, so reopen the agent you were configuring. Where Agenta's app and its API answer on different addresses, the return lands on `Settings > MCPs` rather than on the page you left.
+
+{/* TODO(mcp-release): short recording of the Connect MCP server sheet, from the URL field through to the permission drawer opening. */}
 
 ## Give an agent the connection
 
-1. Open the agent's **Configuration** column and find the **MCPs** section.
-2. Click `Add MCP server`, then pick the connection under `Connection`.
-3. `Status` shows `Ready` when the connection can be used, next to the server URL. `Tool prefix` shows the label the model sees on this server's tools, which the harness renders as `mcp__<prefix>__<tool>`.
+1. Open the agent's **Configuration** column and find the **MCP servers** section.
+2. Click the plus on that section. The `Add MCP server` drawer lists every connection in the project, with a `Search servers` box above them.
+3. Find the connection and click `Add`. A connection this agent already has reads `Added` and is not clickable. A connection whose login has lapsed offers `Reconnect` instead, which repairs the login and then offers `Add`.
+
+`Add` attaches the connection and opens its permission drawer. The drawer header carries the connection name, the tool prefix, and whether the connection is `Connected`. The prefix is the label the model sees on this server's tools, which the harness renders as `mcp__<prefix>__<tool>`.
 
 The prefix is frozen when you pick the connection. Renaming the connection later does not rename the tools in an agent that is already saved.
 
-Connecting a new server from here works the same way, with one difference at the end. The dialog closes as soon as the connection exists and the agent takes it, so you can carry on configuring. It does not show you the server's tools. To see them, open the connection's row in `Settings > MCPs`.
+To reopen the drawer afterwards, click the server's row in the **MCP servers** section, then click `Set permissions`.
+
+Connecting a new server from the drawer ends in the same place as adding an existing one. The sheet closes, the connection is added to this agent, and its permission drawer opens.
 
 ## Choose what the agent may do with each tool
 
-Permissions belong to the agent, not to the connection. Two agents can share one server and be allowed different things, which is why the connection drawer in `Settings` lists the tools read-only and sends you here.
+Permissions belong to the agent, not to the connection. Two agents can share one server and be allowed different things, which is why `Settings` lists a server's tools read-only and sends you here.
 
-In the agent's **MCPs** section, open the server and find `Permissions`.
+The permission drawer opens on `Default permission`.
 
-1. The field starts on "Every tool on this server follows the server's own permission." Click `Set permissions per tool` to decide tool by tool.
-2. Set `A tool with no rule of its own` to `Ask`, `Allow`, or `Deny`. This covers every tool you leave without a rule, including one the server starts advertising after you save. It starts on `Ask`, and it is the only thing that decides those tools: once you set permissions per tool, the whole-server permission no longer reaches a tool you did not name.
-3. Give individual tools their own rule. `Allow` runs the tool without asking, `Ask` pauses the run for you, `Deny` never runs it, and `Inherit` hands the tool back to the default you set in step 2. A row with no rule of its own says which of those it inherits.
+1. Pick a preset. `Always ask` holds every tool call for your approval. `Ask for write and delete` runs read-only tools on their own and asks before anything else. `Allow all` runs everything without asking. `Deny all` keeps the tools listed but never runs them. A server you have just added starts on `Ask for write and delete`.
+2. Override individual tools in the list below. `Allow` runs the tool without asking, `Always ask` pauses the run for you, `Deny` never runs it, and `Follow agent policy` hands the tool back to the agent's own permission policy.
+3. Any override switches `Default permission` to `Custom`, with a count of how many tools you have overridden. Picking a preset again clears every override.
 
-To hand the whole server back to one decision, click `Use the server permission instead`. That clears every per-tool rule you set.
+Click `Done` to write the change to the agent.
 
-On a server with eight tools or more, a `Filter N tools` box sits above the list. It matches a tool's name and its description, so you can search for what a tool does rather than for what it is called. While a query is active, each row shows the tool's description instead of what it inherits, so you can see why it matched even when the word you typed is not in its name. Clearing the query puts the inherited value back. A query that matches nothing reads "No tool here matches that", which tells you the query found nothing rather than that the server stopped offering tools. The box only narrows what you are looking at, and it changes no rule. Shorter lists have no box.
+A tool you have not given a rule of its own reads `Follow agent policy` when nothing else governs it, and `Inherits allow`, `Inherits ask` or `Inherits deny` when the preset you chose does.
+
+Tools are grouped into `Read-only` and `Write` by whether the server marks them read-only, with a count on each group header and a summary of what the group does as a whole: `runs automatically`, `asks first`, `never runs`, `follows agent policy`, or `mixed` when the tools in it disagree. A tool the server does not mark read-only is grouped with the write tools. A group of more than 25 tools shows the first 25 and a `Show N more` link.
+
+A description too long for its row ends in an ellipsis. Click `Show more` to read it in full, and `Show less` to put it back.
+
+A `Search N tools` box sits above the list. It matches a tool's name and its description, so you can search for what a tool does rather than for what it is called. A group with no match reads "No matches in this group.". The box only narrows what you are looking at, and it changes no rule.
 
 Two kinds of row behave differently:
 
-- A tool that the server's tool filter hides reads "Hidden by this server's tool filter" and its control is disabled. A hidden tool is never offered to the model, so it needs no permission. That filter is a configuration field and not the search box above it, and it is described in [MCP servers](/reference/agents/mcp-servers).
-- A rule for a tool the server has stopped advertising appears under "Rules for tools this server no longer advertises". Agenta keeps it, because a server can drop a tool and bring it back, and a dropped rule would let it return under the default from step 2. Click `Remove` to discard the rule on purpose.
+- A tool that the server's tool filter hides reads "Hidden by this server's tool filter" and its control is disabled. A hidden tool is never offered to the model, so it needs no permission. If a rule you set earlier is now stranded on a hidden tool, the row offers `Remove` so you can clear it. That filter is a configuration field and not the search box above it, and it is described in [MCP servers](/reference/agents/mcp-servers).
+- A tool the server has stopped advertising stays in the list, still editable. Agenta keeps your rule for it, because a server can drop a tool and bring it back, and a dropped rule would let it return under a wider decision than you chose.
+
+To detach the server from this agent, click `Remove from agent` at the bottom of the drawer and confirm. The connection stays in the project.
 
 :::note
-MCP tools are not covered by the `Always auto-approve` checkbox on an approval card. A tool on `Ask` asks every time it runs, so give a tool you run often its own `Allow` rule instead. See [Control what an agent can do](/guides/control-what-an-agent-can-do) for the agent-wide policy these rules sit inside.
+MCP tools are not covered by the `Always auto-approve` checkbox on an approval card. A tool on `Always ask` asks every time it runs, so give a tool you run often its own `Allow` rule instead. See [Control what an agent can do](/guides/control-what-an-agent-can-do) for the agent-wide policy these rules sit inside.
 :::
 
 :::caution
@@ -76,31 +90,35 @@ These rules govern the agent's own behaviour while it runs. What the connection 
 
 ## Connect a second account at the same server
 
-Run `Connect MCP` again with the same URL. Agenta suggests a name that does not collide, such as `Acme (secondary)`. The two connections are separate. Each holds its own authorization, and each agent picks one of them by name.
+Connect the same URL a second time, from `Connect MCP` in `Settings` or `Connect server` in the `Add MCP server` drawer. Agenta suggests a name that does not collide, such as `Acme (secondary)`. The two connections are separate. Each holds its own authorization, and each agent picks one of them by name.
 
 ## Rename, disconnect, or remove a connection
 
-Open `Settings > MCPs` and click the row.
+Open `Settings > MCPs`. The table lists each connection with its `Server URL`, its `Auth`, which reads `OAuth`, `API key` with the secret it uses, or `None`, and its `Status`. Each row has a menu at the end of it.
 
-- **Rename.** Edit `Name` and click `Save name`. Agents keep using the connection under its existing reference, so a rename changes nothing about what they run.
-- **Tools.** The drawer lists the tools the server exposes, each with its description, and the same `Filter N tools` box once there are eight or more. The list is read-only. What an agent may call is set in that agent's configuration.
-- **Disconnect.** Offered on a connected OAuth server only, because it is the stored grant that it drops. The connection, its name, and its URL stay. Agents using it stop working until it is connected again, and one `Connect` restores it. A server that needs no authentication, or one that authenticates with a header key, has nothing to drop and offers `Remove` alone.
+- **Reconnect.** Repairs whichever way the connection authenticates. On an OAuth connection it takes you back through the provider's authorization page. On a key-authenticated one it reopens the sheet with the URL and the name locked, so you can supply the header and the secret again.
+- **View tools.** Opens the same drawer an agent uses, with the tools grouped and described but nothing to set. What an agent may call is set in that agent's configuration.
+- **Rename.** Opens the connection, where you edit `Name` and click `Save name`. Agents keep using the connection under the prefix they were saved with, so a rename changes nothing about what they run.
+- **Disconnect.** Gives back the stored login. The connection, its name, and its URL stay, and the row reads `Login expired`. Agents using it stop working until it is authorized again, and one `Reconnect` restores it. The menu offers this only where there is a login to give back, so a server that needs no authentication does not show it.
 - **Remove.** Deletes the connection. Agents configured to use it stop working, and connecting the same server again later creates a new connection that those agents do not reference.
-- **Reconnect.** Repairs whichever way the connection authenticates. On an OAuth connection it re-reads the permissions the server offers and takes you back through consent. On a key-authenticated one it reopens the credential step so you can supply the header and secret again.
 
 ## Troubleshooting
 
-**The status reads `Needs authorization`.** The consent flow was abandoned, or the grant was revoked or has expired. Open the row and click `Connect` to authorize it again. The connection keeps its name and every agent reference.
+**The status reads `Login expired`.** Open the row menu and click `Reconnect`, or click the `Reconnect` link in the row's status cell. The connection keeps its name and every agent reference.
 
-**The status reads `Needs input`.** A key-authenticated connection has no usable credential. Click `Connect` on the row, which reopens the credential step rather than sending you to a consent page.
+On an OAuth connection this means consent was abandoned, or the grant was revoked or has expired, and `Reconnect` takes you back to the provider's authorization page. On a key-authenticated connection it means the server stopped accepting the key, and `Reconnect` reopens the sheet with the URL and the name locked so you can supply a new header or secret.
+
+**`Couldn't reach this server.`** Nothing answered at that address. Check the address and that the server speaks HTTP transport. A server on a private network has to be reachable from Agenta.
+
+**`Reached the address, but it isn't an MCP server.`** Something answered and it was not an MCP server. This usually means the URL points at a web page or a different API on the same host.
+
+**`The server rejected this key.`** Agenta shows the server's own refusal beneath that sentence. Check the `Header` against the server's documentation, and check that the project secret holds the right key. Click `Try again` once you have corrected either one.
 
 **`Another connection in this project already uses this name.`** Names are compared after every character outside letters, digits, and underscores is replaced with an underscore, so `Acme Tools` and `Acme-Tools` count as the same name. Pick a name that differs by more than punctuation.
 
 **Connected, but the tool list failed.** Agenta shows the server's own wording for the refusal. The credentials were saved, so click `Retry tools` and do not authorize again.
 
 **`This server exposes no tools yet.`** The server answered with an empty tool list, and that is a real answer rather than a failed conversation. A server Agenta cannot read reports its own error instead, as above.
-
-**The credential step says verification failed.** The server refused the credential Agenta sent it. Check the `Header name` against the server's documentation, and check that the project secret holds the right key. Click `Try again` to send it again once you have corrected either one.
 
 ## Next
 
