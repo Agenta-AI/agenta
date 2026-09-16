@@ -120,7 +120,7 @@ Agenta's own gate is the authority. It sees every MCP tool call, on every harnes
 
 Some harnesses can also be told the same rules in their own configuration, which is what keeps a denied tool out of the list the model is shown rather than letting it be offered and then refused. That translation is a convenience, and it is not always complete:
 
-- **Claude Code** is given native rules. It resolves all matching rules together and takes the most restrictive, rather than preferring the most specific, so a tool set looser than the server's own default — say `permission: "deny"` with `tool_permissions: {"echo": "allow"}` — cannot be written as a server rule plus an exception. In that case Agenta writes the per-tool rules alone and leaves the tools you did not name to the gate. They are still governed; they are simply offered to the model first and refused on use.
+- **Claude Code** is given native rules. It resolves all matching rules together and takes the most restrictive, rather than preferring the most specific. A tool set looser than the server's own default, such as `permission: "deny"` with `tool_permissions: {"echo": "allow"}`, therefore cannot be written as a server rule plus an exception. In that case Agenta writes the per-tool rules alone and leaves the tools you did not name to the gate. They are still governed; they are simply offered to the model first and refused on use.
 - **Codex** is given none. Its configuration cannot carry a tool table without a transport entry it will not accept, so every tool is offered and the gate decides.
 - **Pi** never registers a denied tool in the first place.
 
