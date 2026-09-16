@@ -116,6 +116,62 @@ describe("readToolPage", () => {
         })
     })
 
+    it("carries the title, the annotations and the argument schema the server sent", () => {
+        // All three arrive on the wire and the permission drawer needs two of them: one to label a
+        // row, one to decide whether it is a read or a write. A projection that drops them cannot
+        // be undone anywhere downstream.
+        const schema = {type: "object", properties: {team: {type: "string"}}}
+
+        expect(
+            readToolPage({
+                tools: [
+                    {
+                        name: "create_issue",
+                        title: "Create issue",
+                        description: "File a new issue",
+                        annotations: {readOnlyHint: false, destructiveHint: true, title: "old"},
+                        inputSchema: schema,
+                    },
+                ],
+            }).tools,
+        ).toEqual([
+            {
+                name: "create_issue",
+                title: "Create issue",
+                description: "File a new issue",
+                annotations: {readOnlyHint: false, destructiveHint: true, title: "old"},
+                inputSchema: schema,
+            },
+        ])
+    })
+
+    it("parses a tool that carries no annotations at all", () => {
+        expect(readToolPage({tools: [{name: "echo"}]}).tools).toEqual([{name: "echo"}])
+    })
+
+    it("drops a member of the wrong type rather than coercing it", () => {
+        // A hint that is a string is not advice, and a truthy read of it would sort a write tool
+        // into the read-only group.
+        expect(
+            readToolPage({
+                tools: [
+                    {
+                        name: "wipe",
+                        title: 7,
+                        annotations: {readOnlyHint: "yes"},
+                    },
+                ],
+            }).tools,
+        ).toEqual([{name: "wipe"}])
+    })
+
+    it("reads an empty annotations object as no annotations", () => {
+        // `{}` would read as "the server annotated this tool" to anything checking presence.
+        expect(readToolPage({tools: [{name: "echo", annotations: {}}]}).tools).toEqual([
+            {name: "echo"},
+        ])
+    })
+
     it("reports a last page as a last page", () => {
         expect(readToolPage({tools: []})).toEqual({tools: [], nextCursor: null})
         expect(readToolPage({tools: [], nextCursor: ""}).nextCursor).toBeNull()
