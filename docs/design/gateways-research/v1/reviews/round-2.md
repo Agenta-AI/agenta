@@ -64,7 +64,7 @@ about the suite that was supposed to catch them.
 | Codex, as filed | 0 | 5 | 9 | 1 | 15, plus 3 quality |
 | Second reviewer, as filed | 0 | 5 | 9 | 3 | 17, plus 4 quality |
 | **After verification and merge** | **0** | **5** | **14** | **5** | **24, plus 4 quality** |
-| **As this file is written** | **0** | **1** | **9** | **7** | **9 closed, 2 fixed pending a run, 2 part fixed, 17 open** |
+| **As this file is written** | **0** | **0** | **9** | **5** | **13 closed, 2 part fixed, 14 open. No P1 remains** |
 
 Eleven findings overlapped and are merged; they are marked "both" below. Three Codex severities were
 lowered on reachability and none was raised, and each change is argued in the finding's own section.
@@ -79,11 +79,11 @@ whether that fix was read against the finding and its test.
 
 | ID | Src | Sev | Evidence | Disposition | Fix rev | Verified |
 | --- | --- | --- | --- | --- | --- | --- |
-| D22 | both | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectJourney.ts:311`, `web/packages/agenta-entity-ui/src/mcpEndpoint/McpConnectJourney.tsx:263` | Fix, blocking | `cd9e6f2c16`, `277fc7d4fe` | **yes**, code, spec and hook tests; the wiring is guarded only by the acceptance suite (D48) |
-| D23 | both | P1 | `web/packages/agenta-settings-ui/src/mcp/McpServersSection.tsx:247`, `hooks/useMcpConnectJourney.ts:75` | Fix, blocking | `40ed49f5a1`, `5b11eada26` | **yes**, code, spec and hook tests; the wiring is guarded only by the acceptance suite (D48) |
+| D22 | both | P1 | `web/packages/agenta-entities/src/mcpEndpoint/core/connectJourney.ts:311`, `web/packages/agenta-entity-ui/src/mcpEndpoint/McpConnectJourney.tsx:263` | Fix, blocking | `cd9e6f2c16`, `277fc7d4fe` | **yes**, code, tests and a recorded browser run |
+| D23 | both | P1 | `web/packages/agenta-settings-ui/src/mcp/McpServersSection.tsx:247`, `hooks/useMcpConnectJourney.ts:75` | Fix, blocking | `40ed49f5a1`, `5b11eada26` | **yes**, code, tests and a recorded browser run |
 | D24 | Codex | P1 | `api/oss/src/core/gateways/mcps/oauth/storage.py:366`, `:222`, `oauth/service.py:456`, `:483` | Fix, blocking. Re-opens D6 | `98e1ddb6e4` | **yes**, code, tests, suite run, incl. pre-fix run |
-| D25 | reviewer 2 | P1 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:106`, `:297` | Fix or record, blocking the gate | | mechanism, repo-wide grep |
-| D26 | reviewer 2 | P1 | `mcp-connect.ts:190`, `:219`, `:236` | Fix with D22 | `cd9e6f2c16` | **partly**, code read; suite run still owed |
+| D25 | reviewer 2 | P1 | `web/oss/tests/playwright/acceptance/settings/mcp-connect.ts:106`, `:297` | Fix or record, blocking the gate | `8b7b1c6cd1` | **yes**, run by this review, and run again against a dead port |
+| D26 | reviewer 2 | P1 | `mcp-connect.ts:190`, `:219`, `:236` | Fix with D22 | `cd9e6f2c16`, `8b7b1c6cd1` | **yes**, 7 of 7 green on a run by this review |
 | D27 | both | P2 | `hooks/useMcpConnectJourney.ts:160`, `api/oss/src/apis/fastapi/gateways/mcps/router.py:889` | Fix | | mechanism, both sites |
 | D28 | both | P2 | `hooks/useMcpConnectJourney.ts:274-295` | Fix | | mechanism, code |
 | D29 | reviewer 2 | P2 | `core/connectJourney.ts:181`, `hooks/useMcpConnectJourney.ts:331`, `McpConnectJourney.tsx:117` | Fix | | mechanism, code |
@@ -103,19 +103,19 @@ whether that fix was read against the finding and its test.
 | D43 | reviewer 2 | P3 | `McpConnectionDetail.tsx:95-106` | Fix with D31 | | mechanism, code |
 | D44 | reviewer 2 | P3 | `core/connectionState.ts:10` | Fix | | mechanism, code |
 | D45 | reviewer 2 | P3 | `core/connectionName.ts:69` | Fix | | mechanism, code |
-| D46 | D38 residual | P3 | `api/oss/src/core/gateways/mcps/oauth/client.py:273` | Fix with D38's bound | | mechanism, code |
-| D47 | verification | P3 | `api/oss/src/core/gateways/egress.py:113`, [qa.md](../qa.md) | Fix the collision or document it | | mechanism, reproduced |
+| D46 | D38 residual | P3 | `api/oss/src/core/gateways/mcps/oauth/client.py:273` | Fix with D38's bound | `ae87c4f5f4` | **yes**, code and one discriminating test; two of the three do not discriminate |
+| D47 | verification | P3 | `api/oss/src/core/gateways/egress.py:113`, [qa.md](../qa.md) | Fix the collision or document it | `b92db4946a` | **yes**, 1061 passed with the preconditions exported |
 | D48 | verification | P2 | `mcpConnectJourney.tools.test.tsx:79`, `mcpConnectJourney.reconnect.test.tsx:66` | Fix: cover the wiring, not only the hook | | mechanism, imports checked, suites run |
 | Q1 | both | P2 | `McpConnectJourney.tsx:98-106`, `hooks/useMcpConnectJourney.ts:189` | Quality, altitude. The root of D22, D23, D29, D30, D31 and D34 | | mechanism, code |
 | Q2 | both | P2 | `McpConnectionDetail.tsx:66-83`, `McpToolPermissions.tsx:77-93` | Quality, reuse and efficiency | | mechanism, code |
 | Q3 | reviewer 2 | P3 | `McpConnectionDetail.tsx:74`, `McpToolPermissions.tsx:85` | Quality, reuse. **Closed by D32's fix** | `8079441042` | **yes**, code |
 | Q4 | Codex | P3 | `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/AgentTemplateControl.tsx:212` | Quality, simplification | | **not verified** |
 
-**One finding still blocks the release: D25.** D22, D24, D33 and D37 are fixed and verified, and
-D23 and D26 are fixed pending a recorded run. D25 is the reason none of this was caught before the
-review, and it is now also the reason two of the fixes cannot be shown to hold: the only end-to-end
-suite has never run in CI, its gating variables are set nowhere in the repository, and it is the
-only thing that guards D22, D23 and D26.
+**Nothing from this round blocks the release any longer.** All five blocking findings are closed
+and verified, the last of them by the browser run recorded below, which is the evidence D22, D23 and
+D26 were each waiting on. Fourteen findings remain open, none above P2, and the two largest are
+about where the guard sits rather than about the product: **D48**, that the unit suites added for the
+two P1 frontend fixes do not exercise the wiring those fixes changed, and **D31**'s web half.
 
 ## Verifying the fixes
 
@@ -126,8 +126,7 @@ revision before the fix, so the predicted failure is watched rather than assumed
 
 | Finding | Fix | At the fix | Pinned before it |
 | --- | --- | --- | --- |
-| D22, D26 | `cd9e6f2c16` | code and spec read | acceptance run still owed (D25) |
-| D23 | `40ed49f5a1` | code and spec read | acceptance run still owed (D25) |
+| D22, D23, D25, D26 | `cd9e6f2c16`, `40ed49f5a1`, `8b7b1c6cd1` | **7 of 7 green in a browser** | one loud failure against a dead port |
 | D24 | `98e1ddb6e4` | 16 passed | 3 failed, 13 passed |
 | D33 | `dd8f6066e3` | 23 passed | 3 failed, 20 passed |
 | D37 | `341a9c16c6` | 122 passed | 28 failed, 94 passed |
@@ -135,6 +134,8 @@ revision before the fix, so the predicted failure is watched rather than assumed
 | D38 | `fd278ec1ca` | 17 passed | 2 failed, 15 passed |
 | D22, D23 hook tests | `277fc7d4fe`, `5b11eada26` | 13 passed | not applicable, see D48 |
 | D32, D35, D36 | `8079441042`, `acdf1de2e4`, `7ee965e435` | 797 + 547 + 1846 passed | asserted behaviour the old code cannot produce; the shell half run both ways |
+| D46 | `ae87c4f5f4` | 20 passed | 1 hung until killed, 2 passed either way |
+| D47 | `b92db4946a` | 1061 passed with the preconditions exported | 2 failed, 74 passed |
 
 The pre-fix failures are the predicted ones in every case. D24's headline case comes back with the
 grant's `client_registration_slug` set to nothing after the first renewal, where the pinned slug
@@ -166,6 +167,42 @@ table. That sharpens **D19**, which recorded that these suites cannot be run cor
 host. The addressing is now documented and workable; what remains of D19 is that the defaults still
 send a careless host-side run into another stack, where it fails for a reason that has nothing to do
 with the code under test.
+
+## The recorded browser run
+
+The evidence D22, D23 and D26 were each waiting on, and the thing D25 is about.
+
+`8b7b1c6cd1` stops the suite gating on two variables that were set nowhere in the repository. The
+mock address is defaulted to the compose address instead of being a condition for running at all,
+and the two skips are gone: a stack without the mock upstream now fails once in `beforeAll` with a
+sentence naming what to bring up, and a run without the host-resolver mapping fails with the exact
+line to re-run with, because the consent page is the half of the flow only a browser can prove.
+
+**Run by this review**, from `web/tests`, against the integrated EE dev stack, with no MCP variables
+exported — only the licence, the web and API addresses, and the host-resolver mapping the suite
+demands:
+
+```
+7 passed, 0 failed, 0 skipped
+```
+
+All seven cases: a server that needs no authentication, the name suggested from the server's own
+metadata, a duplicate display name refused, two connections to one server kept apart, remove, the
+tool list on a connection, and the OAuth path through the mock issuer ending in a disconnect that
+keeps the connection. The global setup signed up a fresh account and created and deleted an
+ephemeral project around the run.
+
+**The failure path was run too**, by pointing the published mock address at a dead port: one failure
+in `beforeAll` at 0 ms carrying the sentence that names what to start, and the remaining six
+skipped, rather than seven timeouts of a minute each.
+
+**It is deliberately not in CI**, and the judgement is sound. The Railway job points at a deployed
+preview that runs no mock container, so enabling it there would fail for a missing fixture rather
+than for a defect, and a red job that means nothing is how people learn to ignore a red job. The
+release status says so in those words, which is the second half of what D25 asked for: either wire
+it in or say plainly that it is a manual gate step. What remains open is that a manual step is only
+as good as the person remembering it, and D48 records that the unit suites do not cover the wiring
+either.
 
 ## D22, fixed and verified
 
@@ -565,6 +602,19 @@ is named by the server being probed, so it is tenant-influenced in the same way 
 address is. Same class as D38, same authorized caller, and the branch is the common one rather than
 the exotic one, which is why it is worth closing with the same change rather than separately.
 
+**Fixed** by `ae87c4f5f4`, verified. The size cap goes on the OAuth client rather than on the probe,
+so the connect flow's own discovery is covered too, and a candidate that exceeds it is skipped the
+way any other unusable candidate already is, ending in the discovery error the probe turns into a
+result. The elapsed deadline stays on the probe, which is the path a typed address reaches first.
+Both placements are better than the ones this finding suggested.
+
+**One of its three cases proves it and two do not.** Pinned to the revision before the fix, the
+trickle case never returns: it was still running when the run was killed, which is the finding
+itself, unbounded discovery, demonstrated rather than argued. The two size cases pass either way,
+because the oversized document is half a megabyte of `x`, which fails to parse as metadata whether
+or not it was read whole, so the assertion cannot tell the cap from the parse failure. Padding a
+**valid** metadata document past the cap would discriminate.
+
 **D47. The documented host-side preconditions make two unit tests fail.** Exporting the integration
 preconditions from [qa.md](../qa.md) in a shell and then running the gateways unit suite turns two
 tests red: the loopback refusals in `test_gateways_egress.py` and
@@ -577,6 +627,10 @@ shell. The cost is a person following the QA document, seeing two failures that 
 with their change, and either chasing them or learning to ignore a red suite. Either scope the
 exemption to the addresses the integration layer actually dials, or say in the QA document that
 these variables belong to an integration shell and not a unit one.
+
+**Fixed** by `b92db4946a`, verified: with the preconditions exported in the shell, the gateways unit
+directory is **1061 passed**, where the same shell previously gave 2 failed and 74 passed on the two
+files concerned.
 
 **D48. The two new hook suites perform by hand the action the fix made production code perform.**
 `277fc7d4fe` and `5b11eada26` add thirteen cases between them, and both drive
