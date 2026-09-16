@@ -37,12 +37,12 @@ const OPTIONS: McpConnectionOption[] = [
         slug: "linear",
         name: "Linear",
         host: "mcp.linear.app",
-        state: "connected",
+        status: "connected",
         added: true,
     },
-    {slug: "axiom", name: "Axiom", host: "mcp.axiom.co", state: "connected"},
-    {slug: "octolens", name: "Octolens", host: "mcp.octolens.com", state: "expired"},
-    {slug: "sentry", name: "Sentry", host: "mcp.sentry.dev", state: "connected"},
+    {slug: "axiom", name: "Axiom", host: "mcp.axiom.co", status: "connected"},
+    {slug: "octolens", name: "Octolens", host: "mcp.octolens.com", status: "login_expired"},
+    {slug: "sentry", name: "Sentry", host: "mcp.sentry.dev", status: "connected"},
 ]
 
 const Frame = (children: React.ReactNode) => (

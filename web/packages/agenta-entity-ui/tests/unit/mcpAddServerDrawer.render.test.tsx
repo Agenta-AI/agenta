@@ -17,9 +17,9 @@ import {
 } from "../../src/mcpEndpoint/McpAddServerDrawer"
 
 const OPTIONS: McpConnectionOption[] = [
-    {slug: "linear", name: "Linear", host: "mcp.linear.app", state: "connected", added: true},
-    {slug: "axiom", name: "Axiom", host: "mcp.axiom.co", state: "connected"},
-    {slug: "octolens", name: "Octolens", host: "mcp.octolens.com", state: "expired"},
+    {slug: "linear", name: "Linear", host: "mcp.linear.app", status: "connected", added: true},
+    {slug: "axiom", name: "Axiom", host: "mcp.axiom.co", status: "connected"},
+    {slug: "octolens", name: "Octolens", host: "mcp.octolens.com", status: "login_expired"},
 ]
 
 let host: HTMLDivElement
@@ -61,7 +61,9 @@ const rows = () =>
         (node) =>
             node.tagName === "DIV" &&
             node.hasAttribute("data-state") &&
-            ["added", "connected", "expired"].includes(node.getAttribute("data-state") ?? ""),
+            ["added", "connected", "login_expired", "unreachable"].includes(
+                node.getAttribute("data-state") ?? "",
+            ),
     )
 
 const type = async (value: string) => {
@@ -106,7 +108,7 @@ describe("McpAddServerDrawer, a project with servers", () => {
         expect(rows().map((row) => row.getAttribute("data-state"))).toEqual([
             "added",
             "connected",
-            "expired",
+            "login_expired",
         ])
     })
 
@@ -160,6 +162,18 @@ describe("McpAddServerDrawer, a project with servers", () => {
         })
 
         expect(text()).toContain("mcp.axiom.co · 28 tools")
+    })
+
+    // The status cannot be derived today, but the row does not hardcode the two it can
+    // show: the day a health field lands, this row says Unreachable without a change here.
+    it("states any non-working status in the data layer's own words", async () => {
+        await render({
+            options: [{...OPTIONS[1]!, status: "unreachable"}],
+        })
+
+        expect(text()).toContain("Unreachable")
+        expect(text()).not.toContain("mcp.axiom.co")
+        expect(buttonNamed("Reconnect Axiom")).toBeDefined()
     })
 })
 
@@ -217,7 +231,9 @@ describe("McpAddServerDrawer while the registry is in flight", () => {
     it("draws three skeleton rows rather than an empty project", async () => {
         await render({options: [], loading: true})
 
-        expect(document.querySelectorAll('[data-testid="mcp-connection-skeleton"]')).toHaveLength(3)
+        const skeleton = document.querySelector('[data-slot="skeleton-rows"]')
+        expect(skeleton, "no skeleton block").not.toBeNull()
+        expect(skeleton!.children).toHaveLength(3)
         expect(text()).not.toContain("No MCP servers in this project yet")
         expect(text()).not.toContain("No servers match")
     })

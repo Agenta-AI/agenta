@@ -1,7 +1,7 @@
 export {default as McpAddServerDrawer} from "./McpAddServerDrawer"
 export type {McpAddServerDrawerProps, McpConnectionOption} from "./McpAddServerDrawer"
 export {ConnectionListRow} from "./components/ConnectionListRow"
-export type {ConnectionListRowProps, ConnectionRowState} from "./components/ConnectionListRow"
+export type {ConnectionListRowProps} from "./components/ConnectionListRow"
 export {default as McpConnectionDetail} from "./McpConnectionDetail"
 export type {McpConnectionDetailProps} from "./McpConnectionDetail"
 export {default as McpConnectJourney} from "./McpConnectJourney"

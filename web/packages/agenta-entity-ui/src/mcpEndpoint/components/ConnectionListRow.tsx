@@ -1,35 +1,40 @@
 /**
  * One of the project's MCP connections, as the Add MCP server drawer lists it.
  *
- * Three states, and they differ in what the row lets you do rather than only in how it
- * looks. `added` is already on this agent, so it carries no action at all: the way to
- * change that server is the rail row, not a second route from here. `connected` offers
- * Add. `expired` offers Reconnect and replaces the host line, because a host that cannot
- * be signed into is not the fact the reader needs.
+ * Three row treatments, and they differ in what the row lets you do rather than only in how
+ * it looks. An added connection is already on this agent, so it carries no action at all:
+ * the way to change that server is its rail row, not a second route from here. A working one
+ * offers Add. One whose login has expired offers Reconnect and states that in place of the
+ * host, because a host you cannot sign in to is not the fact the reader needs.
  *
- * Presentational: no atom, no query, no dialog. The drawer owns every write, and the
- * dialogs the actions lead to are mounted outside the rows, which is the standing rule on
- * this surface — React events propagate through the React tree, so a dialog mounted inside
- * a row sends every click inside it back to the row.
+ * The status vocabulary is the data layer's `McpConnectionStatus`, not a set of words of this
+ * component's own, so a row here and a row in the settings table cannot end up calling the
+ * same connection two different things.
+ *
+ * Presentational: no atom, no query, no dialog. The drawer owns every write, and the dialogs
+ * the actions lead to are mounted outside the rows, which is the standing rule on this
+ * surface — React events propagate through the React tree, so a dialog mounted inside a row
+ * sends every click inside it back to the row.
  */
+import {getMcpConnectionStatusLabel, type McpConnectionStatus} from "@agenta/entities/mcpEndpoint"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {Button, IconTile} from "@agenta/ui/ui"
 import {ArrowClockwise, Check, Plugs, Plus} from "@phosphor-icons/react"
 
-export type ConnectionRowState = "added" | "connected" | "expired"
-
 export interface ConnectionListRowProps {
     name: string
-    /** The server's hostname. Replaced by the expiry line when the login is expired. */
+    /** The server's hostname. Replaced by the status when the connection is not working. */
     host: string
-    state: ConnectionRowState
+    status: McpConnectionStatus
+    /** Already on the agent being edited. */
+    added?: boolean
     /**
      * Tools on the server, when the connection record carries a cached count. There is no
-     * control-plane route for a count today, so this is normally absent and the row shows
-     * the host alone rather than paying a handshake per row to fill it in.
+     * control-plane route for a count today, so this is normally null and the row shows the
+     * host alone rather than paying a handshake per row to fill it in.
      */
-    toolCount?: number
+    toolCount?: number | null
     /** A write is in flight, so neither action may start a second one. */
     busy?: boolean
     onAdd?: () => void
@@ -39,29 +44,30 @@ export interface ConnectionListRowProps {
 export function ConnectionListRow({
     name,
     host,
-    state,
+    status,
+    added,
     toolCount,
     busy,
     onAdd,
     onReconnect,
 }: ConnectionListRowProps) {
-    const expired = state === "expired"
-    const subtitle = expired
-        ? "Login expired"
+    const working = status === "connected"
+    const subtitle = !working
+        ? getMcpConnectionStatusLabel(status)
         : toolCount == null
           ? host
           : `${host} · ${toolCount} ${toolCount === 1 ? "tool" : "tools"}`
 
     return (
         <div
-            data-state={state}
+            data-state={added ? "added" : status}
             className={cn(
                 "flex items-center gap-3 rounded-lg border border-solid border-colorBorderSecondary px-3.5 py-3",
-                state === "added" && "opacity-70",
+                added && "opacity-70",
             )}
         >
             <IconTile size={28}>
-                <Plugs size={16} />
+                <Plugs />
             </IconTile>
 
             <div className="min-w-0 flex-1">
@@ -69,7 +75,7 @@ export function ConnectionListRow({
                 <div
                     className={cn(
                         "truncate font-mono text-xs",
-                        expired ? "text-colorWarning" : "text-colorTextTertiary",
+                        working ? "text-colorTextTertiary" : "text-colorWarning",
                     )}
                 >
                     {subtitle}
@@ -77,14 +83,12 @@ export function ConnectionListRow({
             </div>
 
             <div className="flex shrink-0 items-center gap-2.5">
-                {state === "added" ? (
+                {added ? (
                     <span className="flex items-center gap-1.5 text-xs text-colorTextSecondary">
                         <Check size={13} />
                         Added
                     </span>
-                ) : null}
-
-                {state === "connected" ? (
+                ) : working ? (
                     <>
                         {/* The spec draws a bare dot. The label stays for a screen reader,
                             which would otherwise hear an unexplained control. */}
@@ -103,9 +107,7 @@ export function ConnectionListRow({
                             Add
                         </Button>
                     </>
-                ) : null}
-
-                {expired ? (
+                ) : (
                     <Button
                         variant="outline"
                         size="sm"
@@ -116,7 +118,7 @@ export function ConnectionListRow({
                         <ArrowClockwise size={12} />
                         Reconnect
                     </Button>
-                ) : null}
+                )}
             </div>
         </div>
     )

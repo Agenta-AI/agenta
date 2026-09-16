@@ -13,11 +13,12 @@
  */
 import {useEffect, useMemo, useState} from "react"
 
+import type {McpConnectionStatus} from "@agenta/entities/mcpEndpoint"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, EmptyState, IconTile, SearchInput, SkeletonBlock} from "@agenta/ui/ui"
+import {Button, EmptyState, IconTile, SearchInput, SkeletonRows} from "@agenta/ui/ui"
 import {Info, Plugs, Plus} from "@phosphor-icons/react"
 
-import {ConnectionListRow, type ConnectionRowState} from "./components/ConnectionListRow"
+import {ConnectionListRow} from "./components/ConnectionListRow"
 
 /** One connection in the project registry, as this drawer needs it. */
 export interface McpConnectionOption {
@@ -25,10 +26,9 @@ export interface McpConnectionOption {
     slug: string
     name: string
     host: string
-    /** Absent unless the connection record carries a cached count; see ConnectionListRow. */
-    toolCount?: number
-    /** Whether the login is usable. Servers that are simply down are not distinguishable. */
-    state: "connected" | "expired"
+    /** Null unless the connection record carries a cached count; see ConnectionListRow. */
+    toolCount?: number | null
+    status: McpConnectionStatus
     /** Already on the agent being edited. */
     added?: boolean
 }
@@ -49,32 +49,6 @@ export interface McpAddServerDrawerProps {
 
 const FOOTER_NOTE =
     "Add opens the permission drawer for this agent. Connect server adds the new server once it's connected."
-
-/** Uneven widths: three identical bars read as a graphic, not as rows about to arrive. */
-const SKELETON_WIDTHS: [string, string][] = [
-    ["w-28", "w-44"],
-    ["w-20", "w-36"],
-    ["w-32", "w-40"],
-]
-
-function RowSkeleton({widths}: {widths: [string, string]}) {
-    return (
-        <div
-            data-testid="mcp-connection-skeleton"
-            className="flex items-center gap-3 rounded-lg border border-solid border-colorBorderSecondary px-3.5 py-3"
-        >
-            <SkeletonBlock className="size-7 shrink-0 rounded-md" />
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <SkeletonBlock className={`h-3.5 ${widths[0]}`} />
-                <SkeletonBlock className={`h-3 ${widths[1]}`} />
-            </div>
-            <SkeletonBlock className="h-7 w-16 shrink-0 rounded-md" />
-        </div>
-    )
-}
-
-const rowState = (option: McpConnectionOption): ConnectionRowState =>
-    option.added ? "added" : option.state
 
 export function McpAddServerDrawer({
     open,
@@ -132,6 +106,7 @@ export function McpAddServerDrawer({
             open={open}
             onClose={handleClose}
             placement="responsive"
+            width={520}
             destroyOnClose
             title={<span className="text-sm font-semibold">Add MCP server</span>}
             extra={
@@ -186,11 +161,9 @@ export function McpAddServerDrawer({
                     />
 
                     {loading ? (
-                        <div className="flex flex-col gap-2">
-                            {SKELETON_WIDTHS.map((widths, index) => (
-                                <RowSkeleton key={index} widths={widths} />
-                            ))}
-                        </div>
+                        // Decision 25's three rows, from the kit, so the add drawer and the
+                        // permission drawer do not shimmer differently.
+                        <SkeletonRows rowClassName="h-[58px]" />
                     ) : visible.length === 0 ? (
                         <span className="text-xs text-colorTextTertiary">No servers match</span>
                     ) : (
@@ -200,8 +173,9 @@ export function McpAddServerDrawer({
                                     key={option.slug}
                                     name={option.name}
                                     host={option.host}
+                                    status={option.status}
+                                    added={option.added}
                                     toolCount={option.toolCount}
-                                    state={rowState(option)}
                                     busy={busy}
                                     onAdd={() => void handleAdd(option)}
                                     onReconnect={() => onReconnect(option)}

@@ -16,6 +16,7 @@ import {countSummary} from "../../src/DrillInView/SchemaControls/agentTemplate/a
 import {ConfigItemList} from "../../src/DrillInView/SchemaControls/agentTemplate/ConfigItemList"
 import type {ItemRowStatus} from "../../src/DrillInView/SchemaControls/agentTemplate/ItemRow"
 import {
+    buildMcpAgentItem,
     mcpItemNeedsRepair,
     mcpLoginExpired,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/mcpRail"
@@ -237,5 +238,35 @@ describe("where an MCP rail row goes", () => {
 
         expect(openEdit).toHaveBeenCalledOnce()
         expect(openPermissions).not.toHaveBeenCalled()
+    })
+})
+
+describe("what adding a connection writes onto the agent", () => {
+    // Decision 36. Absence is the value: with no `permission` the run's own ladder decides,
+    // which is the "Follow agent policy" preset. Writing "allow" would let every tool of a
+    // server nobody has looked at run unapproved, the direction the D88 review closed.
+    it("writes no server permission at all", () => {
+        const item = buildMcpAgentItem({slug: "linear", name: "Linear"})
+
+        const policy = item.policy as Record<string, unknown>
+        expect("permission" in policy).toBe(false)
+        expect("new_tool_permission" in policy).toBe(false)
+        expect("tool_permissions" in policy).toBe(false)
+        expect(policy.tools).toEqual({mode: "all"})
+    })
+
+    it("freezes the tool prefix from the connection's name, not its slug", () => {
+        expect(buildMcpAgentItem({slug: "linear-prod", name: "Linear Prod"}).name).toBe(
+            "Linear_Prod",
+        )
+        expect(buildMcpAgentItem({slug: "acme", name: ""}).name).toBe("acme")
+    })
+
+    it("points at the connection by slug, in the namespace an agent reference names", () => {
+        expect(buildMcpAgentItem({slug: "linear", name: "Linear"}).connection).toEqual({
+            type: "gateway",
+            namespace: "custom",
+            slug: "linear",
+        })
     })
 })

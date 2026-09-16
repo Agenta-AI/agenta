@@ -13,15 +13,14 @@
 import {useCallback, useMemo, useState, type ReactNode} from "react"
 
 import {
-    buildMcpConnectionRef,
     findCustomMcpEndpoint,
-    getMcpConnectionState,
+    getMcpConnectionStatus,
     hostnameLabel,
     mcpEndpointsQueryAtom,
     readMcpConnectionSlug,
     readMcpPolicy,
+    readMcpToolCount,
     refreshMcpEndpointsAtom,
-    toolPrefixFromName,
     type MCPEndpoint,
     type McpServerPolicy,
 } from "@agenta/entities/mcpEndpoint"
@@ -37,7 +36,7 @@ import {
 
 import {ConfigItemList} from "./ConfigItemList"
 import {type ItemRowStatus} from "./ItemRow"
-import {mcpItemNeedsRepair, mcpLoginExpired} from "./mcpRail"
+import {buildMcpAgentItem, mcpItemNeedsRepair, mcpLoginExpired} from "./mcpRail"
 
 export interface McpServersSectionBodyProps {
     /** The agent's saved `mcps` array. */
@@ -125,9 +124,10 @@ export function McpServersSectionBody({
                     slug: endpoint.slug,
                     name: endpoint.name || endpoint.slug,
                     host: hostnameLabel(endpoint.data.route.base_url ?? ""),
-                    state: (getMcpConnectionState(endpoint) === "ready"
-                        ? "connected"
-                        : "expired") as McpConnectionOption["state"],
+                    status: getMcpConnectionStatus(endpoint),
+                    // Null on every row today, and read off the record rather than fetched:
+                    // a count per row would cost one handshake per server on open.
+                    toolCount: readMcpToolCount(endpoint),
                     added: addedSlugs.has(endpoint.slug),
                 }))
                 // Sorted by name, and an added row keeps its place rather than sorting to the
@@ -136,24 +136,10 @@ export function McpServersSectionBody({
         [endpoints, addedSlugs],
     )
 
-    /**
-     * Attach one connection to this agent and open its permissions.
-     *
-     * Two fields are written and they answer different questions. `connection.slug` is what
-     * the gateway resolves at run time. `name` is the prefix the model sees on this server's
-     * tools, frozen here: renaming the connection later must not rename tools in an agent
-     * that is already saved, because its per-tool rules are keyed by the old spelling.
-     */
+    /** Attach one connection to this agent and open its permissions. */
     const addConnection = useCallback(
         (option: {slug: string; name: string}) => {
-            const item = {
-                name: toolPrefixFromName(option.name) ?? option.slug,
-                connection: buildMcpConnectionRef(option.slug),
-                // The spec's "Allow all": the whole-server decision, with no per-tool table.
-                // The permission drawer opens on top of this so it can be tightened at once.
-                policy: {tools: {mode: "all"}, permission: "allow"},
-            }
-            onChangeItems([...items, item])
+            onChangeItems([...items, buildMcpAgentItem(option)])
             onAddClose()
             setPermissionIndex(items.length)
         },

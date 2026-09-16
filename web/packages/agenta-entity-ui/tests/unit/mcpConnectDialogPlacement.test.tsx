@@ -23,8 +23,8 @@ import {
 } from "../../src/mcpEndpoint/McpAddServerDrawer"
 
 const OPTIONS: McpConnectionOption[] = [
-    {slug: "acme", name: "Acme", host: "mcp.example.test", state: "connected"},
-    {slug: "octolens", name: "Octolens", host: "mcp.octolens.com", state: "expired"},
+    {slug: "acme", name: "Acme", host: "mcp.example.test", status: "connected"},
+    {slug: "octolens", name: "Octolens", host: "mcp.octolens.com", status: "login_expired"},
 ]
 
 /** The clickable config row, reduced to the one property that caused the defect. */
