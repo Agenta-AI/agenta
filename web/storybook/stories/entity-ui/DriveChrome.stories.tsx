@@ -50,7 +50,6 @@ const headerBase = {
     showGitignored: false,
     onToggleGitignored: noop,
     treeVisible: true,
-    searchActive: false,
     onToggleTree: noop,
 }
 
@@ -83,7 +82,6 @@ export const Row1: Story = {
                     selectedPath="research"
                     isFolder
                     treeVisible={false}
-                    searchActive={false}
                     onClose={noop}
                     closeVariant="collapse"
                 />
@@ -93,7 +91,6 @@ export const Row1: Story = {
                     {...headerBase}
                     selectedPath="research"
                     isFolder
-                    searchActive
                     partialErrored
                     onRetry={noop}
                 />

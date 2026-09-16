@@ -1,7 +1,7 @@
 /**
  * useDriveTreePane — the tree pane's GEOMETRY: shown/hidden, the draggable rest width, the two
  * MotionValues the panes actually animate on, and the anticipated-shift announcement the tile grid
- * needs the moment visibility flips. Search forces the pane open, so it takes `searchActive`.
+ * needs the moment visibility flips.
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
@@ -10,12 +10,10 @@ import {animate, useMotionValue} from "motion/react"
 import {TREE_MAX, TREE_MIN, TREE_TRANSITION, TREE_WIDTH} from "./driveTreeView"
 
 export function useDriveTreePane({
-    searchActive,
     mirrored = false,
     initialWidth = TREE_WIDTH,
     initialShow = true,
 }: {
-    searchActive: boolean
     /** Tree pane docked on the RIGHT (content left) — inverts the resize-drag direction. */
     mirrored?: boolean
     /** Starting rest width — hosts with less room (the docked pane) open the tree narrower. */
@@ -23,9 +21,7 @@ export function useDriveTreePane({
     /** Open with the tree collapsed (a single-file quick look); the toolbar toggle reveals it. */
     initialShow?: boolean
 }) {
-    // The one presentation is the tree navigator + content pane; the file TREE pane can be hidden to
-    // give the content pane the full width. Searching always forces the tree (its filtered rows ARE
-    // the results), so the effective visibility is `showTree || searchActive` (see `treeVisible`).
+    // The file TREE pane can be hidden to give the content pane the full width.
     const [showTree, setShowTree] = useState(initialShow)
     const toggleTree = useCallback(() => setShowTree((v) => !v), [])
     // Draggable tree-pane width. The REST width is React state (persists across a hide/show and feeds
@@ -73,9 +69,7 @@ export function useDriveTreePane({
         [paneW],
     )
 
-    // The tree pane shows whenever the user hasn't hidden it OR a search is active (the filtered tree
-    // rows ARE the search results, so search always needs it).
-    const treeVisible = showTree || searchActive
+    const treeVisible = showTree
     // ANTICIPATED pane shift — the moment the tree pane's visibility flips, the content pane's FINAL
     // width is already known (current ± treeWidth). Announce it to the tile grid so it lays out ONCE
     // for the final rest layout and springs there in one monotonic motion; deriving columns from the
