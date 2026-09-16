@@ -10,6 +10,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
 import {GitBranch, PencilSimple, Plus, UploadSimple} from "@phosphor-icons/react"
@@ -73,6 +74,8 @@ export function NewSkillMenuButton({
                         </span>
                     </span>
                 </DropdownMenuItem>
+                {/* Writing is one thing; bringing a skill in from elsewhere is another. */}
+                <DropdownMenuSeparator />
                 {onUpload ? (
                     <DropdownMenuItem
                         // The picker has to open inside the click that chose the row; a menu
