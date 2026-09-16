@@ -142,6 +142,8 @@ export const useNewAgentAction = (base: string) => {
             text: string
             /** A template pick carries the template's name; a plain description carries none. */
             name?: string
+            /** And its key, so the session can ask for the accounts the template declares. */
+            templateKey?: string
             sessionId?: string
             parts?: FileUIPart[]
             setup?: AgentSetupSelection
@@ -149,6 +151,7 @@ export const useNewAgentAction = (base: string) => {
         }) =>
             run({
                 name: input.name,
+                templateKey: input.templateKey,
                 seedMessage: input.text,
                 sessionId: input.sessionId,
                 seedParts: input.parts,
