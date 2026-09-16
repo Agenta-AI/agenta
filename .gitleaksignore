@@ -311,8 +311,8 @@ a7cf435e35ff3274b27e851fd49ec0385c1b2ddf:docs/design/hosted-subscription-connect
 
 # Two test placeholders in a credential-normalization test. The value gitleaks matched is the
 # literal `sk-live-abc123`, written to show that a key pasted with a trailing newline is trimmed;
-# it was never a credential. The tip no longer contains it — 20ac2f008d replaced it with
+# it was never a credential. The tip no longer contains it — a601b25ef2 replaced it with
 # `placeholder-provider-key` — but gitleaks scans the pushed commit range rather than the tree,
 # so the earlier commit still trips the scan. Regenerate these lines if the branch is rebased.
-8a2a59f76ab47e39ef91734fc67e4106d4c9eb6f:api/oss/tests/pytest/unit/secrets/test_dtos.py:generic-api-key:633
-8a2a59f76ab47e39ef91734fc67e4106d4c9eb6f:api/oss/tests/pytest/unit/secrets/test_dtos.py:generic-api-key:635
+eed2ad997ebc4ee3395067ee281ed40b76d226fe:api/oss/tests/pytest/unit/secrets/test_dtos.py:generic-api-key:633
+eed2ad997ebc4ee3395067ee281ed40b76d226fe:api/oss/tests/pytest/unit/secrets/test_dtos.py:generic-api-key:635
