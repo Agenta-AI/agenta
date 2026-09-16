@@ -2,7 +2,6 @@
 import inspect
 from typing import Any, Dict, Callable, Optional, Union
 from inspect import isawaitable, isasyncgen, isgenerator
-from os import environ
 from traceback import format_exception
 from uuid import UUID
 
@@ -10,6 +9,7 @@ from uuid import UUID
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.models.workflows import (
     failure_code_of,
+    returned_stacktrace,
     WorkflowServiceStatus,
     WorkflowRequestData,
     WorkflowServiceResponseData,
@@ -28,25 +28,9 @@ from agenta.sdk.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
-# Whether a refusal returns its Python traceback to whoever made the request.
-#
-# Off. This body is the response to `POST /services/agent/v0/invoke`, which the playground
-# calls from a browser, so the traceback was shipped to a page: module paths, the service's
-# own layout, the local variables a frame's line quotes, and roughly two kilobytes of it per
-# refusal. None of that is the caller's to see, and the SDK already says so where it is
-# explicit — a configuration mistake "carries a 4xx and no stacktrace"
-# (`engines/running/errors.py::UnknownConnectionV0Error`).
-#
-# Nothing is lost operationally: the traceback is logged either way, which is where an
-# operator was going to read it. The switch exists for a developer running the service
-# locally against their own browser, and is read per call so setting it needs no restart
-# and a test can pin it.
-_INCLUDE_STACKTRACE_ENV_VAR = "AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE"
-_TRUTHY = frozenset({"1", "true", "yes", "on"})
-
-
-def _returns_stacktrace() -> bool:
-    return (environ.get(_INCLUDE_STACKTRACE_ENV_VAR) or "").strip().lower() in _TRUTHY
+# Whether a refusal returns its Python traceback to whoever made the request is decided by
+# `returned_stacktrace`, beside `failure_code_of`, because the invoke routing layer answers
+# the same question about the same request (D68).
 
 
 class NormalizerMiddleware:
@@ -230,11 +214,6 @@ class NormalizerMiddleware:
 
         return iterator
 
-    @staticmethod
-    def _returned_stacktrace(stacktrace: Optional[Any]) -> Optional[Any]:
-        """The traceback to put on the response, which is normally none of it."""
-        return stacktrace if _returns_stacktrace() else None
-
     async def _normalize_exception(
         self,
         exc: Exception,
@@ -252,7 +231,7 @@ class NormalizerMiddleware:
                 type=exc.type,
                 code=exc.code,
                 message=exc.message,
-                stacktrace=self._returned_stacktrace(exc.stacktrace),
+                stacktrace=returned_stacktrace(exc.stacktrace),
                 failure_code=failure_code,
             )
         else:
@@ -276,7 +255,7 @@ class NormalizerMiddleware:
                 type=type,
                 code=code,
                 message=message,
-                stacktrace=self._returned_stacktrace(stacktrace),
+                stacktrace=returned_stacktrace(stacktrace),
                 failure_code=failure_code,
             )
 
