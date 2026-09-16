@@ -16,7 +16,7 @@
 set -eu
 
 # ---- pins ------------------------------------------------------------------------------------
-GH_VERSION="2.100.0"
+GH_VERSION="2.101.0"
 UV_VERSION="0.12.10"
 FD_VERSION="v10.4.2"
 PLAYWRIGHT_VERSION="1.62.0"      # node CLI and python package share this minor: one browser build
@@ -40,6 +40,7 @@ case "$arch" in
     uvsha="173d95a0c32d18c896c46ba6fafbf3cf9c14ab74b033f81b76c883ef492a976b"
     bunarch="x64"
     bunsha="36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913"
+    ghsha="f876a3b87bf67c94f773d17becca4dc7340b056dab901473a9260ee2a73e237b"
     ;;
   arm64)
     fdarch="aarch64-unknown-linux-musl"
@@ -48,6 +49,7 @@ case "$arch" in
     uvsha="9ff6b9d4665edcdd3a88dcc73cd1eb641754deb927f14e8c62ebfde6bf4f5f5e"
     bunarch="aarch64"
     bunsha="54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7"
+    ghsha="9aec87f9a011b1521556b06cb003776e7e214144c8efd2144924a28d90c23057"
     ;;
   *) echo "unsupported arch $arch" >&2; exit 1 ;;
 esac
@@ -78,16 +80,15 @@ python3 -m venv /tmp/venv-check
 rm -rf /tmp/venv-check
 tesseract --list-langs 2>&1 | grep -q '^eng$'
 
-# ---- gh: from GitHub's own apt repo. Debian and Ubuntu ship 2.45/2.46, which the gh
-# maintainers call broken against current GitHub APIs. -----------------------------------------
-mkdir -p -m 755 /etc/apt/keyrings
-curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-  -o /etc/apt/keyrings/githubcli-archive-keyring.gpg
-chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-echo "deb [arch=$arch signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-  > /etc/apt/sources.list.d/github-cli.list
-apt-get update
-apt-get install -y --no-install-recommends "gh=${GH_VERSION}*"
+# ---- gh: the release .deb, checksum-verified. Debian and Ubuntu ship 2.45/2.46, which the gh
+# maintainers call broken against current GitHub APIs. GitHub's apt repo only serves the single
+# latest release, so a version pin against it breaks on every gh release; the release asset
+# stays available. Sums come from `gh_<version>_checksums.txt` on the release. ------------------
+curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${arch}.deb" \
+  -o /tmp/gh.deb
+verify_sha256 /tmp/gh.deb "$ghsha"
+apt-get install -y --no-install-recommends /tmp/gh.deb
+rm /tmp/gh.deb
 gh --version | grep -q "gh version ${GH_VERSION}"
 rm -rf /var/lib/apt/lists/*
 
