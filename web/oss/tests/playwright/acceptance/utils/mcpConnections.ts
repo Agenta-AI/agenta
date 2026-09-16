@@ -146,6 +146,8 @@ const TRANSPORT_FAILURES = [
 ]
 
 export const navigate = async (page: Page, url: string): Promise<void> => {
+    const wanted = new URL(url, "http://placeholder.invalid").pathname
+
     for (let attempt = 0; ; attempt++) {
         try {
             await page.goto(url, {waitUntil: "domcontentloaded"})
@@ -153,7 +155,18 @@ export const navigate = async (page: Page, url: string): Promise<void> => {
             return
         } catch (error) {
             const text = String(error)
-            if (text.includes("ERR_ABORTED")) return
+            if (text.includes("ERR_ABORTED")) {
+                // Superseded by another navigation. Usually that is this same address winning
+                // the race, and there is nothing to do. When it is the PAGE WE WERE LEAVING
+                // going somewhere of its own — an agent's playground opening its session, say —
+                // the address asked for never loads, and the wait that follows spends its whole
+                // budget on a page that was never going to answer it. Two of five runs failed
+                // exactly there. So: ask again unless we actually arrived.
+                if (new URL(page.url()).pathname === wanted) return
+                if (attempt >= 3) throw error
+                await page.waitForTimeout(1000)
+                continue
+            }
             const transport = TRANSPORT_FAILURES.some((failure) => text.includes(failure))
             if (!transport || attempt >= 3) throw error
             await page.waitForTimeout(2000)
