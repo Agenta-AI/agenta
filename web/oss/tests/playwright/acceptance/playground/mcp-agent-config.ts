@@ -31,7 +31,6 @@ import {
     apiBaseUrl,
     createMcpConnectionViaApi,
     fillJourneyUrlAndName,
-    finishJourney,
     journeyDialog,
     mockMcpBase,
     navigate,
@@ -157,6 +156,39 @@ const createAgentApp = async (page: Page, basePath: string, appName: string): Pr
 let playgroundWarmed = false
 
 /**
+ * Pay for the playground route to compile, once per worker, before any case depends on it.
+ *
+ * A development server builds a route the first time it is asked for, and this is the heaviest
+ * one in the app: a reviewer's run of this suite had all three cases fail in the same place,
+ * waiting ninety seconds for a page that was still compiling. The connect suite solves the same
+ * problem the same way, on a lighter route (D49).
+ *
+ * Failures here are swallowed. This is a warm-up, not a check: whatever is wrong will be said
+ * properly by the case that follows, against the assertion that actually means something.
+ */
+const warmPlayground = async (page: Page, basePath: string): Promise<void> => {
+    if (playgroundWarmed) return
+    try {
+        await navigate(page, `${basePath}/playground`)
+        await page
+            .getByRole("button", {name: /^MCP servers\b|^Model$|^Instructions$/})
+            .first()
+            .waitFor({timeout: PLAYGROUND_WARMUP_MS})
+    } catch {
+        // Nothing to report: the first case waits on the same page with its own budget.
+    }
+    playgroundWarmed = true
+}
+
+/**
+ * How long the agent playground may take the first time a worker asks for it.
+ *
+ * Four times the ordinary route budget: this page compiles the schema form, the drill-in view
+ * and the whole chat surface, and then opens a session before it paints anything.
+ */
+const PLAYGROUND_WARMUP_MS = 4 * ROUTE_WARMUP_MS
+
+/**
  * Open the MCP servers section's create drawer.
  *
  * The section itself is conditional: it appears only while the agent's harness says it can reach
@@ -171,17 +203,15 @@ const openNewMcpItem = async (page: Page) => {
     // On a development server it sometimes never comes, because the client asked for a chunk id
     // the last rebuild replaced; one reload fetches the current one. The allowance is one — a
     // second empty page is the page being broken, which is this suite's to report.
-    // The first case in a worker also pays for a development server to compile this route, and
-    // the agent playground is the heaviest one there is, so it gets its own budget rather than
-    // borrowing the one meant for a page that is already built.
-    const budget = playgroundWarmed ? ROUTE_WARMUP_MS : 4 * ROUTE_WARMUP_MS
+    // The setup warms this route, so the ordinary budget is usually right. It is kept generous
+    // anyway: the lazily loaded configuration pane still renders for the first time here, and
+    // the agent's own session is opened before the page paints at all.
     try {
-        await expect(sectionHeader.or(addLink).first()).toBeVisible({timeout: budget})
+        await expect(sectionHeader.or(addLink).first()).toBeVisible({timeout: PLAYGROUND_WARMUP_MS})
     } catch {
         await page.reload({waitUntil: "domcontentloaded"})
-        await expect(sectionHeader.or(addLink).first()).toBeVisible({timeout: budget})
+        await expect(sectionHeader.or(addLink).first()).toBeVisible({timeout: PLAYGROUND_WARMUP_MS})
     }
-    playgroundWarmed = true
     if (!(await addLink.isVisible())) {
         await sectionHeader.first().click()
     }
@@ -262,11 +292,12 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
 
     test.beforeAll(requireMockMcpUpstream)
 
-    test.beforeEach(async ({page}) => {
+    test.beforeEach(async ({page, apiHelpers}) => {
         // Each case makes an agent app through the UI and then waits on a round trip to an MCP
         // server, which together do not fit the suite-wide minute meant for a page of clicks.
         test.setTimeout(600_000)
         await expectAuthenticatedSession(page)
+        await warmPlayground(page, apiHelpers.getProjectScopedBasePath())
     })
 
     test(
@@ -356,11 +387,21 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
                         connectionName,
                     )
                     await dialog.getByRole("button", {name: "Continue"}).click()
-                    await finishJourney(page)
+
+                    // Opened from an agent, the journey closes the moment the connection
+                    // exists: the item takes it and the person carries on configuring.
+                    // Settings keeps the same dialog open instead, to report the tools it
+                    // found, which is why only that suite has a Done to press.
+                    await expect(journeyDialog(page)).toHaveCount(0, {timeout: 90000})
                 },
             )
 
             await scenarios.then("the new connection is the one this agent uses", async () => {
+                // The picker's list reopens behind the journey and is still open. While it is,
+                // everything outside it is aria-hidden, so neither the select nor the drawer
+                // around it can be found by role, and Create sits behind the list.
+                await page.keyboard.press("Escape")
+
                 const drawer = itemDrawer(page)
                 await expect(drawer.getByRole("combobox", {name: "Connection"})).toContainText(
                     connectionName,
