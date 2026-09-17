@@ -17,6 +17,7 @@ import {
 import {
     ArrowsIn,
     ArrowsOut,
+    CaretDoubleLeft,
     CaretDoubleRight,
     CaretLeft,
     CaretRight,
@@ -24,7 +25,7 @@ import {
     Copy,
     EyeSlash,
     GitBranch,
-    SidebarSimple,
+    Sidebar,
     Sliders,
     WarningCircle,
     X,
@@ -59,7 +60,6 @@ export const DriveHeader = ({
     onToggleGitignored,
     treeVisible,
     onToggleTree,
-    mirrored = false,
     onClose,
     closeVariant = "close",
     expanded,
@@ -90,11 +90,11 @@ export const DriveHeader = ({
     onToggleGitignored: () => void
     treeVisible: boolean
     onToggleTree: () => void
-    /** The tree is docked on the right. */
-    mirrored?: boolean
     /** For hosts whose close lives in this row. */
     onClose?: () => void
-    closeVariant?: "close" | "collapse"
+    /** `back` is the phone's: the pane has the whole screen, so its leave control sits where a
+     * back control does — first in the row, pointing back. */
+    closeVariant?: "close" | "collapse" | "back"
     expanded?: boolean
     onToggleExpand?: () => void
     partialErrored?: boolean
@@ -116,6 +116,18 @@ export const DriveHeader = ({
                         <X size={15} />
                     </Button>
                 </Tooltip>
+            ) : null}
+            {onClose && closeVariant === "back" ? (
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-keyshortcuts={shortcutAria("panel.files")}
+                    aria-label="Close files pane"
+                    onClick={onClose}
+                    className={ROW_ICON_BTN}
+                >
+                    <CaretDoubleLeft size={15} />
+                </Button>
             ) : null}
             {onToggleExpand ? (
                 <Tooltip title={expanded ? "Collapse" : "Expand"}>
@@ -258,12 +270,9 @@ export const DriveHeader = ({
                     onClick={onToggleTree}
                     className={treeVisible ? ROW_ICON_BTN_ON : ROW_ICON_BTN}
                 >
-                    {/* Phosphor draws the panel on the left; the tree is docked on the right. */}
-                    <SidebarSimple
-                        size={16}
-                        weight={treeVisible ? "fill" : "regular"}
-                        className={mirrored ? "-scale-x-100" : undefined}
-                    />
+                    {/* The app's sidebar glyph (the nav toggle's), as is — the panel it shows is
+                        the idea, not which edge the tree docks on. */}
+                    <Sidebar size={16} weight={treeVisible ? "fill" : "regular"} />
                 </Button>
             </Tooltip>
             {onClose && closeVariant === "collapse" ? (

@@ -160,11 +160,12 @@ export const SessionWorkspace = ({
     const twoPane = useMediaQuery("(min-width: 768px)")
     // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
     // pane replaces the conversation, so getting it wrong puts the composer out of reach.
-    const {showConfig, showPane} = resolveSessionPanes({
+    const {showConfig, showPane, showFiles} = resolveSessionPanes({
         chatMaximized,
         configCollapsed,
         twoPane,
         hasEntity: Boolean(entityId),
+        filesOpen,
     })
     // Live px during a drag, mirrored from the shared persisted width — which is written at
     // pointer-up, not per frame, so a drag does not hammer localStorage.
@@ -180,7 +181,7 @@ export const SessionWorkspace = ({
     // it the pane's width flipped in one frame and its content unmounted before the flip, so
     // opening and hiding either panel jumped instead of moving.
     const configSlide = usePaneSlide(showPane)
-    const filesSlide = usePaneSlide(twoPane && filesOpen)
+    const filesSlide = usePaneSlide(showFiles)
 
     // The desktop's coexistence rule: too narrow for both side panes, so they take turns.
     // Edge-triggered, so they cannot evict each other in a loop.
@@ -345,9 +346,16 @@ export const SessionWorkspace = ({
                                     // config split's is.
                                     fillMin={360}
                                     animate={filesSlide.animate}
-                                    revealContent
+                                    // The reveal fades the content in with the width; on a phone
+                                    // the width is the screen, so there is nothing to key it on.
+                                    revealContent={twoPane}
+                                    // Phone: Files takes the conversation's place, as the config
+                                    // pane does — no divider, no drag, full width.
                                     barHidden={!twoPane || !filesOpen}
                                     resizable={twoPane && filesOpen}
+                                    paneGrow={!twoPane && showFiles}
+                                    paneClassName={!twoPane && !showFiles ? "hidden" : undefined}
+                                    fillClassName={!twoPane && showFiles ? "hidden" : undefined}
                                     // Controlled width, so the drag must write through per tick or the
                                     // pane only moves at pointer-up.
                                     onResize={(size) => setFilesPaneSize(size)}
@@ -358,8 +366,10 @@ export const SessionWorkspace = ({
                                             <SessionFilesPane
                                                 scope={filesScope}
                                                 sessionId={sessionId}
-                                                // The session bar's icon closes the pane.
-                                                closeControl="none"
+                                                // The session bar's icon closes the pane — on a
+                                                // phone that bar is off screen with it, so the
+                                                // pane's own control does.
+                                                closeControl={twoPane ? "none" : "back"}
                                             />
                                         ) : null
                                     }

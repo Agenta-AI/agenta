@@ -66,9 +66,10 @@ export function SessionFilesPane({
 }: {
     scope: string
     sessionId: string
-    /** Who closes the pane: row 1's "»" (the desktop) or the host's own session-bar toggle
-     * (`"none"` — `/m`, where the panel icon shows the open state and flips it). */
-    closeControl?: "collapse" | "none"
+    /** Who closes the pane: row 1's "»" (the desktop), the host's own session-bar toggle
+     * (`"none"` — `/m`, where the panel icon shows the open state and flips it), or a leading
+     * "»" (`"back"` — a phone, where the pane has the screen and that bar is off it). */
+    closeControl?: "collapse" | "back" | "none"
 }) {
     const {open, close} = useSessionFilesPane(scope, sessionId)
     const [quickLook] = useAtom(driveQuickLookAtomFamily(sessionId))
@@ -123,8 +124,8 @@ export function SessionFilesPane({
                 initialPath={initialPath}
                 initialPathSeq={initialPathSeq}
                 chrome
-                onClose={closeControl === "collapse" ? close : undefined}
-                closeVariant="collapse"
+                onClose={closeControl === "none" ? undefined : close}
+                closeVariant={closeControl === "back" ? "back" : "collapse"}
                 mirrored
                 // The rail starts closed: the grid + breadcrumb browse on their own, and the row-1
                 // toggle (or a search, which needs the rows) brings it in; the choice then sticks.

@@ -143,7 +143,7 @@ export const SessionTabs = ({
                                 aria-keyshortcuts={shortcutAria("panel.files")}
                                 onClick={toggleFiles}
                                 // The glyph's weight carries the state; no colour shift on top.
-                                className="h-7 w-7 shrink-0 p-0 max-md:hidden"
+                                className="h-7 w-7 shrink-0 p-0"
                             >
                                 {/* A folder says "files" where a panel glyph wouldn't; open = pane shown. */}
                                 {filesOpen ? (

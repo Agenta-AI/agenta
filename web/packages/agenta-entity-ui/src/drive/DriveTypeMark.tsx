@@ -54,12 +54,15 @@ export const DriveTypeMark = ({path, size = "mini"}: {path: string; size?: "tile
     const tone = driveKindTone(resolveDriveFileKind(path), path)
     if (size === "tile")
         return (
-            <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center">
-                <Page size={56} />
-                <span
-                    className={`absolute bottom-[7px] left-1/2 -translate-x-1/2 rounded-[3px] px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
-                >
-                    {fileTypeChip(path)}
+            // A phone's narrower tile scales the whole mark down (page + chip keep their fit).
+            <span className="inline-flex h-14 w-14 shrink-0 items-center justify-center max-md:h-11 max-md:w-11">
+                <span className="relative inline-flex h-14 w-14 shrink-0 items-center justify-center max-md:scale-[0.78]">
+                    <Page size={56} />
+                    <span
+                        className={`absolute bottom-[7px] left-1/2 -translate-x-1/2 rounded-[3px] px-[5px] py-px text-[8.5px] font-bold uppercase leading-[1.4] tracking-[0.4px] ${TONE_CLASS[tone]}`}
+                    >
+                        {fileTypeChip(path)}
+                    </span>
                 </span>
             </span>
         )

@@ -17,8 +17,8 @@ const TILE =
     "flex h-auto w-full min-w-0 flex-col items-center gap-1 whitespace-normal rounded-lg px-1.5 pb-2 pt-1.5 text-center font-normal"
 
 const FolderGlyphBox = () => (
-    <span className="flex h-14 w-14 items-center justify-center">
-        <DriveFolderGlyph size={52} className="!size-[52px]" />
+    <span className="flex h-14 w-14 items-center justify-center max-md:h-11 max-md:w-11">
+        <DriveFolderGlyph size={52} className="!size-[52px] max-md:!size-[42px]" />
     </span>
 )
 
