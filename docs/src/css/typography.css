@@ -121,10 +121,10 @@ code:not(pre code) {
    pre/code stay transparent so nothing doubles up. */
 .theme-code-block {
   /* The theme's module reads this for the container and the pre. */
-  --ifm-code-border-radius: 14px;
+  --ifm-code-border-radius: 16px;
   box-shadow: none !important;
-  border: 1px solid var(--borderlight);
-  border-radius: 14px;
+  border: 0;
+  border-radius: 16px;
   background-color: var(--bgelevated1) !important;
   margin-bottom: 24px;
 }
@@ -138,8 +138,8 @@ code:not(pre code) {
 
 .theme-code-block pre {
   font-size: 14px;
-  line-height: 1.7;
-  padding: 16px 20px;
+  line-height: 1.65;
+  padding: 14px 16px;
   margin: 0;
 }
 
@@ -150,7 +150,7 @@ code:not(pre code) {
 
 /* Title bar (```lang title="...") */
 .theme-code-block > div:first-child:not([class*="codeBlockContent"]) {
-  padding: 10px 20px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--borderlight);
   font-size: 13px;
   color: var(--contentsecondary);
@@ -159,14 +159,14 @@ code:not(pre code) {
 
 /* Copy button: bare icon in the top-right corner, always visible. */
 .theme-code-block [class*="buttonGroup"] {
-  top: 8px;
+  top: 12px;
   right: 8px;
   opacity: 1;
 }
 
 .theme-code-block [class*="buttonGroup"] button {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   padding: 6px;
   border: 0;
   border-radius: var(--radius-md);
@@ -187,6 +187,11 @@ code:not(pre code) {
 /* The ejected copy icon is stroke-based; the theme's rule fills it. */
 .theme-code-block [class*="copyButtonIcon"] {
   fill: none;
+}
+
+.theme-code-block [class*="copyButtonIcons"] {
+  width: 16px;
+  height: 16px;
 }
 
 /* Highlighted lines and the error-line marker */

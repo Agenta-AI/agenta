@@ -16,8 +16,8 @@ export default function IconCopy(props: Props): ReactNode {
       strokeLinecap="round"
       strokeLinejoin="round"
       {...props}>
-      <rect x="9" y="9" width="12" height="12" rx="1.5" />
-      <path d="M5 15V5a2 2 0 0 1 2-2h8" />
+      <path d="M7 9.667A2.667 2.667 0 0 1 9.667 7h8.666A2.667 2.667 0 0 1 21 9.667v8.666A2.667 2.667 0 0 1 18.333 21H9.667A2.667 2.667 0 0 1 7 18.333z" />
+      <path d="M4.012 16.737A2.005 2.005 0 0 1 3 15V5c0-1.1.9-2 2-2h10c.75 0 1.158.385 1.5 1" />
     </svg>
   );
 }
