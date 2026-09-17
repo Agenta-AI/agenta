@@ -479,3 +479,33 @@ describe("a policy that arrives in the other convention", () => {
     });
   }
 });
+
+
+/**
+ * Absence is a valid state, not an unrecognised one (decision 29).
+ *
+ * The refusal above keys on a per-tool field being PRESENT under the model's name. An absent
+ * `permission`, an absent table and an absent floor each keep the meaning they have always had:
+ * nothing was declared, so the ladder below decides. A refusal that fired on absence would turn
+ * every policy written before per-tool policy into an invalid one.
+ */
+describe("a policy that declares nothing is not invalid", () => {
+  it("still hands back the whole-server permission when no table was declared", () => {
+    const entry = normalizeMcpServerPermissions({
+      tools: { mode: "all" },
+      permission: "allow",
+    });
+
+    assert.equal(entry.server, "allow");
+    assert.equal(entry.newTool, undefined);
+    assert.equal(mcpToolPermission(entry, "any_tool_at_all"), "allow");
+  });
+
+  it("still defers entirely when the policy is empty", () => {
+    const entry = normalizeMcpServerPermissions({});
+
+    assert.equal(entry.server, undefined);
+    assert.equal(entry.newTool, undefined);
+    assert.equal(mcpToolPermission(entry, "any_tool_at_all"), undefined);
+  });
+});
