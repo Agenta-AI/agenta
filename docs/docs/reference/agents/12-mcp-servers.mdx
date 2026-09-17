@@ -128,7 +128,7 @@ A tool you denied may therefore still appear in a model's tool list on some harn
 
 - A connection failure usually means DNS, TLS, network policy, or server availability.
 - An authorization failure on a header-authenticated server means the referenced project secret is absent, expired, or mapped to the wrong header.
-- An authorization failure on an OAuth server means the grant was revoked or has expired. The connection then reads `Login expired` in `Settings > MCPs`, and `Reconnect` on its row menu restores it.
+- An authorization failure on an OAuth server means the grant was revoked or has expired. The connection then reads `Login expired` in `Settings > MCPs`, and `Reconnect` on its row menu restores it. A run that hits the same connection reports it in the conversation and offers `Reconnect` there as well.
 - A missing tool is either excluded by `policy.tools`, absent from server discovery, or resolved to `deny`.
 - An empty tool list under `View tools` means the server answered with no tools. A server that refuses the tool listing, or answers it in a way Agenta cannot read, reports the server's own wording instead of an empty list.
 

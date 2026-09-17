@@ -49,6 +49,8 @@ The prefix is frozen when you pick the connection. Renaming the connection later
 
 To reopen the drawer afterwards, click the server's row in the **MCP servers** section.
 
+The agent's **Permissions** row, just below that section, is a different setting. It is the agent's own policy, which covers every tool the agent has rather than one server's, and it reads `Not set` on an agent saved before that policy existed. The per-tool value `Follow agent policy` in the drawer hands a tool back to it. See [Control what an agent can do](/guides/control-what-an-agent-can-do).
+
 Connecting a new server from the drawer ends in the same place as adding an existing one. The sheet closes, the connection is added to this agent, and its permission drawer opens.
 
 ## Choose what the agent may do with each tool
@@ -94,7 +96,7 @@ Connect the same URL a second time, from `Connect MCP` in `Settings` or `Connect
 
 ## Rename, disconnect, or remove a connection
 
-Open `Settings > MCPs`. The table lists each connection with its `Server URL`, its `Auth`, which reads `OAuth`, `API key` with the secret it uses, or `None`, and its `Status`. Each row has a menu at the end of it.
+Open `Settings > MCPs`. The table lists each connection with its `Server URL`, its `Auth`, which reads `OAuth`, `API key` with the secret it uses, or `None`, and its `Status`. A narrow window drops the detail columns, so on a phone a row shows its name and its status alone. Each row has a menu at the end of it.
 
 - **Reconnect.** Repairs whichever way the connection authenticates. On an OAuth connection it takes you back through the provider's authorization page. On a key-authenticated one it reopens the sheet with the URL and the name locked, so you can supply the header and the secret again.
 - **View tools.** Opens the same drawer an agent uses, with the tools grouped and described but nothing to set. What an agent may call is set in that agent's configuration.
@@ -105,6 +107,8 @@ Open `Settings > MCPs`. The table lists each connection with its `Server URL`, i
 ## Troubleshooting
 
 **The status reads `Login expired`.** Open the row menu and click `Reconnect`, or click the `Reconnect` link in the row's status cell. The connection keeps its name and every agent reference.
+
+You do not have to go to `Settings` to find this. When a run needs a server whose login has lapsed, the agent says so in the conversation and offers `Reconnect` there, which is the same repair without leaving what you were doing.
 
 On an OAuth connection this means consent was abandoned, or the grant was revoked or has expired, and `Reconnect` takes you back to the provider's authorization page. On a key-authenticated connection it means the server stopped accepting the key, and `Reconnect` reopens the sheet with the URL and the name locked so you can supply a new header or secret.
 
