@@ -136,6 +136,17 @@ const choose = async (trigger: Element | null, option: string) => {
     )
 }
 
+/** Type into the search field the way a person does: React reads the native value setter. */
+const search = async (value: string) => {
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Search tools"]')
+    expect(input).toBeTruthy()
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+    await act(async () => {
+        setValue?.call(input, value)
+        input!.dispatchEvent(new Event("input", {bubbles: true}))
+    })
+}
+
 const openMenu = async (trigger: Element | null) => {
     expect(trigger).toBeTruthy()
     await act(async () =>
@@ -320,6 +331,49 @@ describe("a server just added to an agent", () => {
             tools: {mode: "all"},
             permission: "allow",
         })
+    })
+})
+
+describe("a search that names none of this server's tools", () => {
+    it("says so, rather than emptying the list under its own headers", async () => {
+        // Two groups still headed "Read-only · 4" and "Write · 4" with nothing under them read as
+        // a server that stopped advertising its tools, which is a different answer. The sentence
+        // is the connection detail drawer's, so one filter's emptiness reads the same everywhere.
+        await render()
+
+        await search("nothing here matches this")
+
+        expect(text()).toContain("No tool here matches that.")
+        expect(text()).not.toContain("Read-only · 4")
+        expect(text()).not.toContain("Write · 4")
+    })
+
+    it("does not say the server has no tools, which is a different answer", async () => {
+        await render()
+
+        await search("zzz")
+
+        expect(text()).not.toContain("This server exposes no tools yet.")
+    })
+
+    it("brings the groups back when the query matches again", async () => {
+        await render()
+
+        await search("zzz")
+        await search("issue")
+
+        expect(text()).not.toContain("No tool here matches that.")
+        expect(text()).toContain("Get Linear issue")
+    })
+
+    it("counts a match on the description, not only on the name", async () => {
+        // The rule the groups filter by and the rule that decides this message are one rule.
+        await render()
+
+        await search("cannot be undone")
+
+        expect(text()).not.toContain("No tool here matches that.")
+        expect(text()).toContain("Delete issue")
     })
 })
 

@@ -75,6 +75,18 @@ const GROUP_PAGE_SIZE = 25
 /** What a row says about a saved key the source no longer lists. The Composio wording. */
 const DEFAULT_STALE_LABEL = "not in catalog"
 
+/**
+ * Whether one row survives the search. One rule, so the groups and the "nothing matched" message
+ * cannot disagree about what matched.
+ *
+ * Description included: a person hunting "the one that files an issue" knows what a tool does
+ * rather than what it is called, and every row here renders its description, so a description match
+ * always shows the text it matched on (round 4, D6).
+ */
+const toolMatchesSearch = (tool: CatalogToolInfo, search: string): boolean =>
+    !search ||
+    `${tool.key} ${tool.name ?? ""} ${tool.description ?? ""}`.toLowerCase().includes(search)
+
 // Persisted expand state per source and group (key = `${catalogKey}:${groupKey}`).
 const permissionGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
     "agenta:tools:permission-groups-expanded",
@@ -362,17 +374,10 @@ function ToolGroup({
             ),
         [tools, permissions],
     )
-    const matching = useMemo(() => {
-        if (!search) return tools
-        // Description included: a person hunting "the one that files an issue" knows what a tool
-        // does rather than what it is called, and every row here renders its description, so a
-        // description match always shows the text it matched on (round 4, D6).
-        return tools.filter((tool) =>
-            `${tool.key} ${tool.name ?? ""} ${tool.description ?? ""}`
-                .toLowerCase()
-                .includes(search),
-        )
-    }, [tools, search])
+    const matching = useMemo(
+        () => (search ? tools.filter((tool) => toolMatchesSearch(tool, search)) : tools),
+        [tools, search],
+    )
     if (tools.length === 0) return null
     const visible = matching.slice(0, shown)
     const remaining = matching.length - visible.length
@@ -552,6 +557,9 @@ function PermissionDrawerBody({
             : null
 
     const inert = disabled || controlsDisabled
+    // The server has tools; this query names none of them.
+    const noMatches =
+        search.length > 0 && !catalogTools.some((tool) => toolMatchesSearch(tool, search))
 
     return (
         // Stable gutter: expanding a row must not summon a scrollbar that shifts every control left.
@@ -618,6 +626,14 @@ function PermissionDrawerBody({
                 ) : catalogTools.length === 0 ? (
                     <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
                         {emptyLabel}
+                    </div>
+                ) : noMatches ? (
+                    // Said in place of the groups, headers and all: two empty groups under their
+                    // own counts read as a server that stopped advertising its tools, which is a
+                    // different answer from "this query does not name any of them". Same sentence
+                    // the connection detail drawer's tool filter uses.
+                    <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
+                        No tool here matches that.
                     </div>
                 ) : (
                     <div className="flex flex-col gap-2">
