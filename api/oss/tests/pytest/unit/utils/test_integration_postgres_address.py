@@ -130,17 +130,23 @@ def test_an_unreachable_database_fails_the_run(monkeypatch):
 
 
 def test_a_reachable_database_is_returned_and_installed(monkeypatch, marker_row):
-    """Confirmed, and the marker account is taken back out whatever the verdict."""
+    """Confirmed, and the marker account is taken back out whatever the verdict.
+
+    Through the guard, because that is what the layers run. These two cases used to call
+    `require_core_uri`, which no layer reaches any more: it is the helper one migration case
+    builds its own database with, so a case named for what the layers do was covering a path
+    they do not take (D163).
+    """
+    monkeypatch.setenv("AGENTA_LICENSE", "ee")
     monkeypatch.setattr(helper, "_connectable", lambda uri: "127.0.0.1" in uri)
     monkeypatch.setattr(helper, "_carries_user", _answers_with({_MARKER}))
     monkeypatch.setenv("POSTGRES_PORT", "5452")
     monkeypatch.setattr(helper.env.postgres, "uri_core", _IN_NETWORK)
 
-    resolved = helper.require_core_uri()
+    deployment.guard_the_deployment_under_test(databases=("core",))
 
-    assert resolved.endswith("@127.0.0.1:5452/agenta_ee_core")
     # Installed on the shared `env`, so an engine built later dials the same server.
-    assert helper.env.postgres.uri_core == resolved
+    assert helper.env.postgres.uri_core.endswith("@127.0.0.1:5452/agenta_ee_core")
     assert marker_row == [(_API, _MARKER)]
 
 
@@ -152,9 +158,10 @@ def test_another_deployments_database_fails_before_anything_is_seeded(
     monkeypatch.setattr(helper, "_carries_user", _answers_with(set()))
     monkeypatch.setenv("POSTGRES_PORT", "5447")
     monkeypatch.setattr(helper.env.postgres, "uri_core", _LOOPBACK)
+    monkeypatch.setenv("AGENTA_LICENSE", "ee")
 
     with pytest.raises(AssertionError) as refusal:
-        helper.require_core_uri()
+        deployment.guard_the_deployment_under_test(databases=("core",))
 
     # A refusing run leaves nothing behind either: the row goes out before the refusal.
     assert marker_row == [(_API, _MARKER)]
@@ -399,3 +406,19 @@ def test_an_unreachable_database_fails_every_layer(monkeypatch):
 
     with pytest.raises(AssertionError, match="could not reach this deployment's core"):
         deployment.guard_the_deployment_under_test(databases=("core", "tracing"))
+
+
+def test_the_migration_helper_still_refuses_another_deployment(monkeypatch, marker_row):
+    """`require_core_uri` has one caller left, and it creates a database of its own.
+
+    `test_mcp_oauth_grant_rekey_migration` builds a scratch database on whatever server this
+    returns, so the helper keeps its own case rather than riding on the layers', which no
+    longer go through it.
+    """
+    monkeypatch.setenv("AGENTA_LICENSE", "ee")
+    monkeypatch.setattr(helper, "_connectable", lambda _uri: True)
+    monkeypatch.setattr(helper, "_carries_user", _answers_with(set()))
+    monkeypatch.setattr(helper.env.postgres, "uri_core", _LOOPBACK)
+
+    with pytest.raises(AssertionError, match="not the deployment under test"):
+        helper.require_core_uri()

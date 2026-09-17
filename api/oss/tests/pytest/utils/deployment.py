@@ -55,6 +55,29 @@ _INSTALLERS = {
 }
 
 
+GUARD = "the_deployment_under_test"
+
+
+def assert_the_guard_is_installed(request) -> None:
+    """Fail if this layer is not running the guard on every one of its cases.
+
+    The guard reaches a layer by one import in its conftest, carrying a lint suppression
+    because nothing in that file uses the name. Delete the import and every case in the layer
+    still passes, while nothing stands between the suite and another deployment's database;
+    `ruff --fix` would delete it as unused (D163). So each layer asserts it is there.
+
+    Autouse is what is being checked, not merely registration: `request.fixturenames` lists
+    what this case was given, and the caller does not ask for the guard, so its presence means
+    the layer applies it to everything.
+    """
+    assert GUARD in request.fixturenames, (
+        f"this layer is not running the deployment guard: no fixture named {GUARD} reached "
+        "this case. Its conftest imports the guard from oss/tests/pytest/utils/deployment.py, "
+        "and that import is the whole of the wiring — without it nothing checks which "
+        "deployment's database the layer is about to write to (D163)."
+    )
+
+
 @pytest.fixture
 def deployment_databases():
     """Which of the deployment's databases this layer's cases read."""
