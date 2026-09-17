@@ -82,19 +82,37 @@ API-only request: those prove the proxy, not the product path.
 
    The two mock ports here are the **published** ones from step 4, not 9092 and 9091.
    Take each port from `docker ps` for the stack, or read
-   `AGENTA_MOCK_MCP_GATEWAY_PORT`/`AGENTA_MOCK_LLM_GATEWAY_PORT` out of its env file. Postgres and the two mock upstreams are
-   published by the compose files; **Redis is not published by default** and a stack that wants
-   host-side runs has to publish both instances in its local override, the way Postgres already
-   is. Without the Redis addresses the symptom is misleading rather than obvious: the cache sits
-   in front of the endpoint lookup, so every cache operation fails to resolve and a
-   whole-directory run reports a different connection missing on each run while each file passes
-   on its own. The mock addresses fail more plainly, as read timeouts.
+   `AGENTA_MOCK_MCP_GATEWAY_PORT`/`AGENTA_MOCK_LLM_GATEWAY_PORT` out of its env file. Postgres and
+   the two mock upstreams are published by the compose files; **Redis is not published by default**
+   and a stack that wants host-side runs has to publish both instances in its local override, the
+   way Postgres already is. The mock addresses fail plainly when they are wrong, as read timeouts.
 
    Since D97 the API integration layers dial the deployment's published Postgres port, which they
    read from `POSTGRES_PORT`, and a layer whose database is unreachable now fails loudly instead of
-   skipping. One consequence for this list: the `integration/sessions` layer runs on a host-side
-   invocation too, and it is the layer that needs `REDIS_URI_VOLATILE` and `REDIS_URI_DURABLE`
-   above, pointed at the ports the local override publishes Redis on.
+   skipping. So `POSTGRES_URI_CORE` above is a way of being explicit rather than a requirement:
+   with `POSTGRES_PORT` exported, both layers resolve their own addresses.
+
+   **The two Redis addresses are not the precondition this list used to say they were, and the
+   `integration/sessions` layer is not what needed them.** Measured on 2026-09-17 against the demo
+   stack, with both Redis variables unset: the gateway layer is 101 passed, and the sessions layer
+   is 17 passed with one failure, the same one it has with them set. Leave them exported if the
+   local override publishes Redis, because a case that does reach the cache is better served by a
+   reachable one, but their absence is not what a failing sessions run is telling you.
+
+   What that layer actually needed was its **second** database. The session query and claim cases
+   build on `get_transactions_engine()`, which reads the core URI that was being resolved; the
+   record sequence, snapshot and replay cases build on `get_analytics_engine()`, which reads
+   `POSTGRES_URI_TRACING`, and nothing resolved that. So seven cases dialled the in-network host
+   name from the host and ended in
+
+   ```
+   socket.gaierror: [Errno -3] Temporary failure in name resolution
+   ```
+
+   which reads as a broken shell rather than as an address nobody rewrote, and sent two rounds of
+   diagnosis at Redis. The layer's own fixture now resolves both databases before any engine is
+   built, so nothing needs exporting for it either. One case in it still fails, and it is a stale
+   expectation on `main` rather than anything about addressing: issue 6920.
 
    The last two variables are why `AGENTA_API_URL` and `AGENTA_AUTH_KEY` are on this list even
    though the gateway integration cases speak to no API. A published port that opens a connection

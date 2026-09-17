@@ -33,6 +33,7 @@ _API = "https://api.under.test/api"
 # of one of them.
 _CACHED = (
     helper.resolve_core_uri,
+    helper.resolve_tracing_uri,
     helper.deployment_marker,
     helper.confirm_deployment_under_test,
 )
@@ -195,3 +196,39 @@ def test_the_marker_is_minted_by_the_api_under_test(monkeypatch):
     assert identifier == _MARKER
     assert sent["url"] == f"{_API}/admin/simple/accounts/"
     assert sent["headers"]["Authorization"] == "Access the-key"
+
+
+def test_the_tracing_database_is_resolved_on_its_own(monkeypatch):
+    """The sessions record cases read this one, and only core used to be resolved.
+
+    One server publishes both, so the address work is identical and the database name is all
+    that differs. Nothing rewrote this one, so those cases dialled the in-network host name
+    from the host and ended in a name-resolution error that read as a broken shell.
+    """
+    monkeypatch.setattr(helper, "_connectable", lambda uri: "127.0.0.1" in uri)
+    monkeypatch.setenv("POSTGRES_PORT", "5452")
+    monkeypatch.setattr(helper.env.postgres, "uri_core", _IN_NETWORK)
+    monkeypatch.setattr(
+        helper.env.postgres,
+        "uri_tracing",
+        "postgresql+asyncpg://username:password@postgres:5432/agenta_ee_tracing",
+    )
+
+    assert helper.use_reachable_tracing_uri().endswith(
+        "@127.0.0.1:5452/agenta_ee_tracing"
+    )
+    # Installed, because the analytics engine is built after this and reads it off `env`.
+    assert helper.env.postgres.uri_tracing.endswith("@127.0.0.1:5452/agenta_ee_tracing")
+    # And separate: resolving one says nothing about the other.
+    assert helper.env.postgres.uri_core == _IN_NETWORK
+
+
+def test_an_unreachable_tracing_database_resolves_to_nothing(monkeypatch):
+    monkeypatch.setattr(helper, "_connectable", lambda _uri: False)
+    monkeypatch.setattr(
+        helper.env.postgres,
+        "uri_tracing",
+        "postgresql+asyncpg://username:password@postgres:5432/agenta_ee_tracing",
+    )
+
+    assert helper.use_reachable_tracing_uri() is None
