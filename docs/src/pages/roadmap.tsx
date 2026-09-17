@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '@theme/Layout';
+import { HtmlClassNameProvider } from '@docusaurus/theme-common';
 import BrowserOnly from '@docusaurus/BrowserOnly';
 import clsx from 'clsx';
 import SidebarShell, { SidebarGroup } from '@site/src/components/SidebarShell';
@@ -446,6 +447,7 @@ export default function RoadmapPage() {
     );
 
     return (
+        <HtmlClassNameProvider className="roadmap-page">
         <Layout title="Roadmap" description={pageDescription}>
             <SidebarShell sidebar={sidebar}>
                 <div className={styles.container}>
@@ -535,5 +537,6 @@ export default function RoadmapPage() {
                 </div>
             </SidebarShell>
         </Layout>
+        </HtmlClassNameProvider>
     );
 }

@@ -35,36 +35,7 @@
   font-weight: var(--ifm-font-weight-semibold);
 }
 
-/* GitHub / Slack / theme toggle: 32px icon buttons */
-.navbar__item:has(.nav_github_icons),
-.navbar__item:has(.nav_slack_icons) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border-radius: var(--radius-md);
-  color: var(--contentsecondary);
-  transition: background-color var(--ifm-transition-fast) ease;
-}
-
-.navbar__item:has(.nav_github_icons):hover,
-.navbar__item:has(.nav_slack_icons):hover {
-  background-color: var(--bgelevated1);
-}
-
-.nav_github_icons,
-.nav_slack_icons {
-  width: 16px;
-  height: 16px;
-  display: block;
-}
-
-.theme-icon {
-  color: var(--contentsecondary);
-}
-
+/* Theme toggle: a 32px icon button */
 .navbar .clean-btn[class*="toggleButton"] {
   width: 32px;
   height: 32px;
@@ -219,12 +190,6 @@
   .navbar .DocSearch-Search-Icon {
     margin: 0;
   }
-
-  /* The social icons resurface in the hamburger footer instead. */
-  .navbar__item:has(.nav_github_icons),
-  .navbar__item:has(.nav_slack_icons) {
-    display: none;
-  }
 }
 
 /* ===== Back-to-top button ===== */
@@ -331,52 +296,6 @@
 
 .mobileSidebarActions .nav_secondary_button {
   border: 1px solid var(--borderdefault) !important;
-}
-
-.mobileSidebarCommunity {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--borderdefault);
-}
-
-.mobileSidebarCommunityLabel {
-  font-size: 12px;
-  font-weight: var(--ifm-font-weight-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--contenttertiary);
-}
-
-.mobileSidebarCommunityIcons {
-  display: flex;
-  gap: 8px;
-}
-
-.mobileSidebarSocialIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid var(--borderdefault);
-  border-radius: var(--radius-md);
-  color: var(--contentprimary);
-  text-decoration: none !important;
-  transition:
-    background-color var(--ifm-transition-fast) ease,
-    border-color var(--ifm-transition-fast) ease;
-}
-
-.mobileSidebarSocialIcon:hover {
-  background-color: var(--bgelevated2);
-}
-
-.mobileSidebarSocialIcon .theme-icon {
-  width: 20px;
-  height: 20px;
 }
 
 /* Hamburger rows (both panels): taller than the desktop sidebar rows so they

@@ -30,11 +30,11 @@ function stripTags(html: string | undefined): string {
 /**
  * The primary menu of the hamburger sidebar.
  *
- * Nav links flow in the scrolling list; the call-to-action buttons and the
- * community (GitHub / Slack) links are pulled out into a footer that is pinned
- * to the bottom of the screen. The CTA/social entries are identified by the
- * class names set on their `html` in the navbar config so this stays in sync
- * with `docusaurus.config.*` without hardcoding URLs.
+ * Nav links flow in the scrolling list; the call-to-action buttons are pulled
+ * out into a footer that is pinned to the bottom of the screen. The CTA
+ * entries are identified by the class names set on their `html` in the navbar
+ * config so this stays in sync with `docusaurus.config.*` without hardcoding
+ * URLs. Social links live in the site footer.
  */
 export default function NavbarMobilePrimaryMenu(): ReactNode {
   const mobileSidebar = useNavbarMobileSidebar();
@@ -47,15 +47,9 @@ export default function NavbarMobilePrimaryMenu(): ReactNode {
   const primary = items.find((i) => hasClass(i, "nav_primary_button")) as
     | { href?: string; html?: string }
     | undefined;
-  const github = items.find((i) => hasClass(i, "nav_github_icons")) as
-    | { href?: string; html?: string }
-    | undefined;
-  const slack = items.find((i) => hasClass(i, "nav_slack_icons")) as
-    | { href?: string; html?: string }
-    | undefined;
 
-  // Everything that isn't the search box, the version selector, a CTA button,
-  // or a social icon is a normal navigation link shown in the scrolling list.
+  // Everything that isn't the search box, the version selector, or a CTA
+  // button is a normal navigation link shown in the scrolling list.
   // The version selector is rendered next to the logo by Navbar/Content at
   // every width, so repeating it here would show the same control twice.
   const navItems = items.filter(
@@ -63,12 +57,10 @@ export default function NavbarMobilePrimaryMenu(): ReactNode {
       (i as { type?: string }).type !== "search" &&
       (i as { type?: string }).type !== "docsVersionDropdown" &&
       !hasClass(i, "nav_secondary_button") &&
-      !hasClass(i, "nav_primary_button") &&
-      !hasClass(i, "nav_github_icons") &&
-      !hasClass(i, "nav_slack_icons"),
+      !hasClass(i, "nav_primary_button"),
   );
 
-  const hasFooter = secondary || primary || github || slack;
+  const hasFooter = secondary || primary;
 
   return (
     <>
@@ -107,35 +99,6 @@ export default function NavbarMobilePrimaryMenu(): ReactNode {
             </div>
           )}
 
-          {(github || slack) && (
-            <div className="mobileSidebarCommunity">
-              <span className="mobileSidebarCommunityLabel">Community</span>
-              <div className="mobileSidebarCommunityIcons">
-                {github && (
-                  <a
-                    className="mobileSidebarSocialIcon"
-                    href={github.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="GitHub"
-                    onClick={close}
-                    dangerouslySetInnerHTML={{ __html: github.html ?? "" }}
-                  />
-                )}
-                {slack && (
-                  <a
-                    className="mobileSidebarSocialIcon"
-                    href={slack.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Slack"
-                    onClick={close}
-                    dangerouslySetInnerHTML={{ __html: slack.html ?? "" }}
-                  />
-                )}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </>

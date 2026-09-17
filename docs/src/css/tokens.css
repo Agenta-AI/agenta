@@ -107,8 +107,9 @@
 }
 
 /* The theme defines --doc-sidebar-width on :root in a module that loads after
-   this file; setting it on the layout wrapper wins by inheritance. */
-.main-wrapper {
+   this file; setting it on the app root wins by inheritance, and the footer
+   (outside .main-wrapper) reads it too. */
+#__docusaurus {
   --doc-sidebar-width: 272px;
 }
 

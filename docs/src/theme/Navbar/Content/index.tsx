@@ -39,9 +39,10 @@ ${JSON.stringify(item, null, 2)}`,
 }
 
 /**
- * One header row: logo and version on the left, search and actions on the
- * right. The section links (position: "left") are not rendered here; the
- * sidebar rail shows them on desktop and the hamburger menu on mobile.
+ * One header row: logo and version on the left, search, theme toggle and the
+ * CTAs on the right. The section links (position: "left") are not rendered
+ * here; the sidebar rail shows them on desktop and the hamburger menu on
+ * mobile. Social links live in the footer.
  */
 export default function NavbarContent(): JSX.Element {
   const mobileSidebar = useNavbarMobileSidebar();
@@ -72,23 +73,12 @@ export default function NavbarContent(): JSX.Element {
           <SearchBar />
         </NavbarSearch>
         <div className={styles.icons}>
-          <NavbarItems items={actionItems.filter(isIconItem)} />
           <NavbarColorModeToggle className={styles.colorModeToggle} />
         </div>
         <div className={styles.actions}>
-          <NavbarItems items={actionItems.filter((item) => !isIconItem(item))} />
+          <NavbarItems items={actionItems} />
         </div>
       </div>
     </div>
-  );
-}
-
-// The GitHub and Slack links carry an inline SVG marked with these classes in
-// docusaurus.config.ts; the CTA buttons do not.
-function isIconItem(item: NavbarItemConfig): boolean {
-  const html = (item as {html?: unknown}).html;
-  return (
-    typeof html === 'string' &&
-    (html.includes('nav_github_icons') || html.includes('nav_slack_icons'))
   );
 }
