@@ -116,7 +116,7 @@ def test_a_positive_answer_cannot_distinguish_reachable_from_merely_public_looki
 
 
 @pytest.mark.asyncio
-async def test_the_address_check_answers_off_the_event_loop():
+async def test_the_address_check_answers_off_the_event_loop(real_resolver_offload):
     """`socket.getaddrinfo` blocks with no timeout of its own, and both callers are
     coroutines, so running it inline stalled every request the worker was serving."""
     loop_thread = threading.get_ident()
@@ -131,7 +131,9 @@ async def test_the_address_check_answers_off_the_event_loop():
 
 
 @pytest.mark.asyncio
-async def test_a_resolver_that_never_answers_costs_one_coroutine_not_the_worker():
+async def test_a_resolver_that_never_answers_costs_one_coroutine_not_the_worker(
+    real_resolver_offload,
+):
     """The wait is bounded, so a resolver that is gone does not hold a consent step
     open. The thread it left behind is the operating system's to reap; what matters is
     that the loop is free and the caller has an answer."""
@@ -157,7 +159,9 @@ async def test_a_resolver_that_never_answers_costs_one_coroutine_not_the_worker(
 
 
 @pytest.mark.asyncio
-async def test_the_loop_keeps_serving_while_the_resolver_is_stuck():
+async def test_the_loop_keeps_serving_while_the_resolver_is_stuck(
+    real_resolver_offload,
+):
     """The property the finding is actually about: other work continues."""
     released = threading.Event()
     ticks = 0
