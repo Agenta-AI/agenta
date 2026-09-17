@@ -18,6 +18,7 @@ import {
     setNewToolPermission,
     setToolPermission,
     staleToolPermissions,
+    toolPermissions,
     type McpServerPolicy,
 } from "../../src/mcpEndpoint/core/toolPolicy"
 
@@ -49,6 +50,34 @@ describe("the per-tool pair is opt-in", () => {
 
         expect(isPerTool(none)).toBe(false)
         expect(none).not.toHaveProperty("tool_permissions")
+    })
+})
+
+describe("a tool whose name collides with an object's own machinery", () => {
+    // Tool names arrive from the server verbatim and nothing validates them, so `__proto__` is a
+    // name a server can offer. Copied into an ordinary object, `table["__proto__"] = "deny"` sets
+    // the prototype instead of an entry: the denial is dropped on the way in, and the name then
+    // reads back as `Object.prototype`, which is truthy and was returned as though it were a
+    // permission. The policy is parsed from the wire here, because that is the only way the key
+    // arrives as an own property — an object literal never creates one (D179).
+    const fromWire = (json: string) => JSON.parse(json) as McpServerPolicy
+
+    it("keeps a denial written against __proto__", () => {
+        const policy = fromWire('{"tool_permissions":{"__proto__":"deny","echo":"allow"}}')
+
+        expect(toolPermissions(policy).__proto__).toBe("deny")
+        expect(effectiveToolPermission(policy, "__proto__")).toEqual({
+            permission: "deny",
+            source: "tool",
+        })
+    })
+
+    it("does not hand back the prototype in place of a permission", () => {
+        const policy = fromWire('{"tool_permissions":{"echo":"allow"}}')
+
+        // Nothing was written against the name, so it inherits like any other unlisted tool.
+        expect(effectiveToolPermission(policy, "__proto__").permission).toBe("ask")
+        expect(effectiveToolPermission(policy, "__proto__").source).toBe("new")
     })
 })
 

@@ -117,7 +117,9 @@ export function fromGatewayPermissions(
     current: McpServerPolicy = {},
 ): McpServerPolicy {
     const existing = toolPermissions(current)
-    const entries: Record<string, McpPermission> = {}
+    // Null prototype: a tool literally named `__proto__` must land as an entry rather
+    // than silently setting this object's prototype and vanishing. See `toolPermissions`.
+    const entries: Record<string, McpPermission> = Object.create(null)
     for (const [name, value] of Object.entries(permissions.tools ?? {})) {
         if (!isMcpPermission(value)) continue
         if (isToolHidden(current, name) && !(name in existing)) continue
@@ -173,7 +175,9 @@ export function askWritesPolicy(
     current: McpServerPolicy = {},
 ): McpServerPolicy {
     const next: McpServerPolicy = {...current}
-    const entries: Record<string, McpPermission> = {}
+    // Null prototype: a tool literally named `__proto__` must land as an entry rather
+    // than silently setting this object's prototype and vanishing. See `toolPermissions`.
+    const entries: Record<string, McpPermission> = Object.create(null)
     for (const name of readOnlyToolNames) {
         if (isToolHidden(current, name)) continue
         entries[name] = "allow"

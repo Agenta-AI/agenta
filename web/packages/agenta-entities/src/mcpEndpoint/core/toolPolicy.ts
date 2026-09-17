@@ -83,7 +83,12 @@ export function readMcpPolicy(item: Record<string, unknown> | null | undefined):
 /** The table's readable entries. An entry whose value is not a decision is dropped. */
 export const toolPermissions = (policy: McpServerPolicy): Record<string, McpPermission> => {
     const declared = policy.tool_permissions ?? {}
-    const readable: Record<string, McpPermission> = {}
+    // A null prototype, because a server's tool names arrive verbatim and nothing validates
+    // them. `readable["__proto__"] = "deny"` on an ordinary object sets the prototype instead
+    // of an entry, so the denial is dropped on the way in and the name then reads back as
+    // `Object.prototype`, which is truthy and is returned as though it were a permission. A
+    // table with no prototype has nothing to shadow, so the name is an entry like any other.
+    const readable: Record<string, McpPermission> = Object.create(null)
     for (const [tool, permission] of Object.entries(declared)) {
         if (isMcpPermission(permission)) readable[tool] = permission
     }
@@ -146,7 +151,8 @@ export function effectiveToolPermission(
     // reader can see is not the one the author wrote (issue 6917).
     if (isMisCasedPolicy(policy)) return {permission: "ask", source: "new"}
 
-    const entry = toolPermissions(policy)[toolName]
+    const table = toolPermissions(policy)
+    const entry = Object.hasOwn(table, toolName) ? table[toolName] : undefined
     if (entry) return {permission: entry, source: "tool"}
 
     // A declared table answers for every tool it does not name, from `new_tool_permission` or
@@ -160,7 +166,7 @@ export function effectiveToolPermission(
 }
 
 const withoutKey = (table: Record<string, McpPermission>, key: string) => {
-    const next = {...table}
+    const next: Record<string, McpPermission> = Object.assign(Object.create(null), table)
     delete next[key]
     return next
 }
@@ -194,7 +200,7 @@ export function setToolPermission(
     return pruned({
         ...policy,
         tool_permissions: permission
-            ? {...table, [toolName]: permission}
+            ? Object.assign(Object.create(null), table, {[toolName]: permission})
             : withoutKey(table, toolName),
     })
 }
