@@ -32,10 +32,13 @@
   margin-bottom: 0;
 }
 
-/* <Stream responsive> positions its iframe absolutely inside a padding-top
-   box. With the wrapper's padding zeroed above, the iframe flows in the
-   normal way and the aspect ratio sizes it. */
-.markdown div[style*="padding-top"] > iframe[src*="cloudflarestream"] {
+/* <Stream responsive> positions its iframe absolutely inside a wrapper that
+   only gets its padding-top box once the player reports the video size. Until
+   then the wrapper is 0px tall, so an absolute iframe (and the skeleton drawn
+   on the wrapper) would sit on top of the text below. Keyed off the iframe,
+   not the wrapper's padding, so it holds from the first paint; the aspect
+   ratio above sizes it. */
+.markdown iframe[src*="cloudflarestream"] {
   position: static !important;
   inset: auto !important;
 }
