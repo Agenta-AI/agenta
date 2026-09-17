@@ -181,3 +181,7 @@ junit.xml
 docs/design/sessions-ux-stack/qa112/venv/
 docs/design/sessions-ux-stack/qa112/shots/
 docs/design/sessions-ux-stack/qa112/.tabpin.*
+
+# Marketing package configuration after joining the web workspace.
+!web/website/.gitignore
+!web/website/.prettierrc.json
