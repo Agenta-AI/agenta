@@ -236,48 +236,6 @@
   }
 }
 
-/* ===== Back-to-top button ===== */
-/* The same 32px control as the header buttons: page surface, hairline,
-   a soft shadow so it lifts off the text, and the outlined arrow used by
-   the pagination. Its right edge lines up with the "On this page" column. */
-.theme-back-to-top-button {
-  width: 32px !important;
-  height: 32px !important;
-  right: var(--doc-main-padding-x) !important;
-  bottom: 24px !important;
-  border-radius: var(--radius-lg) !important;
-  background-color: var(--bgdefault) !important;
-  border: 1px solid var(--borderdefault) !important;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.08) !important;
-  transition:
-    background-color var(--ifm-transition-fast) ease,
-    border-color var(--ifm-transition-fast) ease,
-    opacity var(--ifm-transition-fast) ease,
-    transform var(--ifm-transition-fast) ease !important;
-}
-
-[data-theme="dark"] .theme-back-to-top-button {
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.4) !important;
-}
-
-.theme-back-to-top-button::after {
-  width: 16px !important;
-  height: 16px !important;
-  margin: 0 !important;
-  background-color: var(--contentprimary) !important;
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 19V5'/><path d='M5 12l7-7 7 7'/></svg>")
-    center / contain no-repeat !important;
-  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 19V5'/><path d='M5 12l7-7 7 7'/></svg>")
-    center / contain no-repeat !important;
-}
-
-@media (hover: hover) {
-  .theme-back-to-top-button:hover {
-    background-color: var(--bgelevated1) !important;
-    border-color: var(--borderdark) !important;
-  }
-}
-
 /* ===== Hamburger sidebar (custom PrimaryMenu with pinned footer) ===== */
 
 .navbar-sidebar {
