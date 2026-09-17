@@ -23,6 +23,10 @@ export function isMcpPermission(value: unknown): value is McpPermission {
   return (VERDICTS as readonly unknown[]).includes(value);
 }
 
+/** How the SDK model and the editor spell the two per-tool fields. The wire, which this module
+ *  reads, spells them `toolPermissions` and `newToolPermission`. */
+const MODEL_PER_TOOL_FIELDS = ["tool_permissions", "new_tool_permission"] as const;
+
 /** One MCP server's resolved permission table, after intake. */
 export interface McpServerPermissions {
   /** The whole-server decision, when the author set a readable one. */
@@ -73,6 +77,23 @@ export function normalizeMcpServerPermissions(
   rawPolicy: unknown,
 ): McpServerPermissions {
   const policy = isRecord(rawPolicy) ? rawPolicy : {};
+
+  // A per-tool table under the MODEL's field names is a table this reader cannot see: it reads
+  // the wire's names, and the wire type is a free-form mapping, so nothing upstream rejects the
+  // other spelling. Read on, and the table vanishes while `permission` survives, so a server
+  // marked `allow` runs every tool the table denied, unapproved (issue 6917).
+  //
+  // So the policy is refused rather than read: `ask` for every tool, and the whole-server
+  // permission is dropped with the rest, because falling back to it is the one answer that
+  // cannot be right. Narrow on purpose — only the two aliases of the per-tool fields, not any
+  // unknown key — so a policy carrying a field this runner's image predates still works.
+  //
+  // `ask` rather than the `deny` its declared-and-corrupt neighbour below gives: nothing here
+  // says which restriction the author asked for, only that they asked for one, and a human
+  // answering each call is the smallest thing that cannot be wrong.
+  if (MODEL_PER_TOOL_FIELDS.some((field) => field in policy)) {
+    return { tools: new Map(), newTool: "ask" };
+  }
 
   // A Map, not an object literal: `{}["toString"]` answers with an inherited function, and a
   // truthy answer is all a lookup needs to conclude "configured". That exact shape was a live

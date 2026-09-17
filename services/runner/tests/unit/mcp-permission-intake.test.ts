@@ -459,10 +459,7 @@ describe("a policy that arrives in the other convention", () => {
   for (const sender of LADDER.sendersThatMisCaseTheirFields.filter((entry) =>
     entry.foreignTo.includes("runner"),
   )) {
-    // `it.fails` rather than `it`: this reader does NOT keep the invariant today, and issue
-    // 6917 is where that is tracked. The case is here so the shape is pinned and so the day
-    // the reader is fixed this turns red and someone makes it an ordinary `it`.
-    it.fails(`never resolves ${sender.name} to ${sender.expected.mustNotResolveTo}`, () => {
+    it(`never resolves ${sender.name} to ${sender.expected.mustNotResolveTo}`, () => {
       let entry: ReturnType<typeof normalizeMcpServerPermissions> | undefined;
       try {
         entry = normalizeMcpServerPermissions(sender.wire);
