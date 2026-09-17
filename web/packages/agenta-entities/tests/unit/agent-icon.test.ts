@@ -96,6 +96,8 @@ describe("agentIconAtomFamily", () => {
     }
 
     const readIcon = async (store: ReturnType<typeof createStore>, id: string) => {
+        // Subscribed, as a hook would be: only a mounted query atom follows later cache writes.
+        store.sub(agentIconAtomFamily(id), () => undefined)
         // The glyph map resolves on a microtask; a second read sees it.
         store.get(agentIconAtomFamily(id))
         await new Promise((resolve) => setTimeout(resolve, 0))
@@ -127,6 +129,40 @@ describe("agentIconAtomFamily", () => {
         } finally {
             spy.mockRestore()
         }
+    })
+
+    it("fills the glyph map on the next pick after a failed catalog load", async () => {
+        const catalog = await import("@agenta/ui/agent-icon")
+        const spy = vi
+            .spyOn(catalog, "loadAgentIconCatalog")
+            .mockRejectedValueOnce(new Error("404"))
+        try {
+            const {store} = makeStore([toWorkflowListRef(workflow("wf-1", {"@ag": {icon: robot}}))])
+            expect(await readIcon(store, "wf-1")).toBeNull()
+
+            queryWorkflows.mockResolvedValue({count: 1, workflows: [workflow("wf-1")]})
+            updateWorkflow.mockResolvedValue(undefined)
+            await store.set(agentIconAtomFamily("wf-1"), {
+                icon: "brain",
+                color: "#AA0000",
+                path: "",
+            })
+
+            expect((await readIcon(store, "wf-1"))?.path).toBe("<path d='M2 2'/>")
+        } finally {
+            spy.mockRestore()
+        }
+    })
+
+    it("refuses to save when the artifact is not returned, so no other tag is wiped", async () => {
+        const {store} = makeStore([toWorkflowListRef(workflow("wf-1", {"@ag": {icon: robot}}))])
+        queryWorkflows.mockResolvedValue({count: 0, workflows: []})
+
+        await store.set(agentIconAtomFamily("wf-1"), {icon: "brain", color: "#AA0000", path: ""})
+
+        expect(updateWorkflow).not.toHaveBeenCalled()
+        expect((await readIcon(store, "wf-1"))?.icon).toBe("robot")
+        expect(message.error).toHaveBeenCalledTimes(1)
     })
 
     it("is null for an agent without an icon, and for a name the catalog lacks", async () => {

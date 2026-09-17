@@ -9,7 +9,7 @@
 import {isHexColor, loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
-import {atomWithStorage, unwrap} from "jotai/utils"
+import {atomWithRefresh, atomWithStorage, unwrap} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 
@@ -84,16 +84,15 @@ export const withAgentIconTag = (
 
 const NO_GLYPHS: ReadonlyMap<string, string> = new Map()
 
-/** Name → inner SVG. Unwrapped so a read never suspends; read only once a custom icon is on screen. */
-const glyphsAtom = unwrap(
-    atom(async (): Promise<ReadonlyMap<string, string>> => {
-        // A chunk that fails to load leaves every agent on its fallback glyph, not in an error
-        // boundary. The loader drops a rejection, so the picker still retries on its own.
-        const catalog = await loadAgentIconCatalog().catch(() => [])
-        return new Map(catalog.map((entry) => [entry.name, entry.path] as const))
-    }),
-    () => NO_GLYPHS,
-)
+/** Name → inner SVG, read only once a custom icon is on screen. Refreshable: see the write below. */
+const glyphsSourceAtom = atomWithRefresh(async (): Promise<ReadonlyMap<string, string>> => {
+    // A chunk that fails to load leaves every agent on its fallback glyph, not in an error boundary.
+    const catalog = await loadAgentIconCatalog().catch(() => [])
+    return new Map(catalog.map((entry) => [entry.name, entry.path] as const))
+})
+
+/** Unwrapped so a read never suspends; a refresh keeps the last map until the new one lands. */
+const glyphsAtom = unwrap(glyphsSourceAtom, (prev) => prev ?? NO_GLYPHS)
 
 // ============================================================================
 // LEGACY BROWSER VALUE
@@ -177,7 +176,10 @@ export const agentIconAtomFamily = atomFamily((workflowId: string) =>
                     includeArchived: true,
                 })
                 const current = latest.workflows?.find((workflow) => workflow.id === workflowId)
-                const tags = withAgentIconTag(current?.tags, setting)
+                // Without the artifact there is nothing to merge into: writing an icon-only map
+                // would replace every other tag. Let the catch path roll the pick back.
+                if (!current) throw new Error(`[agentIcon] workflow ${workflowId} not found`)
+                const tags = withAgentIconTag(current.tags, setting)
                 await updateWorkflow(projectId, {id: workflowId, tags})
                 return tags
             }
@@ -208,6 +210,9 @@ export const agentIconAtomFamily = atomFamily((workflowId: string) =>
                     tags,
                 }),
             )
+            // The picker just loaded the catalog to make this pick, so a map left empty by an
+            // earlier failed load can fill in now instead of staying empty for the session.
+            if (get(glyphsAtom).size === 0) set(glyphsSourceAtom)
             settle()
             const legacy = asRecord(get(legacyIconMapAtom)) ?? {}
             if (workflowId in legacy) {
