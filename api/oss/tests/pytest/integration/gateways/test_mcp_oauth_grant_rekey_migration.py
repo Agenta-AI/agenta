@@ -29,7 +29,7 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from oss.tests.pytest.utils.postgres import resolve_core_uri
+from oss.tests.pytest.utils.postgres import require_core_uri
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
@@ -87,9 +87,9 @@ async def scratch_engine():
     Not the deployment's: the migration rewrites and deletes rows across every project
     it finds, which is exactly what a test must not do to a database somebody is using.
     """
-    core_uri = resolve_core_uri()
-    if core_uri is None:
-        pytest.skip("Postgres not reachable — skipping the grant rekey migration test")
+    # Fails rather than skips, for the reason in `require_core_uri`: this case cannot run
+    # without a server to create its own database on, and a skip here reads as a pass.
+    core_uri = require_core_uri()
 
     database = f"agenta_rekey_{uuid.uuid4().hex[:12]}"
     admin = create_async_engine(core_uri, isolation_level="AUTOCOMMIT")
