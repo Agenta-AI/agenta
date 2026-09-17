@@ -23,6 +23,22 @@ import {afterEach, describe, expect, it, vi} from "vitest"
 import {TurnRow} from "@/features/chat/TurnRow"
 
 vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextRouterModule))
+
+// The project's MCP connections, which the card needs before it may offer Reconnect: the action
+// carries the row's id and slug. Stubbed at the module the card reads it from, with the one row
+// the notice names, so a case can see the action and not only the sentence.
+vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
+    const {atom} = await import("jotai")
+    const original = await importOriginal<typeof import("@agenta/entities/mcpEndpoint")>()
+    return {
+        ...original,
+        mcpEndpointsQueryAtom: atom({
+            data: [{id: "endpoint-1", slug: "mock-mcp", name: "mock-mcp", url: "https://mcp.test"}],
+            isPending: false,
+        }),
+        refreshMcpEndpointsAtom: atom(null, () => undefined),
+    }
+})
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -105,11 +121,60 @@ describe("mobile TurnRow: an MCP server that did not join the run", () => {
         const html = renderTurn([noticePart(), failedToolPart("mcp__mock-mcp__echo")])
 
         expect(html).toContain('data-mcp-server-notice="mock-mcp"')
-        // The notice and NOTHING else. The failed row's own error text only appears once the row
-        // is expanded, so asserting the absence of the harness sentence let a rendered row through.
+        // The notice and its own action, and NOTHING else. The failed row's error text only
+        // appears once the row is expanded, so asserting the absence of the harness sentence let
+        // a rendered row through; the whole text is asserted instead, action included.
         expect(textOf(html)).toBe(
-            "mock-mcp needs a new sign-in.Its tools fail until someone in the project reconnects.",
+            "mock-mcp needs a new sign-in." +
+                "Its tools fail until someone in the project reconnects." +
+                "Reconnect",
         )
+    })
+
+    it("draws the notice and its Reconnect for the frame the stream really sends", () => {
+        // The whole chain against main's turn model, from the frame shape on the wire: a
+        // `data-mcp-server-failed` part with `handshake_http_error` and the `auth_required`
+        // detail, folded into an `mcpNotice` render item, rendered above the activity timeline.
+        // The action is half the card: a reader who is told a server did not join and is given
+        // no way back has learned nothing they can act on.
+        const html = renderTurn([noticePart(), failedToolPart("mcp__mock-mcp__echo")])
+
+        expect(html).toContain('data-mcp-server-notice="mock-mcp"')
+        expect(html).toContain('aria-label="Reconnect mock-mcp"')
+        expect(textOf(html)).toContain("Reconnect")
+    })
+
+    it("shows the failed call when no notice on the turn accounts for it", () => {
+        // The state round 6e hit: a disconnected connection, a call that could not run, and no
+        // notice part on the turn. The timeline hides a failed call by product rule, so hiding
+        // this one too left the turn saying nothing at all — no card, no row, no error text. A
+        // failure nothing else explains is the one a reader has to see.
+        const html = renderTurn([failedToolPart("mcp__mock-mcp__echo")])
+
+        expect(html).not.toContain("data-mcp-server-notice")
+        // The timeline itself: with no steps it draws no fold at all, so its summary line is what
+        // says the call reached the reader, and the call's own label is what says which call.
+        expect(textOf(html)).toContain("Worked")
+        expect(textOf(html)).toContain("Echo")
+    })
+
+    it("leaves main's rule alone for a failed call that is not an MCP one", () => {
+        // The exception is scoped. An ordinary tool that failed is usually one the agent retried
+        // and recovered from, which is why main keeps it off the timeline; an MCP call against a
+        // server that never joined is the failure it cannot recover from and nothing else reports.
+        // Widening the fallback to every tool would put a red row back on every recovered turn.
+        const html = renderTurn([failedToolPart("read_file")])
+
+        expect(textOf(html)).not.toContain("Worked")
+    })
+
+    it("still hides the failed call that a notice does account for", () => {
+        // The other direction, so the fallback cannot become "every failure is a step again":
+        // main's rule stands wherever the card speaks for the call.
+        const html = renderTurn([noticePart(), failedToolPart("mcp__mock-mcp__echo")])
+
+        expect(html).toContain('data-mcp-server-notice="mock-mcp"')
+        expect(textOf(html)).not.toContain("Worked")
     })
 
     it("draws the notice whether or not the call behind it is on the timeline", () => {
