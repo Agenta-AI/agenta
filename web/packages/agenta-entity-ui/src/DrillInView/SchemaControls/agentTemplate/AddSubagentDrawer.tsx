@@ -104,7 +104,7 @@ function SubagentRow({
             title={option.name}
             titleSuffix={
                 option.added ? (
-                    <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-[var(--ag-colorSuccessText)]">
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-colorSuccess">
                         <Check size={11} weight="bold" />
                         Added
                     </span>
