@@ -7,7 +7,7 @@
 }
 
 @media (min-width: 997px) {
-  html:is(.docs-wrapper, .blog-wrapper, .roadmap-page) .footer {
+  html:is(.docs-wrapper, .blog-wrapper, .roadmap-page, .not-found-page) .footer {
     margin-left: calc(var(--doc-sidebar-width) - 1px);
     border-left: 1px solid var(--borderdefault);
   }
