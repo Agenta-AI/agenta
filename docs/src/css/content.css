@@ -327,10 +327,18 @@ details:not([class*="openapi"]) {
 
 .markdown table th,
 .markdown table td {
+  /* Room for short values ("1,200 / 1,200") on one line; a table that
+     needs more than the column scrolls in .tableScroll. */
+  min-width: 136px;
   padding: 10px 14px;
   border: 0;
   text-align: left;
   vertical-align: top;
+}
+
+.markdown table th,
+.markdown table code {
+  white-space: nowrap;
 }
 
 .markdown table th {
