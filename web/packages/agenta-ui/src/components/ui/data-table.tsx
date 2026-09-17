@@ -717,9 +717,11 @@ const RowActions = <T,>({items, record}: {items: ActionItem<T>[]; record: T}) =>
                     // changes shape. Applied here rather than behind a prop because this menu is
                     // the only route to a row's actions, and a per-table opt-in would have left
                     // the tables nobody remembered to opt in as hard to hit as this one was.
+                    // Both dimensions are asked for: the trigger is narrower than the minimum too,
+                    // so a height-only expansion left it 38px wide.
                     className={clsx(
                         "flex h-6 w-[30px] cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText",
-                        touchTargetExpansion(24),
+                        touchTargetExpansion({height: 24, width: 30}),
                     )}
                 >
                     <DotsThreeVertical size={16} weight="bold" />

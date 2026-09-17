@@ -11,7 +11,7 @@ import {act, createElement} from "react"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
+import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight, touchTargetHitArea} from "@agenta/ui/ui"
 
 import {
     McpAddServerDrawer,
@@ -253,6 +253,21 @@ describe("the connection row's actions on a phone", () => {
             expect(action!.className, label).toContain("h-control-sm")
             expect(touchTargetHeight(action!.className), label).toBe(TOUCH_TARGET_MINIMUM_PX)
         }
+    })
+
+    it("gives the drawer's own Close a 44px hit area on both axes", async () => {
+        // The way out of the drawer, and a 28px square rather than a labelled button, so the
+        // minimum failed it on both axes. Pinned here as well as in the kit because this is the
+        // drawer the redesign added and the one a phone reader meets first.
+        await render()
+
+        const close = buttonNamed("Close")
+        expect(close, "no close button").toBeDefined()
+        expect(close!.className).toContain("size-control-sm")
+        expect(touchTargetHitArea(close!.className)).toEqual({
+            width: TOUCH_TARGET_MINIMUM_PX,
+            height: TOUCH_TARGET_MINIMUM_PX,
+        })
     })
 })
 

@@ -109,6 +109,29 @@ const LINEAR_TOOLS: McpToolSummary[] = [
 
 const listTools = async () => LINEAR_TOOLS
 
+/** The same server with descriptions that do not fit one line, for the `LongDescriptions` story. */
+const LINEAR_TOOLS_VERBOSE: McpToolSummary[] = [
+    {
+        name: "get_issue",
+        title: "Get Linear issue",
+        description:
+            "Retrieves an issue's details, including its id, identifier, title, description, " +
+            "state, priority, estimate, assignee, creator, team, project, cycle, labels, parent " +
+            "and children, attachments, and the full comment thread.",
+        annotations: {readOnlyHint: true},
+    },
+    {
+        name: "create_issue",
+        title: "Create issue",
+        description:
+            "Creates a new issue in a team.\n\nFails when the team does not exist, or when the " +
+            "assignee is not a member of it.",
+        annotations: {readOnlyHint: false},
+    },
+]
+
+const listVerboseTools = async () => LINEAR_TOOLS_VERBOSE
+
 /** A request that never settles, for the placeholder state. */
 const neverSettles = () => new Promise<McpToolSummary[]>(() => undefined)
 
@@ -250,6 +273,18 @@ export const CustomWithOverrides: Story = {
             }}
             onRemove={noop}
         />
+    ),
+}
+
+/**
+ * A description that does not fit the row, which is the only state that puts "Show more" on a tool
+ * line. One row overflows on width, the other hides its second sentence behind a line break, which
+ * a width measurement alone never sees. The toggle is a control the 44px touch minimum applies to,
+ * and it reaches it without taking any height from the row.
+ */
+export const LongDescriptions: Story = {
+    render: () => (
+        <DrawerHost policy={{permission: "allow"}} onRemove={noop} loadTools={listVerboseTools} />
     ),
 }
 

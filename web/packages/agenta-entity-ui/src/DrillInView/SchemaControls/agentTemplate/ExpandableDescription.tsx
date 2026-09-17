@@ -1,6 +1,8 @@
 /** A description that clamps, offering Show more only when clamping really hid something. */
 import {useId, useLayoutEffect, useState} from "react"
 
+import {touchTargetExpansion} from "@agenta/ui/ui"
+
 import {isDescriptionTruncatable} from "../integrationPolicy"
 
 /** Literal class names: Tailwind never generates a `line-clamp-${n}` built at runtime. */
@@ -91,8 +93,10 @@ export function ExpandableDescription({
                     // `text-colorInfo`, not a raw `--ag-colorLink`: that variable exists only
                     // through antd's runtime, so on /m the control rendered at the inherited
                     // colour. `min-h-control-xs` puts the tap target on the shared control scale
-                    // without giving an inline toggle any chrome.
-                    className="mt-1 inline-flex min-h-control-xs w-fit cursor-pointer items-center border-0 bg-transparent p-0 text-xs text-colorInfo"
+                    // without giving an inline toggle any chrome, and the invisible expansion
+                    // carries that 24px floor to the 44px touch minimum. Height only: the label is
+                    // already wider than the minimum.
+                    className={`mt-1 inline-flex min-h-control-xs w-fit cursor-pointer items-center border-0 bg-transparent p-0 text-xs text-colorInfo ${touchTargetExpansion(24)}`}
                 >
                     {expanded ? "Show less" : "Show more"}
                 </button>
