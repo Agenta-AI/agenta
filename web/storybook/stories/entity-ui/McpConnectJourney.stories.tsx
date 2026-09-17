@@ -235,6 +235,22 @@ export const ApiKeyDetected: Story = sheet(
 )
 
 /**
+ * C5 as a server that asked for a credential and named no scheme — the header the spec picks
+ * when the challenge names nothing, which is the field's own placeholder made real.
+ */
+export const ApiKeyNoSchemeNamed: Story = sheet(
+    state({
+        status: "naming",
+        url: "https://mcp.axiom.co/mcp",
+        name: "Axiom",
+        probe: {
+            ...KEY_PROBE,
+            auth: {...KEY_PROBE.auth, challenge_status: 401, challenge_schemes: []},
+        },
+    }),
+)
+
+/**
  * C5 with a challenge worth repeating — the server named a scheme `Authorization` does not
  * carry, so the field keeps its default and a line under it says what to place where.
  */
