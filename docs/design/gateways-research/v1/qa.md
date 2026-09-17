@@ -132,6 +132,12 @@ API-only request: those prove the proxy, not the product path.
    The gateway layer is the same command with `integration/gateways`. Both take pytest arguments
    after a bare `--`; `-- -n0` runs serially, which `test_mock_upstreams.py` wants.
 
+   **Add `-- -n0` when running one case too**, or the timing will mislead you. The runner
+   defaults to `-n auto`, so naming a single case still starts twenty worker processes that each
+   import the application: one gateway unit case measured at 15.8 seconds and three minutes of
+   processor time that way, against 3 to 5 seconds serially. A case that looks like it is waiting
+   on the network is usually paying for nineteen workers with nothing to do.
+
    The last two variables are why `AGENTA_API_URL` and `AGENTA_AUTH_KEY` are on this list even
    though the gateway integration cases speak to no API. A published port that opens a connection
    proves only that a server is listening, and every EE stack on a box calls its database
