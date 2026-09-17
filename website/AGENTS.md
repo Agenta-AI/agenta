@@ -41,8 +41,11 @@ The rule: **proprietary/large assets live in the deployed output, never in git.*
   **not** use Cloudflare Stream — one media platform is simpler, and YouTube also
   gives reach/SEO/embeds for free. Revisit Stream only if we need private/unlisted
   delivery, DRM, or precise first-party analytics that YouTube can't provide.
-- **Other large or proprietary media.** Put it in the R2 bucket and reference it by
-  URL (e.g. `https://assets.agenta.ai/...`), with long-cache immutable headers.
+- **Other large or proprietary media.** Put it in the `agenta-website-media` R2
+  bucket and reference it through the same-origin `/media/<content-addressed-key>`
+  path. The worker serves that path with the stored content type, an ETag, and
+  `Cache-Control: public, max-age=31536000, immutable`. Never embed article images,
+  GIFs, or videos directly from GitHub, a vendor site, or another third-party host.
 - **Agenta's own marketing images** (logos, the migrated blog images) are not
   proprietary, so they may live in the repo. Move them to R2 only if we later want a
   leaner repo; that is an optimization, not a licensing requirement.
