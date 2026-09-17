@@ -284,14 +284,13 @@ export const fillJourneyUrlAndName = async (page: Page, url: string, name: strin
 }
 
 /**
- * Close a journey that reached its connected state.
+ * Wait for a journey that reached its connected state to take itself off the screen.
  *
- * It stays open on purpose, reporting what was connected; whatever the test does next is behind
- * it, so every case that connects has to finish the journey first.
+ * Nothing is pressed. Success is the new row and nothing else (decision 26), so the sheet
+ * closes as soon as the grant is stored and the list has been refreshed. It used to end on a
+ * "Connected" screen with a Done button, and the wait is kept because whatever the test does
+ * next is behind the sheet either way.
  */
 export const finishJourney = async (page: Page): Promise<void> => {
-    const dialog = journeyDialog(page)
-    await expect(dialog.getByText("is connected.")).toBeVisible({timeout: 60000})
-    await dialog.getByRole("button", {name: "Done"}).click()
-    await expect(dialog).toHaveCount(0, {timeout: 20000})
+    await expect(journeyDialog(page)).toHaveCount(0, {timeout: 60000})
 }

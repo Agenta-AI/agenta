@@ -89,25 +89,6 @@ const deferred = <T,>() => {
     return {promise, release, reject}
 }
 
-/** The journey as a reconnect opens it: the connection is known before anything is asked. */
-const mountReconnectJourney = async () => {
-    const Probe = () => {
-        journey = useMcpConnectJourney({
-            reconnect: {
-                id: "mcp-1",
-                slug: "acme-7mx",
-                name: "Acme",
-                url: "https://mcp.acme.test/",
-                authMode: "oauth",
-            },
-        })
-        return null
-    }
-    await act(async () => {
-        root.render(createElement(Probe))
-    })
-}
-
 const fakePopup = () => ({closed: false, close: vi.fn(), location: {href: ""}}) as never
 
 beforeEach(() => {
@@ -486,26 +467,6 @@ describe("a step that comes back to an abandoned attempt", () => {
         // A failure is no more welcome than a success on a dead attempt: it would put an error
         // under a dialog the person has already left.
         expect(journey.state.status).toBe("checking_url")
-    })
-
-    it("does not fill a reconnected server's tool list after the dialog moved on", async () => {
-        const tools = deferred<unknown>()
-        listMcpTools.mockReturnValue(tools.promise)
-
-        await mountReconnectJourney()
-        let loaded: Promise<void>
-        await act(async () => {
-            loaded = journey.loadTools()
-        })
-
-        await act(async () => journey.abandonAttempt())
-        await act(async () => {
-            tools.release([{name: "echo"}])
-            await loaded
-        })
-        await settle()
-
-        expect(journey.state.status).not.toBe("tools_ready")
     })
 })
 

@@ -9,7 +9,7 @@
  *
  * It is a reducer with no React, no timers and no network in it, because the states worth
  * getting right are the ones nobody clicks through by hand: a cancelled consent, a second
- * submit, a popup that never returns, credentials saved but tools unreachable.
+ * submit, a popup that never returns, a consent that lands after the dialog moved on.
  *
  * Two invariants the transitions exist to hold:
  *
@@ -18,7 +18,8 @@
  *   nothing, because the row was already someone's working server.
  * - A failure never reads as success. Every non-success path lands on a state that carries
  *   an explanation, and `isConnected` is true for exactly the states after credentials are
- *   persisted.
+ *   persisted. Success itself is drawn nowhere: `connected` is where the journey stops and
+ *   the caller's list, not this dialog, is what says so (decision 26).
  */
 import {normalizeConnectionName} from "./connectionName"
 import type {MCPServerProbe} from "./types"
@@ -84,10 +85,6 @@ export type McpJourneyStatus =
     | "verify_failed"
     | "saving"
     | "connected"
-    | "discovering_tools"
-    | "tools_ready"
-    | "no_tools"
-    | "tools_failed"
 
 /**
  * What a server said about one of its tools, as `tools/list` returned it.
@@ -155,7 +152,6 @@ export interface McpJourneyState {
      * not delete one on cancel.
      */
     createdHere: boolean
-    tools: McpToolSummary[]
     error: string | null
 }
 
@@ -199,11 +195,8 @@ export type McpJourneyEvent =
     | {type: "verify_succeeded"}
     | {type: "verify_failed"; error: string}
     | {type: "saved"}
-    | {type: "tools_loaded"; tools: McpToolSummary[]}
-    | {type: "tools_failed"; error: string}
     | {type: "consent_abandoned"}
     | {type: "retry"}
-    | {type: "retry_tools"}
 
 /** Start a first connection. */
 export function startJourney(): McpJourneyState {
@@ -218,7 +211,6 @@ export function startJourney(): McpJourneyState {
         endpointId: null,
         slug: null,
         createdHere: false,
-        tools: [],
         error: null,
     }
 }
@@ -261,10 +253,6 @@ const CONNECTED_STATES: ReadonlySet<McpJourneyStatus> = new Set([
     // cancel that deleted the row would orphan a live grant at the provider (D29).
     "saving",
     "connected",
-    "discovering_tools",
-    "tools_ready",
-    "no_tools",
-    "tools_failed",
 ])
 
 export const isConnected = (state: McpJourneyState): boolean => CONNECTED_STATES.has(state.status)
@@ -277,7 +265,6 @@ const BUSY_STATES: ReadonlySet<McpJourneyStatus> = new Set([
     "awaiting_consent",
     "verifying",
     "saving",
-    "discovering_tools",
 ])
 
 export const isBusy = (state: McpJourneyState): boolean => BUSY_STATES.has(state.status)
@@ -432,20 +419,10 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
             return {...state, status: "verify_failed", error: event.error}
 
         case "saved":
-            return {...state, status: "discovering_tools", error: null}
-
-        case "tools_loaded":
-            return {
-                ...state,
-                status: event.tools.length ? "tools_ready" : "no_tools",
-                tools: event.tools,
-                error: null,
-            }
-
-        case "tools_failed":
-            // Connected, with a tool problem. The credentials are good and consent is not
-            // requested again for this.
-            return {...state, status: "tools_failed", error: event.error}
+            // The end of the journey. Nothing is drawn for it: the connection exists, the
+            // list has been refreshed, and success is the new row (decision 26). The sheet
+            // reads this status as its cue to close.
+            return {...state, status: "connected", error: null}
 
         case "consent_abandoned":
             // Back to the screen that named the connection, with the name kept, rather than
@@ -457,10 +434,6 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
             // to and its caller closes instead.
             if (!state.probe) return state
             return {...state, status: "naming", error: null}
-
-        case "retry_tools":
-            if (!isConnected(state)) return state
-            return {...state, status: "discovering_tools", error: null}
 
         case "retry": {
             const target = RETRY_TARGET[state.status]

@@ -53,7 +53,6 @@ const stateAt = (status: McpJourneyStatus): McpJourneyState => ({
     endpointId: "mcp-1",
     slug: "acme",
     createdHere: true,
-    tools: [],
     error: null,
 })
 
@@ -73,7 +72,6 @@ const openAt = async (status: McpJourneyStatus) => {
         expectsConsent: false,
         setUrl: vi.fn(),
         submitUrl: vi.fn(),
-        loadTools: vi.fn(),
         setName: vi.fn(),
         submitName: vi.fn(),
         toggleScope: vi.fn(),
@@ -87,7 +85,6 @@ const openAt = async (status: McpJourneyStatus) => {
         finish: vi.fn(() => new Promise(() => undefined)),
         cancel,
         retry: vi.fn(),
-        retryTools: vi.fn(),
         stopWatch: vi.fn(),
         abandonAttempt: vi.fn(),
     })

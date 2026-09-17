@@ -4,8 +4,9 @@ import {userAtom} from "@agenta/shared/state"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // McpConnectJourney — the one sheet for adding an MCP server: the address, then whatever
-// authorization the server turned out to want. Twenty-two journey statuses render as six
-// screens, and every one of them is below.
+// authorization the server turned out to want. The journey's statuses render as six screens,
+// and every one of them is below. There is no seventh for success: the sheet closes when the
+// connection is real and the new row is the whole of the feedback (decision 26).
 //
 // `McpConnectSheet` is the rendering half, taking the journey as a prop. The container half
 // (`McpConnectJourney`) owns the hook that probes, creates and authorizes, none of which a
@@ -23,7 +24,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "The connect sheet, state by state. C1 takes the address and checks it; C2 keeps what was typed and says why the check failed; C3 names an OAuth server and explains the window Connect opens; C4 holds while the provider's window is open, and reports a refusal; C5 takes a header and a project secret in one press, or shows only the card and the name for a server that needs no sign-in; C6 flags both credential fields after a refusal. There is no scope picker: the scopes are the server's business.",
+                    "The connect sheet, state by state. C1 takes the address and checks it; C2 keeps what was typed and says why the check failed; C3 names an OAuth server and explains the window Connect opens; C4 holds while the provider's window is open, and reports a refusal; C5 takes a header and a project secret in one press, or shows only the card and the name for a server that needs no sign-in; C6 flags both credential fields after a refusal. There is no scope picker, because the scopes are the server's business, and no success screen, because the new row is what says it worked.",
             },
         },
     },
@@ -82,7 +83,6 @@ const state = (
     endpointId: null,
     slug: null,
     createdHere: true,
-    tools: [],
     error: null,
     ...over,
 })
@@ -97,7 +97,6 @@ const journeyAt = (current: McpJourneyState): McpConnectJourney => ({
     expectsConsent: current.probe?.auth.mode === "oauth",
     setUrl: noop,
     submitUrl: settled,
-    loadTools: settled,
     setName: noop,
     submitName: settled,
     toggleScope: noop,
@@ -109,7 +108,6 @@ const journeyAt = (current: McpJourneyState): McpConnectJourney => ({
     cancel: settled,
     cancelConsent: noop,
     retry: noop,
-    retryTools: noop,
     abandonAttempt: noop,
 })
 

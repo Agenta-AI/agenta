@@ -552,34 +552,6 @@ export function useMcpConnectJourney({
     }, [abandonAttempt])
 
     const retry = useCallback(() => dispatch({type: "retry"}), [])
-    const retryTools = useCallback(() => dispatch({type: "retry_tools"}), [])
-
-    /**
-     * Read the connected server's tools.
-     *
-     * The journey shows them once credentials are persisted, and it has to reach a terminal
-     * state either way: a connection whose tool list cannot be read is still connected, and
-     * leaving it mid-discovery would strand the dialog with nothing to press.
-     */
-    const loadTools = useCallback(async () => {
-        const slug = endpointRef.current?.slug
-        if (!slug) {
-            dispatch({type: "tools_loaded", tools: []})
-            return
-        }
-        const attempt = attemptRef.current
-        try {
-            const tools = await listMcpTools(slug, projectId)
-            if (!isCurrent(attempt)) return
-            dispatch({type: "tools_loaded", tools})
-        } catch (error) {
-            if (!isCurrent(attempt)) return
-            dispatch({
-                type: "tools_failed",
-                error: gatewayRefusalMessage(error) || "The tool list could not be read.",
-            })
-        }
-    }, [isCurrent, projectId])
 
     const popupName = popupNameRef.current
     const expectsConsent = state.probe?.auth.mode === "oauth"
@@ -592,7 +564,6 @@ export function useMcpConnectJourney({
             expectsConsent,
             setUrl,
             submitUrl,
-            loadTools,
             setName,
             submitName,
             toggleScope,
@@ -604,7 +575,6 @@ export function useMcpConnectJourney({
             cancel,
             cancelConsent,
             retry,
-            retryTools,
             abandonAttempt,
         }),
         [
@@ -613,10 +583,8 @@ export function useMcpConnectJourney({
             cancelConsent,
             expectsConsent,
             finish,
-            loadTools,
             popupName,
             retry,
-            retryTools,
             setName,
             setUrl,
             skipAuthentication,

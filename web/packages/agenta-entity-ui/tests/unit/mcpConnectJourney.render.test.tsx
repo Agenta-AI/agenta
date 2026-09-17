@@ -207,18 +207,21 @@ describe("the duplicate-name refusal reaches assistive technology", () => {
 })
 
 describe("the rendered journey", () => {
-    it("lists the tools after connecting, with nobody asking it to", async () => {
+    it("closes itself once the connection is real, with nobody pressing anything", async () => {
         await openJourney()
 
         await typeInto(field("Server URL")!, "https://mcp.acme.test/")
         await press(button("Continue"))
         await typeInto(field("Name")!, "Acme")
         await press(button("Connect"))
+        await settle()
 
-        // Nothing in this test called the loader. The dialog's own effect has to.
-        expect(listMcpTools).toHaveBeenCalledWith("acme-7mx", "project-1")
-        expect(document.body.textContent).toContain("1 tool available")
-        expect(button("Done")).toBeDefined()
+        // Success is the new row in the list behind this, and nothing else (decision 26).
+        // Nothing in this test asked the sheet to close; its own effect has to, and the host
+        // hands it a fresh `onClose` on every render, so the latch has to hold too.
+        expect(document.querySelector('[data-testid="mcp-connect-journey"]')).toBeNull()
+        expect(document.body.textContent).not.toContain("is connected.")
+        expect(button("Done")).toBeUndefined()
     })
 
     it("asks for a URL again after closing and reopening", async () => {
