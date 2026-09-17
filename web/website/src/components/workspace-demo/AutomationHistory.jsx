@@ -15,7 +15,6 @@ export default function AutomationHistory({
   empty = false,
 }) {
   const [selected, setSelected] = useState(null);
-  const [filter, setFilter] = useState("All outcomes");
   const runs = empty
     ? []
     : Array.from({ length: automation.runCount }, (_, i) => ({
@@ -41,9 +40,7 @@ export default function AutomationHistory({
               ? "Skipped"
               : "Succeeded",
       }));
-  const visible = runs.filter(
-    (run) => filter === "All outcomes" || run.outcome === filter,
-  );
+  const visible = runs;
   const active =
     visible.find((run) => run.id === selected) ||
     (selected === null ? visible[0] : null);
@@ -62,22 +59,6 @@ export default function AutomationHistory({
         <header>
           <h3>Run history</h3>
           <p>{runs.length} runs in the last 30 days</p>
-          <label className="ag-demo-run-filter">
-            Outcome
-            <select
-              value={filter}
-              onChange={(e) => {
-                setFilter(e.target.value);
-                setSelected(null);
-              }}
-            >
-              {["All outcomes", "Succeeded", "Failed", "Skipped"].map(
-                (value) => (
-                  <option key={value}>{value}</option>
-                ),
-              )}
-            </select>
-          </label>
         </header>
         <div className="ag-demo-runs">
           {visible.map((run) => (
@@ -97,17 +78,8 @@ export default function AutomationHistory({
           {!visible.length && (
             <div className="ag-demo-empty">
               <ClockCounterClockwise size={24} aria-hidden />
-              <h4>{runs.length ? "No matching runs" : "No runs yet"}</h4>
-              <p>
-                {runs.length
-                  ? "Choose another outcome to see more runs."
-                  : "When this automation runs, its history will appear here."}
-              </p>
-              {runs.length > 0 && (
-                <button onClick={() => setFilter("All outcomes")}>
-                  Clear filter
-                </button>
-              )}
+              <h4>No runs yet</h4>
+              <p>When this automation runs, its history will appear here.</p>
             </div>
           )}
         </div>

@@ -94,7 +94,8 @@ export function deriveWorkspace(state, setState) {
       dot: waiting ? AMBER : i === 0 ? GREEN : GREY,
       railDot: waiting ? AMBER : MF,
       railFill: live ? "currentColor" : "transparent",
-      open: () => setState({ view: "playground", session: i }),
+      open: () =>
+        setState({ view: "playground", session: i, playgroundTask: null }),
       steps: it.steps.map(([k, pre, bold, post]) => ({
         pre,
         bold,
@@ -104,7 +105,7 @@ export function deriveWorkspace(state, setState) {
       chipStyle: chipStyle(av.color, 24, 6),
       smallChipStyle: chipStyle(av.color, 20, 5),
       tileStyle: chipStyle(av.color, 34, 10),
-      model: "Claude Sonnet 4.5",
+      model: "Gemini 3.8",
       words: 180 + ((i * 37) % 200),
       toolCount: it.tools.length,
       mcpCount: it.tools.length,
@@ -144,84 +145,157 @@ export function deriveWorkspace(state, setState) {
   views.forEach((v) => {
     view[v] = st.view === v;
   });
-  const ss = sessions[st.session ?? 0];
-  const railGroups = [0, 5, 10].map((i) => ({
-    agent: sessions[i].title,
-    rows: [sessions[i], sessions[i + 1]].map((r) => ({
-      ...r,
+  const taskSteps = (steps) =>
+    steps.map(([k, pre, bold, post = ""]) => ({
+      pre,
+      bold,
+      post,
+      logoStyle: mask(k === WEB ? GLOBE : LOGO[k], 12),
+    }));
+  const playgroundGroups = [
+    {
+      sessionIndex: 0,
+      tasks: [
+        {
+          ask: "Research the next best-tools article",
+          worked: "Worked for 2m 14s",
+          files1: "1 file",
+          meta: "2m ago · 2m 14s · 286K tokens · $0.024",
+          steps: [
+            [WEB, "Searched", "8 comparison queries"],
+            [WEB, "Read", "6 ranking articles"],
+            ["Notion", "Created", "Best-tools research brief", "on Notion"],
+          ],
+          reply:
+            "The research brief is ready with search intent, comparison criteria, six source articles, and a recommended outline. Review it in Notion before I draft.",
+        },
+        {
+          ask: "Draft the article and prepare a PR",
+          worked: "Worked for 4m 40s",
+          files1: "2 files",
+          meta: "18m ago · 4m 40s · 610K tokens · $0.048",
+          steps: [
+            ["Notion", "Read", "Approved best-tools brief"],
+            ["GitHub", "Wrote", "blog/best-llm-tools.mdx"],
+            ["GitHub", "Opened", "PR #412", "with the article draft"],
+          ],
+          reply:
+            "The draft is in PR #412: 2,100 words, nine cited sources, and image placeholders marked for review. I left the title and call to action as separate suggestions.",
+        },
+      ],
+    },
+    {
+      sessionIndex: 5,
+      tasks: [
+        {
+          ask: "Review September campaign performance",
+          worked: "Worked for 47s",
+          files1: "1 file",
+          meta: "1h ago · 47s · 72K tokens · $0.006",
+          steps: [
+            ["HubSpot", "Read", "September campaign results"],
+            [WEB, "Compared", "cost and conversion trends"],
+            ["Slack", "Drafted", "campaign summary", "for #growth"],
+          ],
+          reply:
+            "The docs campaign lowered cost per qualified lead by 18%. The comparison campaign cost rose 40% with no lift in qualified leads, so I flagged it for review.",
+        },
+        {
+          ask: "Compare the paid search creative variants",
+          worked: "Worked for 1m 06s",
+          files1: "1 file",
+          meta: "3h ago · 1m 06s · 94K tokens · $0.009",
+          steps: [
+            ["HubSpot", "Read", "four creative variants"],
+            [WEB, "Compared", "clicks against qualified leads"],
+            ["Slack", "Drafted", "creative recommendation", "for #growth"],
+          ],
+          reply:
+            "Variant B produced the most clicks, but Variant D produced 31% more qualified leads on similar spend. I recommend shifting the next test toward D's product-proof message.",
+        },
+      ],
+    },
+    {
+      sessionIndex: 10,
+      tasks: [
+        {
+          ask: "Draft the Acme proposal from the discovery notes",
+          worked: "Worked for 2m 10s",
+          files1: "1 file",
+          meta: "1d ago · 2m 10s · 260K tokens · $0.021",
+          steps: [
+            ["HubSpot", "Read", "Acme deal and discovery notes"],
+            ["Notion", "Read", "Proposal template"],
+            ["Notion", "Wrote", "Proposal · Acme"],
+          ],
+          reply:
+            "The proposal draft covers the agreed rollout, success criteria, timeline, and two pricing options. The commercial terms are highlighted for your approval.",
+        },
+        {
+          ask: "Revise the Acme pricing and implementation plan",
+          worked: "Worked for 1m 34s",
+          files1: "1 file",
+          meta: "2d ago · 1m 34s · 184K tokens · $0.016",
+          steps: [
+            ["HubSpot", "Read", "Acme's requested changes"],
+            ["Notion", "Updated", "pricing and implementation phases"],
+            ["Notion", "Flagged", "two open commercial questions"],
+          ],
+          reply:
+            "I revised the proposal to a two-phase rollout and moved training into phase one. Two pricing questions remain highlighted before the document can be sent.",
+        },
+      ],
+    },
+  ];
+  const activeSession = sessions[st.session ?? 0];
+  const activePlaygroundGroup = playgroundGroups.find(
+    (group) => group.sessionIndex === (st.session ?? 0),
+  );
+  const activeTask = activePlaygroundGroup
+    ? (activePlaygroundGroup.tasks.find(
+        (task) => task.ask === st.playgroundTask,
+      ) ?? activePlaygroundGroup.tasks[0])
+    : null;
+  const ss = activeTask
+    ? { ...activeSession, ...activeTask, steps: taskSteps(activeTask.steps) }
+    : activeSession;
+  const railGroups = playgroundGroups.map((group) => ({
+    sessionIndex: group.sessionIndex,
+    agent: sessions[group.sessionIndex].title,
+    rows: group.tasks.map((task) => ({
+      ...sessions[group.sessionIndex],
+      ...task,
+      steps: taskSteps(task.steps),
+      open: () =>
+        setState({
+          view: "playground",
+          session: group.sessionIndex,
+          playgroundTask: task.ask,
+        }),
       style:
         NAV_ROW +
         "font-size:13px;color:" +
         MF +
         ";" +
-        (st.view === "playground" && st.session === sessions.indexOf(r)
-          ? SEL
-          : ""),
+        (st.view === "playground" && ss.ask === task.ask ? SEL : ""),
     })),
   }));
+  const visibleRailGroups =
+    view.playground && activePlaygroundGroup
+      ? railGroups.filter(
+          (group) => group.sessionIndex === activePlaygroundGroup.sessionIndex,
+        )
+      : railGroups;
   // Home (HomeFocus)
-  const homeTab = st.homeTab || "agents";
-  const TAB =
-    "box-sizing:border-box;cursor:default;border:none;border-bottom:2px solid transparent;background:transparent;padding:0 2px 7px;font:400 14px/1.4 var(--font-sans);color:" +
-    MF +
-    ";";
-  const TAB_ON =
-    "border-bottom-color:" + FG + ";font-weight:500;color:" + FG + ";";
   const ROWB =
     "box-sizing:border-box;display:flex;width:100%;cursor:default;align-items:center;gap:14px;border-radius:10px;border:none;background:transparent;padding:8px 14px;text-align:left;";
-  const TEMPLATES = [
-    [
-      "Code review agent",
-      "Reviews every pull request and leaves inline comments.",
-      "var(--demo-avatar-0)",
-    ],
-    [
-      "Customer support agent",
-      "Answers tickets from your docs and escalates the rest.",
-      "var(--demo-avatar-5)",
-    ],
-    [
-      "Lead research agent",
-      "Researches inbound leads and drafts a first reply for review.",
-      "var(--demo-avatar-2)",
-    ],
-    [
-      "Knowledge agent",
-      "Answers team questions from your docs, wiki, and past threads.",
-      "var(--demo-avatar-7)",
-    ],
-    [
-      "KPI dashboard agent",
-      "Builds a weekly metrics dashboard and posts it to the team.",
-      "var(--demo-avatar-1)",
-    ],
-  ];
   const homeSel = st.homeAgent ?? 0;
-  const homeRows =
-    homeTab === "agents"
-      ? sessions.slice(0, 8).map((r, i) => ({
-          ...r,
-          selected: i === homeSel,
-          rowStyle: ROWB + (i === homeSel ? "background:var(--accent);" : ""),
-          open: () => setState({ homeAgent: i }),
-        }))
-      : TEMPLATES.map(([title, desc, color]) => ({
-          title,
-          desc,
-          initials: title
-            .split(" ")
-            .slice(0, 2)
-            .map((w) => w[0])
-            .join("")
-            .toUpperCase(),
-          tileStyle: chipStyle(color, 34, 10).replace(
-            "font:600 14px",
-            "font:500 13px",
-          ),
-          selected: false,
-          rowStyle: ROWB,
-          open: () => setState({ view: "agents" }),
-        }));
+  const homeRows = sessions.slice(0, 8).map((r, i) => ({
+    ...r,
+    selected: i === homeSel,
+    rowStyle: ROWB + (i === homeSel ? "background:var(--accent);" : ""),
+    open: () => setState({ homeAgent: i, homePicker: false }),
+  }));
   // Automations
   const AUTOS = [
     [
@@ -428,16 +502,14 @@ export function deriveWorkspace(state, setState) {
   const configOpen = st.configOpen !== false;
   const TABC =
     "display:inline-flex;height:28px;max-width:200px;flex:0 0 auto;align-items:center;gap:6px;border-radius:6px;border:none;cursor:default;padding:0 10px;margin-right:5px;font:400 13px/1 var(--font-sans);";
-  const agentSessions = sessions.filter((r) => r.area === ss.area).slice(0, 3);
-  const tabs2 = (
-    agentSessions.includes(ss)
-      ? agentSessions
-      : [ss, ...agentSessions.slice(0, 2)]
-  ).map((r) => ({
-    ...r,
+  const tabTasks = activePlaygroundGroup?.tasks ?? [activeSession];
+  const tabs2 = tabTasks.map((task, index) => ({
+    ...ss,
+    ...task,
+    open: () => setState({ playgroundTask: task.ask }),
     style:
       TABC +
-      (r === ss
+      ((st.playgroundTask ? ss.ask === task.ask : index === 0)
         ? "background:var(--ag-colorFillSecondary);color:" +
           FG +
           ";font-weight:500;"
@@ -491,15 +563,10 @@ export function deriveWorkspace(state, setState) {
   return {
     nav,
     view,
-    railGroups,
+    railGroups: visibleRailGroups,
     ss: ssFull,
     homeAgent: sessions[homeSel],
     homeRows,
-    homeShowTemplates: homeTab === "templates",
-    homeTabAgents: () => setState({ homeTab: "agents" }),
-    homeTabTemplates: () => setState({ homeTab: "templates" }),
-    homeTabStyleAgents: TAB + (homeTab === "agents" ? TAB_ON : ""),
-    homeTabStyleTemplates: TAB + (homeTab === "templates" ? TAB_ON : ""),
     agentRows: sessions.slice(0, 10),
     automationRows: AUTOS,
     hasAutomation: st.automation != null,
