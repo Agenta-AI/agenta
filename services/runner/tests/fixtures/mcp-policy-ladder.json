@@ -1,0 +1,242 @@
+{
+  "$comment": [
+    "The per-tool MCP permission ladder, stated once for every reader of it.",
+    "",
+    "Three codebases read this ladder and each one used to be tested only against its own",
+    "restatement of it: the Python SDK (MCPPolicy.resolved_new_tool_permission and to_wire in",
+    "sdks/python/agenta/sdk/agents/mcp/models.py), the runner",
+    "(normalizeMcpServerPermissions and mcpToolPermission in services/runner/src/mcp-permission.ts),",
+    "and the web editor (resolvedNewToolPermission and effectiveToolPermission in",
+    "web/packages/agenta-entities/src/mcpEndpoint/core/toolPolicy.ts, read through policyAdapter.ts).",
+    "That is how D88 shipped: every suite was green while two readers disagreed about whether the",
+    "whole-server permission is the floor for a tool a per-tool table does not name. It is not.",
+    "",
+    "The three answers chain rather than merely resembling one another. `wire` is what the SDK",
+    "emits for `policy`, and it is the runner's input, so a case is only green when the SDK's",
+    "output is the thing the runner resolves. The web reads `policy` directly, because the editor",
+    "edits the saved shape.",
+    "",
+    "`null` in an expectation means NO DECISION: the reader defers, and the caller's own ladder",
+    "(rules, then the run default) decides exactly as it did before per-tool policy existed.",
+    "",
+    "Add a case here before changing any of the three readers. A case with `namedTool` null has no",
+    "Add a case here before changing any of the three readers. A case with `namedTool` null has no",
+    "per-tool table, so there is no named tool to resolve.",
+    "",
+    "`sendersThatOmitTheFloor` is the runner's alone. The SDK resolves the floor before it emits,",
+    "so every `wire` above carries `newToolPermission` and the runner's own fallback branch is",
+    "unreachable from this SDK. A hand-written sender and an older one do reach it, and it is the",
+    "branch D88 lived in, so the shapes they send are stated here too."
+  ],
+  "unnamedTool": "a_tool_nobody_has_listed",
+  "cases": [
+    {
+      "name": "absent",
+      "why": "No policy at all. Every reader defers, and this is what every configuration written before per-tool policy looks like.",
+      "policy": {},
+      "wire": {
+        "tools": {
+          "mode": "all"
+        }
+      },
+      "expected": {
+        "newToolPermission": null,
+        "namedTool": null,
+        "unnamedToolPermission": null
+      }
+    },
+    {
+      "name": "server allow, no table",
+      "why": "The whole-server permission governs every tool while no table is declared.",
+      "policy": {
+        "permission": "allow"
+      },
+      "wire": {
+        "tools": {
+          "mode": "all"
+        },
+        "permission": "allow"
+      },
+      "expected": {
+        "newToolPermission": null,
+        "namedTool": null,
+        "unnamedToolPermission": "allow"
+      }
+    },
+    {
+      "name": "server allow plus one deny",
+      "why": "D88 itself. A table with no floor beside it asks for anything it does not name, and `permission: allow` does NOT reach those tools. Reading it as the floor sent newToolPermission allow and ran unnamed tools unapproved.",
+      "policy": {
+        "permission": "allow",
+        "tool_permissions": {
+          "delete_repository": "deny"
+        }
+      },
+      "wire": {
+        "tools": {
+          "mode": "all"
+        },
+        "permission": "allow",
+        "toolPermissions": {
+          "delete_repository": "deny"
+        },
+        "newToolPermission": "ask"
+      },
+      "expected": {
+        "newToolPermission": "ask",
+        "namedTool": {
+          "tool": "delete_repository",
+          "permission": "deny"
+        },
+        "unnamedToolPermission": "ask"
+      }
+    },
+    {
+      "name": "server allow plus one deny plus new tool allow",
+      "why": "Decision 38: an author who wants an open server with one hole says so explicitly, and then unnamed tools really do run.",
+      "policy": {
+        "permission": "allow",
+        "tool_permissions": {
+          "delete_repository": "deny"
+        },
+        "new_tool_permission": "allow"
+      },
+      "wire": {
+        "tools": {
+          "mode": "all"
+        },
+        "permission": "allow",
+        "toolPermissions": {
+          "delete_repository": "deny"
+        },
+        "newToolPermission": "allow"
+      },
+      "expected": {
+        "newToolPermission": "allow",
+        "namedTool": {
+          "tool": "delete_repository",
+          "permission": "deny"
+        },
+        "unnamedToolPermission": "allow"
+      }
+    },
+    {
+      "name": "server ask plus read-only tools allow plus new tool ask",
+      "why": "Decision 45: the read-only preset. The named reads run unattended and everything else reaches a human, including a tool the server starts advertising later.",
+      "policy": {
+        "permission": "ask",
+        "tool_permissions": {
+          "list_issues": "allow",
+          "get_issue": "allow"
+        },
+        "new_tool_permission": "ask"
+      },
+      "wire": {
+        "tools": {
+          "mode": "all"
+        },
+        "permission": "ask",
+        "toolPermissions": {
+          "list_issues": "allow",
+          "get_issue": "allow"
+        },
+        "newToolPermission": "ask"
+      },
+      "expected": {
+        "newToolPermission": "ask",
+        "namedTool": {
+          "tool": "list_issues",
+          "permission": "allow"
+        },
+        "unnamedToolPermission": "ask"
+      }
+    },
+    {
+      "name": "table only",
+      "why": "Opting in through the table alone. No whole-server permission exists to be mistaken for the floor, so the `ask` floor is the only thing that can answer an unnamed tool.",
+      "policy": {
+        "tool_permissions": {
+          "echo": "deny"
+        }
+      },
+      "wire": {
+        "tools": {
+          "mode": "all"
+        },
+        "toolPermissions": {
+          "echo": "deny"
+        },
+        "newToolPermission": "ask"
+      },
+      "expected": {
+        "newToolPermission": "ask",
+        "namedTool": {
+          "tool": "echo",
+          "permission": "deny"
+        },
+        "unnamedToolPermission": "ask"
+      }
+    },
+    {
+      "name": "new tool only",
+      "why": "Opting in through the floor alone, with nothing named yet. Every advertised tool takes the floor.",
+      "policy": {
+        "new_tool_permission": "deny"
+      },
+      "wire": {
+        "tools": {
+          "mode": "all"
+        },
+        "toolPermissions": {},
+        "newToolPermission": "deny"
+      },
+      "expected": {
+        "newToolPermission": "deny",
+        "namedTool": null,
+        "unnamedToolPermission": "deny"
+      }
+    }
+  ],
+  "sendersThatOmitTheFloor": [
+    {
+      "name": "server allow, table declared, floor omitted",
+      "why": "The branch D88 lived in. A human decides for anything the table does not name, and `permission: allow` is not that decision.",
+      "wire": {
+        "tools": {
+          "mode": "all"
+        },
+        "permission": "allow",
+        "toolPermissions": {
+          "delete_repository": "deny"
+        }
+      },
+      "expected": {
+        "namedTool": {
+          "tool": "delete_repository",
+          "permission": "deny"
+        },
+        "unnamedToolPermission": "ask"
+      }
+    },
+    {
+      "name": "server deny, table declared, floor omitted",
+      "why": "The same floor in the other direction: `ask` is not read off `permission` when that would be stricter either, or a reader could not tell the two apart.",
+      "wire": {
+        "tools": {
+          "mode": "all"
+        },
+        "permission": "deny",
+        "toolPermissions": {
+          "list_issues": "allow"
+        }
+      },
+      "expected": {
+        "namedTool": {
+          "tool": "list_issues",
+          "permission": "allow"
+        },
+        "unnamedToolPermission": "ask"
+      }
+    }
+  ]
+}

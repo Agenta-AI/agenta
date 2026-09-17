@@ -218,16 +218,20 @@ Secret header references resolve from the vault at run time; values never live i
 
 - `tools` — the filter: `{ "mode": "all" }`, or `{ "mode": "include", "names": [...] }`. A tool it
   hides is never offered to the model.
-- `permission` — `allow` / `ask` / `deny` for the whole server.
+- `permission` — `allow` / `ask` / `deny` for the whole server. It decides every tool only while
+  there is no per-tool table; see below for what a table does to it.
 - `tool_permissions` — `allow` / `ask` / `deny` per tool, keyed by the name the SERVER advertises
   (`"echo"`), never the harness-rendered name (`"mcp__acme__echo"`).
 - `new_tool_permission` — what a tool the server starts advertising later gets before anyone has
-  seen it. Defaults to `permission`, and to `ask` when that is unset too.
+  seen it. With no value it is `ask`. It never falls back to `permission`.
 
-Setting either of the last two makes the per-tool table authoritative for that server: an
-unlisted tool gets `new_tool_permission`, and the run's own default permission cannot widen it.
-Setting neither leaves the server exactly as it behaved before per-tool policy existed. A
-`tool_permissions` entry for a tool an `include` filter hides is refused, not ignored.
+Setting either of the last two makes the per-tool table authoritative for that server: a tool the
+table does not name follows `new_tool_permission`, and asks when that field is absent. Neither
+`permission` nor the run's own default permission reaches such a tool, so writing
+`permission: "allow"` beside a table does NOT make unnamed tools run unapproved. Setting neither
+field leaves the server exactly as it behaved before per-tool policy existed, with `permission`
+deciding every tool. A `tool_permissions` entry for a tool an `include` filter hides is refused,
+not ignored.
 
 ### skills
 

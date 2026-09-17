@@ -122,8 +122,8 @@ def _rules_from_mcp_permissions(mcp_servers: Any) -> Dict[str, List[str]]:
 
     - With no per-tool table, ``permission`` is the whole-server rule, exactly as before.
     - With one, the server rule carries the resolved default for tools the table does not name
-      (``new_tool_permission``, else ``permission``, else ``ask`` — the same ladder the runner
-      walks), and each named tool gets its own rule.
+      (``new_tool_permission``, else ``ask`` — the same ladder the runner walks, which does not
+      consult ``permission`` once a table exists; D88), and each named tool gets its own rule.
 
     One combination the rule language cannot express: a named tool LOOSER than that default, such
     as a server defaulting to ``deny`` with one tool at ``allow``. A server-level deny would take

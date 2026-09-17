@@ -9,9 +9,32 @@ These read the rendered page rather than driving a browser, so they assert what 
 of rather than what it did.
 """
 
+import pytest
+
 from oss.src.apis.fastapi.gateways.mcps.router import _connect_card
 
 AGENTA_URL = "https://agenta.example"
+
+_APP_ORIGINS = "oss.src.apis.fastapi.gateways.mcps.router.env.agenta.app_origins"
+
+
+@pytest.fixture(autouse=True)
+def _declare_no_app_origins(monkeypatch):
+    """Every case below states its own deployment, rather than inheriting the shell's.
+
+    `_connect_card` reads `_app_origins(agenta_url)`, whose candidates are
+    `[agenta_url, *env.agenta.app_origins]`. Nothing here cleared the second half, so the
+    case that asserts "a deployment publishing no app address sends nobody anywhere" only
+    asserted that while the ambient environment happened to declare none. Run the suite the
+    way `AGENTS.md` prescribes — `load-env hosting/docker-compose/ee/.env.ee.dev` first — and
+    it failed on a candidate with no defect in it; run it against any real deployment, which
+    declares origins, and the property had no coverage at all. D71 introduced
+    `_app_origins` and is exactly the change that could break it (D95).
+
+    Empty is the default because it is the case the file is mostly about. A case that means
+    to test a deployment with declared origins sets them itself.
+    """
+    monkeypatch.setattr(_APP_ORIGINS, [])
 
 
 def _card(**overrides) -> str:
@@ -121,15 +144,54 @@ class TestTheBlockedPopupPath:
 
 
 class TestWhenTheDeploymentPublishesNoAppUrl:
+    """ "No app URL" is about the whole deployment, not about one argument.
+
+    The guard is that `_app_origins` returns nothing, and `agenta_url=None` is only half of
+    what decides that. The API's own origin is deliberately not offered — it is where this
+    page is served from, not where the app is — so a deployment that declares nothing really
+    does send nobody anywhere, and one that declares an origin elsewhere still has somewhere
+    to post to even with no configured `agenta_url`.
+    """
+
     def test_it_neither_posts_nor_redirects(self):
         page = _connect_card(success=True, agenta_url=None, endpoint_id=None)
 
         # With no origin to trust there is nowhere safe to send anyone.
         assert "const AGENTA_POST_MESSAGE_ORIGIN = null;" in page
+        assert "const AGENTA_APP_ORIGINS = [];" in page
         assert (
             "window.opener.postMessage" in page
         )  # present, but behind the origin check
         assert "if (opened)" in page
+
+    def test_a_declared_origin_is_still_somewhere_to_post_to(self, monkeypatch):
+        """The half the old case could not tell apart from its own, because it inherited it.
+
+        No `agenta_url` and a declared origin is the ordinary shape of a deployment reached
+        through a tunnel, and the completion has to reach it.
+        """
+        monkeypatch.setattr(_APP_ORIGINS, ["http://localhost:8680"])
+
+        page = _connect_card(success=True, agenta_url=None, endpoint_id=None)
+
+        assert 'const AGENTA_POST_MESSAGE_ORIGIN = "http://localhost:8680";' in page
+        assert "AGENTA_APP_ORIGINS.forEach" in page
+
+    def test_the_stranded_tab_is_not_sent_anywhere_either(self):
+        """The other half of "neither posts nor redirects", which the old case named and
+        never asserted.
+
+        A tab with no opener is normally navigated back to the app. With no origin to trust
+        there is nowhere to navigate it to, so the branch that would is closed rather than
+        joining a path to whatever address the browser used to reach this page.
+        """
+        page = _connect_card(success=True, agenta_url=None, endpoint_id=None)
+
+        # The redirect lives behind the same origin check the post does.
+        assert "}} else if (AGENTA_POST_MESSAGE_ORIGIN) {{" not in page
+        assert "} else if (AGENTA_POST_MESSAGE_ORIGIN) {" in page
+        redirect_branch = page.split("} else if (AGENTA_POST_MESSAGE_ORIGIN) {")[1]
+        assert "window.location.replace" in redirect_branch
 
 
 # ---------------------------------------------------------------------------
