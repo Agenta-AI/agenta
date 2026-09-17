@@ -241,6 +241,37 @@ describe("McpAddServerDrawer while the registry is in flight", () => {
     })
 })
 
+/** Control heights in px, restated here so this file does not lean on the kit for them. */
+const SIZE_BY_CLASS_UNDER_TEST: Record<string, number> = {
+    "h-control-xs": 24,
+    "h-control-sm": 28,
+    "size-control-sm": 28,
+}
+
+/**
+ * The reach, derived here rather than asked of the helper.
+ *
+ * D126 shipped because the helper and its reader shared one assumption, so every site test
+ * asserted the class the helper had written rather than the box a finger gets. Reverting both
+ * together still leaves the site packages green for that reason. This case closes that: it reads
+ * the control's own size class, its own border class and its own `after` inset, and does the
+ * arithmetic with numbers written here. It never calls the helper, so a coordinated change to
+ * the helper and the reader cannot keep it passing.
+ *
+ * The size class is the border box and the inset is measured from inside the border, so the box
+ * at the edge a reader can see is `size - 2 x border + 2 x inset`.
+ */
+const reachOf = (className: string) => {
+    const classes = className.split(/\s+/).filter(Boolean)
+    const size = SIZE_BY_CLASS_UNDER_TEST[classes.find((c) => c in SIZE_BY_CLASS_UNDER_TEST) ?? ""]
+    const border = classes.includes("border-0") ? 0 : classes.includes("border") ? 1 : 0
+    const inset = classes
+        .map((c) => /^after:-inset-y-(?:\[(\d+)px\]|(\d+(?:\.\d+)?))$/.exec(c))
+        .find(Boolean)
+    const px = inset ? Number(inset[1] ?? Number(inset[2]) * 4) : 0
+    return {size, border, inset: px, reach: size - 2 * border + 2 * px}
+}
+
 describe("the connection row's actions on a phone", () => {
     it("give Add and Reconnect a 44px hit area at the row's own 28px height", async () => {
         // The row rhythm is the desktop's and stays 28px; the reach is an invisible box. Both
@@ -253,6 +284,16 @@ describe("the connection row's actions on a phone", () => {
             expect(action!.className, label).toContain("h-control-sm")
             expect(touchTargetHeight(action!.className), label).toBe(TOUCH_TARGET_MINIMUM_PX)
         }
+    })
+
+    it("measures 44px of reach without asking the helper for it", async () => {
+        await render()
+
+        const action = buttonNamed("Add Axiom to this agent")
+        const measured = reachOf(action!.className)
+        expect(measured.size, "not the 28px control this case is about").toBe(28)
+        expect(measured.border, "not the bordered Button this case is about").toBe(1)
+        expect(measured.reach).toBe(44)
     })
 
     it("gives the drawer's own Close a 44px hit area on both axes", async () => {
