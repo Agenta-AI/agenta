@@ -137,7 +137,7 @@ export function DriveExplorer({
     initialShowTree?: boolean
     /** Remember the tree's shown/hidden state and width across opens under this key. */
     treePersistKey?: string
-    closeVariant?: "close" | "collapse"
+    closeVariant?: "close" | "collapse" | "back"
 }) {
     const chrome = chromeProp ?? onClose != null
     const rootLabel = driveRootLabel(drive.mount)
@@ -757,7 +757,6 @@ export function DriveExplorer({
                         onToggleGitignored={toggleShowGitignoredPref}
                         treeVisible={treeVisible}
                         onToggleTree={toggleTree}
-                        mirrored={mirrored}
                         onClose={onClose}
                         closeVariant={closeVariant}
                         expanded={drawerExpanded}
