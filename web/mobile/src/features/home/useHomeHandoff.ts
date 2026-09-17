@@ -52,9 +52,6 @@ export const useHomeHandoff = (base: string, projectId: string) => {
         async ({agentId, text}: {agentId: string; text: string}) => {
             const {staged, parts} = stagedParts()
             stash({sessionId, task: {agentId, text, parts}})
-            // Remembered on the start, not the pick: the next visit should open on the agent a
-            // chat was actually begun with, and a pick that was then abandoned is not that.
-            rememberAgent({projectId, agentId})
             setStarting(true)
             // Cleared BEFORE the navigation. The chat route seeds its own tray from the
             // per-session store on mount, and `router.push` resolves only after that mount — a
@@ -75,6 +72,9 @@ export const useHomeHandoff = (base: string, projectId: string) => {
                 setStarting(false)
                 return
             }
+            // Remembered once the chat route has taken the task: the next visit should open on
+            // the agent a chat was actually begun with, and a start that never landed is not that.
+            rememberAgent({projectId, agentId})
         },
         [
             attachments,
