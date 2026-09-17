@@ -9,6 +9,18 @@
   .theme-doc-sidebar-container {
     border-right: 1px solid var(--borderdefault);
   }
+
+  /* The theme's sticky viewport is contained by the doc root, so it scrolls
+     away once the footer comes into view. Fixed keeps the sidebar in place;
+     the container still reserves the column width. */
+  .theme-doc-sidebar-container [class*="sidebarViewport"] {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: calc(var(--doc-sidebar-width) - 1px);
+    height: 100vh;
+    max-height: 100vh;
+  }
 }
 
 .theme-doc-sidebar-container .menu,

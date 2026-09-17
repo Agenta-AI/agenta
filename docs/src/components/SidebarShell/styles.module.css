@@ -21,10 +21,14 @@
     border-right: 1px solid var(--borderdefault);
   }
 
+  /* Fixed, not sticky: the shell ends where the footer starts, and a sticky
+     menu would scroll away with it. The aside still reserves the width. */
   .menu {
-    position: sticky;
+    position: fixed;
     top: var(--ifm-navbar-height);
-    max-height: calc(100vh - var(--ifm-navbar-height));
+    left: 0;
+    width: calc(var(--doc-sidebar-width) - 1px);
+    height: calc(100vh - var(--ifm-navbar-height));
     overflow-y: auto;
     box-sizing: border-box;
   }
