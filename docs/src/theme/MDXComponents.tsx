@@ -1,6 +1,7 @@
 import React, {type ReactNode} from "react";
 import MDXComponents from "@theme-original/MDXComponents";
 import {useBlogPost} from "@docusaurus/plugin-content-blog/client";
+import Video from "@site/src/components/Video";
 
 /**
  * Changelog short summary. Renders only in the blog list (the /changelog
@@ -19,4 +20,5 @@ function Summary({children}: {children: ReactNode}): ReactNode {
 export default {
   ...MDXComponents,
   Summary,
+  Video,
 };
