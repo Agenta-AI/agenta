@@ -5,8 +5,11 @@ import {
     AGENT_CONFIG_ROW_TITLES,
     agentConfigSummary,
     agentLatestRevisionAtomFamily,
+    instructionsSummaryDetail,
     mcpSummaryDetail,
     permissionsSummaryDetail,
+    skillsSummaryDetail,
+    toolsCopyFor,
 } from "@agenta/entity-ui/agent"
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {LogoMarks} from "@agenta/ui/components/presentational"
@@ -19,7 +22,8 @@ import {AgentOverviewCardError} from "./states/AgentOverviewCardError"
 import {AgentOverviewCardSkeleton} from "./states/AgentOverviewCardSkeleton"
 
 const ICON = 16
-const INSTRUCTIONS_FILE = "AGENTS.md"
+/** This card calls tools integrations; the rest of the row's wording is the shared one. */
+const TOOLS_COPY = toolsCopyFor("integrations", "Integrations")
 /** Marks past this collapse to "+N" — a phone row cannot hold a longer run. */
 const MAX_MARKS = 4
 
@@ -59,12 +63,12 @@ export const AgentConfigCard = ({
     // setting the runtime ignores — unless a server is already configured, which is worth saying.
     const showMcp = summary.mcps > 0 || Boolean(summary.harness?.toLowerCase().includes("claude"))
 
+    // The names when there are any, because a narrow row can hold them and "3 skills" says how
+    // many and never which. The count and the empty action are the shared ones.
     const skills =
         summary.skillNames.length > 0
             ? summary.skillNames.join(", ")
-            : summary.skills
-              ? `${summary.skills} ${summary.skills === 1 ? "skill" : "skills"}`
-              : "No skills"
+            : skillsSummaryDetail(summary.skills, {canEdit: true})
 
     return (
         <AgentOverviewCard title="Configuration" action="Edit" onAction={onEdit}>
@@ -87,16 +91,14 @@ export const AgentConfigCard = ({
                     <AgentOverviewCardRow
                         icon={<FileText size={ICON} />}
                         label={AGENT_CONFIG_ROW_TITLES.instructions}
-                        detail={
-                            summary.instructions
-                                ? `${INSTRUCTIONS_FILE} · ${summary.instructionWords}w`
-                                : "Add instructions"
-                        }
+                        detail={instructionsSummaryDetail(summary.instructionWords, {
+                            canEdit: true,
+                        })}
                         onClick={onEdit}
                     />
                     <AgentOverviewCardRow
                         icon={<Wrench size={ICON} />}
-                        label="Integrations"
+                        label={TOOLS_COPY.toolsTitle}
                         detail={
                             marks.length > 0 ? (
                                 <LogoMarks
@@ -104,12 +106,14 @@ export const AgentConfigCard = ({
                                     size={16}
                                     max={MAX_MARKS}
                                     stacked
-                                    label="Integrations"
+                                    label={TOOLS_COPY.toolsTitle}
                                 />
                             ) : summary.tools ? (
-                                `${summary.tools} enabled`
+                                TOOLS_COPY.toolsCount(summary.tools)
                             ) : (
-                                "No integrations"
+                                // The row opens the editor, so an empty one offers the action
+                                // rather than reporting the absence, as every other row here does.
+                                TOOLS_COPY.toolsAdd
                             )
                         }
                         onClick={onEdit}

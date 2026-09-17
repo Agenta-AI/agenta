@@ -55,10 +55,10 @@ const AGENT = {
 let host: HTMLDivElement
 let root: Root
 
-const mount = async (node: React.ReactNode) => {
+const mount = async (node: React.ReactNode, agent: Record<string, unknown> = AGENT) => {
     const store = createStore()
     store.set(agentLatestRevisionAtomFamily("agent") as unknown as PrimitiveAtom<unknown>, {
-        data: {data: {parameters: {agent: AGENT}}},
+        data: {data: {parameters: {agent}}},
         isPending: false,
         isError: false,
         refetch: () => undefined,
@@ -80,6 +80,22 @@ afterEach(async () => {
 
 /** The one row whose noun each host declares for itself; this app calls tools Integrations. */
 const MOBILE_TITLES = {...AGENT_CONFIG_ROW_TITLES, tools: "Integrations"}
+
+/** A fresh mount per render: two cards in one host would match each other's text. */
+const remount = async () => {
+    await act(async () => root.unmount())
+    host.remove()
+    host = document.createElement("div")
+    document.body.append(host)
+    root = createRoot(host)
+}
+
+/**
+ * An agent with nothing configured, which is where every divergence was hiding: the cards agreed
+ * on the fully-populated strings and disagreed on all three empty ones. The Claude harness keeps
+ * the MCP row drawn, since this app hides it on a harness that ignores the setting.
+ */
+const EMPTY_AGENT = {harness: {kind: "claude_code"}}
 
 describe("the agent Configuration card, on both apps", () => {
     it("names every row the shared vocabulary lists", async () => {
@@ -130,5 +146,48 @@ describe("the agent Configuration card, on both apps", () => {
 
         expect(mobile).toContain("Allow reads")
         expect(desktop).toContain("Allow reads")
+    })
+})
+
+describe("an agent with nothing configured, on both apps", () => {
+    it("offers the action on every empty row, on both cards", async () => {
+        // Both cards' rows open the editor, so an empty row has to offer the verb. The mobile
+        // card reported the absence on two of them, beside its own "Add instructions": it said
+        // "No integrations" and "No skills" where the desktop card says "Add tools" and
+        // "Add skills". The noun differs by host; the verb must not.
+        const mobile = await mount(
+            <AgentConfigCard agentId="agent" onEdit={() => undefined} />,
+            EMPTY_AGENT,
+        )
+        await remount()
+        const desktop = await mount(
+            <AgentConfigSummaryCard appId="agent" onEdit={() => undefined} />,
+            EMPTY_AGENT,
+        )
+
+        for (const shown of [mobile, desktop]) {
+            expect(shown).toContain("Choose a model")
+            expect(shown).toContain("Add instructions")
+            expect(shown).toContain("Connect a server")
+            expect(shown).toContain("Add skills")
+            expect(shown).not.toContain("No skills")
+        }
+        // The one row whose noun each host names for itself, both offering the same verb.
+        expect(mobile).toContain("Add integrations")
+        expect(desktop).toContain("Add tools")
+        expect(mobile).not.toContain("No integrations")
+    })
+
+    it("counts the brief the same way once there is one", async () => {
+        // "AGENTS.md · 28w" against "AGENTS.md · 28 words" is the same fact in two strings, and
+        // an abbreviation the reader has to decode.
+        const mobile = await mount(<AgentConfigCard agentId="agent" onEdit={() => undefined} />)
+        await remount()
+        const desktop = await mount(
+            <AgentConfigSummaryCard appId="agent" onEdit={() => undefined} />,
+        )
+
+        expect(mobile).toContain("AGENTS.md · 6 words")
+        expect(desktop).toContain("AGENTS.md · 6 words")
     })
 })
