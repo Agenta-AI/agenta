@@ -500,6 +500,66 @@ describe("a retry after a save whose response was lost", () => {
     })
 })
 
+describe("leaving one address for another", () => {
+    it("deletes the row it made and connects the new address to a new one", async () => {
+        // The row was kept and the next submit continued from it, so the connection reported
+        // as made pointed at the address the person had left (round 4, D111). Deleting it is
+        // what `cancel` already does for a pending row this journey created.
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+        expect(journey.state.endpointId).toBe("mcp-1")
+
+        await act(async () => journey.setUrl("https://mcp.elsewhere.test/"))
+        await settle()
+
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1")
+        expect(journey.state.endpointId).toBeNull()
+
+        createMcpEndpoint.mockResolvedValue({
+            count: 1,
+            endpoint: {id: "mcp-2", slug: "elsewhere", name: "Acme", auth_mode: "oauth"},
+        })
+        await act(async () => {
+            await journey.submitUrl("https://mcp.elsewhere.test/")
+        })
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+
+        // A new row for the new address, rather than the one that was left behind.
+        expect(journey.state.endpointId).toBe("mcp-2")
+    })
+
+    it("keeps the row when the address is re-entered unchanged", async () => {
+        // Pressing Change and typing nothing must not throw away a row that is still right.
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await settle()
+
+        expect(deleteMcpEndpoint).not.toHaveBeenCalled()
+        expect(journey.state.endpointId).toBe("mcp-1")
+    })
+})
+
 describe("a step that comes back to an abandoned attempt", () => {
     // Two of the seven awaits checked the generation and the other five did not, so a probe or
     // a tool list that answered late still dispatched, on top of whatever the journey had moved

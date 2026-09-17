@@ -217,9 +217,19 @@ export function useMcpConnectJourney({
     const setUrl = useCallback(
         (url: string) => {
             forgetAttemptedCreate()
+            // A row was made for the address being left. Leaving it behind is what let the
+            // next connect continue from it; deleting it is what `cancel` already does for a
+            // pending row this journey created, and for the same reason (round 4, D111).
+            if (url.trim() !== state.url.trim()) {
+                const abandoned = endpointRef.current
+                if (cancelDeletesEndpoint(state) && abandoned) {
+                    endpointRef.current = null
+                    void deleteMcpEndpoint(abandoned.id, projectId).catch(() => undefined)
+                }
+            }
             dispatch({type: "url_changed", url})
         },
-        [forgetAttemptedCreate],
+        [forgetAttemptedCreate, projectId, state],
     )
     const setName = useCallback(
         (name: string) => {

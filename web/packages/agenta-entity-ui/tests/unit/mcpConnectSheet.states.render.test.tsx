@@ -666,6 +666,29 @@ describe("C5, the server wants a key", () => {
         expect((control("Header") as HTMLInputElement).value).toBe("x-api-key")
     })
 
+    it("keeps what was typed, whatever the probe says next", async () => {
+        // The field shows "what was typed, or the prefill". Only the prefill half is obvious
+        // from a render, so a change making the value probe-derived passes the package while
+        // silently overwriting a person's typing the moment a probe answers (round 5).
+        await open({...keyScreen, probe: KEY_PROBE_NO_SCHEME})
+        expect((control("Header") as HTMLInputElement).value).toBe("x-api-key")
+
+        const field = control("Header") as HTMLInputElement
+        const setter = Object.getOwnPropertyDescriptor(
+            Object.getPrototypeOf(field) as object,
+            "value",
+        )?.set
+        await act(async () => {
+            setter?.call(field, "X-Acme-Token")
+            field.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+
+        // The same sheet, re-rendered with a probe whose prefill is the other one.
+        await open({...keyScreen, probe: KEY_PROBE_BEARER})
+
+        expect((control("Header") as HTMLInputElement).value).toBe("X-Acme-Token")
+    })
+
     it("keeps Authorization on a reconnect, which never probed", async () => {
         await open(
             state({

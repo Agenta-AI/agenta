@@ -57,12 +57,21 @@ const jsonViewOptions = [
 ]
 
 /** antd `Typography.Text` stand-ins — the token classes, no component needed. */
-const FieldLabel = ({htmlFor, children}: {htmlFor?: string; children: React.ReactNode}) => {
+const FieldLabel = ({
+    htmlFor,
+    id,
+    children,
+}: {
+    htmlFor?: string
+    /** Set where something is named BY this label rather than associated with it. */
+    id?: string
+    children: React.ReactNode
+}) => {
     // A `<span>` labels nothing. Given a control to name, this becomes a real label, which is
     // what tells a screen reader which field it is reading.
     const Tag = htmlFor ? "label" : "span"
     return (
-        <Tag className="font-medium text-colorText" htmlFor={htmlFor}>
+        <Tag className="font-medium text-colorText" htmlFor={htmlFor} id={id}>
             {children}
         </Tag>
     )
@@ -80,6 +89,9 @@ const FieldLabel = ({htmlFor, children}: {htmlFor?: string; children: React.Reac
  * value is being replaced, so there is one string rather than two that can drift.
  */
 const SECRET_VALUE_ID = "secret-form-value"
+
+/** The visible label, for the formats whose control is named BY it rather than tied to it. */
+const SECRET_VALUE_LABEL_ID = "secret-form-value-label"
 
 /**
  * The name one row's value control carries in the key-value grid.
@@ -183,6 +195,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                 <div className="flex items-center justify-between">
                     <div className="flex items-baseline gap-2">
                         <FieldLabel
+                            id={SECRET_VALUE_LABEL_ID}
                             htmlFor={
                                 format === CustomSecretFormat.Text ? SECRET_VALUE_ID : undefined
                             }
@@ -246,11 +259,17 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                         </div>
                     </div>
                 ) : jsonView === "json" ? (
-                    // The editor is a contenteditable rather than a form control, so the
-                    // group around it carries the name the label shows. Without it this
-                    // format announced nothing at all, the same gap the text format had
-                    // (round 6c, D143).
-                    <div className="flex flex-col gap-1" role="group" aria-label={valueLabel}>
+                    // The editor is a contenteditable rather than a form control, so the group
+                    // around it is what carries the name. Named BY the label rather than with
+                    // a copy of its text: a copy is a second place for the wording to live,
+                    // and a name that has drifted from the label on screen is the mismatch
+                    // WCAG 2.5.3 is about (round 5). Before this the format announced nothing
+                    // at all, which is the gap the text format had (round 6c, D143).
+                    <div
+                        className="flex flex-col gap-1"
+                        role="group"
+                        aria-labelledby={SECRET_VALUE_LABEL_ID}
+                    >
                         <SharedEditor
                             initialValue={jsonText}
                             value={jsonText}
