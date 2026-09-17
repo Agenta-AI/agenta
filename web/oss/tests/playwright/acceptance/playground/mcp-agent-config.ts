@@ -189,13 +189,18 @@ const warmPlayground = async (page: Page, basePath: string): Promise<void> => {
 const PLAYGROUND_WARMUP_MS = 4 * ROUTE_WARMUP_MS
 
 /**
- * Open the MCP servers section's create drawer.
+ * Open the agent's Add MCP server drawer.
  *
  * The section itself is conditional: it appears only while the agent's harness says it can reach
  * user MCP servers. Asserting it rather than skipping past it is deliberate — a deployment whose
  * default agent cannot use MCP servers is a fact this suite should report, not step around.
+ *
+ * What opens has changed. There used to be a form here asking for a connection, a prefix and a
+ * policy, saved with a Create button. The redesign replaced it with a list of the project's
+ * connections: Add writes the item and opens its permission drawer in one press, so there is no
+ * draft in between and nothing to save.
  */
-const openNewMcpItem = async (page: Page) => {
+const openAddMcpDrawer = async (page: Page) => {
     const addLink = page.getByRole("button", {name: "add a server", exact: true})
     const sectionHeader = page.getByRole("button", {name: /^MCP servers\b/})
     // The section appearing is also this page's sign of life: an agent's playground opens a
@@ -232,34 +237,57 @@ const openNewMcpItem = async (page: Page) => {
     await page.waitForURL(/session_id=/, {timeout: PLAYGROUND_WARMUP_MS}).catch(() => undefined)
 
     await addLink.click()
-    const drawer = itemDrawer(page)
+    const drawer = addDrawer(page)
     await expect(drawer).toBeVisible({timeout: 15000})
     return drawer
 }
 
-/** The config item's own drawer, identified by the connection field only it has. */
-const itemDrawer = (page: Page) =>
-    page.locator('[role="dialog"]:has([aria-label="Connection"])').last()
+/** The Add MCP server drawer, by the name its own title gives it. */
+const addDrawer = (page: Page) => page.getByRole("dialog", {name: "Add MCP server"}).last()
 
-/** Pick a connection by the name it is listed under. */
-const chooseConnection = async (page: Page, name: string) => {
-    await itemDrawer(page).getByRole("combobox", {name: "Connection"}).click()
-    await page.getByRole("option", {name, exact: true}).click()
+/**
+ * The permission drawer, by the one control only it has.
+ *
+ * Not by its accessible name: that is built from the connection's display name, its tool prefix
+ * and its status, so it differs per connection and per run.
+ */
+const permissionDrawer = (page: Page) =>
+    page
+        .getByRole("dialog")
+        .filter({has: page.getByRole("combobox", {name: "Default permission"})})
+        .last()
+
+/**
+ * Give this agent a connection the project already has.
+ *
+ * One press: the item is written into the agent's draft and its permission drawer opens on it,
+ * which is what replaced the old form's Create.
+ */
+const addConnectionToAgent = async (page: Page, name: string) => {
+    await addDrawer(page)
+        .getByRole("button", {name: `Add ${name} to this agent`})
+        .click()
+    const drawer = permissionDrawer(page)
+    await expect(drawer).toBeVisible({timeout: 30000})
+    return drawer
 }
 
 /** Set one permission select to one of its options. */
 const setPermission = async (page: Page, label: string, option: string) => {
-    await itemDrawer(page).getByRole("combobox", {name: label}).click()
+    await permissionDrawer(page).getByRole("combobox", {name: label}).click()
     // The option's accessible name is its title plus its help line, so match the title only.
     await page.getByRole("option", {name: new RegExp(`^${option}\\b`)}).click()
 }
 
-/** Save the drawer's draft into the agent's configuration. */
-const createItem = async (page: Page) => {
-    const drawer = itemDrawer(page)
-    const create = drawer.getByRole("button", {name: "Create", exact: true})
-    await expect(create).toBeEnabled({timeout: 15000})
-    await create.click()
+/**
+ * Close the permission drawer.
+ *
+ * Nothing is saved by this. Every choice in there writes to the agent's draft as it is made
+ * (decision 19), so Done only puts the drawer away; the draft commits itself either way.
+ */
+const closePermissionDrawer = async (page: Page) => {
+    const drawer = permissionDrawer(page)
+    await drawer.getByRole("button", {name: "Done", exact: true}).click()
     await expect(drawer).toHaveCount(0, {timeout: 20000})
 }
 
@@ -335,28 +363,27 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
             })
 
             await scenarios.when("the user adds an MCP server and picks it", async () => {
-                await openNewMcpItem(page)
-                await chooseConnection(page, connectionName)
+                await openAddMcpDrawer(page)
+                await addConnectionToAgent(page, connectionName)
             })
 
-            await scenarios.then("the form shows what the agent will use", async () => {
-                const drawer = itemDrawer(page)
-                // Where it points, and whether it can be used right now. A connection needing
-                // authorization is a different answer from one that is ready, and the form says
-                // which rather than leaving it to run time.
+            await scenarios.then("the drawer shows what the agent will use", async () => {
+                const drawer = permissionDrawer(page)
+                // Whether it can be used right now. A connection needing authorization is a
+                // different answer from one that is ready, and the header says which rather
+                // than leaving it to run time. The address is no longer on this surface: the
+                // registry in settings is where a connection's address is read.
                 await expect(drawer.getByText("Connected", {exact: true})).toBeVisible({
                     timeout: 30000,
                 })
-                await expect(drawer.getByText(`${mockMcpBase()}/`)).toBeVisible()
                 // The prefix the model will see, taken from the display name once and kept.
-                await expect(drawer.getByText("Tool prefix", {exact: true})).toBeVisible()
                 await expect(
                     drawer.getByText(connectionName.replace(/[^A-Za-z0-9_]/g, "_")).first(),
                 ).toBeVisible()
             })
 
             await scenarios.and("the saved configuration names that connection", async () => {
-                await createItem(page)
+                await closePermissionDrawer(page)
 
                 const items = await savedMcpItems(page, basePath, workflowId)
                 expect(items).toHaveLength(1)
@@ -390,12 +417,13 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
             await scenarios.when(
                 "the user connects a server without leaving the form",
                 async () => {
-                    await openNewMcpItem(page)
-                    await itemDrawer(page).getByRole("combobox", {name: "Connection"}).click()
-                    // The same journey settings opens, reached from the picker rather than from a
-                    // page of its own — which is the point: nobody should have to leave the agent
-                    // they are configuring to give it a server.
-                    await page.getByRole("button", {name: "Connect MCP"}).click()
+                    await openAddMcpDrawer(page)
+                    // The same journey settings opens, reached from the add drawer rather than
+                    // from a page of its own — which is the point: nobody should have to leave
+                    // the agent they are configuring to give it a server.
+                    await addDrawer(page)
+                        .getByRole("button", {name: "Connect server", exact: true})
+                        .click()
                     const dialog = await fillJourneyUrlAndName(
                         page,
                         `${mockMcpBase()}/`,
@@ -403,26 +431,21 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
                     )
                     await dialog.getByRole("button", {name: "Connect", exact: true}).click()
 
-                    // Opened from an agent, the journey closes the moment the connection
-                    // exists: the item takes it and the person carries on configuring.
-                    // Settings keeps the same dialog open instead, to report the tools it
-                    // found, which is why only that suite has a Done to press.
+                    // The journey closes the moment the connection exists, here and in
+                    // settings alike: success is the row it left behind (decision 26).
                     await expect(journeyDialog(page)).toHaveCount(0, {timeout: 90000})
                 },
             )
 
             await scenarios.then("the new connection is the one this agent uses", async () => {
-                // The picker's list reopens behind the journey and is still open. While it is,
-                // everything outside it is aria-hidden, so neither the select nor the drawer
-                // around it can be found by role, and Create sits behind the list.
-                await page.keyboard.press("Escape")
-
-                const drawer = itemDrawer(page)
-                await expect(drawer.getByRole("combobox", {name: "Connection"})).toContainText(
-                    connectionName,
-                    {timeout: 30000},
-                )
-                await createItem(page)
+                // Connecting from an agent is one errand: the connection joins this agent by
+                // itself and its permission drawer opens on it, with nothing more to pick.
+                const drawer = permissionDrawer(page)
+                await expect(drawer).toBeVisible({timeout: 30000})
+                await expect(
+                    drawer.getByText(connectionName.replace(/[^A-Za-z0-9_]/g, "_")).first(),
+                ).toBeVisible({timeout: 30000})
+                await closePermissionDrawer(page)
 
                 const items = await savedMcpItems(page, basePath, workflowId)
                 expect(items).toHaveLength(1)
@@ -461,26 +484,26 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
                 await createMcpConnectionViaApi(page, basePath, connectionName)
                 workflowId = await createAgentApp(page, basePath, `e2e-mcp-policy-${Date.now()}`)
                 registerAgentAppForCleanup(workflowId)
-                await openNewMcpItem(page)
-                await chooseConnection(page, connectionName)
+                await openAddMcpDrawer(page)
+                await addConnectionToAgent(page, connectionName)
             })
 
             await scenarios.when("the user decides per tool", async () => {
-                const drawer = itemDrawer(page)
-                // Until this is clicked nothing per-tool is written, so an agent configured
-                // before per-tool policy existed keeps behaving exactly as it did.
-                await drawer.getByRole("button", {name: "Set permissions per tool"}).click()
+                const drawer = permissionDrawer(page)
+                // The default first, then the exception. Picking a preset clears the per-tool
+                // table (that is what a preset means), so the other order would wipe the very
+                // override this case is about.
+                await setPermission(page, "Default permission", "Allow all")
 
                 // The list comes from the server itself, so it is a round trip.
                 await expect(drawer.getByText("echo", {exact: true})).toBeVisible({
                     timeout: PROBE_MS,
                 })
-                await setPermission(page, "Permission for a tool with no rule", "Allow")
                 await setPermission(page, "Permission for echo", "Deny")
             })
 
             await scenarios.then("both decisions are in the saved configuration", async () => {
-                await createItem(page)
+                await closePermissionDrawer(page)
 
                 const items = await savedMcpItems(page, basePath, workflowId)
                 expect(items).toHaveLength(1)

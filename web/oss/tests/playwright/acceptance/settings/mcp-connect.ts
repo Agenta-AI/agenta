@@ -364,10 +364,15 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 timeout: 30000,
             })
 
+            // The window opened inside the tap is the half of this flow only a browser can
+            // prove, so it is awaited. What it says is not read: the callback page reports
+            // the connection and then closes itself on a three-second timer, while the mock
+            // round trip takes about one, so the sentence is usually gone before a query
+            // reaches it and the case died on a race it was never about (round 6).
             const popup = await popupPromise
-            await expect(popup.getByText("The MCP server is connected.")).toBeVisible({
-                timeout: 30000,
-            })
+            await popup.waitForEvent("close", {timeout: 60000}).catch(() => undefined)
+
+            // The outcome is the opener's: the grant reached it and the sheet closed on it.
             await finishJourney(page)
         })
 
