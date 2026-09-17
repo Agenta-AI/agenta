@@ -1,6 +1,6 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
-import {expect, pollLocatorState} from "@agenta/web-tests/utils"
+import {appToast, expect, pollLocatorState} from "@agenta/web-tests/utils"
 import {
     deriveEvaluationKind,
     type EvaluationRunForKindDetection,
@@ -479,9 +479,9 @@ const waitAndClickDeleteForRun = async (
     await expect(deleteModal).toBeVisible({timeout: 10000})
     await deleteModal.getByRole("button", {name: AUTO_EVAL_DELETE_OK_BUTTON}).click()
 
-    // The success message toasts through @agenta/ui's app-message facade (role="status"),
-    // not an antd `.ant-message` node.
-    await expect(page.getByRole("status").getByText(AUTO_EVAL_DELETE_SUCCESS).first()).toBeVisible({
+    // The success message toasts through @agenta/ui's app-message facade, which draws a
+    // Sonner toast, not an antd `.ant-message` node.
+    await expect(appToast(page, AUTO_EVAL_DELETE_SUCCESS)).toBeVisible({
         timeout: 15000,
     })
 }
