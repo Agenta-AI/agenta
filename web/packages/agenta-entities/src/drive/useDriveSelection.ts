@@ -13,6 +13,16 @@ import {useCallback, useEffect, useRef, useState} from "react"
 import {atom, useAtom} from "jotai"
 import {atomFamily} from "jotai-family"
 
+import {
+    canGoBack,
+    canGoForward,
+    currentDriveHistoryPath,
+    type DriveHistory,
+    EMPTY_DRIVE_HISTORY,
+    pushDriveHistory,
+    replaceDriveHistory,
+    stepDriveHistory,
+} from "./driveHistory"
 import {ancestorPaths} from "./driveTree"
 
 /** Last-viewed file per drive (keyed by mount id), so closing + reopening the drawer restores the
@@ -23,9 +33,12 @@ const driveSelectionAtomFamily = atomFamily((_mountId: string) => atom<string | 
 export function useDriveSelection({
     mountId,
     initialPath,
+    initialPathSeq,
 }: {
     mountId: string
     initialPath?: string | null
+    /** Bump to re-open the same `initialPath` (a chat link clicked twice). */
+    initialPathSeq?: number
 }) {
     // `mountId` arrives with mount DISCOVERY, so the first renders can carry "" — which is not a
     // drive. Seeding from or writing to that slot would both cross-contaminate every mountless drive
@@ -53,17 +66,49 @@ export function useDriveSelection({
         })
     }, [])
 
-    // Landing on the root is a DEFAULT, not a choice — only a real pick is worth restoring later.
+    // Only a real pick (not the root default) is worth restoring later.
     const chosenRef = useRef(false)
+    // Back / forward over every pick.
+    const [history, setHistory] = useState<DriveHistory>(() => {
+        const init = initialPath ?? persistedSelection ?? null
+        return init != null ? pushDriveHistory(EMPTY_DRIVE_HISTORY, init) : EMPTY_DRIVE_HISTORY
+    })
     // Select a file: update local state AND persist it per drive so reopening restores it.
     const select = useCallback(
         (nextPath: string | null) => {
             chosenRef.current = true
             setSelectedPath(nextPath)
+            if (nextPath != null) setHistory((h) => pushDriveHistory(h, nextPath))
             if (hasMount) setPersistedSelection(nextPath)
         },
         [hasMount, setPersistedSelection],
     )
+    // A rename keeps its place in the stack.
+    const replaceSelection = useCallback(
+        (nextPath: string) => {
+            chosenRef.current = true
+            setSelectedPath(nextPath)
+            setHistory((h) => replaceDriveHistory(h, nextPath))
+            if (hasMount) setPersistedSelection(nextPath)
+        },
+        [hasMount, setPersistedSelection],
+    )
+    // A ref for the step callbacks: a setter updater must not carry the selection write.
+    const historyRef = useRef(history)
+    historyRef.current = history
+    const step = useCallback(
+        (delta: -1 | 1) => {
+            const next = stepDriveHistory(historyRef.current, delta)
+            const path = currentDriveHistoryPath(next)
+            if (next === historyRef.current || path == null) return
+            setHistory(next)
+            setSelectedPath(path)
+            if (hasMount) setPersistedSelection(path)
+        },
+        [hasMount, setPersistedSelection],
+    )
+    const goBack = useCallback(() => step(-1), [step])
+    const goForward = useCallback(() => step(1), [step])
 
     // Once the drive's id resolves: adopt its persisted selection (the lazy initializers above ran
     // before mount discovery finished, so they couldn't see it) — or, if a pick was already made
@@ -78,6 +123,7 @@ export function useDriveSelection({
         }
         if (!persistedSelection) return
         setSelectedPath(persistedSelection)
+        setHistory((h) => pushDriveHistory(h, persistedSelection))
         expand(persistedSelection)
     }, [hasMount, selectedPath, persistedSelection, setPersistedSelection, expand])
 
@@ -87,7 +133,7 @@ export function useDriveSelection({
     // never fights the user's own tree navigation.
     useEffect(() => {
         if (initialPath != null) select(initialPath)
-    }, [initialPath])
+    }, [initialPath, initialPathSeq])
 
     // Nothing was pre-selected — the drawer was opened via the Files COUNT ("browse"), not a file
     // row. Land on the ROOT folder view, not a file preview. `selectedPath != null` (not truthy) so the
@@ -96,7 +142,19 @@ export function useDriveSelection({
     useEffect(() => {
         if (selectedPath != null) return
         setSelectedPath("")
+        setHistory((h) => pushDriveHistory(h, ""))
     }, [selectedPath])
 
-    return {persistedSelection, selectedPath, select, expanded, setExpanded}
+    return {
+        persistedSelection,
+        selectedPath,
+        select,
+        replaceSelection,
+        expanded,
+        setExpanded,
+        goBack,
+        goForward,
+        canGoBack: canGoBack(history),
+        canGoForward: canGoForward(history),
+    }
 }

@@ -1,3 +1,5 @@
+import {setPdfWorkerSrc} from "@agenta/entities/drive"
+import {registerDriveMarkdown} from "@agenta/entity-ui/drive"
 import {DEFAULT_PAGE_TITLE} from "@agenta/shared/utils"
 import AppMessageContext from "@agenta/ui/app-message"
 import {useVisualViewportHeight} from "@agenta/ui/hooks"
@@ -6,11 +8,18 @@ import Head from "next/head"
 
 import {AppProviders} from "@/features/app/AppProviders"
 import {GlobalDrawers} from "@/features/app/GlobalDrawers"
+import {DriveMarkdownRenderer} from "@/features/chat/DriveMarkdownRenderer"
 
 // Side effect: binds projectIdAtom from the URL before React renders. See the module.
 import "@/lib/seedProjectContext"
 
 import "@/styles/globals.css"
+
+// The drive's rendered markdown (quick look, previews) uses the chat's renderer — by injection,
+// so the package never depends on a host's markdown stack.
+registerDriveMarkdown(DriveMarkdownRenderer)
+// The pdfjs worker is copied into public/ by the dev + build scripts; served under this app's base path.
+setPdfWorkerSrc("/m/pdf.worker.min.mjs")
 
 // Deliberately minimal: no provider fleet (the desktop _app's ~10 providers
 // are the reason this app exists as a separate bundle). AppProviders holds

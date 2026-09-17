@@ -1,12 +1,12 @@
-import {humanSize} from "@agenta/entities/drive"
+/**
+ * Row 1 of the Files pane, spanning content and rail: ‹ › · the icon breadcrumb · view options ·
+ * the tree toggle · an optional close. Actions on the path live in row 2 ({@link DriveToolbar}).
+ */
 import {type DriveId} from "@agenta/entities/drive"
-import {fileOrigin} from "@agenta/entities/drive"
-import {type Mount} from "@agenta/entities/session"
-import {shortcutAria} from "@agenta/shared/utils"
-import {CopyButton} from "@agenta/ui/components/presentational"
-import {Tag, EnhancedButton as Button} from "@agenta/ui/components/presentational"
+import {getShortcut, shortcutAria, shortcutText} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {
+    Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -18,172 +18,154 @@ import {
     ArrowsIn,
     ArrowsOut,
     CaretDoubleRight,
-    DotsThree,
-    DownloadSimple,
+    CaretLeft,
+    CaretRight,
+    ClockCountdown,
+    Copy,
+    EyeSlash,
     GitBranch,
-    Info,
-    UploadSimple,
+    SidebarSimple,
+    Sliders,
     WarningCircle,
     X,
 } from "@phosphor-icons/react"
 
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
-import {DriveFileDownloadButton} from "./DriveFileContentViewer"
 import {DriveRetryButton} from "./DriveFileRow"
+import {SelectedMark} from "./DriveMenuMark"
 
-/**
- * DriveHeader — the drawer's ONE header. The breadcrumb IS the header (its last crumb the current
- * node), a count/size chip beside it; contextual actions on the right (copy path, a details toggle,
- * download the file), with drive-level bits (raw ids, Download all) folded into the overflow menu.
- * The right/content pane then renders with no header of its own.
- */
+/** The chrome's icon button: the kit's ghost icon-sm, muted until hover. */
+export const ROW_ICON_BTN = "text-colorTextTertiary hover:text-colorText"
+const ROW_ICON_BTN_ON = "bg-accent text-colorText"
+
 export const DriveHeader = ({
     selectedPath,
     isFolder,
     rootLabel,
-    itemCount,
-    fileSize,
-    showOrigin,
-    isRepo,
-    detailsOpen,
-    onToggleDetails,
     onNavigate,
-    onClose,
-    closeVariant = "close",
+    canGoBack,
+    canGoForward,
+    onBack,
+    onForward,
     copyText,
     ids,
-    downloadMount,
-    downloadPath,
-    onDownloadAll,
-    downloadingAll,
+    showOrigin,
+    showTemporary,
+    onToggleTemporary,
+    showHidden,
+    onToggleHidden,
+    inGitScope,
+    showGitignored,
+    onToggleGitignored,
+    treeVisible,
+    onToggleTree,
+    mirrored = false,
+    onClose,
+    closeVariant = "close",
     expanded,
     onToggleExpand,
     partialErrored,
     onRetry,
     retrying,
-    onUpload,
-    stagedCount = 0,
-    onUploadStaged,
 }: {
     selectedPath: string | null
     isFolder: boolean
     rootLabel: string
-    /** Pick files to upload into the current folder — shown only for a writable mount. */
-    onUpload?: () => void
-    /** Count of files staged (dropped on a recents peek) awaiting a destination. >0 → show the
-     * primary "Upload here" action that commits them into the current folder. */
-    stagedCount?: number
-    onUploadStaged?: () => void
-    /** Immediate-child count for a non-root folder (null when unknown / at root). */
-    itemCount: number | null
-    fileSize?: number
-    showOrigin: boolean
-    /** This folder is a git repo → the details toggle reveals repo facts (else file details). */
-    isRepo: boolean
-    detailsOpen: boolean
-    onToggleDetails: () => void
     onNavigate: (path: string) => void
-    onClose: () => void
-    /** How `onClose` reads: an "×" (overlay drawer) or a "»" that collapses the docked pane. */
-    closeVariant?: "close" | "collapse"
+    canGoBack: boolean
+    canGoForward: boolean
+    onBack: () => void
+    onForward: () => void
     copyText: (text: string, successMessage?: string) => void
+    /** Raw ids for the inspector; empty when it is off. */
     ids: DriveId[]
-    downloadMount: Mount | null
-    downloadPath: string
-    /** Download the whole drive as a zip (the overflow "Download all"); omitted → item disabled. */
-    onDownloadAll?: () => void
-    downloadingAll?: boolean
-    /** Drawer at expanded (near-full) width — the header's expand toggle reflects/flips this. Omit to
-     * hide the toggle (embedded/non-drawer hosts that don't own the drawer width). */
+    /** The drive mixes agent and session files, so "Show temporary files" applies. */
+    showOrigin: boolean
+    showTemporary: boolean
+    onToggleTemporary: () => void
+    showHidden: boolean
+    onToggleHidden: () => void
+    inGitScope: boolean
+    showGitignored: boolean
+    onToggleGitignored: () => void
+    treeVisible: boolean
+    onToggleTree: () => void
+    /** The tree is docked on the right. */
+    mirrored?: boolean
+    /** For hosts whose close lives in this row. */
+    onClose?: () => void
+    closeVariant?: "close" | "collapse"
     expanded?: boolean
     onToggleExpand?: () => void
-    /** A mount failed but the drive still browses — surface a compact warning + retry INLINE in this
-     * header (using its existing slack), never a new row. `retrying` drives the spinner. */
     partialErrored?: boolean
     onRetry?: () => void
     retrying?: boolean
 }) => {
-    // A file always has details (size/modified); a folder only when it's a repo. Nothing selected
-    // (transient null before the root auto-selects) → no toggle.
-    const hasDetails = isFolder ? isRepo : selectedPath != null
     return (
-        // Docked-pane variant: pin the header to the session bar's exact height + border token so
-        // its bottom border CONTINUES the bar's line across the divider (offset heights read as
-        // two stacked lines at the junction).
-        <div
-            className={`flex shrink-0 items-center gap-2 border-0 border-b border-solid px-3 ${
-                closeVariant === "collapse"
-                    ? "h-[48px] border-[var(--ag-surface-card-border)]"
-                    : "border-colorBorderSecondary py-2"
-            }`}
-        >
-            <Tooltip
-                title={
-                    closeVariant === "collapse" ? (
-                        <span className="flex items-center gap-1.5">
-                            Collapse files <ShortcutKeys id="panel.files" tone="inverse" />
-                        </span>
-                    ) : (
-                        "Close"
-                    )
-                }
-            >
-                <Button
-                    type="text"
-                    aria-keyshortcuts={
-                        closeVariant === "collapse" ? shortcutAria("panel.files") : undefined
-                    }
-                    aria-label={closeVariant === "collapse" ? "Collapse files pane" : "Close"}
-                    icon={
-                        closeVariant === "collapse" ? (
-                            <CaretDoubleRight size={16} />
-                        ) : (
-                            <X size={16} />
-                        )
-                    }
-                    onClick={onClose}
-                    className="!h-7 !w-7 !p-0 !text-colorTextSecondary hover:!text-colorText"
-                />
-            </Tooltip>
+        // The session bar's height and border token, so its line continues across the divider.
+        <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
+            {onClose && closeVariant === "close" ? (
+                <Tooltip title="Close">
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Close"
+                        onClick={onClose}
+                        className={ROW_ICON_BTN}
+                    >
+                        <X size={15} />
+                    </Button>
+                </Tooltip>
+            ) : null}
             {onToggleExpand ? (
                 <Tooltip title={expanded ? "Collapse" : "Expand"}>
                     <Button
-                        type="text"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label={expanded ? "Collapse drawer" : "Expand drawer"}
                         aria-pressed={expanded}
-                        icon={expanded ? <ArrowsIn size={16} /> : <ArrowsOut size={16} />}
                         onClick={onToggleExpand}
-                        className="!h-7 !w-7 !p-0 !text-colorTextSecondary hover:!text-colorText"
-                    />
+                        className={ROW_ICON_BTN}
+                    >
+                        {expanded ? <ArrowsIn size={15} /> : <ArrowsOut size={15} />}
+                    </Button>
                 </Tooltip>
             ) : null}
-            {/* Breadcrumb takes the slack and scrolls when the path is long; the chip stays pinned. */}
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Back"
+                title={`Back (${shortcutText(getShortcut("drive.back")!)})`}
+                aria-keyshortcuts={shortcutAria("drive.back")}
+                disabled={!canGoBack}
+                onClick={onBack}
+                className={ROW_ICON_BTN}
+            >
+                <CaretLeft size={15} weight="bold" />
+            </Button>
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Forward"
+                title={`Forward (${shortcutText(getShortcut("drive.forward")!)})`}
+                aria-keyshortcuts={shortcutAria("drive.forward")}
+                disabled={!canGoForward}
+                onClick={onForward}
+                className={ROW_ICON_BTN}
+            >
+                <CaretRight size={15} weight="bold" />
+            </Button>
+            {/* The crumb takes the row's slack and scrolls sideways when a deep path outgrows it. */}
+            <div className="ml-1 flex min-w-0 flex-1 items-center">
                 <DriveBreadcrumb
+                    variant="icons"
                     shown={selectedPath ?? ""}
                     rootLabel={rootLabel}
+                    isFile={!isFolder}
                     onNavigate={onNavigate}
                 />
-                {/* A folder's child count / a file's size. The root gets no chip — a whole-drive
-                    file count says nothing about what you're looking at. */}
-                <span className="shrink-0 text-xs text-colorTextTertiary">
-                    {isFolder
-                        ? itemCount != null
-                            ? `${itemCount} item${itemCount === 1 ? "" : "s"}`
-                            : null
-                        : fileSize != null
-                          ? humanSize(fileSize)
-                          : null}
-                </span>
-                {!isFolder && showOrigin && selectedPath ? (
-                    <Tag className="m-0 shrink-0 text-[12px] font-normal">
-                        {fileOrigin(selectedPath) === "agent" ? "Agent" : "Session"}
-                    </Tag>
-                ) : null}
             </div>
-            {/* A mount failed but the drive still browses — a compact warning + retry that lives in
-                the header's existing slack (never a new row). Tooltip carries the full message so the
-                inline footprint stays "⚠ Try again". */}
+            {/* One mount failed but the drive still browses: a compact warning + retry. */}
             {partialErrored && onRetry ? (
                 <Tooltip title="Some files couldn’t be loaded">
                     <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
@@ -196,106 +178,114 @@ export const DriveHeader = ({
                     </span>
                 </Tooltip>
             ) : null}
-            <div className="flex shrink-0 items-center gap-1">
-                {/* ONE upload button, context-dependent: with files staged it commits them into this
-                    folder (primary-tinted); otherwise it opens the file picker (neutral). */}
-                {stagedCount > 0 && onUploadStaged ? (
-                    <Tooltip
-                        title={`Upload ${stagedCount} file${stagedCount === 1 ? "" : "s"} here`}
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="View options"
+                        title="View options"
+                        className={ROW_ICON_BTN}
                     >
-                        <Button
-                            type="text"
-                            aria-label={`Upload ${stagedCount} staged file${stagedCount === 1 ? "" : "s"} to this folder`}
-                            icon={<UploadSimple size={16} weight="bold" />}
-                            onClick={onUploadStaged}
-                            className="!h-7 !w-7 !p-0 !bg-[var(--ant-color-primary-bg)] !text-colorPrimary hover:!text-colorPrimary"
-                        />
-                    </Tooltip>
-                ) : onUpload ? (
-                    <Tooltip title="Upload to this folder">
-                        <Button
-                            type="text"
-                            aria-label="Upload files"
-                            icon={<UploadSimple size={16} />}
-                            onClick={onUpload}
-                            className="!h-7 !w-7 !p-0 !text-colorTextSecondary hover:!text-colorText"
-                        />
-                    </Tooltip>
-                ) : null}
-                {selectedPath ? (
-                    <Tooltip title="Copy path">
-                        <CopyButton
-                            text={selectedPath}
-                            buttonText={null}
-                            icon
-                            size="icon-sm"
-                            aria-label="Copy path"
-                            successMessage=""
-                            className="!h-7 !w-7 !p-0 !text-colorTextTertiary hover:!text-colorText"
-                        />
-                    </Tooltip>
-                ) : null}
-                {hasDetails ? (
-                    <Tooltip title={isFolder ? "Repository details" : "File details"}>
-                        <Button
-                            type="text"
-                            aria-label={isFolder ? "Repository details" : "File details"}
-                            aria-pressed={detailsOpen}
-                            onClick={onToggleDetails}
-                            icon={
-                                isFolder ? (
-                                    <GitBranch
-                                        size={16}
-                                        weight={detailsOpen ? "fill" : "regular"}
-                                    />
-                                ) : (
-                                    <Info size={16} weight={detailsOpen ? "fill" : "regular"} />
-                                )
-                            }
-                            className={`!h-7 !w-7 !p-0 ${detailsOpen ? "!text-colorPrimary" : "!text-colorTextTertiary hover:!text-colorText"}`}
-                        />
-                    </Tooltip>
-                ) : null}
-                {!isFolder && selectedPath ? (
-                    <DriveFileDownloadButton mount={downloadMount} path={downloadPath} />
-                ) : null}
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                            type="text"
-                            aria-label="More actions"
-                            icon={<DotsThree size={18} weight="bold" />}
-                            className="!h-7 !w-7 !p-0 !text-colorTextTertiary hover:!text-colorText"
-                        />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        {ids.map((id) => (
-                            <DropdownMenuItem
-                                key={id.key}
-                                onSelect={() => copyText(id.value, `${id.label} copied`)}
-                            >
-                                <span className="flex flex-col gap-0.5 py-0.5">
-                                    <span className="text-xs font-medium">Copy {id.label}</span>
-                                    <span className="font-mono text-[12px] text-colorTextTertiary">
-                                        {id.value}
-                                    </span>
-                                </span>
-                            </DropdownMenuItem>
-                        ))}
-                        {/* Only a separator when there IS something above it — a host without
-                            drive ids (they resolve async, and the local-file drive never has any)
-                            otherwise opens on a stray rule. */}
-                        {ids.length ? <DropdownMenuSeparator /> : null}
+                        <Sliders size={15} />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[220px]">
+                    {/* Plain items with a right-side check; `preventDefault` keeps the menu open. */}
+                    {showOrigin ? (
                         <DropdownMenuItem
-                            disabled={!onDownloadAll || downloadingAll}
-                            onSelect={() => onDownloadAll?.()}
+                            role="menuitemcheckbox"
+                            aria-checked={showTemporary}
+                            onSelect={(e) => {
+                                e.preventDefault()
+                                onToggleTemporary()
+                            }}
                         >
-                            <DownloadSimple size={14} />
-                            {downloadingAll ? "Preparing download…" : "Download all"}
+                            <ClockCountdown />
+                            Show temporary files
+                            <SelectedMark on={showTemporary} />
                         </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
+                    ) : null}
+                    <DropdownMenuItem
+                        role="menuitemcheckbox"
+                        aria-checked={showHidden}
+                        onSelect={(e) => {
+                            e.preventDefault()
+                            onToggleHidden()
+                        }}
+                    >
+                        <EyeSlash />
+                        Show hidden files
+                        <SelectedMark on={showHidden} />
+                    </DropdownMenuItem>
+                    {inGitScope ? (
+                        <DropdownMenuItem
+                            role="menuitemcheckbox"
+                            aria-checked={showGitignored}
+                            onSelect={(e) => {
+                                e.preventDefault()
+                                onToggleGitignored()
+                            }}
+                        >
+                            <GitBranch />
+                            Show git-ignored files
+                            <SelectedMark on={showGitignored} />
+                        </DropdownMenuItem>
+                    ) : null}
+                    {ids.length ? <DropdownMenuSeparator /> : null}
+                    {ids.map((id) => (
+                        <DropdownMenuItem
+                            key={id.key}
+                            onSelect={() => copyText(id.value, `${id.label} copied`)}
+                        >
+                            <Copy />
+                            <span className="flex flex-col gap-0.5 py-0.5">
+                                <span className="text-xs font-medium">Copy {id.label}</span>
+                                <span className="font-mono text-[12px] text-colorTextTertiary">
+                                    {id.value}
+                                </span>
+                            </span>
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <Tooltip title={treeVisible ? "Hide file tree" : "Show file tree"}>
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Show file tree"
+                    aria-pressed={treeVisible}
+                    onClick={onToggleTree}
+                    className={treeVisible ? ROW_ICON_BTN_ON : ROW_ICON_BTN}
+                >
+                    {/* Phosphor draws the panel on the left; the tree is docked on the right. */}
+                    <SidebarSimple
+                        size={16}
+                        weight={treeVisible ? "fill" : "regular"}
+                        className={mirrored ? "-scale-x-100" : undefined}
+                    />
+                </Button>
+            </Tooltip>
+            {onClose && closeVariant === "collapse" ? (
+                <Tooltip
+                    title={
+                        <span className="flex items-center gap-1.5">
+                            Collapse files <ShortcutKeys id="panel.files" tone="inverse" />
+                        </span>
+                    }
+                >
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-keyshortcuts={shortcutAria("panel.files")}
+                        aria-label="Collapse files pane"
+                        onClick={onClose}
+                        className={ROW_ICON_BTN}
+                    >
+                        <CaretDoubleRight size={15} />
+                    </Button>
+                </Tooltip>
+            ) : null}
         </div>
     )
 }

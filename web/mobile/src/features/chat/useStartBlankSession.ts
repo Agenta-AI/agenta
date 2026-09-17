@@ -30,6 +30,7 @@ export const useStartBlankSession = (base: string) => {
             // nothing was lost, it simply has not happened yet.
             markSessionFresh(sessionId)
             void router.push(`${base}/sessions/${sessionId}?agent=${agentId}`)
+            return sessionId
         },
         [base, router],
     )

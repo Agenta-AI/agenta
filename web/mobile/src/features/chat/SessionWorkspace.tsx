@@ -15,6 +15,7 @@ import {
     rightPanelWidthAtom,
     useCanPanesCoexist,
 } from "@agenta/chat/state"
+import {useDriveDirtyGuard} from "@agenta/entities/drive"
 import {DriveSessionProvider, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
@@ -153,6 +154,8 @@ export const SessionWorkspace = ({
         close: closeFilesPane,
         toggle: toggleFilesPane,
     } = useSessionFilesPane(filesScope, sessionId)
+    // Drafts outlive the pane, so the unload guard lives on the host.
+    useDriveDirtyGuard()
     // Tailwind's `md`. Client-only, so the first paint is the phone layout — the right guess here.
     const twoPane = useMediaQuery("(min-width: 768px)")
     // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
@@ -342,6 +345,7 @@ export const SessionWorkspace = ({
                                     // config split's is.
                                     fillMin={360}
                                     animate={filesSlide.animate}
+                                    revealContent
                                     barHidden={!twoPane || !filesOpen}
                                     resizable={twoPane && filesOpen}
                                     // Controlled width, so the drag must write through per tick or the
@@ -354,6 +358,8 @@ export const SessionWorkspace = ({
                                             <SessionFilesPane
                                                 scope={filesScope}
                                                 sessionId={sessionId}
+                                                // The session bar's icon closes the pane.
+                                                closeControl="none"
                                             />
                                         ) : null
                                     }

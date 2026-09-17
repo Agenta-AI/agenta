@@ -49,4 +49,8 @@ describe("resolveQuickLookPath", () => {
     it("leaves a path it cannot place alone rather than inventing a location for it", () => {
         expect(resolveQuickLookPath([], "/etc/hosts")).toBe("/etc/hosts")
     })
+    it("reads an absolute presented path as the drive's own", () => {
+        expect(resolveQuickLookPath([], "/agent-files/out/a.png")).toBe("agent-files/out/a.png")
+        expect(resolveQuickLookPath([{path: "notes.md"}], "/notes.md")).toBe("notes.md")
+    })
 })

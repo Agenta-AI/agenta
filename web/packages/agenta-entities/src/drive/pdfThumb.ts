@@ -12,11 +12,19 @@
 type PdfjsModule = typeof import("pdfjs-dist")
 
 let pdfjsPromise: Promise<PdfjsModule> | null = null
+let workerSrc = "/pdf.worker.min.mjs"
+// A worker that never comes up (its script 404s) leaves getDocument pending forever.
+const OPEN_TIMEOUT_MS = 15_000
+
+/** A host served under a base path (`/m`) points this at its own copy of the worker. */
+export const setPdfWorkerSrc = (src: string) => {
+    workerSrc = src
+}
 
 async function loadPdfjs(): Promise<PdfjsModule> {
     if (!pdfjsPromise) {
         pdfjsPromise = import("pdfjs-dist").then((pdfjs) => {
-            pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs"
+            pdfjs.GlobalWorkerOptions.workerSrc = workerSrc
             return pdfjs
         })
     }
@@ -29,7 +37,16 @@ export async function renderPdfFirstPage(blob: Blob, maxPx = 200): Promise<strin
     try {
         const pdfjs = await loadPdfjs()
         const data = await blob.arrayBuffer()
-        const doc = await pdfjs.getDocument({data}).promise
+        const task = pdfjs.getDocument({data})
+        const doc = await Promise.race([
+            task.promise,
+            new Promise<never>((_, reject) =>
+                setTimeout(() => {
+                    void task.destroy()
+                    reject(new Error("pdf worker timed out"))
+                }, OPEN_TIMEOUT_MS),
+            ),
+        ])
         try {
             const page = await doc.getPage(1)
             const base = page.getViewport({scale: 1})

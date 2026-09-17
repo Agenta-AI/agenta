@@ -40,6 +40,7 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
 import {Badge} from "@agenta/ui/ui"
 import {registerCodeHighlighting} from "@lexical/code"
+import {createPortal} from "react-dom"
 
 import {CodeBlockLanguageMenu} from "./CodeBlockLanguageMenu"
 
@@ -63,11 +64,17 @@ export interface MarkdownEditorProps {
     filename?: string
     /** Show a formatting toolbar (heading/bold/italic/lists/link/code/quote) above the editor. */
     showToolbar?: boolean
+    /** Portal the toolbar into a host-owned element instead of rendering its own row. */
+    toolbarContainer?: HTMLElement | null
+    /** `inline` for the compact H1/H2/H3 bar. */
+    toolbarLayout?: "default" | "inline"
     /** Initial view when uncontrolled. @default "source" */
     defaultView?: MarkdownView
     /** Controlled view. When set, the toggle calls `onViewChange` instead of local state. */
     view?: MarkdownView
     onViewChange?: (view: MarkdownView) => void
+    /** Fires once the Lexical editor has taken the requested view (the first paint may precede it). */
+    onViewApplied?: () => void
     /** Read-only when false (e.g. a Preview pane). @default true */
     editable?: boolean
     /** Drop the built-in filename/toggle header (the host supplies its own chrome). */
@@ -91,19 +98,19 @@ export interface MarkdownEditorProps {
  * handles updates, and a post-paint `requestAnimationFrame` re-dispatch covers the initial-mount
  * race where this effect can fire before the descendant MarkdownPlugin registers the command.
  */
-function MarkdownViewSync({enabled}: {enabled: boolean}) {
+function MarkdownViewSync({enabled, onApplied}: {enabled: boolean; onApplied?: () => void}) {
     const [editor] = useLexicalComposerContext()
 
     useLayoutEffect(() => {
-        editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
-    }, [editor, enabled])
+        if (editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)) onApplied?.()
+    }, [editor, enabled, onApplied])
 
     useEffect(() => {
         const frame = requestAnimationFrame(() => {
-            editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
+            if (editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)) onApplied?.()
         })
         return () => cancelAnimationFrame(frame)
-    }, [editor, enabled])
+    }, [editor, enabled, onApplied])
 
     return null
 }
@@ -126,9 +133,12 @@ export function MarkdownEditor({
     disabled,
     filename,
     showToolbar = false,
+    toolbarContainer,
+    toolbarLayout,
     defaultView = "source",
     view,
     onViewChange,
+    onViewApplied,
     editable = true,
     hideHeader = false,
     bordered = true,
@@ -226,14 +236,23 @@ export function MarkdownEditor({
 
     // Toolbar row pinned above a scroll area this component owns, so it never moves with content.
     // `justify-between` puts formatting on the left and the source/rich toggle hard-right.
-    const toolbar = (
-        // border-0 first: preflight is off, so a bare `border-b` still paints the UA's other
-        // three sides — the top one doubling up with the container's own border.
-        <div className="flex shrink-0 items-center justify-between gap-1 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] px-3 py-1.5">
-            <MarkdownToolbar disabled={editorDisabled || markdownView} />
-            {viewToggle}
-        </div>
+    const toolbarControls = (
+        <MarkdownToolbar disabled={editorDisabled || markdownView} layout={toolbarLayout} />
     )
+    // `null` = the host's slot isn't mounted yet (render nothing); `undefined` = no slot.
+    const toolbar =
+        toolbarContainer !== undefined ? (
+            toolbarContainer ? (
+                createPortal(toolbarControls, toolbarContainer)
+            ) : null
+        ) : (
+            // border-0 first: preflight is off, so a bare `border-b` still paints the UA's other
+            // three sides — the top one doubling up with the container's own border.
+            <div className="flex shrink-0 items-center justify-between gap-1 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] px-3 py-1.5">
+                {toolbarControls}
+                {viewToggle}
+            </div>
+        )
 
     const plainHeader = hideHeader ? undefined : (
         <div className="flex w-full items-center justify-between gap-2">
@@ -374,7 +393,7 @@ export function MarkdownEditor({
             ) : (
                 body
             )}
-            <MarkdownViewSync enabled={markdownView} />
+            <MarkdownViewSync enabled={markdownView} onApplied={onViewApplied} />
             <CodeHighlightSync />
             {/* Source view wraps the whole document in one markdown CodeNode — its picker is
                 meaningless there, so the menu is for author-inserted blocks in rich text only. */}

@@ -1,29 +1,124 @@
-import {isHiddenPath, type DriveTreeNode} from "@agenta/entities/drive"
-import {FolderSimple} from "@phosphor-icons/react"
+/**
+ * The Files grid's tile, Finder-style: no card chrome — a 56px glyph (the typed page mark, or the
+ * folder), the name (two lines, centred) and a muted size / item-count line; hover and selection
+ * are one soft fill. Folders and files share the geometry so the grid stays uniform.
+ */
+import {type ReactNode} from "react"
 
-import {FOCUS_RING} from "./DriveFileRow"
+import {humanSize, isHiddenPath, itemCountLabel, type DriveTreeNode} from "@agenta/entities/drive"
+import {type Mount} from "@agenta/entities/session"
+import {Button} from "@agenta/ui/ui"
 
-/** A subfolder tile — same shape as the file tile (4:3 icon "thumbnail" + name + meta) so folders
- * and files form ONE uniform grid instead of short folder cards stretching to the file-tile height. */
-export const FolderTile = ({node, onOpen}: {node: DriveTreeNode; onOpen: () => void}) => {
-    const hidden = isHiddenPath(node.path)
-    // Backend count when the folder's own level hasn't loaded yet (lazy); else the loaded children.
-    const count = node.itemCount ?? node.children.length
-    return (
-        <button
-            type="button"
-            onClick={onOpen}
-            className={`flex w-full min-w-0 cursor-pointer flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 transition-colors hover:border-colorBorder hover:bg-colorFillTertiary ${FOCUS_RING} ${hidden ? "opacity-60" : ""}`}
+import {DriveNameField, type DriveNameEdit} from "./DriveNameField"
+import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
+import {DriveTileThumb} from "./FileThumb"
+
+const TILE =
+    "flex h-auto w-full min-w-0 flex-col items-center gap-1 whitespace-normal rounded-lg px-1.5 pb-2 pt-1.5 text-center font-normal"
+
+const FolderGlyphBox = () => (
+    <span className="flex h-14 w-14 items-center justify-center">
+        <DriveFolderGlyph size={52} className="!size-[52px]" />
+    </span>
+)
+
+const Tile = ({
+    node,
+    selected,
+    onOpen,
+    glyph,
+    meta,
+}: {
+    node: DriveTreeNode
+    selected: boolean
+    onOpen: () => void
+    glyph: ReactNode
+    meta: string
+}) => (
+    // The kit's ghost button laid out as a column; `h-auto` frees it from the control height.
+    <Button
+        variant="ghost"
+        onClick={onOpen}
+        aria-current={selected || undefined}
+        className={`${TILE} ${selected ? "bg-accent" : ""} ${isHiddenPath(node.path) ? "opacity-60" : ""}`}
+    >
+        {glyph}
+        <span
+            className="line-clamp-2 w-full break-words text-xs leading-[1.35] text-colorText"
+            title={node.path}
         >
-            <div className="flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded bg-colorFillTertiary">
-                <FolderSimple size={40} weight="fill" className="text-colorWarning" />
-            </div>
-            <span className="w-full truncate text-center font-mono text-xs" title={node.path}>
-                {node.name}
-            </span>
-            <span className="w-full truncate text-center text-xs text-colorTextTertiary">
-                {count} item{count === 1 ? "" : "s"}
-            </span>
-        </button>
+            {node.name}
+        </span>
+        <span className="text-[11px] leading-[1.3] text-colorTextTertiary">{meta}</span>
+    </Button>
+)
+
+export const FolderTile = ({
+    node,
+    selected = false,
+    onOpen,
+}: {
+    node: DriveTreeNode
+    selected?: boolean
+    onOpen: () => void
+}) => (
+    <Tile
+        node={node}
+        selected={selected}
+        onOpen={onOpen}
+        glyph={<FolderGlyphBox />}
+        // Backend count when the folder's own level hasn't loaded yet (lazy); else the loaded children.
+        meta={itemCountLabel(node.itemCount ?? node.children.length)}
+    />
+)
+
+export const FileTile = ({
+    node,
+    selected = false,
+    onOpen,
+    mount,
+    mountPath,
+}: {
+    node: DriveTreeNode
+    selected?: boolean
+    onOpen: () => void
+    /** The file's mount + mount-relative path: with them, a media file draws a real thumbnail. */
+    mount?: Mount | null
+    mountPath?: string
+}) => {
+    const mark = <DriveTypeMark path={node.path} size="tile" />
+    return (
+        <Tile
+            node={node}
+            selected={selected}
+            onOpen={onOpen}
+            glyph={
+                mount && mountPath ? (
+                    <DriveTileThumb
+                        mount={mount}
+                        path={mountPath}
+                        size={node.size ?? 0}
+                        fallback={mark}
+                    />
+                ) : (
+                    mark
+                )
+            }
+            meta={node.size != null ? humanSize(node.size) : "—"}
+        />
     )
 }
+
+/** The tile being renamed in place: the glyph over the name field. */
+export const DraftTile = ({edit, path}: {edit: DriveNameEdit; path: string}) => (
+    <div className={`${TILE} bg-accent`}>
+        {edit.kind === "folder" ? <FolderGlyphBox /> : <DriveTypeMark path={path} size="tile" />}
+        <DriveNameField
+            initial={edit.initial}
+            validate={edit.validate}
+            onCommit={edit.onCommit}
+            onCancel={edit.onCancel}
+            className="h-6 w-full px-1 text-center text-xs"
+        />
+    </div>
+)
