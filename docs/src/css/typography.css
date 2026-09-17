@@ -161,6 +161,10 @@ code:not(pre code) {
 .theme-code-block pre code {
   font-size: 14px;
   letter-spacing: -0.01em;
+  /* Sides keep --ifm-pre-padding (highlighted lines bleed by it); top and
+     bottom sit 2px tighter. */
+  padding-top: 23px;
+  padding-bottom: 23px;
 }
 
 /* Title bar (```lang title="...") */
