@@ -431,6 +431,70 @@ describe("D2 — the preset menu", () => {
     })
 })
 
+describe("a policy whose per-tool table arrives under the runner's field names", () => {
+    // The runner spells this table `toolPermissions` / `newToolPermission`; the wire and every
+    // reader on this side spell it `tool_permissions` / `new_tool_permission`. A policy carrying
+    // the runner's spelling is a table this side cannot read, and the readers in `@agenta/entities`
+    // refuse it rather than guessing.
+    //
+    // Nothing in THIS package held them to that: with the refusal removed, every case here stayed
+    // green, so the drawer's protection was borrowed from another package's suite. A table read
+    // through the wrong spelling would put "Allow" on rows nobody set, on names that are not even
+    // in this server's catalog.
+    //
+    // The two entries are the runner's own, from `mcp-permission-intake.test.ts`.
+    const foreignSpelling = {
+        permission: "ask",
+        toolPermissions: {search: "allow", purge: "deny"},
+        newToolPermission: "allow",
+    } as unknown as McpServerPolicy
+
+    it("reads the whole-server permission, because there is no table it can read", async () => {
+        await render({policy: foreignSpelling})
+
+        expect(labelled("Default permission")?.textContent).toContain("Always ask")
+        expect(labelled("Default permission")?.textContent).not.toContain("Custom")
+        expect(labelled("Default permission")?.textContent).not.toContain("Allow all")
+    })
+
+    it("gives every row the value it inherits, and no tool an allow", async () => {
+        await render({policy: foreignSpelling})
+
+        for (const tool of [
+            "get_current_user",
+            "get_issue",
+            "list_issues",
+            "list_comments",
+            "create_issue",
+            "update_issue",
+            "create_comment",
+            "delete_issue",
+        ]) {
+            const row = labelled(`Permission for ${tool}`)
+            expect(row?.textContent).toContain("Inherits ask")
+            expect(row?.textContent).not.toContain("Allow")
+        }
+    })
+
+    it("draws no row for the names only the unreadable table holds", async () => {
+        // A name this side cannot read is not a rule it can show, and showing one would offer a
+        // control that writes under the spelling the runner does not read.
+        await render({policy: foreignSpelling})
+
+        expect(labelled("Permission for search")).toBeNull()
+        expect(labelled("Permission for purge")).toBeNull()
+        expect(text()).not.toContain("no longer offered")
+    })
+
+    it("summarises both groups as asking first, never as running automatically", async () => {
+        await render({policy: foreignSpelling})
+
+        expect(text()).toContain("asks first")
+        expect(text()).not.toContain("runs automatically")
+        expect(text()).not.toContain("mixed")
+    })
+})
+
 describe("the preset that follows the agent's policy names it", () => {
     // Its whole meaning is "the agent's own permission policy decides", and the drawer already
     // carries the sentence that says which policy that is. The MCP drawer's `agentPolicy` prop was
