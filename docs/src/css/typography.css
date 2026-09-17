@@ -55,6 +55,45 @@ h4:not([class*="openapi"]) {
   margin-top: 0;
 }
 
+/* Heading anchor: a small bordered square with a link icon after the
+   heading text, shown while the heading is hovered (Docusaurus toggles the
+   opacity). Replaces the stock "#". */
+.hash-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 8px;
+  padding: 0;
+  vertical-align: middle;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-sm);
+  background-color: var(--bgelevated1);
+  color: var(--contentsecondary);
+  text-decoration: none !important;
+  transition:
+    opacity var(--ifm-transition-fast) ease,
+    border-color var(--ifm-transition-fast) ease,
+    color var(--ifm-transition-fast) ease;
+}
+
+.hash-link::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7'/><path d='M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'/></svg>")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7'/><path d='M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'/></svg>")
+    center / contain no-repeat;
+}
+
+.hash-link:hover {
+  border-color: var(--borderdark);
+  color: var(--contentprimary);
+}
+
 /* Code */
 pre,
 code {
