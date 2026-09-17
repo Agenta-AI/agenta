@@ -71,7 +71,10 @@ li.sidebar-section-title > .menu__list {
 }
 
 /* ---- Section rail ---- */
+/* The navbar item module sets display: inline-flex; the row must fill the
+   sidebar like the page links below it. */
 .sectionRail .menu__link {
+  display: flex;
   height: 32px;
   gap: 10px;
 }
