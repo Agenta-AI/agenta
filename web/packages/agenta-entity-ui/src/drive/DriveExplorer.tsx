@@ -64,6 +64,7 @@ import {DriveHtmlPreview} from "./renderers"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
 import {useDriveTreeData} from "./useDriveTreeData"
 import {useDriveWrites} from "./useDriveWrites"
+import {useSelectionReveal} from "./useSelectionReveal"
 import {useUploadReveal} from "./useUploadReveal"
 
 export type {DriveId, DriveScope} from "@agenta/entities/drive"
@@ -95,6 +96,7 @@ export function DriveExplorer({
     explicitFiles,
     scope = "session",
     initialPath,
+    initialPathSeq,
     chrome: chromeProp,
     onClose,
     driveIds,
@@ -114,6 +116,8 @@ export function DriveExplorer({
     explicitFiles?: MountFile[]
     scope?: DriveScope
     initialPath?: string | null
+    /** Bump to re-open the same `initialPath`. */
+    initialPathSeq?: number
     /** Render rows 1 + 2 and the rail search; defaults to "a close handler was given". */
     chrome?: boolean
     /** Row 1's close: "×" (overlay) or "»" (docked). */
@@ -168,7 +172,7 @@ export function DriveExplorer({
         goForward,
         canGoBack,
         canGoForward,
-    } = useDriveSelection({mountId: drive.mount?.id ?? "", initialPath})
+    } = useDriveSelection({mountId: drive.mount?.id ?? "", initialPath, initialPathSeq})
 
     const copyPath = useCopyDrivePath()
     const download = useDriveItemDownload(drive)
@@ -239,6 +243,18 @@ export function DriveExplorer({
     // hidden (a dotfile, a git-ignored `.env`) reveals itself instead of blinking out. The reveal
     // writes the SESSION toggles only — never the persisted preference.
     revealUpload.current = useUploadReveal({
+        files: lazyTree.files,
+        loadedDirs: lazyTree.loadedDirs,
+        fetchingDirs: lazyTree.fetchingDirs,
+        inGitScope,
+        showHidden,
+        setShowHidden,
+        showGitignored,
+        setShowGitignored,
+    })
+    // And a selection made outside the tree reveals its hidden or git-ignored home the same way.
+    useSelectionReveal({
+        selectedPath,
         files: lazyTree.files,
         loadedDirs: lazyTree.loadedDirs,
         fetchingDirs: lazyTree.fetchingDirs,

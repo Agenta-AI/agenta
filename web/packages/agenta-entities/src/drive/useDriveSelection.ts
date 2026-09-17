@@ -33,9 +33,12 @@ const driveSelectionAtomFamily = atomFamily((_mountId: string) => atom<string | 
 export function useDriveSelection({
     mountId,
     initialPath,
+    initialPathSeq,
 }: {
     mountId: string
     initialPath?: string | null
+    /** Bump to re-open the same `initialPath` (a chat link clicked twice). */
+    initialPathSeq?: number
 }) {
     // `mountId` arrives with mount DISCOVERY, so the first renders can carry "" — which is not a
     // drive. Seeding from or writing to that slot would both cross-contaminate every mountless drive
@@ -130,7 +133,7 @@ export function useDriveSelection({
     // never fights the user's own tree navigation.
     useEffect(() => {
         if (initialPath != null) select(initialPath)
-    }, [initialPath])
+    }, [initialPath, initialPathSeq])
 
     // Nothing was pre-selected — the drawer was opened via the Files COUNT ("browse"), not a file
     // row. Land on the ROOT folder view, not a file preview. `selectedPath != null` (not truthy) so the
