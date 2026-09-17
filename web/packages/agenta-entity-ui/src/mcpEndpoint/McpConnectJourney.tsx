@@ -102,6 +102,9 @@ const URL_HELP =
 const URL_HELP_ID = "mcp-url-help"
 const URL_PROBLEM_ID = "mcp-url-problem"
 
+/** The scheme line under the Header field, where the challenge named one. */
+const HEADER_HELP_ID = "mcp-header-help"
+
 /**
  * The prefix help text the server form already carries, reused rather than rewritten: it is
  * the same rule being explained, and two wordings for one rule is how they drift.
@@ -693,7 +696,7 @@ export function McpConnectSheet({
                                     hint={
                                         challengeScheme ? headerSchemeHint(challengeScheme) : null
                                     }
-                                    hintId="mcp-header-help"
+                                    hintId={HEADER_HELP_ID}
                                 >
                                     <Input
                                         className="font-mono text-[13px]"
@@ -701,7 +704,7 @@ export function McpConnectSheet({
                                         value={headerName}
                                         aria-label="Header"
                                         aria-describedby={
-                                            challengeScheme ? "mcp-header-help" : undefined
+                                            challengeScheme ? HEADER_HELP_ID : undefined
                                         }
                                         onChange={(event) =>
                                             setHeaderName(event.target.value.trim())
@@ -977,6 +980,8 @@ const SecretSelect = ({
     invalid,
     canCreate,
     onCreate,
+    id,
+    "aria-describedby": describedBy,
 }: {
     value: string
     onChange: (slug: string) => void
@@ -984,6 +989,14 @@ const SecretSelect = ({
     invalid?: boolean
     canCreate: boolean
     onCreate: () => void
+    /**
+     * Injected by `Field`, which generates one when the child has none and points its
+     * label's `htmlFor` at it. A child that drops it leaves the label associated with
+     * nothing, which is the association `Field` exists to guarantee (round 4, D104).
+     */
+    id?: string
+    /** Injected the same way, and by the screens that name an error box of their own. */
+    "aria-describedby"?: string
 }) => {
     const [selectOpen, setSelectOpen] = useState(false)
     const options = secrets.filter((secret) => !!secret.slug)
@@ -996,8 +1009,10 @@ const SecretSelect = ({
             onOpenChange={setSelectOpen}
         >
             <SelectTrigger
+                id={id}
                 className="w-full"
                 aria-label="Project secret"
+                aria-describedby={describedBy}
                 aria-invalid={invalid || undefined}
             >
                 <SelectValue placeholder="Select a project secret" />

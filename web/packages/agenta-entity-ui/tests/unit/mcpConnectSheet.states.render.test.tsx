@@ -137,6 +137,20 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
 /** Everything the dialog says, with the whitespace JSX leaves behind normalized away. */
 const text = () => (document.body.textContent ?? "").replace(/\s+/g, " ").trim()
 
+/**
+ * The control a visible label points at, the way `getByLabelText` resolves one.
+ *
+ * Written out rather than imported, because this package has no testing-library: the point
+ * is the same, that a label whose `htmlFor` names nothing is a label attached to nothing.
+ */
+const labelledControl = (label: string): HTMLElement | null => {
+    const node = [...document.querySelectorAll("label")].find(
+        (candidate) => candidate.textContent?.replace(/\*$/, "").trim() === label,
+    )
+    const id = node?.getAttribute("for")
+    return id ? document.getElementById(id) : null
+}
+
 /** The text of whatever a control points `aria-describedby` at. */
 const describedText = (element: HTMLElement | null): string =>
     (element?.getAttribute("aria-describedby") ?? "")
@@ -463,6 +477,16 @@ describe("C5, the server wants a key", () => {
         expect(text()).toContain(
             "Pick a project secret or create one. The value is sent as this header when the agent runs and is never shown again.",
         )
+    })
+
+    it("attaches the secret label to the control it names", async () => {
+        await open(keyScreen)
+
+        // `Field` generates an id and points its label at it whenever the child has none, so
+        // a child that drops the id leaves the label naming nothing at all (round 4, D104).
+        const control = labelledControl("Project secret")
+        expect(control).not.toBeNull()
+        expect(control?.getAttribute("aria-label")).toBe("Project secret")
     })
 
     it("cannot connect until a secret is chosen", async () => {
