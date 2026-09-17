@@ -157,10 +157,10 @@ API-only request: those prove the proxy, not the product path.
    tracing database for the suite to name (D141). So a tracing address pointed at another stack
    is refused, and what remains uncovered is only the database *name* on the identified server,
    which comes from the deployment's own configuration. Each layer states what is its own: which
-   databases its cases read, whether an unreachable one fails or skips, and which of its cases
-   touch the deployment at all. The sessions layer still **skips** an unreachable database, which
-   is its own open finding; identity is not affected, because a database that answers and belongs
-   to somebody else fails there as it does everywhere.
+   databases its cases read, and which of its cases touch the deployment at all. An unreachable
+   database now fails in both layers, with no way to ask for a skip: the sessions layer reported
+   18 skipped and exit 0 against a deployment it never touched, which is the same green run of
+   nothing D97 was (D148).
 
    The guard costs one ephemeral account per run, and gives it back. The verdict is reached once
    and published to the run's other workers through a file, so twenty workers mint nothing

@@ -339,9 +339,7 @@ class TestNothingGlobalChangesUntilTheAddressIsProven:
         monkeypatch.setattr(helper, "_carries_user", _answers_with({_MARKER}))
 
         with pytest.raises(AssertionError, match="not on the server it identified"):
-            deployment.guard_the_deployment_under_test(
-                databases=("core", "tracing"), absence="fail"
-            )
+            deployment.guard_the_deployment_under_test(databases=("core", "tracing"))
 
         assert helper.env.postgres.uri_core == _LOOPBACK
         assert helper.env.postgres.uri_tracing.endswith(
@@ -352,9 +350,7 @@ class TestNothingGlobalChangesUntilTheAddressIsProven:
         monkeypatch.setattr(helper, "_carries_user", _answers_with(set()))
 
         with pytest.raises(AssertionError, match="not the deployment under test"):
-            deployment.guard_the_deployment_under_test(
-                databases=("core",), absence="fail"
-            )
+            deployment.guard_the_deployment_under_test(databases=("core",))
 
         assert helper.env.postgres.uri_core == _LOOPBACK
 
@@ -392,3 +388,14 @@ class TestARunThatCannotNameTheDatabasesFails:
         monkeypatch.setenv(variable, value)
 
         helper.confirm_the_deployment_names_its_databases()
+
+
+def test_an_unreachable_database_fails_every_layer(monkeypatch):
+    """D148. The sessions layer skipped what it could not reach and reported 18 skipped and
+    exit 0, which is a green run of nothing against a deployment it never touched. There is
+    no layer for which that is the right answer, so there is no longer a way to ask for it."""
+    monkeypatch.setenv("AGENTA_LICENSE", "ee")
+    monkeypatch.setattr(helper, "_connectable", lambda _uri: False)
+
+    with pytest.raises(AssertionError, match="could not reach this deployment's core"):
+        deployment.guard_the_deployment_under_test(databases=("core", "tracing"))

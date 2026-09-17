@@ -12,8 +12,12 @@ guard lives here once, and each layer states its own three things by overriding 
 below rather than by restating the guard:
 
 - `deployment_databases`, the addresses its cases actually read;
-- `deployment_absence`, what an unreachable database means for it;
 - `deployment_applies`, whether a given case touches the deployment at all.
+
+An unreachable database is a failure for every layer, with no knob to soften it. A layer that
+skips what it cannot reach reports a green run of nothing, which is what D97 was and what the
+sessions layer still did until D148: 18 skipped, exit 0, against a deployment it never
+touched.
 
 Identity is always settled on the core database, whichever addresses a layer lists, and always
 before the layer's other addresses are resolved. The marker row it reads is a `users` row, so
@@ -57,26 +61,12 @@ def deployment_databases():
 
 
 @pytest.fixture
-def deployment_absence():
-    """What an unreachable database means here: `fail`, or `skip` for a layer not yet moved."""
-    return "fail"
-
-
-@pytest.fixture
 def deployment_applies():
     """Whether this case touches the deployment at all. Layers with a mixed directory override."""
     return True
 
 
-def _absent(database: str, absence: str):
-    if absence == "skip":
-        pytest.skip(
-            f"the {database} database of the deployment under test is not reachable"
-        )
-    raise unreachable(database)
-
-
-def guard_the_deployment_under_test(*, databases, absence: str) -> None:
+def guard_the_deployment_under_test(*, databases) -> None:
     """Find the deployment, prove it is the right one, then let anything global change.
 
     The order is the guard. What the deployment calls its databases is settled before any of
@@ -100,7 +90,7 @@ def guard_the_deployment_under_test(*, databases, absence: str) -> None:
 
     core = _RESOLVERS["core"]()
     if core is None:
-        _absent("core", absence)
+        raise unreachable("core")
 
     confirm_deployment_under_test(core)
 
@@ -109,7 +99,7 @@ def guard_the_deployment_under_test(*, databases, absence: str) -> None:
             continue
         address = _RESOLVERS[database]()
         if address is None:
-            _absent(database, absence)
+            raise unreachable(database)
         confirm_same_server(core, address, database=database)
 
     for database in ("core", *databases):
@@ -117,16 +107,9 @@ def guard_the_deployment_under_test(*, databases, absence: str) -> None:
 
 
 @pytest.fixture(autouse=True)
-def the_deployment_under_test(
-    deployment_applies,
-    deployment_databases,
-    deployment_absence,
-):
+def the_deployment_under_test(deployment_applies, deployment_databases):
     """The guard above, run before every case of a layer that reads a deployment's database."""
     if not deployment_applies:
         return
 
-    guard_the_deployment_under_test(
-        databases=deployment_databases,
-        absence=deployment_absence,
-    )
+    guard_the_deployment_under_test(databases=deployment_databases)
