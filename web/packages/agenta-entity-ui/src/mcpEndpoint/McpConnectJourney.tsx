@@ -98,6 +98,10 @@ const RECONNECT_TITLE = "Reconnect MCP server"
 const URL_HELP =
     "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing."
 
+/** The two nodes the address field can be described by, exactly one of which is rendered. */
+const URL_HELP_ID = "mcp-url-help"
+const URL_PROBLEM_ID = "mcp-url-problem"
+
 /**
  * The prefix help text the server form already carries, reused rather than rewritten: it is
  * the same rule being explained, and two wordings for one rule is how they drift.
@@ -568,7 +572,7 @@ export function McpConnectSheet({
                             // wrong with this address, and the line explaining what the
                             // field is for is no longer the thing to read.
                             hint={screen === "url" ? URL_HELP : null}
-                            hintId="mcp-url-help"
+                            hintId={URL_HELP_ID}
                         >
                             <Input
                                 autoFocus
@@ -577,7 +581,14 @@ export function McpConnectSheet({
                                 value={state.url}
                                 disabled={busy}
                                 aria-label="Server URL"
-                                aria-describedby="mcp-url-help"
+                                // Whichever of the two is on screen. The help line goes away
+                                // when the check fails and the failure box takes its place,
+                                // so a fixed id left the refused field describing nothing
+                                // (round 4, P2) — which is the one state where a reader most
+                                // needs the description read to them.
+                                aria-describedby={
+                                    screen === "url_failed" ? URL_PROBLEM_ID : URL_HELP_ID
+                                }
                                 aria-invalid={screen === "url_failed" || undefined}
                                 onChange={(event) => journey.setUrl(event.target.value)}
                             />
@@ -586,6 +597,7 @@ export function McpConnectSheet({
 
                     {screen === "url_failed" ? (
                         <InlineError
+                            id={URL_PROBLEM_ID}
                             headline={
                                 state.probe?.problem?.cause === "not_an_mcp_server"
                                     ? NOT_AN_MCP_SERVER_HEADLINE
@@ -896,12 +908,16 @@ const InlineError = ({
     headline,
     children,
     className,
+    id,
 }: {
     headline: string | null
     children: React.ReactNode
     className?: string
+    /** Set where a field points `aria-describedby` at this box. */
+    id?: string
 }) => (
     <Alert
+        id={id}
         type="error"
         showIcon
         icon={<WarningCircle size={15} weight="regular" />}

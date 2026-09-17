@@ -266,6 +266,53 @@ describe("C2, the address refused", () => {
     })
 })
 
+describe("the address field's description, in both states", () => {
+    // P2 from round 4. The field pointed at a help line that the failure screen stops
+    // rendering, so a reader on C2 had an invalid input describing nothing — and C2 is the
+    // one state where the description is the whole answer.
+    const describedIds = (element: HTMLElement | null) =>
+        (element?.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean)
+
+    const describedNodes = (element: HTMLElement | null) =>
+        describedIds(element).map((id) => document.getElementById(id))
+
+    it("points at the help line while the address is still being typed", async () => {
+        await open(state({status: "url_entry"}))
+
+        const field = control("Server URL")
+        expect(describedIds(field)).toHaveLength(1)
+        expect(describedNodes(field).every(Boolean)).toBe(true)
+        expect(describedNodes(field)[0]?.textContent).toContain(
+            "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing.",
+        )
+    })
+
+    it("points at the failure once the check has failed", async () => {
+        await open(
+            state({
+                status: "check_failed",
+                url: "https://mcp.internal.acme.dev/mcp",
+                probe: {
+                    reachable: false,
+                    auth: {mode: "unknown", scopes_offered: []},
+                    problem: {
+                        cause: "unreachable",
+                        message: "No MCP response from mcp.internal.acme.dev.",
+                    },
+                },
+                error: "No MCP response from mcp.internal.acme.dev.",
+            }),
+        )
+
+        const field = control("Server URL")
+        expect(field?.getAttribute("aria-invalid")).toBe("true")
+        expect(describedIds(field)).toHaveLength(1)
+        // The id has to resolve to a node that is actually there.
+        expect(describedNodes(field).every(Boolean)).toBe(true)
+        expect(describedNodes(field)[0]?.textContent).toContain("Couldn't reach this server.")
+    })
+})
+
 describe("C3, the server signs in with OAuth", () => {
     const naming = state({
         status: "naming",
