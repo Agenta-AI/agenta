@@ -20,7 +20,7 @@ from uuid import UUID
 
 import pytest
 
-from oss.tests.pytest.utils import postgres as helper
+from oss.tests.pytest.utils import deployment, postgres as helper
 
 _IN_NETWORK = "postgresql+asyncpg://username:password@postgres:5432/agenta_ee_core"
 _LOOPBACK = "postgresql+asyncpg://username:password@127.0.0.1:5452/agenta_ee_core"
@@ -284,3 +284,118 @@ def test_an_unreachable_tracing_database_resolves_to_nothing(monkeypatch):
     )
 
     assert helper.use_reachable_tracing_uri() is None
+
+
+class TestASecondDatabaseIsOnTheServerThatWasIdentified:
+    """D141. The marker row lives in the core database, so it speaks for that database and
+    the server carrying it, and for nothing else. A layer that reads a second database has
+    to be told the second one is on the same server, or it is writing somewhere no evidence
+    covers — which is what a tracing address pointed at another stack did."""
+
+    _IDENTIFIED = "postgresql+asyncpg://username:password@127.0.0.1:5452/agenta_ee_core"
+
+    def test_the_same_server_under_its_other_name_is_accepted(self):
+        helper.confirm_same_server(
+            self._IDENTIFIED,
+            "postgresql+asyncpg://username:password@localhost:5452/agenta_ee_tracing",
+            database="tracing",
+        )
+
+    def test_another_server_is_refused_naming_both(self):
+        with pytest.raises(AssertionError) as refusal:
+            helper.confirm_same_server(
+                self._IDENTIFIED,
+                "postgresql+asyncpg://username:password@127.0.0.1:5437/agenta_ee_tracing",
+                database="tracing",
+            )
+
+        message = str(refusal.value)
+        assert "127.0.0.1:5452" in message
+        assert "127.0.0.1:5437" in message
+        assert "POSTGRES_URI_TRACING" in message
+        assert "password" not in message
+
+
+class TestNothingGlobalChangesUntilTheAddressIsProven:
+    """Installing points the shared `env` at an address, and every engine built afterwards
+    in the process reads it. A refusal that had already installed would leave the process
+    pointed at a stranger's database for whatever ran next."""
+
+    @pytest.fixture(autouse=True)
+    def _a_deployment_that_answers(self, monkeypatch, marker_row):
+        # Stated, because a run that does not say what the deployment calls its databases is
+        # refused before any of this (D146).
+        monkeypatch.setenv("AGENTA_LICENSE", "ee")
+        monkeypatch.setattr(helper, "_connectable", lambda _uri: True)
+        monkeypatch.setenv("POSTGRES_PORT", "5452")
+        monkeypatch.setattr(helper.env.postgres, "uri_core", _LOOPBACK)
+        monkeypatch.setattr(
+            helper.env.postgres,
+            "uri_tracing",
+            "postgresql+asyncpg://username:password@127.0.0.1:5437/agenta_ee_tracing",
+        )
+
+    def test_a_refused_second_address_installs_neither(self, monkeypatch):
+        monkeypatch.setattr(helper, "_carries_user", _answers_with({_MARKER}))
+
+        with pytest.raises(AssertionError, match="not on the server it identified"):
+            deployment.guard_the_deployment_under_test(databases=("core", "tracing"))
+
+        assert helper.env.postgres.uri_core == _LOOPBACK
+        assert helper.env.postgres.uri_tracing.endswith(
+            "@127.0.0.1:5437/agenta_ee_tracing"
+        )
+
+    def test_a_refused_identity_installs_nothing(self, monkeypatch):
+        monkeypatch.setattr(helper, "_carries_user", _answers_with(set()))
+
+        with pytest.raises(AssertionError, match="not the deployment under test"):
+            deployment.guard_the_deployment_under_test(databases=("core",))
+
+        assert helper.env.postgres.uri_core == _LOOPBACK
+
+
+class TestARunThatCannotNameTheDatabasesFails:
+    """D146. The names are composed from the licence, unset reads as OSS, and a layer that
+    skips what it cannot reach then reports a green run of nothing against an EE stack."""
+
+    def test_an_unstated_licence_fails_naming_the_variable(self, monkeypatch):
+        for variable in ("AGENTA_LICENSE", "POSTGRES_DB_PREFIX", "POSTGRES_URI_CORE"):
+            monkeypatch.delenv(variable, raising=False)
+
+        with pytest.raises(AssertionError) as refusal:
+            helper.confirm_the_deployment_names_its_databases()
+
+        message = str(refusal.value)
+        assert "AGENTA_LICENSE" in message
+        # And the two other ways of saying it, so the reader is not sent to the only one.
+        assert "POSTGRES_DB_PREFIX" in message
+        assert "POSTGRES_URI_CORE" in message
+
+    @pytest.mark.parametrize(
+        "variable, value",
+        [
+            ("AGENTA_LICENSE", "ee"),
+            ("POSTGRES_DB_PREFIX", "agenta_oss"),
+            ("POSTGRES_URI_CORE", _IN_NETWORK),
+        ],
+    )
+    def test_any_of_the_three_ways_of_saying_it_is_enough(
+        self, monkeypatch, variable, value
+    ):
+        for name in ("AGENTA_LICENSE", "POSTGRES_DB_PREFIX", "POSTGRES_URI_CORE"):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv(variable, value)
+
+        helper.confirm_the_deployment_names_its_databases()
+
+
+def test_an_unreachable_database_fails_every_layer(monkeypatch):
+    """D148. The sessions layer skipped what it could not reach and reported 18 skipped and
+    exit 0, which is a green run of nothing against a deployment it never touched. There is
+    no layer for which that is the right answer, so there is no longer a way to ask for it."""
+    monkeypatch.setenv("AGENTA_LICENSE", "ee")
+    monkeypatch.setattr(helper, "_connectable", lambda _uri: False)
+
+    with pytest.raises(AssertionError, match="could not reach this deployment's core"):
+        deployment.guard_the_deployment_under_test(databases=("core", "tracing"))

@@ -20,10 +20,9 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 
-# The shared guard, and the two statements this layer keeps the defaults for: it reads the
-# core database only, and an unreachable one fails rather than skips.
+# The shared guard, and the one statement this layer keeps the default for: it reads the core
+# database only.
 from oss.tests.pytest.utils.deployment import (  # noqa: F401
-    deployment_absence,
     deployment_databases,
     the_deployment_under_test,
 )

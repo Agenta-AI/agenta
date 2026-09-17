@@ -13,8 +13,9 @@ which reads as a broken environment rather than as an address nobody rewrote. Ex
 two Redis addresses, which the runbook named as this layer's precondition, changes none of it.
 
 The guard itself is the shared one in `utils/deployment.py`, so this layer refuses a database
-belonging to another deployment the same way the gateway layer does (D141). Only the three
-statements that are this layer's own are made here.
+belonging to another deployment the same way the gateway layer does (D141), and an unreachable
+one fails here the same way too (D148). Only the two statements that are this layer's own are
+made here.
 """
 
 import pytest
@@ -27,17 +28,6 @@ from oss.tests.pytest.utils.deployment import (  # noqa: F401
 @pytest.fixture
 def deployment_databases():
     return ("core", "tracing")
-
-
-@pytest.fixture
-def deployment_absence():
-    """Still a skip, which is its own finding and not this one's to close.
-
-    A database this layer cannot reach leaves it reporting a green run of nothing, the way
-    the gateway layer used to (D97, D121). Identity is not affected: a database that answers
-    and belongs to somebody else fails here, and always did not.
-    """
-    return "skip"
 
 
 @pytest.fixture
