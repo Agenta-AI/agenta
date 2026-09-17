@@ -123,8 +123,19 @@ API-only request: those prove the proxy, not the product path.
    it dialled to carry that row, which is the only thing that tells two same-schema stacks apart.
    Point `AGENTA_API_URL` at the stack's own published address, not at a tunnel, and give
    `AGENTA_AUTH_KEY` the value from the same env file. A mismatch fails before any case seeds and
-   the message names both sides. One account per pytest worker process is created per run, in the
-   deployment under test.
+   the message names both sides.
+
+   Both integration layers share that guard, so the sessions layer refuses a database belonging
+   to another deployment the same way the gateway layer does (D141). Each layer states only what
+   is its own: which of the deployment's databases its cases read, whether an unreachable one
+   fails or skips, and which of its cases touch the deployment at all.
+
+   The guard costs one ephemeral account per run, and gives it back. The verdict is reached once
+   and published to the run's other workers through a file, so twenty workers mint nothing
+   between them; the marker is deleted through the same admin endpoint as soon as the verdict is
+   in, whether it confirmed or refused; and a run with no database to reach ends before the
+   check asks the deployment for anything. Measured on one gateway run: the deployment's user
+   count is the same before and after, and its log carries one account create and one delete.
 
    The two mock-upstream variables matter for more than `test_mock_upstreams.py`. The OAuth
    endpoint-write and recovery suites relay through the mock MCP server too, and they fail

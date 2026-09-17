@@ -19,7 +19,14 @@ from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
-from oss.tests.pytest.utils.postgres import require_core_uri
+
+# The shared guard, and the two statements this layer keeps the defaults for: it reads the
+# core database only, and an unreachable one fails rather than skips.
+from oss.tests.pytest.utils.deployment import (  # noqa: F401
+    deployment_absence,
+    deployment_databases,
+    the_deployment_under_test,
+)
 
 # example.com: routable and in no blocked range.
 _PUBLIC_ADDRESS = "93.184.216.34"
@@ -346,21 +353,14 @@ def local_mcp_oauth_connect_service(
     return service, dao
 
 
-@pytest.fixture(autouse=True)
-def _require_the_deployment_under_test(request):
-    """Fail, rather than skip, when this layer cannot reach a database.
+@pytest.fixture
+def deployment_applies(request):
+    """Keyed on the fixture, not the directory.
 
-    It used to skip, and against the stack this release was QA'd on that meant 93 of 101
-    cases skipped and the process exited 0 — a gate reading the exit code was told the
-    gateway integration suite was green when almost none of it ran (D97). There is no run of
-    this layer that is meaningful without a database, so its absence is a failure.
-
-    Keyed on the fixture, not the directory: the mock-upstream module lives here too and
-    needs the two mock services, never Postgres.
+    The mock-upstream module lives here too and needs the two mock services, never Postgres,
+    so requiring a database for it would make cases depend on something they never read.
     """
-    if "seeded_project" not in request.fixturenames:
-        return
-    require_core_uri()
+    return "seeded_project" in request.fixturenames
 
 
 @pytest.fixture(autouse=True)
