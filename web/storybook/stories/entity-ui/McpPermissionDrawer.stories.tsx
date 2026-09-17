@@ -21,7 +21,8 @@ import McpPermissionDrawer from "../../../packages/agenta-entity-ui/src/mcpEndpo
  * It shows what is SAVED and never resolves a permission. On this wire the absence of a value IS
  * the fourth value: no `permission` on the server means it follows the agent's policy, and a tool
  * with no entry in `tool_permissions` carries no rule of its own. That is why a row with no rule
- * reads "Inherits ask" rather than borrowing the server's word for it.
+ * reads "Inherits ask" rather than borrowing the server's word for it, and why this source's preset
+ * menu has a sixth entry the Integrations one does not.
  */
 const meta = {
     title: "@agenta/entity-ui/MCP/McpPermissionDrawer",
@@ -178,9 +179,38 @@ export const AllowAll: Story = {
 }
 
 /**
- * D2. The five presets, each with the line that says what it does. "Custom" sits under a divider
- * and is shown but not pickable: it is what a non-empty per-tool table READS BACK as, and it has no
- * default of its own to write.
+ * The shape "Ask for write and delete" writes, which is what its help line describes: the server
+ * asks, every tool the server's own `readOnlyHint` marks read-only is allowed BY NAME, and anything
+ * the table does not name asks. Read-only summarises as "runs automatically" and write as "asks
+ * first", which is the promise, visible.
+ *
+ * It wrote nothing at all before decision 45, so it was indistinguishable from `JustAdded` and its
+ * words described behaviour the wire did not carry.
+ */
+export const AskForWriteAndDelete: Story = {
+    render: () => (
+        <DrawerHost
+            policy={{
+                permission: "ask",
+                tool_permissions: {
+                    get_current_user: "allow",
+                    get_issue: "allow",
+                    list_issues: "allow",
+                    list_comments: "allow",
+                    get_project: "allow",
+                },
+                new_tool_permission: "ask",
+            }}
+            onRemove={noop}
+        />
+    ),
+}
+
+/**
+ * D2. The presets, each with the line that says what it does. This source has six: the spec's five
+ * plus "Follow agent policy", the one whose saved value is the absence of a policy (decision 45).
+ * "Custom" sits under a divider and is shown but not pickable: it is what a non-empty per-tool
+ * table READS BACK as, and it has no default of its own to write.
  */
 export const PresetMenuOpen: Story = {
     render: () => (
@@ -232,8 +262,8 @@ export const CustomWithOverrides: Story = {
 export const LoginExpired: Story = {
     render: () => (
         <DrawerHost
-            // No `permission` at all, which on this wire IS "follows agent policy", the preset the
-            // board draws as "Ask for write and delete".
+            // No `permission` at all, which on this wire IS "follows agent policy", and reads
+            // back as the preset of that name.
             policy={{}}
             connectionName="Octolens"
             toolPrefix="octolens_"
@@ -298,9 +328,10 @@ export const Unauthorized: Story = {
  * The state a server is actually added in: no permission written at all (decision 36).
  *
  * On this wire that is not "nothing set", it is "follows the agent's own permission ladder", so the
- * preset reads as the one whose saved value is that absence and every row reads "Follow agent
- * policy" with no provenance to add. Picking "Allow all" from here writes `permission: "allow"`
- * explicitly.
+ * preset reads "Follow agent policy" and so does every row, with no provenance to add. It read back
+ * as "Ask for write and delete" until decision 45, under a help line promising that read-only tools
+ * run automatically, which nothing written does not do. Picking "Allow all" from here writes
+ * `permission: "allow"` explicitly.
  */
 export const JustAdded: Story = {
     render: () => <DrawerHost policy={{}} onRemove={noop} />,

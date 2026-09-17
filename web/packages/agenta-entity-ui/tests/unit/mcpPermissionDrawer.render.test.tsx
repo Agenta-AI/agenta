@@ -266,10 +266,15 @@ describe("a server just added to an agent", () => {
         expect(justAdded.tool_permissions).toBeUndefined()
     })
 
-    it("reads back as the preset whose saved value is the absence, not as Allow all", async () => {
+    it("reads back as the preset named for the absence, not as one that promises behaviour", async () => {
+        // It used to read back as "Ask for write and delete", whose help line says read-only tools
+        // run automatically. Nothing written carries no such promise: the run's own ladder decides
+        // every tool. That preset writes a shape of its own now, and the absence has its own name
+        // (decision 45).
         await render({policy: justAdded})
 
-        expect(labelled("Default permission")?.textContent).toContain("Ask for write and delete")
+        expect(labelled("Default permission")?.textContent).toContain("Follow agent policy")
+        expect(labelled("Default permission")?.textContent).not.toContain("Ask for write and delete")
         expect(labelled("Default permission")?.textContent).not.toContain("Allow all")
         expect(labelled("Default permission")?.textContent).not.toContain("Custom")
     })
@@ -305,7 +310,7 @@ describe("a server just added to an agent", () => {
 })
 
 describe("D2 — the preset menu", () => {
-    it("holds the five presets, each with the line that says what it does", async () => {
+    it("holds the presets, each with the line that says what it does", async () => {
         await render()
 
         await openMenu(labelled("Default permission"))
@@ -322,6 +327,11 @@ describe("D2 — the preset menu", () => {
         expect(menu).toContain("Deny all")
         expect(menu).toContain("Tools stay listed but never run")
         expect(menu).toContain("Custom")
+        // The sixth, which only this source has: the preset whose saved value is the absence of a
+        // policy. Its help line states the one fact the absence carries, in the words the group
+        // rollups already use for it.
+        expect(menu).toContain("Follow agent policy")
+        expect(menu).toContain("Follows agent policy for every tool")
         // The spec's own sentence for Custom, which the preset table already carries. The menu had
         // written its own, "Set below, per tool", so the one preset an author cannot pick was also
         // the one described in words the spec never uses.
@@ -353,6 +363,86 @@ describe("D2 — the preset menu", () => {
     })
 })
 
+describe("Ask for write and delete — the preset that writes what it says", () => {
+    // Its help line promises that read-only tools run automatically and everything else asks.
+    // Nothing on this wire says that on its own, so the preset spells it out: ask at the server,
+    // every read-only tool allowed by name, ask for anything the table does not name. It used to
+    // write nothing at all, which is the absent policy, under that same help line (decision 45).
+    const READ_ONLY = {
+        get_current_user: "allow",
+        get_issue: "allow",
+        list_issues: "allow",
+        list_comments: "allow",
+    }
+
+    it("names every read-only tool the server advertises", async () => {
+        const onChange = await render({policy: {permission: "allow"}})
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+
+        expect(onChange).toHaveBeenCalledWith({
+            permission: "ask",
+            tool_permissions: READ_ONLY,
+            new_tool_permission: "ask",
+        })
+    })
+
+    it("writes something other than the shape a newly added server carries", async () => {
+        const onChange = await render({policy: {permission: "allow"}})
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+
+        expect(onChange.mock.calls[0][0]).not.toEqual({})
+    })
+
+    it("reads back as itself from that shape", async () => {
+        await render({
+            policy: {
+                permission: "ask",
+                tool_permissions: READ_ONLY,
+                new_tool_permission: "ask",
+            } as McpServerPolicy,
+        })
+
+        expect(labelled("Default permission")?.textContent).toContain("Ask for write and delete")
+        expect(labelled("Default permission")?.textContent).not.toContain("Custom")
+    })
+
+    it("names only the read-only tools this server's filter admits", async () => {
+        // The API refuses a whole policy that gives a permission to a tool the filter hides, so
+        // naming one would leave an agent that cannot run at all.
+        const onChange = await render({
+            policy: {
+                permission: "allow",
+                tools: {mode: "include", names: ["get_issue", "create_issue"]},
+            } as McpServerPolicy,
+        })
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+
+        expect(onChange).toHaveBeenCalledWith({
+            tools: {mode: "include", names: ["get_issue", "create_issue"]},
+            permission: "ask",
+            tool_permissions: {get_issue: "allow"},
+            new_tool_permission: "ask",
+        })
+    })
+
+    it("is not offered until the tool list has arrived", async () => {
+        // Picking it without the list would write no tool names at all, which is the absent policy
+        // wearing this preset's words. The list area beside it is showing its own loading rows.
+        listMcpTools.mockImplementation(() => new Promise(() => undefined))
+        await render()
+
+        await openMenu(labelled("Default permission"))
+        const option = [...document.querySelectorAll('[role="option"]')].find((node) =>
+            node.textContent?.startsWith("Ask for write and delete"),
+        )
+
+        expect(option?.getAttribute("aria-disabled")).toBe("true")
+    })
+})
+
 describe("D3 — one tool overridden", () => {
     const custom: McpServerPolicy = {
         permission: "allow",
@@ -370,7 +460,9 @@ describe("D3 — one tool overridden", () => {
         // the server permission. Picking the preset whose saved value is the absence used to clear
         // the floor alone and return, handing the governing slot back to `allow`, so the select
         // read "Allow all" and every tool still ran unapproved after a pick that asked for the
-        // opposite. mcpPolicyAdapter.test.ts walks the same three steps at the adapter.
+        // opposite (decision 42). mcpPolicyAdapter.test.ts walks the same three steps at the
+        // adapter. The pick is "Follow agent policy" now, which is the preset that saves the
+        // absence since decision 45.
         const afterOverride: McpServerPolicy = {
             permission: "allow",
             tool_permissions: {delete_issue: "deny"},
@@ -378,13 +470,13 @@ describe("D3 — one tool overridden", () => {
         }
         const onChange = await render({policy: afterOverride})
 
-        await choose(labelled("Default permission"), "Ask for write and delete")
+        await choose(labelled("Default permission"), "Follow agent policy")
 
         expect(onChange).toHaveBeenCalledWith({})
 
         await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
 
-        expect(labelled("Default permission")?.textContent).toContain("Ask for write and delete")
+        expect(labelled("Default permission")?.textContent).toContain("Follow agent policy")
         expect(labelled("Default permission")?.textContent).not.toContain("Allow all")
     })
 

@@ -3,7 +3,7 @@
  * the drawer's default-permission select, a group rollup, and a per-tool select.
  *
  * bell = always asks · pencil = allows reads, asks to write · circled check = allow all ·
- * circle with a slash = denied · sliders = custom.
+ * circle with a slash = denied · sliders = custom · robot = the agent's own policy decides.
  *
  * One map over both vocabularies, so a preset and the per-tool value it corresponds to can never
  * be drawn with different glyphs.
@@ -13,19 +13,23 @@ import {
     CheckCircle,
     PencilSimpleLine,
     Prohibit,
+    Robot,
     SlidersHorizontal,
 } from "@phosphor-icons/react"
 
-import type {IntegrationPreset} from "../integrationPolicy"
+import type {PermissionPresetValue} from "../integrationPolicy"
 import type {GatewayPermission} from "../toolUtils"
 
 const GLYPHS = {
     always_ask: Bell,
     ask: Bell,
     ask_writes: PencilSimpleLine,
-    // `inherit` shares the pencil: both mean the tool follows the agent's policy, not a rule of
-    // its own.
-    inherit: PencilSimpleLine,
+    // The robot, not the pencil the "ask for write and delete" preset carries. The two shared it
+    // while the preset's saved value WAS the absence of a policy; decision 45 gave the preset a
+    // shape of its own, so "the agent decides" and "reads run, writes ask" are now two answers and
+    // must not be one glyph. `inherit` and `follow_agent` are the same answer at two levels.
+    inherit: Robot,
+    follow_agent: Robot,
     allow_all: CheckCircle,
     allow: CheckCircle,
     deny_all: Prohibit,
@@ -38,7 +42,7 @@ export function PolicyGlyph({
     value,
     size = 13,
 }: {
-    value: IntegrationPreset | GatewayPermission
+    value: PermissionPresetValue | GatewayPermission
     size?: number
 }) {
     const Icon = GLYPHS[value]

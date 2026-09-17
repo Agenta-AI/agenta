@@ -131,3 +131,65 @@ export function fromGatewayPermissions(
     else next.permission = permissions.default
     return next
 }
+
+/**
+ * The wire shape behind the "Ask for write and delete" preset, whose help line promises that
+ * read-only tools run automatically and everything else asks (decision 45).
+ *
+ * Nothing on this wire says "reads run, writes ask" on its own, so the preset spells it out: the
+ * server permission asks, every read-only tool the server advertises is allowed BY NAME, and the
+ * floor for anything the table does not name asks. Before this the preset wrote nothing at all and
+ * left the run's own ladder to decide, which is a different behaviour from the one it described.
+ *
+ * `readOnlyToolNames` is what the server's `readOnlyHint` annotation marks, so the preset needs a
+ * loaded tool list; a caller without one must not offer it.
+ *
+ * The filter decides who may be named at all: the API refuses a whole policy that gives a
+ * permission to a tool `tools.mode: "include"` hides, so a hidden read-only tool is left out of the
+ * table rather than allowed by name. Entries already stranded behind the filter go with the rest of
+ * the table, which repairs an agent that could not run.
+ */
+export function askWritesPolicy(
+    readOnlyToolNames: string[],
+    current: McpServerPolicy = {},
+): McpServerPolicy {
+    const next: McpServerPolicy = {...current}
+    const entries: Record<string, McpPermission> = {}
+    for (const name of readOnlyToolNames) {
+        if (isToolHidden(current, name)) continue
+        entries[name] = "allow"
+    }
+
+    if (Object.keys(entries).length) next.tool_permissions = entries
+    else delete next.tool_permissions
+    next.permission = "ask"
+    next.new_tool_permission = "ask"
+    return next
+}
+
+/**
+ * Whether a saved policy is the shape `askWritesPolicy` writes, so the preset reads back as itself.
+ *
+ * `readOnlyToolNames` null means the tool list has not arrived. The name check is then skipped and
+ * only the shape is read, because the alternative is a drawer that says "Custom · 22 overrides" for
+ * as long as the list takes and then corrects itself. With the list in hand the check is exact: the
+ * table has to name every read-only tool the filter admits and nothing else, or the policy is one
+ * an author built by hand and Custom is the honest answer.
+ */
+export function isAskWritesPolicy(
+    policy: McpServerPolicy,
+    readOnlyToolNames: string[] | null,
+): boolean {
+    if (policy.permission !== "ask") return false
+    if (policy.new_tool_permission !== "ask") return false
+
+    const entries = toolPermissions(policy)
+    if (Object.values(entries).some((value) => value !== "allow")) return false
+    if (!readOnlyToolNames) return true
+
+    const admitted = readOnlyToolNames.filter((name) => !isToolHidden(policy, name))
+    const named = Object.keys(entries)
+    if (named.length !== admitted.length) return false
+    const wanted = new Set(admitted)
+    return named.every((name) => wanted.has(name))
+}
