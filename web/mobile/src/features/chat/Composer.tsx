@@ -17,7 +17,7 @@ import {
     type ComposerAttachment,
     type useComposerAttachments,
 } from "@agenta/chat/hooks"
-import {describeRefusedSend} from "@agenta/chat/model"
+import {refusedSendRejections} from "@agenta/chat/model"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
@@ -208,7 +208,7 @@ export const Composer = ({
             // before the clear leaves the tray as it was.
             void richInputRef.current?.setMarkdown(text)
             attachments.restoreAttachments(outbound)
-            attachments.setRejections([{name: "Message", reason: describeRefusedSend(error)}])
+            attachments.setRejections(refusedSendRejections(error))
         }
     }
 
