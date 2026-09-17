@@ -15,11 +15,24 @@ const compareFiles = (sort: DriveSortKey) => (a: DriveTreeNode, b: DriveTreeNode
     return byName(a, b)
 }
 
-export const sortDriveEntries = (nodes: DriveTreeNode[], sort: DriveSortKey): DriveTreeNode[] => {
-    if (sort === "name") return [...nodes].sort(compareFoldersFirstByName)
+/** `pinned` paths lead in the given order whatever the sort: a just-created entry stays put through
+ * its naming instead of jumping to wherever its new name lands. */
+export const sortDriveEntries = (
+    nodes: DriveTreeNode[],
+    sort: DriveSortKey,
+    pinned: readonly string[] = [],
+): DriveTreeNode[] => {
+    const rest = pinned.length ? nodes.filter((n) => !pinned.includes(n.path)) : nodes
     const cmp = compareFiles(sort)
-    return [...nodes].sort((a, b) => {
-        if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1
-        return a.isFolder ? byName(a, b) : cmp(a, b)
-    })
+    const ordered =
+        sort === "name"
+            ? [...rest].sort(compareFoldersFirstByName)
+            : [...rest].sort((a, b) => {
+                  if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1
+                  return a.isFolder ? byName(a, b) : cmp(a, b)
+              })
+    if (!pinned.length) return ordered
+    const byPath = new Map(nodes.map((n) => [n.path, n]))
+    const lead = pinned.map((p) => byPath.get(p)).filter((n): n is DriveTreeNode => !!n)
+    return [...lead, ...ordered]
 }

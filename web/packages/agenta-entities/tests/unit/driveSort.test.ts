@@ -58,3 +58,27 @@ describe("sortDriveEntries", () => {
         expect(entries).toEqual(copy)
     })
 })
+
+describe("sortDriveEntries pinned", () => {
+    it("leads with the pinned paths in the given order, whatever the sort", () => {
+        const nodes = [
+            {name: "b.md", path: "b.md", isFolder: false, children: []},
+            {name: "untitled.md", path: "untitled.md", isFolder: false, children: []},
+            {name: "alpha", path: "alpha", isFolder: true, children: []},
+            {name: "untitled folder", path: "untitled folder", isFolder: true, children: []},
+        ]
+        const pinned = ["untitled.md", "untitled folder"]
+        expect(sortDriveEntries(nodes, "name", pinned).map((n) => n.name)).toEqual([
+            "untitled.md",
+            "untitled folder",
+            "alpha",
+            "b.md",
+        ])
+        expect(sortDriveEntries(nodes, "modified", ["nope"]).map((n) => n.name)).toEqual([
+            "alpha",
+            "untitled folder",
+            "b.md",
+            "untitled.md",
+        ])
+    })
+})
