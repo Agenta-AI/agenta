@@ -76,6 +76,8 @@ API-only request: those prove the proxy, not the product path.
    export AGENTA_MOCK_MCP_GATEWAY_URL="http://127.0.0.1:<mock-mcp-published-port>"
    export AGENTA_GATEWAYS_MOCKS_ENABLED=true
    export AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN=<the stack's token>
+   export AGENTA_API_URL="http://127.0.0.1:<traefik-port>/api"
+   export AGENTA_AUTH_KEY=<the stack's admin key>
    ```
 
    The two mock ports here are the **published** ones from step 4, not 9092 and 9091.
@@ -93,6 +95,18 @@ API-only request: those prove the proxy, not the product path.
    skipping. One consequence for this list: the `integration/sessions` layer runs on a host-side
    invocation too, and it is the layer that needs `REDIS_URI_VOLATILE` and `REDIS_URI_DURABLE`
    above, pointed at the ports the local override publishes Redis on.
+
+   The last two variables are why `AGENTA_API_URL` and `AGENTA_AUTH_KEY` are on this list even
+   though the gateway integration cases speak to no API. A published port that opens a connection
+   proves only that a server is listening, and every EE stack on a box calls its database
+   `agenta_ee_core`, so a stale `POSTGRES_PORT` reaches a real database belonging to another
+   deployment and the seeding fixtures write this release's cases into it (D128). The layer now
+   mints one ephemeral account through the API named by `AGENTA_API_URL` and requires the database
+   it dialled to carry that row, which is the only thing that tells two same-schema stacks apart.
+   Point `AGENTA_API_URL` at the stack's own published address, not at a tunnel, and give
+   `AGENTA_AUTH_KEY` the value from the same env file. A mismatch fails before any case seeds and
+   the message names both sides. One account per pytest worker process is created per run, in the
+   deployment under test.
 
    The two mock-upstream variables matter for more than `test_mock_upstreams.py`. The OAuth
    endpoint-write and recovery suites relay through the mock MCP server too, and they fail
