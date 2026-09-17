@@ -443,8 +443,14 @@ describe("a policy whose per-tool table arrives under the runner's field names",
     // in this server's catalog.
     //
     // The two entries are the runner's own, from `mcp-permission-intake.test.ts`.
+    //
+    // The server permission is `allow` on purpose. With `ask` these cases could not fail: a
+    // reader that had dropped the refusal would find no table under the name it reads, fall back
+    // to the server permission, and arrive at the same "Always ask" the refusal produces. With
+    // `allow` the two answers diverge, so a destructive tool the unreadable table denied would
+    // read as Allow, and the assertions below catch it.
     const foreignSpelling = {
-        permission: "ask",
+        permission: "allow",
         toolPermissions: {search: "allow", purge: "deny"},
         newToolPermission: "allow",
     } as unknown as McpServerPolicy

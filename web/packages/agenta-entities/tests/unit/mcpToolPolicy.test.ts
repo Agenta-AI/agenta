@@ -70,6 +70,25 @@ describe("what an unlisted advertised tool gets", () => {
         expect(resolvedNewToolPermission({tool_permissions: {echo: "allow"}})).toBe("ask")
     })
 
+    it("floors at ask when the floor is set to something this reader cannot read", () => {
+        // The field name is the right one, so nothing upstream refuses the policy; only the
+        // value is unreadable, and the wire type is a free-form mapping so nothing rejects it
+        // either. Passing it through would put a value the SDK refuses back into a saved policy
+        // and read it to the author as a decision, when it is not one (D172).
+        expect(
+            resolvedNewToolPermission({
+                tool_permissions: {echo: "allow"},
+                new_tool_permission: "ALLOW",
+            } as unknown as McpServerPolicy),
+        ).toBe("ask")
+        expect(
+            resolvedNewToolPermission({
+                tool_permissions: {echo: "allow"},
+                new_tool_permission: "inherit",
+            } as unknown as McpServerPolicy),
+        ).toBe("ask")
+    })
+
     it("never falls back to the whole-server permission once a table is declared", () => {
         // The runner's gate gives a declared table with no floor beside it `ask` and never
         // consults the server permission: a human decides for anything the table does not
