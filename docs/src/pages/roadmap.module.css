@@ -336,7 +336,7 @@
     font-size: 12px;
     line-height: 16px;
     padding: 3px 10px;
-    border-radius: 9999px;
+    border-radius: var(--radius-sm);
     background-color: var(--bgelevated1);
     color: var(--contentsecondary);
     border: 1px solid var(--borderdefault);
