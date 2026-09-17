@@ -40,6 +40,14 @@ interface LadderCase {
     }
 }
 
+interface MisCasedSender {
+    name: string
+    foreignTo: string[]
+    policy?: unknown
+    wire?: unknown
+    expected: {mustNotResolveTo: string; tools: string[]}
+}
+
 const repoRoot = (): string | null => {
     let current = __dirname
     for (let depth = 0; depth < 12; depth++) {
@@ -77,9 +85,11 @@ const fixturePath = (): string => {
     return resolved
 }
 
-const ladder: {unnamedTool: string; cases: LadderCase[]} = JSON.parse(
-    readFileSync(fixturePath(), "utf8"),
-)
+const ladder: {
+    unnamedTool: string
+    cases: LadderCase[]
+    sendersThatMisCaseTheirFields: MisCasedSender[]
+} = JSON.parse(readFileSync(fixturePath(), "utf8"))
 
 describe("the shared per-tool permission ladder fixture", () => {
     it("has the cases the ladder is defined by", () => {
@@ -116,4 +126,40 @@ describe("the shared per-tool permission ladder fixture", () => {
             )
         },
     )
+})
+
+/**
+ * A policy whose per-tool table this reader cannot see must not answer with the server
+ * permission (issue 6917). This reader names its fields the way the SDK model does, so a policy
+ * in the WIRE convention arrives with `toolPermissions` where it looks for `tool_permissions`,
+ * and the table the author wrote disappears: what is left reads as a legitimate "server allow,
+ * no table" policy, and every tool the table denied runs unapproved.
+ *
+ * The expectation is the invariant rather than a value, because two different fixes keep it:
+ * refusing the shape, or reading both conventions.
+ */
+describe("a policy that arrives in the other convention", () => {
+    const senders = (ladder.sendersThatMisCaseTheirFields ?? []).filter((sender) =>
+        sender.foreignTo.includes("web"),
+    )
+
+    for (const sender of senders) {
+        it(`never resolves ${sender.name} to allow`, () => {
+            const policy = (sender.policy ?? sender.wire) as McpServerPolicy
+
+            for (const tool of sender.expected.tools) {
+                let decision: string | null
+                try {
+                    decision = effectiveToolPermission(policy, tool).permission
+                } catch {
+                    // Refusing the shape is one of the two ways to keep the invariant.
+                    continue
+                }
+                expect(
+                    decision,
+                    `${tool} resolved from a table this reader could not see`,
+                ).not.toBe(sender.expected.mustNotResolveTo)
+            }
+        })
+    }
 })
