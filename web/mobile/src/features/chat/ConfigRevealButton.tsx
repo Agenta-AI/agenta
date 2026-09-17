@@ -2,8 +2,8 @@ import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
-import {ChevronsRight} from "lucide-react"
 
 /**
  * The `»` that brings the collapsed config pane back.
@@ -30,7 +30,7 @@ export const ConfigRevealButton = () => {
                 onClick={() => setConfigCollapsed(false)}
                 className="h-7 w-7 shrink-0 p-0"
             >
-                <ChevronsRight size={14} />
+                <Sidebar size={16} />
             </Button>
         </SimpleTooltip>
     )

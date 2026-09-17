@@ -9,8 +9,8 @@ import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
-import {ChevronsLeft} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
@@ -97,7 +97,7 @@ export const ConfigPane = ({
                                         onClick={() => setConfigCollapsed(true)}
                                         className="h-7 w-7 shrink-0 p-0"
                                     >
-                                        <ChevronsLeft size={14} />
+                                        <Sidebar size={16} />
                                     </Button>
                                 </SimpleTooltip>
                             }
