@@ -4,6 +4,7 @@ import {createStore} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {
+    anySessionRunningLocallyAtom,
     dropSessionMessagesAtom,
     isSessionStreamingAtomFamily,
     persistSessionMessagesAtom,
@@ -177,5 +178,16 @@ describe("sessionMessages state", () => {
         // Idle is stored as absence (clear-on-unmount semantics).
         store.set(setSessionStatusAtom, {id: "sx", status: "idle"})
         expect(store.get(sessionStatusAtomFamily("sx"))).toBe("idle")
+    })
+
+    it("any-running aggregates the record: running only, not awaiting", () => {
+        const store = createStore()
+        expect(store.get(anySessionRunningLocallyAtom)).toBe(false)
+        store.set(setSessionStatusAtom, {id: "sa", status: "awaiting"})
+        expect(store.get(anySessionRunningLocallyAtom)).toBe(false)
+        store.set(setSessionStatusAtom, {id: "sb", status: "running"})
+        expect(store.get(anySessionRunningLocallyAtom)).toBe(true)
+        store.set(setSessionStatusAtom, {id: "sb", status: "idle"})
+        expect(store.get(anySessionRunningLocallyAtom)).toBe(false)
     })
 })

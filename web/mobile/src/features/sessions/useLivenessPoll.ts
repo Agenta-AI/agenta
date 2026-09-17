@@ -19,6 +19,9 @@ export const useLivenessPoll = (projectId: string) =>
         enabled: Boolean(projectId),
         staleTime: 10_000,
         refetchInterval: (query) => livenessPollInterval(query.state.data),
+        // Keep polling in a hidden tab: the tab badge (RunningFavicon) is read from the tab strip,
+        // and this poll is mobile's only project-wide running signal. Idle stops it regardless.
+        refetchIntervalInBackground: true,
         refetchOnWindowFocus: true,
     })
 

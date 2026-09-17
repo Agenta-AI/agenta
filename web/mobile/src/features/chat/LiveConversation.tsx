@@ -264,6 +264,14 @@ export const LiveConversation = ({
         ownedContinuation: conversation.acceptedRunPending,
     })
     const showingTurnActivity = streamingHere || remoteTurn.showActivity
+    // Wake the project liveness poll when a turn starts here: it stops while nothing runs, and
+    // the tab badge reads only it. Without this a run you start from this tab is invisible to
+    // the badge until something else refetches — the settle above is the only other trigger.
+    useEffect(() => {
+        if (showingTurnActivity) {
+            void queryClient.invalidateQueries({queryKey: livenessQueryKey(projectId)})
+        }
+    }, [showingTurnActivity, projectId, queryClient])
     const streamingHereRef = useRef(streamingHere)
     streamingHereRef.current = streamingHere
     const hitlPendingRef = useRef(conversation.hitlPending)

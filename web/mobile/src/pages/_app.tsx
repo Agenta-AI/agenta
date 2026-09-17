@@ -8,6 +8,7 @@ import Head from "next/head"
 
 import {AppProviders} from "@/features/app/AppProviders"
 import {GlobalDrawers} from "@/features/app/GlobalDrawers"
+import {RunningFavicon} from "@/features/app/RunningFavicon"
 import {DriveMarkdownRenderer} from "@/features/chat/DriveMarkdownRenderer"
 
 // Side effect: binds projectIdAtom from the URL before React renders. See the module.
@@ -46,6 +47,15 @@ export default function App({Component, pageProps}: AppProps) {
                 />
                 {/* App-wide default: a route that names no title shows this, not the URL. */}
                 <title>{DEFAULT_PAGE_TITLE}</title>
+                {/* Keyed so RunningFavicon can override them (next/head dedupes by key, last wins).
+                    `/m` written out: basePath is not applied here, as in _document. */}
+                <link key="favicon-ico" rel="icon" href="/m/assets/favicon.ico" sizes="any" />
+                <link
+                    key="favicon-svg"
+                    rel="icon"
+                    href="/m/assets/agenta-symbol.svg"
+                    type="image/svg+xml"
+                />
             </Head>
             <AppProviders>
                 <Component {...pageProps} />
@@ -54,6 +64,7 @@ export default function App({Component, pageProps}: AppProps) {
                     reimplementation of that API, not antd's App context. */}
                 <AppMessageContext />
                 <GlobalDrawers />
+                <RunningFavicon />
             </AppProviders>
         </>
     )

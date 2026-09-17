@@ -197,6 +197,11 @@ export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
     atom((get) => get(sessionStatusByIdAtom)[id] === "running"),
 )
 
+/** Is THIS browser streaming ANY session? For surfaces with no session to ask (the tab badge). */
+export const anySessionRunningLocallyAtom = atom((get) =>
+    Object.values(get(sessionStatusByIdAtom)).some((status) => status === "running"),
+)
+
 /** Set a session's run state. "idle" is the default, so it's stored as ABSENCE: passing "idle"
  * deletes the entry (clear-on-unmount) instead of accumulating idle keys for every closed session. */
 /**
