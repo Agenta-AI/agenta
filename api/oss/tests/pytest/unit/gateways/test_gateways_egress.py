@@ -818,7 +818,7 @@ class TestResolutionIsBoundedOnTheRelayPath:
 
     @pytest.mark.asyncio
     async def test_a_resolver_that_never_answers_refuses_instead_of_waiting(
-        self, monkeypatch
+        self, monkeypatch, real_resolver_offload
     ):
         released = threading.Event()
 
@@ -847,7 +847,7 @@ class TestResolutionIsBoundedOnTheRelayPath:
 
     @pytest.mark.asyncio
     async def test_the_loop_keeps_serving_while_a_resolution_is_stuck(
-        self, monkeypatch
+        self, monkeypatch, real_resolver_offload
     ):
         released = threading.Event()
         ticks = 0
@@ -880,7 +880,7 @@ class TestResolutionIsBoundedOnTheRelayPath:
 
     @pytest.mark.asyncio
     async def test_resolution_does_not_run_on_the_loops_shared_executor(
-        self, monkeypatch
+        self, monkeypatch, real_resolver_offload
     ):
         """A blocked resolution must not take threads from everything else in the
         process, which is what `asyncio.to_thread` would have done."""
@@ -905,7 +905,9 @@ class TestResolutionIsBoundedOnTheRelayPath:
         assert resolver_threads[0] != default_pool_threads[0]
 
     @pytest.mark.asyncio
-    async def test_an_address_that_resolves_promptly_is_unaffected(self, monkeypatch):
+    async def test_an_address_that_resolves_promptly_is_unaffected(
+        self, monkeypatch, real_resolver_offload
+    ):
         monkeypatch.setattr(
             "oss.src.core.gateways.egress.resolve_validated_ip",
             lambda *_a, **_kw: PUBLIC_ADDRESS,
@@ -940,7 +942,9 @@ class TestQueueingIsNotChargedToTheResolution:
         return holding
 
     @pytest.mark.asyncio
-    async def test_a_gateway_with_no_free_thread_says_so(self, monkeypatch):
+    async def test_a_gateway_with_no_free_thread_says_so(
+        self, monkeypatch, real_resolver_offload
+    ):
         released = threading.Event()
         holding = self._occupy_every_thread(monkeypatch, released)
         monkeypatch.setattr(
@@ -973,7 +977,9 @@ class TestQueueingIsNotChargedToTheResolution:
         assert not excinfo.value.relay_detail.startswith("blocked target")
 
     @pytest.mark.asyncio
-    async def test_a_caller_that_gave_up_queueing_frees_its_slot(self, monkeypatch):
+    async def test_a_caller_that_gave_up_queueing_frees_its_slot(
+        self, monkeypatch, real_resolver_offload
+    ):
         """A refusal that leaves the work queued hands the next caller a thread that is
         already spoken for, which is how one slow resolver becomes a queue that never
         drains."""
@@ -1020,7 +1026,9 @@ class TestQueueingIsNotChargedToTheResolution:
         )
 
     @pytest.mark.asyncio
-    async def test_the_resolutions_own_bound_starts_when_it_starts(self, monkeypatch):
+    async def test_the_resolutions_own_bound_starts_when_it_starts(
+        self, monkeypatch, real_resolver_offload
+    ):
         """The point of two bounds. A resolution that begins late still gets its full
         allowance, so a busy moment does not condemn an address that answers normally."""
         released = threading.Event()
