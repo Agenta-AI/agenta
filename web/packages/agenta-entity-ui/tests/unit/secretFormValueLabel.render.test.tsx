@@ -27,15 +27,18 @@ import {SecretForm, useSecretForm} from "../../src/secret/SecretForm"
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 
+let controls: ReturnType<typeof useSecretForm>
+
 /** The form as the in-sheet Create secret step mounts it: text format, nothing typed. */
-const Host = () => {
+const Host = ({textOnly = true}: {textOnly?: boolean} = {}) => {
     const controller = useSecretForm({open: true, initialName: "ACME_API_KEY"})
-    return createElement(SecretForm, {controller, textOnly: true})
+    controls = controller
+    return createElement(SecretForm, {controller, textOnly})
 }
 
-const render = async () => {
+const render = async (props: {textOnly?: boolean} = {}) => {
     await act(async () => {
-        root.render(createElement(Host))
+        root.render(createElement(Host, props))
     })
     for (let i = 0; i < 3; i++) {
         await act(async () => {
@@ -83,5 +86,40 @@ describe("the secret value field", () => {
 
         const control = host.querySelector("textarea")
         expect(control?.getAttribute("aria-label")).toBe("Value")
+    })
+})
+
+describe("the same field in the formats it also takes", () => {
+    /**
+     * Switch the form to key-value pairs, which is the other shape a secret can hold.
+     *
+     * Through the controller rather than the segmented control, because what is under test
+     * is what the fields announce in that format, not how a person reaches it.
+     */
+    const chooseJsonFormat = async () => {
+        await act(async () => {
+            controls.onChangeFormat("json" as Parameters<typeof controls.onChangeFormat>[0])
+        })
+        for (let i = 0; i < 3; i++) {
+            await act(async () => {
+                await Promise.resolve()
+            })
+        }
+    }
+
+    it("names the grid's value control by the key it belongs to", async () => {
+        // "Value" repeated down a column says which column a reader is in, not which row,
+        // and a row with no key yet still has to be announced as something. The name was
+        // wired only in the default format, so this one announced a bare "Value" or nothing
+        // at all (round 6c, D143).
+        await render({textOnly: false})
+        await chooseJsonFormat()
+
+        const named = [...host.querySelectorAll("[aria-label]")].map((node) =>
+            node.getAttribute("aria-label"),
+        )
+        expect(named.some((label) => label === "Value 1" || label?.startsWith("Value for "))).toBe(
+            true,
+        )
     })
 })

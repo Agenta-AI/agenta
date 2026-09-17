@@ -76,6 +76,12 @@ const KEY_PROBE_BEARER = {
     auth: {...KEY_PROBE.auth, challenge_status: 401, challenge_schemes: ["Bearer"]},
 }
 
+/** A server that asked for a credential and named no scheme at all. */
+const KEY_PROBE_NO_SCHEME = {
+    ...KEY_PROBE,
+    auth: {...KEY_PROBE.auth, challenge_status: 401, challenge_schemes: []},
+}
+
 const NO_AUTH_PROBE = {
     reachable: true,
     server_name: "Acme",
@@ -613,7 +619,7 @@ describe("C5, the server wants a key", () => {
     })
 
     it("names the header and the secret, and says where the value goes", async () => {
-        await open(keyScreen)
+        await open({...keyScreen, probe: KEY_PROBE_BEARER})
 
         expect(text()).toContain("Reachable · needs an API key")
         expect((control("Header") as HTMLInputElement).value).toBe("Authorization")
@@ -648,6 +654,39 @@ describe("C5, the server wants a key", () => {
         await open(keyScreen)
 
         expect(button("Connect")?.disabled).toBe(true)
+    })
+
+    it("prefills x-api-key when the challenge named no scheme", async () => {
+        // The spec's C5 note: the scheme picks "Authorization" and otherwise "x-api-key".
+        // The field was seeded "Authorization" whatever the server said, which is a claim
+        // about a header nobody had been told.
+        await open({...keyScreen, probe: KEY_PROBE_NO_SCHEME})
+
+        expect((control("Header") as HTMLInputElement).value).toBe("x-api-key")
+    })
+
+    it("keeps Authorization on a reconnect, which never probed", async () => {
+        await open(
+            state({
+                status: "manual_auth",
+                url: "https://mcp.axiom.co/mcp",
+                name: "Axiom",
+                endpointId: "mcp-1",
+                slug: "axiom",
+                createdHere: false,
+            }),
+            {
+                reconnect: {
+                    id: "mcp-1",
+                    slug: "axiom",
+                    name: "Axiom",
+                    url: "https://mcp.axiom.co/mcp",
+                    authMode: "api_key" as const,
+                },
+            },
+        )
+
+        expect((control("Header") as HTMLInputElement).value).toBe("Authorization")
     })
 
     it("names the scheme the server asked for, where it asked for one", async () => {
