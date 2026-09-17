@@ -79,22 +79,24 @@ h1[class*="title_"] {
 }
 
 /* ---- Admonitions ---- */
-/* The same flat panel as code blocks: elevated surface, no border, no
-   accent bar. The type shows in the title (and its icon) only; tip, warning
-   and danger tint that, the surface stays neutral so it reads as one
-   family. Infima's alert colours are overridden through its own vars. */
+/* Callouts carry a faint semantic tint (surface + hairline border + title)
+   so they read apart from the neutral grey code and table panels. Note and
+   info are blue, tip green, warning amber, danger red; the alpha keeps the
+   page calm. Infima's alert colours are overridden through its own vars. */
 .theme-admonition {
-  --admonition-accent: var(--contentprimary);
-  --ifm-alert-background-color: var(--bgelevated1);
-  --ifm-alert-border-color: transparent;
+  --admonition-accent: #2f5fd8;
+  --admonition-tint: rgb(47 95 216 / 0.06);
+  --admonition-line: rgb(47 95 216 / 0.22);
+  --ifm-alert-background-color: var(--admonition-tint);
+  --ifm-alert-border-color: var(--admonition-line);
   --ifm-alert-foreground-color: var(--contentprimary);
   --ifm-alert-shadow: none;
   margin: 0 0 24px;
   padding: 14px 16px;
-  border: 0;
+  border: 1px solid var(--admonition-line);
   border-radius: var(--radius-lg);
   box-shadow: none;
-  background-color: var(--bgelevated1);
+  background-color: var(--admonition-tint);
   color: var(--contentprimary);
 }
 
@@ -146,7 +148,7 @@ h1[class*="title_"] {
 }
 
 .theme-admonition code:not(pre code) {
-  background-color: var(--bgelevated2);
+  background-color: var(--bgelevated1);
 }
 
 /* A code block inside the panel sits on the page surface so it stays visible. */
@@ -157,28 +159,46 @@ h1[class*="title_"] {
 
 .theme-admonition-tip {
   --admonition-accent: #0f8a5f;
+  --admonition-tint: rgb(15 138 95 / 0.06);
+  --admonition-line: rgb(15 138 95 / 0.22);
 }
 
 .theme-admonition-warning,
 .theme-admonition-caution {
   --admonition-accent: #b45309;
+  --admonition-tint: rgb(180 83 9 / 0.06);
+  --admonition-line: rgb(180 83 9 / 0.24);
 }
 
 .theme-admonition-danger {
   --admonition-accent: #c2410c;
+  --admonition-tint: rgb(194 65 12 / 0.06);
+  --admonition-line: rgb(194 65 12 / 0.24);
+}
+
+[data-theme="dark"] .theme-admonition {
+  --admonition-accent: #8fb0ff;
+  --admonition-tint: rgb(143 176 255 / 0.08);
+  --admonition-line: rgb(143 176 255 / 0.24);
 }
 
 [data-theme="dark"] .theme-admonition-tip {
   --admonition-accent: #4ade80;
+  --admonition-tint: rgb(74 222 128 / 0.08);
+  --admonition-line: rgb(74 222 128 / 0.24);
 }
 
 [data-theme="dark"] .theme-admonition-warning,
 [data-theme="dark"] .theme-admonition-caution {
   --admonition-accent: #fbbf24;
+  --admonition-tint: rgb(251 191 36 / 0.08);
+  --admonition-line: rgb(251 191 36 / 0.24);
 }
 
 [data-theme="dark"] .theme-admonition-danger {
   --admonition-accent: #f87171;
+  --admonition-tint: rgb(248 113 113 / 0.08);
+  --admonition-line: rgb(248 113 113 / 0.26);
 }
 
 /* ---- Details ---- */
