@@ -97,9 +97,9 @@ const AUTH_MODE_FOR_PROBE: Record<string, MCPAuthMode> = {
 /**
  * The row a refused create was refused by, when it is the same connection being made.
  *
- * Asked only after a name refusal, so the ordinary path costs nothing. A list that cannot be
- * read answers "nothing to adopt", which leaves the person with the refusal they already had
- * rather than a second failure on top of it.
+ * Asked only after a name refusal on a RETRY, so the ordinary path costs nothing. A list
+ * that cannot be read answers "nothing to adopt", which leaves the person with the refusal
+ * they already had rather than a second failure on top of it.
  */
 const findAdoptableEndpoint = async ({
     name,
@@ -153,6 +153,20 @@ export function useMcpConnectJourney({
     const endpointRef = useRef<{id: string; slug: string} | null>(
         reconnect ? {id: reconnect.id, slug: reconnect.slug} : null,
     )
+    /**
+     * Whether a create in THIS journey may already have written a row nobody heard about.
+     *
+     * It is what separates "the name is taken by my own lost save" from "the name is taken
+     * by somebody else's connection", and the two have opposite answers: the first has to
+     * continue from that row, the second has to be refused. A create whose answer was lost
+     * fails on the transport rather than with a conflict, so it is the failure BEFORE a
+     * conflict that makes the conflict possibly ours. A conflict with nothing behind it is
+     * another connection's, whatever address it points at.
+     *
+     * Without it, a person who typed a name the project already used for the same server
+     * was handed that connection and told it was connected (round 6, D-R6-3).
+     */
+    const createMayHaveLandedRef = useRef(false)
 
     const stopWatch = useCallback(() => {
         stopWatchRef.current?.()
@@ -368,11 +382,15 @@ export function useMcpConnectJourney({
         } catch (error) {
             if (!isCurrent(attempt)) return
 
-            // A create whose response was lost still landed. The retry creates again, the API
-            // refuses the name, and the person is told to rename a connection they already
-            // have while the half-finished row sits behind the dialog (round 4, D3). So before
-            // refusing, ask whether the row this name belongs to IS the one being made.
-            if (isNameTakenRefusal(error)) {
+            if (!isNameTakenRefusal(error)) {
+                // This create may have landed and lost only its answer, so a conflict on the
+                // next attempt could be the row it made.
+                createMayHaveLandedRef.current = true
+            } else if (createMayHaveLandedRef.current) {
+                // A create whose response was lost still landed. The retry creates again, the
+                // API refuses the name, and the person is told to rename a connection they
+                // already have while the half-finished row sits behind the dialog (round 4,
+                // D3). So ask whether the row this name belongs to IS the one being made.
                 const adopted = await findAdoptableEndpoint({
                     name: state.name.trim(),
                     url: state.url.trim(),
@@ -534,34 +552,6 @@ export function useMcpConnectJourney({
     }, [abandonAttempt])
 
     const retry = useCallback(() => dispatch({type: "retry"}), [])
-    const retryTools = useCallback(() => dispatch({type: "retry_tools"}), [])
-
-    /**
-     * Read the connected server's tools.
-     *
-     * The journey shows them once credentials are persisted, and it has to reach a terminal
-     * state either way: a connection whose tool list cannot be read is still connected, and
-     * leaving it mid-discovery would strand the dialog with nothing to press.
-     */
-    const loadTools = useCallback(async () => {
-        const slug = endpointRef.current?.slug
-        if (!slug) {
-            dispatch({type: "tools_loaded", tools: []})
-            return
-        }
-        const attempt = attemptRef.current
-        try {
-            const tools = await listMcpTools(slug, projectId)
-            if (!isCurrent(attempt)) return
-            dispatch({type: "tools_loaded", tools})
-        } catch (error) {
-            if (!isCurrent(attempt)) return
-            dispatch({
-                type: "tools_failed",
-                error: gatewayRefusalMessage(error) || "The tool list could not be read.",
-            })
-        }
-    }, [isCurrent, projectId])
 
     const popupName = popupNameRef.current
     const expectsConsent = state.probe?.auth.mode === "oauth"
@@ -574,7 +564,6 @@ export function useMcpConnectJourney({
             expectsConsent,
             setUrl,
             submitUrl,
-            loadTools,
             setName,
             submitName,
             toggleScope,
@@ -586,7 +575,6 @@ export function useMcpConnectJourney({
             cancel,
             cancelConsent,
             retry,
-            retryTools,
             abandonAttempt,
         }),
         [
@@ -595,10 +583,8 @@ export function useMcpConnectJourney({
             cancelConsent,
             expectsConsent,
             finish,
-            loadTools,
             popupName,
             retry,
-            retryTools,
             setName,
             setUrl,
             skipAuthentication,

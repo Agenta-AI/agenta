@@ -80,7 +80,6 @@ describe("the happy path", () => {
                 {type: "submit_scopes"},
                 {type: "consent_succeeded"},
                 {type: "saved"},
-                {type: "tools_loaded", tools: [{name: "search"}]},
             ),
         ).toEqual([
             "url_entry",
@@ -91,8 +90,7 @@ describe("the happy path", () => {
             "choosing_scopes",
             "awaiting_consent",
             "saving",
-            "discovering_tools",
-            "tools_ready",
+            "connected",
         ])
     })
 
@@ -441,35 +439,27 @@ describe("repeated submission", () => {
     })
 })
 
-describe("credentials saved, tools unavailable", () => {
-    it("stays connected and offers the tools again, not consent again", () => {
-        const state = journeyReducer(connected(), {
-            type: "tools_failed",
-            error: "The server did not answer tools/list.",
-        })
+describe("the end of the journey", () => {
+    it("stops at connected, with nothing left to draw", () => {
+        // Success is the new row in the caller's list and nothing else (decision 26), so the
+        // machine has no state after this one: no tool discovery, no screen reporting a
+        // count, nothing to press. The sheet reads this status as its cue to close.
+        const state = connected()
 
-        expect(state.status).toBe("tools_failed")
-        expect(isConnected(state)).toBe(true)
-        expect(state.error).toContain("tools/list")
-
-        const retried = journeyReducer(state, {type: "retry_tools"})
-        expect(retried.status).toBe("discovering_tools")
-    })
-
-    it("refuses to retry tools before there is a connection", () => {
-        const pending = run(...upToConsent())
-
-        expect(journeyReducer(pending, {type: "retry_tools"})).toBe(pending)
-    })
-})
-
-describe("no tools returned", () => {
-    it("is an empty state, not a transport failure", () => {
-        const state = journeyReducer(connected(), {type: "tools_loaded", tools: []})
-
-        expect(state.status).toBe("no_tools")
+        expect(state.status).toBe("connected")
         expect(isConnected(state)).toBe(true)
         expect(state.error).toBeNull()
+    })
+
+    it("stays there when the bookkeeping reports twice", () => {
+        // `finish` runs from an effect on `saving`, and a re-render that ran it again used to
+        // restart tool discovery under the screen. There is nothing to restart now, and a
+        // second report has to be the same answer.
+        const state = connected()
+
+        for (const event of [{type: "saved"}, {type: "retry"}] as McpJourneyEvent[]) {
+            expect(journeyReducer(state, event).status).toBe("connected")
+        }
     })
 })
 
@@ -481,7 +471,7 @@ describe("manual authentication", () => {
 
         expect(verifying.status).toBe("verifying")
         expect(saved.status).toBe("saving")
-        expect(journeyReducer(saved, {type: "saved"}).status).toBe("discovering_tools")
+        expect(journeyReducer(saved, {type: "saved"}).status).toBe("connected")
     })
 
     it("explains a rejected credential and retries the check", () => {

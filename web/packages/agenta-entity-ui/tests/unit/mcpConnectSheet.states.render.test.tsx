@@ -1,5 +1,9 @@
 /**
- * The connect sheet's seven states, held one at a time, read for what they say.
+ * The connect sheet's six states, held one at a time, read for what they say.
+ *
+ * Six, because success is not one of them: the sheet closes when the connection is real and
+ * the new row is the whole of the feedback (decision 26). The last describe here pins that
+ * the seventh screen is gone rather than merely unreachable.
  *
  * The copy IS the specification here. Every sentence below is the design's, and a reviewer
  * diffs the rendered text against it, so these assert whole sentences rather than the word
@@ -76,7 +80,6 @@ const state = (over: Partial<McpJourneyState> & {status: McpJourneyStatus}): Mcp
     endpointId: null,
     slug: null,
     createdHere: true,
-    tools: [],
     error: null,
     ...over,
 })
@@ -96,7 +99,6 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
         expectsConsent: current.probe?.auth.mode === "oauth",
         setUrl: asked.setUrl,
         submitUrl: vi.fn(),
-        loadTools: vi.fn(),
         setName: vi.fn(),
         submitName: vi.fn(),
         toggleScope: vi.fn(),
@@ -108,7 +110,6 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
         cancel: vi.fn(),
         cancelConsent: asked.cancelConsent,
         retry: vi.fn(),
-        retryTools: vi.fn(),
         abandonAttempt: vi.fn(),
     })
     await act(async () => {
@@ -468,5 +469,29 @@ describe("C6, the key was refused", () => {
         expect((control("Name") as HTMLInputElement).disabled).toBe(true)
         expect(button("Change")).toBeUndefined()
         expect(control("Header")).toBeTruthy()
+    })
+})
+
+describe("success, which draws nothing", () => {
+    it("closes instead of reporting, and says none of what it used to", async () => {
+        const onClose = vi.fn()
+        await open(
+            state({
+                status: "connected",
+                url: "https://mcp.linear.app/mcp",
+                name: "Linear",
+                probe: OAUTH_PROBE,
+                endpointId: "mcp-1",
+                slug: "linear-7mx",
+            }),
+            {onClose},
+        )
+
+        expect(onClose).toHaveBeenCalled()
+        // The screen the spec never drew, in the words it used: a heading, a count and a
+        // button to dismiss what nobody needed to read.
+        expect(text()).not.toContain("Linear is connected.")
+        expect(text()).not.toContain("tools available")
+        expect(button("Done")).toBeUndefined()
     })
 })

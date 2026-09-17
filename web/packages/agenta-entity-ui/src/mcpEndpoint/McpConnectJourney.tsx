@@ -10,9 +10,13 @@
  * Every entry point mounts this same component — settings, agent configuration, and the
  * in-chat connect request — so the flow cannot drift between them.
  *
- * The journey has twenty-two statuses and six screens. The mapping is `screenFor` below and
+ * The journey's statuses render as six screens. The mapping is `screenFor` below and
  * nothing else in here branches on a status where a screen would do, because the statuses
  * are about what is in flight and the screens are about what a person is looking at.
+ *
+ * There is no screen for success. The sheet closes the moment the connection is real, and
+ * what says so is the row it left behind, or the permission drawer the agent surface opens
+ * on it (decision 26).
  *
  * Two mechanics are load-bearing:
  *
@@ -89,7 +93,6 @@ export interface McpConnectJourneyProps {
 /** The header, which says what is being done rather than where in it we are. */
 const CONNECT_TITLE = "Connect MCP server"
 const RECONNECT_TITLE = "Reconnect MCP server"
-const CONNECTED_TITLE = "Connected"
 
 const URL_HELP =
     "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing."
@@ -123,8 +126,8 @@ const SAVING_BODY = "Setting up the connection…"
 
 const CONSENT_POPUP_FEATURES = "width=600,height=700,popup=yes"
 
-/** The six screens the twenty-two statuses render as. */
-type Screen = "url" | "url_failed" | "oauth" | "api_key" | "no_auth" | "waiting" | "connected"
+/** The six screens the statuses render as. */
+type Screen = "url" | "url_failed" | "oauth" | "api_key" | "no_auth" | "waiting"
 
 /**
  * How the server authorizes, from whichever of the two sources knows.
@@ -185,10 +188,11 @@ const screenFor = (state: McpJourneyState, path: AuthPath, consentRequested: boo
         case "verifying":
         case "verify_failed":
             return path === "none" ? "no_auth" : "api_key"
-        case "saving":
-            return "waiting"
         default:
-            return "connected"
+            // `saving`, and `connected`, which draws nothing: success is the new row and
+            // the sheet closes on it (decision 26). The wait is what is on screen for the
+            // frame in between.
+            return "waiting"
     }
 }
 
@@ -361,6 +365,17 @@ export function McpConnectSheet({
         if (state.status === "saving") void journey.finish()
     }, [journey, state.status])
 
+    // And `connected` means that bookkeeping is done: the grant is stored, the list has been
+    // refreshed and the caller has been told. There is nothing left to show, so the sheet
+    // goes (decision 26). Latched, because a host that passes a fresh `onClose` on every
+    // render would otherwise be asked to close on every render after this.
+    const closedOnConnect = useRef(false)
+    useEffect(() => {
+        if (state.status !== "connected" || closedOnConnect.current) return
+        closedOnConnect.current = true
+        onClose()
+    }, [onClose, state.status])
+
     // A window opened for an attempt that is no longer going to the provider is a blank
     // popup nobody closes. The statuses that still want it are the ones between the press
     // and the callback.
@@ -395,12 +410,6 @@ export function McpConnectSheet({
         if (!secretId) return
         void journey.submitManualCredential({headerName, secretId})
     }, [afterCreate, headerName, journey, namedSecrets, secretSlug, state.status])
-
-    // Credentials are persisted; the last step is reading what the server exposes. Without
-    // this the journey sits in a busy state with no enabled action and cannot be closed.
-    useEffect(() => {
-        if (state.status === "discovering_tools") void journey.loadTools()
-    }, [journey, state.status])
 
     const nameProblem =
         state.status === "naming"
@@ -489,7 +498,8 @@ export function McpConnectSheet({
                 else submitCredential()
                 return
             default:
-                // A finished journey has nothing left to confirm but its own closing.
+                // A finished journey has nothing left to confirm but its own closing, which
+                // the effect above has already asked for.
                 onClose()
         }
     }, [
@@ -514,11 +524,7 @@ export function McpConnectSheet({
     /** The one error that belongs to a field rather than to the screen. */
     const nameError = state.status === "naming" ? (nameProblem ?? state.error) : null
 
-    const title = isConnectedScreen(screen)
-        ? CONNECTED_TITLE
-        : reconnect
-          ? RECONNECT_TITLE
-          : CONNECT_TITLE
+    const title = reconnect ? RECONNECT_TITLE : CONNECT_TITLE
 
     return (
         <EnhancedModal
@@ -732,10 +738,6 @@ export function McpConnectSheet({
                         <InlineError headline={null}>{state.error}</InlineError>
                     ) : null}
 
-                    {screen === "connected" ? (
-                        <ConnectedBody state={state} onRetryTools={journey.retryTools} />
-                    ) : null}
-
                     {secretDrawerMounted ? (
                         <CreateSecretDrawer
                             open={creatingSecret}
@@ -765,11 +767,9 @@ export function McpConnectSheet({
                                     Connect without authentication
                                 </Button>
                             ) : null}
-                            {isConnectedScreen(screen) ? null : (
-                                <Button variant="outline" onClick={handleClose} disabled={busy}>
-                                    Cancel
-                                </Button>
-                            )}
+                            <Button variant="outline" onClick={handleClose} disabled={busy}>
+                                Cancel
+                            </Button>
                             <LoadingButton
                                 loading={busy}
                                 disabled={
@@ -796,14 +796,11 @@ export function McpConnectSheet({
     )
 }
 
-const isConnectedScreen = (screen: Screen) => screen === "connected"
-
 const isConsentRefusal = (status: McpJourneyState["status"]) =>
     status === "consent_cancelled" || status === "consent_failed" || status === "scopes_failed"
 
 /** What the trailing button says, by screen and by whether it is a second attempt. */
 const confirmLabel = (screen: Screen, state: McpJourneyState): string => {
-    if (screen === "connected") return "Done"
     if (screen === "url") return "Continue"
     if (screen === "url_failed") return "Try again"
     if (isConsentRefusal(state.status)) return "Try again"
@@ -825,7 +822,6 @@ const canConfirm = ({
     busy: boolean
 }): boolean => {
     if (busy && screen !== "waiting") return false
-    if (screen === "connected") return true
     if (screen === "url" || screen === "url_failed") return isProbeableUrl(state.url)
     if (nameProblem) return false
     if (screen === "api_key") return !!state.name.trim() && secretChosen
@@ -913,46 +909,6 @@ const WaitingCard = ({
         {title ? <p className="m-0 text-sm font-medium text-colorText">{title}</p> : null}
         <p className="m-0 max-w-[300px] text-xs leading-normal text-colorTextSecondary">{body}</p>
         {children}
-    </div>
-)
-
-/**
- * The end of the journey, which the spec does not draw.
- *
- * Kept as it shipped: the connection is real from here, the tool count is the first thing
- * anyone wants, and a list that could not be read is still a connection rather than a
- * failure.
- */
-const ConnectedBody = ({
-    state,
-    onRetryTools,
-}: {
-    state: McpJourneyState
-    onRetryTools: () => void
-}) => (
-    <div className="flex flex-col gap-2">
-        <p className="m-0 text-sm font-medium text-colorText">{state.name} is connected.</p>
-        {state.status === "tools_ready" ? (
-            <p className="m-0 text-sm text-colorTextSecondary">
-                {state.tools.length} tool{state.tools.length === 1 ? "" : "s"} available. Set what
-                this server may do in an agent&apos;s configuration.
-            </p>
-        ) : null}
-        {state.status === "no_tools" ? (
-            // An empty list, not a transport failure.
-            <p className="m-0 text-sm text-colorTextSecondary">This server exposes no tools yet.</p>
-        ) : null}
-        {state.status === "tools_failed" ? (
-            <>
-                <p className="m-0 text-sm text-colorTextSecondary">
-                    {state.error} Your credentials were saved, so there is no need to authorize
-                    again.
-                </p>
-                <Button variant="ghost" className="self-start" onClick={onRetryTools}>
-                    Retry tools
-                </Button>
-            </>
-        ) : null}
     </div>
 )
 
