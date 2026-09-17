@@ -15,8 +15,21 @@ import {findCustomMcpEndpoint, type MCPEndpoint} from "@agenta/entities/mcpEndpo
 import {cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-/** The project's settings row for that server. The card looks it up by slug. */
-const {CONNECTED_ROW} = vi.hoisted(() => ({
+/**
+ * The project's settings rows. The card looks its server up by slug.
+ *
+ * Two of them, with the notice naming the second: a card that hands over whichever row it
+ * finds first passes every single-row fixture ever written (D154).
+ */
+const {CONNECTED_ROW, OTHER_ROW} = vi.hoisted(() => ({
+    OTHER_ROW: {
+        id: "endpoint-0",
+        slug: "other-slug",
+        name: "Another server",
+        namespace: "custom",
+        auth_mode: "oauth",
+        data: {route: {base_url: "https://mcp.other.test"}},
+    },
     CONNECTED_ROW: {
         id: "endpoint-1",
         slug: "mock-mcp-slug",
@@ -51,7 +64,7 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/entities/mcpEndpoint")>()
     return {
         ...actual,
-        mcpEndpointsQueryAtom: atom({data: [CONNECTED_ROW]}),
+        mcpEndpointsQueryAtom: atom({data: [OTHER_ROW, CONNECTED_ROW]}),
         refreshMcpEndpointsAtom: atom(null, () => undefined),
     }
 })
@@ -181,5 +194,6 @@ describe("what Reconnect opens", () => {
 
         expect(screen.getByTestId("mcp-connect-journey")).toBeTruthy()
         expect(opened.at(-1)).toMatchObject({slug: "mock-mcp-slug", name: "Mock MCP"})
+        expect(opened.at(-1)).not.toMatchObject({slug: OTHER_ROW.slug})
     })
 })
