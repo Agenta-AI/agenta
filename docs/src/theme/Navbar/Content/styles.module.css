@@ -4,8 +4,13 @@
 .left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   flex: 0 0 auto;
+}
+
+/* Infima gives the brand a 1rem right margin; the gap above is the spacing. */
+.left :global(.navbar__brand) {
+  margin-right: 0;
 }
 
 .right {
@@ -54,10 +59,10 @@
 .versionSelector :global(.navbar__link) {
   display: inline-flex;
   align-items: center;
-  height: 22px;
-  padding: 0 6px 0 8px;
-  font-size: 12px;
-  line-height: 16px;
+  height: 18px;
+  padding: 0 4px 0 6px;
+  font-size: 11px;
+  line-height: 14px;
   font-weight: var(--ifm-font-weight-normal);
   color: var(--contentsecondary);
   border: 1px solid var(--borderdark);
@@ -73,7 +78,7 @@
 
 .versionSelector :global(.navbar__link::after) {
   border-width: 0.25em 0.25em 0;
-  margin-left: 4px;
+  margin-left: 3px;
   top: 0;
 }
 
