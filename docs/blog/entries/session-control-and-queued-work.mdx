@@ -1,0 +1,37 @@
+---
+title: "Queue the next instruction while an agent works"
+slug: session-control-and-queued-work
+date: 2026-09-07
+tags: [v0.115.2]
+description: "Queue messages for AI agents in Agenta, edit pending instructions, and follow the same chat across tabs. Stop a run or steer it where supported."
+---
+
+<Summary>
+
+We've made big improvements to the way chat sesesions work:
+
+1. You can now queue messages to your agent. These are saved so that they run even if you close the tab. 
+2. You can open the same chat session in multiple tabs (or in the browser and chat)
+3. You can stop and steer the agent mid-conversation
+
+</Summary>
+
+{/* truncate */}
+
+We've improved how agent chat sessions work. You can queue the next task while your agent is working, open the same conversation in another tab, and change direction during a run.
+
+## Queue the next task
+
+Send a follow-up message while the agent is busy. It waits in the queue until the agent can run it. Queued messages are saved, so closing the tab doesn't remove them. If the agent needs approval or input, it still waits for your response.
+
+You can edit a queued message before it starts. Click Edit, change the text, and save. The message keeps its place and attachments.
+
+## Open the same chat in another tab
+
+You can open the same session in multiple tabs and follow the conversation from either one. You don't need to start a separate chat to return to the task.
+
+## Stop or steer a run
+
+Use Stop to end the current run. You can then send new instructions in the same conversation. Where the runtime supports steering, you can send input to the active run without waiting for it to finish.
+
+Stopping doesn't undo completed actions, such as a file edit or a sent email. See the [sessions and turns reference](/reference/agents/sessions-and-turns) for queue, stop, and steering behavior.

@@ -1,5 +1,53 @@
 [
     {
+        "id": "changelog-2026-09-11-chatgpt-subscription-for-agents",
+        "title": "Connect ChatGPT",
+        "description": "Sign in to ChatGPT from AI providers and choose the subscription when selecting an agent's model.",
+        "link": "https://agenta.ai/docs/changelog/chatgpt-subscription-for-agents"
+    },
+    {
+        "id": "changelog-2026-09-09-custom-secrets-for-agent-runs",
+        "title": "Custom secrets for agents",
+        "description": "Store a credential as a project secret and attach it to an agent as a named environment variable instead of pasting it into chat.",
+        "link": "https://agenta.ai/docs/changelog/custom-secrets-for-agent-runs"
+    },
+    {
+        "id": "changelog-2026-09-09-mention-workspace-files-in-prompts",
+        "title": "Mention files with @",
+        "description": "Search the session's files from the message box and insert the exact file reference into your instructions.",
+        "link": "https://agenta.ai/docs/changelog/mention-workspace-files-in-prompts"
+    },
+    {
+        "id": "changelog-2026-09-09-agent-permission-policies",
+        "title": "Choose when agents ask",
+        "description": "Set a default permission policy for an agent and review the tool-specific rules that can override it.",
+        "link": "https://agenta.ai/docs/changelog/agent-permission-policies"
+    },
+    {
+        "id": "changelog-2026-09-07-session-control-and-queued-work",
+        "title": "Edit queued instructions",
+        "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
+        "link": "https://agenta.ai/docs/changelog/session-control-and-queued-work"
+    },
+    {
+        "id": "changelog-2026-09-05-agent-configuration-history",
+        "title": "Agent version history",
+        "description": "Compare an earlier agent configuration with the current one and restore it as a new version without deleting history.",
+        "link": "https://agenta.ai/docs/changelog/agent-configuration-history"
+    },
+    {
+        "id": "changelog-2026-09-03-shareable-agent-sessions",
+        "title": "Share a session link",
+        "description": "Copy a link to a specific session so a teammate with access can open the conversation you mean.",
+        "link": "https://agenta.ai/docs/changelog/shareable-agent-sessions"
+    },
+    {
+        "id": "changelog-2026-08-26-voice-input-for-agent-chat",
+        "title": "Dictate in agent chat",
+        "description": "Speak your instructions into the message box, edit the transcript, and send when you are ready.",
+        "link": "https://agenta.ai/docs/changelog/voice-input-for-agent-chat"
+    },
+    {
         "id": "changelog-2026-08-22-agenta-on-mobile",
         "title": "Agenta on Mobile",
         "description": "Chat with agents, follow live runs, and approve tool calls from your phone.",
