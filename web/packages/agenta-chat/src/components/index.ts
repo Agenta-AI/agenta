@@ -2,7 +2,15 @@ export {ApprovalCard, type ApprovalCardProps} from "./ApprovalCard"
 export {ChatComposer, type ChatComposerProps} from "./ChatComposer"
 export {default as ComposerAttachments} from "./ComposerAttachments"
 export {default as ComposerRejections, type ComposerRejectionsProps} from "./ComposerRejections"
-export {default as RunFailureCallout, type RunFailureCalloutProps} from "./RunFailureCallout"
+export {
+    default as RunFailureCallout,
+    type RunFailureCalloutProps,
+    // The failure classes the callout recognises, so a host can enumerate what it must offer an
+    // escape for rather than keeping a second list that drifts.
+    RETRYABLE_CODES,
+    STARTER_CREDIT_CODES,
+    SUBSCRIPTION_LOGIN_CODES,
+} from "./RunFailureCallout"
 export {
     default as AttachmentCard,
     type AttachmentCardProps,

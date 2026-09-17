@@ -16,7 +16,16 @@
 // sign-in each left a phone reader with a red bubble and nothing to press.
 import {act} from "react"
 
-import {buildTurnViewModels, createExecutedToolIdentityCache} from "@agenta/chat/model"
+import {
+    RETRYABLE_CODES,
+    STARTER_CREDIT_CODES,
+    SUBSCRIPTION_LOGIN_CODES,
+} from "@agenta/chat/components"
+import {
+    buildTurnViewModels,
+    createExecutedToolIdentityCache,
+    SESSION_TURN_IN_USE_CODE,
+} from "@agenta/chat/model"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -47,6 +56,15 @@ const failedTurn = (message: string, code?: string): UIMessage =>
         role: "assistant",
         parts: [],
         metadata: {runError: {message, ...(code ? {code} : {})}},
+    }) as unknown as UIMessage
+
+/** A request that never reached Agenta, which carries no failure class of its own. */
+const transportFailure = (): UIMessage =>
+    ({
+        id: "turn-1",
+        role: "assistant",
+        parts: [],
+        metadata: {runError: {message: "Network request failed.", transport: true}},
     }) as unknown as UIMessage
 
 /** Rendered as the last turn, which is the only turn this app offers a retry on. */
@@ -83,32 +101,17 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(shown).toContain("model authentication failed")
     })
 
-    it("offers Try again for the continuation race, the positive control", () => {
-        expect(
-            renderTurn(failedTurn("This turn was resumed elsewhere.", "continuation_resumed")),
-        ).toContain("Try again")
+    it.each([...RETRYABLE_CODES])("offers Try again for %s", (code) => {
+        // Every class the shared component calls transient, read from the component's own set, so
+        // a class added there fails here until this app offers its action too. This app narrowed
+        // the retry to `continuation_resumed` alone on top of that set, so five of these drew a
+        // button on the desktop and none on a phone.
+        expect(renderTurn(failedTurn("Try that again.", code))).toContain("Try again")
     })
-
-    it.each(["rate_limited", "execution_lost", "credential_delivery_failed"])(
-        "offers Try again for %s, which is transient and has nothing else to fix",
-        (code) => {
-            // This app narrowed the retry to `continuation_resumed` alone, on top of the
-            // package's own class list, so every other transient failure drew a button on the
-            // desktop and none on a phone.
-            expect(renderTurn(failedTurn("Try that again.", code))).toContain("Try again")
-        },
-    )
 
     it("offers Try again for a request that never reached Agenta", () => {
         // A transport failure carries no code at all; position is the only thing to gate on.
-        const message = {
-            id: "turn-1",
-            role: "assistant",
-            parts: [],
-            metadata: {runError: {message: "Network request failed.", transport: true}},
-        } as unknown as UIMessage
-
-        expect(renderTurn(message)).toContain("Try again")
+        expect(renderTurn(transportFailure())).toContain("Try again")
     })
 
     it("offers no retry on a failure class nothing but a new request would fix", () => {
@@ -116,23 +119,33 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(renderTurn(failedTurn("model authentication failed"))).not.toContain("Try again")
     })
 
-    it("offers the key escape when the starter grant is spent, and takes the reader there", () => {
-        const shown = renderTurn(failedTurn("Out of starter credits.", "starter_credits_exhausted"))
+    it("says the message was not sent, with no retry, when the session refused it", () => {
+        // An admission refusal is not a run that failed, and replaying it would refuse again.
+        const shown = renderTurn(failedTurn("That session is busy.", SESSION_TURN_IN_USE_CODE))
 
-        expect(shown).toContain("Out of starter credits.")
-        expect(shown).toContain("Add your key")
-
-        press("Add your key")
-
-        expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=llms")
+        expect(shown).toContain("Message not sent")
+        expect(shown).not.toContain("The agent run failed")
+        expect(shown).not.toContain("Try again")
     })
 
-    it("offers the sign-in escape when the subscription login is dead, to the same page", () => {
+    it.each([...STARTER_CREDIT_CODES])(
+        "offers the key escape for %s, and takes the reader there",
+        (code) => {
+            const shown = renderTurn(failedTurn("Out of starter credits.", code))
+
+            expect(shown).toContain("Out of starter credits.")
+            expect(shown).toContain("Add your key")
+
+            press("Add your key")
+
+            expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=llms")
+        },
+    )
+
+    it.each([...SUBSCRIPTION_LOGIN_CODES])("offers the sign-in escape for %s", (code) => {
         // A dead subscription sign-in is not fixed by a key, but it is fixed on the same page: the
         // AI providers page is where a new device login happens. One destination, as on the desktop.
-        const shown = renderTurn(
-            failedTurn("Your Claude sign-in expired.", "subscription_login_required"),
-        )
+        const shown = renderTurn(failedTurn("Your Claude sign-in expired.", code))
 
         expect(shown).toContain("Sign in again")
         expect(shown).not.toContain("Add your key")
