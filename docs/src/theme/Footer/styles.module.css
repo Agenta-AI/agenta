@@ -9,7 +9,7 @@
 
 .inner {
   display: flex;
-  gap: 48px;
+  gap: 40px;
   max-width: 1100px;
 }
 
@@ -18,7 +18,7 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 40px;
-  flex: 0 0 240px;
+  flex: 0 0 200px;
 }
 
 .logoLink {
@@ -61,7 +61,7 @@
 .columns {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 32px;
+  gap: 24px;
   flex: 1 1 auto;
   min-width: 0;
 }
