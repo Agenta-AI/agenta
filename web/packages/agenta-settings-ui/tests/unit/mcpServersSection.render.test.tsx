@@ -378,7 +378,9 @@ describe("the row menu", () => {
     })
 
     it("hides Disconnect once the grant is already gone", () => {
-        show([OCTOLENS])
+        // Two rows, and the second is the one asked about: a section that hands over whichever
+        // row it finds first passes every single-row fixture ever written (D154).
+        show([LINEAR, OCTOLENS])
         openRowMenu("Octolens")
         expect(screen.queryByRole("menuitem", {name: "Disconnect"})).toBeNull()
     })
@@ -402,7 +404,9 @@ describe("viewing a connection's tools", () => {
     it("tells the drawer the connection's health rather than letting it assume", () => {
         // The drawer defaults its health to connected, so a lapsed row would open a header
         // claiming the server works.
-        show([OCTOLENS])
+        // Two rows, and the second is the one asked about: a section that hands over whichever
+        // row it finds first passes every single-row fixture ever written (D154).
+        show([LINEAR, OCTOLENS])
         openRowMenu("Octolens")
         act(() => {
             fireEvent.click(screen.getByRole("menuitem", {name: "View tools"}))
@@ -665,5 +669,6 @@ describe("the way back from an expired login", () => {
 
         expect(screen.getByTestId("mcp-connect-journey")).toBeTruthy()
         expect(opened.at(-1)).toMatchObject({slug: "octolens", name: "Octolens"})
+        expect(opened.at(-1)).not.toMatchObject({slug: "linear"})
     })
 })
