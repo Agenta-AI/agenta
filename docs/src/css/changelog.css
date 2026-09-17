@@ -32,8 +32,9 @@
   color: var(--contentsecondary);
 }
 
-/* The theme's tag class is a CSS-module hash; rel="tag" is the stable hook.
-   Same chip as the version on the changelog list. */
+/* Version chip: on the list rows (BlogPostItem) and, via rel="tag" (the
+   theme's tag class is a CSS-module hash), the tag under an entry. */
+.versionChip,
 .blog-post-page a[rel="tag"] {
   display: inline-block;
   font-family: var(--ifm-font-family-monospace);

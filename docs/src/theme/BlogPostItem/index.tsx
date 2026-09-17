@@ -6,17 +6,11 @@ import type BlogPostItemType from "@theme/BlogPostItem";
 import type {WrapperProps} from "@docusaurus/types";
 import Heading from "@theme/Heading";
 import MDXContent from "@theme/MDXContent";
+import {formatDate} from "@site/src/utils/formatDate";
 
 import styles from "./styles.module.css";
 
 type Props = WrapperProps<typeof BlogPostItemType>;
-
-const dateFormatter = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-  timeZone: "UTC",
-});
 
 /**
  * Changelog-style list item: date and version in a left meta column,
@@ -31,9 +25,9 @@ function ChangelogItem({children}: {children: ReactNode}): ReactNode {
     <article className={styles.item}>
       <div className={styles.meta}>
         <time dateTime={date} className={styles.date}>
-          {dateFormatter.format(new Date(date))}
+          {formatDate(date)}
         </time>
-        {version && <span className={styles.version}>{version}</span>}
+        {version && <span className="versionChip">{version}</span>}
       </div>
       <div className={styles.main}>
         <Heading as="h2" className={styles.title}>

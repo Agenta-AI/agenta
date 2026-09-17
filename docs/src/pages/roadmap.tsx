@@ -5,6 +5,7 @@ import BrowserOnly from '@docusaurus/BrowserOnly';
 import clsx from 'clsx';
 import SidebarShell, { SidebarGroup } from '@site/src/components/SidebarShell';
 import styles from './roadmap.module.css';
+import { formatDate } from '@site/src/utils/formatDate';
 
 import {
     shippedFeatures,
@@ -107,13 +108,6 @@ async function fetchDiscussions(signal?: AbortSignal): Promise<GithubDiscussion[
     return collected;
 }
 
-const dateFormatter = new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-});
-
 function SectionHeader({ id, count, children }: { id: string; count?: number; children: React.ReactNode }) {
     return (
         <div className={styles.sectionHeader}>
@@ -194,7 +188,7 @@ function FeatureCardClickable({
                     <div className={styles.featureTitle}>{title}</div>
                     {date && (
                         <time className={styles.featureMetaDateInline} dateTime={date}>
-                            {dateFormatter.format(new Date(date))}
+                            {formatDate(date)}
                         </time>
                     )}
                 </div>

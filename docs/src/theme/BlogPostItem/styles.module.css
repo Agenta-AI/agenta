@@ -29,18 +29,6 @@
   color: var(--contentsecondary);
 }
 
-.version {
-  display: inline-block;
-  font-family: var(--ifm-font-family-monospace);
-  font-size: 11px;
-  line-height: 16px;
-  padding: 1px 6px;
-  border: 1px solid var(--borderdefault);
-  border-radius: 5px;
-  background-color: var(--bgelevated1);
-  color: var(--contentsecondary);
-}
-
 .main {
   min-width: 0;
 }
