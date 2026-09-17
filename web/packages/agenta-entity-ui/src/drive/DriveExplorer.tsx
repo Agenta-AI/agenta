@@ -304,12 +304,6 @@ export function DriveExplorer({
         fresh?: boolean
     } | null>(null)
     // New folder / New file: created at once under an untitled name, then named in place.
-    // Entries created while viewing one folder lead its listing (newest first) until the user
-    // leaves it, so naming one never moves it out from under the caret.
-    const [created, setCreated] = useState<{folder: string; paths: string[]}>({
-        folder: "",
-        paths: [],
-    })
     const startNew = useCallback(
         async (kind: "folder" | "file", folder: string) => {
             const name = newDriveName(kind, siblingsOf(folder))
@@ -318,9 +312,7 @@ export function DriveExplorer({
                 : writes.createFile(folder, name))
             if (!ok) return
             if (selectedPath !== folder) select(folder)
-            const path = joinPath(folder, name)
-            setCreated((c) => ({folder, paths: [path, ...(c.folder === folder ? c.paths : [])]}))
-            setNameEdit({path, kind, fresh: kind === "folder"})
+            setNameEdit({path: joinPath(folder, name), kind, fresh: kind === "folder"})
         },
         [siblingsOf, writes, selectedPath, select],
     )
@@ -357,9 +349,7 @@ export function DriveExplorer({
                 ? writes.renameEmptyFolder(path, name)
                 : writes.rename(path, name))
             if (!ok) return false
-            const renamed = joinPath(parentOf(path), name)
-            setCreated((c) => ({...c, paths: c.paths.map((p) => (p === path ? renamed : p))}))
-            if (path === selectedPath) replaceSelection(renamed)
+            if (path === selectedPath) replaceSelection(joinPath(parentOf(path), name))
             setNameEdit(null)
             return true
         },
@@ -605,7 +595,6 @@ export function DriveExplorer({
                     drive={drive}
                     view={view}
                     sort={sort}
-                    pinned={created.folder === selectedPath ? created.paths : undefined}
                     selectedPath={selectedPath}
                     writes={itemWrites}
                     editing={nameEditView}

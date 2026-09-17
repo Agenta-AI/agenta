@@ -48,7 +48,6 @@ export const FolderView = ({
     hideHeader,
     view = "grid",
     sort = "name",
-    pinned,
     selectedPath = null,
     writes,
     editing,
@@ -69,8 +68,6 @@ export const FolderView = ({
     /** Grid (tiles) or list (the shared table). */
     view?: DriveViewMode
     sort?: DriveSortKey
-    /** Entries created in this visit; they lead the listing whatever the sort. */
-    pinned?: readonly string[]
     /** The explorer's selection — a tile / row that is the current path draws selected. */
     selectedPath?: string | null
     /** Item context-menu writes; omit on a read-only mount. */
@@ -108,7 +105,7 @@ export const FolderView = ({
     const repo = useRepoInfo(resolvedFolder?.mount ?? null, resolvedFolder?.path ?? "", !hideHeader)
     const [repoExpanded, setRepoExpanded] = useState(false)
     // One combined list, folders first, so the grid windows uniformly.
-    const sorted = useMemo(() => sortDriveEntries(nodes, sort, pinned), [nodes, sort, pinned])
+    const sorted = useMemo(() => sortDriveEntries(nodes, sort), [nodes, sort])
     // Staged drops are ghost tiles in the grid only (the list shows real rows; row 2's ⋯ uploads them).
     const stagedByPath = useMemo(
         () =>

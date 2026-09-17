@@ -59,26 +59,19 @@ describe("sortDriveEntries", () => {
     })
 })
 
-describe("sortDriveEntries pinned", () => {
-    it("leads with the pinned paths in the given order, whatever the sort", () => {
+describe("sortDriveEntries folders by modified", () => {
+    it("orders folders newest first when they carry a time, name order for the rest", () => {
         const nodes = [
-            {name: "b.md", path: "b.md", isFolder: false, children: []},
-            {name: "untitled.md", path: "untitled.md", isFolder: false, children: []},
-            {name: "alpha", path: "alpha", isFolder: true, children: []},
-            {name: "untitled folder", path: "untitled folder", isFolder: true, children: []},
+            {name: "old", path: "old", isFolder: true, children: [], modifiedAt: 1},
+            {name: "untimed", path: "untimed", isFolder: true, children: []},
+            {name: "new", path: "new", isFolder: true, children: [], modifiedAt: 5},
+            {name: "a.md", path: "a.md", isFolder: false, children: [], modifiedAt: 3},
         ]
-        const pinned = ["untitled.md", "untitled folder"]
-        expect(sortDriveEntries(nodes, "name", pinned).map((n) => n.name)).toEqual([
-            "untitled.md",
-            "untitled folder",
-            "alpha",
-            "b.md",
-        ])
-        expect(sortDriveEntries(nodes, "modified", ["nope"]).map((n) => n.name)).toEqual([
-            "alpha",
-            "untitled folder",
-            "b.md",
-            "untitled.md",
+        expect(sortDriveEntries(nodes, "modified").map((n) => n.name)).toEqual([
+            "new",
+            "old",
+            "untimed",
+            "a.md",
         ])
     })
 })

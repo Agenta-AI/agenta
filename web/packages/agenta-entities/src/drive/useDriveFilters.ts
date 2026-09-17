@@ -18,7 +18,8 @@ const pref = <T>(key: string, initial: T) =>
     atomWithStorage<T>(`agenta:drive:${key}`, initial, undefined, {getOnInit: true})
 
 const driveViewModeAtom = pref<DriveViewMode>("view", "grid")
-const driveSortKeyAtom = pref<DriveSortKey>("sort", "name")
+// Newest first by default, so a file you just made is the first tile, not wherever its name lands.
+const driveSortKeyAtom = pref<DriveSortKey>("sort", "modified")
 const driveEditorModeAtom = pref<DriveEditorMode>("editor-mode", "rendered")
 const driveShowHiddenPrefAtom = pref("show-hidden", false)
 const driveShowGitignoredPrefAtom = pref("show-gitignored", false)
