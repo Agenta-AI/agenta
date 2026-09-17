@@ -129,22 +129,125 @@
 }
 
 /*********************** Search results page (/search) ***********************/
-/* "Search results for ..." heading → h3 size instead of the full h1. */
-.container:has([class*="searchQueryInput"]) > h1 {
-  font-size: var(--ifm-heading-h3-font-size) !important;
-  font-weight: var(--ifm-h3-font-weight) !important;
-  line-height: 1.35;
+/* The page has no sidebar, so it takes the reading measure centred in the
+   window: the query field styled like the header search, results as a
+   plain list with hairlines, and the muted footer meta. The container is
+   found by the query input it holds; the theme sets no page class. */
+.container:has([class*="searchQueryInput"]) {
+  max-width: calc(var(--doc-content-width) + 2 * var(--doc-main-padding-x));
+  padding: 8px var(--doc-main-padding-x) var(--doc-main-padding-bottom);
+  margin: 0 auto;
 }
 
-/* Refined, smaller result titles without the article underline. The extra
-   :not()s match the global h2 rule's specificity so this size wins. */
+.container:has([class*="searchQueryInput"]) > h1 {
+  font-size: var(--ifm-heading-h2-font-size);
+  line-height: 28px;
+  margin-bottom: 16px;
+}
+
+/* Query field + version select on one line: same field as the header
+   search. The theme's CSS module caps the query column at 60%; the
+   .container in the selectors outranks that hashed class. */
+.container:has([class*="searchQueryInput"]) > form.row {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.container [class*="searchQueryColumn"] {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none !important;
+  padding: 0;
+}
+
+.container [class*="searchVersionColumn"] {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none !important;
+  padding: 0 !important;
+}
+
+.container [class*="searchQueryInput"],
+.container [class*="searchVersionInput"] {
+  height: 40px;
+  padding: 0 14px;
+  margin-bottom: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: var(--bgelevated1);
+  color: var(--contentprimary);
+  font-size: 14px;
+  line-height: 20px;
+  transition:
+    border-color var(--ifm-transition-fast) ease,
+    background-color var(--ifm-transition-fast) ease;
+}
+
+.container [class*="searchQueryInput"]:focus,
+.container [class*="searchVersionInput"]:focus {
+  border-color: var(--borderdark);
+  background: var(--bgdefault);
+  outline: none;
+}
+
+[class*="searchQueryInput"]::placeholder {
+  color: var(--contenttertiary);
+}
+
+.container [class*="searchVersionInput"] {
+  min-width: 96px;
+  padding-right: 32px;
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23848b8c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+}
+
+/* Count + "Powered by": one muted meta row. */
+.container:has([class*="searchQueryInput"]) > .row:nth-of-type(2) {
+  align-items: center;
+  margin-top: 12px;
+  margin-bottom: 8px;
+}
+
+[class*="searchResultsColumn"] {
+  color: var(--contenttertiary) !important;
+  font-weight: var(--ifm-font-weight-normal) !important;
+  font-size: 13px !important;
+}
+
+[class*="searchLogoColumn"] {
+  font-size: 13px;
+}
+
+[class*="searchLogoColumn"] svg {
+  height: 18px;
+  width: auto;
+  opacity: 0.6;
+  filter: grayscale(1);
+  transition: opacity var(--ifm-transition-fast) ease;
+}
+
+[class*="searchLogoColumn"] a:hover svg {
+  opacity: 1;
+}
+
+/* Results */
+[class*="searchResultItem_"] {
+  padding: 12px 0 !important;
+  border-bottom: 1px solid var(--borderdefault);
+}
+
+/* Title: 15px medium. The :not()s match the global h2 rule's specificity. */
 h2[class*="searchResultItemHeading"]:not([class*="openapi"]):not(
     [class*="cardTitle"]
   ) {
-  font-size: 16px !important;
+  font-size: 15px !important;
   font-weight: var(--ifm-font-weight-semibold) !important;
-  line-height: 1.45 !important;
-  margin-bottom: 4px;
+  line-height: 22px !important;
+  margin: 0 0 2px;
 }
 
 [class*="searchResultItemHeading"] a {
@@ -154,41 +257,47 @@ h2[class*="searchResultItemHeading"]:not([class*="openapi"]):not(
 
 [class*="searchResultItemHeading"] a:hover {
   text-decoration: underline !important;
-  text-decoration-color: var(--contentprimary) !important;
+  text-decoration-color: var(--borderdark) !important;
   text-underline-offset: 3px !important;
 }
 
 /* Matched keyword: semibold neutral, no yellow highlight (matches the modal). */
 .search-result-match {
   background-color: transparent !important;
-  color: var(--contentprimary) !important;
+  color: inherit !important;
   font-weight: 600 !important;
 }
 
-/* "N documents found" → muted, normal weight. */
-[class*="searchResultsColumn"] {
+/* Source path: 13px muted breadcrumb with a small chevron. */
+[class*="searchResultItemPath"] {
+  font-size: 13px;
+  line-height: 18px;
   color: var(--contenttertiary) !important;
-  font-weight: var(--ifm-font-weight-normal) !important;
-  font-size: 14px !important;
+  --ifm-breadcrumb-separator-size-multiplier: 1;
+  --ifm-breadcrumb-spacing: 6px;
 }
 
-/* Tighter vertical rhythm between results (was 16px top/bottom). */
-[class*="searchResultItem_"] {
-  padding: 9px 0 !important;
-}
-
-/* Source/breadcrumb path: muted (it renders white in dark by default). */
-[class*="searchResultItemPath"],
 [class*="searchResultItemPath"] .breadcrumbs__item,
 [class*="searchResultItemPath"] .search-result-match {
   color: var(--contenttertiary) !important;
 }
 
-/* Let the query input span the container. The theme's CSS module caps the
-   column at max-width: 60% !important above 576px; the extra .container in the
-   selector outranks that hashed class so the input goes edge-to-edge. */
-.container [class*="searchQueryColumn"] {
-  max-width: 100% !important;
+[class*="searchResultItemPath"] .breadcrumbs__item:not(:last-child)::after {
+  opacity: 0.5;
+}
+
+[class*="searchResultItemSummary"] {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 22px;
+  font-style: normal;
+  color: var(--contentsecondary);
+}
+
+/* Loading spinner in the palette rather than the primary colour. */
+[class*="loadingSpinner"] {
+  border-color: var(--bgelevated2);
+  border-top-color: var(--contentsecondary);
 }
 
 /* Recolor the native type="search" clear button. Left alone it renders in the
@@ -208,4 +317,19 @@ h2[class*="searchResultItemHeading"]:not([class*="openapi"]):not(
 
 [class*="searchQueryInput"]::-webkit-search-cancel-button:hover {
   background-color: var(--contentsecondary);
+}
+
+@media (max-width: 576px) {
+  .container:has([class*="searchQueryInput"]) {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .container:has([class*="searchQueryInput"]) > form.row {
+    flex-wrap: wrap;
+  }
+
+  .container [class*="searchVersionColumn"] {
+    width: 100%;
+  }
 }
