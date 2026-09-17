@@ -176,7 +176,7 @@ li.sidebar-section-title > .menu__list-item-collapsible > .menu__caret {
   font-size: 12px;
   line-height: 16px;
   font-weight: var(--ifm-font-weight-bold);
-  color: var(--contentprimary);
+  color: var(--contentsecondary);
   margin-bottom: 8px;
 }
 
