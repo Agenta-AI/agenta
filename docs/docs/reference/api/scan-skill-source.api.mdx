@@ -1,0 +1,72 @@
+---
+id: scan-skill-source
+title: "Scan Skill Source"
+description: "Preview a repo/marketplace as skill candidates — no writes."
+sidebar_label: "Scan Skill Source"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWMFu4zYQ/RWCpxZQ7HTRk091kyzW2N2uEWfbQ2IYE2lscUORWpKKoxoC+hH9wn5JMaQsyXYip74VSC6xpeGb4eOb4Yw33MHK8tEtnz0IKS2fRzxBGxuRO6EVH/GpwUeBawbMYK6HGZgHdLmEGBlYZmkVi0ElIgGHlv3z199MabY2wqEd3Kk7dYkOY2eZS5FJKHXh2A8XEooEWRcsAyWWaF3ErFAriQE6YtowuFNZIZ04C96cQfwxYjkYi5bhI5qyjSBioBIfqnGW5WjOmld36hGkSIQrIyasLdAGY/sg8hyTs6WQyNZglFCrsBF8gtjJkq1TcD5+kRHunUoMrNEwgypBYwc84jpHA0TZJOEjbmNQCx/twurCxMgjbvB7gdb9qpOSjzY81sqhcvQR8lyK2K8efrPE+obbOMUM6FNuCNsJtPSNdrYojKTPrsyRnDkj1IpH3Akn6cE15pp9NZJX5HXpXajyy5KPbvcXVVHzRBVS8mrehVnyqoq27/X9N4xdvRFhMCHVNOF01nklzfy2ZzGo67BvXlVVd60zBfoHNtfKhs29Oz+nf7sCnBVxjNYuC8mua2Me/V/oo0CzTLiFTeFUoAuPwGYpEB5J63BfIbH6dvUpWFB6L6GQjjxphT7EJn0JQDjM7KGHHFy6EGpBDPb5mYJL2UQxYpHAfc51FtxrLRFUZ8Xv3qIT2BKkJW34BNplbTcmBRmeyupvtLbaq3anQV12IKqI39cZfgqUrw4UlbBwL3GR6QTlQqhHHQT+LO6W0t4YAyD7TIBs0gJWEafCd+zojx15kHqTky+ZXtQmVcTxCePCUVC96rhqzQ4kcqQ4+bjbsObdiI3FxBeq90J6HdRAYAyUHffvPTcdz7fz59w+A/zMcVQRDxdPD9mxTrCfwcTHm6G1sOo1/VybVFFzhKdoMhzvEa592G1U+9fBhLbdQ/Mk0LLLc8S3t/EbX3t8/bEl5qgy9xOiqeFdlzGoi+0l0OP1or0o9k/qTdev13VP/QgNkyXLKuIgDUJSLkLbicmCtrtL8v52XwpkHKDYpIZiUw/1n+TTNE91F9Ilo9Puheh9u/fzu3eHDZ2/7/3lw66M0eb0bi5BB0L2iE7qeOftK2QilMMVmlCtXyDzU+fyzOzqlVoNJi+bejLYDb2lhFJ53dBtpeQf0DXrnjowBxLyV+yTO6ps4iaEX9t1jrM9onBCL1NxGY6gT9Mfbm6mB4BBHxm6VNPAlGtLS0I686Hv/OwwzE526NUWcYvmEY315+d7eD6EXPjDC19T53I7Gg6xGMRSF8kAVqgcDEAEwzlhxIURrvQg4+nkI5YfEBI0PgE6BjPSXFDRrlnDPOTiIxIXoQ3l48Kl2og/gzToBCmksIo2S2q+bofAqyfI8tD8tFNJqwo/eXTyWqil7sph7LfGxtMJ3x/Zd15RakHs2na5fs2jPdJarnjEMfOJxR1C9kvzxvfzaGxwcz74aXDui7C2LgtTSe2CCgHzBZLNtvPvXqPdpPzbLwyv+4WhVh3l9jCXIHz1qUfZkDe3YWKiql5nTqdSp5Rho1u+2dyDxa9GVhU9/l6goWSY06RmRGjH/Y2ebtNiwx+wbHv3M1+h/GBXhDTYK9iUj2HFOI4xd722804RmH6Z3fB2fsp8x8ANrCkdYM1H3P/QQqvDME/PaPZVq8K3DDxg0t+/Oph97Q==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Scan Skill Source"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/skills/sources/scan"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Preview a repo/marketplace as skill candidates — no writes.
+
+Detects the layout (Claude marketplace manifest, single skill, or a
+multi-skill tree), parses every candidate, and reports per-candidate
+validity, issues, and skipped-file warnings — exactly what the import
+drawer renders.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./scan-skill-source.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./scan-skill-source.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -742,8 +742,12 @@ export async function querySessionsPage({
     return parseSessionsQueryResponse(data, "[querySessionsPage]")
 }
 
-/** Temporary list-only adapter for callers that have not migrated to the page envelope. */
-export async function querySessions({
+/**
+ * The flat params above against the page envelope, so a caller that pages can read the
+ * server's cursor (`windowing.next` plus the boundary it belongs with) off the response.
+ * `querySessions` is this function with the envelope thrown away.
+ */
+export async function querySessionsFlatPage({
     projectId,
     references,
     includeEnded = true,
@@ -763,8 +767,8 @@ export async function querySessions({
     newest,
     oldest,
     order,
-}: QuerySessionsParams): Promise<SessionStream[] | null> {
-    const page = await querySessionsPage({
+}: QuerySessionsParams): Promise<SessionsQueryResponse | null> {
+    return querySessionsPage({
         projectId,
         session:
             search !== undefined || flags !== undefined || origin !== undefined
@@ -794,6 +798,11 @@ export async function querySessions({
         abortSignal,
         lowPriority,
     })
+}
+
+/** Temporary list-only adapter for callers that have not migrated to the page envelope. */
+export async function querySessions(params: QuerySessionsParams): Promise<SessionStream[] | null> {
+    const page = await querySessionsFlatPage(params)
     return page?.sessions ?? null
 }
 

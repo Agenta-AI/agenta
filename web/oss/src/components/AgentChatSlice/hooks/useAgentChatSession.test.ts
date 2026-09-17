@@ -92,6 +92,7 @@ vi.mock("@agenta/chat/hooks", () => ({
         state.capturedHooks = args.hooks
         return {}
     },
+    useFileActivityDetector: vi.fn(),
 }))
 
 vi.mock("@agenta/chat/model", () => ({
@@ -229,9 +230,6 @@ vi.mock("../state/sessions", () => ({
 }))
 vi.mock("../state/turnCaptures", () => ({
     captureTurnRequestAtom: "capture-request",
-}))
-vi.mock("./useFileActivityDetector", () => ({
-    useFileActivityDetector: vi.fn(),
 }))
 vi.mock("./useSessionHydration", () => ({
     useSessionHydration: ({busyRef}: {busyRef: {current: boolean}}) => {

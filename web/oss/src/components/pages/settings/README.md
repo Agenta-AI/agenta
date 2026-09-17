@@ -113,15 +113,15 @@ A tab with **one** table (API Keys, Members, Projects, Webhooks, Secrets, Organi
 renders `SettingsToolbar` above the table. The page header already says what the page is,
 so the table itself carries no title.
 
-A tab with **several** sections (Triggers, LLMs) gives each section its own header instead,
+A tab with **several** sections (LLMs) gives each section its own header instead,
 via the table shell's own props — the toolbar would otherwise have to belong to one section
 and float above all of them:
 
 ```tsx
 <InfiniteVirtualTableFeatureShell
-    title="Event triggers"
-    description="Run a workflow whenever an event fires in a connected app."
-    primaryActions={<><Button type="text" icon={<ArrowClockwise />} /><Button type="primary">Subscribe</Button></>}
+    title="Custom providers"
+    description="Point Agenta at an OpenAI-compatible endpoint you host."
+    primaryActions={<><Button type="text" icon={<ArrowClockwise />} /><Button type="primary">Add</Button></>}
     …
 />
 ```

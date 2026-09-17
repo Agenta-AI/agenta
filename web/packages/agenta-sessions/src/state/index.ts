@@ -3,6 +3,7 @@ export {
     sessionAgentFilterAtom,
     sessionStatusFilterAtom,
     sessionShowArchivedAtom,
+    sessionArchivedOnlyAtom,
     sessionShowTriggeredAtom,
     sessionFiltersActiveAtom,
     sessionFiltersActiveExceptAgentAtom,

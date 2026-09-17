@@ -218,6 +218,16 @@ export interface BuildDaemonEnvOptions {
    * for a harness that resolves a model outside its declared provider.
    */
   inheritAllProviderEnv?: boolean;
+  /**
+   * The Pi agent dir this run owns, overriding the operator's inherited `PI_CODING_AGENT_DIR`.
+   *
+   * Set for a HOSTED subscription run, whose login lives in a per-connection dir the runner
+   * materialized rather than on the operator's mount. Passing it here rather than relying on
+   * `prepareLocalPiAssets` overwriting the key later keeps the operator's path out of the daemon
+   * environment entirely, so an ordering change downstream cannot quietly hand a project's run the
+   * operator's own login.
+   */
+  piAgentDir?: string;
 }
 
 const INHERIT_ALL_PROVIDER_KEYS_ENV = "AGENTA_RUNNER_INHERIT_ALL_PROVIDER_KEYS";
@@ -251,6 +261,7 @@ export function buildDaemonEnv(
     provider,
     deployment,
     inheritAllProviderEnv = inheritAllProviderKeys(),
+    piAgentDir: planPiAgentDir,
   }: BuildDaemonEnvOptions = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
@@ -262,7 +273,8 @@ export function buildDaemonEnv(
 
   env.PI_ACP_PI_COMMAND =
     process.env.SANDBOX_AGENT_PI_COMMAND ?? join(ADAPTER_BIN_DIR, "pi");
-  const piAgentDir = process.env.PI_CODING_AGENT_DIR;
+  // The run's own dir wins over the operator's mount; see `piAgentDir` above.
+  const piAgentDir = planPiAgentDir || process.env.PI_CODING_AGENT_DIR;
   if (piAgentDir) env.PI_CODING_AGENT_DIR = piAgentDir;
   // CLAUDE_CONFIG_DIR is a config path, not a credential; it is safe to inherit on every run so
   // a self-managed Claude login keeps pointing at its config dir.

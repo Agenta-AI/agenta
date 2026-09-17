@@ -23,7 +23,6 @@ export const SettingsAccessProvider = ({
 export const CLOSED_SETTINGS_ACCESS: SettingsAccess = {
     billingEnabled: false,
     canShowTools: false,
-    canShowTriggers: false,
     canViewApiKeys: false,
     canViewEvents: false,
     isEE: false,

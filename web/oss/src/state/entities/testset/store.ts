@@ -1,3 +1,4 @@
+import {createEntityDraftState} from "@agenta/entities/shared"
 import {atom, getDefaultStore} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -5,8 +6,6 @@ import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
-
-import {createEntityDraftState} from "../shared/createEntityDraftState"
 
 import {
     revisionSchema,

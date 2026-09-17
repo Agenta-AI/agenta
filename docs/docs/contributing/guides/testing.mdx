@@ -37,13 +37,16 @@ Then source the env file you deployed with before running tests:
 load-env hosting/docker-compose/oss/.env.oss.dev
 ```
 
-If you use a different shell, the equivalent one-liner is:
+To load the file without a shell helper, pass `--env-file` to the Python test runner. First unset any exported `AGENTA_API_URL` and `AGENTA_AUTH_KEY`: the runners read these variables before loading the file, so existing values take precedence. For example, from `api/`, after installing dependencies:
 
 ```bash
-export $(grep -v '^#' hosting/docker-compose/oss/.env.oss.dev | xargs)
+unset AGENTA_API_URL AGENTA_AUTH_KEY
+uv run --no-sync python run-tests.py --env-file ../hosting/docker-compose/oss/.env.oss.dev
 ```
 
-Each Python test runner also accepts `--env-file <path>` directly if you prefer not to export the variables.
+The SDK and services runners accept the same option. Paths are relative to the directory you run the command from: use `../../hosting/docker-compose/oss/.env.oss.dev` from `sdks/python/`, or `../hosting/docker-compose/oss/.env.oss.dev` from `services/`. Choose the file that matches your running stack.
+
+This preserves quoted values containing spaces. Avoid loading `.env` files through `export $(... | xargs)`, which splits those values into separate shell arguments.
 
 ## API Tests
 

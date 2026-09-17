@@ -120,6 +120,9 @@ CUT_BUILD_KIT_OPS = (
 
 EXPECTED_BUILD_KIT_PERMISSIONS = {
     "discover_tools": "allow",
+    "search_skills": "allow",
+    "check_skill_updates": "allow",
+    "apply_skill_update": "ask",
     "read_config": "allow",
     "commit_revision": "allow",
     "test_run": "allow",

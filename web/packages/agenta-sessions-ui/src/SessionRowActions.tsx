@@ -200,7 +200,9 @@ const SessionRowActions = ({
             <span
                 // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
                 // right edge. Only session rows are wrapped, so no other nav row shifts.
-                className="relative z-[1] -mr-2 flex h-5 w-7 shrink-0 items-center justify-center"
+                // w-6, not w-7: at 28 the 20px button sat 2px left of the group carets and the
+                // filter trigger above it, and the rail's right-hand controls read as a column.
+                className="relative z-[1] -mr-2 flex h-5 w-6 shrink-0 items-center justify-center"
                 onClick={swallow}
             >
                 {armed ? (

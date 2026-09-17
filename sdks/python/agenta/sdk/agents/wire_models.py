@@ -115,6 +115,42 @@ class WireCredential(_WireModel):
     usage: Literal["opaque_http", "local_use"]
 
 
+class WireSubscriptionLogin(_WireModel):
+    """The harness's own OAuth credential file, as the runner writes it to disk.
+
+    Mirrors ``SubscriptionLogin`` in ``protocol.ts``: the four fields below are required there,
+    and ``extra="allow"`` carries the provider's own keys the same way its index signature does.
+    A login that is missing one of them is not one the runner can sign in with, so the schema
+    says so rather than describing an open bag.
+    """
+
+    type: str
+    access: str
+    refresh: str
+    expires: int
+    account_id: Optional[str] = Field(default=None, alias="accountId")
+
+
+class WireSubscription(_WireModel):
+    """The hosted subscription login delivered with a runtime-provided connection.
+
+    Not a credential binding: ``login`` is the harness's own OAuth credential file, which the
+    runner writes to disk before the session starts and reads back after a turn. ``version``
+    and ``generation`` order two logins; the runner pushes a newer login home against
+    ``version`` and folds ``generation`` into the warm-session fingerprint.
+
+    Every field is required, as in ``protocol.ts``. A default of ``0`` on either counter would
+    let a producer that forgot one emit a real generation and a real version by accident.
+    """
+
+    id: str
+    slug: str
+    provider: str
+    version: int
+    generation: int
+    login: WireSubscriptionLogin
+
+
 class WireModelConnection(_WireModel):
     """Resolved model routing, non-secret environment, and credentials for one run."""
 
@@ -126,6 +162,7 @@ class WireModelConnection(_WireModel):
     )
     environment: Optional[Dict[str, str]] = None
     credentials: List[WireCredential] = Field(default_factory=list)
+    subscription: Optional[WireSubscription] = None
 
 
 class WireModelCapabilities(_WireModel):

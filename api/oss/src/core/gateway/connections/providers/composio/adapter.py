@@ -340,15 +340,19 @@ class ComposioConnectionsAdapter(ConnectionsGatewayInterface):
         callback_url: Optional[str] = None,
         integration_key: Optional[str] = None,
         user_id: Optional[str] = None,
+        auth_scheme: Optional[str] = None,
     ) -> ConnectionRefreshResponse:
         # For Composio OAuth flows, "refresh" means re-initiating the auth link.
         # The provider does not expose a token-refresh endpoint for OAuth connections,
         # so we create a new connected_accounts/link which the user must re-authorize.
+        # The row's own auth_scheme is kept: re-initiating an api_key connection as
+        # managed OAuth 404s on toolkits that have no managed OAuth config.
         if integration_key and user_id:
             result = await self.initiate_connection(
                 request=ConnectionRequest(
                     user_id=user_id,
                     integration_key=integration_key,
+                    auth_scheme=auth_scheme,
                     callback_url=callback_url,
                 ),
             )

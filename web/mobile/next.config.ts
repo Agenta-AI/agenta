@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
         "@agenta/ui",
         "@agenta/entities",
         "@agenta/entity-ui",
+        "@agenta/automation-ui",
         "@agenta/navigation",
         "@agenta/navigation-ui",
         "@agenta/sessions",
@@ -39,10 +40,33 @@ const nextConfig: NextConfig = {
     // Workspace root, so standalone output nests as .next/standalone/mobile/
     // (same pattern as web/oss).
     outputFileTracingRoot: path.resolve(__dirname, ".."),
+    // Next 16.3.1 loads the ESM SWC helpers at runtime, but its standalone tracer
+    // currently keeps only the CommonJS helper files. Include the ESM helpers so
+    // the production image can start.
+    outputFileTracingIncludes: {
+        "/*": ["../node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/esm/**/*"],
+    },
     // Same policy as web/oss: the type gate runs as a dedicated turbo task, not inside
     // `next build`. (Next 16 removed the `eslint` option; `next build` no longer lints.)
     typescript: {
         ignoreBuildErrors: true,
+    },
+    async redirects() {
+        return [
+            {
+                // The providers' ONE registered redirect URI is the desktop `/auth/callback/<id>`;
+                // in production the desktop middleware hands a mobile-started landing to
+                // `/m/auth/callback/<id>` (see decideDesktopGate), and behind Traefik this app
+                // never sees the bare path. On a direct-port dev run (`next dev` on the origin
+                // the URI is registered against, no desktop in front) the landing arrives
+                // here and would 404, killing every OAuth sign-in. Mirror the hand-off so
+                // the dev loop completes; Next carries the `code`/`state` query along.
+                source: "/auth/callback/:provider",
+                destination: "/m/auth/callback/:provider",
+                basePath: false,
+                permanent: false,
+            },
+        ]
     },
     async headers() {
         return [

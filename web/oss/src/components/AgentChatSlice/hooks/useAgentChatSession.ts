@@ -10,7 +10,7 @@ import {
     submitApprovalForCapability,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
-import {useSessionChat} from "@agenta/chat/hooks"
+import {useFileActivityDetector, useSessionChat} from "@agenta/chat/hooks"
 import {
     classifyAgentRunError,
     ignoreStreamRejection,
@@ -82,7 +82,6 @@ import {useChatScopeKey} from "../state/scope"
 import {openSessionIdsAtomFamily} from "../state/sessions"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
 
-import {useFileActivityDetector} from "./useFileActivityDetector"
 import {type ScrollIntent} from "./useScrollIntent"
 import {useSessionHydration} from "./useSessionHydration"
 import {useToolCacheInvalidation} from "./useToolCacheInvalidation"
@@ -393,7 +392,8 @@ export const useAgentChatSession = ({
     }, [messages])
 
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
-    // throttle-revalidate the drives) as the turn streams, not just at onFinish.
+    // throttle-revalidate the drives) as the turn streams, not just at onFinish. Desktop drives its
+    // own session hook rather than `useAgentConversation`, so it calls the shared detector itself.
     useFileActivityDetector({sessionId, messages})
 
     // Server-side platform ops (create_schedule, …) stale the client cache with no other signal.

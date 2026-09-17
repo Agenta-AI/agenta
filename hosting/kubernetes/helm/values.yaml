@@ -111,7 +111,7 @@ redisDurable:
 # Docs: https://docs.agenta.ai/self-host/configuration#store-durable-object-store
 # ================================================================== #
 # store:
-#   endpointUrl:
+#   endpointUrl: https://store.example.com
 #   stsEndpointUrl:
 #   accessKey:
 #   secretKey:
@@ -124,6 +124,12 @@ redisDurable:
 #   seaweedfs:
 #     enabled: false
 #     port: 8333
+#     ingress:         # optional public route to the bundled S3 gateway; off by default.
+#       enabled: false # Set store.endpointUrl to this HTTPS host so clients outside the cluster
+#       host: store.example.com   # (a Daytona sandbox) can reach the store.
+#       tls:
+#         - hosts: [store.example.com]
+#           secretName: agenta-store-tls
 #     image:
 #       repository: chrislusf/seaweedfs
 #       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases
@@ -138,6 +144,9 @@ redisDurable:
 # ================================================================== #
 # agentRunner:
 #   enabled: true
+#   host: "0.0.0.0"            # AGENTA_RUNNER_HOST, the bind address. Leave it alone: the runner
+#                              # itself defaults to 127.0.0.1, which the kubelet cannot reach, so
+#                              # the health probes fail forever and the pod never becomes ready.
 #   liveFrames: true           # AGENTA_RUNNER_LIVE_FRAMES; set false to disable live-frame relay
 #   providers:
 #     enabled: [local]        # AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS (rendered comma-joined)
@@ -162,6 +171,15 @@ redisDurable:
 #     tokenSecretRef:          # AGENTA_RUNNER_TOKEN; Services sends it, the runner verifies it
 #       name: agenta-runner
 #       key: token
+#   fuse:
+#     enabled: true            # default true. With store.enabled=true the runner container gets
+#                              # the SYS_ADMIN capability and a hostPath mount of /dev/fuse, which
+#                              # geesefs needs for a local sandbox.
+#                              # GKE Autopilot rejects both, so set this to false there and run
+#                              # sandboxes on the Daytona provider:
+#                              #   agentRunner.fuse.enabled: false
+#                              #   agentRunner.providers.enabled: [daytona]
+#                              #   agentRunner.providers.default: daytona
 
 # ================================================================== #
 # workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md

@@ -24,6 +24,7 @@ describe("agentConfigSummary", () => {
             instructionWords: 10,
             instructions: "You are a friendly agent.\n\n- Greet the user warmly.",
             tools: 2,
+            integrationKeys: [],
             mcps: 0,
             skills: 0,
             skillNames: [],
@@ -71,6 +72,23 @@ describe("agentConfigSummary", () => {
         expect(prettifyKind("claude_code")).toBe("Claude code")
         expect(prettifyKind("some-future-kind")).toBe("Some future kind")
         expect(prettifyKind(null)).toBeNull()
+    })
+})
+
+describe("integrationKeys", () => {
+    it("names the integration behind each gateway connection, once", () => {
+        const summary = agentConfigSummary({
+            agent: {
+                tools: [
+                    {type: "gateway_connection", connection: {integration: "linear"}},
+                    {type: "gateway_connection", connection: {integration: "github"}},
+                    {type: "gateway_connection", connection: {integration: "linear"}},
+                    {name: "bash"},
+                ],
+            },
+        })
+        expect(summary.tools).toBe(4)
+        expect(summary.integrationKeys).toEqual(["linear", "github"])
     })
 })
 

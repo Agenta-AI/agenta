@@ -4,18 +4,15 @@ import {markSessionFresh} from "@agenta/chat/state"
 import {
     agentTemplateByKey,
     agentTemplateSeed,
-    templateBuilderMessage,
     appendSetupPreamble,
     invalidateWorkflowsListCache,
     type AgentSetupSelection,
 } from "@agenta/entities/workflow"
-import {useAgentSetupStep} from "@agenta/entity-ui/onboarding"
 import {useCreateAgent} from "@agenta/home-ui"
 import type {FileUIPart} from "ai"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {CONNECT_STEP_MODE} from "@/lib/connectStep"
 import {newId} from "@/lib/ids"
 
 import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
@@ -40,8 +37,6 @@ export const useNewAgentAction = (base: string) => {
     const stashTask = useSetAtom(stashPendingTaskAtom)
     const dropTask = useSetAtom(takePendingTaskAtom)
 
-    const step = useAgentSetupStep()
-
     const run = useCallback(
         async (params?: {
             name?: string
@@ -52,6 +47,8 @@ export const useNewAgentAction = (base: string) => {
              */
             sessionId?: string
             seedParts?: FileUIPart[]
+            /** The starter template this create came from, carried to the session's connect step. */
+            templateKey?: string
             /**
              * What the pre-create connect step decided (#6043) — which accounts are connected,
              * which were skipped, how much the agent may do. Rides along on the seed so the
@@ -87,7 +84,12 @@ export const useNewAgentAction = (base: string) => {
                 markSessionFresh(sessionId)
                 stashTask({
                     sessionId,
-                    task: {agentId: created.appId, text: seed, parts: seedParts},
+                    task: {
+                        agentId: created.appId,
+                        text: seed,
+                        parts: seedParts,
+                        templateKey: params?.templateKey,
+                    },
                 })
             }
 
@@ -117,27 +119,17 @@ export const useNewAgentAction = (base: string) => {
     const create = useCallback(() => void run(), [run])
 
     /**
-     * A template pick. It stops at the connect step when the template needs an account this
-     * workspace has not got — the same stop the first-run composer makes, so a template behaves
-     * the same wherever it is picked from. `open` declining means there is nothing to ask.
+     * A template pick. It creates and hands off like every other entry; the connect step is the
+     * SESSION's to run, off the template key carried on the stashed task. Stopping here instead
+     * only worked for a host that rendered the card, so a pick from anywhere else did nothing.
      */
     const createFromTemplate = useCallback(
         (templateKey: string) => {
             const template = agentTemplateByKey(templateKey)
             if (!template) return
-            if (
-                CONNECT_STEP_MODE &&
-                step.open({
-                    seedMessage: templateBuilderMessage(template),
-                    name: template.name,
-                    template,
-                })
-            ) {
-                return
-            }
-            void run(agentTemplateSeed(template))
+            void run({...agentTemplateSeed(template), templateKey})
         },
-        [run, step.open],
+        [run],
     )
 
     /**
@@ -150,6 +142,8 @@ export const useNewAgentAction = (base: string) => {
             text: string
             /** A template pick carries the template's name; a plain description carries none. */
             name?: string
+            /** And its key, so the session can ask for the accounts the template declares. */
+            templateKey?: string
             sessionId?: string
             parts?: FileUIPart[]
             setup?: AgentSetupSelection
@@ -157,6 +151,7 @@ export const useNewAgentAction = (base: string) => {
         }) =>
             run({
                 name: input.name,
+                templateKey: input.templateKey,
                 seedMessage: input.text,
                 sessionId: input.sessionId,
                 seedParts: input.parts,
@@ -166,5 +161,5 @@ export const useNewAgentAction = (base: string) => {
         [run],
     )
 
-    return {create, createFromTemplate, createFromPrompt, creating, error, step}
+    return {create, createFromTemplate, createFromPrompt, creating, error}
 }

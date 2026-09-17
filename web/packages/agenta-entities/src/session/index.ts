@@ -16,6 +16,7 @@ export {
     isInteractionConflict,
     querySessionStreams,
     querySessionsPage,
+    querySessionsFlatPage,
     querySessions,
     setSessionHeader,
     fetchSessionStream,

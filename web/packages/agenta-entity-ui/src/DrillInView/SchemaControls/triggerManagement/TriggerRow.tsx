@@ -89,7 +89,7 @@ export function TriggerRow({
                                 </span>
                             ) : null}
                         </div>
-                        <div className="mt-0.5 line-clamp-2 max-w-prose text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
+                        <div className="mt-0.5 truncate text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
                             {subtitle}
                         </div>
                     </div>

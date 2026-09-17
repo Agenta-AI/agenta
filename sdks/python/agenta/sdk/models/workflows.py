@@ -223,6 +223,25 @@ class WorkflowRevisionData(BaseModel):
 class WorkflowServiceStatus(Status):
     type: Optional[str] = None
     stacktrace: Optional[Union[list[str], str]] = None
+    # A stable slug naming the CLASS of failure, for a client that must branch on it (for
+    # example to offer a "Sign in again" button). It is not the HTTP status: ``code`` above is
+    # the integer status, and one status covers many failure classes. Set only when the raised
+    # exception names one, so every other error body stays exactly as it was.
+    failure_code: Optional[str] = None
+
+
+def failure_code_of(exception: BaseException) -> Optional[str]:
+    """The stable failure slug an exception declares, or ``None``.
+
+    Two places build an error response from a raised exception: the running normalizer (which
+    catches a handler's own exception) and the invoke routing layer (which catches everything
+    else). Both fill :attr:`WorkflowServiceStatus.failure_code` from here so the same failure
+    cannot answer with a code on one path and without one on the other.
+
+    Only a non-empty string counts. Anything else names no class, which is what ``None`` says.
+    """
+    code = getattr(exception, "failure_code", None)
+    return code if isinstance(code, str) and code else None
 
 
 class WorkflowRequestData(BaseModel):

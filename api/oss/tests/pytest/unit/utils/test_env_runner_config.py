@@ -143,3 +143,21 @@ def test_session_features_default_on_and_honor_overrides(
             assert redis_config.sequence_writes is expected
     finally:
         importlib.reload(env)
+
+
+@pytest.mark.parametrize(
+    "shared_reader, sequence_writes", [("false", "true"), ("true", "false")]
+)
+def test_session_redis_features_honor_independent_overrides(
+    monkeypatch, shared_reader, sequence_writes
+):
+    try:
+        with monkeypatch.context() as context:
+            context.setenv("AGENTA_SESSIONS_SHARED_READER", shared_reader)
+            context.setenv("AGENTA_SESSIONS_SEQUENCE_WRITES", sequence_writes)
+            importlib.reload(env)
+            config = env.SessionsRedisConfig()
+            assert config.shared_reader is (shared_reader == "true")
+            assert config.sequence_writes is (sequence_writes == "true")
+    finally:
+        importlib.reload(env)

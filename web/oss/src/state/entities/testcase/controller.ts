@@ -90,7 +90,7 @@
  * (addColumnAtom, renameColumnAtom, deleteColumnAtom)
  */
 
-import {createEntityController, type PathItem} from "../shared/createEntityController"
+import {createEntityController, type PathItem} from "@agenta/entities/shared"
 
 import {
     testcasePaginatedStore,
@@ -145,7 +145,11 @@ export interface TestcaseColumn {
  * ```
  */
 // Create base controller
-const baseController = createEntityController<FlattenedTestcase>({
+const baseController = createEntityController<
+    FlattenedTestcase,
+    Partial<FlattenedTestcase>,
+    Record<string, unknown>
+>({
     name: "testcase",
 
     // Entity data (server + draft + column changes merged)
@@ -360,11 +364,7 @@ export const testcase = {
     },
 }
 
-// Re-export types for convenience
-export type {EntityAction, EntityControllerState} from "../shared/createEntityController"
-
 // Type alias for testcase-specific usage
-export type TestcaseAction =
-    import("../shared/createEntityController").EntityAction<FlattenedTestcase>
+export type TestcaseAction = import("@agenta/entities/shared").EntityAction<FlattenedTestcase>
 export type TestcaseControllerState =
-    import("../shared/createEntityController").EntityControllerState<FlattenedTestcase>
+    import("@agenta/entities/shared").EntityControllerState<FlattenedTestcase>

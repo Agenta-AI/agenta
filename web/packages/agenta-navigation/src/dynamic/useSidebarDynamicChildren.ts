@@ -12,6 +12,76 @@ import type {SidebarEntity, SidebarEntityRef, SidebarEntitySource} from "./types
 
 const SHOW_ALL_LABEL = "Show all"
 
+/** What a cached row was built from — any change and the row is rebuilt. */
+interface RowInputs {
+    projectURL: string
+    dragZone?: string
+    wrapRow?: SidebarRowWrappers[string]
+}
+
+/**
+ * Last row built for a row key, reused while nothing about it changed.
+ *
+ * Keyed on the ROW KEY and the ref's FIELDS, not the ref object: the source rebuilds every ref on
+ * every recompute, so identity is never stable and a WeakMap on it would miss every time. Without
+ * this the whole list remounts on each poll, which fights a user mid-scroll.
+ *
+ * `resolveChildren` is therefore memoized, not pure — same rows in, same row OBJECTS out. It is
+ * keyed per entity so two entities sharing a parent key cannot serve each other's rows, and
+ * `resetSidebarRowCache` exists so tests can assert on a cold cache.
+ */
+interface EntityRowCache {
+    rows: Map<string, {ref: SidebarEntityRef; inputs: RowInputs; row: SidebarConfig}>
+    /** The chrome the cached rows closed over — closures, so they cannot go in a comparison. */
+    chrome: {wrapRow?: RowInputs["wrapRow"]}
+}
+
+/** Shallow field comparison — refs are flat records, so this settles it without serializing. */
+const sameRef = (a: SidebarEntityRef, b: SidebarEntityRef): boolean => {
+    const aKeys = Object.keys(a)
+    if (aKeys.length !== Object.keys(b).length) return false
+    const left = a as unknown as Record<string, unknown>
+    const right = b as unknown as Record<string, unknown>
+    return aKeys.every((key) => left[key] === right[key])
+}
+
+/** Per ENTITY, not per parent key: two entities can share a key, and their rows differ. */
+let rowCaches = new WeakMap<SidebarEntity, EntityRowCache>()
+
+/** Drops every memoized row. For tests that assert on freshly built rows. */
+export const resetSidebarRowCache = (): void => {
+    rowCaches = new WeakMap<SidebarEntity, EntityRowCache>()
+}
+
+/** Bounded so a long run of filter changes cannot grow one entity's cache without limit. */
+const ROW_CACHE_MAX = 2_000
+
+const sameRowInputs = (a: RowInputs, b: RowInputs): boolean =>
+    a.projectURL === b.projectURL && a.dragZone === b.dragZone && a.wrapRow === b.wrapRow
+
+const cachedRow = (
+    entity: SidebarEntity,
+    ref: SidebarEntityRef,
+    inputs: RowInputs,
+    build: (ref: SidebarEntityRef, dragZone?: string) => SidebarConfig,
+): SidebarConfig => {
+    let cache = rowCaches.get(entity)
+    if (!cache || cache.chrome.wrapRow !== inputs.wrapRow) {
+        cache = {rows: new Map(), chrome: {wrapRow: inputs.wrapRow}}
+        rowCaches.set(entity, cache)
+    }
+
+    const key = `${entity.parentKey}-${ref.id}`
+    const cached = cache.rows.get(key)
+    if (cached && sameRowInputs(cached.inputs, inputs) && sameRef(cached.ref, ref))
+        return cached.row
+
+    const row = build(ref, inputs.dragZone)
+    if (cache.rows.size >= ROW_CACHE_MAX) cache.rows.clear()
+    cache.rows.set(key, {ref, inputs, row})
+    return row
+}
+
 /**
  * Interleaves heading rows with the rows they cover. Headings follow the source's order, and one
  * with no rows left after the cap is dropped rather than left dangling over nothing.
@@ -69,18 +139,15 @@ export type SidebarKindIcon = (kind: SidebarEntity["kind"]) => ReactNode
  * playground's local tab cache. Same seam as `localSessionRefsAtom`: the package composes what
  * it is given.
  */
-/** Per-row icon renderers, injected by the app: this package stays headless and only calls them. */
-export type SidebarRowIcons = Record<string, (ref: SidebarEntityRef) => ReactElement>
-
 export type SidebarRowWrappers = Record<
     string,
     (ref: SidebarEntityRef, node: ReactNode) => ReactElement
 >
 
 /**
- * Maps one entity's gated source to menu children. Always returns ≥1 child — an
- * empty submenu would strip the parent's expand caret, leaving no way to open the
- * group (and so no way to trigger the gated fetch). Placeholders are disabled.
+ * Maps one entity's gated source to menu children. Returns ≥1 child unless the entity sets
+ * `hideWhenEmpty` — an empty submenu strips the parent's expand caret, leaving no way to open
+ * the group (and so no way to trigger the gated fetch). Placeholders are disabled.
  */
 export const resolveChildren = (
     entity: SidebarEntity,
@@ -89,7 +156,6 @@ export const resolveChildren = (
     idleFallback?: SidebarConfig[],
     kindIcon?: SidebarKindIcon,
     wrapRow?: SidebarRowWrappers[string],
-    rowIcon?: SidebarRowIcons[string],
 ): SidebarConfig[] => {
     const icon = () => entity.icon ?? kindIcon?.(entity.kind)
     const status = source?.status ?? "idle"
@@ -137,6 +203,9 @@ export const resolveChildren = (
 
     const refs = source?.refs ?? []
     if (!refs.length) {
+        // A source that names its own empty state is telling the reader something they have to
+        // act on — a filter that matched nothing. Only the generic "no rows at all" is silent.
+        if (entity.hideWhenEmpty && !source?.emptyLabel) return []
         return [
             {
                 key: `${entity.parentKey}-empty`,
@@ -156,7 +225,7 @@ export const resolveChildren = (
     // not quietly render more rows than an ungrouped one.
     const visibleRefs = refs.slice(0, entity.maxItems)
 
-    const toRow = (ref: SidebarEntityRef, dragZone?: string): SidebarConfig => ({
+    const buildRow = (ref: SidebarEntityRef, dragZone?: string): SidebarConfig => ({
         key: `${entity.parentKey}-${ref.id}`,
         dragItem: dragZone ? {kind: "row", id: ref.id, zone: dragZone} : undefined,
         title: entity.getLabel(ref),
@@ -165,7 +234,7 @@ export const resolveChildren = (
         link: entity.childLink(ref, projectURL),
         // A row can own more routes than it navigates to.
         matchLinks: entity.childMatchLinks?.(ref, projectURL),
-        icon: rowIcon?.(ref) ?? entity.getIcon?.(ref) ?? icon(),
+        icon: entity.getIcon?.(ref) ?? icon(),
         rowClassName: entity.getRowClassName?.(ref),
         isDynamic: true,
         onClick: entity.getOnClick?.(ref),
@@ -175,6 +244,11 @@ export const resolveChildren = (
               ? (node) => entity.wrapRow!(ref, node)
               : undefined,
     })
+
+    // A ref whose identity survived the poll keeps its row object, so `React.memo` on the row
+    // components holds instead of re-rendering the whole list every 15s.
+    const toRow = (ref: SidebarEntityRef, dragZone?: string): SidebarConfig =>
+        cachedRow(entity, ref, {projectURL, dragZone, wrapRow}, buildRow)
 
     const children: SidebarConfig[] =
         entity.getGroupKey && source?.groups?.length
@@ -203,18 +277,29 @@ export const useSidebarDynamicChildren = ({
     projectURL,
     kindIcon,
     rowWrappers,
-    rowIcons,
 }: {
     /** The active project's URL prefix — route shape is shared, the base is the app's. */
     projectURL: string | undefined
     kindIcon?: SidebarKindIcon
     rowWrappers?: SidebarRowWrappers
-    rowIcons?: SidebarRowIcons
 }): Record<string, SidebarConfig[]> => {
     const sources = useAtomValue(sidebarEntitySourcesAtom)
     const reordering = useAtomValue(sidebarReorderActiveAtom)
     const cachedChildrenRef = useRef<
         Record<string, {projectURL: string; children: SidebarConfig[]}>
+    >({})
+    // Per-entity memo. `sidebarEntitySourcesAtom` is one object for all four entities, so any one
+    // source changing used to rebuild every entity's children.
+    const resolvedRef = useRef<
+        Record<
+            string,
+            {
+                source: SidebarEntitySource | undefined
+                inputs: RowInputs
+                idleFallback: SidebarConfig[] | undefined
+                children: SidebarConfig[]
+            }
+        >
     >({})
 
     // Pure: only reads the cache (populated after commit by the effect below), so
@@ -236,18 +321,34 @@ export const useSidebarDynamicChildren = ({
             }
             const idleFallback =
                 cached?.projectURL === resolvedProjectURL ? cached.children : undefined
-            result[key] = resolveChildren(
+            const inputs: RowInputs = {
+                projectURL: resolvedProjectURL,
+                dragZone: entity.dragZone,
+                wrapRow: rowWrappers?.[key],
+            }
+            const previous = resolvedRef.current[key]
+            if (
+                previous &&
+                previous.source === source &&
+                previous.idleFallback === idleFallback &&
+                sameRowInputs(previous.inputs, inputs)
+            ) {
+                result[key] = previous.children
+                continue
+            }
+            const children = resolveChildren(
                 entity,
                 source,
                 resolvedProjectURL,
                 idleFallback,
                 kindIcon,
                 rowWrappers?.[key],
-                rowIcons?.[key],
             )
+            resolvedRef.current[key] = {source, inputs, idleFallback, children}
+            result[key] = children
         }
         return result
-    }, [sources, projectURL, kindIcon, rowWrappers, rowIcons, reordering])
+    }, [sources, projectURL, kindIcon, rowWrappers, reordering])
 
     // Keep the last non-idle children per group so a group going idle (its query
     // unsubscribing) still renders its previous items instead of the idle placeholder.

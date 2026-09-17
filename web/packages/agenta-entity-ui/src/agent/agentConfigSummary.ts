@@ -16,6 +16,9 @@ export interface AgentConfigSummary {
     /** The brief itself, raw — `InstructionsFileRow` derives its own preview from the markdown. */
     instructions: string | null
     tools: number
+    /** The integration behind each gateway-connection tool (`linear`, `github`), in tool order,
+     * deduplicated — so an overview can show the marks rather than only the count. */
+    integrationKeys: string[]
     mcps: number
     skills: number
     /** Display names of the agent's skills (embed refs by their sibling name/slug, inline
@@ -45,6 +48,12 @@ const skillName = (entry: unknown): string | null => {
     return slug
 }
 
+/** A gateway-connection tool's integration key; null for a custom or builtin tool. */
+const integrationKey = (entry: unknown): string | null =>
+    isRecord(entry) && entry.type === "gateway_connection"
+        ? str(nested(entry, "connection")?.integration)
+        : null
+
 const nested = (parent: unknown, key: string): Record<string, unknown> | null => {
     if (!isRecord(parent)) return null
     const child = parent[key]
@@ -70,6 +79,13 @@ export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
         instructionWords: instructions ? instructions.split(/\s+/).filter(Boolean).length : null,
         instructions,
         tools: count(agent.tools),
+        integrationKeys: Array.isArray(agent.tools)
+            ? [
+                  ...new Set(
+                      agent.tools.map(integrationKey).filter((key): key is string => Boolean(key)),
+                  ),
+              ]
+            : [],
         mcps: count(agent.mcps),
         skills: count(agent.skills),
         skillNames: Array.isArray(agent.skills)

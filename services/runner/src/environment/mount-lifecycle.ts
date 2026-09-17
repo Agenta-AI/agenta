@@ -125,14 +125,27 @@ export async function activateAgentMountUnavailableGuidance(
     );
     return;
   }
-  if (ctx.env.runAgentDir) {
-    writeSystemPromptLocal(
-      ctx.env.runAgentDir,
-      plan.prompt.systemPrompt,
-      plan.prompt.appendSystemPrompt,
-      ctx.log,
-    );
-  }
+  writeRunSystemPromptLocal(ctx);
+}
+
+/**
+ * Rewrite this run's Pi prompt files after the mount guidance changed them.
+ *
+ * A subscription run keeps them in its own per-run dir (`piPromptDir`), because its agent dir is
+ * shared with every other session on the connection. Every other local Pi run keeps them in its
+ * throwaway agent dir. Returns false when the run has neither dir, and the caller then
+ * re-prepares the agent dir.
+ */
+function writeRunSystemPromptLocal(ctx: AcquireContext): boolean {
+  const dir = ctx.env.piPromptDir ?? ctx.env.runAgentDir;
+  if (!dir) return false;
+  writeSystemPromptLocal(
+    dir,
+    ctx.plan.prompt.systemPrompt,
+    ctx.plan.prompt.appendSystemPrompt,
+    ctx.log,
+  );
+  return true;
 }
 
 /**
@@ -179,15 +192,7 @@ export async function activateAgentMountGuidance(
     );
     return;
   }
-  if (ctx.env.runAgentDir) {
-    writeSystemPromptLocal(
-      ctx.env.runAgentDir,
-      plan.prompt.systemPrompt,
-      plan.prompt.appendSystemPrompt,
-      ctx.log,
-    );
-    return;
-  }
+  if (writeRunSystemPromptLocal(ctx)) return;
   // Discarding `.extensionInstalled` here is safe, and a fail-closed throw would be unsound
   // anyway: both callers wrap this in a mount try/catch that logs and continues, so a throw could
   // not stop the run. Reachability: managed/none local Pi runs always created a throwaway dir in

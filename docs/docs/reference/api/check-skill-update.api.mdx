@@ -1,0 +1,73 @@
+---
+id: check-skill-update
+title: "Check Skill Update"
+description: "Read-only: compare one imported skill against its upstream origin."
+sidebar_label: "Check Skill Update"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlVsFuGzcQ/RViTgnASq7R055qpAUipG0M2U4PtiDTuyMtYy65IYdyVGGBfkS/sF9SDLkrrezYCXLtSVryzXBm3pshd0BqHaC4hot7bUyAhYQKQ+l1S9pZKGCOqvrBWbMtROmaVnkUzqLQTes8YSUC2wm1VtoGEpqCiG0gj6oRzuu1tpMbe2PnyPAgbmNbKcKl2iht1J3BW8lrS3JLXuevCkmVNVa34hVWmo8wrlTGbMW/f/9zYy1u0Au3Qf/gNRHa11LcNjoEbddLbZfBRV+yI+fFrbYbZXQ1Wp/c2D8c1dquhQ6idzEBCa5FrzjnWQUFlDWW98uU2zKHDBJa5VWDhJ4LtgOrGoQCMkhXIEFzwVpFNUjw+ClqjxUU5CNKCGWNjYJiB7Rtkx15bdcgYeV8owgKiDF5IU2GAYkRMaug6xbsL7TOBgzs4vTkhH+OmbqIZYkhrKIR8x4MEkpnCS0xXLWt0WVKcvoxsM1uFFbruQSk8wkPzt+vjHvgxL4Q8xDjnz0shSkhkKIYXjK4yIguJeTMBqvlBn3QORplt+9XqbjH9p3cr9hoDHBBBo/z3o/40PvpJOgQYs5DEzbhaXqlq/ClMN/wfiehwRDU+kXo7z2kk5n670zjnG27Tg4Ad/cRSzoS0nUO+xDV4pFYZpw2HHwo79V2FOosl4VbfKWiISiuF187ciyEPcGjg69Sd7zhfpljYKddxz5/Oj19KtEP3I1JgOJX753/fn3ylNDmBYaNK492v4ETbQnX6KFbPF/C31wOMIkjrL9RGBnyPDQVQ1zyLqvXtjEVZM9bWugklPR55GbP10G1lvAzfVVGXJscfo8b8XmgKDP0fCl+yRR86bAB8vby8vyJw6yPBql2PGpbFwiG3oFpGqdhuhvGajfN8zdM00xmDaLfDDM4esNGqtWJyPxZE7WhmE4xTkrjYjVRa7SkJkpn4IJ9lNFr2iYnZ+ezd7h9i6pCn1piBLhg/WVFHcP2LKhWv0OuS38fnEWqndd/ZZn0l0KdrbrE7sqNyT1LwYmz8xk8vnuPtrhRVJl0MZyUtkE+SvuQLUjAJrUJEKrm5/0Os7ofu3Ay+XFykuaXC9QoOzoi9bXIN9HVcA8eBbk7dPD/5q3QM8+9Nm2N0mkaJBJ2vY6v87OAZ20xeiD0UmY2k5gXEmqWf3ENu92dCnjlTdfx8qeIntW5kLBRXnP6SauVDvy/gmKlTMAXyHg17zv+tXgu5EHBluW7USbyF0i4x+34YZPmYT20x67fPitLbGlk+GR8cx/t2/z8/cUldN1/YaueaA==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Check Skill Update"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/skills/{skill_id}/updates/check"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Read-only: compare one imported skill against its upstream origin.
+
+Reports `update_available`, `up_to_date`, `detached` (edited locally —
+never overwritten), `missing_in_source`, or `invalid_in_source`.
+Nothing is written.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./check-skill-update.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./check-skill-update.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./check-skill-update.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

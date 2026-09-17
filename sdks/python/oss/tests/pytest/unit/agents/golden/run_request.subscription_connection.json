@@ -1,0 +1,53 @@
+{
+  "harness": "pi_core",
+  "sandbox": "local",
+  "sessionId": null,
+  "agentsMd": "You are a helpful assistant.",
+  "model": "openai-codex/gpt-5.5",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hi"
+    }
+  ],
+  "context": null,
+  "telemetry": null,
+  "tools": [
+    "read",
+    "bash",
+    "edit",
+    "write",
+    "grep",
+    "find",
+    "ls"
+  ],
+  "customTools": [],
+  "toolCallback": null,
+  "permissions": {
+    "default": "allow_reads"
+  },
+  "connection": {
+    "mode": "self_managed",
+    "slug": "chatgpt"
+  },
+  "modelConnection": {
+    "provider": "openai-codex",
+    "deployment": "direct",
+    "credentialMode": "runtime_provided",
+    "credentials": [],
+    "subscription": {
+      "id": "0199-secret-id",
+      "slug": "chatgpt",
+      "provider": "chatgpt",
+      "version": 3,
+      "generation": 1,
+      "login": {
+        "type": "oauth",
+        "access": "access-token",
+        "refresh": "refresh-token",
+        "expires": 1789000000000,
+        "accountId": "acct-1"
+      }
+    }
+  }
+}

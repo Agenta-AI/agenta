@@ -16,6 +16,7 @@ from agenta.sdk.agents.connections import (
     Endpoint,
     ModelRef,
     ResolvedConnection,
+    ResolvedSubscription,
 )
 from agenta.sdk.agents.connections.endpoints import build_resolved_connection
 from agenta.sdk.agents.connections.errors import InvalidConnectionConfigurationError
@@ -115,10 +116,11 @@ def test_agenta_mode_without_a_slug_is_the_project_default():
     assert conn.slug is None
 
 
-def test_self_managed_rejects_a_slug():
-    # A self-managed connection injects nothing, so a slug has nothing to resolve against.
-    with pytest.raises(ValidationError):
-        Connection(mode="self_managed", slug="openai-prod")
+def test_self_managed_accepts_a_slug():
+    # A self-managed slug names a hosted subscription connection in the project vault.
+    conn = Connection(mode="self_managed", slug="chatgpt")
+    assert conn.mode == "self_managed"
+    assert conn.slug == "chatgpt"
 
 
 def test_agenta_mode_with_slug_is_valid():
@@ -380,3 +382,99 @@ def test_plaintext_environment_materializes_only_at_local_boundary():
         "AWS_REGION": "us-east-1",
         "AWS_ACCESS_KEY_ID": "AKIA",
     }
+
+
+# -------------------------------------------------- ResolvedSubscription (hosted subscription)
+
+
+def _subscription(**overrides) -> dict:
+    data = {
+        "id": "0199-secret-id",
+        "slug": "chatgpt",
+        "provider": "chatgpt",
+        "version": 3,
+        "generation": 1,
+        "login": {
+            "type": "oauth",
+            "access": "access-token",
+            "refresh": "refresh-token",
+            "expires": 1789000000000,
+            "accountId": "acct-1",
+        },
+    }
+    data.update(overrides)
+    return data
+
+
+def test_subscription_wire_matches_the_contract_shape():
+    subscription = ResolvedSubscription(**_subscription())
+    assert subscription.to_wire() == {
+        "id": "0199-secret-id",
+        "slug": "chatgpt",
+        "provider": "chatgpt",
+        "version": 3,
+        "generation": 1,
+        "login": {
+            "type": "oauth",
+            "access": "access-token",
+            "refresh": "refresh-token",
+            "expires": 1789000000000,
+            "accountId": "acct-1",
+        },
+    }
+
+
+def test_subscription_login_never_leaves_on_a_dump_or_a_repr():
+    subscription = ResolvedSubscription(**_subscription())
+    assert subscription.model_dump()["login"] == "**********"
+    assert "access-token" not in subscription.model_dump_json()
+    assert "access-token" not in repr(subscription)
+
+
+def test_subscription_secret_values_seed_the_redactor():
+    subscription = ResolvedSubscription(**_subscription())
+    # Only the strings: the redactor's deny-set holds values, and an int is not one.
+    assert set(subscription.secret_values()) == {
+        "oauth",
+        "access-token",
+        "refresh-token",
+        "acct-1",
+    }
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"id": " "},
+        {"slug": ""},
+        {"login": {}},
+    ],
+)
+def test_subscription_requires_identity_and_a_login(overrides):
+    with pytest.raises(ValidationError):
+        ResolvedSubscription(**_subscription(**overrides))
+
+
+def test_resolved_connection_carries_the_subscription_on_the_wire():
+    resolved = ResolvedConnection(
+        provider="openai-codex",
+        model="gpt-5.5",
+        credential_mode="runtime_provided",
+        subscription=ResolvedSubscription(**_subscription()),
+    )
+    wire = resolved.to_wire()
+    assert wire["credentialMode"] == "runtime_provided"
+    assert wire["credentials"] == []
+    assert wire["subscription"]["id"] == "0199-secret-id"
+    assert wire["subscription"]["login"]["access"] == "access-token"
+
+
+def test_subscription_requires_runtime_provided():
+    # A subscription login is delivered only where the harness owns authentication.
+    with pytest.raises(ValidationError):
+        ResolvedConnection(
+            provider="openai-codex",
+            model="gpt-5.5",
+            credential_mode="none",
+            subscription=ResolvedSubscription(**_subscription()),
+        )

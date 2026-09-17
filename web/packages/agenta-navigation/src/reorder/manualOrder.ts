@@ -3,7 +3,7 @@ import {atom} from "jotai"
 import {atomWithStorage, createJSONStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
-import {mergeManualOrder, movedManualOrder} from "./applyOrder"
+import {capManualOrder, mergeManualOrder, movedManualOrder} from "./applyOrder"
 
 /**
  * The sidebar's hand-arranged order, per project.
@@ -19,7 +19,7 @@ import {mergeManualOrder, movedManualOrder} from "./applyOrder"
 const STORAGE_KEY = "agenta:sidebar:manual-order"
 
 /** Per zone. An unbounded list would grow with every session ever arranged. */
-const ZONE_CAP = 200
+const ZONE_CAP = 500
 
 // Fallback for when localStorage is absent (SSR, a node test env) or throws (private mode, quota).
 // Once a key is written or removed this session the in-memory copy is authoritative, so a failed
@@ -80,10 +80,7 @@ const orderByZoneAtom = atomWithStorage<Record<string, string[]>>(
  */
 const zoneKey = (projectId: string, zone: string) => `${projectId}:${zone}`
 
-/** The Agents nav group's own rows. */
-export const SIDEBAR_AGENT_ORDER_ZONE = "agents"
-/** The agent headings under Sessions. SEPARATE from the Agents group: the two lists answer
- * different questions, so arranging one is not a statement about the other. */
+/** The agent headings under Sessions — the rail's only agent list. */
 export const SIDEBAR_AGENT_GROUP_ZONE = "session-groups:agent"
 /** The status headings themselves. Their rows live in a `sessions:` zone each. */
 export const SIDEBAR_STATUS_GROUP_ZONE = "session-groups:status"
@@ -129,7 +126,7 @@ export const setSidebarManualOrderAtom = atom(
         if (!projectId) return
         const all = get(orderByZoneAtom)
         const key = zoneKey(projectId, zone)
-        const next = mergeManualOrder(all[key] ?? [], ids).slice(0, ZONE_CAP)
+        const next = capManualOrder(mergeManualOrder(all[key] ?? [], ids), ids, ZONE_CAP)
         set(orderByZoneAtom, {...all, [key]: next})
     },
 )

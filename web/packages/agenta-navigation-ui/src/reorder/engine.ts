@@ -25,6 +25,8 @@ import {createOverlay, type ReorderOverlay} from "./overlay"
  */
 
 const DRAG_THRESHOLD_PX = 5
+/** Past this much travel the gesture was a drag, so its click dies even if nothing moved. */
+const CLICK_TRAVEL_PX = 12
 const TOUCH_LONG_PRESS_MS = 350
 const TOUCH_CANCEL_PX = 8
 /** A press on a row's own control is that control's, not a drag. */
@@ -44,6 +46,12 @@ interface DragState {
     ghosts: HTMLElement[]
     pointerX: number
     pointerY: number
+    /** Where the PRESS began, not where the drag armed — the difference is the click test. */
+    originX: number
+    originY: number
+    /** Furthest the pointer ever got from the press. PEAK, not final: a drag out and back is
+     * still a drag, and its click must die. */
+    maxTravel: number
     index: number
     frame: number | null
     overlay: ReorderOverlay
@@ -160,14 +168,18 @@ const endDrag = (commit: boolean) => {
     store.set(sidebarReorderActiveAtom, false)
 
     if (!commit) return
-    // A drag ran, so the pointerup's click must die whether or not the order changed — a drag
-    // back to the origin would otherwise navigate the row or toggle the heading.
-    suppressClick = true
     // Resolved HERE, not left to the last frame: a drag released before any frame ran (a fast
     // flick, a throttled tab) would otherwise commit the index it started with and drop nothing.
     resolveIndex(state)
     const next = reorderedIds(state.ids, state.from, state.index)
-    if (next.every((id, index) => id === state.ids[index])) return
+    const moved = !next.every((id, index) => id === state.ids[index])
+    // The pointerup's click dies when the gesture was really a drag: the order changed, or the
+    // pointer travelled far enough that nobody meant it as a click (a drag back to the origin
+    // must not navigate the row or toggle the heading). It does NOT die for a press that drifted
+    // a few pixels past DRAG_THRESHOLD_PX and landed where it started — suppressing that is what
+    // made a heading take two clicks to toggle.
+    if (moved || state.maxTravel > CLICK_TRAVEL_PX) suppressClick = true
+    if (!moved) return
     store.set(setSidebarManualOrderAtom, {zone: state.item.zone, ids: next})
 }
 
@@ -176,11 +188,23 @@ const onPointerMove = (event: PointerEvent) => {
     event.preventDefault()
     active.pointerX = event.clientX
     active.pointerY = event.clientY
+    active.maxTravel = Math.max(
+        active.maxTravel,
+        Math.hypot(event.clientX - active.originX, event.clientY - active.originY),
+    )
     schedule()
 }
 
 const onPointerUp = (event: PointerEvent) => {
     if (!active || event.pointerId !== active.pointerId) return
+    // The release carries the final position, and pointermove is coalesced: without this the
+    // drop index and the click-suppression test both read wherever the last move landed.
+    active.pointerX = event.clientX
+    active.pointerY = event.clientY
+    active.maxTravel = Math.max(
+        active.maxTravel,
+        Math.hypot(event.clientX - active.originX, event.clientY - active.originY),
+    )
     endDrag(true)
 }
 
@@ -194,6 +218,7 @@ const startDrag = (
     item: SidebarDragItem,
     root: HTMLElement,
     event: PointerEvent,
+    origin: {x: number; y: number},
 ): boolean => {
     const scroller = nearestScroller(el, root)
     const peers = Array.from(
@@ -222,6 +247,9 @@ const startDrag = (
         ghosts,
         pointerX: event.clientX,
         pointerY: event.clientY,
+        originX: origin.x,
+        originY: origin.y,
+        maxTravel: Math.hypot(event.clientX - origin.x, event.clientY - origin.y),
         index: from,
         frame: null,
         overlay: createOverlay(el.textContent?.trim() ?? "", el),
@@ -274,7 +302,7 @@ export const attachReorder = (root: HTMLElement): (() => void) => {
         pending = {el, item, x: event.clientX, y: event.clientY, pointerId: event.pointerId, touch}
         if (!touch) return
         longPress = setTimeout(() => {
-            if (pending && startDrag(pending.el, pending.item, root, event)) clearPending()
+            if (pending && startDrag(pending.el, pending.item, root, event, pending)) clearPending()
         }, TOUCH_LONG_PRESS_MS)
     }
 
@@ -293,9 +321,9 @@ export const attachReorder = (root: HTMLElement): (() => void) => {
             return
         }
         if (moved < DRAG_THRESHOLD_PX) return
-        const {el, item} = pending
+        const {el, item, x, y} = pending
         clearPending()
-        startDrag(el, item, root, event)
+        startDrag(el, item, root, event, {x, y})
     }
 
     // Capture: the drop's click must die before the row's anchor or its menu sees it.

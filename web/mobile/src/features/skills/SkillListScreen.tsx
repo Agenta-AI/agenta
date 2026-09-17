@@ -17,7 +17,7 @@ import {
 } from "@agenta/skills-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
-import {SearchInput} from "@agenta/ui/ui"
+import {Button, SearchInput} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -87,13 +87,15 @@ export const SkillListScreen = ({
                 {/* Skills' archived view is inline (Archived tags in the same grid), so this
                     toggles rather than routes. It rides the title row so the toolbar below
                     carries only the search and the create action. */}
-                <button
+                <Button
                     type="button"
+                    variant="link"
+                    size="sm"
                     onClick={() => setShowArchived(!showArchived)}
-                    className="text-muted-foreground shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs hover:underline"
+                    className="text-muted-foreground shrink-0 px-0"
                 >
                     {showArchived ? "Hide archived" : "Archived skills"}
-                </button>
+                </Button>
             </div>
 
             {/* Desktop's toolbar axis (TableShell): search left and growing, action right. */}

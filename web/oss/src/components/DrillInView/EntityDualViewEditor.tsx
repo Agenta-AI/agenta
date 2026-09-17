@@ -1,11 +1,10 @@
 import {memo, useCallback, useMemo, useState, type ReactNode} from "react"
 
+import type {EntityAPI, EntityDrillIn} from "@agenta/entities/shared"
 import type {DataType} from "@agenta/ui/drill-in"
 import {ArrowCounterClockwise, Code, Trash, TreeStructure} from "@phosphor-icons/react"
 import {Button, Segmented, Select, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import type {EntityAPI, EntityDrillIn} from "@/oss/state/entities/shared"
 
 import type {DrillInContentProps} from "./DrillInContent"
 import {type PropertyType} from "./DrillInControls"

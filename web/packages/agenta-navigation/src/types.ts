@@ -63,6 +63,8 @@ export interface SidebarConfig {
      * and scrolls inside itself, so the entries after it stay on screen however long it grows.
      * Opt-in — a rail with no such group keeps scrolling as a whole. */
     scrollChildren?: boolean
+    /** Scrolled near the end of a `scrollChildren` group — load the next page. */
+    onReachEnd?: () => void
     /** Workflow categories that support this item. Omit to support every category. */
     workflowCategories?: readonly SidebarWorkflowCategory[]
 }

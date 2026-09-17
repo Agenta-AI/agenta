@@ -34,6 +34,27 @@ export const useRenameAgent = () => {
     )
 }
 
+/** The description write on its own, for an inline editor. An empty string clears it. */
+export const useUpdateAgentDescription = () => {
+    const queryClient = useQueryClient()
+    const projectId = useAtomValue(projectIdAtom) ?? ""
+
+    return useCallback(
+        async (id: string, description: string): Promise<boolean> => {
+            try {
+                await updateWorkflow(projectId, {id, description})
+            } catch {
+                message.error("Couldn't update this agent's description")
+                return false
+            }
+            void queryClient.invalidateQueries({queryKey: ["workflows"]})
+            void queryClient.invalidateQueries({queryKey: ["agent-workflows"]})
+            return true
+        },
+        [projectId, queryClient],
+    )
+}
+
 /**
  * Everything you can do to an agent from its own surfaces, defined once — the same shape
  * [[useSessionActions]] gives sessions.
@@ -89,15 +110,15 @@ export const useAgentActions = () => {
     const remove = useCallback(
         (target: AgentActionTarget) => {
             modal.confirm({
-                title: "Delete agent",
+                title: "Archive agent",
                 content: `"${target.name?.trim() || "This agent"}" will be archived along with its variants and revisions. Its past sessions stay readable.`,
-                okText: "Delete",
+                okText: "Archive",
                 okButtonProps: {danger: true},
                 onOk: async () => {
                     try {
                         await archiveWorkflow(projectId, target.id)
                     } catch {
-                        message.error("Couldn't delete this agent")
+                        message.error("Couldn't archive this agent")
                         return
                     }
                     revalidate()

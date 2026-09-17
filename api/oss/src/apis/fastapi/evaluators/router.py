@@ -1608,6 +1608,8 @@ class EvaluatorsRouter:
             #
             include_archived=evaluator_revision_query_request.include_archived,
             #
+            grouping=evaluator_revision_query_request.grouping,
+            #
             windowing=evaluator_revision_query_request.windowing,
         )
 

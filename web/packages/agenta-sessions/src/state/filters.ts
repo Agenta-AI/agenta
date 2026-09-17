@@ -4,13 +4,30 @@ import {atom} from "jotai"
  * Every filter here maps to a server predicate — see `useSessionList`. Nothing narrows a fetched
  * page client-side, because that would filter the window rather than the set.
  */
-export type SessionStatusFilter = "all" | "live" | "waiting"
+/**
+ * Each of these is a predicate the SERVER applies, not a pass over a fetched page.
+ *
+ * The backend's liveness flags nest — `is_alive ⊇ is_running` — so the three live options are
+ * genuinely different questions: `live` is "the sandbox is up", `running` is "a turn is going",
+ * and `idle` is the complement of `live`. `waiting` is the odd one out: it narrows to the gated
+ * session ids from the actionable-interactions poll rather than to a flag.
+ */
+export type SessionStatusFilter = "all" | "live" | "running" | "waiting" | "idle"
 
 export const sessionSearchAtom = atom("")
 /** Agent workflow id, matched against the turns' references. */
 export const sessionAgentFilterAtom = atom<string | null>(null)
 export const sessionStatusFilterAtom = atom<SessionStatusFilter>("all")
 export const sessionShowArchivedAtom = atom(false)
+/**
+ * The archive INSTEAD of the list, where `sessionShowArchivedAtom` shows it alongside.
+ *
+ * Two atoms rather than a tri-state, because the two surfaces ask different questions: the
+ * desktop toolbar has a switch that widens the set, and the mobile list has a Type choice that
+ * replaces it. Server-side `archived_only` wins over `include_archived`, so setting both is not
+ * ambiguous.
+ */
+export const sessionArchivedOnlyAtom = atom(false)
 /** Automation runs are sessions too, so without this they sit in the list indistinguishable from
  * your own work. Hidden by default; the chip opts back in. */
 export const sessionShowTriggeredAtom = atom(false)
@@ -21,6 +38,7 @@ export const sessionFiltersActiveExceptAgentAtom = atom(
         Boolean(get(sessionSearchAtom).trim()) ||
         get(sessionStatusFilterAtom) !== "all" ||
         get(sessionShowArchivedAtom) ||
+        get(sessionArchivedOnlyAtom) ||
         get(sessionShowTriggeredAtom),
 )
 
@@ -33,6 +51,7 @@ export const resetSessionFiltersAtom = atom(null, (_get, set) => {
     set(sessionAgentFilterAtom, null)
     set(sessionStatusFilterAtom, "all")
     set(sessionShowArchivedAtom, false)
+    set(sessionArchivedOnlyAtom, false)
     set(sessionShowTriggeredAtom, false)
 })
 

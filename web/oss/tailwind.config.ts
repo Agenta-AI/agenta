@@ -147,6 +147,7 @@ export const createConfig = (content: string[] = []): Config => {
             "../packages/agenta-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-annotation-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-entity-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-automation-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-entities/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground-ui/src/**/*.{js,ts,jsx,tsx}",
@@ -365,8 +366,6 @@ export const createConfig = (content: string[] = []): Config => {
                         from: {transform: "translateY(0)"},
                         to: {transform: "translateY(100%)"},
                     },
-                    // antd Spin dot pulse (antSpinMove): base opacity 0.3 ramps to 1.
-                    "spin-move": {to: {opacity: "1"}},
                     // Config-section title shimmer (ConfigAccordionSection glint sweep).
                     "config-shimmer": {
                         "0%": {maskPosition: "180% 0", WebkitMaskPosition: "180% 0"},
@@ -413,8 +412,6 @@ export const createConfig = (content: string[] = []): Config => {
                     "sheet-out-top": "sheet-out-top 0.3s cubic-bezier(0.755,0.05,0.855,0.06)",
                     "sheet-in-bottom": "sheet-in-bottom 0.3s cubic-bezier(0.23,1,0.32,1)",
                     "sheet-out-bottom": "sheet-out-bottom 0.3s cubic-bezier(0.755,0.05,0.855,0.06)",
-                    // antd Spin: 1s linear infinite alternate, dots staggered by animation-delay.
-                    "spin-move": "spin-move 1s linear infinite alternate",
                     // Picker panels: 0.2s sits in the dropdown budget; easeOutQuint is the same
                     // curve the drawer slides on, so docked surfaces share one deceleration.
                     "command-panel-in": "command-panel-in 0.2s cubic-bezier(0.23,1,0.32,1)",

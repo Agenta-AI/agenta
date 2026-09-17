@@ -317,12 +317,33 @@ export interface SessionEnvironment {
   mcpAbort: AbortController;
   runAgentDir: string | undefined;
   /**
+   * The per-run dir holding this run's Pi system-prompt files, on a local subscription run whose
+   * agent dir is shared with every other session on the connection. Removed at teardown.
+   * Undefined for every other run. See `preparePiPromptChannel`.
+   */
+  piPromptDir: string | undefined;
+  /**
    * The local off-mount directory this run pointed CODEX_SQLITE_HOME at (Codex's SQLite state,
    * which cannot live on the geesefs cwd mount). Removed best-effort by `destroy`; the state is
    * disposable because native resume rides the `sessions/` rollout files on CODEX_HOME, not the
    * SQLite. Undefined when not a local managed Codex run.
    */
   codexSqliteHome: string | undefined;
+  /**
+   * Which hosted subscription login this session runs on, and which one the API has acknowledged.
+   *
+   * It lives on the ENVIRONMENT rather than in a module map so two sessions on one runner cannot
+   * suppress each other's publication. Undefined for every run that carries no subscription.
+   */
+  subscriptionPublish?: import("./subscription-login/publisher.ts").SubscriptionPublishState;
+  /**
+   * The one operation that publishes this session's login, drained at teardown.
+   *
+   * IT BELONGS TO THE SESSION, NOT THE TURN. Owned by a turn it would stop between turns, through
+   * a park, and from the last turn until eviction, and Pi persists a refreshed token around the
+   * moment a turn ends.
+   */
+  subscriptionPublisher?: import("./subscription-login/publisher.ts").SubscriptionPublisher;
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is

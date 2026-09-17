@@ -51,6 +51,12 @@ export interface AgentSetupCardProps {
     onReadyChange?: (canCreate: boolean, selection: AgentSetupSelection) => void
     /** The host renders the Create action itself (e.g. in the composer it is docked into). */
     hideCreate?: boolean
+    /**
+     * Label for the primary action. Defaults to "Create agent", which is only true before the
+     * agent exists — a host that runs this step inside a live session is releasing a held first
+     * message, not creating anything.
+     */
+    createLabel?: string
     /** Abandon the step — a small ✕ in the card's own header. Hidden when omitted. */
     onDismiss?: () => void
     /**
@@ -70,6 +76,7 @@ const AgentSetupCard = ({
     onCreate,
     onReadyChange,
     hideCreate = false,
+    createLabel = SETUP_COPY.create,
     onDismiss,
     variant = "card",
     creating = false,
@@ -288,7 +295,7 @@ const AgentSetupCard = ({
                             disabled={!canCreate || creating}
                         >
                             {creating ? <Spinner size="small" /> : null}
-                            {SETUP_COPY.create}
+                            {createLabel}
                         </Button>
                     )}
                 </div>

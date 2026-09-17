@@ -4,11 +4,11 @@ import {useVaultSecret} from "@agenta/entities/secret"
 import {NamedSecretTable} from "@agenta/settings-ui"
 import type {LlmProvider} from "@agenta/shared/types"
 
-import {ConfirmSheet} from "./ConfirmSheet"
+import {ConfirmModal} from "./ConfirmModal"
 import {SecretFormSheet} from "./SecretFormSheet"
 
 /**
- * Mobile binding: the shared vault table, with create/edit and delete as bottom sheets. The
+ * Mobile binding: the shared vault table, with create/edit in a sheet and delete in a modal. The
  * desktop puts the same two surfaces in antd modals; the table and its mutations are shared,
  * so only the surfaces differ.
  */
@@ -23,7 +23,7 @@ export const SecretsTab = () => {
                 <SecretFormSheet open={open} secret={selectedSecret} onClose={onClose} />
             )}
             renderDeleteDialog={({selectedProvider, open, onClose}) => (
-                <ConfirmSheet
+                <ConfirmModal
                     open={open}
                     title="Delete secret"
                     description="This cannot be undone."

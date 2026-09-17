@@ -1090,9 +1090,13 @@ def test_update_call_sites_build_the_update_path_payload():
 
 
 def test_primary_credential_fields_cover_every_secret_kind():
-    # The redaction, the presence report, and the carry-over all key off this map, so a
-    # kind missing from it silently stops being redacted.
-    from oss.src.core.secrets.redaction import PRIMARY_CREDENTIAL_FIELDS
+    # The redaction, the presence report, and the carry-over all key off these maps, so a
+    # kind missing from both silently stops being redacted. Named here rather than derived,
+    # so adding a kind is a decision about where its credential lives.
+    from oss.src.core.secrets.redaction import (
+        DATA_CREDENTIAL_FIELDS,
+        PRIMARY_CREDENTIAL_FIELDS,
+    )
 
     assert set(PRIMARY_CREDENTIAL_FIELDS) == {
         "provider_key",
@@ -1101,3 +1105,7 @@ def test_primary_credential_fields_cover_every_secret_kind():
         "sso_provider",
         "custom_secret",
     }
+    # A subscription keeps its credential on the data object, not in a nested container,
+    # and it has no readable form at all: both fields are stripped whatever write_only says.
+    assert set(DATA_CREDENTIAL_FIELDS) == {"subscription_provider"}
+    assert DATA_CREDENTIAL_FIELDS["subscription_provider"] == ("login", "login_attempt")

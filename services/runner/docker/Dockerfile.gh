@@ -106,6 +106,9 @@ EXPOSE 8765
 # through a per-run temp dir the runtime user owns, so this is the fast path for the default dir,
 # not the only safeguard.
 RUN mkdir -p /pi-agent && chown node:node /pi-agent
+# Durable runner state (the per-connection copy of a hosted subscription login). A named volume
+# mounted here inherits this ownership, so the non-root runner can write it.
+RUN mkdir -p /var/lib/agenta/runner-state && chown node:node /var/lib/agenta/runner-state
 
 # Pin HOME so the sandbox-agent daemon's per-agent install dir ($HOME/.local/share/sandbox-agent)
 # is the same at build time (the pin RUN below) and at runtime (buildDaemonEnv copies HOME into the

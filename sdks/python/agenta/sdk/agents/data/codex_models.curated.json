@@ -2,10 +2,28 @@
   "schema_version": "1",
   "_curation": {
     "harness": "codex",
-    "note": "Hand-curated. `id` is the bare model id the Codex CLI accepts (model_selection = provider/id, under the openai family). The live Codex session advertises gpt-5.6-sol (default), gpt-5.6-terra, gpt-5.6-luna (cheapest), gpt-5.5, and gpt-5.2; the gpt-5.1-codex family is API-listed but rejected by the backend as deprecated, so it is excluded. Pricing and context_window are sourced from the litellm model registry (models.litellm.ai), the same registry the platform's run-cost calculation uses, so the picker tooltip and run cost agree. Ratings are relative 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest). Maintained via the sync-model-catalog skill.",
-    "sources": "Live Codex app-server session model list (spike/findings.md); litellm model registry (models.litellm.ai)"
+    "note": "Hand-curated. `id` is the bare model id the Codex CLI accepts (model_selection = provider/id, under the openai family). Pricing and context_window are sourced from the OpenAI model pages and the litellm registry used for run-cost calculation. Ratings are relative 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest). Maintained via the sync-model-catalog skill.",
+    "sources": "Live Codex app-server session model list (spike/findings.md); developers.openai.com/api/docs/models; litellm model registry (models.litellm.ai), checked 2026-09-07"
   },
   "models": [
+    {
+      "id": "gpt-6-astra",
+      "provider": "openai",
+      "source": "curated",
+      "name": "GPT-6 Astra",
+      "pricing": {
+        "input_per_mtok": 10.0,
+        "output_per_mtok": 50.0,
+        "cache_read_per_mtok": 1.0,
+        "cache_write_per_mtok": 12.5,
+        "currency": "USD"
+      },
+      "context_window": 272000,
+      "modalities": ["text", "image"],
+      "label": "Astra",
+      "description": "OpenAI's most capable model for difficult coding, reasoning, research, and computer-use work.",
+      "ratings": {"cost": 1, "intelligence": 5, "speed": 2}
+    },
     {
       "id": "gpt-5.6-sol",
       "provider": "openai",

@@ -151,6 +151,7 @@ export interface EnvironmentView {
   readonly mountedCwd: string | undefined;
   readonly agentMountedPath: string | undefined;
   readonly runAgentDir: string | undefined;
+  readonly piPromptDir: string | undefined;
   readonly durableCwdSafeToDelete: boolean;
   readonly runtimeRemount: Promise<boolean> | undefined;
 }

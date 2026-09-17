@@ -78,15 +78,30 @@ function sortTimes(times: CronTimeOfDay[]): CronTimeOfDay[] {
     return [...times].sort((a, b) => a.hour - b.hour || a.minute - b.minute)
 }
 
-export function ScheduleBuilderField({
-    value,
-    onChange,
-}: {
-    value: string
-    onChange: (cron: string) => void
-}) {
+export interface ScheduleBuilderControls {
+    builder: ScheduleBuilderState
+    /** The collapsed row's words for the current expression — "Weekdays at 09:00 UTC". */
+    summary: string
+    /** "Next run …", or "" while the expression is invalid. */
+    nextLine: string
+    validation: ReturnType<typeof validateSchedule>
+    emit: (next: ScheduleBuilderState) => void
+    setCronText: (text: string) => void
+    selectCadence: (cadence: CronCadence) => void
+}
+
+/**
+ * The builder state behind the field.
+ *
+ * Exported so a host with its own trigger and overlay (the mobile "Runs when" control, which
+ * has to sit beside an event picker in one popover) drives {@link ScheduleBuilderPanel} from
+ * the same state this field does, rather than reimplementing the cron round-trip.
+ */
+export function useScheduleBuilder(
+    value: string,
+    onChange: (cron: string) => void,
+): ScheduleBuilderControls {
     const [builder, setBuilder] = useState<ScheduleBuilderState>(() => cronToBuilder(value).state)
-    const [open, setOpen] = useState(false)
     const lastEmitted = useRef(value)
 
     // External cron change (edit-mode prefill, or a value set elsewhere) — re-derive
@@ -109,7 +124,7 @@ export function ScheduleBuilderField({
 
     // Raw cron typed in the Cron editor — stays in Cron (the user chose it); re-deriving
     // the cadence per keystroke would yank the editor out from under them.
-    const onCronText = useCallback(
+    const setCronText = useCallback(
         (text: string) => {
             lastEmitted.current = text
             setBuilder((b) => ({...b, cadence: "custom", cron: text}))
@@ -148,6 +163,154 @@ export function ScheduleBuilderField({
         [validation.valid, value, builder],
     )
 
+    return {builder, summary, nextLine, validation, emit, setCronText, selectCadence}
+}
+
+/**
+ * Everything editable about a schedule — the cadence chips, the cadence's own controls, and the
+ * next-run footer. The panel only, with no trigger and no overlay of its own, so it can be
+ * dropped into this field's popover or into a host's (see {@link useScheduleBuilder}).
+ */
+export function ScheduleBuilderPanel({
+    value,
+    controls,
+}: {
+    value: string
+    controls: ScheduleBuilderControls
+}) {
+    const {builder, nextLine, validation, emit, setCronText, selectCadence} = controls
+
+    return (
+        <div className="flex flex-col gap-3.5">
+            <ChipRow label="Cadence">
+                {CADENCES.map((c) => (
+                    <Chip
+                        key={c.value}
+                        active={c.value === builder.cadence}
+                        onClick={() => selectCadence(c.value)}
+                    >
+                        {c.label}
+                    </Chip>
+                ))}
+            </ChipRow>
+
+            {builder.cadence === "weekly" && (
+                <ChipRow label="Days">
+                    {WEEKDAYS.map((d) => (
+                        <Chip
+                            key={d.value}
+                            active={builder.weekdays.includes(d.value)}
+                            onClick={() =>
+                                emit({
+                                    ...builder,
+                                    weekdays: toggle(builder.weekdays, d.value),
+                                })
+                            }
+                        >
+                            {d.label}
+                        </Chip>
+                    ))}
+                </ChipRow>
+            )}
+
+            {builder.cadence === "monthly" && (
+                <div className="flex flex-col gap-1.5">
+                    <FieldLabel>Days of the month</FieldLabel>
+                    <div className="grid grid-cols-7 gap-1">
+                        {DAYS_OF_MONTH.map((d) => {
+                            const active = builder.daysOfMonth.includes(d)
+                            return (
+                                <Button
+                                    key={d}
+                                    variant={active ? "default" : "outline"}
+                                    aria-pressed={active}
+                                    onClick={() =>
+                                        emit({
+                                            ...builder,
+                                            daysOfMonth: toggle(builder.daysOfMonth, d),
+                                        })
+                                    }
+                                    className="w-full px-0 text-xs"
+                                >
+                                    {d}
+                                </Button>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {builder.cadence === "hourly" && (
+                <>
+                    <ChipRow label="Every">
+                        {intervalOptions(builder.everyNHours).map((n) => (
+                            <Chip
+                                key={n}
+                                active={n === builder.everyNHours}
+                                onClick={() => emit({...builder, everyNHours: n})}
+                            >
+                                {n}h
+                            </Chip>
+                        ))}
+                    </ChipRow>
+                    <ChipRow label="At minute">
+                        {minuteOptions(builder.times[0]?.minute ?? 0).map((m) => (
+                            <Chip
+                                key={m}
+                                active={m === (builder.times[0]?.minute ?? 0)}
+                                onClick={() => emit({...builder, times: [{hour: 0, minute: m}]})}
+                            >
+                                :{String(m).padStart(2, "0")}
+                            </Chip>
+                        ))}
+                    </ChipRow>
+                </>
+            )}
+
+            {builder.cadence === "custom" && (
+                <div className="flex flex-col gap-1.5">
+                    <FieldLabel>Expression</FieldLabel>
+                    <Input
+                        placeholder="minute hour day month weekday (UTC)"
+                        value={value}
+                        onChange={(e) => setCronText(e.target.value)}
+                        aria-invalid={validation.valid ? undefined : true}
+                        aria-label="Cron expression"
+                        className="font-mono"
+                    />
+                    <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
+                        5-field cron in UTC (e.g. 0 9 * * * = every day at 09:00 UTC).
+                    </span>
+                </div>
+            )}
+
+            {builder.cadence !== "custom" && builder.cadence !== "hourly" && (
+                <TimesField times={builder.times} onChange={(times) => emit({...builder, times})} />
+            )}
+
+            {nextLine ? (
+                <div className="flex items-center gap-2 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] pt-3">
+                    <Clock size={14} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
+                    <span className="text-xs text-[var(--ag-colorTextDescription)]">
+                        {nextLine}
+                    </span>
+                </div>
+            ) : null}
+        </div>
+    )
+}
+
+export function ScheduleBuilderField({
+    value,
+    onChange,
+}: {
+    value: string
+    onChange: (cron: string) => void
+}) {
+    const controls = useScheduleBuilder(value, onChange)
+    const {summary, nextLine, validation} = controls
+    const [open, setOpen] = useState(false)
+
     return (
         <Field error={validation.valid ? undefined : validation.error}>
             <div className="flex flex-col gap-1.5">
@@ -173,130 +336,9 @@ export function ScheduleBuilderField({
                     </PopoverTrigger>
                     <PopoverContent
                         align="start"
-                        className="flex w-[var(--radix-popover-trigger-width)] flex-col gap-3.5 p-4"
+                        className="w-[var(--radix-popover-trigger-width)] p-4"
                     >
-                        <ChipRow label="Cadence">
-                            {CADENCES.map((c) => (
-                                <Chip
-                                    key={c.value}
-                                    active={c.value === builder.cadence}
-                                    onClick={() => selectCadence(c.value)}
-                                >
-                                    {c.label}
-                                </Chip>
-                            ))}
-                        </ChipRow>
-
-                        {builder.cadence === "weekly" && (
-                            <ChipRow label="Days">
-                                {WEEKDAYS.map((d) => (
-                                    <Chip
-                                        key={d.value}
-                                        active={builder.weekdays.includes(d.value)}
-                                        onClick={() =>
-                                            emit({
-                                                ...builder,
-                                                weekdays: toggle(builder.weekdays, d.value),
-                                            })
-                                        }
-                                    >
-                                        {d.label}
-                                    </Chip>
-                                ))}
-                            </ChipRow>
-                        )}
-
-                        {builder.cadence === "monthly" && (
-                            <div className="flex flex-col gap-1.5">
-                                <FieldLabel>Days of the month</FieldLabel>
-                                <div className="grid grid-cols-7 gap-1">
-                                    {DAYS_OF_MONTH.map((d) => {
-                                        const active = builder.daysOfMonth.includes(d)
-                                        return (
-                                            <Button
-                                                key={d}
-                                                variant={active ? "default" : "outline"}
-                                                aria-pressed={active}
-                                                onClick={() =>
-                                                    emit({
-                                                        ...builder,
-                                                        daysOfMonth: toggle(builder.daysOfMonth, d),
-                                                    })
-                                                }
-                                                className="w-full px-0 text-xs"
-                                            >
-                                                {d}
-                                            </Button>
-                                        )
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {builder.cadence === "hourly" && (
-                            <>
-                                <ChipRow label="Every">
-                                    {intervalOptions(builder.everyNHours).map((n) => (
-                                        <Chip
-                                            key={n}
-                                            active={n === builder.everyNHours}
-                                            onClick={() => emit({...builder, everyNHours: n})}
-                                        >
-                                            {n}h
-                                        </Chip>
-                                    ))}
-                                </ChipRow>
-                                <ChipRow label="At minute">
-                                    {minuteOptions(builder.times[0]?.minute ?? 0).map((m) => (
-                                        <Chip
-                                            key={m}
-                                            active={m === (builder.times[0]?.minute ?? 0)}
-                                            onClick={() =>
-                                                emit({...builder, times: [{hour: 0, minute: m}]})
-                                            }
-                                        >
-                                            :{String(m).padStart(2, "0")}
-                                        </Chip>
-                                    ))}
-                                </ChipRow>
-                            </>
-                        )}
-
-                        {builder.cadence === "custom" && (
-                            <div className="flex flex-col gap-1.5">
-                                <FieldLabel>Expression</FieldLabel>
-                                <Input
-                                    placeholder="minute hour day month weekday (UTC)"
-                                    value={value}
-                                    onChange={(e) => onCronText(e.target.value)}
-                                    aria-invalid={validation.valid ? undefined : true}
-                                    aria-label="Cron expression"
-                                    className="font-mono"
-                                />
-                                <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
-                                    5-field cron in UTC (e.g. 0 9 * * * = every day at 09:00 UTC).
-                                </span>
-                            </div>
-                        )}
-
-                        {builder.cadence !== "custom" && builder.cadence !== "hourly" && (
-                            <TimesField
-                                times={builder.times}
-                                onChange={(times) => emit({...builder, times})}
-                            />
-                        )}
-
-                        {nextLine ? (
-                            <div className="flex items-center gap-2 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] pt-3">
-                                <Clock
-                                    size={14}
-                                    className="shrink-0 text-[var(--ag-colorTextSecondary)]"
-                                />
-                                <span className="text-xs text-[var(--ag-colorTextDescription)]">
-                                    {nextLine}
-                                </span>
-                            </div>
-                        ) : null}
+                        <ScheduleBuilderPanel value={value} controls={controls} />
                     </PopoverContent>
                 </Popover>
 

@@ -1,0 +1,45 @@
+---
+title: "Files and attachments"
+sidebar_label: "Files and attachments"
+description: "Upload input files, attach them to a session, and consume files produced by an agent."
+sidebar_position: 11
+---
+
+Files enter an agent through session attachments and leave through file events or tool results. The sandbox working directory is separate from the attachment API.
+
+## Upload and reference
+
+Upload an attachment through the session attachment endpoint, then associate returned attachment IDs with a session:
+
+```json
+{
+  "session_id": "customer-case-4821",
+  "attachment_ids": ["019d952f-0000-0000-0000-000000000010"]
+}
+```
+
+The reference request accepts at most 100 attachment IDs. The API validates project access before exposing file content to a session.
+
+When sending messages, use image or resource blocks with a URI and MIME type, or the equivalent Vercel `file` part. See [Chat message format](/reference/agents/chat-message-format#content-blocks).
+
+## Generated files
+
+An agent can create files in its sandbox. A streamed `file` event carries:
+
+```json
+{
+  "type": "file",
+  "data": {
+    "url": "https://example.invalid/download/report.pdf",
+    "mediaType": "application/pdf"
+  }
+}
+```
+
+Treat returned URLs according to their expiry and authorization rules. Download files promptly when your application needs durable ownership.
+
+## Working-directory persistence
+
+Files written in the sandbox can persist between turns in the same session, depending on sandbox retention. They are not a substitute for application storage: a cold reconstruction can restore message history without guaranteeing an expired sandbox filesystem.
+
+Do not place credentials in uploaded files or message blocks. Use project secrets, connected applications, MCP secret references, or sandbox credential bindings.

@@ -16,6 +16,8 @@ import {
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
+
 import {DrawerProjectSwitcher} from "../nav/DrawerProjectSwitcher"
 import {lastNonSettingsPathAtom} from "../nav/lastNonSettingsPath"
 import {useMobileBottomNavItems} from "../nav/useMobileNavItems"
@@ -61,8 +63,10 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
         return useMemo(
             () => [
                 ...buildSettingsSidebarSections(
-                    getSettingsSidebarTabs(access).filter((tab) =>
-                        AVAILABLE_SETTINGS_TABS.includes(tab.key),
+                    withMobileSettingsLabels(
+                        getSettingsSidebarTabs(access).filter((tab) =>
+                            AVAILABLE_SETTINGS_TABS.includes(tab.key),
+                        ),
                     ),
                     // A real href per tab: the drawer closes on link clicks, and the controlled
                     // selection intercepts the navigation before it happens.

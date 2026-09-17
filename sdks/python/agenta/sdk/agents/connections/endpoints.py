@@ -6,7 +6,12 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from .errors import InvalidConnectionConfigurationError
-from .models import Endpoint, ResolvedConnection, ResolvedCredential
+from .models import (
+    Endpoint,
+    ResolvedConnection,
+    ResolvedCredential,
+    ResolvedSubscription,
+)
 
 _DIRECT_ENDPOINTS: Dict[str, str] = {
     "openai": "https://api.openai.com/v1",
@@ -108,8 +113,14 @@ def build_resolved_connection(
     values: Dict[str, str],
     endpoint: Optional[Endpoint] = None,
     input_modalities: Optional[List[str]] = None,
+    subscription: Optional[ResolvedSubscription] = None,
 ) -> ResolvedConnection:
-    """Build a classified connection and attach the resolver-owned effective route."""
+    """Build a classified connection and attach the resolver-owned effective route.
+
+    ``subscription`` rides a ``runtime_provided`` connection that resolved to a hosted
+    subscription login. It is not credential material the classifier splits, so it passes
+    through untouched.
+    """
     if deployment in {"vertex", "vertex_ai"} and values.get("GOOGLE_CLOUD_API_KEY"):
         raise InvalidConnectionConfigurationError(
             "Vertex API-key authentication is not supported by the agent connection contract"
@@ -146,4 +157,5 @@ def build_resolved_connection(
         environment=environment,
         endpoint=route,
         input_modalities=input_modalities,
+        subscription=subscription,
     )

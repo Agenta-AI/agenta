@@ -236,20 +236,23 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                         style={styles?.header}
                         className={slotClassNames?.header}
                     >
-                        {title != null ? (
-                            // min-w-0: its automatic minimum is min-content, so a nowrap title never shrank.
-                            <SheetTitle className="min-w-0 flex-1">{title}</SheetTitle>
-                        ) : (
-                            <span className="flex-1" />
-                        )}
-                        {extra != null ? <div data-slot="drawer-extra">{extra}</div> : null}
+                        {/* One row inside the header's column: antd's `extra` sits beside the title. */}
+                        <div className="flex items-center gap-2">
+                            {title != null ? (
+                                // min-w-0: its automatic minimum is min-content, so a nowrap title never shrank.
+                                <SheetTitle className="min-w-0 flex-1">{title}</SheetTitle>
+                            ) : (
+                                <span className="flex-1" />
+                            )}
+                            {extra != null ? <div data-slot="drawer-extra">{extra}</div> : null}
+                        </div>
                     </SheetHeader>
                 ) : null}
-                {/* antd `.ant-drawer-body`: 24px padding, scrolls internally. */}
+                {/* Body scrolls internally with 16px padding. */}
                 <div
                     data-slot="drawer-body"
                     className={cn(
-                        "min-h-0 flex-1 overflow-y-auto px-6 py-6 text-field-md text-colorText",
+                        "min-h-0 flex-1 overflow-y-auto p-4 text-field-md text-colorText",
                         slotClassNames?.body,
                     )}
                     style={styles?.body}

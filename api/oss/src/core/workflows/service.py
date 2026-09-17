@@ -1,5 +1,6 @@
 import json
 from typing import Any, Awaitable, Callable, Dict, Optional, List, Union, TYPE_CHECKING
+from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID, uuid4
 
 import httpx
@@ -2131,6 +2132,8 @@ class WorkflowsService:
         #
         include_archived: Optional[bool] = None,
         #
+        grouping: Optional[RevisionGrouping] = None,
+        #
         windowing: Optional[Windowing] = None,
     ) -> List[WorkflowRevision]:
         _revision_query = (
@@ -2163,6 +2166,8 @@ class WorkflowsService:
             revision_refs=workflow_revision_refs,
             #
             include_archived=include_archived,
+            #
+            grouping=grouping,
             #
             windowing=windowing,
         )

@@ -28,6 +28,7 @@ import {
 import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
+import { shellQuote } from "./mount.ts";
 import {
   describePiModelsJsonPlan,
   isPiModelConfigApplicable,
@@ -333,6 +334,18 @@ export const PI_AGENT_DIR_UNWRITABLE_MESSAGE =
   "Ask your deployment operator to make the mounted Pi agent directory writable by the runner's uid.";
 
 /**
+ * Thrown (via the engine's named-message pattern) when a local subscription run could not build
+ * its per-run Pi prompt channel (`preparePiPromptChannel`). Fail closed: the only other place to
+ * put a system prompt is the agent dir every session on that connection shares, so the run would
+ * either take another session's instructions or hand its own to the next one. Single line so
+ * `conciseError` surfaces it verbatim.
+ */
+export const PI_PROMPT_CHANNEL_UNAVAILABLE_MESSAGE =
+  "The agent could not set up its own system-prompt files for this run, so it was stopped rather " +
+  "than share them with the other sessions on this connection. Ask your deployment operator to " +
+  "check that the runner's temporary directory is writable.";
+
+/**
  * Write the Pi `models.json` into a local (throwaway) agent dir with mode `0600` via an atomic
  * temp-file-plus-rename. THROWS on failure so the caller can make materialization terminal — a
  * managed custom run must never fall through to a default provider (design Decision 6). The file
@@ -547,8 +560,10 @@ export function installPiExtensionLocal(
 }
 
 /**
- * Pi reads system-prompt files from the non-trust-gated agent dir. Only call this on a
- * throwaway per-run agent dir so prompts cannot leak into later runs.
+ * Pi reads `SYSTEM.md` and `APPEND_SYSTEM.md` from whichever directory it is given. Call this on
+ * a directory ONE session owns: a throwaway per-run agent dir, or the per-run prompt dir
+ * `preparePiPromptChannel` created. A directory shared by two sessions leaks one session's
+ * prompt into the other.
  */
 export function writeSystemPromptLocal(
   agentDir: string,
@@ -572,7 +587,105 @@ export function writeSystemPromptLocal(
   }
 }
 
-/** Upload the system/append-system prompts into a Daytona sandbox's Pi agent dir. */
+/** The two names Pi discovers in its agent dir. */
+const PI_PROMPT_FILES = ["SYSTEM.md", "APPEND_SYSTEM.md"] as const;
+
+/**
+ * Clear the prompt files out of a per-connection agent dir the RUNNER owns.
+ *
+ * Nothing writes them there any more, and the wrapper's empty flags already stop Pi reading them,
+ * so this is the second lock on the same door: it clears what an earlier runner build left behind
+ * and keeps the dir honest for anyone reading it. Best effort — the wrapper is the guarantee.
+ *
+ * Only for the runner-owned dir. An operator's own mounted agent dir may hold a `SYSTEM.md` that
+ * the operator put there on purpose, and deleting someone's configuration is not this function's
+ * business; the empty flags neutralize it without touching it.
+ */
+function clearSharedPiPrompts(agentDir: string, log: Log = () => {}): void {
+  for (const name of PI_PROMPT_FILES) {
+    try {
+      rmSync(join(agentDir, name), { force: true });
+    } catch (err) {
+      log(`stale pi prompt not removed: ${(err as Error).message}`);
+    }
+  }
+}
+
+/**
+ * The per-run dir that carries this run's Pi prompts, and the `pi` wrapper that delivers them.
+ *
+ * A hosted subscription run's agent dir belongs to the CONNECTION, not to the session, because
+ * Pi's `auth.json` and the lock that serializes its OAuth refresh both live there and both must
+ * be shared. Prompt files written into that dir are read by every other session on the same
+ * connection, and two sessions that start at once race on them. Pi has no per-session prompt
+ * file, but it does take `--system-prompt` and `--append-system-prompt`, and those suppress the
+ * agent-dir discovery. pi-acp spawns `pi` with a fixed argument list, so the flags ride a small
+ * wrapper that `PI_ACP_PI_COMMAND` points at. The wrapper is per run, so the prompts are per run.
+ *
+ * BOTH FLAGS ARE ALWAYS PASSED, empty when this run has no such prompt. An omitted flag is not
+ * neutral: pinned 0.80.6 resolves `systemPromptSource ?? discoverSystemPromptFile()`, so with no
+ * flag Pi falls back to the shared dir and reads whatever another writer left there. An empty
+ * value is not nullish, so the discovery is skipped, and `resolvePromptInput("")` then returns
+ * undefined, which is exactly the no-prompt case. An empty FILE would not do: the loader reads it
+ * and hands Pi an empty prompt instead of its default.
+ *
+ * The wrapper tests each file rather than baking the choice in: the agent-mount guidance rewrites
+ * the prompts after the wrapper exists and can add an append prompt that was not there before.
+ *
+ * `undefined` means the channel could not be built. The caller treats that as terminal: the only
+ * fallback is the shared agent dir, which is the leak this exists to close, and a run that
+ * silently drops its system prompt answers with the wrong persona.
+ */
+export function preparePiPromptChannel(
+  env: Record<string, string>,
+  log: Log = () => {},
+): string | undefined {
+  const piCommand = env.PI_ACP_PI_COMMAND;
+  if (!piCommand) {
+    log("pi prompt channel: the daemon environment names no pi command");
+    return undefined;
+  }
+  try {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-pi-prompt-"));
+    const wrapper = join(dir, "pi");
+    const flags = [
+      ["SYSTEM.md", "--system-prompt"],
+      ["APPEND_SYSTEM.md", "--append-system-prompt"],
+    ] as const;
+    const lines = [
+      "#!/bin/sh",
+      "# Agenta: deliver this run's Pi prompts as arguments, never through the shared agent dir.",
+      "# The empty branches are load-bearing: they stop Pi discovering a prompt file in that dir.",
+      ...flags.flatMap(([file, flag]) => {
+        const path = shellQuote(join(dir, file));
+        return [
+          `if [ -f ${path} ]; then`,
+          `  set -- ${flag} ${path} "$@"`,
+          "else",
+          `  set -- ${flag} '' "$@"`,
+          "fi",
+        ];
+      }),
+      `exec ${shellQuote(piCommand)} "$@"`,
+      "",
+    ];
+    writeFileSync(wrapper, lines.join("\n"), { mode: 0o700 });
+    env.PI_ACP_PI_COMMAND = wrapper;
+    return dir;
+  } catch (err) {
+    log(`pi prompt channel write failed: ${(err as Error).message}`);
+    return undefined;
+  }
+}
+
+/**
+ * Upload the system/append-system prompts into a Daytona sandbox's Pi agent dir.
+ *
+ * A prompt the run does not have is REMOVED, not left alone. A subscription sandbox's agent dir
+ * is keyed by connection and survives a warm reuse, so a leftover `SYSTEM.md` would otherwise be
+ * loaded by the next session on that connection. One sandbox serves one session at a time, so
+ * there is no race here and no need for the local wrapper.
+ */
 export async function uploadSystemPromptToSandbox(
   sandbox: any,
   agentDir: string,
@@ -580,19 +693,27 @@ export async function uploadSystemPromptToSandbox(
   appendSystemPrompt: string | undefined,
   log: Log = () => {},
 ): Promise<void> {
+  const contents: Record<string, string | undefined> = {
+    "SYSTEM.md": systemPrompt,
+    "APPEND_SYSTEM.md": appendSystemPrompt,
+  };
   try {
     await sandbox.mkdirFs({ path: agentDir });
-    if (systemPrompt) {
-      await sandbox.writeFsFile(
-        { path: `${agentDir}/SYSTEM.md` },
-        systemPrompt,
-      );
+    const stale: string[] = [];
+    for (const name of PI_PROMPT_FILES) {
+      const content = contents[name];
+      if (content) {
+        await sandbox.writeFsFile({ path: `${agentDir}/${name}` }, content);
+      } else {
+        stale.push(`${agentDir}/${name}`);
+      }
     }
-    if (appendSystemPrompt) {
-      await sandbox.writeFsFile(
-        { path: `${agentDir}/APPEND_SYSTEM.md` },
-        appendSystemPrompt,
-      );
+    if (stale.length > 0 && typeof sandbox.runProcess === "function") {
+      await sandbox.runProcess({
+        command: "sh",
+        args: ["-lc", `rm -f ${stale.map(shellQuote).join(" ")}`],
+        timeoutMs: 15_000,
+      });
     }
   } catch (err) {
     log(`system prompt upload skipped: ${(err as Error).message}`);
@@ -671,7 +792,10 @@ export function prepareLocalAgentDir(
 
 export interface PrepareLocalPiAssetsInput {
   plan: Pick<RunPlan, "isPi" | "isDaytona"> & {
-    credentials: Pick<RunPlanCredentials, "credentialMode">;
+    credentials: Pick<
+      RunPlanCredentials,
+      "credentialMode" | "subscriptionHome"
+    >;
     workspace: Pick<RunPlanWorkspace, "skillDirs" | "sourcePiAgentDir">;
     prompt: Pick<
       RunPlanPrompt,
@@ -700,6 +824,16 @@ export interface PrepareLocalPiAssetsResult {
    * returned).
    */
   dir: string | undefined;
+  /**
+   * The throwaway per-run dir holding this run's Pi prompt files, for a `runtime_provided` run
+   * whose agent dir is shared with other sessions. The caller `rmSync`s it at teardown.
+   *
+   * Undefined on every other run, whose prompts already live in a per-run agent dir, and on a
+   * `runtime_provided` run whose channel could not be built — the caller fails THAT run closed
+   * (see `preparePiPromptChannel`), which is why the two cases are told apart by the run shape
+   * and not by this field alone.
+   */
+  promptDir: string | undefined;
   /**
    * False when the Agenta permission extension could not be installed for this run. The caller
    * fails the run closed when the policy could gate a Pi built-in tool (`builtinGatingActive`).
@@ -774,7 +908,9 @@ export function probePiAgentDirWritable(
  *   user: the install no longer depends on that directory being writable.
  *
  * Tradeoff (interface.md section 6): concurrent local subscription runs share the one agent dir,
- * the same way two local `pi` sessions do. This path is single-trusted-operator only.
+ * the same way two local `pi` sessions do. That sharing is correct for the login and its lock, and
+ * wrong for the system prompts, so the subscription path delivers those through the per-run
+ * channel `preparePiPromptChannel` builds instead of through the shared dir.
  */
 export function prepareLocalPiAssets({
   plan,
@@ -786,15 +922,25 @@ export function prepareLocalPiAssets({
   if (!plan.isPi || plan.isDaytona)
     return {
       dir: undefined,
+      promptDir: undefined,
       extensionInstalled: true,
       modelConfigWritten: true,
       agentDirWritable: true,
     };
 
-  // buildRunPlan already rejected a local runtime_provided run with no configured
-  // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount.
+  // Two subscription shapes reach here. A HOSTED connection brings its own per-connection agent
+  // dir (`subscriptionHome`), owned by the runner and holding only this connection's login. An
+  // OPERATOR-mount run has none, and `sourcePiAgentDir` IS the operator's mount — buildRunPlan
+  // already rejected that shape when PI_CODING_AGENT_DIR was unset.
   if (plan.credentials.credentialMode === "runtime_provided") {
-    const agentDir = plan.workspace.sourcePiAgentDir;
+    const subscriptionHome = plan.credentials.subscriptionHome;
+    const agentDir = subscriptionHome ?? plan.workspace.sourcePiAgentDir;
+    // Pi's own mode for an agent dir holding a login. Created here, before the probe, because the
+    // probe and the extension install both write into it.
+    if (subscriptionHome) {
+      mkdirSync(subscriptionHome, { recursive: true, mode: 0o700 });
+      clearSharedPiPrompts(subscriptionHome, log);
+    }
     // A custom-provider plan cannot reach here (it requires credentialMode "env"). A model
     // REGISTRATION plan can, and it is deliberately dropped: this dir is the operator's own Pi
     // login, shared by every subscription run and rewritten by Pi's own OAuth refresh, so a
@@ -810,18 +956,24 @@ export function prepareLocalPiAssets({
     }
     const agentDirWritable = probePiAgentDirWritable(agentDir, log);
     const extensionInstalled = installPiExtensionLocal(agentDir, log);
-    if (plan.prompt.hasSystemPrompt) {
+    // The prompts go to this run's own dir, never to the shared agent dir. The channel is built
+    // even when the run has no prompt: with nothing written there, Pi's own default stands, and
+    // the flags a wrapper without prompt files adds are none.
+    const promptDir = preparePiPromptChannel(env, log);
+    if (promptDir && plan.prompt.hasSystemPrompt) {
       writeSystemPromptLocal(
-        agentDir,
+        promptDir,
         plan.prompt.systemPrompt,
         plan.prompt.appendSystemPrompt,
         log,
       );
     }
     env.PI_CODING_AGENT_DIR = agentDir;
-    // Deliberately NOT returned as a throwaway: this is the operator's login, not a temp dir.
+    // `dir` is deliberately NOT the agent dir: that is a real login, not a temp dir, and the
+    // caller deletes whatever `dir` names.
     return {
       dir: undefined,
+      promptDir,
       extensionInstalled,
       modelConfigWritten: true,
       agentDirWritable,
@@ -863,6 +1015,7 @@ export function prepareLocalPiAssets({
   env.PI_CODING_AGENT_DIR = runAgentDir;
   return {
     dir: runAgentDir,
+    promptDir: undefined,
     extensionInstalled,
     modelConfigWritten,
     agentDirWritable: true,
