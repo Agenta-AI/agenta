@@ -35,23 +35,6 @@
   font-weight: var(--ifm-font-weight-semibold);
 }
 
-/* Theme toggle: a 32px icon button */
-.navbar .clean-btn[class*="toggleButton"] {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  color: var(--contentsecondary);
-}
-
-.navbar .clean-btn[class*="toggleButton"]:hover {
-  background-color: var(--bgelevated1);
-}
-
-.navbar .clean-btn[class*="toggleButton"] svg {
-  width: 16px;
-  height: 16px;
-}
-
 /* CTAs */
 .nav_primary_button,
 .nav_secondary_button {

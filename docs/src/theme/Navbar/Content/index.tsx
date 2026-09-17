@@ -5,7 +5,6 @@ import {
   useNavbarMobileSidebar,
 } from '@docusaurus/theme-common/internal';
 import NavbarItem, {type Props as NavbarItemConfig} from '@theme/NavbarItem';
-import NavbarColorModeToggle from '@theme/Navbar/ColorModeToggle';
 import SearchBar from '@theme/SearchBar';
 import NavbarMobileSidebarToggle from '@theme/Navbar/MobileSidebar/Toggle';
 import NavbarLogo from '@theme/Navbar/Logo';
@@ -39,10 +38,10 @@ ${JSON.stringify(item, null, 2)}`,
 }
 
 /**
- * One header row: logo and version on the left, search, theme toggle and the
- * CTAs on the right. The section links (position: "left") are not rendered
- * here; the sidebar rail shows them on desktop and the hamburger menu on
- * mobile. Social links live in the footer.
+ * One header row: logo and version on the left, search and the CTAs on the
+ * right. The section links (position: "left") are not rendered here; the
+ * sidebar rail shows them on desktop and the hamburger menu on mobile. Social
+ * links and the theme switch live in the footer.
  */
 export default function NavbarContent(): JSX.Element {
   const mobileSidebar = useNavbarMobileSidebar();
@@ -72,9 +71,6 @@ export default function NavbarContent(): JSX.Element {
         <NavbarSearch className={styles.search}>
           <SearchBar />
         </NavbarSearch>
-        <div className={styles.icons}>
-          <NavbarColorModeToggle className={styles.colorModeToggle} />
-        </div>
         <div className={styles.actions}>
           <NavbarItems items={actionItems} />
         </div>

@@ -26,12 +26,6 @@
   align-items: center;
 }
 
-.icons {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
 .actions {
   display: flex;
   align-items: center;
@@ -40,10 +34,6 @@
 
 .actions :global(.navbar__item) {
   padding: 0;
-}
-
-.colorModeToggle {
-  margin-left: 0;
 }
 
 /* Version pill next to the logo */
@@ -115,7 +105,6 @@
     gap: 8px;
   }
 
-  .icons,
   .actions {
     display: none;
   }

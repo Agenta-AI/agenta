@@ -8,7 +8,7 @@
 import React, {type ReactNode} from 'react';
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
-import {useThemeConfig, type MultiColumnFooter} from '@docusaurus/theme-common';
+import {useThemeConfig, useColorMode, type MultiColumnFooter} from '@docusaurus/theme-common';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import ThemedImage from '@theme/ThemedImage';
 import useBaseUrl from '@docusaurus/useBaseUrl';
@@ -39,6 +39,61 @@ const ICONS: Record<Social['icon'], ReactNode> = {
     </svg>
   ),
 };
+
+type Choice = 'light' | 'dark' | null;
+
+const COLOR_MODES: Array<{value: Choice; label: string; icon: ReactNode}> = [
+  {
+    value: null,
+    label: 'System theme',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="4.5" width="18" height="12" rx="2" />
+        <path d="M8 20h8M12 16.5V20" />
+      </svg>
+    ),
+  },
+  {
+    value: 'light',
+    label: 'Light theme',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4" />
+      </svg>
+    ),
+  },
+  {
+    value: 'dark',
+    label: 'Dark theme',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+      </svg>
+    ),
+  },
+];
+
+/** System / light / dark, as a segmented control. */
+function ColorModeSwitch(): ReactNode {
+  const {colorModeChoice, setColorMode} = useColorMode();
+  return (
+    <div className={styles.modes} role="group" aria-label="Theme">
+      {COLOR_MODES.map((mode) => (
+        <button
+          key={String(mode.value)}
+          type="button"
+          className={clsx(styles.mode, colorModeChoice === mode.value && styles.modeActive)}
+          aria-label={mode.label}
+          aria-pressed={colorModeChoice === mode.value}
+          title={mode.label}
+          onClick={() => setColorMode(mode.value)}>
+          {mode.icon}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function FooterLogo({logo}: {logo: NonNullable<MultiColumnFooter['logo']>}): ReactNode {
   const sources = {
@@ -108,11 +163,10 @@ export default function Footer(): ReactNode {
           ))}
         </div>
       </div>
-      {copyright && (
-        <div className={styles.bottom}>
-          <span dangerouslySetInnerHTML={{__html: copyright}} />
-        </div>
-      )}
+      <div className={styles.bottom}>
+        {copyright ? <span dangerouslySetInnerHTML={{__html: copyright}} /> : <span />}
+        <ColorModeSwitch />
+      </div>
     </footer>
   );
 }

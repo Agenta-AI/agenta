@@ -97,6 +97,10 @@
 }
 
 .bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   max-width: 1100px;
   margin-top: 48px;
   padding-top: 24px;
@@ -104,6 +108,43 @@
   font-size: 13px;
   line-height: 18px;
   color: var(--contenttertiary);
+}
+
+/* System / light / dark switch */
+.modes {
+  display: flex;
+  gap: 4px;
+}
+
+.mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--contenttertiary);
+  cursor: pointer;
+  transition:
+    background-color var(--ifm-transition-fast) ease,
+    color var(--ifm-transition-fast) ease;
+}
+
+.mode:hover {
+  color: var(--contentprimary);
+}
+
+.modeActive {
+  background-color: var(--bgelevated2);
+  color: var(--contentprimary);
+}
+
+.mode svg {
+  width: 16px;
+  height: 16px;
 }
 
 @media (max-width: 996px) {
