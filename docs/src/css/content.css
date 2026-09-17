@@ -35,6 +35,15 @@
   }
 }
 
+/* Tablets: wider gutters than a phone. */
+@media (min-width: 600px) and (max-width: 996px) {
+  [class*="docMainContainer"] > .container,
+  .sidebarShellMain > .container {
+    padding-left: 32px !important;
+    padding-right: 32px !important;
+  }
+}
+
 /* Prose is capped at the reading width. OpenAPI operation pages lay out
    request and response side by side and keep the full width. */
 .theme-doc-markdown:not(:has(.theme-api-markdown)),

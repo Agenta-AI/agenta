@@ -171,3 +171,13 @@
     margin-top: 32px;
   }
 }
+
+@media (min-width: 600px) and (max-width: 996px) {
+  .footer {
+    padding: 48px 32px 32px;
+  }
+
+  .columns {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

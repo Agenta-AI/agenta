@@ -31,7 +31,8 @@
   --doc-content-width: 720px;
   --doc-toc-width: 240px;
   --doc-main-padding-x: 56px;
-  --doc-main-padding-top: 40px;
+  /* Lines the page title up with the first rail row (sidebar padding 20). */
+  --doc-main-padding-top: 20px;
   --doc-main-padding-bottom: 64px;
 
   /* Infima mappings */
@@ -111,6 +112,19 @@
    (outside .main-wrapper) reads it too. */
 #__docusaurus {
   --doc-sidebar-width: 272px;
+}
+
+/* Small laptops: narrower sidebar, TOC and gutters so the reading column
+   keeps a usable width. */
+@media (min-width: 997px) and (max-width: 1200px) {
+  :root {
+    --doc-main-padding-x: 32px;
+    --doc-toc-width: 200px;
+  }
+
+  #__docusaurus {
+    --doc-sidebar-width: 240px;
+  }
 }
 
 [data-theme="dark"] {

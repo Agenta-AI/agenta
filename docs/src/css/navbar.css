@@ -8,6 +8,14 @@
   padding: 0 var(--ifm-navbar-padding-horizontal);
 }
 
+/* The right group ends on the reading column's right edge (main padding),
+   the logo on the sidebar's text edge (sidebar padding). */
+@media (min-width: 997px) {
+  .navbar {
+    padding-right: var(--doc-main-padding-x);
+  }
+}
+
 .navbar__inner {
   flex-wrap: nowrap;
 }
@@ -172,6 +180,13 @@
 
   .navbar .DocSearch-Search-Icon {
     margin: 0;
+  }
+}
+
+/* Tablets: header gutters match the content gutters. */
+@media (min-width: 600px) and (max-width: 996px) {
+  .navbar {
+    --ifm-navbar-padding-horizontal: 32px;
   }
 }
 

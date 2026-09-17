@@ -105,6 +105,12 @@
     gap: 8px;
   }
 
+  /* Infima hides navbar items on mobile; the version pill stays by the logo
+     because the hamburger menu does not repeat it. */
+  .versionSelector :global(.navbar__item) {
+    display: inline-flex;
+  }
+
   .actions {
     display: none;
   }

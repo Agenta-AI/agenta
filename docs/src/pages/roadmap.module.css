@@ -131,6 +131,12 @@
         gap: 4px;
     }
 
+    /* Title and date stack instead of squeezing the title into two lines. */
+    .featureTitleAndDate {
+        flex-wrap: wrap;
+        gap: 2px 12px;
+    }
+
     .featureTitleRight {
         margin-left: 0;
     }
