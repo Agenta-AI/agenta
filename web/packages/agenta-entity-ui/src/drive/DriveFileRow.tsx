@@ -8,7 +8,7 @@
  *
  * The Files grid's own tiles live in `FolderTile.tsx` (type marks, no thumbnails).
  *
- * card renders a real preview (image/video/pdf/text) via {@link FileThumb} and so needs the
+ * card renders a real preview (image/video/text) via {@link FileThumb} and so needs the
  * `file` + `mount`; without them it falls back to the kind icon. The "just changed" teal accent
  * shows as a left bar (row) or a ring (card). Semantic tokens throughout so it sits correctly
  * on any surface. One component so every surface's file items align instead of drifting.
