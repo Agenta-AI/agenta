@@ -119,14 +119,8 @@ def _on_loopback(uri: str) -> str:
     )
 
 
-@lru_cache(maxsize=1)
-def resolve_core_uri() -> Optional[str]:
-    """The core URI as configured, else the same database via published loopback.
-
-    None means this deployment's Postgres is not reachable. Callers in the integration layer
-    must not read that as "skip": see :func:`require_core_uri`.
-    """
-    uri = env.postgres.uri_core
+def _reachable(uri: str) -> Optional[str]:
+    """The URI as configured, else the same database on the published loopback port."""
     if _connectable(uri):
         return uri
 
@@ -137,11 +131,42 @@ def resolve_core_uri() -> Optional[str]:
     return None
 
 
+@lru_cache(maxsize=1)
+def resolve_core_uri() -> Optional[str]:
+    """The core database, where the deployment's tenants and their rows live.
+
+    None means this deployment's Postgres is not reachable. Callers in the integration layer
+    must not read that as "skip": see :func:`require_core_uri`.
+    """
+    return _reachable(env.postgres.uri_core)
+
+
+@lru_cache(maxsize=1)
+def resolve_tracing_uri() -> Optional[str]:
+    """The tracing database, which the analytics engine reads and nothing else rewrites.
+
+    One server publishes both, so this is the same address work with a different database
+    name on the end. It is separate because a layer can need one and not the other: the
+    gateway cases only ever touch core, and the sessions record cases build their DAOs on
+    `get_analytics_engine()`, which reads `env.postgres.uri_tracing` and therefore kept the
+    in-network host name while core was being rewritten around it.
+    """
+    return _reachable(env.postgres.uri_tracing)
+
+
 def use_reachable_core_uri() -> Optional[str]:
     """Point the shared `env` at the resolved URI so engines built later use it."""
     resolved = resolve_core_uri()
     if resolved is not None:
         env.postgres.uri_core = resolved
+    return resolved
+
+
+def use_reachable_tracing_uri() -> Optional[str]:
+    """The same, for the tracing database. Engines built later read the rewritten value."""
+    resolved = resolve_tracing_uri()
+    if resolved is not None:
+        env.postgres.uri_tracing = resolved
     return resolved
 
 
