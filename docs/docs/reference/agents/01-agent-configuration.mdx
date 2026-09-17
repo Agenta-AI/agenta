@@ -205,6 +205,8 @@ A header name may not appear in both `headers` and `credentials.headers`. The co
 
 Setting either `tool_permissions` or `new_tool_permission` opts this server into per-tool policy. An advertised tool then resolves to its `tool_permissions` entry, and otherwise to `new_tool_permission`, which is `ask` when you leave it unset. Neither `permission` nor `runner.permissions.default` reaches a tool the table does not name, so nothing set elsewhere can widen the table. With both fields absent, the entry carries no per-tool policy and `permission` governs the whole server, exactly as before.
 
+The permission editor writes `new_tool_permission` for you where the server is set to `allow`: giving one tool a rule of its own also records `allow` as the default for the tools you have not named, so those tools keep running as they did. Set the field yourself to choose a narrower default.
+
 `tool_permissions` may not name a tool that `tools.mode: "include"` hides. That configuration is rejected rather than silently dropped.
 
 ## skills

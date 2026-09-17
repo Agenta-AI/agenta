@@ -93,6 +93,8 @@ Three optional fields, answering three different questions.
 
 Setting either `tool_permissions` or `new_tool_permission` opts this server into per-tool policy. An advertised tool then resolves to its `tool_permissions` entry, and otherwise to `new_tool_permission`. When `new_tool_permission` is absent, an unnamed tool is `ask`. Neither `permission` nor the agent's default permission reaches it: once you write a per-tool table, a tool you never named waits for a person rather than inheriting a wider decision made elsewhere.
 
+The permission editor writes that field for you in one case worth knowing. If the server itself is set to `allow` and you then give one tool a rule of its own, the editor also records `allow` as the default for the tools you have not named, so those tools keep running as they did instead of dropping to `ask`. Set `new_tool_permission` yourself to choose a narrower default.
+
 With both fields absent, the entry carries no per-tool policy and `permission` governs the server, or `runner.permissions.default` when `permission` is `null`.
 
 `tool_permissions` may not name a tool that `tools.mode: "include"` hides. That configuration is rejected rather than silently dropped.
@@ -126,7 +128,7 @@ A tool you denied may therefore still appear in a model's tool list on some harn
 
 - A connection failure usually means DNS, TLS, network policy, or server availability.
 - An authorization failure on a header-authenticated server means the referenced project secret is absent, expired, or mapped to the wrong header.
-- An authorization failure on an OAuth server means the grant was revoked or has expired. The connection then reads `Login expired` in `Settings > MCPs`, and `Reconnect` on its row menu restores it.
+- An authorization failure on an OAuth server means the grant was revoked or has expired. The connection then reads `Login expired` in `Settings > MCPs`, and `Reconnect` on its row menu restores it. A run that hits the same connection reports it in the conversation and offers `Reconnect` there as well.
 - A missing tool is either excluded by `policy.tools`, absent from server discovery, or resolved to `deny`.
 - An empty tool list under `View tools` means the server answered with no tools. A server that refuses the tool listing, or answers it in a way Agenta cannot read, reports the server's own wording instead of an empty list.
 
