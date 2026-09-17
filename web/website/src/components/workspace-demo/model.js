@@ -94,7 +94,8 @@ export function deriveWorkspace(state, setState) {
       dot: waiting ? AMBER : i === 0 ? GREEN : GREY,
       railDot: waiting ? AMBER : MF,
       railFill: live ? "currentColor" : "transparent",
-      open: () => setState({ view: "playground", session: i }),
+      open: () =>
+        setState({ view: "playground", session: i, playgroundTask: null }),
       steps: it.steps.map(([k, pre, bold, post]) => ({
         pre,
         bold,
@@ -144,84 +145,47 @@ export function deriveWorkspace(state, setState) {
   views.forEach((v) => {
     view[v] = st.view === v;
   });
-  const ss = sessions[st.session ?? 0];
-  const railGroups = [0, 5, 10].map((i) => ({
-    agent: sessions[i].title,
-    rows: [sessions[i], sessions[i + 1]].map((r) => ({
-      ...r,
+  const activeSession = sessions[st.session ?? 0];
+  const ss = st.playgroundTask
+    ? { ...activeSession, ask: st.playgroundTask }
+    : activeSession;
+  const seoTasks = [
+    "Research the next best-tools article",
+    "Draft the article and prepare a PR",
+    "Review September search performance",
+    "Find gaps in our existing content",
+    "Update the self-hosting guide",
+    "Refresh titles and meta descriptions",
+  ];
+  const railGroups = [0, 5, 10].map((sessionIndex, groupIndex) => ({
+    agent: sessions[sessionIndex].title,
+    rows: seoTasks.slice(groupIndex * 2, groupIndex * 2 + 2).map((ask) => ({
+      ...sessions[sessionIndex],
+      ask,
+      open: () =>
+        setState({
+          view: "playground",
+          session: sessionIndex,
+          playgroundTask: ask,
+        }),
       style:
         NAV_ROW +
         "font-size:13px;color:" +
         MF +
         ";" +
-        (st.view === "playground" && st.session === sessions.indexOf(r)
-          ? SEL
-          : ""),
+        (st.view === "playground" && ss.ask === ask ? SEL : ""),
     })),
   }));
   // Home (HomeFocus)
-  const homeTab = st.homeTab || "agents";
-  const TAB =
-    "box-sizing:border-box;cursor:default;border:none;border-bottom:2px solid transparent;background:transparent;padding:0 2px 7px;font:400 14px/1.4 var(--font-sans);color:" +
-    MF +
-    ";";
-  const TAB_ON =
-    "border-bottom-color:" + FG + ";font-weight:500;color:" + FG + ";";
   const ROWB =
     "box-sizing:border-box;display:flex;width:100%;cursor:default;align-items:center;gap:14px;border-radius:10px;border:none;background:transparent;padding:8px 14px;text-align:left;";
-  const TEMPLATES = [
-    [
-      "Code review agent",
-      "Reviews every pull request and leaves inline comments.",
-      "var(--demo-avatar-0)",
-    ],
-    [
-      "Customer support agent",
-      "Answers tickets from your docs and escalates the rest.",
-      "var(--demo-avatar-5)",
-    ],
-    [
-      "Lead research agent",
-      "Researches inbound leads and drafts a first reply for review.",
-      "var(--demo-avatar-2)",
-    ],
-    [
-      "Knowledge agent",
-      "Answers team questions from your docs, wiki, and past threads.",
-      "var(--demo-avatar-7)",
-    ],
-    [
-      "KPI dashboard agent",
-      "Builds a weekly metrics dashboard and posts it to the team.",
-      "var(--demo-avatar-1)",
-    ],
-  ];
   const homeSel = st.homeAgent ?? 0;
-  const homeRows =
-    homeTab === "agents"
-      ? sessions.slice(0, 8).map((r, i) => ({
-          ...r,
-          selected: i === homeSel,
-          rowStyle: ROWB + (i === homeSel ? "background:var(--accent);" : ""),
-          open: () => setState({ homeAgent: i }),
-        }))
-      : TEMPLATES.map(([title, desc, color]) => ({
-          title,
-          desc,
-          initials: title
-            .split(" ")
-            .slice(0, 2)
-            .map((w) => w[0])
-            .join("")
-            .toUpperCase(),
-          tileStyle: chipStyle(color, 34, 10).replace(
-            "font:600 14px",
-            "font:500 13px",
-          ),
-          selected: false,
-          rowStyle: ROWB,
-          open: () => setState({ view: "agents" }),
-        }));
+  const homeRows = sessions.slice(0, 8).map((r, i) => ({
+    ...r,
+    selected: i === homeSel,
+    rowStyle: ROWB + (i === homeSel ? "background:var(--accent);" : ""),
+    open: () => setState({ homeAgent: i, homePicker: false }),
+  }));
   // Automations
   const AUTOS = [
     [
@@ -428,16 +392,17 @@ export function deriveWorkspace(state, setState) {
   const configOpen = st.configOpen !== false;
   const TABC =
     "display:inline-flex;height:28px;max-width:200px;flex:0 0 auto;align-items:center;gap:6px;border-radius:6px;border:none;cursor:default;padding:0 10px;margin-right:5px;font:400 13px/1 var(--font-sans);";
-  const agentSessions = sessions.filter((r) => r.area === ss.area).slice(0, 3);
-  const tabs2 = (
-    agentSessions.includes(ss)
-      ? agentSessions
-      : [ss, ...agentSessions.slice(0, 2)]
-  ).map((r) => ({
-    ...r,
+  const taskNames =
+    (st.session ?? 0) === 0
+      ? seoTasks
+      : [activeSession.ask, "Review the latest results", "Plan the next task"];
+  const tabs2 = taskNames.map((ask, index) => ({
+    ...ss,
+    ask,
+    open: () => setState({ playgroundTask: ask }),
     style:
       TABC +
-      (r === ss
+      ((st.playgroundTask ? ss.ask === ask : index === 0)
         ? "background:var(--ag-colorFillSecondary);color:" +
           FG +
           ";font-weight:500;"
@@ -495,11 +460,6 @@ export function deriveWorkspace(state, setState) {
     ss: ssFull,
     homeAgent: sessions[homeSel],
     homeRows,
-    homeShowTemplates: homeTab === "templates",
-    homeTabAgents: () => setState({ homeTab: "agents" }),
-    homeTabTemplates: () => setState({ homeTab: "templates" }),
-    homeTabStyleAgents: TAB + (homeTab === "agents" ? TAB_ON : ""),
-    homeTabStyleTemplates: TAB + (homeTab === "templates" ? TAB_ON : ""),
     agentRows: sessions.slice(0, 10),
     automationRows: AUTOS,
     hasAutomation: st.automation != null,

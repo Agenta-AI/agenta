@@ -3,13 +3,18 @@ import { ConfigAccordionSection } from "@agenta/ui/config-accordion";
 import {
   Cpu,
   FileText,
-  Wrench,
+  PuzzlePiece,
   GraduationCap,
   Robot,
-  Lightning,
+  Plugs,
+  Clock,
   ShieldCheck,
+  SlidersHorizontal,
   CaretDoubleLeft,
+  CaretDown,
   CaretRight,
+  DotsThreeVertical,
+  Plus,
   ArrowLeft,
 } from "@phosphor-icons/react";
 import { LOGO } from "./fixtures.js";
@@ -41,45 +46,91 @@ const actions = {
   Discord: ["Read community threads", "Prepare community replies"],
 };
 
+// The product's collapsed-section summary: "3 integrations", "1 skill", "None".
+const countSummary = (n, noun) =>
+  n > 0 ? `${n} ${noun}${n === 1 ? "" : "s"}` : "None";
+
+// Row avatar colors from the product item descriptors.
+const AVATAR = {
+  instructions: "#0f766e",
+  subagent: "#7c3aed",
+  skill: "#6b7280",
+};
+
+// Inert header add affordance, like the product section headers.
+const addButton = (label) => (
+  <span className="ag-settings-add" aria-hidden="true" title={label}>
+    <Plus size={14} />
+  </span>
+);
+
+const FILE_SIZES = ["3.0 KB", "1.2 KB", "4.7 KB", "0.8 KB", "12 KB"];
+
 export default function PlaygroundSettings({ agent, onHide }) {
   const [integration, setIntegration] = useState(null);
+  const instructionsOpen = false;
+  const agentsMd = `# ${agent.title}\n\n${agent.desc}\n\nUse the connected apps and skills below. Cite sources, keep drafts ready for review, and ask before publishing or sending to customers.`;
+  const wordCount = agentsMd.trim().split(/\s+/).filter(Boolean).length;
+  const mdPreview = agentsMd.replace(/[#\n]+/g, " ").trim();
+  // Titles, icons, order, summaries, and row presentation mirror the product
+  // config panel (AgentTemplateControl): Model, Instructions, Integrations,
+  // Subagents, MCP servers, Skills, Permissions, Advanced.
   const sections = [
     {
-      title: "Model & harness",
+      title: "Model",
       icon: Cpu,
-      summary: "Claude Code",
+      summary: `Claude Code · ${agent.model}`,
+      open: true,
       content: (
-        <div className="ag-settings-fields">
-          <label>
-            Harness
-            <input readOnly value="Claude Code" />
-          </label>
-          <label>
-            Model
-            <input readOnly value={agent.model} />
-          </label>
+        <div className="ag-settings-select" role="presentation">
+          <span>{agent.model}</span>
+          <CaretDown size={12} />
         </div>
       ),
     },
     {
       title: "Instructions",
       icon: FileText,
-      summary: "AGENTS.md",
+      summary: "1 file",
+      open: true,
       content: (
-        <div className="ag-settings-fields">
-          <textarea
-            aria-label="Agent instructions"
-            readOnly
-            value={`# ${agent.title}\n\n${agent.desc}\n\nUse the connected apps and skills below. Cite sources, keep drafts ready for review, and ask before publishing or sending to customers.`}
-          />
-        </div>
+        <>
+          <button
+            className="ag-settings-item"
+            aria-disabled="true"
+            aria-expanded={instructionsOpen}
+          >
+            <span
+              className="ag-settings-avatar"
+              style={{ background: AVATAR.instructions }}
+            >
+              <FileText size={14} />
+            </span>
+            <span>
+              <span className="ag-settings-name-row">
+                <strong className="ag-settings-mono">AGENTS.md</strong>
+                <small>{wordCount} words</small>
+              </span>
+              <small className="ag-settings-preview">{mdPreview}</small>
+            </span>
+            <CaretRight size={12} />
+          </button>
+          {instructionsOpen && (
+            <textarea
+              aria-label="Agent instructions"
+              readOnly
+              value={agentsMd}
+            />
+          )}
+        </>
       ),
     },
     {
       title: "Integrations",
-      icon: Wrench,
-      summary: `${agent.configIntegrations.length} connected`,
+      icon: PuzzlePiece,
+      summary: countSummary(agent.configIntegrations.length, "integration"),
       open: true,
+      extra: addButton("Add integration"),
       content: integration ? (
         <div className="ag-settings-integration">
           <button
@@ -104,15 +155,10 @@ export default function PlaygroundSettings({ agent, onHide }) {
         </div>
       ) : (
         agent.configIntegrations.map((name) => (
-          <button
-            className="ag-settings-item"
-            key={name}
-            onClick={() => setIntegration(name)}
-          >
+          <button className="ag-settings-item" key={name} aria-disabled="true">
             <img src={LOGO[name]} alt="" />
             <span>
               <strong>{name}</strong>
-              <small>{(actions[name] || []).length} actions enabled</small>
             </span>
             <CaretRight size={12} />
           </button>
@@ -120,40 +166,59 @@ export default function PlaygroundSettings({ agent, onHide }) {
       ),
     },
     {
-      title: "Skills",
-      icon: GraduationCap,
-      summary: `${agent.configSkills.length} skills`,
-      open: true,
-      content: agent.configSkills.map((skill) => (
+      title: "Subagents",
+      icon: Robot,
+      summary: countSummary(agent.subagents.length, "subagent"),
+      open: agent.subagents.length > 0,
+      extra: addButton("Add subagent"),
+      content: agent.subagents.map((subagent) => (
         <button
           className="ag-settings-item"
-          key={skill.slug}
-          onClick={skill.open}
+          key={subagent.title}
+          aria-disabled="true"
         >
-          <GraduationCap size={18} />
+          <span
+            className="ag-settings-avatar"
+            style={{ background: AVATAR.subagent }}
+          >
+            <Robot size={14} />
+          </span>
           <span>
-            <strong>{skill.slug}</strong>
-            <small>{skill.desc}</small>
+            <strong>{subagent.title}</strong>
+            <small className="ag-settings-preview">{subagent.desc}</small>
           </span>
           <CaretRight size={12} />
         </button>
       )),
     },
     {
-      title: "Subagents",
-      icon: Robot,
-      summary: `${agent.subagents.length} agents`,
+      title: "MCP servers",
+      icon: Plugs,
+      summary: "None",
+      extra: addButton("Add MCP server"),
+      content: <p className="ag-settings-note">No servers connected.</p>,
+    },
+    {
+      title: "Skills",
+      icon: GraduationCap,
+      summary: countSummary(agent.configSkills.length, "skill"),
       open: true,
-      content: agent.subagents.map((subagent) => (
+      extra: addButton("Add skill"),
+      content: agent.configSkills.map((skill) => (
         <button
           className="ag-settings-item"
-          key={subagent.title}
-          onClick={subagent.open}
+          key={skill.slug}
+          aria-disabled="true"
         >
-          <Robot size={18} />
+          <span
+            className="ag-settings-avatar"
+            style={{ background: AVATAR.skill }}
+          >
+            <GraduationCap size={14} />
+          </span>
           <span>
-            <strong>{subagent.title}</strong>
-            <small>{subagent.desc}</small>
+            <strong>{skill.slug}</strong>
+            <small className="ag-settings-preview">{skill.desc}</small>
           </span>
           <CaretRight size={12} />
         </button>
@@ -165,9 +230,26 @@ export default function PlaygroundSettings({ agent, onHide }) {
       summary: "Ask",
       content: (
         <p className="ag-settings-note">
-          Ask before publishing, sending messages, or changing connected
-          records.
+          Ask — a human approves every tool call. Publishing, sending messages,
+          and changing connected records always wait for review.
         </p>
+      ),
+    },
+    {
+      title: "Advanced",
+      icon: SlidersHorizontal,
+      summary: "Sandbox: local",
+      content: (
+        <div className="ag-settings-fields">
+          <label>
+            Sandbox
+            <input readOnly value="local" />
+          </label>
+          <label>
+            Network
+            <input readOnly value="on" />
+          </label>
+        </div>
       ),
     },
   ];
@@ -187,8 +269,16 @@ export default function PlaygroundSettings({ agent, onHide }) {
           <ConfigAccordionSection
             key={section.title}
             title={section.title}
+            preserveTitle
             icon={<section.icon size={16} />}
             summary={section.summary}
+            extra={section.extra}
+            open={
+              ["Permissions", "Advanced"].includes(section.title)
+                ? false
+                : undefined
+            }
+            onOpenChange={() => {}}
             defaultOpen={section.open || false}
             headerBand="-mx-4 px-4"
             bodyClassName="ag-settings-body"
@@ -199,37 +289,47 @@ export default function PlaygroundSettings({ agent, onHide }) {
       </div>
       <header className="ag-settings-header">
         <strong>Automations</strong>
-        <span>{agent.autos.length}</span>
+        <span className="ag-settings-header-end">
+          {countSummary(agent.autos.length, "automation")}
+          {addButton("Add automation")}
+        </span>
       </header>
       <div className="ag-settings-automations">
         {agent.autos.map((automation) => (
           <button
             className="ag-settings-item"
             key={automation.name}
-            onClick={automation.open}
+            aria-disabled="true"
           >
-            <Lightning size={18} />
+            <span className="ag-settings-avatar ag-settings-avatar--muted">
+              <Clock size={15} />
+              <i className="ag-settings-dot" aria-hidden="true" />
+            </span>
             <span>
               <strong>{automation.name}</strong>
-              <small>{automation.runsWhen}</small>
-              <small>Runs {automation.agent}</small>
+              <small className="ag-settings-preview">
+                {automation.runsWhen}
+              </small>
             </span>
-            <CaretRight size={12} />
+            <DotsThreeVertical size={14} />
           </button>
         ))}
       </div>
       <header className="ag-settings-header">
         <strong>Files</strong>
-        <span>{agent.files.length}</span>
+        <span>{countSummary(agent.files.length, "file")}</span>
       </header>
       <div className="ag-settings-files">
-        {agent.files.map((file) => (
+        {agent.files.map((file, index) => (
           <div className="ag-settings-item" key={file.name}>
             <FileText size={16} />
-            <span>
-              <strong>{file.name}</strong>
-              <small>{file.when}</small>
+            <span className="ag-settings-name-row">
+              <strong className="ag-settings-mono">{file.name}</strong>
+              <em className="ag-settings-tag">Agent</em>
             </span>
+            <small className="ag-settings-item-meta">
+              {FILE_SIZES[index % FILE_SIZES.length]} · {file.when}
+            </small>
           </div>
         ))}
       </div>

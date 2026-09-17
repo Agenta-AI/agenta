@@ -36,6 +36,17 @@
     grid-template-columns: 280px minmax(0, 1fr) !important;
   }
 }
+/* The product UI is presented at its intended 1120px size. Below the width
+   needed for that frame plus page gutters, the hero copy stands on its own. */
+@media (max-width: 1167px) {
+  .ag-hero {
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+  }
+  .ag-hero .ag-app-frame {
+    display: none !important;
+  }
+}
 @media (max-width: 860px) {
   .ag-hero .ag-app-frame {
     grid-template-columns: minmax(0, 1fr) !important;
