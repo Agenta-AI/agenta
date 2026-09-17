@@ -138,8 +138,8 @@ code:not(pre code) {
 
 .theme-code-block pre {
   font-size: 14px;
-  line-height: 1.8;
-  padding: 22px 28px;
+  line-height: 1.7;
+  padding: 16px 20px;
   margin: 0;
 }
 
@@ -150,7 +150,7 @@ code:not(pre code) {
 
 /* Title bar (```lang title="...") */
 .theme-code-block > div:first-child:not([class*="codeBlockContent"]) {
-  padding: 10px 28px;
+  padding: 10px 20px;
   border-bottom: 1px solid var(--borderlight);
   font-size: 13px;
   color: var(--contentsecondary);
@@ -159,8 +159,8 @@ code:not(pre code) {
 
 /* Copy button: bare icon in the top-right corner, always visible. */
 .theme-code-block [class*="buttonGroup"] {
-  top: 12px;
-  right: 12px;
+  top: 8px;
+  right: 8px;
   opacity: 1;
 }
 
