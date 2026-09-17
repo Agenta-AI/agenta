@@ -2,15 +2,10 @@ import React, { type ReactNode } from "react";
 import { useThemeConfig } from "@docusaurus/theme-common";
 import { useNavbarMobileSidebar } from "@docusaurus/theme-common/internal";
 import NavbarItem, { type Props as NavbarItemConfig } from "@theme/NavbarItem";
+import { CTA_CLASSES, hasCtaClass, isCta, type CtaItem } from "@site/src/utils/navbarCtas";
 
 function useNavbarItems() {
-  // TODO temporary casting until ThemeConfig type is improved
   return useThemeConfig().navbar.items as NavbarItemConfig[];
-}
-
-function hasClass(item: unknown, cls: string): boolean {
-  const html = (item as { html?: unknown })?.html;
-  return typeof html === "string" && html.includes(cls);
 }
 
 function stripTags(html: string | undefined): string {
@@ -41,26 +36,16 @@ export default function NavbarMobilePrimaryMenu(): ReactNode {
   const items = useNavbarItems();
   const close = () => mobileSidebar.toggle();
 
-  const secondary = items.find((i) => hasClass(i, "nav_secondary_button")) as
-    | { href?: string; html?: string }
-    | undefined;
-  const primary = items.find((i) => hasClass(i, "nav_primary_button")) as
-    | { href?: string; html?: string }
-    | undefined;
+  const secondary = items.find((i) => hasCtaClass(i, CTA_CLASSES.secondary)) as CtaItem | undefined;
+  const primary = items.find((i) => hasCtaClass(i, CTA_CLASSES.primary)) as CtaItem | undefined;
 
   // Everything that isn't the search box, the version selector, or a CTA
   // button is a normal navigation link shown in the scrolling list.
   // The version selector is rendered next to the logo by Navbar/Content at
   // every width, so repeating it here would show the same control twice.
   const navItems = items.filter(
-    (i) =>
-      (i as { type?: string }).type !== "search" &&
-      (i as { type?: string }).type !== "docsVersionDropdown" &&
-      !hasClass(i, "nav_secondary_button") &&
-      !hasClass(i, "nav_primary_button"),
+    (i) => i.type !== "search" && i.type !== "docsVersionDropdown" && !isCta(i),
   );
-
-  const hasFooter = secondary || primary;
 
   return (
     <>
@@ -70,35 +55,32 @@ export default function NavbarMobilePrimaryMenu(): ReactNode {
         ))}
       </ul>
 
-      {hasFooter && (
+      {(secondary || primary) && (
         <div className="mobileSidebarFooter">
-          {(secondary || primary) && (
-            <div className="mobileSidebarActions">
-              {secondary && (
-                <a
-                  className="nav_secondary_button"
-                  href={secondary.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={close}
-                >
-                  {stripTags(secondary.html)}
-                </a>
-              )}
-              {primary && (
-                <a
-                  className="nav_primary_button"
-                  href={primary.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={close}
-                >
-                  {stripTags(primary.html)}
-                </a>
-              )}
-            </div>
-          )}
-
+          <div className="mobileSidebarActions">
+            {secondary && (
+              <a
+                className={CTA_CLASSES.secondary}
+                href={secondary.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={close}
+              >
+                {stripTags(secondary.html)}
+              </a>
+            )}
+            {primary && (
+              <a
+                className={CTA_CLASSES.primary}
+                href={primary.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={close}
+              >
+                {stripTags(primary.html)}
+              </a>
+            )}
+          </div>
         </div>
       )}
     </>

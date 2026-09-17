@@ -13,6 +13,7 @@ import SearchBar from '@theme/SearchBar';
 import NavbarMobileSidebarToggle from '@theme/Navbar/MobileSidebar/Toggle';
 import NavbarLogo from '@theme/Navbar/Logo';
 import NavbarSearch from '@theme/Navbar/Search';
+import {CTA_CLASSES, hasCtaClass} from '@site/src/utils/navbarCtas';
 
 import styles from './styles.module.css';
 
@@ -20,7 +21,7 @@ function useNavbarItems() {
   return useThemeConfig().navbar.items as NavbarItemConfig[];
 }
 
-function NavbarItems({items}: {items: NavbarItemConfig[]}): JSX.Element {
+function NavbarItems({items}: {items: NavbarItemConfig[]}): ReactNode {
   return (
     <>
       {items.map((item, i) => (
@@ -66,7 +67,7 @@ function ColorModeToggle(): ReactNode {
  * (position: "left") are not rendered here; the sidebar rail shows them on
  * desktop and the hamburger menu on mobile. Social links live in the footer.
  */
-export default function NavbarContent(): JSX.Element {
+export default function NavbarContent(): ReactNode {
   const mobileSidebar = useNavbarMobileSidebar();
 
   const items = useNavbarItems();
@@ -79,8 +80,7 @@ export default function NavbarContent(): JSX.Element {
   // Search is placed explicitly, before the action buttons. The primary CTA
   // (the filled button) goes last.
   const actionItems = rightItems.filter((item) => item.type !== 'search');
-  const isPrimary = (item: NavbarItemConfig) =>
-    typeof item.html === 'string' && item.html.includes('nav_primary_button');
+  const isPrimary = (item: NavbarItemConfig) => hasCtaClass(item, CTA_CLASSES.primary);
   const secondaryItems = actionItems.filter((item) => !isPrimary(item));
   const primaryItems = actionItems.filter(isPrimary);
 
