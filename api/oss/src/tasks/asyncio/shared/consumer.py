@@ -336,3 +336,44 @@ class StreamConsumer:
                 )
                 # Sleep before retry to avoid tight error loop
                 await asyncio.sleep(1)
+
+
+async def run_consumers_until_shutdown(
+    consumers: List["StreamConsumer"],
+    shutdown_event: asyncio.Event,
+) -> int:
+    """Drive consumer `run()` loops until they finish or a shutdown is signalled.
+
+    The caller installs SIGINT/SIGTERM handlers that set `shutdown_event`. When
+    it fires, the gathered consumer tasks are cancelled so `asyncio.run` unwinds
+    cleanly. `run()` only catches `Exception`, so `CancelledError` (a
+    `BaseException`) propagates out of the current `await` — between messages
+    during the blocking `read_batch`, or rolling back an in-flight
+    `process_batch`/`ack_and_delete` whose messages then stay pending for
+    idempotent redelivery. Without this the process is hard-killed mid-loop,
+    orphaning the worker and leaking stale consumer-group entries.
+
+    Returns 0 on a clean shutdown; a consumer that raises on its own propagates.
+    """
+    consumers_task = asyncio.gather(*(consumer.run() for consumer in consumers))
+    shutdown_wait = asyncio.ensure_future(shutdown_event.wait())
+
+    done, _ = await asyncio.wait(
+        {consumers_task, shutdown_wait},
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+
+    if shutdown_wait in done:
+        log.info("[STREAM] Shutdown signal received, stopping consumers")
+        consumers_task.cancel()
+        try:
+            await consumers_task
+        except asyncio.CancelledError:
+            pass
+        log.info("[STREAM] Clean shutdown complete")
+        return 0
+
+    # A consumer exited on its own; drop the waiter and re-raise any error.
+    shutdown_wait.cancel()
+    await consumers_task
+    return 0

@@ -11,6 +11,10 @@ metadata:
     app.kubernetes.io/component: web
 spec:
   replicas: {{ include "agenta.web.replicas" . }}
+  {{- with $web.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
@@ -23,6 +27,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $web "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $web.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $web.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -112,6 +119,10 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          {{- with $web.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $web.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

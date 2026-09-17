@@ -829,7 +829,13 @@ describe("runSandboxAgent orchestration", () => {
   });
 
   it("backs the local Pi transcript directory with the active durable cwd mount", async () => {
+    // The durable cwd is derived from the sign prefix and then really created. Under the local
+    // root that is `/var/lib/agenta/...`, which a test process cannot mkdir, so the cwd is stubbed
+    // the way the sibling tests above stub it. What this test is about is unchanged: the Pi
+    // transcript directory must sit under whatever the ACTIVE durable cwd is.
+    const durableCwd = mkdtempSync(join(tmpdir(), "agenta-pi-transcript-"));
     const { calls, deps } = fakeHarness();
+    deps.createLocalCwd = (() => durableCwd) as never;
     deps.signSessionMountCredentials = async () => ({
       region: "us-east-1",
       bucket: "bucket",
@@ -863,10 +869,11 @@ describe("runSandboxAgent orchestration", () => {
       assert.equal(
         (calls.providerArgs[1] as Record<string, string>)
           .PI_CODING_AGENT_SESSION_DIR,
-        "/tmp/agenta/mounts/project/session/agents/sessions/pi",
+        `${durableCwd}/agents/sessions/pi`,
       );
     } finally {
       await acquired.env.destroy();
+      rmSync(durableCwd, { recursive: true, force: true });
     }
   });
 
@@ -1405,7 +1412,7 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(workspaceCalls, 2, "workspace prep is retried once");
     assert.equal(
       calls.createSessionOptions.cwd,
-      "/tmp/agenta/mounts/proj-1/mount-1",
+      "/var/lib/agenta/mounts/proj-1/mount-1",
     );
     assert.equal(cleanupCalls, 1);
   });
@@ -1418,7 +1425,7 @@ describe("runSandboxAgent orchestration", () => {
             update: {
               kind: "tool_result",
               content:
-                "realpath '/tmp/agenta/mounts/proj-1/mount-1/.restore_test': Transport endpoint is not connected",
+                "realpath '/var/lib/agenta/mounts/proj-1/mount-1/.restore_test': Transport endpoint is not connected",
             },
           },
         },
@@ -1427,7 +1434,7 @@ describe("runSandboxAgent orchestration", () => {
             update: {
               kind: "tool_result",
               content:
-                "realpath '/tmp/agenta/mounts/proj-1/mount-1/README.md': ENOTCONN",
+                "realpath '/var/lib/agenta/mounts/proj-1/mount-1/README.md': ENOTCONN",
             },
           },
         },
@@ -1500,7 +1507,11 @@ describe("runSandboxAgent orchestration", () => {
     // The durable cwd is object storage: it has no symlinks, so every remount can hand the link
     // back as a 0-byte file. The link must therefore belong to the mount lifecycle, not only to
     // first acquire — otherwise the rest of the session authenticates from an empty token file.
-    const cwd = "/tmp/agenta/mounts/proj-1/mount-1";
+    // Unlike its siblings, this case asserts on real files, so the cwd stands in for the durable
+    // mount instead of being it: the local durable root is `/var/lib/agenta`, which a test process
+    // cannot create. `createLocalCwd` is where the runner turns the derived durable path into the
+    // directory it works in, so overriding it keeps the whole mount lifecycle under test.
+    const cwd = mkdtempSync(join(tmpdir(), "codex-durable-cwd-"));
     const codexMount = mkdtempSync(join(tmpdir(), "codex-operator-home-"));
     const savedCodexHome = process.env.CODEX_HOME;
     writeFileSync(join(codexMount, "auth.json"), '{"tokens":{"id_token":"t"}}');
@@ -1520,6 +1531,7 @@ describe("runSandboxAgent orchestration", () => {
           },
         ],
       });
+      deps.createLocalCwd = () => cwd;
       let signCalls = 0;
       let mountCalls = 0;
       deps.signSessionMountCredentials = (async () => {

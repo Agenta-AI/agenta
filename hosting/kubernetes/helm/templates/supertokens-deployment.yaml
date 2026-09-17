@@ -10,6 +10,10 @@ metadata:
     app.kubernetes.io/component: supertokens
 spec:
   replicas: {{ include "agenta.supertokens.replicas" . }}
+  {{- with $supertokens.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
@@ -22,6 +26,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $supertokens "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $supertokens.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $supertokens.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -92,6 +99,10 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          {{- with $supertokens.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $supertokens.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
