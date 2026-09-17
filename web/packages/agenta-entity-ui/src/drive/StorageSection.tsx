@@ -12,7 +12,7 @@ import {isAgentFileUploadsEnabled} from "@agenta/entities/drive"
 import {useConfigDrive} from "@agenta/entities/drive"
 import {listArrowKeyDown} from "@agenta/entities/drive"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@agenta/entities/drive"
-import {humanSize, itemCountLabel, relativeTime} from "@agenta/entities/drive"
+import {itemCountLabel, relativeTime} from "@agenta/entities/drive"
 import {isRecentlyChanged, useRecentChangeClock} from "@agenta/entities/drive"
 import {useStageDrop} from "@agenta/entities/drive"
 import {driveHasMixedOrigins, type DriveRecentFile} from "@agenta/entities/drive"
@@ -70,11 +70,9 @@ const RecentFileRow = ({
             // " · " only between the parts that exist; a folder count only when known.
             trailing={
                 [
-                    file.is_folder
-                        ? file.item_count != null
-                            ? itemCountLabel(file.item_count)
-                            : null
-                        : humanSize(file.size),
+                    file.is_folder && file.item_count != null
+                        ? itemCountLabel(file.item_count)
+                        : null,
                     file.touchedAt ? relativeTime(file.touchedAt) : null,
                 ]
                     .filter(Boolean)
