@@ -114,6 +114,24 @@ API-only request: those prove the proxy, not the product path.
    built, so nothing needs exporting for it either. One case in it still fails, and it is a stale
    expectation on `main` rather than anything about addressing: issue 6920.
 
+   **Export the licence before running either layer**, which nothing else on this list implies.
+   Database names are composed from it: `agenta_ee_core` and `agenta_ee_tracing` on an EE stack,
+   `agenta_oss_*` on an OSS one, and `AGENTA_LICENSE` unset reads as OSS. Against an EE
+   deployment with no licence exported the suite used to dial a database that is not there and
+   the sessions layer reported 18 skipped and exit 0, which is a green run of nothing (D146). It
+   now refuses and names the variable. `load-env <env-file>` exports it with everything else;
+   `POSTGRES_DB_PREFIX` or `POSTGRES_URI_CORE` say it directly and are honoured instead.
+
+   The whole invocation, from a shell that has loaded the stack's env file and exported the
+   addresses above:
+
+   ```bash
+   cd api && uv run --no-sync python run-tests.py oss/tests/pytest/integration/sessions
+   ```
+
+   The gateway layer is the same command with `integration/gateways`. Both take pytest arguments
+   after a bare `--`; `-- -n0` runs serially, which `test_mock_upstreams.py` wants.
+
    The last two variables are why `AGENTA_API_URL` and `AGENTA_AUTH_KEY` are on this list even
    though the gateway integration cases speak to no API. A published port that opens a connection
    proves only that a server is listening, and every EE stack on a box calls its database
@@ -125,10 +143,18 @@ API-only request: those prove the proxy, not the product path.
    `AGENTA_AUTH_KEY` the value from the same env file. A mismatch fails before any case seeds and
    the message names both sides.
 
-   Both integration layers share that guard, so the sessions layer refuses a database belonging
-   to another deployment the same way the gateway layer does (D141). Each layer states only what
-   is its own: which of the deployment's databases its cases read, whether an unreachable one
-   fails or skips, and which of its cases touch the deployment at all.
+   Both integration layers share that guard, and what it covers is worth stating exactly, because
+   the two layers do not read the same databases. The marker row is a `users` row, so the check
+   identifies the **core** database and the server carrying it. Every further address a layer
+   reads — the sessions layer's tracing address — is then required to be on that same host and
+   published port, since nothing can identify it on its own: no endpoint writes a row into the
+   tracing database for the suite to name (D141). So a tracing address pointed at another stack
+   is refused, and what remains uncovered is only the database *name* on the identified server,
+   which comes from the deployment's own configuration. Each layer states what is its own: which
+   databases its cases read, whether an unreachable one fails or skips, and which of its cases
+   touch the deployment at all. The sessions layer still **skips** an unreachable database, which
+   is its own open finding; identity is not affected, because a database that answers and belongs
+   to somebody else fails there as it does everywhere.
 
    The guard costs one ephemeral account per run, and gives it back. The verdict is reached once
    and published to the run's other workers through a file, so twenty workers mint nothing
