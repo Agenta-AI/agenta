@@ -243,10 +243,62 @@ li.sidebar-section-title > .menu__list-item-collapsible > .menu__caret {
   border: none;
 }
 
+/* Mobile "On this page": a bordered panel with a muted label and a small
+   chevron; the list inside uses the desktop TOC's type. */
 @media (max-width: 996px) {
-  .tocCollapsibleButton,
+  .theme-doc-toc-mobile {
+    margin: 0 0 20px;
+    border: 1px solid var(--borderdefault);
+    border-radius: var(--radius-lg);
+    background-color: var(--bgdefault);
+  }
+
   [class*="tocCollapsibleButton"] {
-    color: var(--contentprimary);
+    height: 40px;
+    padding: 0 12px 0 14px;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: var(--ifm-font-weight-semibold);
+    color: var(--contentsecondary);
+  }
+
+  /* .theme-doc-toc-mobile in the selector outranks the theme's module rule. */
+  .theme-doc-toc-mobile [class*="tocCollapsibleButton"]::after {
+    width: 16px;
+    height: 16px;
+    background: var(--contenttertiary);
+    filter: none;
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>")
+      center / contain no-repeat;
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>")
+      center / contain no-repeat;
+    transform: none;
+  }
+
+  .theme-doc-toc-mobile [class*="tocCollapsibleButtonExpanded"]::after {
+    transform: rotate(180deg);
+  }
+
+  [class*="tocCollapsibleContent"] > ul {
+    margin: 0;
+    padding: 6px 14px 10px;
+    border-top: 1px solid var(--borderdefault);
+    font-size: 13px;
+  }
+
+  [class*="tocCollapsibleContent"] ul li {
+    margin: 0;
+  }
+
+  [class*="tocCollapsibleContent"] ul ul {
+    padding-left: 14px;
+  }
+
+  [class*="tocCollapsibleContent"] .table-of-contents__link {
+    padding: 5px 0;
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--toc-link-color);
   }
 }
 
