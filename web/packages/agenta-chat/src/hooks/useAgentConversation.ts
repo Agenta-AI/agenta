@@ -22,6 +22,7 @@ import {
     fetchSessionInteractionStatesAtom,
     interactionStatesFromWatchEvent,
     isApprovalNotPendingError,
+    isSettledInteractionConflict,
     recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
@@ -1010,7 +1011,14 @@ export const useAgentConversation = ({
                 // only this second submit is redundant. Nothing caught it before, so the rejection
                 // reached no handler at all: dev showed the Next error overlay and production got
                 // a silently dead approval. The mobile dock has always read it this way.
-                if (!isApprovalNotPendingError(error)) stampRunError(parseAgentRunError(error))
+                // Two ways to learn the same thing. The local guard finds no pending row; the
+                // server answers 409 when the row moved on underneath the decision, and says
+                // WHICH conflict in the body's code. Status alone would swallow
+                // `execution_mismatch`, which is the interaction belonging to a different
+                // execution, and that one the reader has to see.
+                const settled =
+                    isApprovalNotPendingError(error) || isSettledInteractionConflict(error)
+                if (!settled) stampRunError(parseAgentRunError(error))
                 settle({recoverable: false})
                 return
             }

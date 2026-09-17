@@ -53,12 +53,13 @@ import {
     TOOL_PERMISSION_OPTIONS,
     type PermissionPresetValue,
 } from "../DrillInView/SchemaControls/integrationPolicy"
+import type {PermissionPolicy} from "../DrillInView/SchemaControls/permissionPolicy"
 import type {
     GatewayConnectionPermissions,
     GatewayPermission,
 } from "../DrillInView/SchemaControls/toolUtils"
 
-import {MCP_PRESETS, PRESET_PERMISSION, readMcpPreset} from "./mcpPresets"
+import {FOLLOW_AGENT_PRESET, MCP_PRESETS, PRESET_PERMISSION, readMcpPreset} from "./mcpPresets"
 
 /** A tool the server's include filter hides may not be given a permission at all. */
 const HIDDEN_TOOL_REASON = "Hidden by this server's tool filter"
@@ -102,6 +103,15 @@ export interface McpPermissionDrawerProps {
     onReconnect?: () => void
     /** Detach the server from THIS agent. Omitted, the footer link is not offered. */
     onRemove?: () => void
+    /**
+     * The agent-wide `runner.permissions.default`, for the note under the preset.
+     *
+     * It is the whole meaning of the "Follow agent policy" preset, so the drawer names it there
+     * rather than sending a reader to a different row to find out whether the ladder asks, allows
+     * or denies. A caller with no agent in hand (Settings' read-only "View tools") passes none,
+     * and that view has no preset select to qualify anyway.
+     */
+    agentPolicy?: PermissionPolicy | null
     /** Settings' "View tools": the same drawer with nothing to set. */
     readOnly?: boolean
     disabled?: boolean
@@ -237,6 +247,7 @@ export default function McpPermissionDrawer({
     onChange,
     onReconnect,
     onRemove,
+    agentPolicy,
     readOnly,
     disabled,
 }: McpPermissionDrawerProps) {
@@ -398,6 +409,7 @@ export default function McpPermissionDrawer({
                     : option,
             ),
             // Null is "not knowable until the list lands", which `pending` draws instead.
+            agentPolicyPreset: FOLLOW_AGENT_PRESET,
             value: preset ?? "custom",
             overrideCount,
             pending: preset === null,
@@ -491,6 +503,7 @@ export default function McpPermissionDrawer({
             permissions={permissions}
             onChangePermissions={write}
             onChangeToolPermission={setTool}
+            agentPolicy={agentPolicy}
             disabled={disabled}
             source={{
                 catalogKey: slug ?? "mcp",

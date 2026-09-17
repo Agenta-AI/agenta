@@ -1210,6 +1210,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 <McpServersSectionBody
                     items={mcpServers}
                     disabled={disabled}
+                    agentPolicy={agentPermissionPolicy}
                     onChangeItems={(next: unknown[]) => setAgentField("mcps", next)}
                     openForm={(index: number, item: unknown) => openEdit("mcp", index, item)}
                     removeItem={(index: number) => removeItem("mcp", index)}

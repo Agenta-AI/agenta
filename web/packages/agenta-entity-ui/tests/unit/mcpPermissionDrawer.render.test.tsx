@@ -431,6 +431,55 @@ describe("D2 — the preset menu", () => {
     })
 })
 
+describe("the preset that follows the agent's policy names it", () => {
+    // Its whole meaning is "the agent's own permission policy decides", and the drawer already
+    // carries the sentence that says which policy that is. The MCP drawer's `agentPolicy` prop was
+    // removed alongside decision 45, so a person picked the preset and was sent to a different row
+    // to find out whether the ladder asks, allows or denies. The sentence is the Integrations one,
+    // pointed at this source's own preset.
+    it("says which policy it follows when the agent is not on its default", async () => {
+        await render({policy: {}, agentPolicy: "deny"})
+
+        expect(labelled("Default permission")?.textContent).toContain("Follow agent policy")
+        expect(text()).toContain(
+            "This agent's permission policy is set to deny all, so these tools follow it.",
+        )
+    })
+
+    it("says nothing when the agent is on its default, which the sentence has no news about", async () => {
+        await render({policy: {}, agentPolicy: "allow_reads"})
+
+        expect(text()).not.toContain("This agent's permission policy is set to")
+    })
+
+    it("does not qualify the preset that writes what it says", async () => {
+        // "Ask for write and delete" no longer leans on the ladder, so naming the ladder under it
+        // would describe something that does not decide anything here (decision 45).
+        await render({
+            policy: {
+                permission: "ask",
+                tool_permissions: {
+                    get_current_user: "allow",
+                    get_issue: "allow",
+                    list_issues: "allow",
+                    list_comments: "allow",
+                },
+                new_tool_permission: "ask",
+            } as McpServerPolicy,
+            agentPolicy: "deny",
+        })
+
+        expect(labelled("Default permission")?.textContent).toContain("Ask for write and delete")
+        expect(text()).not.toContain("This agent's permission policy is set to")
+    })
+
+    it("says nothing on a preset that decides for itself", async () => {
+        await render({policy: {permission: "allow"}, agentPolicy: "deny"})
+
+        expect(text()).not.toContain("This agent's permission policy is set to")
+    })
+})
+
 describe("Ask for write and delete — the preset that writes what it says", () => {
     // Its help line promises that read-only tools run automatically and everything else asks.
     // Nothing on this wire says that on its own, so the preset spells it out: ask at the server,
