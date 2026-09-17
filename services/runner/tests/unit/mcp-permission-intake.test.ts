@@ -5,6 +5,8 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import type { AgentRunRequest, McpServerConfig } from "../../src/protocol.ts";
 import {
@@ -12,6 +14,9 @@ import {
   mcpToolPermission,
 } from "../../src/engines/sandbox_agent/runtime-policy.ts";
 import { resolveMcpToolName } from "../../src/engines/sandbox_agent/acp-interactions.ts";
+// The intake half, imported from where it is defined rather than through the runner's
+// re-export, because the Pi extension bundle imports it from here too.
+import { normalizeMcpServerPermissions } from "../../src/mcp-permission.ts";
 
 function request(...servers: unknown[]): AgentRunRequest {
   return { mcpServers: servers as McpServerConfig[] } as AgentRunRequest;
@@ -324,4 +329,94 @@ describe("why intake marks the name rather than leaving it to the gate", () => {
 
     assert.equal(resolution.kind, "ambiguous");
   });
+});
+
+
+/**
+ * The shared ladder fixture, walked by this reader.
+ *
+ * The same file is walked by `test_mcp_policy_ladder_fixture.py` in the Python SDK and by
+ * `mcp-policy-ladder.test.ts` in `@agenta/entities`. Before it existed each reader was tested
+ * only against its own restatement of the rule, which is how D88 shipped green in all three.
+ *
+ * This reader's input is `wire`, because that is what the SDK sends and the runner receives, so
+ * a case is green only when the SDK's output is the thing resolved here.
+ */
+const LADDER = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL("../fixtures/mcp-policy-ladder.json", import.meta.url)),
+    "utf8",
+  ),
+) as {
+  unnamedTool: string;
+  cases: {
+    name: string;
+    wire: unknown;
+    expected: {
+      namedTool: { tool: string; permission: string } | null;
+      unnamedToolPermission: string | null;
+    };
+  }[];
+  sendersThatOmitTheFloor: {
+    name: string;
+    wire: unknown;
+    expected: {
+      namedTool: { tool: string; permission: string };
+      unnamedToolPermission: string | null;
+    };
+  }[];
+};
+
+describe("the shared per-tool permission ladder fixture", () => {
+  it("has the cases the ladder is defined by", () => {
+    assert.ok(LADDER.cases.length >= 7, "the fixture lost cases");
+  });
+
+  for (const ladderCase of LADDER.cases) {
+    it(`resolves "${ladderCase.name}" the way every reader must`, () => {
+      const entry = normalizeMcpServerPermissions(ladderCase.wire);
+
+      assert.equal(
+        mcpToolPermission(entry, LADDER.unnamedTool) ?? null,
+        ladderCase.expected.unnamedToolPermission,
+        "a tool the table does not name",
+      );
+
+      const named = ladderCase.expected.namedTool;
+      if (named) {
+        assert.equal(
+          mcpToolPermission(entry, named.tool) ?? null,
+          named.permission,
+          `the table's own entry for ${named.tool}`,
+        );
+      }
+    });
+  }
+
+  it("defers for a server it has no entry for at all", () => {
+    assert.equal(mcpToolPermission(undefined, "echo"), undefined);
+  });
+
+  /**
+   * The runner's own fallback branch, which no `wire` above can reach.
+   *
+   * This SDK resolves the floor before it emits, so every case above arrives carrying
+   * `newToolPermission`. A hand-written sender and an older SDK do not, and that omission is the
+   * branch D88 lived in: reading `permission` as the floor there ran a tool the author had never
+   * named under a `permission: allow` server.
+   */
+  for (const omitted of LADDER.sendersThatOmitTheFloor) {
+    it(`asks for an unnamed tool when a sender omits the floor: "${omitted.name}"`, () => {
+      const entry = normalizeMcpServerPermissions(omitted.wire);
+
+      assert.equal(
+        mcpToolPermission(entry, LADDER.unnamedTool) ?? null,
+        omitted.expected.unnamedToolPermission,
+      );
+      assert.equal(
+        mcpToolPermission(entry, omitted.expected.namedTool.tool) ?? null,
+        omitted.expected.namedTool.permission,
+      );
+    });
+  }
 });
