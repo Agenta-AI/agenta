@@ -2,27 +2,16 @@
  * One registry card: `sk` square avatar tinted by origin (olive = project, slate = imported,
  * ink + lightning = Agenta built-in), mono name, 2-line description, meta line.
  */
-import {AGENT_ICON_CHIP_CLASS, agentIconChipStyle} from "@agenta/ui/agent-icon"
+import {
+    AGENT_ICON_CHIP_CLASS,
+    agentIconChipStyle,
+    SKILL_MARK_COLOR,
+    skillMarkText,
+} from "@agenta/ui/agent-icon"
 import {cn} from "@agenta/ui/styles"
 import {Lightning} from "@phosphor-icons/react"
 
 import type {SkillListItem} from "./types"
-
-/** The origin's colour; the chip draws it the way an agent's icon chip does — ink on a tint
- * derived from it, so it reads beside an agent's mark as the same kind of thing. */
-const COLOR_BY_ORIGIN: Record<SkillListItem["origin"], string> = {
-    project: "#6b7d3f",
-    imported: "#475569",
-    builtin: "#1c2c3d",
-}
-
-/** The mark's letters: the initials of the first two words of a kebab name ("shoot-demo-video"
- * → "sd"), or the first two letters of a one-word name — so a column of marks tells names apart. */
-export const skillAvatarText = (slug: string): string => {
-    const parts = slug.split(/[-_ ]+/).filter(Boolean)
-    if (parts.length > 1) return (parts[0][0] + parts[1][0]).toLowerCase()
-    return (parts[0] ?? "sk").slice(0, 2).toLowerCase()
-}
 
 export function SkillAvatar({
     origin,
@@ -41,12 +30,12 @@ export function SkillAvatar({
                 AGENT_ICON_CHIP_CLASS,
                 className,
             )}
-            style={agentIconChipStyle(COLOR_BY_ORIGIN[origin])}
+            style={agentIconChipStyle(SKILL_MARK_COLOR[origin])}
         >
             {origin === "builtin" ? (
                 <Lightning size={13} weight="fill" />
             ) : (
-                skillAvatarText(slug ?? "")
+                skillMarkText(slug ?? "")
             )}
         </span>
     )

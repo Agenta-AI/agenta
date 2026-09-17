@@ -4,6 +4,13 @@
  * predicates they rely on (`isFunctionTool`, `isStaticSkill`) so registry, rows, and drawers agree.
  */
 import {humanizeActionKey} from "@agenta/shared/utils"
+import {
+    AGENT_ICON_CHIP_CLASS,
+    agentIconChipStyle,
+    SKILL_MARK_COLOR,
+    skillMarkText,
+    type SkillMarkOrigin,
+} from "@agenta/ui/agent-icon"
 import {FileText, GraphIcon, Plugs, Robot} from "@phosphor-icons/react"
 
 import {parseGatewayEntry, type ToolObj} from "../toolUtils"
@@ -304,15 +311,23 @@ export function isStaticSkill(skill: unknown): boolean {
     return asObj(s.flags)?.is_static === true
 }
 
+/** The registry's skill mark on a config row: the chip's chrome, the origin's tint, initials. */
+const skillMark = (name: string, origin: SkillMarkOrigin) => ({
+    mono: skillMarkText(name),
+    color: SKILL_MARK_COLOR[origin],
+    avatarClassName: `${AGENT_ICON_CHIP_CLASS} font-mono`,
+    avatarStyle: agentIconChipStyle(SKILL_MARK_COLOR[origin]),
+})
+
 /** Classify a skill into its row avatar / name / description / type tags. */
 export function describeSkill(skill: unknown): ItemDescriptor {
     const s = (skill ?? {}) as Record<string, unknown>
     if (isStaticSkill(s)) {
         const slug = staticEmbedSlug(s)
+        const name = staticEmbedName(s) ?? slug ?? "Static skill"
         return {
-            name: staticEmbedName(s) ?? slug ?? "Static skill",
-            mono: "sk",
-            color: "#6b7280",
+            name,
+            ...skillMark(name, "builtin"),
             tags: ["static"],
             typeLabel: "static skill",
             subtitle: "Provided by Agenta — read-only",
@@ -322,11 +337,11 @@ export function describeSkill(skill: unknown): ItemDescriptor {
         // Registry-by-default: the raw "@ag.embed" marker is plumbing, not information.
         // Following the head is the default and says nothing; only a pin is worth a tag.
         const pinned = embedRevisionVersion(s)
+        const name = staticEmbedName(s) ?? staticEmbedSlug(s) ?? "Skill reference"
         return {
-            name: staticEmbedName(s) ?? staticEmbedSlug(s) ?? "Skill reference",
+            name,
             description: typeof s.description === "string" ? (s.description as string) : undefined,
-            mono: "sk",
-            color: "#b45309",
+            ...skillMark(name, "project"),
             tags: pinned ? [{label: "Pinned"}] : [],
             typeLabel: "registry skill",
             typeColor: "gold",
@@ -335,11 +350,11 @@ export function describeSkill(skill: unknown): ItemDescriptor {
                 : "Registry skill — follows the latest version",
         }
     }
+    const name = typeof s.name === "string" && s.name ? (s.name as string) : "Skill"
     return {
-        name: typeof s.name === "string" && s.name ? (s.name as string) : "Skill",
+        name,
         description: typeof s.description === "string" ? (s.description as string) : undefined,
-        mono: "sk",
-        color: "#b45309",
+        ...skillMark(name, "project"),
         // No "skill" tag: the section it sits in is already Skills. The other branches tag what a
         // reader cannot otherwise tell — that it is static, or an @ag.embed reference.
         tags: [],
