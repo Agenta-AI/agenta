@@ -10,7 +10,6 @@
 import {describe, expect, it} from "vitest"
 
 import {
-    clearPerToolPolicy,
     effectiveToolPermission,
     isPerTool,
     isToolHidden,
@@ -42,12 +41,6 @@ describe("the per-tool pair is opt-in", () => {
     it("is on as soon as either is set", () => {
         expect(isPerTool({tool_permissions: {echo: "allow"}})).toBe(true)
         expect(isPerTool({new_tool_permission: "deny"})).toBe(true)
-    })
-
-    it("leaves an opted-out policy emitting nothing new", () => {
-        const opted = setToolPermission({permission: "allow"}, "echo", "deny")
-
-        expect(clearPerToolPolicy(opted)).toEqual({permission: "allow"})
     })
 
     it("drops the fields again when the last entry is removed", () => {

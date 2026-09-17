@@ -82,7 +82,6 @@ export {
 } from "./agentReference"
 export type {McpGatewayConnectionRef} from "./agentReference"
 export {
-    clearPerToolPolicy,
     effectiveToolPermission,
     isPerTool,
     isToolHidden,
