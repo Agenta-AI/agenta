@@ -168,27 +168,32 @@ export function askWritesPolicy(
 }
 
 /**
- * Whether a saved policy is the shape `askWritesPolicy` writes, so the preset reads back as itself.
+ * Whether a policy carries the three fields `askWritesPolicy` writes, with every named tool allowed.
  *
- * `readOnlyToolNames` null means the tool list has not arrived. The name check is then skipped and
- * only the shape is read, because the alternative is a drawer that says "Custom · 22 overrides" for
- * as long as the list takes and then corrects itself. With the list in hand the check is exact: the
- * table has to name every read-only tool the filter admits and nothing else, or the policy is one
- * an author built by hand and Custom is the honest answer.
+ * The shape alone does NOT name the preset, and this deliberately cannot be mistaken for the
+ * question that does. An always-ask server with one tool allowed by hand carries exactly these
+ * three fields, so a caller answering "is this that preset" from the shape would put the preset's
+ * read-only promise on a policy that allows the most destructive tool the server has. It answers
+ * one thing: whether the tool list is needed before the policy can be named at all.
  */
-export function isAskWritesPolicy(
-    policy: McpServerPolicy,
-    readOnlyToolNames: string[] | null,
-): boolean {
+export function isAskWritesShape(policy: McpServerPolicy): boolean {
     if (policy.permission !== "ask") return false
     if (policy.new_tool_permission !== "ask") return false
+    return Object.values(toolPermissions(policy)).every((value) => value === "allow")
+}
 
-    const entries = toolPermissions(policy)
-    if (Object.values(entries).some((value) => value !== "allow")) return false
-    if (!readOnlyToolNames) return true
+/**
+ * Whether a saved policy IS the one `askWritesPolicy` writes, so the preset reads back as itself.
+ *
+ * Exact, and it takes the advertised read-only names because there is no answering it without
+ * them: the table has to name every read-only tool the filter admits and nothing else, or the
+ * policy is one an author built by hand and Custom is the honest answer.
+ */
+export function isAskWritesPolicy(policy: McpServerPolicy, readOnlyToolNames: string[]): boolean {
+    if (!isAskWritesShape(policy)) return false
 
     const admitted = readOnlyToolNames.filter((name) => !isToolHidden(policy, name))
-    const named = Object.keys(entries)
+    const named = Object.keys(toolPermissions(policy))
     if (named.length !== admitted.length) return false
     const wanted = new Set(admitted)
     return named.every((name) => wanted.has(name))

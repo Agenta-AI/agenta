@@ -378,9 +378,13 @@ export default function McpPermissionDrawer({
         [catalogTools, tools.status],
     )
 
+    // Still on its way, as opposed to settled with no list: a failed read is not coming back, and a
+    // control that waits forever is its own kind of untruth.
+    const toolsArriving = tools.status === "loading" || tools.status === "idle"
+
     const {preset, overrideCount} = useMemo(
-        () => readMcpPreset(policy, readOnlyToolNames),
-        [policy, readOnlyToolNames],
+        () => readMcpPreset(policy, {names: readOnlyToolNames, arriving: toolsArriving}),
+        [policy, readOnlyToolNames, toolsArriving],
     )
 
     const presets = useMemo<PermissionPresetSource>(
@@ -393,8 +397,10 @@ export default function McpPermissionDrawer({
                     ? {...option, disabled: true}
                     : option,
             ),
-            value: preset,
+            // Null is "not knowable until the list lands", which `pending` draws instead.
+            value: preset ?? "custom",
             overrideCount,
+            pending: preset === null,
             onPick: (picked: PermissionPresetValue) => {
                 if (picked === "ask_writes") {
                     onChange(askWritesPolicy(readOnlyToolNames ?? [], policy))

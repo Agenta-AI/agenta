@@ -97,6 +97,7 @@ export {
     askWritesPolicy,
     fromGatewayPermissions,
     isAskWritesPolicy,
+    isAskWritesShape,
     MCP_SUPPORTS_INHERIT,
     toGatewayPermissions,
 } from "./policyAdapter"

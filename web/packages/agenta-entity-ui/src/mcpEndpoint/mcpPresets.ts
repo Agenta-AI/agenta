@@ -20,6 +20,7 @@
  */
 import {
     isAskWritesPolicy,
+    isAskWritesShape,
     toGatewayPermissions,
     type McpServerPolicy,
 } from "@agenta/entities/mcpEndpoint"
@@ -70,23 +71,43 @@ const BY_GOVERNING_VALUE: Record<GatewayPermission, PermissionPresetValue> = {
     inherit: FOLLOW_AGENT_PRESET,
 }
 
+/** What the drawer knows about the server's advertised tools when it reads a policy. */
+export interface McpToolListState {
+    /** The advertised read-only tool names, or null while the list is not in hand. */
+    names: string[] | null
+    /** Whether a list is still on its way. False once one has arrived, or failed for good. */
+    arriving: boolean
+}
+
 /**
  * The preset a saved MCP policy reads back as, with the number of per-tool rules behind it.
  *
- * `readOnlyToolNames` null means the tool list has not arrived, which is the one case
- * "Ask for write and delete" cannot be confirmed exactly; `isAskWritesPolicy` then reads its shape
- * alone rather than letting the select say "Custom" until the list lands.
+ * A null preset means the answer is not knowable yet and the caller draws a pending control rather
+ * than a preset. Exactly one policy is ever unknowable: the shape "Ask for write and delete"
+ * writes. Naming that preset makes its help line's promise, that read-only tools run
+ * automatically, and the same three fields also describe an always-ask server with one tool
+ * allowed by hand. Reading it from the shape alone put that promise on a policy allowing the most
+ * destructive tool a server has, for as long as the tool list took to arrive.
+ *
+ * Every other policy reads the same with the list or without it, so pending never stands in for an
+ * answer this could give. Once a list has failed for good it is not coming, and the conservative
+ * read stands: Custom says there are per-tool rules and claims nothing about which tools are reads.
  */
 export function readMcpPreset(
     policy: McpServerPolicy,
-    readOnlyToolNames: string[] | null,
-): {preset: PermissionPresetValue; overrideCount: number} {
+    tools: McpToolListState,
+): {preset: PermissionPresetValue | null; overrideCount: number} {
     const permissions = toGatewayPermissions(policy)
     const overrideCount = Object.keys(permissions.tools).length
 
     // Checked before Custom: this preset's whole point is that it declares a table, so a table
     // alone no longer means an author set tools one at a time.
-    if (isAskWritesPolicy(policy, readOnlyToolNames)) return {preset: "ask_writes", overrideCount}
+    if (tools.names) {
+        if (isAskWritesPolicy(policy, tools.names)) return {preset: "ask_writes", overrideCount}
+    } else if (isAskWritesShape(policy)) {
+        return {preset: tools.arriving ? null : "custom", overrideCount}
+    }
+
     if (overrideCount > 0) return {preset: "custom", overrideCount}
     return {preset: BY_GOVERNING_VALUE[permissions.default], overrideCount: 0}
 }

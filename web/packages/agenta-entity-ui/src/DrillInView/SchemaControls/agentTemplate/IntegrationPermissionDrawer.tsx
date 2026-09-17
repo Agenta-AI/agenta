@@ -124,11 +124,17 @@ export interface PermissionPresetOption {
 export interface PermissionPresetSource {
     /** Menu order. */
     options: PermissionPresetOption[]
-    /** The preset the saved policy reads back as. */
+    /** The preset the saved policy reads back as. Ignored while `pending`. */
     value: PermissionPresetValue
     /** Per-tool rules behind it, for the Custom count. */
     overrideCount: number
     onPick: (preset: PermissionPresetValue) => void
+    /**
+     * The source cannot say which preset this policy is yet, so the select gives way to the
+     * loading affordance the list area uses. Naming a preset is making its help line's promise,
+     * and a guess held until the data arrives is the promise made on a policy nobody has read.
+     */
+    pending?: boolean
 }
 
 /** The catalog a source hands the drawer, already fetched and already in the drawer's shape. */
@@ -578,22 +584,28 @@ function PermissionDrawerBody({
                         <span className="text-xs text-[var(--ag-colorTextSecondary)]">
                             Default permission
                         </span>
-                        <PermissionPolicySelect
-                            value={preset}
-                            onChange={(value) =>
-                                presets
-                                    ? presets.onPick(value as PermissionPresetValue)
-                                    : onChangePermissions(
-                                          presetPermissions(
-                                              value as IntegrationPreset,
-                                              permissions,
-                                          ),
-                                      )
-                            }
-                            options={presetOptions}
-                            disabled={inert}
-                            aria-label="Default permission"
-                        />
+                        {presets?.pending ? (
+                            // One bar at the select's own height, so the row keeps its shape while
+                            // the answer is on the way. Decorative, like the list's rows.
+                            <SkeletonRows count={1} rowClassName="h-9" />
+                        ) : (
+                            <PermissionPolicySelect
+                                value={preset}
+                                onChange={(value) =>
+                                    presets
+                                        ? presets.onPick(value as PermissionPresetValue)
+                                        : onChangePermissions(
+                                              presetPermissions(
+                                                  value as IntegrationPreset,
+                                                  permissions,
+                                              ),
+                                          )
+                                }
+                                options={presetOptions}
+                                disabled={inert}
+                                aria-label="Default permission"
+                            />
+                        )}
                         {agentPolicyNote ? (
                             <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                                 {agentPolicyNote}

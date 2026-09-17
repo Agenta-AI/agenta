@@ -12,6 +12,7 @@ import {
     askWritesPolicy,
     fromGatewayPermissions,
     isAskWritesPolicy,
+    isAskWritesShape,
     MCP_SUPPORTS_INHERIT,
     toGatewayPermissions,
 } from "../../src/mcpEndpoint/core/policyAdapter"
@@ -403,17 +404,52 @@ describe("isAskWritesPolicy", () => {
             ),
         ).toBe(false)
     })
+})
 
-    it("reads the shape alone while the tool list has not arrived", () => {
-        // Null is "the read-only set is unknown". Demanding the exact set then would make the
-        // drawer say "Custom" for as long as the list takes and then correct itself.
-        const policy = {
-            permission: "ask" as const,
-            tool_permissions: {get_issue: "allow" as const},
-            new_tool_permission: "ask" as const,
-        }
+describe("isAskWritesShape", () => {
+    // The shape is not the preset, and the two questions are deliberately two functions. This one
+    // was the `null` branch of the other, and a caller reading the preset from it put the preset's
+    // read-only promise on a policy that allows the most destructive tool a server has, for as
+    // long as the tool list took to arrive.
+    it("says yes to what the preset writes", () => {
+        expect(isAskWritesShape(askWritesPolicy(["get_issue", "list_issues"]))).toBe(true)
+    })
 
-        expect(isAskWritesPolicy(policy, null)).toBe(true)
-        expect(isAskWritesPolicy(policy, readOnly)).toBe(false)
+    it("says yes to a table an author built by hand out of the same three fields", () => {
+        // Which is exactly why it cannot name the preset. This policy allows one tool, and that
+        // tool is the one that deletes things.
+        expect(
+            isAskWritesShape({
+                permission: "ask",
+                tool_permissions: {delete_issue: "allow"},
+                new_tool_permission: "ask",
+            }),
+        ).toBe(true)
+        expect(
+            isAskWritesPolicy(
+                {
+                    permission: "ask",
+                    tool_permissions: {delete_issue: "allow"},
+                    new_tool_permission: "ask",
+                },
+                ["get_issue"],
+            ),
+        ).toBe(false)
+    })
+
+    it("says no to a policy missing any of the three", () => {
+        expect(isAskWritesShape({})).toBe(false)
+        expect(isAskWritesShape({permission: "ask"})).toBe(false)
+        expect(isAskWritesShape({permission: "allow", new_tool_permission: "ask"})).toBe(false)
+    })
+
+    it("says no when an entry is not allow", () => {
+        expect(
+            isAskWritesShape({
+                permission: "ask",
+                tool_permissions: {get_issue: "deny"},
+                new_tool_permission: "ask",
+            }),
+        ).toBe(false)
     })
 })

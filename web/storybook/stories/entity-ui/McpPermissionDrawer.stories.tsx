@@ -343,6 +343,29 @@ export const Loading: Story = {
 }
 
 /**
+ * The one policy the drawer cannot name without the tool list, so the preset select waits with the
+ * list rather than guessing.
+ *
+ * These are the three fields "Ask for write and delete" writes, and they also describe an
+ * always-ask server with one tool allowed by hand, which is what this is: the tool allowed is the
+ * one that deletes issues. Read from the shape alone the select said "Ask for write and delete",
+ * whose help line promises that this server's read-only tools run automatically. Once the rows
+ * arrive it reads "Custom · 1 override", which claims nothing about which tools are reads.
+ */
+export const PresetPending: Story = {
+    render: () => (
+        <DrawerHost
+            policy={{
+                permission: "ask",
+                tool_permissions: {delete_issue: "allow"},
+                new_tool_permission: "ask",
+            }}
+            loadTools={neverSettles}
+        />
+    ),
+}
+
+/**
  * The drawer closed, which is its state on a rail that has not been opened. `destroyOnClose` means
  * no tool list is fetched and no policy is read until somebody asks for it.
  */
