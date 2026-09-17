@@ -306,9 +306,12 @@ export {
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
     agTypeSchemaAtomFamily,
-    // Agent icon (per-agent glyph + colour, persisted client-side)
+    // Agent icon (per-agent glyph + colour, stored on the artifact's tags)
     agentIconAtomFamily,
+    readAgentIconTag,
+    withAgentIconTag,
     type AgentIconRecord,
+    type AgentIconSetting,
     readPersistedAgentType,
     // Artifact (workflow-level container — entity display name)
     workflowArtifactQueryAtomFamily,
