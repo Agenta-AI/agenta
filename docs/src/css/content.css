@@ -286,6 +286,59 @@ details:not([class*="openapi"]) {
   content: none;
 }
 
+/* ---- Tabs ---- */
+/* A row of quiet labels on a baseline; the active one is the text colour
+   with a 2px underline, the same idiom as the sidebar and TOC. The theme's
+   container margin stays. Scoped to the reading column so the OpenAPI
+   panels keep their own tabs. */
+.markdown .tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 0;
+  border-bottom: 1px solid var(--borderdefault);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.markdown .tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.markdown .tabs__item {
+  position: relative;
+  flex: 0 0 auto;
+  margin: 0 0 -1px;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--contentsecondary);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--ifm-transition-fast) ease,
+    border-color var(--ifm-transition-fast) ease;
+}
+
+.markdown .tabs__item:hover {
+  color: var(--contentprimary);
+  background: none;
+}
+
+.markdown .tabs__item--active {
+  color: var(--contentprimary);
+  font-weight: var(--ifm-font-weight-semibold);
+  border-bottom-color: var(--contentprimary);
+}
+
+.markdown [role="tabpanel"] > :last-child {
+  margin-bottom: 0;
+}
+
 /* ---- Blockquotes ---- */
 /* Infima's hardcoded greys swapped for tokens so dark mode follows. */
 .markdown blockquote {
