@@ -160,7 +160,7 @@
     height: 22px;
   }
 
-  /* Hamburger: two short bars and a "Menu" label (src/theme/Icon/Menu). */
+  /* Hamburger: two short bars (src/theme/Icon/Menu). */
   .navbar__toggle {
     display: inline-flex;
     align-items: center;
@@ -174,7 +174,6 @@
   .menuToggle {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
   }
 
   .menuToggleBars {
@@ -212,12 +211,6 @@
   .navbar__toggle[aria-expanded="true"] .menuToggleBars span:last-child {
     top: 7px;
     transform: rotate(-45deg);
-  }
-
-  .menuToggleLabel {
-    font-size: 14px;
-    line-height: 20px;
-    font-weight: var(--ifm-font-weight-semibold);
   }
 
   .navbar .DocSearch-Button {
