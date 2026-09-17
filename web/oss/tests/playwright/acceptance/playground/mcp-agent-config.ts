@@ -296,12 +296,18 @@ const closePermissionDrawer = async (page: Page) => {
  *
  * Polled rather than read once. An agent's configuration commits itself as it is edited, so
  * there is no button to press and no response to await: the test asks the server until the
- * item it just made shows up, which is the only claim it cares about anyway.
+ * item it just made shows up.
+ *
+ * `until` is what a caller waits for beyond that. Adding a server and setting its permissions
+ * are now two edits and therefore two commits, so "the item is there" can be answered by the
+ * revision the Add wrote, before the permission edit has landed. A case reading a permission
+ * has to say so, or it races the autosave and fails on a fast assertion against a slow stack.
  */
 const savedMcpItems = async (
     page: Page,
     basePath: string,
     workflowId: string,
+    until: (items: SavedMcpItem[]) => boolean = (items) => items.length > 0,
 ): Promise<SavedMcpItem[]> => {
     const read = async (): Promise<SavedMcpItem[]> => {
         const response = await page.request
@@ -325,8 +331,8 @@ const savedMcpItems = async (
     }
 
     await expect
-        .poll(async () => (await read()).length, {timeout: 60000, intervals: [1000]})
-        .toBeGreaterThan(0)
+        .poll(async () => until(await read()), {timeout: 60000, intervals: [1000]})
+        .toBe(true)
     return read()
 }
 
@@ -505,7 +511,12 @@ export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () =>
             await scenarios.then("both decisions are in the saved configuration", async () => {
                 await closePermissionDrawer(page)
 
-                const items = await savedMcpItems(page, basePath, workflowId)
+                const items = await savedMcpItems(
+                    page,
+                    basePath,
+                    workflowId,
+                    (saved) => !!saved[0]?.policy?.tool_permissions,
+                )
                 expect(items).toHaveLength(1)
                 // The name the SERVER advertises, not the prefixed one a harness renders:
                 // the upstream spelling is the only one every harness agrees on.
