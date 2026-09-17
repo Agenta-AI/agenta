@@ -432,6 +432,42 @@ def confirm_deployment_under_test(uri: str) -> None:
     raise AssertionError(str(verdict.get("message")))
 
 
+def _server_of(uri: str) -> Tuple[str, int]:
+    """The host and port an address names, with loopback's two spellings read as one."""
+    parsed = urlparse(uri)
+    host = (parsed.hostname or "").lower()
+    if host == "localhost":
+        host = "127.0.0.1"
+    return host, parsed.port or _CONTAINER_PORT
+
+
+def confirm_same_server(identified: str, other: str, *, database: str) -> None:
+    """Refuse a second address that is not on the server identity was proven on.
+
+    The marker row the identity check reads is a `users` row, which only the core database
+    has, so a second database cannot be identified the same way and there is no endpoint
+    that writes a row into the tracing database for the suite to name. What can be settled
+    exactly is the server: one Postgres server carries every database a deployment uses, and
+    the core address on it has just been proven to be this deployment's. So a second address
+    on the same host and published port is on the identified server, and one anywhere else is
+    not covered by anything and must not be written to (D141).
+
+    What this does not claim: that the database NAME on that server is the deployment's. That
+    comes from the deployment's own configuration, the same value its containers read.
+    """
+    if _server_of(identified) == _server_of(other):
+        return
+
+    host, port = _server_of(other)
+    raise AssertionError(
+        f"The integration layer's {database} database is not on the server it identified. "
+        f"The deployment under test answered on {_redacted(identified)}, and {database} "
+        f"resolved to {host}:{port}, which nothing has shown to be this deployment's. "
+        f"Unset POSTGRES_URI_{database.upper()} to let it resolve beside the core database, "
+        "or point both at the same stack."
+    )
+
+
 def unreachable(database: str = "core") -> AssertionError:
     """The failure for a database this layer cannot reach, naming what to change.
 
