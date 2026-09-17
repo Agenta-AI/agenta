@@ -7,6 +7,7 @@
  */
 export {HomeOverview, type HomeOverviewProps} from "./HomeOverview"
 export {HomeFocus, type HomeFocusProps} from "./HomeFocus"
+export {resolveBoundAgentId} from "./boundAgent"
 export {HomeGreeting} from "./HomeGreeting"
 export {
     HomeEntityList,

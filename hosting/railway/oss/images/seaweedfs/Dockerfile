@@ -7,15 +7,17 @@
 # IAM config from env, then starts `weed server` with the IAM engine —
 # failure-history item 17: without it the STS AssumeRoleWithWebIdentity path
 # the store mounts need does not exist).
-# Base pinned to 4.37: its advanced IAM regressed in other releases (same pin
-# as SEAWEEDFS_IMAGE in deploy-from-images.sh).
+# Base pinned: its advanced IAM regressed in other releases, and anything below
+# 4.42 keeps listing a pre-versioning object after its delete marker is written,
+# so a deleted file reappears in a geesefs mount and cannot be read (same pin as
+# SEAWEEDFS_IMAGE in deploy-from-images.sh).
 # Deliberate divergences from the deploy-time content: none — only these header
 # comments were added. CI runs images/verify-wrappers.sh and fails on any drift.
 #
 # Runtime contract (env the entrypoint requires): AGENTA_STORE_ACCESS_KEY,
 # AGENTA_STORE_SECRET_KEY, AGENTA_STORE_SIGNING_KEY, AGENTA_STORE_JWT_ISSUER,
 # AGENTA_STORE_BUCKET (all set by configure.sh in the template environment).
-FROM chrislusf/seaweedfs:4.37
+FROM chrislusf/seaweedfs:4.47
 
 COPY entrypoint.sh /usr/local/bin/railway-seaweedfs-entrypoint.sh
 RUN chmod +x /usr/local/bin/railway-seaweedfs-entrypoint.sh

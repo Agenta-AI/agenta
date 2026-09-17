@@ -10,6 +10,10 @@ metadata:
     app.kubernetes.io/component: cron
 spec:
   replicas: {{ include "agenta.cron.replicas" . }}
+  {{- with $cron.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
@@ -22,6 +26,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $cron "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $cron.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $cron.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -58,6 +65,10 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 3
+          {{- with $cron.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $cron.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

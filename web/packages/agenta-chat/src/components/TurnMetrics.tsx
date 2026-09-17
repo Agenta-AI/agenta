@@ -19,13 +19,19 @@ import type {MessageUsageMetrics} from "../assets"
  * latency slot waits on the trace; a fixed-size placeholder holds its spot so the row neither
  * shifts nor blanks data it already has.
  */
+type Metric = "latency" | "tokens" | "cost"
+
 export const TurnMetrics = ({
     traceId,
     usage,
     separator = false,
+    show,
 }: {
     traceId?: string | null
     usage?: MessageUsageMetrics
+    /** Which figures to draw; all of them by default. A host that puts the time elsewhere (the
+     * activity fold's "Worked for 11s") leaves latency out. */
+    show?: Metric[]
     /**
      * Draw a leading `·` when these figures render. It carries `first:hidden`, so it disappears
      * when nothing precedes it in the row (a turn whose timestamp resolved to nothing).
@@ -34,12 +40,14 @@ export const TurnMetrics = ({
 }) => {
     const summary = useAtomValue(traceDataSummaryAtomFamily(traceId ?? ""))
     const lead = separator ? <MetaSeparator className="first:hidden" /> : null
+    // Only the latency slot waits on the trace; without it there is nothing to wait for.
+    const wantsLatency = !show || show.includes("latency")
 
-    if (!traceId) {
+    if (!traceId || !wantsLatency) {
         return usage ? (
             <>
                 {lead}
-                <ExecutionMetricsDisplay metrics={usage} variant="plain" />
+                <ExecutionMetricsDisplay metrics={usage} variant="plain" show={show} />
             </>
         ) : null
     }
@@ -51,7 +59,7 @@ export const TurnMetrics = ({
                 {usage ? (
                     <>
                         <MetaSeparator />
-                        <ExecutionMetricsDisplay metrics={usage} variant="plain" />
+                        <ExecutionMetricsDisplay metrics={usage} variant="plain" show={show} />
                     </>
                 ) : null}
             </>
@@ -60,7 +68,11 @@ export const TurnMetrics = ({
     return (
         <>
             {lead}
-            <ExecutionMetricsDisplay metrics={{...summary.metrics, ...usage}} variant="plain" />
+            <ExecutionMetricsDisplay
+                metrics={{...summary.metrics, ...usage}}
+                variant="plain"
+                show={show}
+            />
         </>
     )
 }

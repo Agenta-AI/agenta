@@ -4,9 +4,12 @@
  *
  * The strip and the chips are the SAME components the desktop playground's tab bar renders
  * (`SessionTabStrip` + `SessionTab`); this adds the one thing that differs — where the tabs come
- * from. Rows are the shared `useSessionCardList` → `SessionRowVm` (shared status meta, shared title
- * precedence), so a session reads the same here as in every list. Only the host's verbs arrive as
- * props: how a chip opens, and what "new" means.
+ * from. WHICH tabs exist is the user's open set; their rows are fetched by id
+ * (`useSessionTabRows` → `SessionRowVm`, shared status meta and title precedence), so a session
+ * reads the same here as in every list. The card list is consulted only to seed the open set and
+ * its order on a first visit — never to decide membership, so a session leaving the sidebar's
+ * capped or grouped result (a gate opening, a pin, a newer session) cannot blink its tab out.
+ * Only the host's verbs arrive as props: how a chip opens, and what "new" means.
  */
 import type {ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
@@ -24,22 +27,32 @@ import {
     usePublishRenderedSessionTabs,
     useSessionCardList,
     useSessionTabOrderSeed,
-    type SessionTabCloseTargets,
+    useSessionTabRows,
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {Skeleton, SimpleTooltip} from "@agenta/ui/ui"
-import {ArrowLineRightIcon, PencilSimpleIcon, XIcon, XSquareIcon} from "@phosphor-icons/react"
+import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
+import {PencilSimpleIcon, XIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import InlineRenameInput from "./InlineRenameInput"
 import {type SessionMenuEntry} from "./menu"
-import {withShortcutKey} from "./menuShortcut"
+import {
+    CLOSE,
+    CLOSE_OTHERS,
+    CLOSE_RIGHT,
+    closeEntries,
+    MOVE_LEFT,
+    MOVE_RIGHT,
+    moveEntries,
+    unlistedTabCloseIds,
+    unlistedTabMenu,
+} from "./railTabMenu"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
-import {SessionTabStrip} from "./SessionTabStrip"
+import {SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
 import {useInlineRename} from "./useInlineRename"
 
 /** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
@@ -173,7 +186,7 @@ const RailTab = ({
     onRename?: (name: string) => Promise<boolean>
     /** A drag slot only inside a reorder group — a lone `Reorder.Item` has no context to drag in. */
     draggable: boolean
-    /** Hairline before this tab. Suppressed either side of the filled active chip. */
+    /** Hairline before this tab — every tab but the first. */
     divided?: boolean
 }) => {
     const ref = useRevealWhenActive(active)
@@ -205,6 +218,7 @@ const RailTab = ({
         <SessionRowContextMenu entries={menuFor?.(vm)} onSelect={handleMenuSelect}>
             <SessionTab
                 active={active}
+                maskLabel={!rename.renaming}
                 label={
                     rename.renaming ? (
                         // The editor owns its own events: a click here must not select the tab and
@@ -271,10 +285,11 @@ const RailTab = ({
                     <SimpleTooltip title={vm.status.label}>
                         <span
                             aria-label={vm.status.label}
+                            // No pulse: at 6px the fade to half read as a washed-out colour,
+                            // not as motion. The hue alone says running / waiting.
                             className={clsx(
                                 "h-1.5 w-1.5 shrink-0 rounded-full",
                                 vm.status.dotClassName,
-                                vm.status.pulse && "motion-safe:animate-pulse",
                             )}
                         />
                     </SimpleTooltip>
@@ -283,8 +298,8 @@ const RailTab = ({
         </SessionRowContextMenu>
     )
 
-    // 5px = 2px + the 1px divider + 2px, so TAB_DIVIDER lands centred with clearance either side.
-    const wrapper = clsx("mr-[5px] shrink-0", divided && TAB_DIVIDER)
+    // 9px = 4px + the 1px divider + 4px, so TAB_DIVIDER lands centred with clearance either side.
+    const wrapper = clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)
     return draggable ? (
         <SessionTabDragItem ref={ref} id={vm.id} className={wrapper}>
             {chip}
@@ -296,52 +311,6 @@ const RailTab = ({
     )
 }
 
-/**
- * The rail's own menu verbs, appended to the host's. Reserved keys, handled here and never
- * forwarded — the host knows nothing about tab order.
- *
- * They exist because touch cannot drag: a long press opens this very menu (see SessionTabDragItem),
- * so moving a tab by hand has to be sayable in words too. They are equally the keyboard path.
- */
-const MOVE_LEFT = "__rail-move-left"
-const MOVE_RIGHT = "__rail-move-right"
-
-/** Chrome's tab-close verbs, likewise reserved and handled here. */
-const CLOSE = "__rail-close"
-const CLOSE_OTHERS = "__rail-close-others"
-const CLOSE_RIGHT = "__rail-close-right"
-
-const closeEntries = (targets: SessionTabCloseTargets): SessionMenuEntry[] => [
-    {type: "divider"},
-    {
-        key: CLOSE,
-        label: withShortcutKey("Close", "session.close"),
-        icon: <XIcon size={14} />,
-        disabled: !targets.closable,
-    },
-    {
-        key: CLOSE_OTHERS,
-        label: "Close other tabs",
-        icon: <XSquareIcon size={14} />,
-        disabled: targets.others.length === 0,
-    },
-    {
-        key: CLOSE_RIGHT,
-        label: "Close tabs to the right",
-        icon: <ArrowLineRightIcon size={14} />,
-        disabled: targets.toRight.length === 0,
-    },
-]
-
-const moveEntries = (index: number, count: number): SessionMenuEntry[] =>
-    count < 2
-        ? []
-        : [
-              {type: "divider"},
-              {key: MOVE_LEFT, label: "Move left", disabled: index === 0},
-              {key: MOVE_RIGHT, label: "Move right", disabled: index === count - 1},
-          ]
-
 /** Moves the id at `index` one slot in `direction`, returning the new order. */
 const moved = (ids: string[], index: number, direction: -1 | 1): string[] => {
     const target = index + direction
@@ -351,70 +320,75 @@ const moved = (ids: string[], index: number, direction: -1 | 1): string[] => {
     return next
 }
 
-/** The hairline the tab chips are "separated by" — see SessionTab's own note. Drawn in the gap
- *  left of a tab, so it never touches the chip's own fill. The gap is 5px and the line sits 3px
- *  in from this tab's edge, which clears 2px on each side of it; at the old -7px it landed 1px
- *  PAST the previous chip's edge, so the chips read as touching. */
-const TAB_DIVIDER =
-    "relative before:absolute before:-left-[3px] before:top-1/2 before:h-3.5 before:w-px before:-translate-y-1/2 before:bg-colorBorderSecondary before:content-['']"
+/** Placeholder chips while the first rows load — a long, a short and a middling title. */
+const SKELETON_CHIP_WIDTHS = ["w-40", "w-28", "w-36"]
 
 /** The pending tab has no stream yet, so it wears the same idle chrome every quiet row does. */
 const IDLE_STATUS = sessionRowStatusMeta("idle")
 
 /**
- * A session held open but not carried by the list yet — a session created here, before it is
- * listed. There is no row view-model behind it, so it offers no menu and no rename; closing is
- * the local open-set operation, and only off the active chip (the host owns routing elsewhere).
+ * A session held open whose row has not landed yet — a session created here, before the by-id
+ * fetch sees it. There is no row view-model behind it, so the server verbs (rename, archive,
+ * pin) are off the table; the TAB verbs are not, and a chip with no menu at all read as the menu
+ * being broken (#6379). Closing goes through the host's bulk close so the active chip can go too.
  */
 const UnlistedTab = ({
     id,
     title,
     active,
+    divided,
     onSelect,
     onClose,
+    menu,
+    onMenuSelect,
 }: {
     id: string
     title: string
     active: boolean
+    divided?: boolean
     onSelect?: (sessionId: string) => void
     onClose?: () => void
+    menu?: SessionMenuEntry[]
+    onMenuSelect?: (key: string) => void
 }) => {
     const ref = useRevealWhenActive(active)
     return (
-        <div ref={ref} className="mr-1.5 shrink-0">
-            <SessionTab
-                active={active}
-                label={title}
-                onSelect={() => onSelect?.(id)}
-                statusDot={
-                    <SimpleTooltip title={IDLE_STATUS.label}>
-                        <span
-                            aria-label={IDLE_STATUS.label}
-                            className={clsx(
-                                "h-1.5 w-1.5 shrink-0 rounded-full",
-                                IDLE_STATUS.dotClassName,
-                            )}
-                        />
-                    </SimpleTooltip>
-                }
-                renderActions={
-                    onClose
-                        ? () => (
-                              <button
-                                  type="button"
-                                  aria-label={`Close ${title}`}
-                                  onClick={(event) => {
-                                      event.stopPropagation()
-                                      onClose()
-                                  }}
-                                  className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                              >
-                                  <XIcon size={12} />
-                              </button>
-                          )
-                        : undefined
-                }
-            />
+        <div ref={ref} className={clsx("mr-2.25 shrink-0", divided && TAB_DIVIDER)}>
+            <SessionRowContextMenu entries={menu} onSelect={onMenuSelect}>
+                <SessionTab
+                    active={active}
+                    label={title}
+                    onSelect={() => onSelect?.(id)}
+                    statusDot={
+                        <SimpleTooltip title={IDLE_STATUS.label}>
+                            <span
+                                aria-label={IDLE_STATUS.label}
+                                className={clsx(
+                                    "h-1.5 w-1.5 shrink-0 rounded-full",
+                                    IDLE_STATUS.dotClassName,
+                                )}
+                            />
+                        </SimpleTooltip>
+                    }
+                    renderActions={
+                        onClose
+                            ? () => (
+                                  <button
+                                      type="button"
+                                      aria-label={`Close ${title}`}
+                                      onClick={(event) => {
+                                          event.stopPropagation()
+                                          onClose()
+                                      }}
+                                      className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                  >
+                                      <XIcon size={12} />
+                                  </button>
+                              )
+                            : undefined
+                    }
+                />
+            </SessionRowContextMenu>
         </div>
     )
 }
@@ -436,54 +410,85 @@ export const SessionTabRail = ({
     className,
     ...listArgs
 }: SessionTabRailProps) => {
+    // The card list seeds a first visit — which tabs start open, and in what order. It decides
+    // nothing after that; the sidebar shares this query, so it costs no extra request.
     const list = useSessionCardList(listArgs)
-    // One strip, in list order — the card list's waiting/pinned/recent headings are a vertical
-    // idea; a tab strip has no room for them and the status dots already carry the urgency.
-    const listRows = useMemo(() => list.groups.flatMap((group) => group.rows), [list.groups])
+    const listedIds = useMemo(
+        () => list.groups.flatMap((group) => group.rows.map((vm) => vm.id)),
+        [list.groups],
+    )
     // A rail is arranged by hand, so the user's order wins over the list's. Scoped to the agent
     // whose sessions these are — arranging one agent's rail says nothing about another's.
     const orderScope = sessionTabScope(listArgs.agentId)
     const savedOrder = useAtomValue(sessionTabOrderAtomFamily(orderScope))
     const setSavedOrder = useSetAtom(setSessionTabOrderAtom)
-    const arranged = useMemo(
-        () => applySessionTabOrder(listRows, savedOrder),
-        [listRows, savedOrder],
-    )
-    const listedIds = useMemo(() => arranged.map((vm) => vm.id), [arranged])
     // Rank every session the list carries, open or not, so reopening one restores its old slot.
     useSessionTabOrderSeed(orderScope, listedIds)
     // Membership is the user's own: tabs are an explicit set here, not a view of the server list.
     const openIds = useOpenSessionTabs(orderScope, listedIds, activeSessionId)
+    // Rows for exactly that set, by id — see the header for why not the list's rows.
+    const tabs = useSessionTabRows({
+        policy: listArgs.policy,
+        agentId: listArgs.agentId,
+        ids: openIds,
+    })
+    const arranged = useMemo(
+        () => applySessionTabOrder(tabs.rows, savedOrder),
+        [tabs.rows, savedOrder],
+    )
+    // Still filtered: a by-id page can lag the open set by one fetch after a close.
     const rows = useMemo(
         () => openSessionTabRows(arranged, openIds, activeSessionId),
         [arranged, openIds, activeSessionId],
     )
+    const fetchedIds = useMemo(() => tabs.rows.map((vm) => vm.id), [tabs.rows])
     const hasActive = rows.some((vm) => vm.id === activeSessionId)
-    // Sessions open here but absent from the capped list — chiefly one just created. The rail
-    // renders them itself, so navigating away no longer takes the new tab with it.
+    // Sessions open here whose row has not landed — chiefly one just created, which the by-id
+    // fetch sees only after it is opened. The rail renders them itself, so navigating away no
+    // longer takes the new tab with it.
     const [unlisted, setUnlisted] = useState<{id: string; title: string}[]>([])
     const closeOpenTabs = useSetAtom(closeSessionTabsAtom)
     useEffect(() => {
-        if (list.isPending || hasActive || !activeSessionId) return
+        if (tabs.isPending || hasActive || !activeSessionId) return
         setUnlisted((prev) =>
             prev.some((tab) => tab.id === activeSessionId)
                 ? prev
                 : [...prev, {id: activeSessionId, title: activeFallbackTitle || "New session"}],
         )
-    }, [activeFallbackTitle, activeSessionId, hasActive, list.isPending])
-    // Let one go the moment the list carries it, or the tab is closed.
+    }, [activeFallbackTitle, activeSessionId, hasActive, tabs.isPending])
+    // Let one go the moment its row lands, or the tab is closed.
     useEffect(() => {
         setUnlisted((prev) => {
             const next = prev.filter(
-                (tab) => !listedIds.includes(tab.id) && (openIds?.includes(tab.id) ?? true),
+                (tab) => !fetchedIds.includes(tab.id) && (openIds?.includes(tab.id) ?? true),
             )
             return next.length === prev.length ? prev : next
         })
-    }, [listedIds, openIds])
+    }, [fetchedIds, openIds])
+    // The effect above trims state a commit late; the commit a row lands in must not draw the
+    // chip twice, so what renders is derived here, synchronously.
+    const visibleUnlisted = useMemo(
+        () => unlisted.filter((tab) => !fetchedIds.includes(tab.id)),
+        [unlisted, fetchedIds],
+    )
     const orderedIds = useMemo(() => rows.map((vm) => vm.id), [rows])
+    // Everything on the strip, in rendered order — unlisted chips trail the rows. This is the
+    // order a close reads its survivor from, so closing an unlisted chip lands somewhere too.
+    const renderedIds = useMemo(
+        () => [...orderedIds, ...visibleUnlisted.map((tab) => tab.id)],
+        [orderedIds, visibleUnlisted],
+    )
     // Published so a keyboard surface outside the rail can address "the Nth tab".
-    usePublishRenderedSessionTabs(orderScope, orderedIds)
-    const closeTabs = useMemo(() => rows.map((vm) => ({id: vm.id, pinned: vm.isPinned})), [rows])
+    usePublishRenderedSessionTabs(orderScope, renderedIds)
+    const closeTabs = useMemo(
+        () => [
+            ...rows.map((vm) => ({id: vm.id, pinned: vm.isPinned})),
+            ...visibleUnlisted.map((tab) => ({id: tab.id, pinned: false})),
+        ],
+        [rows, visibleUnlisted],
+    )
+    // The last chip stays: closing it would leave the surface with nothing to show.
+    const closable = renderedIds.length > 1
     // Persist the WHOLE visible order on every drop, so sessions the saved order had never seen are
     // captured by the first arrangement that touches them.
     const handleReorder = useCallback(
@@ -505,21 +510,26 @@ export const SessionTabRail = ({
             reorder={reorderable ? {ids: orderedIds, onReorder: handleReorder} : undefined}
             className={className}
         >
-            {list.isPending && rows.length === 0
-                ? [0, 1].map((i) => <Skeleton key={i} className="mr-1.5 h-7 w-[112px] shrink-0" />)
+            {tabs.isPending && rows.length === 0
+                ? // Three chips at the widths real titles land on, so the strip does not jump
+                  // when they arrive. SkeletonBlock, not the composite: that one is a title plus
+                  // paragraph rows, and squeezed into 28px it read as a smear.
+                  SKELETON_CHIP_WIDTHS.map((width) => (
+                      <SkeletonBlock
+                          key={width}
+                          active
+                          className={clsx("mr-2.25 h-7 shrink-0 rounded", width)}
+                      />
+                  ))
                 : rows.map((vm, index) => (
                       <RailTab
                           key={vm.id}
                           vm={vm}
                           active={vm.id === activeSessionId}
-                          divided={
-                              index > 0 &&
-                              vm.id !== activeSessionId &&
-                              rows[index - 1]?.id !== activeSessionId
-                          }
+                          divided={index > 0}
                           onSelect={onSelect}
                           draggable={reorderable}
-                          onClose={onClose ? () => onClose(vm, orderedIds) : undefined}
+                          onClose={onClose && closable ? () => onClose(vm, renderedIds) : undefined}
                           onRename={onRenameTab ? (name) => onRenameTab(vm, name) : undefined}
                           menuFor={(row) => [
                               ...(menuFor?.(row) ?? []),
@@ -536,14 +546,14 @@ export const SessionTabRail = ({
                                   return
                               }
                               if (key === CLOSE) {
-                                  onClose?.(row, orderedIds)
+                                  onClose?.(row, renderedIds)
                                   return
                               }
                               if (key === CLOSE_OTHERS || key === CLOSE_RIGHT) {
                                   const targets = sessionTabCloseTargets(closeTabs, row.id)
                                   onCloseMany?.(
                                       key === CLOSE_OTHERS ? targets.others : targets.toRight,
-                                      orderedIds,
+                                      renderedIds,
                                   )
                                   return
                               }
@@ -551,20 +561,32 @@ export const SessionTabRail = ({
                           }}
                       />
                   ))}
-            {list.isPending
+            {tabs.isPending
                 ? null
-                : unlisted.map((tab) => (
+                : visibleUnlisted.map((tab, index) => (
                       <UnlistedTab
                           key={tab.id}
                           id={tab.id}
                           title={tab.title}
                           active={tab.id === activeSessionId}
+                          divided={rows.length > 0 || index > 0}
                           onSelect={onSelectUnlisted}
-                          // Never off the chip you are on: the host owns where a close lands.
+                          // Only the tab verbs, and only when the host can land a close.
+                          menu={onCloseMany ? unlistedTabMenu(closeTabs, tab.id) : undefined}
+                          onMenuSelect={(key) => {
+                              const ids = unlistedTabCloseIds(key, closeTabs, tab.id)
+                              if (ids) onCloseMany?.(ids, renderedIds)
+                          }}
+                          // The host owns where a close lands, so it takes the active chip's
+                          // close; without a host handler only a chip you are not on can go.
                           onClose={
-                              tab.id === activeSessionId
+                              !closable
                                   ? undefined
-                                  : () => closeOpenTabs({scope: orderScope, ids: [tab.id]})
+                                  : onCloseMany
+                                    ? () => onCloseMany([tab.id], renderedIds)
+                                    : tab.id === activeSessionId
+                                      ? undefined
+                                      : () => closeOpenTabs({scope: orderScope, ids: [tab.id]})
                           }
                       />
                   ))}

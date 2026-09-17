@@ -1,7 +1,8 @@
-import {useMemo} from "react"
-
 import {invalidateSessionListQueries} from "@agenta/entities/session"
-import {invalidateWorkflowsListCache} from "@agenta/entities/workflow"
+import {
+    invalidateAgentCommittedRevisionCache,
+    invalidateWorkflowsListCache,
+} from "@agenta/entities/workflow"
 import {getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
@@ -25,6 +26,9 @@ export const projectWatchUrl = (projectId: string): string =>
  */
 const invalidateProjectWorkflowQueries = (): void => {
     invalidateWorkflowsListCache()
+    // A change to a workflow is, as often as not, a new revision — committed by the agent, by
+    // this app's auto-save, or by another device — so the latest-revision caches must re-read.
+    invalidateAgentCommittedRevisionCache()
     void getHostQueryClient().invalidateQueries({
         predicate: (query) => query.queryKey.includes("agents-workflows"),
     })
@@ -43,21 +47,19 @@ const invalidateProjectWorkflowQueries = (): void => {
  * changed while the stream was down (a phone that was asleep, a backend that restarted). The two
  * change events stay narrow, so a busy chat does not refetch the agents list on every turn.
  */
+/** What each server event refreshes. Module scope: nothing here closes over a render. */
+export const projectWatchHandlers: Record<ProjectWatchEvent, () => void> = {
+    ready: () => {
+        invalidateSessionListQueries()
+        invalidateProjectWorkflowQueries()
+    },
+    "session-changed": invalidateSessionListQueries,
+    "workflow-changed": invalidateProjectWorkflowQueries,
+}
+
 export const useProjectWatch = ({refreshSession}: {refreshSession: RefreshSession}): void => {
     const projectId = useAtomValue(projectIdAtom)
     const url = projectId ? projectWatchUrl(projectId) : null
 
-    const handlers = useMemo(
-        (): Record<ProjectWatchEvent, () => void> => ({
-            ready: () => {
-                invalidateSessionListQueries()
-                invalidateProjectWorkflowQueries()
-            },
-            "session-changed": invalidateSessionListQueries,
-            "workflow-changed": invalidateProjectWorkflowQueries,
-        }),
-        [],
-    )
-
-    useWatchEventSource({url, on: handlers, refreshSession})
+    useWatchEventSource({url, on: projectWatchHandlers, refreshSession})
 }

@@ -250,6 +250,25 @@ describe("mergePendingSendEchoRows before acknowledgement", () => {
         expect(merged.map((m) => m.id)).toEqual(["u1", "live-preview-turn-1", "pending-send-m1"])
     })
 
+    it("puts an unacknowledged echo above the preview on a fresh session", () => {
+        // Nothing saved yet: the preview can only be the answer to this very send.
+        const echoes = pendingSendEchoMessages([echo("m1", "asked", 1)])
+        const merged = mergePendingSendEchoRows([], echoes, [preview("turn-1")])
+        expect(merged.map((m) => m.id)).toEqual(["pending-send-m1", "live-preview-turn-1"])
+    })
+
+    it("puts an unacknowledged echo above the preview when the previous turn is answered", () => {
+        const answered = [user("u1", "saved"), assistant("a1", "answered")]
+        const echoes = pendingSendEchoMessages([echo("m1", "asked", 2)])
+        const merged = mergePendingSendEchoRows(answered, echoes, [preview("turn-2")])
+        expect(merged.map((m) => m.id)).toEqual([
+            "u1",
+            "a1",
+            "pending-send-m1",
+            "live-preview-turn-2",
+        ])
+    })
+
     it("falls back for the whole group when only one echo is unacknowledged", () => {
         const echoes = pendingSendEchoMessages([
             echo("m1", "one", 2, {executionId: "turn-1"}),

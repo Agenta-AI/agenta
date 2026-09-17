@@ -3,6 +3,8 @@ import {createStore} from "jotai"
 import {describe, expect, it} from "vitest"
 
 import {
+    activityFoldKey,
+    runKey,
     errorKey,
     expandedKeysForMessages,
     messageBodyKey,
@@ -56,6 +58,7 @@ describe("expandedKeysForMessages", () => {
             new Set([
                 errorKey("m1"),
                 messageBodyKey("m1"),
+                activityFoldKey("m1"),
                 reasoningKey("m1", 0),
                 toolRowKey("tool-1"),
                 toolGroupKey("tool-1"),
@@ -65,12 +68,24 @@ describe("expandedKeysForMessages", () => {
         )
     })
 
+    it("keeps the run fold a user message started", () => {
+        const messages = [{id: "u1", role: "user", parts: []}] as unknown as UIMessage[]
+        expect(expandedKeysForMessages(messages)).toEqual(
+            new Set([
+                errorKey("u1"),
+                messageBodyKey("u1"),
+                activityFoldKey("u1"),
+                activityFoldKey(runKey("u1")),
+            ]),
+        )
+    })
+
     it("skips a tool part with no toolCallId", () => {
         const messages = [
             {id: "m1", role: "assistant", parts: [{type: "tool-bash", state: "input-available"}]},
         ] as unknown as UIMessage[]
         expect(expandedKeysForMessages(messages)).toEqual(
-            new Set([errorKey("m1"), messageBodyKey("m1")]),
+            new Set([errorKey("m1"), messageBodyKey("m1"), activityFoldKey("m1")]),
         )
     })
 })
