@@ -29,6 +29,7 @@ not write to it.
 
 import pytest
 
+from oss.src.utils.env import env
 from oss.tests.pytest.utils.postgres import (
     confirm_deployment_under_test,
     confirm_same_server,
@@ -106,10 +107,29 @@ def guard_the_deployment_under_test(*, databases) -> None:
         _INSTALLERS[database]()
 
 
+_ADDRESSES = ("core", "tracing")
+
+
 @pytest.fixture(autouse=True)
 def the_deployment_under_test(deployment_applies, deployment_databases):
-    """The guard above, run before every case of a layer that reads a deployment's database."""
+    """The guard above, run before every case, with the addresses it installs given back after.
+
+    Installing points the shared settings object at a host address, and that object outlives
+    the layer: it is one singleton for the process. Left installed, it turned a later unit
+    directory in the same worker into a different suite — `unit/sessions` skips its DAO cases
+    when the configured core database is unreachable, and after an integration file had run,
+    the address it left behind was reachable, so 142 cases that had skipped ran instead. What
+    a case does then depended on what ran before it in that worker, which under `-n auto` is
+    not the same twice (D152).
+    """
     if not deployment_applies:
+        yield
         return
 
-    guard_the_deployment_under_test(databases=deployment_databases)
+    installed = {name: getattr(env.postgres, f"uri_{name}") for name in _ADDRESSES}
+    try:
+        guard_the_deployment_under_test(databases=deployment_databases)
+        yield
+    finally:
+        for name, address in installed.items():
+            setattr(env.postgres, f"uri_{name}", address)

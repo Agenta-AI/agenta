@@ -28,6 +28,15 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(autouse=True)
+def _every_case_here_reads_the_tracing_database(the_tracing_database):
+    """These DAOs are built on `get_analytics_engine()`, whose address is POSTGRES_URI_TRACING.
+
+    Without it the cases used to fail on a name that does not resolve, which reads as a defect
+    in the code rather than as a missing address (D152).
+    """
+
+
+@pytest.fixture(autouse=True)
 async def _fresh_engine_per_test():
     """Each pytest-asyncio test gets its own event loop; the module-level engine
     singleton binds its asyncpg pool to the first loop that touches it. Reset it
